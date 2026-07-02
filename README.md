@@ -16,19 +16,19 @@ This repository currently contains the project skeleton:
 
 ## Runtime Targets
 
-- Python 3.14.x
+- Python 3.12.x through 3.14.x
 - PostgreSQL local database
 - Interactive Brokers Gateway
 - FastAPI + Jinja2 + HTMX
 
-Python.org currently lists Python 3.14.6 as the latest stable release. The project is therefore configured for the 3.14 line.
+The project supports the locally installed Python 3.12 line and can move forward to the 3.14 line when that runtime is installed.
 
 ## Local Setup
 
-Create a virtual environment with Python 3.14:
+Create a virtual environment:
 
 ```powershell
-py -3.14 -m venv .venv
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -e ".[dev]"
@@ -56,6 +56,20 @@ Health check:
 
 ```text
 http://127.0.0.1:8000/health
+```
+
+## Database Migrations
+
+SwingLens uses Alembic for PostgreSQL schema migrations. After installing the project dependencies in the virtual environment, apply the schema with:
+
+```powershell
+alembic upgrade head
+```
+
+To review the SQL without applying it:
+
+```powershell
+alembic upgrade head --sql
 ```
 
 ## Input References

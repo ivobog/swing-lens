@@ -7,7 +7,7 @@ name = "swing-lens"
 version = "0.1.0"
 description = "Local stock research cockpit with CSV fundamentals, IB Gateway OHLCV, and Pine-compatible scoring."
 readme = "README.md"
-requires-python = ">=3.14,<3.15"
+requires-python = ">=3.12,<3.15"
 authors = [
   { name = "Ivica Bogoevski" }
 ]
@@ -43,7 +43,7 @@ pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

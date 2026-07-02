@@ -102,6 +102,33 @@ dd {
   white-space: nowrap;
 }
 
+.alert {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid #f2c69b;
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: #8a4a16;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.section-gap {
+  margin-top: 18px;
+}
+
 .upload-box {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -179,6 +206,35 @@ dt {
 dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th,
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+td a {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 @media (max-width: 720px) {

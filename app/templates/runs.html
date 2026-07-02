@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Runs{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h1>Runs</h1>
+      <p>Uploaded CSV files and their raw-row storage status.</p>
+    </div>
+    <a class="button-link" href="/">New upload</a>
+  </div>
+
+  {% if runs %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Filename</th>
+            <th>Status</th>
+            <th>Rows</th>
+            <th>Uploaded</th>
+            <th>Processed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in runs %}
+            <tr>
+              <td><a href="/runs/{{ run.id }}">{{ run.id }}</a></td>
+              <td>{{ run.filename }}</td>
+              <td>{{ run.status }}</td>
+              <td>{{ run.row_count or 0 }}</td>
+              <td>{{ run.uploaded_at }}</td>
+              <td>{{ run.processed_at or "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No CSV runs have been uploaded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

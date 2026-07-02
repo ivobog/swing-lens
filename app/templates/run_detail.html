@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Run {{ run.id }}{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h1>Run {{ run.id }}</h1>
+      <p>{{ run.filename }}</p>
+    </div>
+    <a class="button-link" href="/runs">All runs</a>
+  </div>
+
+  {% if run.error_message %}
+    <div class="alert">{{ run.error_message }}</div>
+  {% endif %}
+
+  <dl>
+    <dt>Status</dt>
+    <dd>{{ run.status }}</dd>
+    <dt>Rows</dt>
+    <dd>{{ run.row_count or 0 }}</dd>
+    <dt>Uploaded</dt>
+    <dd>{{ run.uploaded_at }}</dd>
+    <dt>Stored file</dt>
+    <dd>{{ run.file_path }}</dd>
+    <dt>Notes</dt>
+    <dd>{{ run.notes or "" }}</dd>
+  </dl>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Raw Rows</h2>
+      <p>Preserved CSV rows mapped to ticker, company, and sector.</p>
+    </div>
+  </div>
+
+  {% if rows %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Ticker</th>
+            <th>Company</th>
+            <th>Sector</th>
+            <th>Raw Columns</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.row_number }}</td>
+              <td>{{ row.ticker }}</td>
+              <td>{{ row.company_name or "" }}</td>
+              <td>{{ row.sector or "" }}</td>
+              <td>{{ row.raw_json|length }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No rows were stored for this run.</p>
+  {% endif %}
+</section>
+{% endblock %}

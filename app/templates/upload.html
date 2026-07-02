@@ -12,13 +12,17 @@
     <span class="status-pill">IB Gateway: {{ ib_status }}</span>
   </div>
 
-  <form class="upload-box" method="post" enctype="multipart/form-data">
+  {% if error %}
+    <div class="alert">{{ error }}</div>
+  {% endif %}
+
+  <form class="upload-box" method="post" action="/uploads" enctype="multipart/form-data">
     <input id="csv-file" name="file" type="file" accept=".csv">
     <label for="csv-file">
       <strong>Select CSV</strong>
-      <span>Upload processing arrives in the CSV slice.</span>
+      <span>Raw rows will be stored in PostgreSQL.</span>
     </label>
-    <button type="button" disabled>Process</button>
+    <button type="submit">Process</button>
   </form>
 </section>
 
@@ -45,5 +49,44 @@
       <dd>{{ settings.ib_client_id }}</dd>
     </dl>
   </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Recent Runs</h2>
+      <p>Latest uploaded CSV runs stored in PostgreSQL.</p>
+    </div>
+    <a class="button-link" href="/runs">All runs</a>
+  </div>
+
+  {% if recent_runs %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Filename</th>
+            <th>Status</th>
+            <th>Rows</th>
+            <th>Uploaded</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in recent_runs %}
+            <tr>
+              <td><a href="/runs/{{ run.id }}">{{ run.id }}</a></td>
+              <td>{{ run.filename }}</td>
+              <td>{{ run.status }}</td>
+              <td>{{ run.row_count or 0 }}</td>
+              <td>{{ run.uploaded_at }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No runs yet.</p>
+  {% endif %}
 </section>
 {% endblock %}

@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+*.egg-info/
 
 data/uploads/*
 data/exports/*
@@ -14,4 +15,5 @@ data/cache/*
 !data/cache/.gitkeep
 
 *.log
+uvicorn.*.log
 *.sqlite3

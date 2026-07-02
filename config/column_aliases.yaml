@@ -1,0 +1,10 @@
+ticker:
+  - Symbol
+  - Ticker
+  - Ticker Symbol
+company_name:
+  - Description
+  - Company
+  - Company Name
+sector:
+  - Sector

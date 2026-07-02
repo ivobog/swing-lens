@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import health_routes, upload_routes
+from app.routers import health_routes, run_routes, upload_routes
 from app.settings import get_settings
 
 settings = get_settings()
@@ -16,6 +16,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
     app.include_router(health_routes.router)
     app.include_router(upload_routes.router)
+    app.include_router(run_routes.router)
     return app
 
 
