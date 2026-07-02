@@ -1,0 +1,120 @@
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from app.db import get_db
+from app.services.bar_cache_service import ensure_daily_bars
+from app.services.ib_connection import check_ib_connection, create_ib_client
+from app.services.ib_contract_resolver import resolve_us_stock_contract
+from app.settings import get_settings
+
+router = APIRouter(prefix="/ib", tags=["interactive-brokers"])
+DbSession = Annotated[Session, Depends(get_db)]
+
+
+@router.get("/status")
+def ib_status() -> dict[str, object]:
+    settings = get_settings()
+    return {
+        "host": settings.ib_host,
+        "port": settings.ib_port,
+        "client_id": settings.ib_client_id,
+        "default_duration": settings.ib_default_duration,
+        "default_bar_size": settings.ib_default_bar_size,
+        "use_rth": settings.ib_use_rth,
+        "order_endpoints": False,
+    }
+
+
+@router.post("/test")
+def test_ib_connection() -> dict[str, object]:
+    status = check_ib_connection()
+    return {
+        "connected": status.connected,
+        "host": status.host,
+        "port": status.port,
+        "client_id": status.client_id,
+        "message": status.message,
+    }
+
+
+@router.post("/resolve/{ticker}")
+def resolve_ticker(ticker: str, db: DbSession, force_refresh: bool = False) -> dict[str, object]:
+    ib = create_ib_client()
+    settings = get_settings()
+    try:
+        ib.connect(
+            settings.ib_host,
+            settings.ib_port,
+            clientId=settings.ib_client_id,
+            timeout=settings.ib_timeout_seconds,
+            readonly=True,
+        )
+        resolution = resolve_us_stock_contract(db, ticker, ib, force_refresh=force_refresh)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        if ib.isConnected():
+            ib.disconnect()
+
+    row = resolution.cache_row
+    return {
+        "ticker": row.ticker,
+        "status": row.resolution_status,
+        "ib_conid": row.ib_conid,
+        "symbol": row.symbol,
+        "exchange": row.exchange,
+        "primary_exchange": row.primary_exchange,
+        "currency": row.currency,
+        "sec_type": row.sec_type,
+        "error_message": row.error_message,
+    }
+
+
+@router.post("/fetch")
+def fetch_bars(
+    db: DbSession,
+    tickers: Annotated[str, Query(description="Comma-separated ticker list")],
+    include_benchmarks: bool = True,
+) -> dict[str, object]:
+    ticker_list = [ticker.strip() for ticker in tickers.split(",") if ticker.strip()]
+    if not ticker_list:
+        raise HTTPException(status_code=400, detail="Provide at least one ticker.")
+
+    try:
+        summary = ensure_daily_bars(
+            db,
+            ticker_list,
+            include_benchmarks=include_benchmarks,
+        )
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "requested_tickers": ticker_list,
+        "include_benchmarks": include_benchmarks,
+        "fetched": summary.fetched,
+        "inserted": summary.inserted,
+        "failures": [
+            {
+                "ticker": item.ticker,
+                "what_to_show": item.what_to_show,
+                "error_message": item.error_message,
+            }
+            for item in summary.failures
+        ],
+        "items": [
+            {
+                "ticker": item.ticker,
+                "what_to_show": item.what_to_show,
+                "fetched": item.fetched,
+                "inserted": item.inserted,
+                "status": item.status,
+            }
+            for item in summary.items
+        ],
+    }

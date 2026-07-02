@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     ib_use_rth: bool = True
     ib_default_duration: str = "2 Y"
     ib_default_bar_size: str = "1 day"
+    ib_request_delay_seconds: float = 0.25
 
     def ensure_local_dirs(self) -> None:
         for directory in (self.upload_dir, self.export_dir, self.cache_dir):

@@ -82,6 +82,21 @@ SwingLens keeps MVP scoring and mapping defaults in `config/`:
 
 Uploaded CSV rows are still preserved exactly as raw JSON in PostgreSQL.
 
+## Interactive Brokers
+
+SwingLens talks to a locally running IB Gateway or Trader Workstation through `ib_insync`.
+
+Useful local endpoints:
+
+```text
+GET  /ib/status
+POST /ib/test
+POST /ib/resolve/{ticker}
+POST /ib/fetch?tickers=MSFT,NVDA
+```
+
+The IB integration only reads market data and contract metadata. There are no order endpoints.
+
 ## Input References
 
 The MVP design references these local input files:
