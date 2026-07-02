@@ -8,3 +8,147 @@ company_name:
   - Company Name
 sector:
   - Sector
+price:
+  - Price
+price_currency:
+  - Price - Currency
+price_change_1d_pct:
+  - Price change %, 1 day
+volume_change_1d_pct:
+  - Volume change %, 1 day
+relative_volume_1d:
+  - Relative volume, 1 day
+market_cap:
+  - Market capitalization
+  - Market Cap
+  - Market Capitalization
+market_cap_currency:
+  - Market capitalization - Currency
+pe_ratio:
+  - Price to earnings ratio
+  - P/E
+eps_growth_quarterly_yoy:
+  - Earnings per share diluted growth %, Quarterly YoY
+eps_growth_ttm_yoy:
+  - Earnings per share diluted growth %, TTM YoY
+eps_estimate_annual:
+  - Earnings per share estimate, Annual
+eps_estimate_annual_currency:
+  - Earnings per share estimate, Annual - Currency
+performance_1w_pct:
+  - Performance %, 1 week
+performance_1m_pct:
+  - Performance %, 1 month
+performance_3m_pct:
+  - Performance %, 3 months
+performance_1y_pct:
+  - Performance %, 1 year
+revenue_growth_quarterly_yoy:
+  - Revenue growth %, Quarterly YoY
+revenue_growth_ttm_yoy:
+  - Revenue growth %, TTM YoY
+revenue_growth_5y_cagr:
+  - Revenue growth %, 5 year CAGR
+revenue_estimate_annual:
+  - Revenue estimate, Annual
+revenue_estimate_annual_currency:
+  - Revenue estimate, Annual - Currency
+gross_margin_ttm:
+  - Gross margin %, Trailing 12 months
+gross_profit_growth_ttm_yoy:
+  - Gross profit growth %, TTM YoY
+ebitda_growth_ttm_yoy:
+  - EBITDA growth %, TTM YoY
+ebitda_margin_ttm:
+  - EBITDA margin %, Trailing 12 months
+operating_margin_ttm:
+  - Operating margin %, Trailing 12 months
+net_margin_ttm:
+  - Net margin %, Trailing 12 months
+roe_ttm:
+  - Return on equity %, Trailing 12 months
+return_on_total_capital_ttm:
+  - Return on total capital %, Trailing 12 months
+fcf_ttm:
+  - Free cash flow, Trailing 12 months
+fcf_ttm_currency:
+  - Free cash flow, Trailing 12 months - Currency
+fcf_growth_ttm_yoy:
+  - Free cash flow growth %, TTM YoY
+fcf_margin_ttm:
+  - Free cash flow margin %, Trailing 12 months
+pfcf:
+  - Price to free cash flow ratio
+  - P/FCF
+ev_fcf:
+  - Enterprise value to free cash flow, Trailing 12 months
+operating_cash_flow_per_share_ttm:
+  - Operating cash flow per share, Trailing 12 months
+operating_cash_flow_per_share_ttm_currency:
+  - Operating cash flow per share, Trailing 12 months - Currency
+net_debt_to_ebitda:
+  - Net debt to EBITDA ratio, Trailing 12 months
+debt_to_equity:
+  - Debt to equity ratio, Quarterly
+debt_to_ebitda_annual:
+  - Debt to EBITDA ratio, Annual
+debt_to_assets:
+  - Debt to assets ratio, Annual
+current_ratio:
+  - Current ratio, Quarterly
+ev_revenue:
+  - Enterprise value to revenue ratio, Trailing 12 months
+ev_revenue_duplicate:
+  - Enterprise value to revenue ratio, Trailing 12 months.1
+ps_ratio:
+  - Price to sales ratio
+roic_ttm:
+  - Return on invested capital %, Trailing 12 months
+roce_ttm:
+  - Return on capital employed %, Trailing 12 months
+ebitda_interest_coverage_ttm:
+  - EBITDA interest coverage, Trailing 12 months
+total_debt_per_share_annual:
+  - Total debt per share, Annual
+total_debt_per_share_annual_currency:
+  - Total debt per share, Annual - Currency
+total_debt_to_capital_annual:
+  - Total debt to capital, Annual
+total_common_shares_outstanding:
+  - Total common shares outstanding
+buyback_yield:
+  - Buyback yield %
+forward_pe:
+  - Forward non-GAAP price to earnings, Annual
+peg_ratio:
+  - Price to earning to growth, Trailing 12 months
+ev_ebitda:
+  - Enterprise value to EBITDA ratio, Trailing 12 months
+dollar_volume_10d:
+  - Price × average volume, 10 days
+  - Price x average volume, 10 days
+dollar_volume_10d_currency:
+  - Price × average volume, 10 days - Currency
+  - Price x average volume, 10 days - Currency
+dollar_volume_30d:
+  - Price × average volume, 30 days
+  - Price x average volume, 30 days
+dollar_volume_30d_currency:
+  - Price × average volume, 30 days - Currency
+  - Price x average volume, 30 days - Currency
+dollar_volume_60d:
+  - Price × average volume, 60 days
+  - Price x average volume, 60 days
+dollar_volume_60d_currency:
+  - Price × average volume, 60 days - Currency
+  - Price x average volume, 60 days - Currency
+free_float:
+  - Free float
+tradingview_momentum_10d:
+  - Momentum, 10, 1 day
+tradingview_atr_pct_14d:
+  - Average true range %, 14, 1 day
+beta_1y:
+  - Beta, 1 year
+beta_3y:
+  - Beta, 3 years

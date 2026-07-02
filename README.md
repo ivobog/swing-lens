@@ -72,6 +72,16 @@ To review the SQL without applying it:
 alembic upgrade head --sql
 ```
 
+## Configuration Files
+
+SwingLens keeps MVP scoring and mapping defaults in `config/`:
+
+- `column_aliases.yaml` maps uploaded CSV headers to canonical internal field names.
+- `pine_defaults.yaml` stores the Pine v3.2 parameter defaults to port into Python.
+- `scoring_weights.yaml` stores initial fundamental and combined-decision weights.
+
+Uploaded CSV rows are still preserved exactly as raw JSON in PostgreSQL.
+
 ## Input References
 
 The MVP design references these local input files:

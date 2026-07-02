@@ -1,0 +1,26 @@
+fundamental_components:
+  growth_score: 0.18
+  profitability_score: 0.18
+  fcf_score: 0.16
+  balance_sheet_score: 0.14
+  valuation_score: 0.12
+  momentum_score: 0.10
+  dilution_score: 0.06
+  risk_score: 0.06
+
+combined_score:
+  fundamental_score: 0.55
+  dual_score: 0.45
+
+penalties:
+  danger_classification: 3.0
+  overheated_momentum: 1.5
+  value_trap_risk: 2.0
+  growth_trap_risk: 1.5
+  missing_data: 1.0
+  liquidity_warning: 1.0
+
+labels:
+  strong_candidate_min_score: 8.0
+  candidate_min_score: 6.8
+  watch_min_score: 5.5

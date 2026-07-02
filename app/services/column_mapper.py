@@ -11,6 +11,7 @@ class MappedCsvRow:
     ticker: str
     company_name: str | None
     sector: str | None
+    canonical: dict[str, Any]
     raw: dict[str, Any]
 
 
@@ -39,30 +40,47 @@ def map_csv_rows(
 ) -> list[MappedCsvRow]:
     aliases = aliases or load_alias_map()
     fieldnames = {field for row in rows for field in row.keys()}
+    column_by_canonical = {
+        canonical_name: find_column(fieldnames, canonical_aliases)
+        for canonical_name, canonical_aliases in aliases.items()
+    }
 
-    ticker_column = find_column(fieldnames, aliases.get("ticker", ["Ticker", "Symbol"]))
-    company_column = find_column(
-        fieldnames,
-        aliases.get("company_name", ["Company", "Description"]),
-    )
-    sector_column = find_column(fieldnames, aliases.get("sector", ["Sector"]))
+    ticker_column = column_by_canonical.get("ticker")
+    company_column = column_by_canonical.get("company_name")
+    sector_column = column_by_canonical.get("sector")
 
     mapped_rows: list[MappedCsvRow] = []
     for index, row in enumerate(rows, start=1):
         ticker = _clean_value(row.get(ticker_column)) if ticker_column else ""
         company_name = _clean_value(row.get(company_column)) if company_column else None
         sector = _clean_value(row.get(sector_column)) if sector_column else None
+        canonical = _canonicalize_row(row, column_by_canonical)
         mapped_rows.append(
             MappedCsvRow(
                 row_number=index,
                 ticker=ticker.upper(),
                 company_name=company_name,
                 sector=sector,
+                canonical=canonical,
                 raw=row,
             )
         )
 
     return mapped_rows
+
+
+def _canonicalize_row(
+    row: dict[str, Any],
+    column_by_canonical: dict[str, str | None],
+) -> dict[str, Any]:
+    canonical: dict[str, Any] = {}
+    for canonical_name, source_column in column_by_canonical.items():
+        if not source_column:
+            continue
+        value = _clean_value(row.get(source_column))
+        if value is not None:
+            canonical[canonical_name] = value
+    return canonical
 
 
 def _clean_value(value: Any) -> str | None:

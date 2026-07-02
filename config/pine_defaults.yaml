@@ -1,0 +1,99 @@
+engine:
+  pine_version: "3.2.0"
+  python_port_version: "3.2.0-port.1"
+
+trend:
+  emaFastLen: 10
+  emaPullbackLen: 20
+  smaMidLen: 50
+  smaTrendLen: 150
+  smaSlowLen: 200
+  midSlopeLookback: 10
+  slowSlopeLookback: 20
+  adxLen: 14
+  adxSmoothing: 14
+  minAdxTrend: 18.0
+  structureLookback: 20
+  pivotLeftBars: 3
+  pivotRightBars: 3
+  highLow52Len: 252
+
+momentum:
+  rsiLen: 14
+  atrLen: 14
+  volLen: 20
+  greenRedVolLookback: 10
+  recentRedVolLookback: 5
+  distributionLookback: 10
+  obvSmaLen: 20
+  obvSlopeLookback: 10
+
+pullback_breakout:
+  pullbackLookback: 20
+  breakoutLookback: 40
+  minPullbackPct: 3.0
+  maxPullbackPct: 18.0
+  maTouchPct: 4.0
+  breakoutVolRatio: 1.20
+  failureVolRatio: 1.10
+
+risk:
+  extensionWarnPct: 8.0
+  extensionDangerPct: 15.0
+  heavyRedVolRatio: 1.50
+  nearResistancePct: 3.0
+  failedBreakoutBars: 8
+  atrWarnPct: 6.0
+  atrDangerPct: 10.0
+  gapExhaustionPct: 4.0
+  gapExhaustionVolRatio: 1.30
+  minAvgVolume: 300000
+  useLiquidityWarning: true
+  useNotionalLiquidityFilter: true
+  minNotionalVolume: 10000000
+  notionalVolumeLookback: 20
+
+stop_target:
+  stopMode: "Structure + ATR"
+  atrStopMultiple: 1.50
+  smaStopAtrBuffer: 0.50
+  structureAtrBuffer: 0.30
+  targetMode: "R Multiple"
+  targetRewardMultiple: 2.0
+  atrTargetMultiple: 3.0
+  minRewardRisk: 2.0
+  useModeRewardRisk: true
+  useRewardRiskFilter: true
+
+market_rs:
+  useMarketFilter: true
+  useRelativeStrengthFilter: true
+  useSectorBenchmark: false
+  marketSymbol: "SPY"
+  benchmarkSymbol: "SPY"
+  sectorSymbol: "QQQ"
+  marketMinScore: 5.5
+  rsMinScore: 5.5
+  sectorMinScore: 5.0
+  marketDistributionMax: 4
+  marketRiskOffPenalty: 2.0
+  rsSmaLen: 50
+  rocShortLen: 21
+  rocMediumLen: 63
+  rocLongLen: 126
+  rsNewHighLookback: 21
+
+htf:
+  useHtfTrendFilter: true
+  blendHtfIntoTrendScore: true
+  htfTimeframe: "W"
+  useConfirmedHtf: true
+  htfFastLen: 10
+  htfMidLen: 30
+  htfSlowLen: 40
+  htfSlopeLookback: 4
+  htfRocLookback: 13
+  htfMinScore: 5.5
+
+scoring:
+  scoringMode: "Balanced"
