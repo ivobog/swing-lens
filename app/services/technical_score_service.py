@@ -15,6 +15,10 @@ from app.services.technical_indicators import (
 )
 
 
+class TechnicalScoringError(ValueError):
+    pass
+
+
 def score_run_technicals(
     db: Session,
     run_id: int,
@@ -25,18 +29,18 @@ def score_run_technicals(
     benchmark_price = _load_price_frame(db, benchmark_ticker)
     market_features = _market_features(benchmark_price, benchmark_ticker)
 
-    scores = [
-        build_technical_score(
-            run_id=run_id,
-            score=_score_ticker(
+    scores: list[TechnicalScore] = []
+    for ticker in symbols:
+        try:
+            score = _score_ticker(
                 db=db,
                 ticker=ticker,
                 benchmark_price=benchmark_price,
                 market_features=market_features,
-            ),
-        )
-        for ticker in symbols
-    ]
+            )
+            scores.append(build_technical_score(run_id=run_id, score=score))
+        except Exception as exc:
+            scores.append(unavailable_technical_score(run_id, ticker, str(exc)))
 
     if symbols:
         db.execute(
@@ -48,6 +52,28 @@ def score_run_technicals(
     db.add_all(scores)
     db.flush()
     return scores
+
+
+def unavailable_technical_score(
+    run_id: int,
+    ticker: str,
+    reason: str,
+) -> TechnicalScore:
+    return TechnicalScore(
+        run_id=run_id,
+        ticker=ticker.upper(),
+        classification="No trade",
+        action_bias="No data",
+        technical_confidence="error",
+        insufficient_data=True,
+        missing_data_json={
+            "unavailable": True,
+            "reason": reason,
+        },
+        debug_json={
+            "error": reason,
+        },
+    )
 
 
 def build_technical_score(run_id: int, score: PineReplicaScore) -> TechnicalScore:
@@ -89,6 +115,11 @@ def _score_ticker(
     market_features: dict[str, Any],
 ) -> PineReplicaScore:
     price, trades = load_preferred_ohlcv_frames(db, ticker)
+    if price.empty:
+        raise TechnicalScoringError(
+            f"No cached OHLCV bars for {ticker.upper()}. Fetch IB data first."
+        )
+
     features = calculate_technical_features(price, trades, ticker=ticker)
     htf_features = calculate_htf_trend_features(price) if not price.empty else {}
     relative_strength_features = _relative_strength_features(price, benchmark_price)

@@ -1,18 +1,24 @@
 # SwingLens
 
-SwingLens is a local-only stock research cockpit. It accepts a daily CSV, preserves the uploaded data, connects to Interactive Brokers Gateway for OHLCV data, and will later combine fundamental and Pine-compatible technical scoring into a ranked decision table.
+SwingLens is a local-only stock research cockpit. It accepts a daily CSV, preserves the uploaded data, connects to Interactive Brokers Gateway for OHLCV data, and combines fundamental plus Pine-compatible technical scoring into a ranked decision cockpit.
 
 ## Current Status
 
-This repository currently contains the project skeleton:
+This repository currently contains the MVP application:
 
 - FastAPI application shell
 - Jinja2 template setup
 - Static asset mounting
 - Environment-based settings
 - SQLAlchemy database engine/session helper
-- Health endpoint
-- Local upload/results/cache directories
+- Health and readiness endpoints
+- Local upload/export/cache directories
+- CSV upload with raw-row preservation
+- Fundamental scoring
+- IB Gateway contract and daily bar cache
+- Pine v3.2 replica technical scoring
+- Combined decision cockpit
+- CSV exports and run history
 
 ## Runtime Targets
 
@@ -58,6 +64,12 @@ Health check:
 http://127.0.0.1:8000/health
 ```
 
+Readiness check:
+
+```text
+http://127.0.0.1:8000/ready
+```
+
 ## Database Migrations
 
 SwingLens uses Alembic for PostgreSQL schema migrations. After installing the project dependencies in the virtual environment, apply the schema with:
@@ -97,12 +109,49 @@ POST /ib/fetch?tickers=MSFT,NVDA
 
 The IB integration only reads market data and contract metadata. There are no order endpoints.
 
+## Cockpit Workflow
+
+1. Upload a TradingView-style CSV from the home page.
+2. Use IB Gateway paper trading to fetch cached bars for the uploaded tickers.
+3. Open the run detail page and select `Refresh cockpit`.
+4. Review ranked combined decisions, technical classifications, and position-size hints.
+5. Use `/history` to inspect previous runs.
+
+If a ticker has no cached OHLCV data or cannot be technically scored, SwingLens stores a low-confidence technical row and keeps the refresh moving. The combined result for that ticker is marked as incomplete rather than failing the whole run.
+
+## Exports
+
+Every run exposes CSV exports:
+
+```text
+/runs/{run_id}/exports/combined.csv
+/runs/{run_id}/exports/fundamentals.csv
+/runs/{run_id}/exports/technicals.csv
+/runs/{run_id}/exports/raw.csv
+```
+
 ## Technical Indicators
 
 The technical indicator engine lives in `app/services/technical_indicators.py`. It calculates
 daily OHLCV features such as EMA/SMA, RSI, ATR, DMI/ADX, OBV, ROC, pullback geometry,
 breakout state, volume quality, candle risk signals, stop/target, relative strength inputs,
 and weekly higher-timeframe trend features.
+
+## Hardening Checks
+
+Before a trading-research session:
+
+```powershell
+alembic upgrade head
+ruff check app tests
+pytest -q
+```
+
+Then confirm:
+
+```text
+http://127.0.0.1:8000/ready
+```
 
 ## Input References
 

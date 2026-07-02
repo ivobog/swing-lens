@@ -7,3 +7,11 @@ class HealthResponse(BaseModel):
     database_configured: bool
     ib_host: str
     ib_port: int
+
+
+class ReadinessResponse(BaseModel):
+    app: str
+    status: str
+    database_ok: bool
+    local_dirs_ok: bool
+    checks: dict[str, str]
