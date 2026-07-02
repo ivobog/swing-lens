@@ -7,9 +7,10 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.models.enums import RunStatus
-from app.models.tables import RawCompanyRow, UploadRun
+from app.models.tables import FundamentalScore, RawCompanyRow, UploadRun
 from app.services.column_mapper import map_csv_rows
 from app.services.csv_loader import CsvLoadError, load_csv_rows
+from app.services.fundamental_ranker import score_rows, to_decimal
 from app.services.validation_service import CsvValidationError, validate_mapped_rows
 from app.settings import get_settings
 
@@ -58,12 +59,34 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         for row in mapped_rows
         if row.ticker
     ]
+    fundamental_scores = [
+        FundamentalScore(
+            run_id=run.id,
+            ticker=score.ticker,
+            growth_score=to_decimal(score.growth_score),
+            profitability_score=to_decimal(score.profitability_score),
+            fcf_score=to_decimal(score.fcf_score),
+            balance_sheet_score=to_decimal(score.balance_sheet_score),
+            valuation_score=to_decimal(score.valuation_score),
+            momentum_score=to_decimal(score.momentum_score),
+            dilution_score=to_decimal(score.dilution_score),
+            risk_score=to_decimal(score.risk_score),
+            missing_data_penalty=to_decimal(score.missing_data_penalty),
+            fundamental_score=to_decimal(score.fundamental_score),
+            fundamental_label=score.fundamental_label,
+            trap_flags_json={"flags": score.trap_flags},
+            explanation=score.explanation,
+            debug_json=score.debug,
+        )
+        for score in score_rows(mapped_rows)
+    ]
 
     db.add_all(raw_rows)
+    db.add_all(fundamental_scores)
     run.row_count = len(raw_rows)
     run.processed_at = datetime.now(UTC)
     run.status = RunStatus.COMPLETED.value
-    run.notes = "CSV uploaded and raw rows stored. Scoring has not run yet."
+    run.notes = "CSV uploaded, raw rows stored, and fundamental scores calculated."
     db.commit()
     db.refresh(run)
     return run

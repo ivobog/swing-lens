@@ -47,16 +47,27 @@
             <th>Ticker</th>
             <th>Company</th>
             <th>Sector</th>
+            <th>Fundamental</th>
+            <th>Score</th>
+            <th>Flags</th>
             <th>Raw Columns</th>
           </tr>
         </thead>
         <tbody>
           {% for row in rows %}
+            {% set score = scores_by_ticker.get(row.ticker) %}
             <tr>
               <td>{{ row.row_number }}</td>
               <td>{{ row.ticker }}</td>
               <td>{{ row.company_name or "" }}</td>
               <td>{{ row.sector or "" }}</td>
+              <td>{{ score.fundamental_label if score else "" }}</td>
+              <td>{{ "%.2f"|format(score.fundamental_score) if score and score.fundamental_score is not none else "" }}</td>
+              <td>
+                {% if score and score.trap_flags_json and score.trap_flags_json.flags %}
+                  {{ score.trap_flags_json.flags|join(", ") }}
+                {% endif %}
+              </td>
               <td>{{ row.raw_json|length }}</td>
             </tr>
           {% endfor %}

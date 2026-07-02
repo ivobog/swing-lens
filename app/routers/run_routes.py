@@ -28,10 +28,22 @@ def run_detail_page(
     run = db.scalar(
         select(UploadRun)
         .where(UploadRun.id == run_id)
-        .options(selectinload(UploadRun.raw_company_rows))
+        .options(
+            selectinload(UploadRun.raw_company_rows),
+            selectinload(UploadRun.fundamental_scores),
+        )
     )
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
 
     rows = sorted(run.raw_company_rows, key=lambda row: row.row_number)
-    return templates.TemplateResponse(request, "run_detail.html", {"run": run, "rows": rows})
+    scores_by_ticker = {score.ticker: score for score in run.fundamental_scores}
+    return templates.TemplateResponse(
+        request,
+        "run_detail.html",
+        {
+            "run": run,
+            "rows": rows,
+            "scores_by_ticker": scores_by_ticker,
+        },
+    )
