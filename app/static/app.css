@@ -69,6 +69,10 @@ body {
   margin-bottom: 22px;
 }
 
+.compact-header {
+  margin-bottom: 0;
+}
+
 h1,
 h2,
 p {
@@ -133,7 +137,12 @@ dd {
 .actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+.export-actions {
+  justify-content: flex-end;
 }
 
 .section-gap {
@@ -323,7 +332,8 @@ td a {
   .nav,
   .status-pill,
   .upload-box button,
-  .actions .button-link {
+  .actions .button-link,
+  .actions form {
     margin-top: 14px;
   }
 

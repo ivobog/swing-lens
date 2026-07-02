@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens History{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h1>History</h1>
+      <p>Past runs, generated cockpit counts, and recent ranked decisions.</p>
+    </div>
+    <a class="button-link" href="/">New upload</a>
+  </div>
+
+  {% if run_summaries %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Filename</th>
+            <th>Status</th>
+            <th>Rows</th>
+            <th>Combined</th>
+            <th>Top</th>
+            <th>Uploaded</th>
+            <th>Exports</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for summary in run_summaries %}
+            <tr>
+              <td><a href="/runs/{{ summary.run_id }}">{{ summary.run_id }}</a></td>
+              <td>{{ summary.filename }}</td>
+              <td>{{ summary.status }}</td>
+              <td>{{ summary.row_count }}</td>
+              <td>{{ summary.combined_count }}</td>
+              <td>
+                {% if summary.top_ticker %}
+                  {{ summary.top_ticker }}
+                  <span class="muted-line">
+                    {{ "%.2f"|format(summary.top_score) if summary.top_score is not none else "" }}
+                    {{ summary.top_decision or "" }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>{{ summary.uploaded_at or "" }}</td>
+              <td>
+                <a href="/runs/{{ summary.run_id }}/exports/combined.csv">combined</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No run history yet.</p>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Recent Decisions</h2>
+      <p>Latest ranked combined results across stored runs.</p>
+    </div>
+  </div>
+
+  {% if recent_decisions %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Rank</th>
+            <th>Ticker</th>
+            <th>Company</th>
+            <th>Sector</th>
+            <th>Final</th>
+            <th>Decision</th>
+            <th>Size</th>
+            <th>Uploaded</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for decision in recent_decisions %}
+            {% set decision_class = decision.combined_decision|default("unclassified", true)|lower|replace(" ", "-") %}
+            <tr>
+              <td><a href="/runs/{{ decision.run_id }}">{{ decision.run_id }}</a></td>
+              <td>{{ decision.rank }}</td>
+              <td>{{ decision.ticker }}</td>
+              <td>{{ decision.company_name or "" }}</td>
+              <td>{{ decision.sector or "" }}</td>
+              <td>{{ "%.2f"|format(decision.final_score) if decision.final_score is not none else "" }}</td>
+              <td>
+                <span class="decision-pill decision-{{ decision_class }}">
+                  {{ decision.combined_decision or "" }}
+                </span>
+              </td>
+              <td>{{ decision.position_size_hint or "" }}</td>
+              <td>{{ decision.uploaded_at or "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No combined decisions have been generated yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
