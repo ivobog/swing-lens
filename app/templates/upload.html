@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Upload{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h1>Daily CSV Upload</h1>
+      <p>Load the company universe, preserve raw rows, then process the run.</p>
+    </div>
+    <span class="status-pill">IB Gateway: {{ ib_status }}</span>
+  </div>
+
+  <form class="upload-box" method="post" enctype="multipart/form-data">
+    <input id="csv-file" name="file" type="file" accept=".csv">
+    <label for="csv-file">
+      <strong>Select CSV</strong>
+      <span>Upload processing arrives in the CSV slice.</span>
+    </label>
+    <button type="button" disabled>Process</button>
+  </form>
+</section>
+
+<section class="grid">
+  <div>
+    <h2>Local App</h2>
+    <dl>
+      <dt>Host</dt>
+      <dd>{{ settings.app_host }}:{{ settings.app_port }}</dd>
+      <dt>Uploads</dt>
+      <dd>{{ settings.upload_dir }}</dd>
+      <dt>Exports</dt>
+      <dd>{{ settings.export_dir }}</dd>
+    </dl>
+  </div>
+  <div>
+    <h2>IB Gateway</h2>
+    <dl>
+      <dt>Host</dt>
+      <dd>{{ settings.ib_host }}</dd>
+      <dt>Port</dt>
+      <dd>{{ settings.ib_port }}</dd>
+      <dt>Client ID</dt>
+      <dd>{{ settings.ib_client_id }}</dd>
+    </dl>
+  </div>
+</section>
+{% endblock %}

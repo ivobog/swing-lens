@@ -1,0 +1,1 @@
+"""SwingLens application package."""
