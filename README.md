@@ -97,6 +97,13 @@ POST /ib/fetch?tickers=MSFT,NVDA
 
 The IB integration only reads market data and contract metadata. There are no order endpoints.
 
+## Technical Indicators
+
+The technical indicator engine lives in `app/services/technical_indicators.py`. It calculates
+daily OHLCV features such as EMA/SMA, RSI, ATR, DMI/ADX, OBV, ROC, pullback geometry,
+breakout state, volume quality, candle risk signals, stop/target, relative strength inputs,
+and weekly higher-timeframe trend features.
+
 ## Input References
 
 The MVP design references these local input files:
