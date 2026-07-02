@@ -291,6 +291,14 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     features["rsi14"] = rsi(close, momentum["rsiLen"])
     features["atr14"] = atr(high, low, close, momentum["atrLen"])
     features["atr_pct"] = features["atr14"] / close * 100
+    features["sma50_slope_atr"] = (
+        (features["sma50"] - features["sma50"].shift(trend["midSlopeLookback"]))
+        / features["atr14"].replace(0, np.nan)
+    )
+    features["sma200_slope_atr"] = (
+        (features["sma200"] - features["sma200"].shift(trend["slowSlopeLookback"]))
+        / features["atr14"].replace(0, np.nan)
+    )
     features["avg_volume"] = sma(volume, momentum["volLen"])
     features["volume_ratio"] = volume / features["avg_volume"].replace(0, np.nan)
     features["obv"] = obv(close, volume)
@@ -301,6 +309,9 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     features["plus_di"] = plus_di
     features["minus_di"] = minus_di
     features["adx"] = adx
+    features["adx_rising"] = features["adx"] > features["adx"].shift(1)
+    features["plus_di_rising"] = features["plus_di"] > features["plus_di"].shift(1)
+    features["rsi_rising"] = features["rsi14"] > features["rsi14"].shift(1)
 
     features["roc21"] = roc_pct(close, params["market_rs"]["rocShortLen"])
     features["roc63"] = roc_pct(close, params["market_rs"]["rocMediumLen"])
@@ -318,6 +329,11 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         / (features["high_52w"] - features["low_52w"]).replace(0, np.nan)
         * 100
     )
+    features["near_52_high"] = ((features["high_52w"] - close) / features["high_52w"] * 100) <= 15
+    features["close_10_high"] = close.shift(1).rolling(10, min_periods=10).max()
+    features["close_20_high"] = close.shift(1).rolling(20, min_periods=20).max()
+    features["above_close_10_high"] = close > features["close_10_high"]
+    features["above_close_20_high"] = close > features["close_20_high"]
 
     features["pivot_high"] = pivot_high(high, trend["pivotLeftBars"], trend["pivotRightBars"])
     features["pivot_low"] = pivot_low(low, trend["pivotLeftBars"], trend["pivotRightBars"])
@@ -326,6 +342,10 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
 
     features["prior_high"] = high.rolling(pullback_breakout["pullbackLookback"]).max()
     features["pullback_depth_pct"] = (features["prior_high"] - close) / features["prior_high"] * 100
+    features["rsi_pullback_low"] = features["rsi14"].rolling(
+        pullback_breakout["pullbackLookback"],
+        min_periods=pullback_breakout["pullbackLookback"],
+    ).min()
     features["had_pullback"] = features["pullback_depth_pct"] >= pullback_breakout["minPullbackPct"]
     features["not_too_deep"] = features["pullback_depth_pct"] <= pullback_breakout["maxPullbackPct"]
     features["near_ema20"] = _near_level(close, features["ema20"], pullback_breakout["maTouchPct"])
@@ -384,7 +404,9 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     )
 
     candle_range = (high - low).replace(0, np.nan)
-    features["strong_close"] = ((close - low) / candle_range) >= 0.65
+    features["candle_range"] = high - low
+    features["strong_close_ratio"] = (close - low) / candle_range
+    features["strong_close"] = features["strong_close_ratio"] >= 0.65
     features["upper_wick_pct"] = (high - close.combine(open_, max)) / candle_range * 100
     features["heavy_red_candle"] = (close < open_) & (
         features["volume_ratio"] >= risk["heavyRedVolRatio"]
@@ -401,6 +423,7 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         momentum["distributionLookback"],
     )
     features["extension_above_sma50_pct"] = (close / features["sma50"] - 1) * 100
+    features["price_rising"] = close > close.shift(1)
     features["blowoff_top"] = (
         (features["extension_above_sma50_pct"] >= risk["extensionDangerPct"])
         & (features["rsi14"] >= 80)
