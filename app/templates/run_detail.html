@@ -9,7 +9,12 @@
       <h1>Run {{ run.id }}</h1>
       <p>{{ run.filename }}</p>
     </div>
-    <a class="button-link" href="/runs">All runs</a>
+    <div class="actions">
+      <form method="post" action="/runs/{{ run.id }}/combined-results">
+        <button type="submit">Refresh cockpit</button>
+      </form>
+      <a class="button-link secondary" href="/runs">All runs</a>
+    </div>
   </div>
 
   {% if run.error_message %}
@@ -33,6 +38,81 @@
 <section class="panel section-gap">
   <div class="panel-header">
     <div>
+      <h2>Decision Cockpit</h2>
+      <p>Ranked output from the fundamental score and Pine replica technical score.</p>
+    </div>
+  </div>
+
+  {% if decision_counts %}
+    <div class="summary-strip">
+      {% for label, count in decision_counts.items() %}
+        {% set label_class = label|lower|replace(" ", "-") %}
+        <span class="summary-item decision-{{ label_class }}">
+          <strong>{{ count }}</strong>
+          {{ label }}
+        </span>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if combined_results %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Ticker</th>
+            <th>Company</th>
+            <th>Sector</th>
+            <th>Final</th>
+            <th>Fundamental</th>
+            <th>Technical</th>
+            <th>Decision</th>
+            <th>Size</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in combined_results %}
+            {% set decision_class = result.combined_decision|default("unclassified", true)|lower|replace(" ", "-") %}
+            <tr>
+              <td>{{ result.final_rank }}</td>
+              <td>{{ result.ticker }}</td>
+              <td>{{ result.company_name or "" }}</td>
+              <td>{{ result.sector or "" }}</td>
+              <td>{{ "%.2f"|format(result.final_score) if result.final_score is not none else "" }}</td>
+              <td>
+                {{ "%.2f"|format(result.fundamental_score) if result.fundamental_score is not none else "" }}
+                {% if result.fundamental_label %}
+                  <span class="muted-line">{{ result.fundamental_label }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {{ "%.2f"|format(result.dual_score) if result.dual_score is not none else "" }}
+                {% if result.technical_classification %}
+                  <span class="muted-line">{{ result.technical_classification }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="decision-pill decision-{{ decision_class }}">
+                  {{ result.combined_decision or "" }}
+                </span>
+              </td>
+              <td>{{ result.position_size_hint or "" }}</td>
+              <td>{{ result.notes or "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No combined decisions have been generated for this run.</p>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
       <h2>Raw Rows</h2>
       <p>Preserved CSV rows mapped to ticker, company, and sector.</p>
     </div>
@@ -48,26 +128,34 @@
             <th>Company</th>
             <th>Sector</th>
             <th>Fundamental</th>
-            <th>Score</th>
-            <th>Flags</th>
+            <th>Technical</th>
+            <th>Combined</th>
             <th>Raw Columns</th>
           </tr>
         </thead>
         <tbody>
           {% for row in rows %}
-            {% set score = scores_by_ticker.get(row.ticker) %}
+            {% set fundamental = fundamental_by_ticker.get(row.ticker) %}
+            {% set technical = technical_by_ticker.get(row.ticker) %}
+            {% set combined = combined_by_ticker.get(row.ticker) %}
             <tr>
               <td>{{ row.row_number }}</td>
               <td>{{ row.ticker }}</td>
               <td>{{ row.company_name or "" }}</td>
               <td>{{ row.sector or "" }}</td>
-              <td>{{ score.fundamental_label if score else "" }}</td>
-              <td>{{ "%.2f"|format(score.fundamental_score) if score and score.fundamental_score is not none else "" }}</td>
               <td>
-                {% if score and score.trap_flags_json and score.trap_flags_json.flags %}
-                  {{ score.trap_flags_json.flags|join(", ") }}
+                {{ fundamental.fundamental_label if fundamental else "" }}
+                {% if fundamental and fundamental.fundamental_score is not none %}
+                  <span class="muted-line">{{ "%.2f"|format(fundamental.fundamental_score) }}</span>
                 {% endif %}
               </td>
+              <td>
+                {{ technical.classification if technical else "" }}
+                {% if technical and technical.dual_score is not none %}
+                  <span class="muted-line">{{ "%.2f"|format(technical.dual_score) }}</span>
+                {% endif %}
+              </td>
+              <td>{{ combined.combined_decision if combined else "" }}</td>
               <td>{{ row.raw_json|length }}</td>
             </tr>
           {% endfor %}

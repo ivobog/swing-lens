@@ -125,6 +125,17 @@ dd {
   white-space: nowrap;
 }
 
+.button-link.secondary {
+  background: #eef2f6;
+  color: var(--text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .section-gap {
   margin-top: 18px;
 }
@@ -175,6 +186,10 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+form {
+  margin: 0;
 }
 
 .grid {
@@ -237,16 +252,78 @@ td a {
   font-weight: 700;
 }
 
+.summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.summary-item,
+.decision-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f4f6f8;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.decision-strong-candidate {
+  border-color: #a9d5c6;
+  background: #e3f5ee;
+  color: #0e5949;
+}
+
+.decision-candidate {
+  border-color: #c4d8f2;
+  background: #eaf3ff;
+  color: #24527d;
+}
+
+.decision-watchlist {
+  border-color: #e8d79d;
+  background: #fff8df;
+  color: #735b12;
+}
+
+.decision-avoid {
+  border-color: #e4b4b4;
+  background: #fff0f0;
+  color: #8c2f2f;
+}
+
+.decision-incomplete-data {
+  border-color: #cfd6df;
+  background: #f3f5f7;
+  color: #4d5b6a;
+}
+
+.muted-line {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .topbar,
   .panel-header,
-  .upload-box {
+  .upload-box,
+  .actions {
     display: block;
   }
 
   .nav,
   .status-pill,
-  .upload-box button {
+  .upload-box button,
+  .actions .button-link {
     margin-top: 14px;
   }
 
