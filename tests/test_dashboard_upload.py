@@ -7,6 +7,7 @@ from fastapi import UploadFile
 from app.models.tables import UploadRun
 from app.routers.upload_routes import _dashboard_summary, _next_action
 from app.services.upload_service import UploadProcessingError, _validate_upload_size
+from app.templates import templates
 
 
 def test_validate_upload_size_rejects_large_file_and_resets_pointer() -> None:
@@ -39,6 +40,35 @@ def test_dashboard_summary_handles_empty_state() -> None:
     assert summary["latest_run_id"] is None
     assert summary["latest_status"] == "No runs"
     assert summary["next_action"] == "Upload a daily screener CSV."
+
+
+def test_upload_template_handles_missing_dashboard_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(
+        templates.env.globals,
+        "url_for",
+        lambda _name, path: path,
+    )
+    template = templates.get_template("upload.html")
+
+    html = template.render(
+        settings=SimpleNamespace(
+            max_upload_size_mb=20,
+            app_host="127.0.0.1",
+            app_port=8000,
+            upload_dir="data/uploads",
+            export_dir="data/exports",
+            ib_host="127.0.0.1",
+            ib_port=4002,
+            ib_client_id=21,
+        ),
+        ib_status="Not tested",
+        latest_run=None,
+        recent_runs=[],
+        error=None,
+    )
+
+    assert "Upload a daily screener CSV." in html
+    assert "No runs yet." in html
 
 
 def _run(status: str) -> UploadRun:

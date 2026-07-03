@@ -18,6 +18,7 @@ from app.routers.run_routes import (
 )
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
+from app.templates import templates
 
 
 def test_run_summary_counts_cockpit_state() -> None:
@@ -128,6 +129,17 @@ def test_fetch_plan_helpers_count_actions_and_build_json_url() -> None:
     assert "format=json" in url
     assert "ticker_subset=MSFT%2CAAPL" in url
     assert "what_to_show=TRADES" in url
+
+
+def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=3, status="COMPLETED")
+
+    html = templates.get_template("run_detail.html").render(run=run)
+
+    assert "Run 1" in html
+    assert "Raw CSV Preview" in html
+    assert "No combined decisions yet." in html
 
 
 def _row(ticker: str, row_number: int) -> RawCompanyRow:

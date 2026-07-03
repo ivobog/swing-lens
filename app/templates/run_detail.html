@@ -3,6 +3,56 @@
 {% block title %}SwingLens Run {{ run.id }}{% endblock %}
 
 {% block content %}
+{% set rows = rows|default([]) %}
+{% set raw_preview = raw_preview|default([]) %}
+{% set fundamental_by_ticker = fundamental_by_ticker|default({}) %}
+{% set technical_by_ticker = technical_by_ticker|default({}) %}
+{% set combined_by_ticker = combined_by_ticker|default({}) %}
+{% set combined_results = combined_results|default([]) %}
+{% set decision_counts = decision_counts|default({}) %}
+{% set run_summary = run_summary|default({
+  "row_count": run.row_count or 0,
+  "combined_count": 0,
+  "incomplete_count": 0,
+  "warning_count": 0,
+  "strong_count": 0,
+  "duplicate_ticker_count": 0,
+  "raw_column_count": 0,
+  "top_complete": none
+}) %}
+{% set workflow_steps = workflow_steps|default([]) %}
+{% set coverage = coverage|default(namespace(
+  ready_count=0,
+  insufficient_count=0,
+  stale_count=0,
+  missing_volume_count=0,
+  failed_contract_count=0,
+  missing_count=0,
+  required_rows=0,
+  benchmark_spy_ready=false,
+  benchmark_qqq_ready=false,
+  items=[]
+)) %}
+{% set latest_fetch = latest_fetch|default(none) %}
+{% set ib_panel = ib_panel|default({
+  "host": "",
+  "port": "",
+  "client_id": "",
+  "read_only": true,
+  "full_backfill_duration": "",
+  "top_up_duration": "",
+  "refresh_duration": "",
+  "default_bar_size": "",
+  "requests_per_minute": "",
+  "min_seconds_between_requests": "",
+  "benchmarks": "",
+  "required_daily_bars": "",
+  "test_status": none,
+  "test_message": none
+}) %}
+{% set warning_badges_by_ticker = warning_badges_by_ticker|default({}) %}
+{% set decision_filters = decision_filters|default([]) %}
+{% set sector_filters = sector_filters|default([]) %}
 <section class="panel">
   <div class="panel-header run-header">
     <div>

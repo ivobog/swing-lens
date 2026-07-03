@@ -3,6 +3,18 @@
 {% block title %}SwingLens Dashboard{% endblock %}
 
 {% block content %}
+{% set dashboard = dashboard|default({
+  "latest_run_id": none,
+  "latest_status": "No runs",
+  "row_count": 0,
+  "combined_count": 0,
+  "incomplete_count": 0,
+  "strong_count": 0,
+  "coverage_ready": 0,
+  "coverage_total": 0,
+  "next_action": "Upload a daily screener CSV.",
+  "combined_export_url": none
+}) %}
 <section class="panel">
   <div class="panel-header">
     <div>

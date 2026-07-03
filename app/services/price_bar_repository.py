@@ -44,6 +44,6 @@ def load_preferred_ohlcv_frames(
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     adjusted = load_price_bars_frame(db, ticker, "ADJUSTED_LAST", timeframe)
     trades = load_price_bars_frame(db, ticker, "TRADES", timeframe)
-    price = adjusted if not adjusted.empty else trades
+    price = trades if not trades.empty else adjusted
     volume = trades if not trades.empty else None
     return price, volume

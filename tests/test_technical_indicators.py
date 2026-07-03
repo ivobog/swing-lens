@@ -5,8 +5,10 @@ import pandas as pd
 import pytest
 
 from app.models.tables import PriceBar
+from app.services import price_bar_repository
 from app.services.price_bar_repository import load_price_bars_frame
 from app.services.technical_indicators import (
+    _higher_last_pivot,
     calculate_htf_trend_features,
     calculate_relative_strength_features,
     calculate_technical_features,
@@ -54,6 +56,26 @@ def test_prepare_ohlcv_uses_trade_volume_when_available() -> None:
     assert prepared["volume"].tolist() == [100, 200, 300]
 
 
+def test_preferred_ohlcv_uses_trades_prices_for_tradingview_parity(monkeypatch) -> None:
+    adjusted = _synthetic_ohlcv(rows=3).assign(close=[10.0, 10.0, 10.0])
+    trades = _synthetic_ohlcv(rows=3).assign(close=[11.0, 12.0, 13.0])
+
+    def fake_load_price_bars_frame(db, ticker, what_to_show, timeframe="1 day"):
+        return adjusted if what_to_show == "ADJUSTED_LAST" else trades
+
+    monkeypatch.setattr(
+        price_bar_repository,
+        "load_price_bars_frame",
+        fake_load_price_bars_frame,
+    )
+
+    price, volume = price_bar_repository.load_preferred_ohlcv_frames(object(), "MSFT")
+
+    assert price["close"].tolist() == [11.0, 12.0, 13.0]
+    assert volume is not None
+    assert volume["close"].tolist() == [11.0, 12.0, 13.0]
+
+
 def test_calculate_technical_features_latest_values() -> None:
     frame = _synthetic_ohlcv(rows=320)
 
@@ -68,6 +90,14 @@ def test_calculate_technical_features_latest_values() -> None:
     assert "fresh_breakout" in result.latest
     assert "suggested_stop" in result.latest
     assert result.debug["row_count"] == 320
+
+
+def test_higher_last_pivot_tracks_previous_confirmed_pivot() -> None:
+    pivots = pd.Series([None, 10.0, None, None, 12.0, None, None])
+
+    higher = _higher_last_pivot(pivots)
+
+    assert higher.tolist() == [False, False, False, False, True, True, True]
 
 
 def test_calculate_technical_features_marks_insufficient_history() -> None:
@@ -101,7 +131,9 @@ def test_weekly_resample_and_htf_features() -> None:
     features = calculate_htf_trend_features(frame)
 
     assert len(weekly) > 40
+    assert features["close"] == weekly.iloc[-2]["close"]
     assert features["htf_sma_slow"] is not None
+    assert features["htf_slow_slope_pct"] is not None
     assert features["htf_roc"] is not None
     assert "htf_close_above_mid" in features
 

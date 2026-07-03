@@ -895,7 +895,16 @@ def _derive_inputs(
     close = _num(latest.get("close"))
     open_ = _num(latest.get("open"))
     volume_ratio = _num(latest.get("volume_ratio"), 0.0)
-    benchmark_score = _rs_score_from_features(rs_features, "benchmark")
+    benchmark_score = _rs_score_from_features(
+        rs_features,
+        "benchmark",
+        stock_roc_short=_num(latest.get("roc21")),
+        stock_roc_medium=_num(latest.get("roc63")),
+        stock_roc_long=_num(latest.get("roc126")),
+        comparison_roc_short=_num(market_features.get("roc21")),
+        comparison_roc_medium=_num(market_features.get("roc63")),
+        comparison_roc_long=_num(market_features.get("roc126")),
+    )
     sector_score = _rs_score_from_features(rs_features, "sector")
     combined_rs = combined_relative_strength_score(
         benchmark_score,
@@ -1021,7 +1030,16 @@ def _derive_inputs(
     }
 
 
-def _rs_score_from_features(features: dict[str, Any], prefix: str) -> float:
+def _rs_score_from_features(
+    features: dict[str, Any],
+    prefix: str,
+    stock_roc_short: float | None = None,
+    stock_roc_medium: float | None = None,
+    stock_roc_long: float | None = None,
+    comparison_roc_short: float | None = None,
+    comparison_roc_medium: float | None = None,
+    comparison_roc_long: float | None = None,
+) -> float:
     if not features:
         return 5.0
 
@@ -1030,14 +1048,29 @@ def _rs_score_from_features(features: dict[str, Any], prefix: str) -> float:
     rs_roc_short = _num(features.get(f"{prefix}_rs_roc21"))
     rs_roc_medium = _num(features.get(f"{prefix}_rs_roc63"))
     rs_roc_long = _num(features.get(f"{prefix}_rs_roc126"))
+    beats_short = (
+        stock_roc_short > comparison_roc_short
+        if stock_roc_short is not None and comparison_roc_short is not None
+        else rs_roc_short > 0
+    )
+    beats_medium = (
+        stock_roc_medium > comparison_roc_medium
+        if stock_roc_medium is not None and comparison_roc_medium is not None
+        else rs_roc_medium > 0
+    )
+    beats_long = (
+        stock_roc_long > comparison_roc_long
+        if stock_roc_long is not None and comparison_roc_long is not None
+        else rs_roc_long > 0
+    )
     return relative_strength_score(
         rs_above_sma=line > sma,
         rs_roc_short=rs_roc_short,
         rs_roc_medium=rs_roc_medium,
         rs_roc_long=rs_roc_long,
-        beats_short=rs_roc_short > 0,
-        beats_medium=rs_roc_medium > 0,
-        beats_long=rs_roc_long > 0,
+        beats_short=beats_short,
+        beats_medium=beats_medium,
+        beats_long=beats_long,
         rs_new_high_value=_bool(features.get(f"{prefix}_rs_new_high")),
     )
 
@@ -1057,7 +1090,7 @@ def _htf_score_from_features(features: dict[str, Any]) -> float:
         fast_above_mid=fast > mid,
         mid_above_slow=mid > slow,
         mid_slope_pct=_num(features.get("htf_mid_slope_pct")),
-        slow_slope_pct=0.0,
+        slow_slope_pct=_num(features.get("htf_slow_slope_pct")),
         htf_roc=_num(features.get("htf_roc")),
         stack_strong=close > fast > mid > slow,
         stack_basic=close > mid > slow,

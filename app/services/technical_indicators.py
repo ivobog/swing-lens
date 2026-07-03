@@ -126,9 +126,12 @@ def calculate_htf_trend_features(
     weekly["htf_sma_mid"] = sma(weekly["close"], htf["htfMidLen"])
     weekly["htf_sma_slow"] = sma(weekly["close"], htf["htfSlowLen"])
     weekly["htf_mid_slope_pct"] = slope_pct(weekly["htf_sma_mid"], htf["htfSlopeLookback"])
+    weekly["htf_slow_slope_pct"] = slope_pct(weekly["htf_sma_slow"], htf["htfSlopeLookback"])
     weekly["htf_roc"] = roc_pct(weekly["close"], htf["htfRocLookback"])
     weekly["htf_close_above_mid"] = weekly["close"] > weekly["htf_sma_mid"]
     weekly["htf_mid_above_slow"] = weekly["htf_sma_mid"] > weekly["htf_sma_slow"]
+    if htf.get("useConfirmedHtf", True) and len(weekly) > 1:
+        return _features_at(weekly, -2)
     return _latest_features(weekly)
 
 
@@ -340,20 +343,42 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     features["higher_high"] = _higher_last_pivot(features["pivot_high"])
     features["higher_low"] = _higher_last_pivot(features["pivot_low"])
 
-    features["prior_high"] = high.rolling(pullback_breakout["pullbackLookback"]).max()
-    features["pullback_depth_pct"] = (features["prior_high"] - close) / features["prior_high"] * 100
+    features["prior_high"], features["recent_low_after_high"] = _pullback_geometry(
+        high,
+        low,
+        pullback_breakout["pullbackLookback"],
+    )
+    features["pullback_depth_pct"] = (
+        (features["prior_high"] - features["recent_low_after_high"])
+        / features["prior_high"].replace(0, np.nan)
+        * 100
+    ).fillna(0)
     features["rsi_pullback_low"] = features["rsi14"].rolling(
         pullback_breakout["pullbackLookback"],
         min_periods=pullback_breakout["pullbackLookback"],
     ).min()
     features["had_pullback"] = features["pullback_depth_pct"] >= pullback_breakout["minPullbackPct"]
     features["not_too_deep"] = features["pullback_depth_pct"] <= pullback_breakout["maxPullbackPct"]
-    features["near_ema20"] = _near_level(close, features["ema20"], pullback_breakout["maTouchPct"])
-    features["near_sma50"] = _near_level(close, features["sma50"], pullback_breakout["maTouchPct"])
-    features["near_sma200"] = _near_level(
+    features["near_ema20"] = _near_level_within_lookback(
+        low,
+        features["ema20"],
         close,
-        features["sma200"],
         pullback_breakout["maTouchPct"],
+        pullback_breakout["pullbackLookback"],
+    )
+    features["near_sma50"] = _near_level_within_lookback(
+        low,
+        features["sma50"],
+        close,
+        pullback_breakout["maTouchPct"],
+        pullback_breakout["pullbackLookback"],
+    )
+    features["near_sma200"] = _near_level_within_lookback(
+        low,
+        features["sma200"],
+        close,
+        pullback_breakout["maTouchPct"],
+        pullback_breakout["pullbackLookback"],
     )
     features["held_near_support"] = (
         features["near_ema20"] | features["near_sma50"] | features["near_sma200"]
@@ -366,7 +391,7 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         close,
         features["previous_resistance"],
         risk["nearResistancePct"],
-    )
+    ) & (features["previous_resistance"] >= close)
     features["fresh_breakout"] = (
         (close > features["previous_resistance"])
         & (features["volume_ratio"] >= pullback_breakout["breakoutVolRatio"])
@@ -451,6 +476,15 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
 
 def _latest_features(features: pd.DataFrame) -> dict[str, Any]:
     row = features.iloc[-1]
+    return _row_features(features, row)
+
+
+def _features_at(features: pd.DataFrame, index: int) -> dict[str, Any]:
+    row = features.iloc[index]
+    return _row_features(features, row)
+
+
+def _row_features(features: pd.DataFrame, row: pd.Series) -> dict[str, Any]:
     return {
         column: _to_python_value(row[column])
         for column in features.columns
@@ -459,13 +493,59 @@ def _latest_features(features: pd.DataFrame) -> dict[str, Any]:
 
 
 def _higher_last_pivot(pivots: pd.Series) -> pd.Series:
-    last = pivots.ffill()
-    previous = last.where(pivots.notna()).shift(1).ffill()
-    return last > previous
+    values: list[bool] = []
+    last_pivot: float | None = None
+    previous_pivot: float | None = None
+    for value in pivots:
+        if pd.notna(value):
+            previous_pivot = last_pivot
+            last_pivot = float(value)
+        values.append(
+            last_pivot is not None
+            and previous_pivot is not None
+            and last_pivot > previous_pivot
+        )
+    return pd.Series(values, index=pivots.index)
 
 
 def _near_level(series: pd.Series, level: pd.Series, pct: float) -> pd.Series:
     return ((series - level).abs() / level.replace(0, np.nan) * 100) <= pct
+
+
+def _near_level_within_lookback(
+    series: pd.Series,
+    level: pd.Series,
+    denominator: pd.Series,
+    pct: float,
+    lookback: int,
+) -> pd.Series:
+    distance = (series - level).abs() / denominator.replace(0, np.nan) * 100
+    return distance.rolling(lookback, min_periods=1).min() <= pct
+
+
+def _pullback_geometry(
+    high: pd.Series,
+    low: pd.Series,
+    lookback: int,
+) -> tuple[pd.Series, pd.Series]:
+    prior_highs: list[float | None] = []
+    recent_lows: list[float | None] = []
+    for index in range(len(high)):
+        window_start = max(0, index - lookback)
+        prior_window = high.iloc[window_start:index]
+        if prior_window.empty or prior_window.isna().all():
+            prior_highs.append(None)
+            recent_lows.append(None)
+            continue
+
+        prior_high_index = int(prior_window.idxmax())
+        prior_highs.append(float(high.iloc[prior_high_index]))
+        low_after_high = low.iloc[prior_high_index + 1 : index + 1]
+        if low_after_high.empty or low_after_high.isna().all():
+            recent_lows.append(None)
+        else:
+            recent_lows.append(float(low_after_high.min()))
+    return pd.Series(prior_highs, index=high.index), pd.Series(recent_lows, index=low.index)
 
 
 def _bars_since(condition: pd.Series) -> pd.Series:
