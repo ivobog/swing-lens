@@ -4,14 +4,14 @@
 
 {% block content %}
 <section class="panel">
-  <div class="panel-header">
+  <div class="panel-header run-header">
     <div>
       <h1>Run {{ run.id }}</h1>
       <p>{{ run.filename }}</p>
     </div>
     <div class="actions">
-      <form method="post" action="/runs/{{ run.id }}/combined-results">
-        <button type="submit">Refresh cockpit</button>
+      <form method="post" action="/runs/{{ run.id }}/combined-results" data-loading-form>
+        <button type="submit" data-loading-label="Refreshing...">Refresh cockpit</button>
       </form>
       <a class="button-link secondary" href="/runs">All runs</a>
     </div>
@@ -21,31 +21,74 @@
     <div class="alert">{{ run.error_message }}</div>
   {% endif %}
 
-  <dl>
-    <dt>Status</dt>
-    <dd>{{ run.status }}</dd>
-    <dt>Rows</dt>
-    <dd>{{ run.row_count or 0 }}</dd>
-    <dt>Uploaded</dt>
-    <dd>{{ run.uploaded_at }}</dd>
-    <dt>Stored file</dt>
-    <dd>{{ run.file_path }}</dd>
-    <dt>Notes</dt>
-    <dd>{{ run.notes or "" }}</dd>
-  </dl>
+  <div class="run-meta">
+    <span class="status-pill status-{{ run.status|lower|replace('_', '-') }}">{{ run.status }}</span>
+    <span>Uploaded {{ run.uploaded_at }}</span>
+    {% if run.processed_at %}<span>Processed {{ run.processed_at }}</span>{% endif %}
+    {% if run.notes %}<span>{{ run.notes }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="workflow" aria-label="Run workflow">
+    {% for step in workflow_steps %}
+      <div class="workflow-step workflow-{{ step.status }}">
+        <span class="workflow-dot"></span>
+        <div>
+          <strong>{{ step.label }}</strong>
+          <span>{{ step.status_label }}</span>
+          <small>{{ step.message }}</small>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="metric-grid section-gap" aria-label="Run summary">
+  <div class="metric">
+    <span>Rows</span>
+    <strong>{{ run_summary.row_count }}</strong>
+  </div>
+  <div class="metric">
+    <span>Combined</span>
+    <strong>{{ run_summary.combined_count }}</strong>
+  </div>
+  <div class="metric">
+    <span>Incomplete</span>
+    <strong>{{ run_summary.incomplete_count }}</strong>
+  </div>
+  <div class="metric">
+    <span>Warnings</span>
+    <strong>{{ run_summary.warning_count }}</strong>
+  </div>
+  <div class="metric">
+    <span>Strong</span>
+    <strong>{{ run_summary.strong_count }}</strong>
+  </div>
+  <div class="metric metric-wide">
+    <span>Top Complete</span>
+    {% if run_summary.top_complete %}
+      <strong>{{ run_summary.top_complete.ticker }}</strong>
+      <small>{{ "%.2f"|format(run_summary.top_complete.final_score) }}</small>
+    {% else %}
+      <strong>None</strong>
+    {% endif %}
+  </div>
 </section>
 
 <section class="panel section-gap">
   <div class="panel-header compact-header">
     <div>
-      <h2>Exports</h2>
-      <p>Download this run for review, filtering, or archiving outside SwingLens.</p>
+      <h2>Actions</h2>
+      <p>Refresh scores, export data, or move back through stored runs.</p>
     </div>
     <div class="actions export-actions">
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/combined.csv">Combined CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/fundamentals.csv">Fundamentals CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/technicals.csv">Technicals CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/raw.csv">Raw CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-plan.csv">IB Plan CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">IB Results CSV</a>
     </div>
   </div>
 </section>
@@ -53,8 +96,222 @@
 <section class="panel section-gap">
   <div class="panel-header">
     <div>
+      <h2>IB Gateway</h2>
+      <p>Read-only market data fetch for uploaded tickers and benchmarks.</p>
+    </div>
+    <form method="post" action="/runs/{{ run.id }}/ib/test" data-loading-form>
+      <button type="submit" data-loading-label="Testing...">Test connection</button>
+    </form>
+  </div>
+
+  <div class="ib-layout">
+    <div class="ib-card">
+      <dl class="compact-dl">
+        <dt>Host</dt>
+        <dd>{{ ib_panel.host }}</dd>
+        <dt>Port</dt>
+        <dd>{{ ib_panel.port }}</dd>
+        <dt>Client ID</dt>
+        <dd>{{ ib_panel.client_id }}</dd>
+        <dt>Read-only</dt>
+        <dd>{{ "Yes" if ib_panel.read_only else "No" }}</dd>
+        <dt>Full backfill</dt>
+        <dd>{{ ib_panel.full_backfill_duration }}</dd>
+        <dt>Top-up</dt>
+        <dd>{{ ib_panel.top_up_duration }}</dd>
+        <dt>Refresh</dt>
+        <dd>{{ ib_panel.refresh_duration }}</dd>
+        <dt>Bar size</dt>
+        <dd>{{ ib_panel.default_bar_size }}</dd>
+        <dt>Rate limit</dt>
+        <dd>{{ ib_panel.requests_per_minute }}/min, {{ ib_panel.min_seconds_between_requests }}s gap</dd>
+        <dt>Benchmarks</dt>
+        <dd>{{ ib_panel.benchmarks }}</dd>
+        <dt>Required bars</dt>
+        <dd>{{ ib_panel.required_daily_bars }}</dd>
+        <dt>Status</dt>
+        <dd>
+          {% if ib_panel.test_status %}
+            <span class="badge badge-{{ 'success' if ib_panel.test_status == 'connected' else 'warning' }}">
+              {{ ib_panel.test_status|replace("-", " ")|title }}
+            </span>
+          {% else %}
+            <span class="badge badge-muted">Not tested</span>
+          {% endif %}
+        </dd>
+        {% if ib_panel.test_message %}
+          <dt>Message</dt>
+          <dd>{{ ib_panel.test_message }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+
+    <form class="fetch-form" method="post" action="/runs/{{ run.id }}/ib/fetch" data-loading-form>
+      <label>
+        <span>Ticker subset</span>
+        <textarea name="ticker_subset" rows="3" placeholder="Optional: MSFT, AAPL, NVDA"></textarea>
+      </label>
+      <div class="fetch-options">
+        <label class="toggle-row">
+          <input type="checkbox" name="include_benchmarks" value="true" checked>
+          <span>Include SPY/QQQ</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" name="what_to_show" value="ADJUSTED_LAST" checked>
+          <span>Adjusted</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" name="what_to_show" value="TRADES" checked>
+          <span>Trades</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" name="force_refresh" value="true">
+          <span>Force recent refresh</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" name="force_full_backfill" value="true">
+          <span>Force full backfill</span>
+        </label>
+      </div>
+      <div class="actions">
+        <a class="button-link secondary" href="/runs/{{ run.id }}/ib/plan">Preview fetch plan</a>
+        <button type="submit" data-loading-label="Fetching...">Fetch IB bars</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="coverage-strip">
+    <span class="summary-item"><strong>{{ coverage.ready_count }}</strong> ready</span>
+    <span class="summary-item"><strong>{{ coverage.insufficient_count }}</strong> insufficient</span>
+    <span class="summary-item"><strong>{{ coverage.stale_count }}</strong> stale</span>
+    <span class="summary-item"><strong>{{ coverage.missing_volume_count }}</strong> missing volume</span>
+    <span class="summary-item"><strong>{{ coverage.failed_contract_count }}</strong> contract failed</span>
+    <span class="summary-item"><strong>{{ coverage.missing_count }}</strong> missing</span>
+    <span class="summary-item"><strong>{{ coverage.required_rows }}</strong> required bars</span>
+    <span class="summary-item">
+      <strong>SPY</strong>
+      {{ "ready" if coverage.benchmark_spy_ready else "missing/short" }}
+    </span>
+    <span class="summary-item">
+      <strong>QQQ</strong>
+      {{ "ready" if coverage.benchmark_qqq_ready else "missing/short" }}
+    </span>
+  </div>
+
+  {% if latest_fetch %}
+    <div class="fetch-summary">
+      <div class="panel-header compact-header">
+        <div>
+          <h3>Latest Fetch</h3>
+          <p>
+            {{ latest_fetch.status }} · fetched {{ latest_fetch.fetched_count }} ·
+            executed {{ latest_fetch.executed_request_count }} / planned {{ latest_fetch.planned_request_count }} ·
+            inserted {{ latest_fetch.inserted_count }} · revised {{ latest_fetch.revised_count }} ·
+            unchanged {{ latest_fetch.unchanged_count }} · failures {{ latest_fetch.failure_count }}
+          </p>
+        </div>
+        <div class="actions">
+          <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">Results CSV</a>
+        </div>
+      </div>
+      {% if latest_fetch.message %}
+        <p>{{ latest_fetch.message }}</p>
+      {% endif %}
+      {% if latest_fetch.items %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Data</th>
+                <th>Status</th>
+                <th>Action</th>
+                <th>Duration</th>
+                <th>Fetched</th>
+                <th>Inserted</th>
+                <th>Updated</th>
+                <th>Revised</th>
+                <th>Unchanged</th>
+                <th>Attempts</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in latest_fetch.items %}
+                <tr>
+                  <td>{{ item.ticker }}</td>
+                  <td>{{ item.what_to_show }}</td>
+                  <td>
+                    <span class="badge badge-{{ 'success' if item.status in ['SUCCESS', 'COMPLETED', 'SKIPPED'] else 'warning' if item.status in ['PLANNED', 'RUNNING'] else 'danger' }}">
+                      {{ item.status|replace("_", " ")|title }}
+                    </span>
+                  </td>
+                  <td>{{ item.action or "" }}</td>
+                  <td>{{ item.duration or "" }}</td>
+                  <td>{{ item.fetched }}</td>
+                  <td>{{ item.inserted }}</td>
+                  <td>{{ item.updated }}</td>
+                  <td>{{ item.revised }}</td>
+                  <td>{{ item.unchanged }}</td>
+                  <td>{{ item.attempt_count }}</td>
+                  <td>{{ item.error_message or "" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if coverage.items %}
+    <details class="coverage-details">
+      <summary>OHLCV coverage by ticker</summary>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Status</th>
+              <th>Adjusted bars</th>
+              <th>Trades bars</th>
+              <th>Latest adjusted</th>
+              <th>Latest trades</th>
+              <th>Price</th>
+              <th>Volume</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in coverage.items %}
+              <tr>
+                <td>{{ item.ticker }}</td>
+                <td>
+                  <span class="badge badge-{{ 'success' if item.status == 'ready' else 'warning' if item.status in ['insufficient', 'stale', 'missing_volume', 'contract_failed'] else 'muted' }}">
+                    {{ item.status|replace("_", " ")|title }}
+                  </span>
+                </td>
+                <td>{{ item.adjusted_bars }}</td>
+                <td>{{ item.trades_bars }}</td>
+                <td>{{ item.latest_adjusted_date or "" }}</td>
+                <td>{{ item.latest_trades_date or "" }}</td>
+                <td>{{ "Yes" if item.has_price else "No" }}</td>
+                <td>{{ "Yes" if item.has_volume else "No" }}</td>
+                <td>{{ item.reason }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
       <h2>Decision Cockpit</h2>
-      <p>Ranked output from the fundamental score and Pine replica technical score.</p>
+      <p>Complete rows are ranked ahead of incomplete rows. Position size is an advisory research hint.</p>
     </div>
   </div>
 
@@ -71,8 +328,55 @@
   {% endif %}
 
   {% if combined_results %}
+    <div class="cockpit-controls" data-cockpit-controls>
+      <label>
+        <span>Search</span>
+        <input type="search" data-filter-search placeholder="Ticker, company, sector">
+      </label>
+      <label>
+        <span>Decision</span>
+        <select data-filter-decision>
+          <option value="">All</option>
+          {% for decision in decision_filters %}
+            <option value="{{ decision }}">{{ decision }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Sector</span>
+        <select data-filter-sector>
+          <option value="">All</option>
+          {% for sector in sector_filters %}
+            <option value="{{ sector }}">{{ sector }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Min final</span>
+        <input type="number" min="0" max="10" step="0.1" data-filter-final>
+      </label>
+      <label>
+        <span>Min fundamental</span>
+        <input type="number" min="0" max="10" step="0.1" data-filter-fundamental>
+      </label>
+      <label>
+        <span>Min technical</span>
+        <input type="number" min="0" max="10" step="0.1" data-filter-technical>
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" data-filter-incomplete>
+        <span>Incomplete only</span>
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" data-filter-warnings>
+        <span>Warnings only</span>
+      </label>
+    </div>
+
+    <p class="filter-empty" data-filter-empty hidden>No cockpit rows match the current filters.</p>
+
     <div class="table-wrap">
-      <table>
+      <table class="cockpit-table" data-cockpit-table>
         <thead>
           <tr>
             <th>Rank</th>
@@ -80,22 +384,61 @@
             <th>Company</th>
             <th>Sector</th>
             <th>Final</th>
+            <th>Decision</th>
+            <th>Warnings</th>
             <th>Fundamental</th>
             <th>Technical</th>
-            <th>Decision</th>
             <th>Size</th>
-            <th>Notes</th>
+            <th>Details</th>
           </tr>
         </thead>
         <tbody>
           {% for result in combined_results %}
             {% set decision_class = result.combined_decision|default("unclassified", true)|lower|replace(" ", "-") %}
-            <tr>
+            {% set fundamental = fundamental_by_ticker.get(result.ticker) %}
+            {% set technical = technical_by_ticker.get(result.ticker) %}
+            {% set warning_flags = result.warning_flags_json or [] %}
+            {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
+            <tr
+              class="cockpit-row"
+              data-cockpit-row
+              data-ticker="{{ result.ticker }}"
+              data-company="{{ result.company_name or '' }}"
+              data-sector="{{ result.sector or '' }}"
+              data-decision="{{ result.combined_decision or '' }}"
+              data-fundamental-label="{{ result.fundamental_label or '' }}"
+              data-technical-classification="{{ result.technical_classification or '' }}"
+              data-final-score="{{ result.final_score if result.final_score is not none else '' }}"
+              data-fundamental-score="{{ result.fundamental_score if result.fundamental_score is not none else '' }}"
+              data-technical-score="{{ result.dual_score if result.dual_score is not none else '' }}"
+              data-incomplete="{{ 'true' if not result.is_complete else 'false' }}"
+              data-has-warning="{{ 'true' if result.has_warning else 'false' }}"
+              data-warning-flags="{{ warning_flags|join(' ') }}"
+            >
               <td>{{ result.final_rank }}</td>
-              <td>{{ result.ticker }}</td>
+              <td><strong>{{ result.ticker }}</strong></td>
               <td>{{ result.company_name or "" }}</td>
               <td>{{ result.sector or "" }}</td>
               <td>{{ "%.2f"|format(result.final_score) if result.final_score is not none else "" }}</td>
+              <td>
+                <span class="decision-pill decision-{{ decision_class }}">
+                  {{ result.combined_decision or "" }}
+                </span>
+              </td>
+              <td>
+                {% if warning_badges %}
+                  <div class="badge-list">
+                    {% for badge in warning_badges[:3] %}
+                      <span class="badge badge-{{ badge.tone }}">{{ badge.label }}</span>
+                    {% endfor %}
+                    {% if warning_badges|length > 3 %}
+                      <span class="badge badge-muted">+{{ warning_badges|length - 3 }}</span>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span class="badge badge-success">Clean</span>
+                {% endif %}
+              </td>
               <td>
                 {{ "%.2f"|format(result.fundamental_score) if result.fundamental_score is not none else "" }}
                 {% if result.fundamental_label %}
@@ -109,31 +452,113 @@
                 {% endif %}
               </td>
               <td>
-                <span class="decision-pill decision-{{ decision_class }}">
-                  {{ result.combined_decision or "" }}
-                </span>
+                {{ result.position_size_hint or "" }}
+                <span class="muted-line">Research hint</span>
               </td>
-              <td>{{ result.position_size_hint or "" }}</td>
-              <td>{{ result.notes or "" }}</td>
+              <td>
+                <button class="icon-button" type="button" data-detail-toggle aria-expanded="false">
+                  Details
+                </button>
+              </td>
+            </tr>
+            <tr class="detail-row" data-detail-row hidden>
+              <td colspan="11">
+                <div class="detail-grid">
+                  <div>
+                    <h3>Fundamentals</h3>
+                    {% if fundamental %}
+                      <dl class="compact-dl">
+                        <dt>Score</dt>
+                        <dd>{{ "%.2f"|format(fundamental.fundamental_score) if fundamental.fundamental_score is not none else "" }}</dd>
+                        <dt>Penalty</dt>
+                        <dd>{{ "%.2f"|format(fundamental.missing_data_penalty) if fundamental.missing_data_penalty is not none else "0.00" }}</dd>
+                        <dt>Missing</dt>
+                        <dd>
+                          {% set missing_fields = fundamental.debug_json.get("missing_fields", []) if fundamental.debug_json else [] %}
+                          {{ missing_fields|join(", ") if missing_fields else "None" }}
+                        </dd>
+                        <dt>Traps</dt>
+                        <dd>
+                          {% set trap_flags = fundamental.trap_flags_json.get("flags", []) if fundamental.trap_flags_json else [] %}
+                          {{ trap_flags|join(", ") if trap_flags else "None" }}
+                        </dd>
+                      </dl>
+                    {% else %}
+                      <p>No fundamental score for this ticker.</p>
+                    {% endif %}
+                  </div>
+                  <div>
+                    <h3>Technicals</h3>
+                    {% if technical %}
+                      <dl class="compact-dl">
+                        <dt>Trend</dt>
+                        <dd>{{ "%.2f"|format(technical.trend_score) if technical.trend_score is not none else "" }}</dd>
+                        <dt>Momentum</dt>
+                        <dd>{{ "%.2f"|format(technical.momentum_score) if technical.momentum_score is not none else "" }}</dd>
+                        <dt>Setup</dt>
+                        <dd>{{ "%.2f"|format(technical.setup_score) if technical.setup_score is not none else "" }}</dd>
+                        <dt>Risk</dt>
+                        <dd>{{ "%.2f"|format(technical.risk_score) if technical.risk_score is not none else "" }}</dd>
+                        <dt>Confidence</dt>
+                        <dd>{{ technical.technical_confidence or "" }}</dd>
+                        <dt>Action</dt>
+                        <dd>{{ technical.action_bias or "" }}</dd>
+                      </dl>
+                    {% else %}
+                      <p>No technical score for this ticker.</p>
+                    {% endif %}
+                  </div>
+                  <div>
+                    <h3>Risk Context</h3>
+                    <dl class="compact-dl">
+                      <dt>Notes</dt>
+                      <dd>{{ result.notes or "" }}</dd>
+                      <dt>Warnings</dt>
+                      <dd>{{ warning_flags|join(", ") if warning_flags else "None" }}</dd>
+                      {% if technical %}
+                        <dt>Stop</dt>
+                        <dd>{{ "%.2f"|format(technical.suggested_stop) if technical.suggested_stop is not none else "" }}</dd>
+                        <dt>Target</dt>
+                        <dd>{{ "%.2f"|format(technical.suggested_target) if technical.suggested_target is not none else "" }}</dd>
+                        <dt>Reward/Risk</dt>
+                        <dd>{{ "%.2f"|format(technical.reward_risk) if technical.reward_risk is not none else "" }}</dd>
+                        <dt>Entry Risk</dt>
+                        <dd>{{ "%.2f"|format(technical.entry_risk_pct) if technical.entry_risk_pct is not none else "" }}</dd>
+                      {% endif %}
+                    </dl>
+                  </div>
+                </div>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <p>No combined decisions have been generated for this run.</p>
+    <div class="empty-state">
+      <strong>No combined decisions yet.</strong>
+      <p>No technical scores or combined results have been generated for this run.</p>
+      <form method="post" action="/runs/{{ run.id }}/combined-results" data-loading-form>
+        <button type="submit" data-loading-label="Refreshing...">Refresh cockpit</button>
+      </form>
+    </div>
   {% endif %}
 </section>
 
 <section class="panel section-gap">
   <div class="panel-header">
     <div>
-      <h2>Raw Rows</h2>
-      <p>Preserved CSV rows mapped to ticker, company, and sector.</p>
+      <h2>Raw CSV Preview</h2>
+      <p>First 10 preserved rows mapped to ticker, company, and sector.</p>
     </div>
   </div>
 
-  {% if rows %}
+  <div class="summary-strip">
+    <span class="summary-item"><strong>{{ run_summary.raw_column_count }}</strong> raw columns</span>
+    <span class="summary-item"><strong>{{ run_summary.duplicate_ticker_count }}</strong> duplicate tickers</span>
+  </div>
+
+  {% if raw_preview %}
     <div class="table-wrap">
       <table>
         <thead>
@@ -149,7 +574,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for row in rows %}
+          {% for row in raw_preview %}
             {% set fundamental = fundamental_by_ticker.get(row.ticker) %}
             {% set technical = technical_by_ticker.get(row.ticker) %}
             {% set combined = combined_by_ticker.get(row.ticker) %}

@@ -2,11 +2,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from ib_insync import IB, Contract, Stock
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import IBContract
+from app.services.ib_api import IB, Contract, Stock
 
 
 @dataclass(frozen=True)

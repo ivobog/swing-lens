@@ -13,6 +13,8 @@ from app.models.tables import (
     RawCompanyRow,
     TechnicalScore,
 )
+from app.services.cockpit_sorting import cockpit_sort_key
+from app.services.confidence_service import build_combined_warning_flags
 
 DANGER_CLASSIFICATIONS = {
     "Distribution risk",
@@ -39,6 +41,12 @@ class CombinedDecision:
     combined_decision: str
     position_size_hint: str
     notes: str
+    warning_flags: list[str]
+    is_complete: bool
+    has_warning: bool
+    has_fundamental: bool
+    has_technical: bool
+    sort_bucket: int
 
 
 def refresh_combined_results(db: Session, run_id: int) -> list[CombinedResult]:
@@ -58,7 +66,7 @@ def refresh_combined_results(db: Session, run_id: int) -> list[CombinedResult]:
         )
         for row in _unique_rows(rows)
     ]
-    decisions = sorted(decisions, key=lambda item: item.final_score, reverse=True)
+    decisions = sorted(decisions, key=cockpit_sort_key)
 
     db.execute(delete(CombinedResult).where(CombinedResult.run_id == run_id))
     results = [
@@ -135,6 +143,11 @@ def combine_row_decision(
         technical_classification=technical_classification,
         technical=technical,
     )
+    warnings = build_combined_warning_flags(
+        fundamental=fundamental,
+        technical=technical,
+        decision=decision,
+    )
 
     return CombinedDecision(
         ticker=row.ticker.upper(),
@@ -148,6 +161,12 @@ def combine_row_decision(
         combined_decision=decision,
         position_size_hint=position_size,
         notes=", ".join(notes) if notes else "aligned",
+        warning_flags=warnings.flags,
+        is_complete=warnings.is_complete,
+        has_warning=warnings.has_warning,
+        has_fundamental=warnings.has_fundamental,
+        has_technical=warnings.has_technical,
+        sort_bucket=warnings.sort_bucket,
     )
 
 
@@ -231,6 +250,12 @@ def _to_model(
         combined_decision=decision.combined_decision,
         position_size_hint=decision.position_size_hint,
         notes=decision.notes,
+        warning_flags_json=decision.warning_flags,
+        is_complete=decision.is_complete,
+        has_fundamental=decision.has_fundamental,
+        has_technical=decision.has_technical,
+        has_warning=decision.has_warning,
+        sort_bucket=decision.sort_bucket,
     )
 
 

@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from ib_insync import IB, Contract
-
+from app.services.ib_api import IB, Contract
 from app.settings import Settings, get_settings
 
 
@@ -26,13 +25,17 @@ def fetch_daily_bars(
     contract: Contract,
     what_to_show: str,
     settings: Settings | None = None,
+    duration: str | None = None,
+    bar_size: str | None = None,
 ) -> list[HistoricalBar]:
     settings = settings or get_settings()
+    request_duration = duration or settings.ib_full_backfill_duration
+    request_bar_size = bar_size or settings.ib_default_bar_size
     bars = ib.reqHistoricalData(
         contract,
         endDateTime="",
-        durationStr=settings.ib_default_duration,
-        barSizeSetting=settings.ib_default_bar_size,
+        durationStr=request_duration,
+        barSizeSetting=request_bar_size,
         whatToShow=what_to_show,
         useRTH=settings.ib_use_rth,
         formatDate=1,
@@ -45,7 +48,7 @@ def fetch_daily_bars(
         HistoricalBar(
             ticker=ticker,
             bar_date=_bar_date(bar.date),
-            timeframe=settings.ib_default_bar_size,
+            timeframe=request_bar_size,
             open=_optional_float(bar.open),
             high=_optional_float(bar.high),
             low=_optional_float(bar.low),

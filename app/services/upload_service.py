@@ -25,6 +25,7 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         raise UploadProcessingError("Please upload a .csv file.")
 
     settings = get_settings()
+    _validate_upload_size(upload_file, settings.max_upload_size_mb)
     file_path = _save_upload(upload_file, settings.upload_dir, filename)
 
     run = UploadRun(
@@ -90,6 +91,18 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
     db.commit()
     db.refresh(run)
     return run
+
+
+def _validate_upload_size(upload_file: UploadFile, max_size_mb: int) -> None:
+    max_bytes = max_size_mb * 1024 * 1024
+    upload_file.file.seek(0, 2)
+    size = upload_file.file.tell()
+    upload_file.file.seek(0)
+    if size > max_bytes:
+        raise UploadProcessingError(
+            f"{upload_file.filename or 'Upload'} is too large. "
+            f"Maximum upload size is {max_size_mb} MB."
+        )
 
 
 def _save_upload(upload_file: UploadFile, upload_dir: Path, filename: str) -> Path:

@@ -2,8 +2,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ib_insync import IB
-
+from app.services.ib_api import IB
 from app.settings import Settings, get_settings
 
 
