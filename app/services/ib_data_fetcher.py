@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from ib_insync import IB, Contract
-
+from app.services.ib_api import IB, Contract
 from app.settings import Settings, get_settings
 
 

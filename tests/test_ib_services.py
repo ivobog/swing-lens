@@ -2,11 +2,11 @@ from datetime import date
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
-from ib_insync import Contract
 
 from app.main import app
 from app.models.tables import IBContract
 from app.services.bar_cache_service import cache_bars
+from app.services.ib_api import Contract
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_contract_resolver import cached_contract_to_ib
 from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars

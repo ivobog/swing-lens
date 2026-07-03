@@ -2,11 +2,11 @@ import time
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from ib_insync import IB
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models.tables import PriceBar
+from app.services.ib_api import IB
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars

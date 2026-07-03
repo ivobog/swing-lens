@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     upload_dir: Path = Field(default=Path("data/uploads"))
     export_dir: Path = Field(default=Path("data/exports"))
     cache_dir: Path = Field(default=Path("data/cache"))
+    max_upload_size_mb: int = 20
 
     ib_host: str = "127.0.0.1"
     ib_port: int = 4002

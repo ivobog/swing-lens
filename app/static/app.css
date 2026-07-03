@@ -133,6 +133,11 @@ dd {
   color: #8a4a16;
 }
 
+.alert span {
+  display: block;
+  margin-top: 4px;
+}
+
 .button-link {
   display: inline-flex;
   align-items: center;
@@ -268,6 +273,17 @@ dd {
 
 .metric-wide strong {
   font-size: 18px;
+}
+
+.dashboard-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .ib-layout {
@@ -684,6 +700,7 @@ td a {
 
   .workflow,
   .metric-grid,
+  .dashboard-grid,
   .detail-grid,
   .ib-layout,
   .cockpit-controls {
@@ -697,7 +714,8 @@ td a {
 
 @media (min-width: 721px) and (max-width: 1120px) {
   .workflow,
-  .metric-grid {
+  .metric-grid,
+  .dashboard-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 

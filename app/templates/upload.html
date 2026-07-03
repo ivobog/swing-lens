@@ -1,28 +1,95 @@
 {% extends "base.html" %}
 
-{% block title %}SwingLens Upload{% endblock %}
+{% block title %}SwingLens Dashboard{% endblock %}
 
 {% block content %}
 <section class="panel">
   <div class="panel-header">
     <div>
-      <h1>Daily CSV Upload</h1>
-      <p>Load the company universe, preserve raw rows, then process the run.</p>
+      <h1>Dashboard</h1>
+      <p>{{ dashboard.next_action }}</p>
     </div>
     <span class="status-pill">IB Gateway: {{ ib_status }}</span>
   </div>
 
   {% if error %}
-    <div class="alert">{{ error }}</div>
+    <div class="alert">
+      <strong>Upload failed.</strong>
+      <span>{{ error }}</span>
+    </div>
   {% endif %}
 
-  <form class="upload-box" method="post" action="/uploads" enctype="multipart/form-data">
-    <input id="csv-file" name="file" type="file" accept=".csv">
+  <div class="metric-grid dashboard-grid">
+    <div class="metric">
+      <span>Latest Run</span>
+      {% if dashboard.latest_run_id %}
+        <strong>#{{ dashboard.latest_run_id }}</strong>
+      {% else %}
+        <strong>None</strong>
+      {% endif %}
+    </div>
+    <div class="metric">
+      <span>Status</span>
+      <strong>{{ dashboard.latest_status }}</strong>
+    </div>
+    <div class="metric">
+      <span>Rows</span>
+      <strong>{{ dashboard.row_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Combined</span>
+      <strong>{{ dashboard.combined_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Incomplete</span>
+      <strong>{{ dashboard.incomplete_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Strong</span>
+      <strong>{{ dashboard.strong_count }}</strong>
+    </div>
+    <div class="metric metric-wide">
+      <span>OHLCV Coverage</span>
+      <strong>{{ dashboard.coverage_ready }} / {{ dashboard.coverage_total }}</strong>
+      <small>ready tickers</small>
+    </div>
+  </div>
+
+  {% if latest_run %}
+    <div class="quick-actions">
+      <a class="button-link" href="/runs/{{ latest_run.id }}">Open latest run</a>
+      <form method="post" action="/runs/{{ latest_run.id }}/ib/fetch" data-loading-form>
+        <input type="hidden" name="include_benchmarks" value="true">
+        <input type="hidden" name="what_to_show" value="ADJUSTED_LAST">
+        <input type="hidden" name="what_to_show" value="TRADES">
+        <button type="submit" data-loading-label="Fetching...">Fetch IB bars</button>
+      </form>
+      <form method="post" action="/runs/{{ latest_run.id }}/combined-results" data-loading-form>
+        <button type="submit" data-loading-label="Refreshing...">Refresh cockpit</button>
+      </form>
+      {% if dashboard.combined_export_url %}
+        <a class="button-link secondary" href="{{ dashboard.combined_export_url }}">Download combined CSV</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Daily CSV Upload</h2>
+      <p>Raw rows are preserved, columns are mapped, and fundamentals are scored immediately.</p>
+    </div>
+    <span class="status-pill">{{ settings.max_upload_size_mb }} MB max</span>
+  </div>
+
+  <form class="upload-box" method="post" action="/uploads" enctype="multipart/form-data" data-loading-form>
+    <input id="csv-file" name="file" type="file" accept=".csv" required>
     <label for="csv-file">
       <strong>Select CSV</strong>
       <span>Raw rows will be stored in PostgreSQL.</span>
     </label>
-    <button type="submit">Process</button>
+    <button type="submit" data-loading-label="Processing...">Process</button>
   </form>
 </section>
 
@@ -36,6 +103,8 @@
       <dd>{{ settings.upload_dir }}</dd>
       <dt>Exports</dt>
       <dd>{{ settings.export_dir }}</dd>
+      <dt>Max upload</dt>
+      <dd>{{ settings.max_upload_size_mb }} MB</dd>
     </dl>
   </div>
   <div>
@@ -47,6 +116,8 @@
       <dd>{{ settings.ib_port }}</dd>
       <dt>Client ID</dt>
       <dd>{{ settings.ib_client_id }}</dd>
+      <dt>Mode</dt>
+      <dd>Read-only market data</dd>
     </dl>
   </div>
 </section>
@@ -70,6 +141,7 @@
             <th>Status</th>
             <th>Rows</th>
             <th>Uploaded</th>
+            <th>Open</th>
           </tr>
         </thead>
         <tbody>
@@ -80,13 +152,17 @@
               <td>{{ run.status }}</td>
               <td>{{ run.row_count or 0 }}</td>
               <td>{{ run.uploaded_at }}</td>
+              <td><a href="/runs/{{ run.id }}">details</a></td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <p>No runs yet.</p>
+    <div class="empty-state">
+      <strong>No runs yet.</strong>
+      <p>Upload a CSV to start the SwingLens workflow.</p>
+    </div>
   {% endif %}
 </section>
 {% endblock %}
