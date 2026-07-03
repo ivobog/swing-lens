@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 from app.services.column_mapper import MappedCsvRow
+from app.services.numeric_parser import parse_financial_number
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ def score_row(row: MappedCsvRow) -> FundamentalScoreResult:
             "component_scores": component_scores,
             "missing_fields": sorted(_missing_core_fields(values)),
             "canonical_fields_present": sorted(values.keys()),
+            "parse_diagnostics": _parse_diagnostics(values),
         },
     )
 
@@ -346,17 +348,26 @@ def _average_present(scores: list[float | None]) -> float:
 
 
 def _number(value: Any) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, int | float):
-        return float(value)
-    text = str(value).strip().replace(",", "")
-    if not text or text in {"-", "N/A", "NA", "None", "nan"}:
-        return None
-    try:
-        return float(text)
-    except ValueError:
-        return None
+    return parse_financial_number(value).value
+
+
+def _parse_diagnostics(values: dict[str, Any]) -> dict[str, Any]:
+    failed_fields = []
+    for field, raw_value in values.items():
+        result = parse_financial_number(raw_value)
+        if not result.parsed and result.reason != "missing":
+            failed_fields.append(
+                {
+                    "field": field,
+                    "raw": raw_value,
+                    "normalized": result.normalized,
+                    "reason": result.reason,
+                }
+            )
+    return {
+        "failed_fields": failed_fields,
+        "failed_field_count": len(failed_fields),
+    }
 
 
 def _clamp(value: float, lower: float = 0.0, upper: float = 10.0) -> float:

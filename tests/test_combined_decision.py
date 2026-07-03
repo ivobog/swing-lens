@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
+from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.combined_decision import combine_row_decision
 
 
@@ -44,6 +45,29 @@ def test_combined_decision_missing_technical_waits_for_data() -> None:
     assert decision.combined_decision == "Incomplete data"
     assert decision.position_size_hint == "Wait"
     assert "technical missing" in decision.notes
+    assert decision.warning_flags == ["incomplete_data", "missing_technical"]
+    assert not decision.is_complete
+    assert decision.sort_bucket == 50
+
+
+def test_complete_candidate_sorts_above_higher_scoring_incomplete_result() -> None:
+    complete = combine_row_decision(
+        _row("COMP"),
+        _fundamental("COMP", "Mixed but interesting", "6.9"),
+        _technical("COMP", "Clean bull pullback", "6.9", risk_score="3.0"),
+        config=_config(),
+    )
+    incomplete = combine_row_decision(
+        _row("MISS"),
+        _fundamental("MISS", "Clean compounder", "10.0"),
+        None,
+        config=_config(),
+    )
+
+    ranked = sorted([incomplete, complete], key=cockpit_sort_key)
+
+    assert complete.final_score < incomplete.final_score
+    assert ranked == [complete, incomplete]
 
 
 def _row(ticker: str) -> RawCompanyRow:
