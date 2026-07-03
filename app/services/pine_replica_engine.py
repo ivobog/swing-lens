@@ -447,7 +447,7 @@ def classify_setup(
     combined_rs_score: float,
 ) -> str:
     prime_clean_pullback = (
-        trend_score_value >= 8.0
+        trend_score_value > 8.0
         and momentum_score_value >= 7.0
         and setup_score_value >= 8.0
         and risk_score_value <= 3.0

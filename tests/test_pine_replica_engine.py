@@ -83,6 +83,30 @@ def test_classification_priority_danger_overrides_buyable() -> None:
 
 
 def test_classification_clean_pullback_and_no_trade() -> None:
+    borderline_prime = classify_setup(
+        trend_score_value=8.0,
+        momentum_score_value=8.2,
+        setup_score_value=8.4,
+        risk_score_value=0.7,
+        had_pullback=True,
+        not_too_deep=True,
+        held_near_support=True,
+        above_mid_ma=True,
+        rsi_value=58,
+        extension_mid_pct=4.5,
+        extension_warn_pct=8,
+        extension_danger_pct=15,
+        entry_filters_ok=True,
+        all_filters_ok=True,
+        distribution_risk_value=False,
+        blowoff_top_value=False,
+        failed_breakout=False,
+        fresh_breakout=False,
+        strong_close=0.7,
+        above_slow_ma=True,
+        mid_slope_pct=1,
+        combined_rs_score=9.5,
+    )
     clean = classify_setup(
         trend_score_value=7.2,
         momentum_score_value=6.7,
@@ -132,6 +156,7 @@ def test_classification_clean_pullback_and_no_trade() -> None:
         combined_rs_score=2,
     )
 
+    assert borderline_prime == CLASS_CLEAN_PULLBACK
     assert clean == CLASS_CLEAN_PULLBACK
     assert no_trade == CLASS_NO_TRADE
 

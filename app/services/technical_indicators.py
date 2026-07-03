@@ -407,26 +407,45 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         & (features["volume_ratio"] >= pullback_breakout["failureVolRatio"])
     )
 
-    green_volume = volume.where(close >= open_)
-    red_volume = volume.where(close < open_)
-    features["green_volume_avg"] = sma(green_volume, momentum["greenRedVolLookback"])
-    features["red_volume_avg"] = sma(red_volume, momentum["greenRedVolLookback"])
+    green_bar = close > open_
+    red_bar = close < open_
+    green_volume = volume.where(green_bar, 0.0)
+    red_volume = volume.where(red_bar, 0.0)
+    green_count = rolling_sum(green_bar.astype(float), momentum["greenRedVolLookback"])
+    red_count = rolling_sum(red_bar.astype(float), momentum["greenRedVolLookback"])
+    features["green_volume_avg"] = rolling_sum(
+        green_volume,
+        momentum["greenRedVolLookback"],
+    ) / green_count.clip(lower=1.0)
+    features["red_volume_avg"] = rolling_sum(
+        red_volume,
+        momentum["greenRedVolLookback"],
+    ) / red_count.clip(lower=1.0)
     features["green_beats_red"] = features["green_volume_avg"] > features["red_volume_avg"]
-    features["recent_red_volume"] = red_volume.rolling(momentum["recentRedVolLookback"]).mean()
+    features["recent_red_volume"] = rolling_sum(red_volume, momentum["recentRedVolLookback"])
     features["prior_red_volume"] = features["recent_red_volume"].shift(
         momentum["recentRedVolLookback"]
     )
-    features["red_volume_declining"] = features["recent_red_volume"] < features["prior_red_volume"]
-    features["volume_dry_up"] = volume < (features["avg_volume"] * 0.6)
+    features["red_volume_declining"] = features["recent_red_volume"] <= features[
+        "prior_red_volume"
+    ]
+    features["short_volume_avg"] = sma(volume, 5)
+    features["volume_dry_up"] = (
+        features["had_pullback"]
+        & (features["short_volume_avg"] < features["avg_volume"])
+        & features["red_volume_declining"]
+    )
     features["notional_volume"] = volume * close
     features["avg_notional_volume"] = sma(
         features["notional_volume"],
         risk["notionalVolumeLookback"],
     )
-    features["liquidity_warning"] = (
-        (features["avg_volume"] < risk["minAvgVolume"])
-        | (features["avg_notional_volume"] < risk["minNotionalVolume"])
-    )
+    if risk["useNotionalLiquidityFilter"]:
+        features["liquidity_warning"] = features["avg_notional_volume"] < risk[
+            "minNotionalVolume"
+        ]
+    else:
+        features["liquidity_warning"] = features["avg_volume"] < risk["minAvgVolume"]
 
     candle_range = (high - low).replace(0, np.nan)
     features["candle_range"] = high - low
@@ -458,15 +477,40 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         features["distribution_count"] >= 4
     ) | features["heavy_red_candle"] | features["failed_breakout"]
 
-    structure_stop = (
-        features["pivot_low"].ffill() - features["atr14"] * stop_target["structureAtrBuffer"]
-    )
+    swing_low_stop = features["recent_low_after_high"]
+    sma50_stop = features["sma50"] * (1.0 - stop_target["smaStopAtrBuffer"] / 100.0)
+    structure_stop = swing_low_stop - features["atr14"] * stop_target["structureAtrBuffer"]
     atr_stop = close - features["atr14"] * stop_target["atrStopMultiple"]
-    features["suggested_stop"] = pd.concat([structure_stop, atr_stop], axis=1).max(axis=1)
+    if stop_target["stopMode"] == "SMA50":
+        raw_stop = sma50_stop
+    elif stop_target["stopMode"] == "Structure":
+        raw_stop = swing_low_stop
+    elif stop_target["stopMode"] == "Structure + ATR":
+        raw_stop = structure_stop
+    else:
+        raw_stop = atr_stop
+    features["suggested_stop"] = raw_stop.where(
+        raw_stop.notna() & (raw_stop < close),
+        atr_stop,
+    )
     features["entry_risk_pct"] = (close - features["suggested_stop"]) / close * 100
-    features["suggested_target"] = close + (close - features["suggested_stop"]) * stop_target[
-        "targetRewardMultiple"
-    ]
+    entry_risk = close - features["suggested_stop"]
+    base_height = (features["previous_resistance"] - features["recent_low_after_high"]).clip(
+        lower=0.0,
+    )
+    if stop_target["targetMode"] == "Prior High":
+        raw_target = features["prior_high"]
+    elif stop_target["targetMode"] == "Measured Move":
+        raw_target = features["previous_resistance"] + base_height
+    elif stop_target["targetMode"] == "ATR Target":
+        raw_target = close + features["atr14"] * stop_target["atrTargetMultiple"]
+    else:
+        raw_target = close + entry_risk * stop_target["targetRewardMultiple"]
+    fallback_target = close + entry_risk * stop_target["targetRewardMultiple"]
+    features["suggested_target"] = raw_target.where(
+        raw_target.notna() & (raw_target > close),
+        fallback_target,
+    )
     features["reward_risk"] = (features["suggested_target"] - close) / (
         close - features["suggested_stop"]
     ).replace(0, np.nan)
