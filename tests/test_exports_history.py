@@ -1,9 +1,16 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from app.models.tables import CombinedResult, RawCompanyRow, UploadRun
-from app.services.export_service import export_filename, export_run_csv
+from app.models.tables import CombinedResult, IBFetchItem, IBFetchRun, RawCompanyRow, UploadRun
+from app.services.export_service import (
+    export_fetch_plan_csv,
+    export_fetch_results_csv,
+    export_filename,
+    export_run_csv,
+)
 from app.services.history_service import recent_decisions, summarize_runs
+from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
+from app.services.ohlcv_coverage_service import OhlcvCoverageItem, OhlcvCoverageSummary
 
 
 def test_combined_export_includes_ranked_results() -> None:
@@ -26,10 +33,11 @@ def test_combined_export_includes_ranked_results() -> None:
         )
     ]
 
-    csv_text = export_run_csv(run, "combined")
+    csv_text = export_run_csv(run, "combined", coverage=_coverage())
 
     assert "run_id,rank,ticker" in csv_text
     assert "7,1,MSFT,Microsoft,Technology,8.75" in csv_text
+    assert "ready,252,252,2026-07-02,2026-07-02,True" in csv_text
     assert "Strong candidate" in csv_text
 
 
@@ -59,6 +67,102 @@ def test_export_filename_is_stable_and_safe() -> None:
     assert export_filename(run, "combined") == (
         "swinglens_run_7_money-money-2026-07-02_combined.csv"
     )
+
+
+def test_fetch_plan_export_includes_actions_and_coverage_context() -> None:
+    plan = FetchPlan(
+        run_id=7,
+        requested_tickers=["MSFT"],
+        symbols_including_benchmarks=["MSFT", "SPY"],
+        items=[
+            FetchPlanItem(
+                ticker="MSFT",
+                contract_status="RESOLVED",
+                what_to_show="ADJUSTED_LAST",
+                action=FetchAction.TOP_UP_RECENT,
+                duration="1 M",
+                bar_size="1 day",
+                current_bar_count=250,
+                first_bar_date=date(2025, 7, 1),
+                latest_bar_date=date(2026, 6, 30),
+                required_bars=252,
+                reason="MSFT latest ADJUSTED_LAST bar is stale.",
+                estimated_request_count=1,
+            )
+        ],
+        estimated_request_count=1,
+        estimated_full_backfills=0,
+        estimated_top_ups=1,
+        estimated_refreshes=0,
+        estimated_skips=0,
+        warnings=[],
+    )
+
+    csv_text = export_fetch_plan_csv(plan)
+
+    assert "run_id,ticker,what_to_show,action,duration,bar_size" in csv_text
+    assert "7,MSFT,ADJUSTED_LAST,TOP_UP_RECENT,1 M,1 day,RESOLVED" in csv_text
+    assert "MSFT latest ADJUSTED_LAST bar is stale." in csv_text
+
+
+def test_fetch_results_export_includes_latest_item_counts() -> None:
+    fetch_run = IBFetchRun(
+        id=11,
+        run_id=7,
+        requested_tickers=["MSFT"],
+        symbols_including_benchmarks=["MSFT", "SPY"],
+        include_benchmarks=True,
+        force_refresh=False,
+        force_full_backfill=False,
+        planned_request_count=1,
+        executed_request_count=1,
+        skipped_count=0,
+        success_count=1,
+        started_at=datetime(2026, 7, 2, 9, 30, tzinfo=UTC),
+        completed_at=datetime(2026, 7, 2, 9, 31, tzinfo=UTC),
+        status="COMPLETED",
+        fetched_count=5,
+        inserted_count=2,
+        updated_count=1,
+        revised_count=1,
+        unchanged_count=1,
+        failure_count=0,
+        message="done",
+    )
+    fetch_run.items = [
+        IBFetchItem(
+            fetch_run_id=11,
+            ticker="MSFT",
+            what_to_show="TRADES",
+            action="TOP_UP_RECENT",
+            duration="1 M",
+            bar_size="1 day",
+            status="SUCCESS",
+            reason="top-up",
+            current_bar_count=250,
+            fetched=5,
+            inserted=2,
+            updated=1,
+            revised=1,
+            unchanged=1,
+            attempt_count=1,
+            started_at=datetime(2026, 7, 2, 9, 30, tzinfo=UTC),
+            completed_at=datetime(2026, 7, 2, 9, 31, tzinfo=UTC),
+            error_message=None,
+        )
+    ]
+
+    csv_text = export_fetch_results_csv(fetch_run)
+
+    assert "fetch_run_id,run_id,fetch_status,ticker" in csv_text
+    assert "11,7,COMPLETED,MSFT,TRADES,TOP_UP_RECENT,1 M,1 day,SUCCESS,250,5,2,1,1,1,1" in csv_text
+
+
+def test_fetch_results_export_handles_missing_fetch_run() -> None:
+    csv_text = export_fetch_results_csv(None)
+
+    assert csv_text.startswith("fetch_run_id,run_id,fetch_status,ticker")
+    assert csv_text.count("\n") == 1
 
 
 def test_history_summarizes_runs_and_recent_decisions() -> None:
@@ -107,4 +211,35 @@ def _run(
         processed_at=uploaded_at or datetime(2026, 7, 2, tzinfo=UTC),
         row_count=1,
         status="completed",
+    )
+
+
+def _coverage() -> OhlcvCoverageSummary:
+    return OhlcvCoverageSummary(
+        total_tickers=1,
+        ready_count=1,
+        insufficient_count=0,
+        missing_count=0,
+        benchmark_spy_ready=True,
+        benchmark_qqq_ready=True,
+        required_rows=252,
+        items=[
+            OhlcvCoverageItem(
+                ticker="MSFT",
+                adjusted_bars=252,
+                trades_bars=252,
+                has_price=True,
+                has_volume=True,
+                sufficient_history=True,
+                status="ready",
+                first_adjusted_date=date(2025, 7, 1),
+                latest_adjusted_date=date(2026, 7, 2),
+                first_trades_date=date(2025, 7, 1),
+                latest_trades_date=date(2026, 7, 2),
+                has_adjusted_price=True,
+                has_trades_volume=True,
+                latest_bar_current=True,
+                reason="Adjusted price and trades volume coverage are ready.",
+            )
+        ],
     )

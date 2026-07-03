@@ -87,6 +87,8 @@
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/fundamentals.csv">Fundamentals CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/technicals.csv">Technicals CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/raw.csv">Raw CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-plan.csv">IB Plan CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">IB Results CSV</a>
     </div>
   </div>
 </section>
@@ -207,6 +209,9 @@
             inserted {{ latest_fetch.inserted_count }} · revised {{ latest_fetch.revised_count }} ·
             unchanged {{ latest_fetch.unchanged_count }} · failures {{ latest_fetch.failure_count }}
           </p>
+        </div>
+        <div class="actions">
+          <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">Results CSV</a>
         </div>
       </div>
       {% if latest_fetch.message %}

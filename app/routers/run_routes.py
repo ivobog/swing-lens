@@ -10,7 +10,13 @@ from app.db import get_db
 from app.models.tables import CombinedResult, RawCompanyRow, TechnicalScore, UploadRun
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.combined_decision import refresh_combined_results
-from app.services.export_service import EXPORT_TYPES, export_filename, export_run_csv
+from app.services.export_service import (
+    EXPORT_TYPES,
+    export_fetch_plan_csv,
+    export_fetch_results_csv,
+    export_filename,
+    export_run_csv,
+)
 from app.services.history_service import recent_decisions, summarize_runs
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_fetch_executor import execute_fetch_plan
@@ -157,8 +163,23 @@ def export_run_results(run_id: int, export_type: str, db: DbSession) -> Response
         raise HTTPException(status_code=404, detail="Run not found")
 
     filename = export_filename(run, export_type)
+    if export_type == "ib-fetch-plan":
+        content = export_fetch_plan_csv(
+            build_fetch_plan(
+                db,
+                _unique_tickers(run.raw_company_rows),
+                run_id=run_id,
+                include_benchmarks=True,
+                what_to_show_values=DEFAULT_WHAT_TO_SHOW,
+            )
+        )
+    elif export_type == "ib-fetch-results":
+        content = export_fetch_results_csv(latest_ib_fetch_for_run(db, run_id))
+    else:
+        coverage = summarize_run_ohlcv_coverage(db, run_id) if export_type == "combined" else None
+        content = export_run_csv(run, export_type, coverage=coverage)
     return Response(
-        content=export_run_csv(run, export_type),
+        content=content,
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

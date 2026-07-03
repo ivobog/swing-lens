@@ -7,12 +7,22 @@ from typing import Any
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
+    IBFetchRun,
     RawCompanyRow,
     TechnicalScore,
     UploadRun,
 )
+from app.services.ib_fetch_plan_service import FetchPlan
+from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
 
-EXPORT_TYPES = {"combined", "fundamentals", "technicals", "raw"}
+EXPORT_TYPES = {
+    "combined",
+    "fundamentals",
+    "technicals",
+    "raw",
+    "ib-fetch-plan",
+    "ib-fetch-results",
+}
 
 COMBINED_HEADERS = [
     "run_id",
@@ -27,6 +37,13 @@ COMBINED_HEADERS = [
     "dual_score",
     "combined_decision",
     "position_size_hint",
+    "ohlcv_status",
+    "adjusted_bars",
+    "trades_bars",
+    "latest_adjusted_date",
+    "latest_trades_date",
+    "latest_bar_current",
+    "ohlcv_reason",
     "notes",
 ]
 
@@ -83,12 +100,59 @@ RAW_HEADERS = [
     "raw_json",
 ]
 
+FETCH_PLAN_HEADERS = [
+    "run_id",
+    "ticker",
+    "what_to_show",
+    "action",
+    "duration",
+    "bar_size",
+    "contract_status",
+    "current_bar_count",
+    "required_bars",
+    "first_bar_date",
+    "latest_bar_date",
+    "estimated_request_count",
+    "reason",
+]
 
-def export_run_csv(run: UploadRun, export_type: str) -> str:
+FETCH_RESULTS_HEADERS = [
+    "fetch_run_id",
+    "run_id",
+    "fetch_status",
+    "ticker",
+    "what_to_show",
+    "action",
+    "duration",
+    "bar_size",
+    "item_status",
+    "current_bar_count",
+    "fetched",
+    "inserted",
+    "updated",
+    "revised",
+    "unchanged",
+    "attempt_count",
+    "started_at",
+    "completed_at",
+    "reason",
+    "error_message",
+]
+
+
+def export_run_csv(
+    run: UploadRun,
+    export_type: str,
+    coverage: OhlcvCoverageSummary | None = None,
+) -> str:
     if export_type == "combined":
+        coverage_by_ticker = _coverage_by_ticker(coverage)
         return _write_csv(
             COMBINED_HEADERS,
-            [_combined_row(run.id, result) for result in _sorted_combined(run.combined_results)],
+            [
+                _combined_row(run.id, result, coverage_by_ticker.get(result.ticker.upper()))
+                for result in _sorted_combined(run.combined_results)
+            ],
         )
     if export_type == "fundamentals":
         rows = [
@@ -112,6 +176,22 @@ def export_run_csv(run: UploadRun, export_type: str) -> str:
     raise ValueError(f"Unknown export type: {export_type}")
 
 
+def export_fetch_plan_csv(plan: FetchPlan) -> str:
+    return _write_csv(
+        FETCH_PLAN_HEADERS,
+        [_fetch_plan_row(plan.run_id, item) for item in plan.items],
+    )
+
+
+def export_fetch_results_csv(fetch_run: IBFetchRun | None) -> str:
+    if not fetch_run:
+        return _write_csv(FETCH_RESULTS_HEADERS, [])
+    return _write_csv(
+        FETCH_RESULTS_HEADERS,
+        [_fetch_result_row(fetch_run, item) for item in _sorted_fetch_items(fetch_run.items)],
+    )
+
+
 def export_filename(run: UploadRun, export_type: str) -> str:
     safe_name = "".join(
         char.lower() if char.isalnum() else "-"
@@ -130,7 +210,7 @@ def _write_csv(headers: list[str], rows: Iterable[dict[str, Any]]) -> str:
     return buffer.getvalue()
 
 
-def _combined_row(run_id: int, result: CombinedResult) -> dict[str, Any]:
+def _combined_row(run_id: int, result: CombinedResult, coverage: Any | None) -> dict[str, Any]:
     return {
         "run_id": run_id,
         "rank": result.final_rank,
@@ -144,6 +224,13 @@ def _combined_row(run_id: int, result: CombinedResult) -> dict[str, Any]:
         "dual_score": result.dual_score,
         "combined_decision": result.combined_decision,
         "position_size_hint": result.position_size_hint,
+        "ohlcv_status": coverage.status if coverage else "",
+        "adjusted_bars": coverage.adjusted_bars if coverage else "",
+        "trades_bars": coverage.trades_bars if coverage else "",
+        "latest_adjusted_date": coverage.latest_adjusted_date if coverage else "",
+        "latest_trades_date": coverage.latest_trades_date if coverage else "",
+        "latest_bar_current": coverage.latest_bar_current if coverage else "",
+        "ohlcv_reason": coverage.reason if coverage else "",
         "notes": result.notes,
     }
 
@@ -210,6 +297,55 @@ def _raw_row(run_id: int, row: RawCompanyRow) -> dict[str, Any]:
     }
 
 
+def _fetch_plan_row(run_id: int | None, item: Any) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "ticker": item.ticker,
+        "what_to_show": item.what_to_show,
+        "action": item.action.value,
+        "duration": item.duration,
+        "bar_size": item.bar_size,
+        "contract_status": item.contract_status,
+        "current_bar_count": item.current_bar_count,
+        "required_bars": item.required_bars,
+        "first_bar_date": item.first_bar_date,
+        "latest_bar_date": item.latest_bar_date,
+        "estimated_request_count": item.estimated_request_count,
+        "reason": item.reason,
+    }
+
+
+def _fetch_result_row(fetch_run: IBFetchRun, item: Any) -> dict[str, Any]:
+    return {
+        "fetch_run_id": fetch_run.id,
+        "run_id": fetch_run.run_id,
+        "fetch_status": fetch_run.status,
+        "ticker": item.ticker,
+        "what_to_show": item.what_to_show,
+        "action": item.action,
+        "duration": item.duration,
+        "bar_size": item.bar_size,
+        "item_status": item.status,
+        "current_bar_count": item.current_bar_count,
+        "fetched": item.fetched,
+        "inserted": item.inserted,
+        "updated": item.updated,
+        "revised": item.revised,
+        "unchanged": item.unchanged,
+        "attempt_count": item.attempt_count,
+        "started_at": item.started_at,
+        "completed_at": item.completed_at,
+        "reason": item.reason,
+        "error_message": item.error_message,
+    }
+
+
+def _coverage_by_ticker(coverage: OhlcvCoverageSummary | None) -> dict[str, Any]:
+    if not coverage:
+        return {}
+    return {item.ticker.upper(): item for item in coverage.items}
+
+
 def _sorted_combined(results: list[CombinedResult]) -> list[CombinedResult]:
     return sorted(results, key=lambda result: result.final_rank or 0)
 
@@ -220,6 +356,10 @@ def _sorted_raw(rows: list[RawCompanyRow]) -> list[RawCompanyRow]:
 
 def _sorted_by_ticker(rows: list[Any]) -> list[Any]:
     return sorted(rows, key=lambda row: row.ticker)
+
+
+def _sorted_fetch_items(rows: list[Any]) -> list[Any]:
+    return sorted(rows, key=lambda row: (row.ticker, row.what_to_show))
 
 
 def _csv_value(value: Any) -> Any:
