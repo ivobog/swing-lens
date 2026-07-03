@@ -94,6 +94,165 @@
 <section class="panel section-gap">
   <div class="panel-header">
     <div>
+      <h2>IB Gateway</h2>
+      <p>Read-only market data fetch for uploaded tickers and benchmarks.</p>
+    </div>
+    <form method="post" action="/runs/{{ run.id }}/ib/test" data-loading-form>
+      <button type="submit" data-loading-label="Testing...">Test connection</button>
+    </form>
+  </div>
+
+  <div class="ib-layout">
+    <div class="ib-card">
+      <dl class="compact-dl">
+        <dt>Host</dt>
+        <dd>{{ ib_panel.host }}</dd>
+        <dt>Port</dt>
+        <dd>{{ ib_panel.port }}</dd>
+        <dt>Client ID</dt>
+        <dd>{{ ib_panel.client_id }}</dd>
+        <dt>Read-only</dt>
+        <dd>{{ "Yes" if ib_panel.read_only else "No" }}</dd>
+        <dt>Status</dt>
+        <dd>
+          {% if ib_panel.test_status %}
+            <span class="badge badge-{{ 'success' if ib_panel.test_status == 'connected' else 'warning' }}">
+              {{ ib_panel.test_status|replace("-", " ")|title }}
+            </span>
+          {% else %}
+            <span class="badge badge-muted">Not tested</span>
+          {% endif %}
+        </dd>
+        {% if ib_panel.test_message %}
+          <dt>Message</dt>
+          <dd>{{ ib_panel.test_message }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+
+    <form class="fetch-form" method="post" action="/runs/{{ run.id }}/ib/fetch" data-loading-form>
+      <label>
+        <span>Ticker subset</span>
+        <textarea name="ticker_subset" rows="3" placeholder="Optional: MSFT, AAPL, NVDA"></textarea>
+      </label>
+      <div class="fetch-options">
+        <label class="toggle-row">
+          <input type="checkbox" name="include_benchmarks" value="true" checked>
+          <span>Include SPY/QQQ</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" name="what_to_show" value="ADJUSTED_LAST" checked>
+          <span>Adjusted</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" name="what_to_show" value="TRADES" checked>
+          <span>Trades</span>
+        </label>
+      </div>
+      <button type="submit" data-loading-label="Fetching...">Fetch IB bars</button>
+    </form>
+  </div>
+
+  <div class="coverage-strip">
+    <span class="summary-item"><strong>{{ coverage.ready_count }}</strong> ready</span>
+    <span class="summary-item"><strong>{{ coverage.insufficient_count }}</strong> insufficient</span>
+    <span class="summary-item"><strong>{{ coverage.missing_count }}</strong> missing</span>
+    <span class="summary-item"><strong>{{ coverage.required_rows }}</strong> required bars</span>
+    <span class="summary-item">
+      <strong>SPY</strong>
+      {{ "ready" if coverage.benchmark_spy_ready else "missing/short" }}
+    </span>
+    <span class="summary-item">
+      <strong>QQQ</strong>
+      {{ "ready" if coverage.benchmark_qqq_ready else "missing/short" }}
+    </span>
+  </div>
+
+  {% if latest_fetch %}
+    <div class="fetch-summary">
+      <div class="panel-header compact-header">
+        <div>
+          <h3>Latest Fetch</h3>
+          <p>
+            {{ latest_fetch.status }} · fetched {{ latest_fetch.fetched_count }} ·
+            inserted {{ latest_fetch.inserted_count }} · failures {{ latest_fetch.failure_count }}
+          </p>
+        </div>
+      </div>
+      {% if latest_fetch.message %}
+        <p>{{ latest_fetch.message }}</p>
+      {% endif %}
+      {% if latest_fetch.items %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Data</th>
+                <th>Status</th>
+                <th>Fetched</th>
+                <th>Inserted</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in latest_fetch.items %}
+                <tr>
+                  <td>{{ item.ticker }}</td>
+                  <td>{{ item.what_to_show }}</td>
+                  <td>{{ item.status }}</td>
+                  <td>{{ item.fetched }}</td>
+                  <td>{{ item.inserted }}</td>
+                  <td>{{ item.error_message or "" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if coverage.items %}
+    <details class="coverage-details">
+      <summary>OHLCV coverage by ticker</summary>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Status</th>
+              <th>Adjusted bars</th>
+              <th>Trades bars</th>
+              <th>Price</th>
+              <th>Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in coverage.items %}
+              <tr>
+                <td>{{ item.ticker }}</td>
+                <td>
+                  <span class="badge badge-{{ 'success' if item.status == 'ready' else 'warning' if item.status == 'insufficient' else 'muted' }}">
+                    {{ item.status|title }}
+                  </span>
+                </td>
+                <td>{{ item.adjusted_bars }}</td>
+                <td>{{ item.trades_bars }}</td>
+                <td>{{ "Yes" if item.has_price else "No" }}</td>
+                <td>{{ "Yes" if item.has_volume else "No" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
       <h2>Decision Cockpit</h2>
       <p>Complete rows are ranked ahead of incomplete rows. Position size is an advisory research hint.</p>
     </div>

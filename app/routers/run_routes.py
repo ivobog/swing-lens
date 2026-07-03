@@ -1,20 +1,34 @@
 from typing import Annotated
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
-from app.models.tables import CombinedResult, PriceBar, RawCompanyRow, TechnicalScore, UploadRun
+from app.models.tables import CombinedResult, IBFetchRun, RawCompanyRow, TechnicalScore, UploadRun
+from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW, ensure_daily_bars
 from app.services.combined_decision import refresh_combined_results
 from app.services.export_service import EXPORT_TYPES, export_filename, export_run_csv
 from app.services.history_service import recent_decisions, summarize_runs
+from app.services.ib_connection import check_ib_connection
+from app.services.ib_fetch_summary_service import (
+    complete_ib_fetch_run,
+    create_ib_fetch_run,
+    fail_ib_fetch_run,
+    latest_ib_fetch_for_run,
+)
+from app.services.ohlcv_coverage_service import OhlcvCoverageSummary, summarize_run_ohlcv_coverage
 from app.services.technical_score_service import score_run_technicals
+from app.settings import get_settings
 from app.templates import templates
 
 router = APIRouter(tags=["runs"])
 DbSession = Annotated[Session, Depends(get_db)]
+TickerSubsetForm = Annotated[str, Form()]
+IncludeBenchmarksForm = Annotated[bool, Form()]
+WhatToShowForm = Annotated[list[str] | None, Form()]
 
 WARNING_BADGE_LABELS = {
     "incomplete_data": "Incomplete",
@@ -79,8 +93,9 @@ def run_detail_page(
         key=lambda result: result.final_rank or 0,
     )
     decision_counts = _decision_counts(combined_results)
-    tickers = _unique_tickers(rows)
-    price_bar_ticker_count = _price_bar_ticker_count(db, tickers)
+    coverage = summarize_run_ohlcv_coverage(db, run.id)
+    latest_fetch = latest_ib_fetch_for_run(db, run.id)
+    settings = get_settings()
     return templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -99,8 +114,18 @@ def run_detail_page(
                 rows=rows,
                 technical_scores=run.technical_scores,
                 combined_results=combined_results,
-                price_bar_ticker_count=price_bar_ticker_count,
+                coverage=coverage,
             ),
+            "coverage": coverage,
+            "latest_fetch": latest_fetch,
+            "ib_panel": {
+                "host": settings.ib_host,
+                "port": settings.ib_port,
+                "client_id": settings.ib_client_id,
+                "read_only": True,
+                "test_status": request.query_params.get("ib_status"),
+                "test_message": request.query_params.get("ib_message"),
+            },
             "warning_badges_by_ticker": {
                 result.ticker: _warning_badges(result.warning_flags_json or [])
                 for result in combined_results
@@ -140,6 +165,86 @@ def refresh_combined_results_action(run_id: int, db: DbSession) -> RedirectRespo
     refresh_combined_results(db, run_id)
     db.commit()
     return RedirectResponse(url=f"/runs/{run_id}", status_code=303)
+
+
+@router.post("/runs/{run_id}/ib/test")
+def test_run_ib_connection_action(run_id: int, db: DbSession) -> RedirectResponse:
+    run_exists = db.scalar(select(UploadRun.id).where(UploadRun.id == run_id))
+    if not run_exists:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    status = check_ib_connection()
+    return _redirect_with_query(
+        run_id,
+        {
+            "ib_status": "connected" if status.connected else "disconnected",
+            "ib_message": status.message,
+        },
+    )
+
+
+@router.post("/runs/{run_id}/ib/fetch")
+def fetch_run_ib_bars_action(
+    run_id: int,
+    db: DbSession,
+    ticker_subset: TickerSubsetForm = "",
+    include_benchmarks: IncludeBenchmarksForm = False,
+    what_to_show: WhatToShowForm = None,
+) -> RedirectResponse:
+    run = _load_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    tickers = _tickers_from_fetch_form(ticker_subset) or _unique_tickers(run.raw_company_rows)
+    if not tickers:
+        return _redirect_with_query(
+            run_id,
+            {
+                "ib_status": "disconnected",
+                "ib_message": "No uploaded tickers are available for this run.",
+            },
+        )
+
+    what_to_show_values = _what_to_show_values(what_to_show)
+    fetch_run = create_ib_fetch_run(
+        db,
+        run_id=run_id,
+        tickers=tickers,
+        include_benchmarks=include_benchmarks,
+    )
+    db.commit()
+    db.refresh(fetch_run)
+    fetch_run_id = fetch_run.id
+
+    try:
+        summary = ensure_daily_bars(
+            db,
+            tickers,
+            include_benchmarks=include_benchmarks,
+            what_to_show_values=what_to_show_values,
+        )
+        complete_ib_fetch_run(db, fetch_run, summary)
+        db.commit()
+        return _redirect_with_query(
+            run_id,
+            {
+                "ib_status": "fetch-complete",
+                "ib_message": fetch_run.message or "IB fetch completed.",
+            },
+        )
+    except Exception as exc:
+        db.rollback()
+        fetch_run = db.get(IBFetchRun, fetch_run_id)
+        if fetch_run:
+            fail_ib_fetch_run(db, fetch_run, str(exc))
+            db.commit()
+        return _redirect_with_query(
+            run_id,
+            {
+                "ib_status": "fetch-failed",
+                "ib_message": str(exc),
+            },
+        )
 
 
 def _decision_counts(results: list) -> dict[str, int]:
@@ -184,9 +289,8 @@ def _workflow_steps(
     rows: list[RawCompanyRow],
     technical_scores: list[TechnicalScore],
     combined_results: list[CombinedResult],
-    price_bar_ticker_count: int,
+    coverage: OhlcvCoverageSummary,
 ) -> list[dict[str, str]]:
-    ticker_count = len(_unique_tickers(rows))
     technical_warning_count = sum(
         score.insufficient_data or score.technical_confidence in {"low", "error"}
         for score in technical_scores
@@ -204,8 +308,11 @@ def _workflow_steps(
         ),
         _workflow_step(
             "IB bars fetched",
-            _coverage_status(price_bar_ticker_count, ticker_count),
-            f"{price_bar_ticker_count} of {ticker_count} tickers have cached bars.",
+            _coverage_status(coverage),
+            (
+                f"{coverage.ready_count} ready, {coverage.insufficient_count} short, "
+                f"{coverage.missing_count} missing."
+            ),
         ),
         _workflow_step(
             "Technicals scored",
@@ -238,10 +345,12 @@ def _workflow_step(label: str, status: str, message: str) -> dict[str, str]:
     }
 
 
-def _coverage_status(covered_count: int, ticker_count: int) -> str:
-    if ticker_count == 0 or covered_count == 0:
+def _coverage_status(coverage: OhlcvCoverageSummary) -> str:
+    if coverage.total_tickers == 0 or (
+        coverage.ready_count == 0 and coverage.insufficient_count == 0
+    ):
         return "not-started"
-    if covered_count < ticker_count:
+    if coverage.ready_count < coverage.total_tickers:
         return "warning"
     return "completed"
 
@@ -294,13 +403,29 @@ def _unique_tickers(rows: list[RawCompanyRow]) -> list[str]:
     return tickers
 
 
-def _price_bar_ticker_count(db: Session, tickers: list[str]) -> int:
-    if not tickers:
-        return 0
-    return len(
-        db.scalars(
-            select(PriceBar.ticker).where(PriceBar.ticker.in_(tickers)).distinct()
-        ).all()
+def _tickers_from_fetch_form(ticker_subset: str) -> list[str]:
+    symbols = ticker_subset.replace("\n", ",").replace(" ", ",").split(",")
+    seen: set[str] = set()
+    tickers: list[str] = []
+    for symbol in symbols:
+        ticker = symbol.strip().upper()
+        if ticker and ticker not in seen:
+            seen.add(ticker)
+            tickers.append(ticker)
+    return tickers
+
+
+def _what_to_show_values(values: list[str] | None) -> tuple[str, ...]:
+    allowed = set(DEFAULT_WHAT_TO_SHOW)
+    normalized = tuple(value for value in values or DEFAULT_WHAT_TO_SHOW if value in allowed)
+    return normalized or DEFAULT_WHAT_TO_SHOW
+
+
+def _redirect_with_query(run_id: int, params: dict[str, str]) -> RedirectResponse:
+    safe_params = {key: value.replace("\n", " ").strip()[:500] for key, value in params.items()}
+    return RedirectResponse(
+        url=f"/runs/{run_id}?{urlencode(safe_params)}",
+        status_code=303,
     )
 
 

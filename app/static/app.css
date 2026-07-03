@@ -270,6 +270,78 @@ dd {
   font-size: 18px;
 }
 
+.ib-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.6fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.ib-card,
+.fetch-summary,
+.coverage-details {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.fetch-form {
+  display: grid;
+  gap: 12px;
+}
+
+.fetch-form label:not(.toggle-row) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fetch-form textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.fetch-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.coverage-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.fetch-summary,
+.coverage-details {
+  margin-top: 16px;
+}
+
+.fetch-summary h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.coverage-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.coverage-details .table-wrap {
+  margin-top: 12px;
+}
+
 .upload-box {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -613,6 +685,7 @@ td a {
   .workflow,
   .metric-grid,
   .detail-grid,
+  .ib-layout,
   .cockpit-controls {
     grid-template-columns: 1fr;
   }
@@ -630,5 +703,9 @@ td a {
 
   .cockpit-controls {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ib-layout {
+    grid-template-columns: 1fr;
   }
 }

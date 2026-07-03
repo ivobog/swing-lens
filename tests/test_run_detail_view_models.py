@@ -7,7 +7,14 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
-from app.routers.run_routes import _run_summary, _warning_badges, _workflow_steps
+from app.routers.run_routes import (
+    _run_summary,
+    _tickers_from_fetch_form,
+    _warning_badges,
+    _what_to_show_values,
+    _workflow_steps,
+)
+from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
 
 
 def test_run_summary_counts_cockpit_state() -> None:
@@ -47,7 +54,16 @@ def test_workflow_steps_show_warning_for_partial_coverage_and_low_confidence() -
         rows=rows,
         technical_scores=technicals,
         combined_results=[],
-        price_bar_ticker_count=1,
+        coverage=OhlcvCoverageSummary(
+            total_tickers=2,
+            ready_count=1,
+            insufficient_count=0,
+            missing_count=1,
+            benchmark_spy_ready=False,
+            benchmark_qqq_ready=False,
+            required_rows=252,
+            items=[],
+        ),
     )
 
     assert steps[0]["status"] == "completed"
@@ -55,6 +71,12 @@ def test_workflow_steps_show_warning_for_partial_coverage_and_low_confidence() -
     assert steps[2]["status"] == "warning"
     assert steps[3]["status"] == "warning"
     assert steps[4]["status"] == "not-started"
+
+
+def test_fetch_form_helpers_normalize_tickers_and_data_types() -> None:
+    assert _tickers_from_fetch_form("msft, AAPL\nmsft NVDA") == ["MSFT", "AAPL", "NVDA"]
+    assert _what_to_show_values(["TRADES", "BAD"]) == ("TRADES",)
+    assert _what_to_show_values([]) == ("ADJUSTED_LAST", "TRADES")
 
 
 def test_warning_badges_map_flags_to_labels_and_tones() -> None:
