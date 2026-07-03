@@ -170,6 +170,9 @@
   <div class="coverage-strip">
     <span class="summary-item"><strong>{{ coverage.ready_count }}</strong> ready</span>
     <span class="summary-item"><strong>{{ coverage.insufficient_count }}</strong> insufficient</span>
+    <span class="summary-item"><strong>{{ coverage.stale_count }}</strong> stale</span>
+    <span class="summary-item"><strong>{{ coverage.missing_volume_count }}</strong> missing volume</span>
+    <span class="summary-item"><strong>{{ coverage.failed_contract_count }}</strong> contract failed</span>
     <span class="summary-item"><strong>{{ coverage.missing_count }}</strong> missing</span>
     <span class="summary-item"><strong>{{ coverage.required_rows }}</strong> required bars</span>
     <span class="summary-item">
@@ -238,8 +241,11 @@
               <th>Status</th>
               <th>Adjusted bars</th>
               <th>Trades bars</th>
+              <th>Latest adjusted</th>
+              <th>Latest trades</th>
               <th>Price</th>
               <th>Volume</th>
+              <th>Reason</th>
             </tr>
           </thead>
           <tbody>
@@ -247,14 +253,17 @@
               <tr>
                 <td>{{ item.ticker }}</td>
                 <td>
-                  <span class="badge badge-{{ 'success' if item.status == 'ready' else 'warning' if item.status == 'insufficient' else 'muted' }}">
-                    {{ item.status|title }}
+                  <span class="badge badge-{{ 'success' if item.status == 'ready' else 'warning' if item.status in ['insufficient', 'stale', 'missing_volume', 'contract_failed'] else 'muted' }}">
+                    {{ item.status|replace("_", " ")|title }}
                   </span>
                 </td>
                 <td>{{ item.adjusted_bars }}</td>
                 <td>{{ item.trades_bars }}</td>
+                <td>{{ item.latest_adjusted_date or "" }}</td>
+                <td>{{ item.latest_trades_date or "" }}</td>
                 <td>{{ "Yes" if item.has_price else "No" }}</td>
                 <td>{{ "Yes" if item.has_volume else "No" }}</td>
+                <td>{{ item.reason }}</td>
               </tr>
             {% endfor %}
           </tbody>

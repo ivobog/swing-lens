@@ -319,7 +319,7 @@ def _workflow_steps(
             _coverage_status(coverage),
             (
                 f"{coverage.ready_count} ready, {coverage.insufficient_count} short, "
-                f"{coverage.missing_count} missing."
+                f"{coverage.stale_count} stale, {coverage.missing_count} missing."
             ),
         ),
         _workflow_step(
@@ -354,8 +354,14 @@ def _workflow_step(label: str, status: str, message: str) -> dict[str, str]:
 
 
 def _coverage_status(coverage: OhlcvCoverageSummary) -> str:
-    if coverage.total_tickers == 0 or (
-        coverage.ready_count == 0 and coverage.insufficient_count == 0
+    if coverage.total_tickers == 0:
+        return "not-started"
+    if (
+        coverage.ready_count == 0
+        and coverage.insufficient_count == 0
+        and coverage.stale_count == 0
+        and coverage.missing_volume_count == 0
+        and coverage.failed_contract_count == 0
     ):
         return "not-started"
     if coverage.ready_count < coverage.total_tickers:
