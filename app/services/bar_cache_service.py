@@ -15,7 +15,6 @@ from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars
 from app.settings import Settings, get_settings
 
 DEFAULT_WHAT_TO_SHOW = ("ADJUSTED_LAST", "TRADES")
-DEFAULT_BENCHMARKS = ("SPY", "QQQ")
 
 
 @dataclass
@@ -76,7 +75,11 @@ def ensure_daily_bars(
     settings: Settings | None = None,
 ) -> BarFetchSummary:
     settings = settings or get_settings()
-    symbols = _normalize_symbols(tickers, include_benchmarks)
+    symbols = _normalize_symbols(
+        tickers,
+        include_benchmarks and settings.ib_fetch_benchmarks,
+        settings.ib_benchmark_symbols,
+    )
     summary = BarFetchSummary()
     ib = create_ib_client()
 
@@ -176,7 +179,14 @@ def _fetch_and_cache_one(
     ticker = contract.symbol.upper()
     item = BarFetchItem(ticker=ticker, what_to_show=what_to_show)
     try:
-        bars = fetch_daily_bars(ib, contract, what_to_show, settings)
+        bars = fetch_daily_bars(
+            ib,
+            contract,
+            what_to_show,
+            settings,
+            duration=settings.ib_full_backfill_duration,
+            bar_size=settings.ib_default_bar_size,
+        )
         item.fetched = len(bars)
         upsert_summary = cache_bars(db, bars)
         item.inserted = upsert_summary.inserted
@@ -190,10 +200,14 @@ def _fetch_and_cache_one(
     return item
 
 
-def _normalize_symbols(tickers: list[str], include_benchmarks: bool) -> list[str]:
+def _normalize_symbols(
+    tickers: list[str],
+    include_benchmarks: bool,
+    benchmarks: tuple[str, ...],
+) -> list[str]:
     symbols = {ticker.strip().upper() for ticker in tickers if ticker.strip()}
     if include_benchmarks:
-        symbols.update(DEFAULT_BENCHMARKS)
+        symbols.update(benchmarks)
     return sorted(symbols)
 
 

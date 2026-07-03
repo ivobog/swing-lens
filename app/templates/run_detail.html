@@ -113,6 +113,20 @@
         <dd>{{ ib_panel.client_id }}</dd>
         <dt>Read-only</dt>
         <dd>{{ "Yes" if ib_panel.read_only else "No" }}</dd>
+        <dt>Full backfill</dt>
+        <dd>{{ ib_panel.full_backfill_duration }}</dd>
+        <dt>Top-up</dt>
+        <dd>{{ ib_panel.top_up_duration }}</dd>
+        <dt>Refresh</dt>
+        <dd>{{ ib_panel.refresh_duration }}</dd>
+        <dt>Bar size</dt>
+        <dd>{{ ib_panel.default_bar_size }}</dd>
+        <dt>Rate limit</dt>
+        <dd>{{ ib_panel.requests_per_minute }}/min, {{ ib_panel.min_seconds_between_requests }}s gap</dd>
+        <dt>Benchmarks</dt>
+        <dd>{{ ib_panel.benchmarks }}</dd>
+        <dt>Required bars</dt>
+        <dd>{{ ib_panel.required_daily_bars }}</dd>
         <dt>Status</dt>
         <dd>
           {% if ib_panel.test_status %}

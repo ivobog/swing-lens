@@ -6,11 +6,12 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.tables import IBContract, PriceBar
-from app.services.bar_cache_service import cache_bars
+from app.services.bar_cache_service import _normalize_symbols, cache_bars
 from app.services.ib_api import Contract
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_contract_resolver import cached_contract_to_ib
 from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars
+from app.settings import Settings
 
 
 class FakeIB:
@@ -46,7 +47,11 @@ def test_check_ib_connection_failure() -> None:
 
 def test_fetch_daily_bars_converts_ib_bars() -> None:
     class BarsIB:
+        def __init__(self) -> None:
+            self.request = None
+
         def reqHistoricalData(self, *args, **kwargs):
+            self.request = kwargs
             return [
                 SimpleNamespace(
                     date="20260701",
@@ -59,9 +64,17 @@ def test_fetch_daily_bars_converts_ib_bars() -> None:
             ]
 
     contract = Contract(symbol="MSFT", secType="STK", exchange="SMART", currency="USD")
+    ib = BarsIB()
 
-    bars = fetch_daily_bars(BarsIB(), contract, "TRADES")
+    bars = fetch_daily_bars(
+        ib,
+        contract,
+        "TRADES",
+        settings=Settings(ib_full_backfill_duration="4 Y", ib_default_bar_size="1 day"),
+    )
 
+    assert ib.request["durationStr"] == "4 Y"
+    assert ib.request["barSizeSetting"] == "1 day"
     assert bars == [
         HistoricalBar(
             ticker="MSFT",
@@ -77,6 +90,42 @@ def test_fetch_daily_bars_converts_ib_bars() -> None:
             adjustment_type=None,
         )
     ]
+
+
+def test_fetch_daily_bars_accepts_duration_and_bar_size_override() -> None:
+    class BarsIB:
+        def __init__(self) -> None:
+            self.request = None
+
+        def reqHistoricalData(self, *args, **kwargs):
+            self.request = kwargs
+            return [
+                SimpleNamespace(
+                    date="20260701",
+                    open=10,
+                    high=12,
+                    low=9,
+                    close=11,
+                    volume=1000,
+                )
+            ]
+
+    contract = Contract(symbol="MSFT", secType="STK", exchange="SMART", currency="USD")
+    ib = BarsIB()
+
+    bars = fetch_daily_bars(
+        ib,
+        contract,
+        "ADJUSTED_LAST",
+        settings=Settings(),
+        duration="10 D",
+        bar_size="1 hour",
+    )
+
+    assert ib.request["durationStr"] == "10 D"
+    assert ib.request["barSizeSetting"] == "1 hour"
+    assert bars[0].timeframe == "1 hour"
+    assert bars[0].adjustment_type == "adjusted"
 
 
 def test_cached_contract_to_ib_rebuilds_resolved_contract() -> None:
@@ -150,6 +199,16 @@ def test_cache_bars_revises_changed_existing_bars() -> None:
     assert existing.data_hash
 
 
+def test_normalize_symbols_uses_configured_benchmarks() -> None:
+    symbols = _normalize_symbols(
+        ["msft", "SPY", "msft"],
+        include_benchmarks=True,
+        benchmarks=("QQQ", "IWM"),
+    )
+
+    assert symbols == ["IWM", "MSFT", "QQQ", "SPY"]
+
+
 def test_ib_status_route_does_not_require_gateway() -> None:
     client = TestClient(app)
 
@@ -157,6 +216,10 @@ def test_ib_status_route_does_not_require_gateway() -> None:
 
     assert response.status_code == 200
     assert response.json()["order_endpoints"] is False
+    assert response.json()["full_backfill_duration"]
+    assert response.json()["top_up_duration"]
+    assert response.json()["refresh_duration"]
+    assert "SPY" in response.json()["benchmarks"]
 
 
 class FakeDb:
