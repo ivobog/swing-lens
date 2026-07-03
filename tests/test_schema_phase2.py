@@ -30,10 +30,27 @@ def test_ib_fetch_summary_models_match_phase2_tables() -> None:
     fetch_item_columns = IBFetchItem.__table__.c
 
     assert "requested_tickers" in fetch_run_columns
+    assert "symbols_including_benchmarks" in fetch_run_columns
     assert "include_benchmarks" in fetch_run_columns
+    assert "planned_request_count" in fetch_run_columns
+    assert "executed_request_count" in fetch_run_columns
+    assert "skipped_count" in fetch_run_columns
+    assert "success_count" in fetch_run_columns
     assert "failure_count" in fetch_run_columns
+    assert "updated_count" in fetch_run_columns
+    assert "revised_count" in fetch_run_columns
+    assert "unchanged_count" in fetch_run_columns
     assert "fetch_run_id" in fetch_item_columns
     assert "what_to_show" in fetch_item_columns
+    assert "action" in fetch_item_columns
+    assert "duration" in fetch_item_columns
+    assert "bar_size" in fetch_item_columns
+    assert "reason" in fetch_item_columns
+    assert "current_bar_count" in fetch_item_columns
+    assert "updated" in fetch_item_columns
+    assert "revised" in fetch_item_columns
+    assert "unchanged" in fetch_item_columns
+    assert "attempt_count" in fetch_item_columns
     assert "error_message" in fetch_item_columns
 
 

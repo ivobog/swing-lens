@@ -311,10 +311,46 @@ class IBFetchRun(Base):
         ForeignKey("upload_runs.id", ondelete="CASCADE")
     )
     requested_tickers: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    symbols_including_benchmarks: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
     include_benchmarks: Mapped[bool] = mapped_column(
         nullable=False,
         default=True,
         server_default="true",
+    )
+    force_refresh: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    force_full_backfill: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    planned_request_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    executed_request_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    skipped_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    success_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
     )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -329,6 +365,21 @@ class IBFetchRun(Base):
         server_default="0",
     )
     inserted_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    updated_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    revised_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    unchanged_count: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
         server_default="0",
@@ -357,7 +408,21 @@ class IBFetchItem(Base):
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     what_to_show: Mapped[str] = mapped_column(Text, nullable=False)
+    action: Mapped[str | None] = mapped_column(Text)
+    duration: Mapped[str | None] = mapped_column(Text)
+    bar_size: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="1 day",
+        server_default="1 day",
+    )
     status: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    current_bar_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
     fetched: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
@@ -368,6 +433,28 @@ class IBFetchItem(Base):
         default=0,
         server_default="0",
     )
+    updated: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    revised: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    unchanged: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    attempt_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
 
     fetch_run: Mapped[IBFetchRun] = relationship(back_populates="items")
@@ -375,6 +462,7 @@ class IBFetchItem(Base):
     __table_args__ = (
         Index("idx_ib_fetch_items_fetch_run_id", "fetch_run_id"),
         Index("idx_ib_fetch_items_ticker", "ticker"),
+        Index("idx_ib_fetch_items_status", "status"),
     )
 
 

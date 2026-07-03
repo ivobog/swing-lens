@@ -195,7 +195,8 @@
           <h3>Latest Fetch</h3>
           <p>
             {{ latest_fetch.status }} · fetched {{ latest_fetch.fetched_count }} ·
-            inserted {{ latest_fetch.inserted_count }} · failures {{ latest_fetch.failure_count }}
+            inserted {{ latest_fetch.inserted_count }} · revised {{ latest_fetch.revised_count }} ·
+            unchanged {{ latest_fetch.unchanged_count }} · failures {{ latest_fetch.failure_count }}
           </p>
         </div>
       </div>
@@ -210,8 +211,11 @@
                 <th>Ticker</th>
                 <th>Data</th>
                 <th>Status</th>
+                <th>Action</th>
                 <th>Fetched</th>
                 <th>Inserted</th>
+                <th>Revised</th>
+                <th>Unchanged</th>
                 <th>Error</th>
               </tr>
             </thead>
@@ -221,8 +225,11 @@
                   <td>{{ item.ticker }}</td>
                   <td>{{ item.what_to_show }}</td>
                   <td>{{ item.status }}</td>
+                  <td>{{ item.action or "" }}</td>
                   <td>{{ item.fetched }}</td>
                   <td>{{ item.inserted }}</td>
+                  <td>{{ item.revised }}</td>
+                  <td>{{ item.unchanged }}</td>
                   <td>{{ item.error_message or "" }}</td>
                 </tr>
               {% endfor %}
