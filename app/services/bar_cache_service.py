@@ -1,8 +1,10 @@
+import hashlib
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
 
 from app.models.tables import PriceBar
@@ -22,8 +24,19 @@ class BarFetchItem:
     what_to_show: str
     fetched: int = 0
     inserted: int = 0
+    updated: int = 0
+    revised: int = 0
+    unchanged: int = 0
     status: str = "PENDING"
     error_message: str | None = None
+
+
+@dataclass(frozen=True)
+class BarUpsertSummary:
+    inserted: int = 0
+    updated: int = 0
+    revised: int = 0
+    unchanged: int = 0
 
 
 @dataclass
@@ -37,6 +50,18 @@ class BarFetchSummary:
     @property
     def inserted(self) -> int:
         return sum(item.inserted for item in self.items)
+
+    @property
+    def updated(self) -> int:
+        return sum(item.updated for item in self.items)
+
+    @property
+    def revised(self) -> int:
+        return sum(item.revised for item in self.items)
+
+    @property
+    def unchanged(self) -> int:
+        return sum(item.unchanged for item in self.items)
 
     @property
     def failures(self) -> list[BarFetchItem]:
@@ -90,33 +115,55 @@ def ensure_daily_bars(
     return summary
 
 
-def cache_bars(db: Session, bars: list[HistoricalBar]) -> int:
+def cache_bars(db: Session, bars: list[HistoricalBar]) -> BarUpsertSummary:
     if not bars:
-        return 0
+        return BarUpsertSummary()
 
-    statement = insert(PriceBar).values(
-        [
-            {
-                "ticker": bar.ticker,
-                "bar_date": bar.bar_date,
-                "timeframe": bar.timeframe,
-                "open": _decimal_or_none(bar.open),
-                "high": _decimal_or_none(bar.high),
-                "low": _decimal_or_none(bar.low),
-                "close": _decimal_or_none(bar.close),
-                "volume": _decimal_or_none(bar.volume),
-                "source": bar.source,
-                "what_to_show": bar.what_to_show,
-                "adjustment_type": bar.adjustment_type,
-            }
-            for bar in bars
-        ]
+    now = datetime.now(UTC)
+    existing = _existing_bars_by_key(db, bars)
+    inserted = 0
+    updated = 0
+    revised = 0
+    unchanged = 0
+
+    for bar in bars:
+        key = _bar_key(bar.ticker, bar.bar_date, bar.timeframe, bar.what_to_show)
+        current = existing.get(key)
+        new_hash = bar_data_hash(bar)
+
+        if current is None:
+            db.add(_to_price_bar(bar, new_hash, now))
+            inserted += 1
+            continue
+
+        current_hash = current.data_hash or price_bar_data_hash(current)
+        if current_hash == new_hash:
+            current.last_seen_at = now
+            if current.data_hash is None:
+                current.data_hash = new_hash
+            unchanged += 1
+            continue
+
+        current.open = _decimal_or_none(bar.open)
+        current.high = _decimal_or_none(bar.high)
+        current.low = _decimal_or_none(bar.low)
+        current.close = _decimal_or_none(bar.close)
+        current.volume = _decimal_or_none(bar.volume)
+        current.source = bar.source
+        current.adjustment_type = bar.adjustment_type
+        current.last_seen_at = now
+        current.revised_at = now
+        current.revision_count = (current.revision_count or 0) + 1
+        current.data_hash = new_hash
+        updated += 1
+        revised += 1
+
+    return BarUpsertSummary(
+        inserted=inserted,
+        updated=updated,
+        revised=revised,
+        unchanged=unchanged,
     )
-    statement = statement.on_conflict_do_nothing(
-        constraint="uq_price_bars_ticker_date_timeframe_what_to_show"
-    ).returning(PriceBar.id)
-    result = db.execute(statement)
-    return len(result.scalars().all())
 
 
 def _fetch_and_cache_one(
@@ -131,7 +178,11 @@ def _fetch_and_cache_one(
     try:
         bars = fetch_daily_bars(ib, contract, what_to_show, settings)
         item.fetched = len(bars)
-        item.inserted = cache_bars(db, bars)
+        upsert_summary = cache_bars(db, bars)
+        item.inserted = upsert_summary.inserted
+        item.updated = upsert_summary.updated
+        item.revised = upsert_summary.revised
+        item.unchanged = upsert_summary.unchanged
         item.status = "COMPLETED"
     except Exception as exc:
         item.status = "FAILED"
@@ -150,3 +201,118 @@ def _decimal_or_none(value: float | None) -> Decimal | None:
     if value is None:
         return None
     return Decimal(str(value))
+
+
+def _existing_bars_by_key(
+    db: Session,
+    bars: list[HistoricalBar],
+) -> dict[tuple[str, object, str, str], PriceBar]:
+    keys = {
+        _bar_key(bar.ticker, bar.bar_date, bar.timeframe, bar.what_to_show)
+        for bar in bars
+    }
+    if not keys:
+        return {}
+
+    rows = db.scalars(
+        select(PriceBar).where(
+            tuple_(
+                PriceBar.ticker,
+                PriceBar.bar_date,
+                PriceBar.timeframe,
+                PriceBar.what_to_show,
+            ).in_(keys)
+        )
+    ).all()
+    return {
+        _bar_key(row.ticker, row.bar_date, row.timeframe, row.what_to_show): row
+        for row in rows
+    }
+
+
+def _bar_key(
+    ticker: str,
+    bar_date: object,
+    timeframe: str,
+    what_to_show: str,
+) -> tuple[str, object, str, str]:
+    return (ticker.upper(), bar_date, timeframe, what_to_show)
+
+
+def _to_price_bar(bar: HistoricalBar, data_hash: str, now: datetime) -> PriceBar:
+    return PriceBar(
+        ticker=bar.ticker.upper(),
+        bar_date=bar.bar_date,
+        timeframe=bar.timeframe,
+        open=_decimal_or_none(bar.open),
+        high=_decimal_or_none(bar.high),
+        low=_decimal_or_none(bar.low),
+        close=_decimal_or_none(bar.close),
+        volume=_decimal_or_none(bar.volume),
+        source=bar.source,
+        what_to_show=bar.what_to_show,
+        adjustment_type=bar.adjustment_type,
+        first_seen_at=now,
+        last_seen_at=now,
+        revision_count=0,
+        data_hash=data_hash,
+    )
+
+
+def bar_data_hash(bar: HistoricalBar) -> str:
+    return _hash_bar_values(
+        open_value=bar.open,
+        high_value=bar.high,
+        low_value=bar.low,
+        close_value=bar.close,
+        volume_value=bar.volume,
+        source=bar.source,
+        what_to_show=bar.what_to_show,
+        adjustment_type=bar.adjustment_type,
+    )
+
+
+def price_bar_data_hash(row: PriceBar) -> str:
+    return _hash_bar_values(
+        open_value=row.open,
+        high_value=row.high,
+        low_value=row.low,
+        close_value=row.close,
+        volume_value=row.volume,
+        source=row.source,
+        what_to_show=row.what_to_show,
+        adjustment_type=row.adjustment_type,
+    )
+
+
+def _hash_bar_values(
+    *,
+    open_value: object,
+    high_value: object,
+    low_value: object,
+    close_value: object,
+    volume_value: object,
+    source: str,
+    what_to_show: str,
+    adjustment_type: str | None,
+) -> str:
+    payload = "|".join(
+        [
+            _hash_decimal(open_value),
+            _hash_decimal(high_value),
+            _hash_decimal(low_value),
+            _hash_decimal(close_value),
+            _hash_decimal(volume_value),
+            source or "",
+            what_to_show or "",
+            adjustment_type or "",
+        ]
+    )
+    return hashlib.md5(payload.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+def _hash_decimal(value: object) -> str:
+    if value is None:
+        return ""
+    decimal = Decimal(str(value)).normalize()
+    return format(decimal, "f")

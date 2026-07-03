@@ -37,6 +37,19 @@ def test_ib_fetch_summary_models_match_phase2_tables() -> None:
     assert "error_message" in fetch_item_columns
 
 
+def test_price_bar_model_includes_revision_metadata_columns() -> None:
+    table = Base.metadata.tables["price_bars"]
+
+    for column_name in [
+        "first_seen_at",
+        "last_seen_at",
+        "revised_at",
+        "revision_count",
+        "data_hash",
+    ]:
+        assert column_name in table.c
+
+
 def test_combined_decision_to_model_persists_phase2_fields() -> None:
     decision = combine_row_decision(
         _row("MSFT"),
