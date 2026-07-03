@@ -1,7 +1,7 @@
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -13,6 +13,7 @@ from app.services.combined_decision import refresh_combined_results
 from app.services.export_service import EXPORT_TYPES, export_filename, export_run_csv
 from app.services.history_service import recent_decisions, summarize_runs
 from app.services.ib_connection import check_ib_connection
+from app.services.ib_fetch_plan_service import build_fetch_plan, fetch_plan_to_dict
 from app.services.ib_fetch_summary_service import (
     complete_ib_fetch_run,
     create_ib_fetch_run,
@@ -189,6 +190,36 @@ def test_run_ib_connection_action(run_id: int, db: DbSession) -> RedirectRespons
             "ib_message": status.message,
         },
     )
+
+
+@router.get("/runs/{run_id}/ib/plan")
+def preview_run_ib_fetch_plan(
+    run_id: int,
+    db: DbSession,
+    ticker_subset: str = "",
+    include_benchmarks: bool = True,
+    force_refresh: bool = False,
+    force_full_backfill: bool = False,
+    what_to_show: Annotated[list[str] | None, Query()] = None,
+) -> dict[str, object]:
+    run = _load_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    tickers = _tickers_from_fetch_form(ticker_subset) or _unique_tickers(run.raw_company_rows)
+    if not tickers:
+        raise HTTPException(status_code=400, detail="No uploaded tickers are available.")
+
+    plan = build_fetch_plan(
+        db,
+        tickers,
+        run_id=run_id,
+        include_benchmarks=include_benchmarks,
+        force_refresh=force_refresh,
+        force_full_backfill=force_full_backfill,
+        what_to_show_values=_what_to_show_values(what_to_show),
+    )
+    return fetch_plan_to_dict(plan)
 
 
 @router.post("/runs/{run_id}/ib/fetch")

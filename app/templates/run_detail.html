@@ -163,7 +163,10 @@
           <span>Trades</span>
         </label>
       </div>
-      <button type="submit" data-loading-label="Fetching...">Fetch IB bars</button>
+      <div class="actions">
+        <a class="button-link secondary" href="/runs/{{ run.id }}/ib/plan">Preview fetch plan</a>
+        <button type="submit" data-loading-label="Fetching...">Fetch IB bars</button>
+      </div>
     </form>
   </div>
 
