@@ -250,6 +250,12 @@ def _to_model(
         combined_decision=decision.combined_decision,
         position_size_hint=decision.position_size_hint,
         notes=decision.notes,
+        warning_flags_json=decision.warning_flags,
+        is_complete=decision.is_complete,
+        has_fundamental=decision.has_fundamental,
+        has_technical=decision.has_technical,
+        has_warning=decision.has_warning,
+        sort_bucket=decision.sort_bucket,
     )
 
 
