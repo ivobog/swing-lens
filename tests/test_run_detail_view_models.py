@@ -8,12 +8,15 @@ from app.models.tables import (
     UploadRun,
 )
 from app.routers.run_routes import (
+    _fetch_plan_action_counts,
+    _fetch_plan_json_url,
     _run_summary,
     _tickers_from_fetch_form,
     _warning_badges,
     _what_to_show_values,
     _workflow_steps,
 )
+from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
 
 
@@ -89,6 +92,44 @@ def test_warning_badges_map_flags_to_labels_and_tones() -> None:
     ]
 
 
+def test_fetch_plan_helpers_count_actions_and_build_json_url() -> None:
+    plan = FetchPlan(
+        run_id=7,
+        requested_tickers=["MSFT"],
+        symbols_including_benchmarks=["MSFT", "SPY"],
+        items=[
+            _plan_item("MSFT", FetchAction.SKIP),
+            _plan_item("SPY", FetchAction.TOP_UP_RECENT),
+            _plan_item("AAPL", FetchAction.TOP_UP_RECENT),
+        ],
+        estimated_request_count=2,
+        estimated_full_backfills=0,
+        estimated_top_ups=2,
+        estimated_refreshes=0,
+        estimated_skips=1,
+        warnings=[],
+    )
+
+    counts = _fetch_plan_action_counts(plan)
+    url = _fetch_plan_json_url(
+        run_id=7,
+        ticker_subset="MSFT,AAPL",
+        include_benchmarks=True,
+        force_refresh=False,
+        force_full_backfill=True,
+        what_to_show=["TRADES"],
+    )
+
+    assert counts == [
+        {"action": "SKIP", "label": "Skip", "count": 1},
+        {"action": "TOP_UP_RECENT", "label": "Top-up", "count": 2},
+    ]
+    assert url.startswith("/runs/7/ib/plan?")
+    assert "format=json" in url
+    assert "ticker_subset=MSFT%2CAAPL" in url
+    assert "what_to_show=TRADES" in url
+
+
 def _row(ticker: str, row_number: int) -> RawCompanyRow:
     return RawCompanyRow(
         run_id=1,
@@ -114,4 +155,21 @@ def _combined(
         combined_decision=decision,
         is_complete=is_complete,
         has_warning=has_warning,
+    )
+
+
+def _plan_item(ticker: str, action: FetchAction) -> FetchPlanItem:
+    return FetchPlanItem(
+        ticker=ticker,
+        contract_status="RESOLVED",
+        what_to_show="TRADES",
+        action=action,
+        duration=None,
+        bar_size="1 day",
+        current_bar_count=300,
+        first_bar_date=None,
+        latest_bar_date=None,
+        required_bars=252,
+        reason="test",
+        estimated_request_count=0 if action == FetchAction.SKIP else 1,
     )

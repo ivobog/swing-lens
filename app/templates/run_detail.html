@@ -203,6 +203,7 @@
           <h3>Latest Fetch</h3>
           <p>
             {{ latest_fetch.status }} · fetched {{ latest_fetch.fetched_count }} ·
+            executed {{ latest_fetch.executed_request_count }} / planned {{ latest_fetch.planned_request_count }} ·
             inserted {{ latest_fetch.inserted_count }} · revised {{ latest_fetch.revised_count }} ·
             unchanged {{ latest_fetch.unchanged_count }} · failures {{ latest_fetch.failure_count }}
           </p>
@@ -220,10 +221,13 @@
                 <th>Data</th>
                 <th>Status</th>
                 <th>Action</th>
+                <th>Duration</th>
                 <th>Fetched</th>
                 <th>Inserted</th>
+                <th>Updated</th>
                 <th>Revised</th>
                 <th>Unchanged</th>
+                <th>Attempts</th>
                 <th>Error</th>
               </tr>
             </thead>
@@ -232,12 +236,19 @@
                 <tr>
                   <td>{{ item.ticker }}</td>
                   <td>{{ item.what_to_show }}</td>
-                  <td>{{ item.status }}</td>
+                  <td>
+                    <span class="badge badge-{{ 'success' if item.status in ['SUCCESS', 'COMPLETED', 'SKIPPED'] else 'warning' if item.status in ['PLANNED', 'RUNNING'] else 'danger' }}">
+                      {{ item.status|replace("_", " ")|title }}
+                    </span>
+                  </td>
                   <td>{{ item.action or "" }}</td>
+                  <td>{{ item.duration or "" }}</td>
                   <td>{{ item.fetched }}</td>
                   <td>{{ item.inserted }}</td>
+                  <td>{{ item.updated }}</td>
                   <td>{{ item.revised }}</td>
                   <td>{{ item.unchanged }}</td>
+                  <td>{{ item.attempt_count }}</td>
                   <td>{{ item.error_message or "" }}</td>
                 </tr>
               {% endfor %}

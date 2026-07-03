@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Run {{ run.id }} IB Fetch Plan{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header run-header">
+    <div>
+      <h1>IB Fetch Plan</h1>
+      <p>Run {{ run.id }} · {{ run.filename }}</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ run.id }}">Run detail</a>
+      <a class="button-link secondary" href="{{ json_url }}">JSON</a>
+    </div>
+  </div>
+
+  {% if plan.warnings %}
+    <div class="alert">
+      {% for warning in plan.warnings %}
+        <span>{{ warning }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="summary-strip">
+    <span class="summary-item"><strong>{{ plan.requested_tickers|length }}</strong> requested</span>
+    <span class="summary-item"><strong>{{ plan.symbols_including_benchmarks|length }}</strong> symbols</span>
+    <span class="summary-item"><strong>{{ plan.estimated_request_count }}</strong> IB requests</span>
+    <span class="summary-item"><strong>{{ plan.estimated_full_backfills }}</strong> full</span>
+    <span class="summary-item"><strong>{{ plan.estimated_top_ups }}</strong> top-up</span>
+    <span class="summary-item"><strong>{{ plan.estimated_refreshes }}</strong> refresh</span>
+    <span class="summary-item"><strong>{{ plan.estimated_skips }}</strong> skip</span>
+  </div>
+
+  {% if action_counts %}
+    <div class="summary-strip">
+      {% for item in action_counts %}
+        <span class="summary-item"><strong>{{ item.count }}</strong> {{ item.label }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Data</th>
+          <th>Action</th>
+          <th>Duration</th>
+          <th>Contract</th>
+          <th>Bars</th>
+          <th>First</th>
+          <th>Latest</th>
+          <th>Requests</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in plan.items %}
+          <tr>
+            <td><strong>{{ item.ticker }}</strong></td>
+            <td>{{ item.what_to_show }}</td>
+            <td>
+              <span class="badge badge-{{ 'success' if item.action.value == 'SKIP' else 'warning' if item.action.value in ['TOP_UP_RECENT', 'REFRESH_RECENT', 'FULL_BACKFILL', 'FORCE_REFRESH', 'CONTRACT_RESOLUTION_REQUIRED'] else 'danger' }}">
+                {{ item.action.value|replace("_", " ")|title }}
+              </span>
+            </td>
+            <td>{{ item.duration or "" }}</td>
+            <td>{{ item.contract_status }}</td>
+            <td>{{ item.current_bar_count }} / {{ item.required_bars }}</td>
+            <td>{{ item.first_bar_date or "" }}</td>
+            <td>{{ item.latest_bar_date or "" }}</td>
+            <td>{{ item.estimated_request_count }}</td>
+            <td>{{ item.reason }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

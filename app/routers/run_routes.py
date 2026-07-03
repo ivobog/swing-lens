@@ -14,7 +14,7 @@ from app.services.export_service import EXPORT_TYPES, export_filename, export_ru
 from app.services.history_service import recent_decisions, summarize_runs
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_fetch_executor import execute_fetch_plan
-from app.services.ib_fetch_plan_service import build_fetch_plan, fetch_plan_to_dict
+from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan, fetch_plan_to_dict
 from app.services.ib_fetch_summary_service import (
     latest_ib_fetch_for_run,
 )
@@ -192,16 +192,18 @@ def test_run_ib_connection_action(run_id: int, db: DbSession) -> RedirectRespons
     )
 
 
-@router.get("/runs/{run_id}/ib/plan")
+@router.get("/runs/{run_id}/ib/plan", response_model=None)
 def preview_run_ib_fetch_plan(
     run_id: int,
+    request: Request,
     db: DbSession,
     ticker_subset: str = "",
     include_benchmarks: bool = True,
     force_refresh: bool = False,
     force_full_backfill: bool = False,
     what_to_show: Annotated[list[str] | None, Query()] = None,
-) -> dict[str, object]:
+    format: str = "html",
+) -> HTMLResponse | dict[str, object]:
     run = _load_run(db, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
@@ -219,7 +221,26 @@ def preview_run_ib_fetch_plan(
         force_full_backfill=force_full_backfill,
         what_to_show_values=_what_to_show_values(what_to_show),
     )
-    return fetch_plan_to_dict(plan)
+    if format == "json":
+        return fetch_plan_to_dict(plan)
+
+    return templates.TemplateResponse(
+        request,
+        "ib_fetch_plan.html",
+        {
+            "run": run,
+            "plan": plan,
+            "action_counts": _fetch_plan_action_counts(plan),
+            "json_url": _fetch_plan_json_url(
+                run_id=run_id,
+                ticker_subset=ticker_subset,
+                include_benchmarks=include_benchmarks,
+                force_refresh=force_refresh,
+                force_full_backfill=force_full_backfill,
+                what_to_show=what_to_show,
+            ),
+        },
+    )
 
 
 @router.post("/runs/{run_id}/ib/fetch")
@@ -461,6 +482,52 @@ def _what_to_show_values(values: list[str] | None) -> tuple[str, ...]:
     allowed = set(DEFAULT_WHAT_TO_SHOW)
     normalized = tuple(value for value in values or DEFAULT_WHAT_TO_SHOW if value in allowed)
     return normalized or DEFAULT_WHAT_TO_SHOW
+
+
+def _fetch_plan_action_counts(plan: FetchPlan) -> list[dict[str, object]]:
+    labels = {
+        "SKIP": "Skip",
+        "TOP_UP_RECENT": "Top-up",
+        "REFRESH_RECENT": "Refresh",
+        "FULL_BACKFILL": "Backfill",
+        "FORCE_REFRESH": "Force full",
+        "CONTRACT_RESOLUTION_REQUIRED": "Resolve",
+        "UNSUPPORTED": "Unsupported",
+        "FAILED": "Failed",
+    }
+    counts: dict[str, int] = {action: 0 for action in labels}
+    for item in plan.items:
+        counts[item.action.value] = counts.get(item.action.value, 0) + 1
+    return [
+        {
+            "action": action,
+            "label": label,
+            "count": counts[action],
+        }
+        for action, label in labels.items()
+        if counts[action]
+    ]
+
+
+def _fetch_plan_json_url(
+    run_id: int,
+    ticker_subset: str,
+    include_benchmarks: bool,
+    force_refresh: bool,
+    force_full_backfill: bool,
+    what_to_show: list[str] | None,
+) -> str:
+    params: list[tuple[str, str]] = [
+        ("format", "json"),
+        ("include_benchmarks", "true" if include_benchmarks else "false"),
+        ("force_refresh", "true" if force_refresh else "false"),
+        ("force_full_backfill", "true" if force_full_backfill else "false"),
+    ]
+    if ticker_subset:
+        params.append(("ticker_subset", ticker_subset))
+    for value in what_to_show or []:
+        params.append(("what_to_show", value))
+    return f"/runs/{run_id}/ib/plan?{urlencode(params)}"
 
 
 def _redirect_with_query(run_id: int, params: dict[str, str]) -> RedirectResponse:
