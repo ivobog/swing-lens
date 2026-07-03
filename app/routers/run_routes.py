@@ -7,17 +7,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
-from app.models.tables import CombinedResult, IBFetchRun, RawCompanyRow, TechnicalScore, UploadRun
-from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW, ensure_daily_bars
+from app.models.tables import CombinedResult, RawCompanyRow, TechnicalScore, UploadRun
+from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.combined_decision import refresh_combined_results
 from app.services.export_service import EXPORT_TYPES, export_filename, export_run_csv
 from app.services.history_service import recent_decisions, summarize_runs
 from app.services.ib_connection import check_ib_connection
+from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import build_fetch_plan, fetch_plan_to_dict
 from app.services.ib_fetch_summary_service import (
-    complete_ib_fetch_run,
-    create_ib_fetch_run,
-    fail_ib_fetch_run,
     latest_ib_fetch_for_run,
 )
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary, summarize_run_ohlcv_coverage
@@ -30,6 +28,8 @@ DbSession = Annotated[Session, Depends(get_db)]
 TickerSubsetForm = Annotated[str, Form()]
 IncludeBenchmarksForm = Annotated[bool, Form()]
 WhatToShowForm = Annotated[list[str] | None, Form()]
+ForceRefreshForm = Annotated[bool, Form()]
+ForceFullBackfillForm = Annotated[bool, Form()]
 
 WARNING_BADGE_LABELS = {
     "incomplete_data": "Incomplete",
@@ -229,6 +229,8 @@ def fetch_run_ib_bars_action(
     ticker_subset: TickerSubsetForm = "",
     include_benchmarks: IncludeBenchmarksForm = False,
     what_to_show: WhatToShowForm = None,
+    force_refresh: ForceRefreshForm = False,
+    force_full_backfill: ForceFullBackfillForm = False,
 ) -> RedirectResponse:
     run = _load_run(db, run_id)
     if not run:
@@ -245,38 +247,33 @@ def fetch_run_ib_bars_action(
         )
 
     what_to_show_values = _what_to_show_values(what_to_show)
-    fetch_run = create_ib_fetch_run(
-        db,
-        run_id=run_id,
+    plan = build_fetch_plan(
+        db=db,
         tickers=tickers,
+        run_id=run_id,
         include_benchmarks=include_benchmarks,
+        force_refresh=force_refresh,
+        force_full_backfill=force_full_backfill,
+        what_to_show_values=what_to_show_values,
     )
-    db.commit()
-    db.refresh(fetch_run)
-    fetch_run_id = fetch_run.id
 
     try:
-        summary = ensure_daily_bars(
+        fetch_run = execute_fetch_plan(
             db,
-            tickers,
+            plan,
             include_benchmarks=include_benchmarks,
-            what_to_show_values=what_to_show_values,
+            force_refresh=force_refresh,
+            force_full_backfill=force_full_backfill,
         )
-        complete_ib_fetch_run(db, fetch_run, summary)
-        db.commit()
         return _redirect_with_query(
             run_id,
             {
-                "ib_status": "fetch-complete",
+                "ib_status": "fetch-failed" if fetch_run.status == "FAILED" else "fetch-complete",
                 "ib_message": fetch_run.message or "IB fetch completed.",
             },
         )
     except Exception as exc:
         db.rollback()
-        fetch_run = db.get(IBFetchRun, fetch_run_id)
-        if fetch_run:
-            fail_ib_fetch_run(db, fetch_run, str(exc))
-            db.commit()
         return _redirect_with_query(
             run_id,
             {

@@ -162,6 +162,14 @@
           <input type="checkbox" name="what_to_show" value="TRADES" checked>
           <span>Trades</span>
         </label>
+        <label class="toggle-row">
+          <input type="checkbox" name="force_refresh" value="true">
+          <span>Force recent refresh</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" name="force_full_backfill" value="true">
+          <span>Force full backfill</span>
+        </label>
       </div>
       <div class="actions">
         <a class="button-link secondary" href="/runs/{{ run.id }}/ib/plan">Preview fetch plan</a>
