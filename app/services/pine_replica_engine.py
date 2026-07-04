@@ -4,6 +4,7 @@ from typing import Any
 from app.services.technical_indicators import TechnicalFeatureResult, load_pine_defaults
 
 ENGINE_VERSION = "3.2.0"
+FLOAT_THRESHOLD_EPSILON = 1e-9
 
 CLASS_PRIME_PULLBACK = "Prime clean pullback"
 CLASS_CLEAN_PULLBACK = "Clean bull pullback"
@@ -916,9 +917,9 @@ def _derive_inputs(
     htf_status_value = htf_status(htf_score_value)
     market = _market_from_features(market_features, params)
     reward_risk = latest.get("reward_risk")
-    reward_risk_ok = (
-        reward_risk is None
-        or _num(reward_risk) >= params["stop_target"]["minRewardRisk"]
+    reward_risk_ok = reward_risk is None or _meets_threshold(
+        _num(reward_risk),
+        params["stop_target"]["minRewardRisk"],
     )
     sector_gate_ok = (
         not params["market_rs"]["useSectorBenchmark"]
@@ -1145,6 +1146,10 @@ def _num(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _meets_threshold(value: float, threshold: float) -> bool:
+    return value + FLOAT_THRESHOLD_EPSILON >= threshold
 
 
 def _bool(value: Any) -> bool:

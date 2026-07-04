@@ -7,6 +7,7 @@ from app.services.pine_replica_engine import (
     CLASS_FAILED_BREAKOUT,
     CLASS_NO_TRADE,
     CLASS_PRIME_PULLBACK,
+    _meets_threshold,
     action_bias_text,
     classify_setup,
     dual_score,
@@ -163,6 +164,11 @@ def test_classification_clean_pullback_and_no_trade() -> None:
 
 def test_dual_score_balanced_weights() -> None:
     assert dual_score(8, 7, 6, 3, 7, 8, 6, "Balanced") == 7.09
+
+
+def test_reward_risk_threshold_tolerates_float_boundary() -> None:
+    assert _meets_threshold(1.9999999999999984, 2.0)
+    assert not _meets_threshold(1.9999, 2.0)
 
 
 def test_action_bias_text() -> None:
