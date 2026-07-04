@@ -92,6 +92,22 @@ def test_calculate_technical_features_latest_values() -> None:
     assert result.debug["row_count"] == 320
 
 
+def test_green_beats_red_uses_pine_sma_semantics() -> None:
+    frame = _synthetic_ohlcv(rows=320)
+    last_ten = frame.tail(10).index
+    frame.loc[last_ten, ["open", "high", "low", "close"]] = [100.0, 102.0, 99.0, 101.0]
+    frame.loc[last_ten, "volume"] = 100
+    red_index = last_ten[0]
+    frame.loc[red_index, ["open", "close"]] = [101.0, 100.0]
+    frame.loc[red_index, "volume"] = 150
+
+    result = calculate_technical_features(frame, ticker="TEST")
+
+    assert result.latest["green_volume_avg"] == pytest.approx(90.0)
+    assert result.latest["red_volume_avg"] == pytest.approx(15.0)
+    assert result.latest["green_beats_red"] is True
+
+
 def test_higher_last_pivot_tracks_previous_confirmed_pivot() -> None:
     pivots = pd.Series([None, 10.0, None, None, 12.0, None, None])
 

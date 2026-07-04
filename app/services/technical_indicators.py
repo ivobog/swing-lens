@@ -411,16 +411,14 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     red_bar = close < open_
     green_volume = volume.where(green_bar, 0.0)
     red_volume = volume.where(red_bar, 0.0)
-    green_count = rolling_sum(green_bar.astype(float), momentum["greenRedVolLookback"])
-    red_count = rolling_sum(red_bar.astype(float), momentum["greenRedVolLookback"])
     features["green_volume_avg"] = rolling_sum(
         green_volume,
         momentum["greenRedVolLookback"],
-    ) / green_count.clip(lower=1.0)
+    ) / momentum["greenRedVolLookback"]
     features["red_volume_avg"] = rolling_sum(
         red_volume,
         momentum["greenRedVolLookback"],
-    ) / red_count.clip(lower=1.0)
+    ) / momentum["greenRedVolLookback"]
     features["green_beats_red"] = features["green_volume_avg"] > features["red_volume_avg"]
     features["recent_red_volume"] = rolling_sum(red_volume, momentum["recentRedVolLookback"])
     features["prior_red_volume"] = features["recent_red_volume"].shift(
