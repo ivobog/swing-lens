@@ -517,20 +517,52 @@
                   <div>
                     <h3>Fundamentals</h3>
                     {% if fundamental %}
+                      {% set debug = fundamental.debug_json or {} %}
+                      {% set coverage_data = debug.get("coverage", {}) %}
+                      {% set missing_fields = coverage_data.get("missing_core_fields", debug.get("missing_fields", [])) %}
+                      {% set missing_high_fields = coverage_data.get("missing_high_fields", []) %}
+                      {% set trap_flags = fundamental.trap_flags_json.get("flags", []) if fundamental.trap_flags_json else [] %}
+                      {% set v2_flags = fundamental.v2_warning_flags_json.get("flags", []) if fundamental.v2_warning_flags_json else trap_flags %}
                       <dl class="compact-dl">
+                        <dt>Model</dt>
+                        <dd>{{ fundamental.scoring_model_version or debug.get("model_version", "") }}</dd>
                         <dt>Score</dt>
                         <dd>{{ "%.2f"|format(fundamental.fundamental_score) if fundamental.fundamental_score is not none else "" }}</dd>
+                        <dt>Coverage</dt>
+                        <dd>{{ "%.2f"|format(fundamental.data_coverage_score) if fundamental.data_coverage_score is not none else "" }}</dd>
+                        <dt>Growth</dt>
+                        <dd>{{ "%.2f"|format(fundamental.growth_quality_score) if fundamental.growth_quality_score is not none else "" }}</dd>
+                        <dt>Profitability</dt>
+                        <dd>{{ "%.2f"|format(fundamental.profitability_quality_score) if fundamental.profitability_quality_score is not none else "" }}</dd>
+                        <dt>FCF</dt>
+                        <dd>{{ "%.2f"|format(fundamental.fcf_quality_score) if fundamental.fcf_quality_score is not none else "" }}</dd>
+                        <dt>Earnings</dt>
+                        <dd>{{ "%.2f"|format(fundamental.earnings_quality_score) if fundamental.earnings_quality_score is not none else "" }}</dd>
+                        <dt>Capital</dt>
+                        <dd>{{ "%.2f"|format(fundamental.capital_efficiency_score) if fundamental.capital_efficiency_score is not none else "" }}</dd>
+                        <dt>Balance</dt>
+                        <dd>{{ "%.2f"|format(fundamental.balance_sheet_quality_score) if fundamental.balance_sheet_quality_score is not none else "" }}</dd>
+                        <dt>Valuation</dt>
+                        <dd>{{ "%.2f"|format(fundamental.valuation_quality_score) if fundamental.valuation_quality_score is not none else "" }}</dd>
+                        <dt>Forward</dt>
+                        <dd>{{ "%.2f"|format(fundamental.forward_quality_score) if fundamental.forward_quality_score is not none else "" }}</dd>
+                        <dt>Shareholder</dt>
+                        <dd>{{ "%.2f"|format(fundamental.shareholder_quality_score) if fundamental.shareholder_quality_score is not none else "" }}</dd>
+                        <dt>Liquidity</dt>
+                        <dd>{{ "%.2f"|format(fundamental.liquidity_risk_score) if fundamental.liquidity_risk_score is not none else "" }}</dd>
                         <dt>Penalty</dt>
                         <dd>{{ "%.2f"|format(fundamental.missing_data_penalty) if fundamental.missing_data_penalty is not none else "0.00" }}</dd>
-                        <dt>Missing</dt>
+                        <dt>Missing Core</dt>
                         <dd>
-                          {% set missing_fields = fundamental.debug_json.get("missing_fields", []) if fundamental.debug_json else [] %}
                           {{ missing_fields|join(", ") if missing_fields else "None" }}
                         </dd>
-                        <dt>Traps</dt>
+                        <dt>Missing High</dt>
                         <dd>
-                          {% set trap_flags = fundamental.trap_flags_json.get("flags", []) if fundamental.trap_flags_json else [] %}
-                          {{ trap_flags|join(", ") if trap_flags else "None" }}
+                          {{ missing_high_fields|join(", ") if missing_high_fields else "None" }}
+                        </dd>
+                        <dt>Warnings</dt>
+                        <dd>
+                          {{ v2_flags|join(", ") if v2_flags else "None" }}
                         </dd>
                       </dl>
                     {% else %}

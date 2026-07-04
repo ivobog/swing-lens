@@ -1,7 +1,14 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from app.models.tables import CombinedResult, IBFetchItem, IBFetchRun, RawCompanyRow, UploadRun
+from app.models.tables import (
+    CombinedResult,
+    FundamentalScore,
+    IBFetchItem,
+    IBFetchRun,
+    RawCompanyRow,
+    UploadRun,
+)
 from app.services.export_service import (
     export_fetch_plan_csv,
     export_fetch_results_csv,
@@ -32,13 +39,29 @@ def test_combined_export_includes_ranked_results() -> None:
             notes="aligned",
         )
     ]
+    run.fundamental_scores = [_fundamental("MSFT")]
 
     csv_text = export_run_csv(run, "combined", coverage=_coverage())
 
     assert "run_id,rank,ticker" in csv_text
+    assert "fundamental_model_version" in csv_text
     assert "7,1,MSFT,Microsoft,Technology,8.75" in csv_text
+    assert "fundamentals_v2.0,8.70,high_accrual_risk,7.80,8.00,6.50,5.80" in csv_text
     assert "ready,252,252,2026-07-02,2026-07-02,True" in csv_text
     assert "Strong candidate" in csv_text
+
+
+def test_fundamentals_export_includes_v2_details() -> None:
+    run = _run()
+    run.fundamental_scores = [_fundamental("MSFT")]
+
+    csv_text = export_run_csv(run, "fundamentals")
+
+    assert "model_version,growth_quality_score" in csv_text
+    assert "earnings_quality_score,capital_efficiency_score" in csv_text
+    assert "v2_warning_flags,missing_critical_fields,missing_high_fields" in csv_text
+    assert "fundamentals_v2.0,8.10,8.20,7.40,7.80,8.00" in csv_text
+    assert "high_accrual_risk,fcf_ttm,quick_ratio_quarterly,1" in csv_text
 
 
 def test_raw_export_preserves_raw_json() -> None:
@@ -211,6 +234,46 @@ def _run(
         processed_at=uploaded_at or datetime(2026, 7, 2, tzinfo=UTC),
         row_count=1,
         status="completed",
+    )
+
+
+def _fundamental(ticker: str) -> FundamentalScore:
+    return FundamentalScore(
+        run_id=7,
+        ticker=ticker,
+        growth_score=Decimal("8.10"),
+        profitability_score=Decimal("8.20"),
+        fcf_score=Decimal("7.40"),
+        balance_sheet_score=Decimal("7.10"),
+        valuation_score=Decimal("5.90"),
+        dilution_score=Decimal("5.80"),
+        risk_score=Decimal("7.70"),
+        missing_data_penalty=Decimal("0.20"),
+        fundamental_score=Decimal("7.40"),
+        fundamental_label="High-quality quant",
+        trap_flags_json={"flags": ["high_accrual_risk"]},
+        scoring_model_version="fundamentals_v2.0",
+        growth_quality_score=Decimal("8.10"),
+        profitability_quality_score=Decimal("8.20"),
+        fcf_quality_score=Decimal("7.40"),
+        earnings_quality_score=Decimal("7.80"),
+        capital_efficiency_score=Decimal("8.00"),
+        balance_sheet_quality_score=Decimal("7.10"),
+        valuation_quality_score=Decimal("5.90"),
+        forward_quality_score=Decimal("6.50"),
+        shareholder_quality_score=Decimal("5.80"),
+        liquidity_risk_score=Decimal("7.70"),
+        data_coverage_score=Decimal("8.70"),
+        v2_warning_flags_json={"flags": ["high_accrual_risk"]},
+        explanation="High-quality quant.",
+        debug_json={
+            "model_version": "fundamentals_v2.0",
+            "coverage": {
+                "missing_core_fields": ["fcf_ttm"],
+                "missing_high_fields": ["quick_ratio_quarterly"],
+            },
+            "parse_diagnostics": {"failed_field_count": 1},
+        },
     )
 
 

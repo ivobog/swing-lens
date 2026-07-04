@@ -84,12 +84,15 @@ def test_fetch_form_helpers_normalize_tickers_and_data_types() -> None:
 
 
 def test_warning_badges_map_flags_to_labels_and_tones() -> None:
-    badges = _warning_badges(["incomplete_data", "value_trap_risk", "liquidity_warning"])
+    badges = _warning_badges(
+        ["incomplete_data", "value_trap_risk", "liquidity_warning", "high_accrual_risk"]
+    )
 
     assert badges == [
         {"flag": "incomplete_data", "label": "Incomplete", "tone": "warning"},
         {"flag": "value_trap_risk", "label": "Value trap", "tone": "danger"},
         {"flag": "liquidity_warning", "label": "Liquidity", "tone": "muted"},
+        {"flag": "high_accrual_risk", "label": "Accrual risk", "tone": "danger"},
     ]
 
 
@@ -142,6 +145,32 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert "No combined decisions yet." in html
 
 
+def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
+    fundamental = _fundamental("MSFT")
+    combined = _combined("MSFT", "Candidate", is_complete=True, has_warning=True)
+    combined.fundamental_score = Decimal("7.4")
+    combined.fundamental_label = "High-quality quant"
+    combined.warning_flags_json = ["high_accrual_risk"]
+    run.fundamental_scores = [fundamental]
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        combined_results=[combined],
+        fundamental_by_ticker={"MSFT": fundamental},
+        technical_by_ticker={},
+        warning_badges_by_ticker={"MSFT": _warning_badges(["high_accrual_risk"])},
+    )
+
+    assert "fundamentals_v2.0" in html
+    assert "Coverage" in html
+    assert "Earnings" in html
+    assert "Capital" in html
+    assert "quick_ratio_quarterly" in html
+    assert "high_accrual_risk" in html
+
+
 def _row(ticker: str, row_number: int) -> RawCompanyRow:
     return RawCompanyRow(
         run_id=1,
@@ -184,4 +213,35 @@ def _plan_item(ticker: str, action: FetchAction) -> FetchPlanItem:
         required_bars=252,
         reason="test",
         estimated_request_count=0 if action == FetchAction.SKIP else 1,
+    )
+
+
+def _fundamental(ticker: str) -> FundamentalScore:
+    return FundamentalScore(
+        run_id=1,
+        ticker=ticker,
+        fundamental_score=Decimal("7.40"),
+        fundamental_label="High-quality quant",
+        missing_data_penalty=Decimal("0.20"),
+        scoring_model_version="fundamentals_v2.0",
+        growth_quality_score=Decimal("8.10"),
+        profitability_quality_score=Decimal("8.20"),
+        fcf_quality_score=Decimal("7.40"),
+        earnings_quality_score=Decimal("7.80"),
+        capital_efficiency_score=Decimal("8.00"),
+        balance_sheet_quality_score=Decimal("7.10"),
+        valuation_quality_score=Decimal("5.90"),
+        forward_quality_score=Decimal("6.50"),
+        shareholder_quality_score=Decimal("5.80"),
+        liquidity_risk_score=Decimal("7.70"),
+        data_coverage_score=Decimal("8.70"),
+        trap_flags_json={"flags": ["high_accrual_risk"]},
+        v2_warning_flags_json={"flags": ["high_accrual_risk"]},
+        debug_json={
+            "model_version": "fundamentals_v2.0",
+            "coverage": {
+                "missing_core_fields": ["fcf_ttm"],
+                "missing_high_fields": ["quick_ratio_quarterly"],
+            },
+        },
     )

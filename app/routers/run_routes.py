@@ -55,6 +55,16 @@ WARNING_BADGE_LABELS = {
     "weak_liquidity": "Weak liquidity",
     "extreme_valuation": "Extreme valuation",
     "share_dilution": "Dilution",
+    "earnings_quality_risk": "Earnings quality",
+    "poor_cash_conversion": "Cash conversion",
+    "high_accrual_risk": "Accrual risk",
+    "capital_efficiency_deterioration": "Efficiency",
+    "asset_growth_without_returns": "Asset growth",
+    "balance_sheet_stress": "Balance sheet",
+    "liquidity_buffer_weak": "Liquidity buffer",
+    "forward_quality_weak": "Forward weak",
+    "dividend_payout_risk": "Dividend payout",
+    "sparse_fundamental_data": "Sparse data",
 }
 
 
@@ -469,9 +479,22 @@ def _warning_tone(flag: str) -> str:
         "ib_fetch_failed",
         "negative_free_cash_flow",
         "high_leverage",
+        "high_accrual_risk",
+        "poor_cash_conversion",
+        "balance_sheet_stress",
+        "dividend_payout_risk",
     }:
         return "danger"
-    if flag in {"missing_fundamental", "missing_technical", "incomplete_data"}:
+    if flag in {
+        "missing_fundamental",
+        "missing_technical",
+        "incomplete_data",
+        "earnings_quality_risk",
+        "capital_efficiency_deterioration",
+        "asset_growth_without_returns",
+        "forward_quality_weak",
+        "sparse_fundamental_data",
+    }:
         return "warning"
     return "muted"
 

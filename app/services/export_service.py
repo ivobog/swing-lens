@@ -33,6 +33,13 @@ COMBINED_HEADERS = [
     "final_score",
     "fundamental_score",
     "fundamental_label",
+    "fundamental_model_version",
+    "fundamental_data_coverage_score",
+    "fundamental_warning_flags",
+    "earnings_quality_score",
+    "capital_efficiency_score",
+    "forward_quality_score",
+    "shareholder_quality_score",
     "technical_classification",
     "dual_score",
     "combined_decision",
@@ -62,6 +69,22 @@ FUNDAMENTAL_HEADERS = [
     "fundamental_score",
     "fundamental_label",
     "trap_flags",
+    "model_version",
+    "growth_quality_score",
+    "profitability_quality_score",
+    "fcf_quality_score",
+    "earnings_quality_score",
+    "capital_efficiency_score",
+    "balance_sheet_quality_score",
+    "valuation_quality_score",
+    "forward_quality_score",
+    "shareholder_quality_score",
+    "liquidity_risk_score",
+    "data_coverage_score",
+    "v2_warning_flags",
+    "missing_critical_fields",
+    "missing_high_fields",
+    "parse_failure_count",
     "explanation",
 ]
 
@@ -147,10 +170,16 @@ def export_run_csv(
 ) -> str:
     if export_type == "combined":
         coverage_by_ticker = _coverage_by_ticker(coverage)
+        fundamentals_by_ticker = _fundamentals_by_ticker(run.fundamental_scores)
         return _write_csv(
             COMBINED_HEADERS,
             [
-                _combined_row(run.id, result, coverage_by_ticker.get(result.ticker.upper()))
+                _combined_row(
+                    run.id,
+                    result,
+                    coverage_by_ticker.get(result.ticker.upper()),
+                    fundamentals_by_ticker.get(result.ticker.upper()),
+                )
                 for result in _sorted_combined(run.combined_results)
             ],
         )
@@ -210,7 +239,12 @@ def _write_csv(headers: list[str], rows: Iterable[dict[str, Any]]) -> str:
     return buffer.getvalue()
 
 
-def _combined_row(run_id: int, result: CombinedResult, coverage: Any | None) -> dict[str, Any]:
+def _combined_row(
+    run_id: int,
+    result: CombinedResult,
+    coverage: Any | None,
+    fundamental: FundamentalScore | None,
+) -> dict[str, Any]:
     return {
         "run_id": run_id,
         "rank": result.final_rank,
@@ -220,6 +254,15 @@ def _combined_row(run_id: int, result: CombinedResult, coverage: Any | None) -> 
         "final_score": result.final_score,
         "fundamental_score": result.fundamental_score,
         "fundamental_label": result.fundamental_label,
+        "fundamental_model_version": fundamental.scoring_model_version if fundamental else "",
+        "fundamental_data_coverage_score": fundamental.data_coverage_score if fundamental else "",
+        "fundamental_warning_flags": _flags_text(
+            fundamental.v2_warning_flags_json if fundamental else None
+        ),
+        "earnings_quality_score": fundamental.earnings_quality_score if fundamental else "",
+        "capital_efficiency_score": fundamental.capital_efficiency_score if fundamental else "",
+        "forward_quality_score": fundamental.forward_quality_score if fundamental else "",
+        "shareholder_quality_score": fundamental.shareholder_quality_score if fundamental else "",
         "technical_classification": result.technical_classification,
         "dual_score": result.dual_score,
         "combined_decision": result.combined_decision,
@@ -236,9 +279,13 @@ def _combined_row(run_id: int, result: CombinedResult, coverage: Any | None) -> 
 
 
 def _fundamental_row(run_id: int, score: FundamentalScore) -> dict[str, Any]:
-    flags = ""
-    if score.trap_flags_json and score.trap_flags_json.get("flags"):
-        flags = "; ".join(score.trap_flags_json["flags"])
+    debug_json = score.debug_json or {}
+    coverage = debug_json.get("coverage") if isinstance(debug_json.get("coverage"), dict) else {}
+    parse_diagnostics = (
+        debug_json.get("parse_diagnostics")
+        if isinstance(debug_json.get("parse_diagnostics"), dict)
+        else {}
+    )
     return {
         "run_id": run_id,
         "ticker": score.ticker,
@@ -253,7 +300,23 @@ def _fundamental_row(run_id: int, score: FundamentalScore) -> dict[str, Any]:
         "missing_data_penalty": score.missing_data_penalty,
         "fundamental_score": score.fundamental_score,
         "fundamental_label": score.fundamental_label,
-        "trap_flags": flags,
+        "trap_flags": _flags_text(score.trap_flags_json),
+        "model_version": score.scoring_model_version or debug_json.get("model_version"),
+        "growth_quality_score": score.growth_quality_score,
+        "profitability_quality_score": score.profitability_quality_score,
+        "fcf_quality_score": score.fcf_quality_score,
+        "earnings_quality_score": score.earnings_quality_score,
+        "capital_efficiency_score": score.capital_efficiency_score,
+        "balance_sheet_quality_score": score.balance_sheet_quality_score,
+        "valuation_quality_score": score.valuation_quality_score,
+        "forward_quality_score": score.forward_quality_score,
+        "shareholder_quality_score": score.shareholder_quality_score,
+        "liquidity_risk_score": score.liquidity_risk_score,
+        "data_coverage_score": score.data_coverage_score,
+        "v2_warning_flags": _flags_text(score.v2_warning_flags_json),
+        "missing_critical_fields": _list_text(coverage.get("missing_core_fields")),
+        "missing_high_fields": _list_text(coverage.get("missing_high_fields")),
+        "parse_failure_count": parse_diagnostics.get("failed_field_count", ""),
         "explanation": score.explanation,
     }
 
@@ -346,6 +409,10 @@ def _coverage_by_ticker(coverage: OhlcvCoverageSummary | None) -> dict[str, Any]
     return {item.ticker.upper(): item for item in coverage.items}
 
 
+def _fundamentals_by_ticker(scores: list[FundamentalScore]) -> dict[str, FundamentalScore]:
+    return {score.ticker.upper(): score for score in scores}
+
+
 def _sorted_combined(results: list[CombinedResult]) -> list[CombinedResult]:
     return sorted(results, key=lambda result: result.final_rank or 0)
 
@@ -366,3 +433,15 @@ def _csv_value(value: Any) -> Any:
     if value is None:
         return ""
     return value
+
+
+def _flags_text(flags_json: dict[str, Any] | None) -> str:
+    if not flags_json:
+        return ""
+    return _list_text(flags_json.get("flags"))
+
+
+def _list_text(values: Any) -> str:
+    if not isinstance(values, list):
+        return ""
+    return "; ".join(str(value) for value in values)
