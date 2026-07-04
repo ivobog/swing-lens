@@ -1,0 +1,219 @@
+model_version: fundamentals_v2.0
+
+weights:
+  growth_quality_score: 0.13
+  profitability_quality_score: 0.13
+  fcf_quality_score: 0.12
+  earnings_quality_score: 0.12
+  capital_efficiency_score: 0.12
+  balance_sheet_quality_score: 0.12
+  valuation_quality_score: 0.10
+  forward_quality_score: 0.08
+  shareholder_quality_score: 0.05
+  liquidity_risk_score: 0.03
+
+missing_data:
+  critical_field_penalty: 0.35
+  high_field_penalty: 0.20
+  medium_field_penalty: 0.10
+  low_field_penalty: 0.05
+  max_penalty: 2.50
+  sparse_data_coverage_threshold: 0.65
+
+thresholds:
+  sloan_ratio_good_max: 5
+  sloan_ratio_warning_min: 10
+  sloan_ratio_danger_min: 20
+  roa_good: 8
+  roa_excellent: 15
+  roic_good: 10
+  roic_excellent: 20
+  liabilities_to_assets_good_max: 0.45
+  liabilities_to_assets_warning_min: 0.70
+  quick_ratio_good: 1.00
+  quick_ratio_weak: 0.80
+  current_ratio_weak: 1.00
+  dividend_payout_safe_max: 65
+  dividend_payout_warning_min: 90
+  total_assets_growth_high: 25
+  capex_growth_high: 40
+  fcf_to_net_income_good: 0.70
+  debt_to_ebitda_warning: 4.00
+  net_debt_to_ebitda_warning: 4.00
+  dollar_volume_weak: 2000000
+  dollar_volume_good: 25000000
+  atr_pct_high: 12
+  beta_high: 2.20
+
+field_priorities:
+  critical:
+    - market_cap
+    - fcf_ttm
+    - net_income_ttm
+    - sloan_ratio_ttm
+    - roic_ttm
+    - roa_ttm
+    - total_assets_annual
+    - total_liabilities_annual
+    - revenue_growth_ttm_yoy
+    - operating_margin_ttm
+  high:
+    - eps_estimate_annual
+    - revenue_estimate_annual
+    - return_on_total_capital_ttm
+    - roic_annual
+    - roa_annual
+    - operating_margin_annual
+    - net_margin_annual
+    - asset_turnover_ttm
+    - asset_turnover_annual
+    - capex_ttm
+    - capex_growth_ttm_yoy
+    - net_income_estimate_ntm
+    - net_income_growth_ttm_yoy
+    - total_assets_growth_annual_yoy
+    - working_capital_per_share_annual
+    - working_capital_per_share_quarterly
+    - earnings_yield_ttm
+    - ebit_estimate_ntm
+    - total_revenue_ttm
+    - fcf_margin_ttm
+    - current_ratio
+    - quick_ratio_quarterly
+    - pe_ratio
+    - net_debt_to_ebitda
+  medium:
+    - gross_profit_growth_ttm_yoy
+    - debt_to_ebitda_annual
+    - total_common_shares_outstanding
+    - dollar_volume_10d
+    - dollar_volume_60d
+    - free_float
+    - gross_margin_annual
+    - capex_per_share_ttm
+    - capex_growth_quarterly_yoy
+    - total_assets_estimate_annual
+    - ebit_per_share_ttm
+    - cash_short_term_investments_annual
+    - cash_short_term_investments_estimate_annual
+    - dividend_yield_ttm
+    - dividend_payout_ratio_ttm
+    - eps_estimate_quarterly
+  low:
+    - capex_estimate_ntm
+    - quick_ratio_annual
+    - number_of_shareholders_annual
+    - analyst_rating
+
+components:
+  growth_quality_score:
+    fields:
+      - revenue_growth_quarterly_yoy
+      - revenue_growth_ttm_yoy
+      - revenue_growth_5y_cagr
+      - eps_growth_quarterly_yoy
+      - eps_growth_ttm_yoy
+      - ebitda_growth_ttm_yoy
+      - fcf_growth_ttm_yoy
+      - gross_profit_growth_ttm_yoy
+      - net_income_growth_ttm_yoy
+      - total_revenue_ttm
+  profitability_quality_score:
+    fields:
+      - gross_margin_ttm
+      - gross_margin_annual
+      - ebitda_margin_ttm
+      - operating_margin_ttm
+      - operating_margin_annual
+      - net_margin_ttm
+      - net_margin_annual
+      - roe_ttm
+      - roa_ttm
+      - roa_annual
+      - roic_ttm
+      - roce_ttm
+      - return_on_total_capital_ttm
+  fcf_quality_score:
+    fields:
+      - fcf_ttm
+      - fcf_margin_ttm
+      - fcf_growth_ttm_yoy
+      - pfcf
+      - ev_fcf
+      - operating_cash_flow_per_share_ttm
+      - capex_ttm
+      - capex_per_share_ttm
+      - capex_growth_ttm_yoy
+  earnings_quality_score:
+    fields:
+      - sloan_ratio_ttm
+      - net_income_ttm
+      - fcf_ttm
+      - operating_cash_flow_per_share_ttm
+      - capex_ttm
+      - net_income_growth_ttm_yoy
+  capital_efficiency_score:
+    fields:
+      - roic_ttm
+      - roic_annual
+      - return_on_total_capital_ttm
+      - roa_ttm
+      - roa_annual
+      - asset_turnover_ttm
+      - asset_turnover_annual
+      - total_assets_growth_annual_yoy
+  balance_sheet_quality_score:
+    fields:
+      - total_assets_annual
+      - total_liabilities_annual
+      - working_capital_per_share_annual
+      - working_capital_per_share_quarterly
+      - quick_ratio_quarterly
+      - quick_ratio_annual
+      - cash_short_term_investments_annual
+      - current_ratio
+      - net_debt_to_ebitda
+      - debt_to_ebitda_annual
+      - debt_to_equity
+      - debt_to_assets
+      - total_debt_to_capital_annual
+      - ebitda_interest_coverage_ttm
+  valuation_quality_score:
+    fields:
+      - pe_ratio
+      - forward_pe
+      - earnings_yield_ttm
+      - ps_ratio
+      - ev_revenue
+      - ev_ebitda
+      - pfcf
+      - ev_fcf
+      - peg_ratio
+  forward_quality_score:
+    fields:
+      - eps_estimate_annual
+      - eps_estimate_quarterly
+      - revenue_estimate_annual
+      - net_income_estimate_ntm
+      - ebit_estimate_ntm
+      - cash_short_term_investments_estimate_annual
+      - capex_estimate_ntm
+      - analyst_rating
+  shareholder_quality_score:
+    fields:
+      - buyback_yield
+      - dividend_yield_ttm
+      - dividend_payout_ratio_ttm
+      - total_common_shares_outstanding
+  liquidity_risk_score:
+    fields:
+      - dollar_volume_10d
+      - dollar_volume_30d
+      - dollar_volume_60d
+      - free_float
+      - relative_volume_1d
+      - volume_change_1d_pct
+      - price_change_1d_pct
+      - beta_1y
+      - beta_3y
+      - tradingview_atr_pct_14d

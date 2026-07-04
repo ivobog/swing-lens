@@ -152,3 +152,107 @@ beta_1y:
   - Beta, 1 year
 beta_3y:
   - Beta, 3 years
+roic_annual:
+  - Return on invested capital %, Annual
+roa_ttm:
+  - Return on assets %, Trailing 12 months
+roa_annual:
+  - Return on assets %, Annual
+gross_margin_annual:
+  - Gross margin %, Annual
+operating_margin_annual:
+  - Operating margin %, Annual
+net_margin_annual:
+  - Net margin %, Annual
+asset_turnover_ttm:
+  - Asset turnover, Trailing 12 months
+asset_turnover_annual:
+  - Asset turnover, Annual
+capex_ttm:
+  - Capital expenditures, Trailing 12 months
+capex_ttm_currency:
+  - Capital expenditures, Trailing 12 months - Currency
+capex_estimate_ntm:
+  - Capital expenditures estimate, Next 12 months
+capex_estimate_ntm_currency:
+  - Capital expenditures estimate, Next 12 months - Currency
+capex_per_share_ttm:
+  - Capital expenditures per share, Trailing 12 months
+capex_per_share_ttm_currency:
+  - Capital expenditures per share, Trailing 12 months - Currency
+capex_growth_ttm_yoy:
+  - Capital expenditures growth %, TTM YoY
+capex_growth_quarterly_yoy:
+  - Capital expenditures growth %, Quarterly YoY
+net_income_ttm:
+  - Net income, Trailing 12 months
+net_income_ttm_currency:
+  - Net income, Trailing 12 months - Currency
+net_income_estimate_ntm:
+  - Net income estimate, Next 12 months
+net_income_estimate_ntm_currency:
+  - Net income estimate, Next 12 months - Currency
+net_income_growth_ttm_yoy:
+  - Net income growth %, TTM YoY
+total_assets_annual:
+  - Total assets, Annual
+total_assets_annual_currency:
+  - Total assets, Annual - Currency
+total_assets_estimate_annual:
+  - Total assets estimate, Annual
+total_assets_estimate_annual_currency:
+  - Total assets estimate, Annual - Currency
+total_assets_growth_annual_yoy:
+  - Total assets growth %, Annual YoY
+sloan_ratio_ttm:
+  - Sloan ratio %, Trailing 12 months
+total_liabilities_annual:
+  - Total liabilities, Annual
+total_liabilities_annual_currency:
+  - Total liabilities, Annual - Currency
+working_capital_per_share_annual:
+  - Working capital per share, Annual
+working_capital_per_share_annual_currency:
+  - Working capital per share, Annual - Currency
+working_capital_per_share_quarterly:
+  - Working capital per share, Quarterly
+working_capital_per_share_quarterly_currency:
+  - Working capital per share, Quarterly - Currency
+earnings_yield_ttm:
+  - Earnings yield %, Trailing 12 months
+ebit_estimate_ntm:
+  - EBIT estimate, Next 12 months
+ebit_estimate_ntm_currency:
+  - EBIT estimate, Next 12 months - Currency
+ebit_per_share_ttm:
+  - EBIT per share, Trailing 12 months
+ebit_per_share_ttm_currency:
+  - EBIT per share, Trailing 12 months - Currency
+total_revenue_ttm:
+  - Total revenue, Trailing 12 months
+total_revenue_ttm_currency:
+  - Total revenue, Trailing 12 months - Currency
+cash_short_term_investments_annual:
+  - Cash and short-term investments, Annual
+cash_short_term_investments_annual_currency:
+  - Cash and short-term investments, Annual - Currency
+cash_short_term_investments_estimate_annual:
+  - Cash and short term investments estimate, Annual
+cash_short_term_investments_estimate_annual_currency:
+  - Cash and short term investments estimate, Annual - Currency
+quick_ratio_annual:
+  - Quick ratio, Annual
+quick_ratio_quarterly:
+  - Quick ratio, Quarterly
+dividend_yield_ttm:
+  - Dividend yield %, Trailing 12 months
+dividend_payout_ratio_ttm:
+  - Dividend payout ratio %, Trailing 12 months
+number_of_shareholders_annual:
+  - Number of shareholders, Annual
+eps_estimate_quarterly:
+  - Earnings per share estimate, Quarterly
+eps_estimate_quarterly_currency:
+  - Earnings per share estimate, Quarterly - Currency
+analyst_rating:
+  - Analyst rating
