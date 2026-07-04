@@ -10,7 +10,11 @@ from app.models.enums import RunStatus
 from app.models.tables import FundamentalScore, RawCompanyRow, UploadRun
 from app.services.column_mapper import map_csv_rows
 from app.services.csv_loader import CsvLoadError, load_csv_rows
-from app.services.fundamental_ranker import score_rows, to_decimal
+from app.services.fundamental_ranker_v2 import (
+    FundamentalScoreV2Result,
+    score_rows_v2,
+    to_decimal,
+)
 from app.services.validation_service import CsvValidationError, validate_mapped_rows
 from app.settings import get_settings
 
@@ -61,25 +65,7 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         if row.ticker
     ]
     fundamental_scores = [
-        FundamentalScore(
-            run_id=run.id,
-            ticker=score.ticker,
-            growth_score=to_decimal(score.growth_score),
-            profitability_score=to_decimal(score.profitability_score),
-            fcf_score=to_decimal(score.fcf_score),
-            balance_sheet_score=to_decimal(score.balance_sheet_score),
-            valuation_score=to_decimal(score.valuation_score),
-            momentum_score=to_decimal(score.momentum_score),
-            dilution_score=to_decimal(score.dilution_score),
-            risk_score=to_decimal(score.risk_score),
-            missing_data_penalty=to_decimal(score.missing_data_penalty),
-            fundamental_score=to_decimal(score.fundamental_score),
-            fundamental_label=score.fundamental_label,
-            trap_flags_json={"flags": score.trap_flags},
-            explanation=score.explanation,
-            debug_json=score.debug,
-        )
-        for score in score_rows(mapped_rows)
+        _fundamental_score_from_v2(run.id, score) for score in score_rows_v2(mapped_rows)
     ]
 
     db.add_all(raw_rows)
@@ -87,10 +73,50 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
     run.row_count = len(raw_rows)
     run.processed_at = datetime.now(UTC)
     run.status = RunStatus.COMPLETED.value
-    run.notes = "CSV uploaded, raw rows stored, and fundamental scores calculated."
+    run.notes = (
+        "CSV uploaded, raw rows stored, and fundamental scores calculated "
+        "with fundamentals_v2.0."
+    )
     db.commit()
     db.refresh(run)
     return run
+
+
+def _fundamental_score_from_v2(
+    run_id: int,
+    score: FundamentalScoreV2Result,
+) -> FundamentalScore:
+    return FundamentalScore(
+        run_id=run_id,
+        ticker=score.ticker,
+        growth_score=to_decimal(score.growth_quality_score),
+        profitability_score=to_decimal(score.profitability_quality_score),
+        fcf_score=to_decimal(score.fcf_quality_score),
+        balance_sheet_score=to_decimal(score.balance_sheet_quality_score),
+        valuation_score=to_decimal(score.valuation_quality_score),
+        momentum_score=None,
+        dilution_score=to_decimal(score.shareholder_quality_score),
+        risk_score=to_decimal(score.liquidity_risk_score),
+        growth_quality_score=to_decimal(score.growth_quality_score),
+        profitability_quality_score=to_decimal(score.profitability_quality_score),
+        fcf_quality_score=to_decimal(score.fcf_quality_score),
+        earnings_quality_score=to_decimal(score.earnings_quality_score),
+        capital_efficiency_score=to_decimal(score.capital_efficiency_score),
+        balance_sheet_quality_score=to_decimal(score.balance_sheet_quality_score),
+        valuation_quality_score=to_decimal(score.valuation_quality_score),
+        forward_quality_score=to_decimal(score.forward_quality_score),
+        shareholder_quality_score=to_decimal(score.shareholder_quality_score),
+        liquidity_risk_score=to_decimal(score.liquidity_risk_score),
+        data_coverage_score=to_decimal(score.data_coverage_score),
+        scoring_model_version=score.debug.get("model_version", "fundamentals_v2.0"),
+        v2_warning_flags_json={"flags": score.warning_flags},
+        missing_data_penalty=to_decimal(score.missing_data_penalty),
+        fundamental_score=to_decimal(score.fundamental_score),
+        fundamental_label=score.fundamental_label,
+        trap_flags_json={"flags": score.warning_flags},
+        explanation=score.explanation,
+        debug_json=score.debug,
+    )
 
 
 def _validate_upload_size(upload_file: UploadFile, max_size_mb: int) -> None:

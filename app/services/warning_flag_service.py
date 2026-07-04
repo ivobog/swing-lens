@@ -40,10 +40,15 @@ def _fundamental_warning_flags(fundamental: FundamentalScore) -> set[str]:
     if fundamental.fundamental_label == "Growth trap risk":
         flags.add("growth_trap_risk")
 
-    for trap_flag in _trap_flags(fundamental.trap_flags_json):
+    for trap_flag in [
+        *_trap_flags(fundamental.trap_flags_json),
+        *_trap_flags(fundamental.v2_warning_flags_json),
+    ]:
         normalized = trap_flag.strip().lower()
         if normalized in FUNDAMENTAL_TRAP_FLAG_MAP:
             flags.add(FUNDAMENTAL_TRAP_FLAG_MAP[normalized])
+        elif "_" in normalized:
+            flags.add(normalized)
 
     return flags
 

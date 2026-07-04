@@ -27,6 +27,26 @@ def test_warning_flags_include_fundamental_traps() -> None:
     assert "weak_liquidity" in flags
 
 
+def test_warning_flags_include_v2_fundamental_warnings() -> None:
+    fundamental = FundamentalScore(
+        run_id=1,
+        ticker="TRAP",
+        fundamental_score=Decimal("4.0"),
+        fundamental_label="Quality risk",
+        v2_warning_flags_json={
+            "flags": [
+                "high_accrual_risk",
+                "poor_cash_conversion",
+            ]
+        },
+    )
+
+    flags = warning_flags_for_row(fundamental, _technical())
+
+    assert "high_accrual_risk" in flags
+    assert "poor_cash_conversion" in flags
+
+
 def test_warning_flags_include_missing_and_incomplete_data() -> None:
     flags = warning_flags_for_row(_fundamental(), None)
 
