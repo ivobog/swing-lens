@@ -1,4 +1,5 @@
 from decimal import Decimal
+from pathlib import Path
 
 from app.db import Base
 from app.models.tables import (
@@ -65,6 +66,60 @@ def test_price_bar_model_includes_revision_metadata_columns() -> None:
         "data_hash",
     ]:
         assert column_name in table.c
+
+
+def test_fundamental_score_model_includes_v2_persistence_columns() -> None:
+    table = Base.metadata.tables["fundamental_scores"]
+
+    for column_name in [
+        "growth_quality_score",
+        "profitability_quality_score",
+        "fcf_quality_score",
+        "earnings_quality_score",
+        "capital_efficiency_score",
+        "balance_sheet_quality_score",
+        "valuation_quality_score",
+        "forward_quality_score",
+        "shareholder_quality_score",
+        "liquidity_risk_score",
+        "data_coverage_score",
+        "scoring_model_version",
+        "v2_warning_flags_json",
+    ]:
+        assert column_name in table.c
+
+
+def test_fundamental_score_model_accepts_v2_values() -> None:
+    score = FundamentalScore(
+        run_id=1,
+        ticker="MSFT",
+        growth_quality_score=Decimal("8.1"),
+        profitability_quality_score=Decimal("8.2"),
+        fcf_quality_score=Decimal("7.4"),
+        earnings_quality_score=Decimal("7.8"),
+        capital_efficiency_score=Decimal("8.0"),
+        balance_sheet_quality_score=Decimal("7.1"),
+        valuation_quality_score=Decimal("5.9"),
+        forward_quality_score=Decimal("6.5"),
+        shareholder_quality_score=Decimal("5.8"),
+        liquidity_risk_score=Decimal("7.7"),
+        data_coverage_score=Decimal("8.7"),
+        scoring_model_version="fundamentals_v2.0",
+        v2_warning_flags_json={"flags": ["high_accrual_risk"]},
+    )
+
+    assert score.scoring_model_version == "fundamentals_v2.0"
+    assert score.earnings_quality_score == Decimal("7.8")
+    assert score.v2_warning_flags_json == {"flags": ["high_accrual_risk"]}
+
+
+def test_fundamentals_v2_migration_follows_current_head() -> None:
+    migration = Path(
+        "alembic/versions/20260704_0005_add_fundamentals_v2_columns.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0005_add_fundamentals_v2_columns"' in migration
+    assert 'down_revision: str | None = "0004_expand_ib_fetch_persistence"' in migration
 
 
 def test_combined_decision_to_model_persists_phase2_fields() -> None:
