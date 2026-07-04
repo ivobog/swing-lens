@@ -402,7 +402,7 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     features["bars_since_breakout"] = _bars_since(features["fresh_breakout"])
     features["failed_breakout"] = (
         features["active_breakout_level"].notna()
-        & (features["bars_since_breakout"] <= risk["failedBreakoutBars"])
+        & (features["bars_since_breakout"] < risk["failedBreakoutBars"])
         & (close < features["active_breakout_level"])
         & (features["volume_ratio"] >= pullback_breakout["failureVolRatio"])
     )

@@ -108,6 +108,39 @@ def test_green_beats_red_uses_pine_sma_semantics() -> None:
     assert result.latest["green_beats_red"] is True
 
 
+def test_failed_breakout_window_uses_zero_based_bar_count() -> None:
+    frame = _flat_ohlcv(rows=320)
+    breakout_index = frame.index[-9]
+    frame.loc[breakout_index, ["open", "high", "low", "close", "volume"]] = [
+        100.0,
+        106.0,
+        99.0,
+        105.0,
+        2_000_000,
+    ]
+    after_breakout = frame.index[-8:]
+    frame.loc[after_breakout, ["open", "high", "low", "close", "volume"]] = [
+        101.0,
+        102.0,
+        100.0,
+        101.0,
+        1_000_000,
+    ]
+    frame.loc[frame.index[-1], ["open", "high", "low", "close", "volume"]] = [
+        101.0,
+        101.0,
+        98.0,
+        99.0,
+        2_000_000,
+    ]
+
+    result = calculate_technical_features(frame, ticker="TEST")
+
+    assert result.latest["bars_since_breakout"] == 8.0
+    assert result.latest["volume_ratio"] >= 1.1
+    assert result.latest["failed_breakout"] is False
+
+
 def test_higher_last_pivot_tracks_previous_confirmed_pivot() -> None:
     pivots = pd.Series([None, 10.0, None, None, 12.0, None, None])
 
@@ -200,6 +233,23 @@ def _synthetic_ohlcv(rows: int) -> pd.DataFrame:
                 "low": base - 1.0,
                 "close": base + 0.8,
                 "volume": 1_000_000 + index * 1000,
+            }
+        )
+    return pd.DataFrame(records)
+
+
+def _flat_ohlcv(rows: int) -> pd.DataFrame:
+    start = date(2025, 1, 1)
+    records = []
+    for index in range(rows):
+        records.append(
+            {
+                "date": start + timedelta(days=index),
+                "open": 95.0,
+                "high": 100.0,
+                "low": 94.0,
+                "close": 95.0,
+                "volume": 1_000_000,
             }
         )
     return pd.DataFrame(records)
