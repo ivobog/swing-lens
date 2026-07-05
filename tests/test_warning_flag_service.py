@@ -69,6 +69,22 @@ def test_warning_flags_include_technical_confidence_and_liquidity() -> None:
     assert "liquidity_warning" in flags
 
 
+def test_warning_flags_include_persisted_v4_technical_warnings() -> None:
+    technical = _technical(
+        warning_flags_json=[
+            "climax_reversal_risk",
+            "stage_4_downtrend",
+            "market_risk_off",
+        ],
+    )
+
+    flags = warning_flags_for_row(_fundamental(), technical)
+
+    assert "climax_reversal_risk" in flags
+    assert "stage_4_downtrend" in flags
+    assert "market_risk_off" in flags
+
+
 def _fundamental() -> FundamentalScore:
     return FundamentalScore(
         run_id=1,
@@ -84,6 +100,7 @@ def _technical(
     insufficient_data: bool = False,
     missing_data_json: dict | None = None,
     debug_json: dict | None = None,
+    warning_flags_json: list[str] | None = None,
 ) -> TechnicalScore:
     return TechnicalScore(
         run_id=1,
@@ -94,4 +111,5 @@ def _technical(
         insufficient_data=insufficient_data,
         missing_data_json=missing_data_json or {},
         debug_json=debug_json or {"derived": {"liquidity_warning": False}},
+        warning_flags_json=warning_flags_json or [],
     )

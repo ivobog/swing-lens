@@ -59,6 +59,22 @@ def test_combined_decision_treats_v4_buyable_as_full_starter() -> None:
     assert decision.position_size_hint == "Full starter"
 
 
+def test_combined_decision_carries_v4_warning_flags_to_cockpit_payload() -> None:
+    technical = _technical("SHOP", "Tight base breakout", "8.6", risk_score="2.5")
+    technical.warning_flags_json = ["market_risk_off", "stage_4_downtrend"]
+
+    decision = combine_row_decision(
+        _row("SHOP"),
+        _fundamental("SHOP", "Clean compounder", "8.8"),
+        technical,
+        config=_config(),
+    )
+
+    assert "market_risk_off" in decision.warning_flags
+    assert "stage_4_downtrend" in decision.warning_flags
+    assert decision.has_warning is True
+
+
 def test_combined_decision_missing_technical_waits_for_data() -> None:
     decision = combine_row_decision(
         _row("ADBE"),

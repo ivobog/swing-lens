@@ -99,9 +99,13 @@ def technical_v4_details_by_ticker(
 
 
 def _explainability(score: TechnicalScore | None) -> dict[str, Any]:
-    if score is None or not isinstance(score.debug_json, dict):
+    if score is None:
         return {}
-    return _dict(score.debug_json.get("explainability"))
+    if isinstance(score.v4_debug_json, dict):
+        return score.v4_debug_json
+    if isinstance(score.debug_json, dict):
+        return _dict(score.debug_json.get("explainability"))
+    return {}
 
 
 def _dict(value: Any) -> dict[str, Any]:

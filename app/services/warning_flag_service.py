@@ -57,6 +57,7 @@ def _technical_warning_flags(technical: TechnicalScore) -> set[str]:
     flags: set[str] = set()
     confidence = (technical.technical_confidence or "").lower()
     missing_data = technical.missing_data_json or {}
+    flags.update(_technical_v4_warning_flags(technical.warning_flags_json))
 
     if confidence == "error":
         flags.add("technical_error")
@@ -85,6 +86,12 @@ def _technical_warning_flags(technical: TechnicalScore) -> set[str]:
         flags.add("liquidity_warning")
 
     return flags
+
+
+def _technical_v4_warning_flags(warning_flags_json: list[str] | None) -> set[str]:
+    if not isinstance(warning_flags_json, list):
+        return set()
+    return {str(flag) for flag in warning_flags_json if str(flag).strip()}
 
 
 def _trap_flags(trap_flags_json: dict[str, Any] | None) -> list[str]:

@@ -131,6 +131,57 @@ def test_upload_fetch_plan_execution_cockpit_and_export_flow(tmp_path, monkeypat
     assert "ready,2,2" in csv_text
 
 
+def test_v4_technical_workflow_refreshes_cockpit_and_exports_fields() -> None:
+    run = UploadRun(id=7, filename="daily.csv", row_count=1, status="COMPLETED")
+    raw = RawCompanyRow(
+        run_id=7,
+        row_number=1,
+        ticker="NVDA",
+        company_name="Nvidia",
+        sector="Technology",
+        raw_json={"Symbol": "NVDA"},
+    )
+    fundamental = FundamentalScore(
+        run_id=7,
+        ticker="NVDA",
+        fundamental_score=Decimal("8.90"),
+        fundamental_label="Clean compounder",
+    )
+    technical = _v4_technical("NVDA")
+
+    cockpit_db = CockpitFakeDb(
+        raw_rows=[raw],
+        fundamentals=[fundamental],
+        technicals=[technical],
+    )
+    combined = refresh_combined_results(cockpit_db, run.id)
+
+    assert combined[0].ticker == "NVDA"
+    assert combined[0].technical_classification == "Climax reversal risk"
+    assert combined[0].combined_decision == "Avoid"
+    assert combined[0].position_size_hint == "Avoid"
+    assert combined[0].has_warning is True
+    assert "climax_reversal_risk" in combined[0].warning_flags_json
+    assert "market_risk_off" in combined[0].warning_flags_json
+
+    run.raw_company_rows = [raw]
+    run.fundamental_scores = [fundamental]
+    run.technical_scores = [technical]
+    run.combined_results = combined
+
+    combined_csv = export_run_csv(run, "combined", coverage=_coverage())
+    technical_csv = export_run_csv(run, "technicals")
+
+    assert "technical_stage" in combined_csv
+    assert "Climax reversal risk" in combined_csv
+    assert "Stage 4" in combined_csv
+    assert "Risk-off" in combined_csv
+    assert "climax_reversal_risk; market_risk_off; stage_4_downtrend" in combined_csv
+    assert "technical_version,stage,market_regime" in technical_csv
+    assert "4.0.0,Stage 4,Risk-off" in technical_csv
+    assert "Climax risk; Market risk" in technical_csv
+
+
 def test_failed_contract_fetch_can_be_resumed(monkeypatch) -> None:
     monkeypatch.setattr(
         executor,
@@ -240,6 +291,59 @@ def _technical(ticker: str) -> TechnicalScore:
         dual_score=Decimal("8"),
         classification="Prime clean pullback",
         technical_confidence="normal",
+        insufficient_data=False,
+    )
+
+
+def _v4_technical(ticker: str) -> TechnicalScore:
+    return TechnicalScore(
+        run_id=7,
+        ticker=ticker,
+        trend_score=Decimal("8"),
+        local_trend_score=Decimal("8"),
+        momentum_score=Decimal("8"),
+        setup_score=Decimal("8"),
+        risk_score=Decimal("4"),
+        market_score=Decimal("2"),
+        relative_strength_score=Decimal("8"),
+        sector_relative_strength_score=Decimal("8"),
+        combined_relative_strength_score=Decimal("8"),
+        htf_score=Decimal("8"),
+        dual_score=Decimal("7.8"),
+        classification="Climax reversal risk",
+        action_bias="Avoid / reversal risk",
+        technical_confidence="normal",
+        technical_engine_version="4.0.0",
+        data_quality_score=Decimal("10.0"),
+        stage="Stage 4",
+        market_regime="Risk-off",
+        leadership_score=Decimal("8.5"),
+        vcp_score=Decimal("6.2"),
+        breakout_quality_score=Decimal("5.1"),
+        climax_risk_score=Decimal("8.2"),
+        feature_flags_json=["momentum_crash_risk", "stage_4_downtrend"],
+        warning_flags_json=[
+            "climax_reversal_risk",
+            "market_risk_off",
+            "stage_4_downtrend",
+        ],
+        sub_tags_json=["Climax risk", "Market risk"],
+        v4_debug_json={
+            "engine_version": "4.0.0",
+            "stage": {"stage": "Stage 4"},
+            "regime": {"regime": "Risk-off", "risk_off": True},
+            "leadership": {"leadership_score": 8.5},
+            "contraction": {"vcp_score": 6.2},
+            "box": {"breakout_quality_score": 5.1},
+            "climax": {"climax_risk_score": 8.2},
+            "feature_flags": ["momentum_crash_risk", "stage_4_downtrend"],
+            "warning_flags": [
+                "climax_reversal_risk",
+                "market_risk_off",
+                "stage_4_downtrend",
+            ],
+            "sub_tags": ["Climax risk", "Market risk"],
+        },
         insufficient_data=False,
     )
 
