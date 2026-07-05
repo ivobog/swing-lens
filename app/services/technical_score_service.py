@@ -77,7 +77,7 @@ def unavailable_technical_score(
 
 
 def build_technical_score(run_id: int, score: PineReplicaScore) -> TechnicalScore:
-    confidence = "low" if score.insufficient_data else "normal"
+    confidence = score.technical_confidence or ("low" if score.insufficient_data else "normal")
     return TechnicalScore(
         run_id=run_id,
         ticker=score.ticker.upper(),

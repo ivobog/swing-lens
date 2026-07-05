@@ -1,6 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
+from app.services.technical_confidence import build_data_readiness
 from app.services.technical_indicators import TechnicalFeatureResult, load_pine_defaults
 
 ENGINE_VERSION = "3.2.0"
@@ -62,6 +63,9 @@ class PineReplicaScore:
     insufficient_data: bool
     missing_data: dict[str, Any]
     debug: dict[str, Any]
+    technical_confidence: str = "normal"
+    data_quality_score: float = 10.0
+    warning_flags: tuple[str, ...] = ()
 
 
 def engine_version() -> str:
@@ -681,6 +685,13 @@ def score_from_feature_result(
     htf_features = htf_features or {}
     relative_strength_features = relative_strength_features or {}
     market_features = market_features or {}
+    data_readiness = build_data_readiness(
+        feature_result=feature_result,
+        htf_features=htf_features,
+        relative_strength_features=relative_strength_features,
+        market_features=market_features,
+        params=params,
+    )
     derived = _derive_inputs(
         latest,
         htf_features,
@@ -881,8 +892,20 @@ def score_from_feature_result(
         reward_risk=latest.get("reward_risk"),
         entry_risk_pct=latest.get("entry_risk_pct"),
         insufficient_data=feature_result.insufficient_data,
-        missing_data=feature_result.missing_data,
-        debug={"derived": derived, "indicator_debug": feature_result.debug},
+        missing_data={
+            **feature_result.missing_data,
+            **data_readiness.missing_flags(),
+            "data_quality_score": data_readiness.data_quality_score,
+            "missing_reasons": data_readiness.missing_reasons,
+        },
+        debug={
+            "derived": derived,
+            "data_readiness": asdict(data_readiness),
+            "indicator_debug": feature_result.debug,
+        },
+        technical_confidence=data_readiness.confidence,
+        data_quality_score=data_readiness.data_quality_score,
+        warning_flags=tuple(data_readiness.missing_reasons),
     )
 
 
