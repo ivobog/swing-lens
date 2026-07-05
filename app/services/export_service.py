@@ -12,6 +12,7 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
 
@@ -41,12 +42,21 @@ COMBINED_HEADERS = [
     "forward_quality_score",
     "shareholder_quality_score",
     "technical_classification",
+    "technical_confidence",
     "dual_score",
     "combined_decision",
     "position_size_hint",
+    "is_complete",
+    "has_warning",
+    "warning_flags",
+    "sort_bucket",
+    "has_fundamental",
+    "has_technical",
     "ohlcv_status",
     "adjusted_bars",
     "trades_bars",
+    "first_adjusted_date",
+    "first_trades_date",
     "latest_adjusted_date",
     "latest_trades_date",
     "latest_bar_current",
@@ -171,6 +181,7 @@ def export_run_csv(
     if export_type == "combined":
         coverage_by_ticker = _coverage_by_ticker(coverage)
         fundamentals_by_ticker = _fundamentals_by_ticker(run.fundamental_scores)
+        technicals_by_ticker = _technicals_by_ticker(run.technical_scores)
         return _write_csv(
             COMBINED_HEADERS,
             [
@@ -179,6 +190,7 @@ def export_run_csv(
                     result,
                     coverage_by_ticker.get(result.ticker.upper()),
                     fundamentals_by_ticker.get(result.ticker.upper()),
+                    technicals_by_ticker.get(result.ticker.upper()),
                 )
                 for result in _sorted_combined(run.combined_results)
             ],
@@ -244,6 +256,7 @@ def _combined_row(
     result: CombinedResult,
     coverage: Any | None,
     fundamental: FundamentalScore | None,
+    technical: TechnicalScore | None,
 ) -> dict[str, Any]:
     return {
         "run_id": run_id,
@@ -264,12 +277,21 @@ def _combined_row(
         "forward_quality_score": fundamental.forward_quality_score if fundamental else "",
         "shareholder_quality_score": fundamental.shareholder_quality_score if fundamental else "",
         "technical_classification": result.technical_classification,
+        "technical_confidence": technical.technical_confidence if technical else "",
         "dual_score": result.dual_score,
         "combined_decision": result.combined_decision,
         "position_size_hint": result.position_size_hint,
+        "is_complete": result.is_complete,
+        "has_warning": result.has_warning,
+        "warning_flags": _warning_flags_text(result.warning_flags_json),
+        "sort_bucket": result.sort_bucket,
+        "has_fundamental": result.has_fundamental,
+        "has_technical": result.has_technical,
         "ohlcv_status": coverage.status if coverage else "",
         "adjusted_bars": coverage.adjusted_bars if coverage else "",
         "trades_bars": coverage.trades_bars if coverage else "",
+        "first_adjusted_date": coverage.first_adjusted_date if coverage else "",
+        "first_trades_date": coverage.first_trades_date if coverage else "",
         "latest_adjusted_date": coverage.latest_adjusted_date if coverage else "",
         "latest_trades_date": coverage.latest_trades_date if coverage else "",
         "latest_bar_current": coverage.latest_bar_current if coverage else "",
@@ -413,8 +435,12 @@ def _fundamentals_by_ticker(scores: list[FundamentalScore]) -> dict[str, Fundame
     return {score.ticker.upper(): score for score in scores}
 
 
+def _technicals_by_ticker(scores: list[TechnicalScore]) -> dict[str, TechnicalScore]:
+    return {score.ticker.upper(): score for score in scores}
+
+
 def _sorted_combined(results: list[CombinedResult]) -> list[CombinedResult]:
-    return sorted(results, key=lambda result: result.final_rank or 0)
+    return sorted(results, key=cockpit_sort_key)
 
 
 def _sorted_raw(rows: list[RawCompanyRow]) -> list[RawCompanyRow]:
@@ -439,6 +465,10 @@ def _flags_text(flags_json: dict[str, Any] | None) -> str:
     if not flags_json:
         return ""
     return _list_text(flags_json.get("flags"))
+
+
+def _warning_flags_text(flags: list[str] | None) -> str:
+    return _list_text(flags)
 
 
 def _list_text(values: Any) -> str:

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.db import get_db
 from app.models.tables import CombinedResult, RawCompanyRow, TechnicalScore, UploadRun
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
+from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.combined_decision import refresh_combined_results
 from app.services.export_service import (
     EXPORT_TYPES,
@@ -112,10 +113,7 @@ def run_detail_page(
     fundamental_by_ticker = {score.ticker: score for score in run.fundamental_scores}
     technical_by_ticker = {score.ticker: score for score in run.technical_scores}
     combined_by_ticker = {result.ticker: result for result in run.combined_results}
-    combined_results = sorted(
-        run.combined_results,
-        key=lambda result: result.final_rank or 0,
-    )
+    combined_results = sorted(run.combined_results, key=cockpit_sort_key)
     decision_counts = _decision_counts(combined_results)
     coverage = summarize_run_ohlcv_coverage(db, run.id)
     latest_fetch = latest_ib_fetch_for_run(db, run.id)

@@ -1,5 +1,7 @@
+import csv
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from io import StringIO
 
 from app.models.tables import (
     CombinedResult,
@@ -7,6 +9,7 @@ from app.models.tables import (
     IBFetchItem,
     IBFetchRun,
     RawCompanyRow,
+    TechnicalScore,
     UploadRun,
 )
 from app.services.export_service import (
@@ -37,18 +40,55 @@ def test_combined_export_includes_ranked_results() -> None:
             combined_decision="Strong candidate",
             position_size_hint="Full starter",
             notes="aligned",
+            warning_flags_json=["high_accrual_risk"],
+            is_complete=True,
+            has_warning=True,
+            has_fundamental=True,
+            has_technical=True,
+            sort_bucket=10,
         )
     ]
     run.fundamental_scores = [_fundamental("MSFT")]
+    run.technical_scores = [_technical("MSFT", confidence="normal")]
 
     csv_text = export_run_csv(run, "combined", coverage=_coverage())
+    row = next(csv.DictReader(StringIO(csv_text)))
 
     assert "run_id,rank,ticker" in csv_text
     assert "fundamental_model_version" in csv_text
+    assert "is_complete,has_warning,warning_flags,sort_bucket" in csv_text
+    assert "technical_confidence" in csv_text
     assert "7,1,MSFT,Microsoft,Technology,8.75" in csv_text
     assert "fundamentals_v2.0,8.70,high_accrual_risk,7.80,8.00,6.50,5.80" in csv_text
-    assert "ready,252,252,2026-07-02,2026-07-02,True" in csv_text
+    assert row["technical_confidence"] == "normal"
+    assert row["is_complete"] == "True"
+    assert row["has_warning"] == "True"
+    assert row["warning_flags"] == "high_accrual_risk"
+    assert row["sort_bucket"] == "10"
+    assert row["has_fundamental"] == "True"
+    assert row["has_technical"] == "True"
+    assert row["ohlcv_status"] == "ready"
+    assert row["adjusted_bars"] == "252"
+    assert row["trades_bars"] == "252"
+    assert row["first_adjusted_date"] == "2025-07-01"
+    assert row["first_trades_date"] == "2025-07-01"
+    assert row["latest_adjusted_date"] == "2026-07-02"
+    assert row["latest_trades_date"] == "2026-07-02"
+    assert row["latest_bar_current"] == "True"
     assert "Strong candidate" in csv_text
+
+
+def test_combined_export_order_matches_cockpit_sorting() -> None:
+    run = _run()
+    run.combined_results = [
+        _combined_result("ZZZ", rank=1, score=Decimal("9.9"), sort_bucket=50),
+        _combined_result("AAA", rank=2, score=Decimal("8.0"), sort_bucket=10),
+        _combined_result("MSFT", rank=3, score=Decimal("8.5"), sort_bucket=10),
+    ]
+
+    rows = list(csv.DictReader(StringIO(export_run_csv(run, "combined"))))
+
+    assert [row["ticker"] for row in rows] == ["MSFT", "AAA", "ZZZ"]
 
 
 def test_fundamentals_export_includes_v2_details() -> None:
@@ -274,6 +314,36 @@ def _fundamental(ticker: str) -> FundamentalScore:
             },
             "parse_diagnostics": {"failed_field_count": 1},
         },
+    )
+
+
+def _technical(ticker: str, confidence: str) -> TechnicalScore:
+    return TechnicalScore(
+        run_id=7,
+        ticker=ticker,
+        technical_confidence=confidence,
+    )
+
+
+def _combined_result(
+    ticker: str,
+    rank: int,
+    score: Decimal,
+    sort_bucket: int,
+) -> CombinedResult:
+    return CombinedResult(
+        run_id=7,
+        ticker=ticker,
+        final_rank=rank,
+        final_score=score,
+        combined_decision="Candidate",
+        position_size_hint="Half starter",
+        warning_flags_json=[],
+        is_complete=sort_bucket < 50,
+        has_warning=False,
+        has_fundamental=True,
+        has_technical=sort_bucket < 50,
+        sort_bucket=sort_bucket,
     )
 
 
