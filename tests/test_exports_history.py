@@ -12,10 +12,13 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.column_mapping_summary_service import summarize_run_column_mapping
 from app.services.export_service import (
+    export_coverage_csv,
     export_fetch_plan_csv,
     export_fetch_results_csv,
     export_filename,
+    export_mapping_csv,
     export_run_csv,
 )
 from app.services.history_service import recent_decisions, summarize_runs
@@ -122,6 +125,45 @@ def test_raw_export_preserves_raw_json() -> None:
     assert "raw_column_count,raw_json" in csv_text
     assert "MSFT" in csv_text
     assert "\"\"Price\"\": \"\"410.50\"\"" in csv_text
+
+
+def test_coverage_export_reports_ohlcv_status_context() -> None:
+    csv_text = export_coverage_csv(_coverage())
+    row = next(csv.DictReader(StringIO(csv_text)))
+
+    assert row["ticker"] == "MSFT"
+    assert row["status"] == "ready"
+    assert row["adjusted_bars"] == "252"
+    assert row["latest_bar_current"] == "True"
+    assert row["reason"] == "Adjusted price and trades volume coverage are ready."
+
+
+def test_mapping_export_reports_canonical_field_matches() -> None:
+    run = _run()
+    run.raw_company_rows = [
+        RawCompanyRow(
+            run_id=7,
+            row_number=1,
+            ticker="MSFT",
+            company_name="Microsoft",
+            sector="Technology",
+            raw_json={
+                "Symbol": "MSFT",
+                "Free cash flow, Trailing 12 months": "65000000000",
+                "Mystery Column": "ignored",
+            },
+        )
+    ]
+
+    csv_text = export_mapping_csv(summarize_run_column_mapping(run))
+    rows = list(csv.DictReader(StringIO(csv_text)))
+
+    assert rows[0]["raw_header"] == "Symbol"
+    assert rows[1]["canonical_field"] == "fcf_ttm"
+    assert rows[1]["priority"] == "critical"
+    assert rows[1]["used_in_scoring"] == "True"
+    assert rows[2]["raw_header"] == "Mystery Column"
+    assert rows[2]["canonical_field"] == ""
 
 
 def test_export_filename_is_stable_and_safe() -> None:

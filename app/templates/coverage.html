@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Run {{ run.id }} Coverage{% endblock %}
+
+{% block content %}
+{% set coverage_actions = coverage_actions|default({}) %}
+<section class="panel">
+  <div class="panel-header run-header">
+    <div>
+      <h1>OHLCV Coverage</h1>
+      <p>Run {{ run.id }} - {{ run.filename }}</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ run.id }}">Run detail</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/coverage.csv">Coverage CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-plan.csv">Fetch plan CSV</a>
+    </div>
+  </div>
+
+  <div class="summary-strip">
+    <span class="summary-item"><strong>{{ coverage.ready_count }}</strong> ready</span>
+    <span class="summary-item"><strong>{{ coverage.insufficient_count }}</strong> insufficient</span>
+    <span class="summary-item"><strong>{{ coverage.stale_count }}</strong> stale</span>
+    <span class="summary-item"><strong>{{ coverage.missing_volume_count }}</strong> missing volume</span>
+    <span class="summary-item"><strong>{{ coverage.failed_contract_count }}</strong> contract failed</span>
+    <span class="summary-item"><strong>{{ coverage.missing_count }}</strong> missing</span>
+    <span class="summary-item"><strong>{{ coverage.required_rows }}</strong> required bars</span>
+    <span class="summary-item"><strong>SPY</strong> {{ "ready" if coverage.benchmark_spy_ready else "missing/short" }}</span>
+    <span class="summary-item"><strong>QQQ</strong> {{ "ready" if coverage.benchmark_qqq_ready else "missing/short" }}</span>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Fetch Actions</h2>
+      <p>Queue targeted IB requests for the coverage states that need attention.</p>
+    </div>
+  </div>
+
+  <div class="coverage-action-grid">
+    {% for action_key, label in [
+      ("not_ready", "Fetch all not ready"),
+      ("missing", "Fetch missing"),
+      ("stale", "Refresh stale"),
+      ("short", "Backfill short"),
+      ("failed", "Retry contract failures")
+    ] %}
+      <form method="post" action="/runs/{{ run.id }}/ib/fetch" data-loading-form>
+        <input type="hidden" name="ticker_subset" value="{{ coverage_actions.get(action_key, '') }}">
+        <input type="hidden" name="include_benchmarks" value="true">
+        <input type="hidden" name="what_to_show" value="ADJUSTED_LAST">
+        <input type="hidden" name="what_to_show" value="TRADES">
+        {% if action_key in ["stale", "failed"] %}
+          <input type="hidden" name="force_refresh" value="true">
+        {% endif %}
+        {% if action_key in ["short", "missing", "not_ready"] %}
+          <input type="hidden" name="force_full_backfill" value="true">
+        {% endif %}
+        <button class="secondary" type="submit" data-loading-label="Queueing..." {% if not coverage_actions.get(action_key) %}disabled{% endif %}>
+          {{ label }}
+        </button>
+        <span>{{ coverage_actions.get(action_key, '') or "No matching tickers" }}</span>
+      </form>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel section-gap" data-coverage-page>
+  <div class="panel-header">
+    <div>
+      <h2>Coverage By Ticker</h2>
+      <p>Filter by status, copy visible tickers, or inspect why a ticker is not ready.</p>
+    </div>
+    <div class="copy-actions">
+      <button class="secondary" type="button" data-copy-coverage="visible">Copy visible</button>
+      <button class="secondary" type="button" data-copy-coverage="not-ready">Copy not ready</button>
+      <span class="copy-feedback" data-copy-feedback aria-live="polite"></span>
+    </div>
+  </div>
+
+  <div class="coverage-filters" data-coverage-filters>
+    {% for status, label in [
+      ("ready", "Ready"),
+      ("insufficient", "Insufficient"),
+      ("stale", "Stale"),
+      ("missing_volume", "Missing volume"),
+      ("contract_failed", "Contract failed"),
+      ("missing", "Missing")
+    ] %}
+      <label class="toggle-row">
+        <input type="checkbox" value="{{ status }}" data-coverage-filter>
+        <span>{{ label }}</span>
+      </label>
+    {% endfor %}
+    <button class="secondary" type="button" data-coverage-clear>Clear filters</button>
+  </div>
+
+  {% if coverage.items %}
+    <p class="filter-empty" data-coverage-empty hidden>No coverage rows match the current filters.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Status</th>
+            <th>Adjusted bars</th>
+            <th>Trades bars</th>
+            <th>First adjusted</th>
+            <th>Latest adjusted</th>
+            <th>First trades</th>
+            <th>Latest trades</th>
+            <th>Price</th>
+            <th>Volume</th>
+            <th>Current</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in coverage.items %}
+            <tr data-coverage-row data-ticker="{{ item.ticker }}" data-coverage-status="{{ item.status }}">
+              <td><strong>{{ item.ticker }}</strong></td>
+              <td>
+                <span class="badge badge-{{ 'success' if item.status == 'ready' else 'danger' if item.status == 'contract_failed' else 'warning' if item.status in ['insufficient', 'stale', 'missing_volume'] else 'muted' }}">
+                  {{ item.status|replace("_", " ")|title }}
+                </span>
+              </td>
+              <td>{{ item.adjusted_bars }}</td>
+              <td>{{ item.trades_bars }}</td>
+              <td>{{ item.first_adjusted_date or "" }}</td>
+              <td>{{ item.latest_adjusted_date or "" }}</td>
+              <td>{{ item.first_trades_date or "" }}</td>
+              <td>{{ item.latest_trades_date or "" }}</td>
+              <td>{{ "Yes" if item.has_price else "No" }}</td>
+              <td>{{ "Yes" if item.has_volume else "No" }}</td>
+              <td>{{ "Yes" if item.latest_bar_current else "No" }}</td>
+              <td>{{ item.reason }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty-state">No uploaded tickers are available for this run.</p>
+  {% endif %}
+</section>
+{% endblock %}

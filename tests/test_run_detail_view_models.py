@@ -9,6 +9,7 @@ from app.models.tables import (
     UploadRun,
 )
 from app.routers.run_routes import (
+    _coverage_actions,
     _estimated_fetch_duration_label,
     _fetch_plan_action_counts,
     _fetch_plan_json_url,
@@ -21,7 +22,7 @@ from app.routers.run_routes import (
     preview_run_ib_fetch_plan,
 )
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
-from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
+from app.services.ohlcv_coverage_service import OhlcvCoverageItem, OhlcvCoverageSummary
 from app.templates import templates
 
 
@@ -204,10 +205,84 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert 'action="/runs/1/technicals/refresh"' in html
     assert "Refresh technicals" in html
     assert "Refresh combined" in html
+    assert 'href="/runs/1/coverage"' in html
+    assert 'href="/runs/1/mapping"' in html
+    assert 'href="/runs/1/exports/coverage.csv"' in html
+    assert 'href="/runs/1/exports/mapping.csv"' in html
     assert 'formaction="/runs/1/ib/plan"' in html
     assert 'formmethod="get"' in html
     assert 'name="include_benchmarks" value="true"' in html
     assert 'name="include_benchmarks" value="false"' not in html
+
+
+def test_coverage_actions_and_template_support_targeted_fetches(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=7, filename="sample.csv", row_count=3, status="COMPLETED")
+    coverage = OhlcvCoverageSummary(
+        total_tickers=3,
+        ready_count=1,
+        insufficient_count=1,
+        missing_count=1,
+        benchmark_spy_ready=True,
+        benchmark_qqq_ready=False,
+        required_rows=252,
+        stale_count=0,
+        missing_volume_count=0,
+        failed_contract_count=0,
+        items=[
+            _coverage_item("MSFT", "ready"),
+            _coverage_item("AAPL", "missing"),
+            _coverage_item("NVDA", "insufficient"),
+        ],
+    )
+    actions = _coverage_actions(coverage)
+
+    html = templates.get_template("coverage.html").render(
+        run=run,
+        coverage=coverage,
+        coverage_actions=actions,
+    )
+
+    assert actions["not_ready"] == "AAPL, NVDA"
+    assert 'data-coverage-page' in html
+    assert 'data-copy-coverage="not-ready"' in html
+    assert 'data-coverage-status="missing"' in html
+    assert 'value="AAPL, NVDA"' in html
+    assert 'href="/runs/7/exports/coverage.csv"' in html
+
+
+def test_mapping_template_shows_summary_and_export_link(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=7, filename="sample.csv", row_count=1, status="COMPLETED")
+    mapping = SimpleNamespace(
+        raw_column_count=3,
+        recognized_count=2,
+        unrecognized_count=1,
+        scoring_count=1,
+        stored_only_count=1,
+        missing_critical_fields=["net_income_ttm"],
+        missing_high_fields=["quick_ratio_quarterly"],
+        unrecognized_columns=["Mystery Column"],
+        items=[
+            SimpleNamespace(
+                raw_header="Market capitalization",
+                canonical_field="market_cap",
+                priority="critical",
+                component="valuation_quality_score",
+                used_in_scoring=True,
+                sample_value="3000000000000",
+            )
+        ],
+    )
+
+    html = templates.get_template("mapping.html").render(run=run, mapping=mapping)
+
+    assert "Column Mapping" in html
+    assert "Market capitalization" in html
+    assert "market_cap" in html
+    assert "Mystery Column" in html
+    assert "net_income_ttm" in html
+    assert 'href="/runs/7/exports/mapping.csv"' in html
 
 
 def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None:
@@ -374,6 +449,20 @@ def _plan_item(ticker: str, action: FetchAction) -> FetchPlanItem:
         required_bars=252,
         reason="test",
         estimated_request_count=0 if action == FetchAction.SKIP else 1,
+    )
+
+
+def _coverage_item(ticker: str, status: str) -> OhlcvCoverageItem:
+    return OhlcvCoverageItem(
+        ticker=ticker,
+        adjusted_bars=252 if status == "ready" else 0,
+        trades_bars=252 if status == "ready" else 0,
+        has_price=status == "ready",
+        has_volume=status == "ready",
+        sufficient_history=status == "ready",
+        status=status,
+        latest_bar_current=status == "ready",
+        reason=f"{ticker} {status}",
     )
 
 

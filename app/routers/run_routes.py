@@ -10,12 +10,15 @@ from app.db import get_db
 from app.models.tables import CombinedResult, RawCompanyRow, TechnicalScore, UploadRun
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.cockpit_sorting import cockpit_sort_key
+from app.services.column_mapping_summary_service import summarize_run_column_mapping
 from app.services.combined_decision import refresh_combined_results
 from app.services.export_service import (
     EXPORT_TYPES,
+    export_coverage_csv,
     export_fetch_plan_csv,
     export_fetch_results_csv,
     export_filename,
+    export_mapping_csv,
     export_run_csv,
 )
 from app.services.fundamental_score_service import recalculate_run_fundamentals
@@ -193,6 +196,10 @@ def export_run_results(run_id: int, export_type: str, db: DbSession) -> Response
         )
     elif export_type == "ib-fetch-results":
         content = export_fetch_results_csv(latest_ib_fetch_for_run(db, run_id))
+    elif export_type == "coverage":
+        content = export_coverage_csv(summarize_run_ohlcv_coverage(db, run_id))
+    elif export_type == "mapping":
+        content = export_mapping_csv(summarize_run_column_mapping(run))
     else:
         coverage = summarize_run_ohlcv_coverage(db, run_id) if export_type == "combined" else None
         content = export_run_csv(run, export_type, coverage=coverage)
@@ -200,6 +207,42 @@ def export_run_results(run_id: int, export_type: str, db: DbSession) -> Response
         content=content,
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/runs/{run_id}/coverage", response_class=HTMLResponse)
+def run_coverage_page(run_id: int, request: Request, db: DbSession) -> HTMLResponse:
+    run = _load_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    coverage = summarize_run_ohlcv_coverage(db, run_id)
+    return templates.TemplateResponse(
+        request,
+        "coverage.html",
+        {
+            "active_nav": "runs",
+            "run": run,
+            "coverage": coverage,
+            "coverage_actions": _coverage_actions(coverage),
+        },
+    )
+
+
+@router.get("/runs/{run_id}/mapping", response_class=HTMLResponse)
+def run_mapping_page(run_id: int, request: Request, db: DbSession) -> HTMLResponse:
+    run = _load_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    return templates.TemplateResponse(
+        request,
+        "mapping.html",
+        {
+            "active_nav": "runs",
+            "run": run,
+            "mapping": summarize_run_column_mapping(run),
+        },
     )
 
 
@@ -865,6 +908,24 @@ def _fetch_plan_json_url(
     for value in what_to_show or []:
         params.append(("what_to_show", value))
     return f"/runs/{run_id}/ib/plan?{urlencode(params)}"
+
+
+def _coverage_actions(coverage: OhlcvCoverageSummary) -> dict[str, str]:
+    statuses = {
+        "missing": {"missing"},
+        "stale": {"stale"},
+        "short": {"insufficient", "missing_volume"},
+        "failed": {"contract_failed"},
+        "not_ready": {"missing", "stale", "insufficient", "missing_volume", "contract_failed"},
+    }
+    return {
+        name: ", ".join(
+            item.ticker
+            for item in coverage.items
+            if item.status in target_statuses
+        )
+        for name, target_statuses in statuses.items()
+    }
 
 
 def _redirect_with_query(run_id: int, params: dict[str, str]) -> RedirectResponse:

@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindConfirmActions();
   bindLoadingForms();
   bindCockpitTables();
+  bindCoverageTables();
   bindFetchProgressPolling();
   bindFileInputs();
 });
@@ -313,6 +314,54 @@ function bindFileInputs() {
     input.addEventListener("change", () => {
       const label = document.querySelector(`[for='${input.id}'] span`);
       if (label && input.files.length) label.textContent = input.files[0].name;
+    });
+  });
+}
+
+function bindCoverageTables() {
+  document.querySelectorAll("[data-coverage-page]").forEach((section) => {
+    const rows = Array.from(section.querySelectorAll("[data-coverage-row]"));
+    const filters = Array.from(section.querySelectorAll("[data-coverage-filter]"));
+    const empty = section.querySelector("[data-coverage-empty]");
+    const feedback = section.querySelector("[data-copy-feedback]");
+
+    const applyFilters = () => {
+      const activeStatuses = new Set(
+        filters.filter((filter) => filter.checked).map((filter) => filter.value),
+      );
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const visible = activeStatuses.size === 0 || activeStatuses.has(row.dataset.coverageStatus);
+        row.hidden = !visible;
+        if (visible) visibleCount += 1;
+      });
+      if (empty) empty.hidden = visibleCount !== 0;
+    };
+
+    filters.forEach((filter) => filter.addEventListener("change", applyFilters));
+
+    const clearButton = section.querySelector("[data-coverage-clear]");
+    if (clearButton) {
+      clearButton.addEventListener("click", () => {
+        filters.forEach((filter) => {
+          filter.checked = false;
+        });
+        applyFilters();
+      });
+    }
+
+    section.querySelectorAll("[data-copy-coverage]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const mode = button.dataset.copyCoverage;
+        const tickers = rows
+          .filter((row) => {
+            if (mode === "visible") return !row.hidden;
+            if (mode === "not-ready") return row.dataset.coverageStatus !== "ready";
+            return false;
+          })
+          .map((row) => row.dataset.ticker);
+        copyTickers(tickers, feedback);
+      });
     });
   });
 }

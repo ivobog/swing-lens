@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Run {{ run.id }} Mapping{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header run-header">
+    <div>
+      <h1>Column Mapping</h1>
+      <p>Run {{ run.id }} - {{ run.filename }}</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ run.id }}">Run detail</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/mapping.csv">Mapping CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/raw.csv">Raw CSV</a>
+    </div>
+  </div>
+
+  <section class="metric-grid mapping-metrics" aria-label="Column mapping summary">
+    <div class="metric">
+      <span>Raw Columns</span>
+      <strong>{{ mapping.raw_column_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Recognized</span>
+      <strong>{{ mapping.recognized_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Used In Scoring</span>
+      <strong>{{ mapping.scoring_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Stored Only</span>
+      <strong>{{ mapping.stored_only_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Unrecognized</span>
+      <strong>{{ mapping.unrecognized_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Missing Critical</span>
+      <strong>{{ mapping.missing_critical_fields|length }}</strong>
+    </div>
+  </section>
+</section>
+
+<section class="grid section-gap">
+  <div>
+    <h2>Missing Critical Fields</h2>
+    {% if mapping.missing_critical_fields %}
+      <div class="badge-list mapping-badges">
+        {% for field in mapping.missing_critical_fields %}
+          <span class="badge badge-danger">{{ field }}</span>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>None</p>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Missing High Fields</h2>
+    {% if mapping.missing_high_fields %}
+      <div class="badge-list mapping-badges">
+        {% for field in mapping.missing_high_fields %}
+          <span class="badge badge-warning">{{ field }}</span>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>None</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Mapping Report</h2>
+      <p>Each source header is matched to the canonical field name used by the scoring model.</p>
+    </div>
+  </div>
+
+  {% if mapping.unrecognized_columns %}
+    <div class="alert">
+      {{ mapping.unrecognized_count }} source columns were not recognized.
+      <span>{{ mapping.unrecognized_columns|join(", ") }}</span>
+    </div>
+  {% endif %}
+
+  {% if mapping.items %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Raw header</th>
+            <th>Canonical field</th>
+            <th>Priority</th>
+            <th>Component</th>
+            <th>Scoring</th>
+            <th>Sample</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in mapping.items %}
+            <tr>
+              <td><strong>{{ item.raw_header }}</strong></td>
+              <td>{{ item.canonical_field or "" }}</td>
+              <td>
+                {% if item.priority %}
+                  <span class="badge badge-{{ 'danger' if item.priority == 'critical' else 'warning' if item.priority == 'high' else 'muted' }}">
+                    {{ item.priority|title }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>{{ item.component or "" }}</td>
+              <td>{{ "Yes" if item.used_in_scoring else "No" }}</td>
+              <td>{{ item.sample_value or "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty-state">No raw columns are available for this run.</p>
+  {% endif %}
+</section>
+{% endblock %}

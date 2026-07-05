@@ -148,6 +148,10 @@
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/raw.csv">Raw CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-plan.csv">IB Plan CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">IB Results CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/coverage.csv">Coverage CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/mapping.csv">Mapping CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/coverage">Coverage detail</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/mapping">Column mapping</a>
     </div>
   </div>
 </section>
@@ -263,6 +267,8 @@
       <strong>QQQ</strong>
       {{ "ready" if coverage.benchmark_qqq_ready else "missing/short" }}
     </span>
+    <a class="button-link secondary compact-link" href="/runs/{{ run.id }}/coverage">Open coverage</a>
+    <a class="button-link secondary compact-link" href="/runs/{{ run.id }}/mapping">Open mapping</a>
   </div>
 
   {% if latest_fetch %}

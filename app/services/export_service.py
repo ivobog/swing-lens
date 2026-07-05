@@ -13,6 +13,7 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.cockpit_sorting import cockpit_sort_key
+from app.services.column_mapping_summary_service import ColumnMappingSummary
 from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
 
@@ -23,6 +24,8 @@ EXPORT_TYPES = {
     "raw",
     "ib-fetch-plan",
     "ib-fetch-results",
+    "coverage",
+    "mapping",
 }
 
 COMBINED_HEADERS = [
@@ -172,6 +175,31 @@ FETCH_RESULTS_HEADERS = [
     "error_message",
 ]
 
+COVERAGE_HEADERS = [
+    "ticker",
+    "status",
+    "adjusted_bars",
+    "trades_bars",
+    "first_adjusted_date",
+    "latest_adjusted_date",
+    "first_trades_date",
+    "latest_trades_date",
+    "has_price",
+    "has_volume",
+    "sufficient_history",
+    "latest_bar_current",
+    "reason",
+]
+
+MAPPING_HEADERS = [
+    "raw_header",
+    "canonical_field",
+    "priority",
+    "component",
+    "used_in_scoring",
+    "sample_value",
+]
+
 
 def export_run_csv(
     run: UploadRun,
@@ -231,6 +259,14 @@ def export_fetch_results_csv(fetch_run: IBFetchRun | None) -> str:
         FETCH_RESULTS_HEADERS,
         [_fetch_result_row(fetch_run, item) for item in _sorted_fetch_items(fetch_run.items)],
     )
+
+
+def export_coverage_csv(coverage: OhlcvCoverageSummary) -> str:
+    return _write_csv(COVERAGE_HEADERS, [_coverage_row(item) for item in coverage.items])
+
+
+def export_mapping_csv(summary: ColumnMappingSummary) -> str:
+    return _write_csv(MAPPING_HEADERS, [_mapping_row(item) for item in summary.items])
 
 
 def export_filename(run: UploadRun, export_type: str) -> str:
@@ -422,6 +458,35 @@ def _fetch_result_row(fetch_run: IBFetchRun, item: Any) -> dict[str, Any]:
         "completed_at": item.completed_at,
         "reason": item.reason,
         "error_message": item.error_message,
+    }
+
+
+def _coverage_row(item: Any) -> dict[str, Any]:
+    return {
+        "ticker": item.ticker,
+        "status": item.status,
+        "adjusted_bars": item.adjusted_bars,
+        "trades_bars": item.trades_bars,
+        "first_adjusted_date": item.first_adjusted_date,
+        "latest_adjusted_date": item.latest_adjusted_date,
+        "first_trades_date": item.first_trades_date,
+        "latest_trades_date": item.latest_trades_date,
+        "has_price": item.has_price,
+        "has_volume": item.has_volume,
+        "sufficient_history": item.sufficient_history,
+        "latest_bar_current": item.latest_bar_current,
+        "reason": item.reason,
+    }
+
+
+def _mapping_row(item: Any) -> dict[str, Any]:
+    return {
+        "raw_header": item.raw_header,
+        "canonical_field": item.canonical_field,
+        "priority": item.priority,
+        "component": item.component,
+        "used_in_scoring": item.used_in_scoring,
+        "sample_value": item.sample_value,
     }
 
 

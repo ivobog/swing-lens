@@ -354,6 +354,55 @@ dd {
   margin-top: 16px;
 }
 
+.compact-link {
+  min-height: 28px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+.coverage-action-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.coverage-action-grid form {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.coverage-action-grid button {
+  width: 100%;
+}
+
+.coverage-action-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.coverage-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.mapping-metrics {
+  margin-top: 18px;
+}
+
+.mapping-badges {
+  max-width: none;
+}
+
 .fetch-summary,
 .coverage-details {
   margin-top: 16px;
@@ -917,6 +966,7 @@ td a {
   .ib-layout,
   .plan-options,
   .progress-grid,
+  .coverage-action-grid,
   .cockpit-toolbar,
   .cockpit-controls {
     grid-template-columns: 1fr;
@@ -934,7 +984,8 @@ td a {
   .settings-grid,
   .settings-group-grid,
   .workflow-list,
-  .progress-grid {
+  .progress-grid,
+  .coverage-action-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
