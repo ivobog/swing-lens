@@ -6,6 +6,9 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from app.services.adaptive_technical_features import add_adaptive_features
+from app.services.technical_scoring_config import load_technical_scoring_v4_config
+
 REQUIRED_COLUMNS = ("date", "open", "high", "low", "close", "volume")
 
 
@@ -28,8 +31,10 @@ def calculate_technical_features(
     trades_df: pd.DataFrame | None = None,
     ticker: str = "",
     params: dict[str, Any] | None = None,
+    v4_params: dict[str, Any] | None = None,
 ) -> TechnicalFeatureResult:
     params = params or load_pine_defaults()
+    v4_params = v4_params or load_technical_scoring_v4_config()
     df = prepare_ohlcv_frame(price_df, trades_df)
     missing_data = _missing_data(df, params)
     insufficient_data = bool(missing_data["insufficient_history"])
@@ -43,13 +48,18 @@ def calculate_technical_features(
             debug={},
         )
 
+    adaptive_params = v4_params.get("adaptive_percentiles", {})
     features = _calculate_feature_frame(df, params)
+    features = add_adaptive_features(features, adaptive_params)
     latest = _latest_features(features)
     debug = {
         "row_count": len(df),
         "start_date": str(df["date"].iloc[0].date()),
         "end_date": str(df["date"].iloc[-1].date()),
         "columns": list(df.columns),
+        "adaptive_percentiles_enabled": bool(
+            adaptive_params.get("enabled", True)
+        ),
     }
 
     return TechnicalFeatureResult(
