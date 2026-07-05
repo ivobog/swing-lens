@@ -111,6 +111,9 @@ def test_score_run_technicals_adds_run_level_leadership_debug(monkeypatch) -> No
     assert rows[1].debug_json["leadership"]["leadership_score"] == 10.0
     assert rows[1].debug_json["leadership"]["leadership_tags"] == ["rs_leader"]
     assert rows[1].debug_json["explainability"]["leadership"]["leadership_score"] == 10.0
+    assert rows[1].leadership_score == 10.0
+    assert rows[1].feature_flags_json == ["rs_leader"]
+    assert rows[1].sub_tags_json == ["RS leader"]
     assert "rs_leader" in rows[1].debug_json["explainability"]["feature_flags"]
     assert "RS leader" in rows[1].debug_json["explainability"]["sub_tags"]
 

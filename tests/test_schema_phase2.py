@@ -113,6 +113,60 @@ def test_fundamental_score_model_accepts_v2_values() -> None:
     assert score.v2_warning_flags_json == {"flags": ["high_accrual_risk"]}
 
 
+def test_technical_score_model_includes_v4_persistence_columns() -> None:
+    table = Base.metadata.tables["technical_scores"]
+
+    for column_name in [
+        "technical_engine_version",
+        "data_quality_score",
+        "stage",
+        "market_regime",
+        "leadership_score",
+        "vcp_score",
+        "box_tightness_score",
+        "breakout_quality_score",
+        "climax_risk_score",
+        "atr_percentile_252",
+        "volume_percentile_252",
+        "range_percentile_252",
+        "extension_percentile_252",
+        "feature_flags_json",
+        "warning_flags_json",
+        "sub_tags_json",
+        "v4_debug_json",
+    ]:
+        assert column_name in table.c
+
+
+def test_technical_score_model_accepts_v4_values() -> None:
+    score = TechnicalScore(
+        run_id=1,
+        ticker="MSFT",
+        technical_engine_version="4.0.0",
+        data_quality_score=Decimal("9.5"),
+        stage="Stage 2",
+        market_regime="Bull trend",
+        leadership_score=Decimal("8.9"),
+        vcp_score=Decimal("8.1"),
+        box_tightness_score=Decimal("7.5"),
+        breakout_quality_score=Decimal("6.5"),
+        climax_risk_score=Decimal("2.2"),
+        atr_percentile_252=Decimal("41.5"),
+        volume_percentile_252=Decimal("33.8"),
+        range_percentile_252=Decimal("25.0"),
+        extension_percentile_252=Decimal("52.0"),
+        feature_flags_json=["vcp_detected"],
+        warning_flags_json=[],
+        sub_tags_json=["Stage 2", "VCP"],
+        v4_debug_json={"final_v4_score": 8.42},
+    )
+
+    assert score.technical_engine_version == "4.0.0"
+    assert score.stage == "Stage 2"
+    assert score.feature_flags_json == ["vcp_detected"]
+    assert score.v4_debug_json == {"final_v4_score": 8.42}
+
+
 def test_fundamentals_v2_migration_follows_current_head() -> None:
     migration = Path(
         "alembic/versions/20260704_0005_add_fundamentals_v2_columns.py"
@@ -120,6 +174,15 @@ def test_fundamentals_v2_migration_follows_current_head() -> None:
 
     assert 'revision: str = "0005_add_fundamentals_v2_columns"' in migration
     assert 'down_revision: str | None = "0004_expand_ib_fetch_persistence"' in migration
+
+
+def test_technical_v4_migration_follows_current_head() -> None:
+    migration = Path(
+        "alembic/versions/20260705_0006_add_technical_v4_columns.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0006_add_technical_v4_columns"' in migration
+    assert 'down_revision: str | None = "0005_add_fundamentals_v2_columns"' in migration
 
 
 def test_combined_decision_to_model_persists_phase2_fields() -> None:

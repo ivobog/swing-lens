@@ -16,6 +16,10 @@ from app.services.technical_indicators import (
     calculate_relative_strength_features,
     calculate_technical_features,
 )
+from app.services.technical_score_v4 import (
+    TechnicalScoreV4,
+    technical_score_v4_from_base_score,
+)
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
 
 
@@ -62,7 +66,10 @@ def score_run_technicals(
     scores = [
         build_technical_score(
             run_id=run_id,
-            score=_with_leadership_debug(result, leadership),
+            score=technical_score_v4_from_base_score(
+                _with_leadership_debug(result, leadership),
+                v4_params,
+            ),
         )
         if isinstance(result, PineReplicaScore)
         else result
@@ -103,35 +110,57 @@ def unavailable_technical_score(
     )
 
 
-def build_technical_score(run_id: int, score: PineReplicaScore) -> TechnicalScore:
-    confidence = score.technical_confidence or ("low" if score.insufficient_data else "normal")
+def build_technical_score(
+    run_id: int,
+    score: PineReplicaScore | TechnicalScoreV4,
+) -> TechnicalScore:
+    base_score = _base_score(score)
+    debug = score.debug if isinstance(score, TechnicalScoreV4) else base_score.debug
+    dual_score = (
+        score.final_v4_score if isinstance(score, TechnicalScoreV4) else base_score.dual_score
+    )
+    classification = (
+        score.final_v4_classification
+        if isinstance(score, TechnicalScoreV4)
+        else base_score.classification
+    )
+    action_bias = (
+        score.final_v4_action if isinstance(score, TechnicalScoreV4) else base_score.action_bias
+    )
+    confidence = base_score.technical_confidence or (
+        "low" if base_score.insufficient_data else "normal"
+    )
+    v4_fields = _v4_persistence_fields(debug)
     return TechnicalScore(
         run_id=run_id,
-        ticker=score.ticker.upper(),
-        trend_score=_to_decimal(score.trend_score),
-        local_trend_score=_to_decimal(score.local_trend_score),
-        momentum_score=_to_decimal(score.momentum_score),
-        setup_score=_to_decimal(score.setup_score),
-        risk_score=_to_decimal(score.risk_score),
-        market_score=_to_decimal(score.market_score),
-        relative_strength_score=_to_decimal(score.relative_strength_score),
-        sector_relative_strength_score=_to_decimal(score.sector_relative_strength_score),
-        combined_relative_strength_score=_to_decimal(
-            score.combined_relative_strength_score
+        ticker=base_score.ticker.upper(),
+        trend_score=_to_decimal(base_score.trend_score),
+        local_trend_score=_to_decimal(base_score.local_trend_score),
+        momentum_score=_to_decimal(base_score.momentum_score),
+        setup_score=_to_decimal(base_score.setup_score),
+        risk_score=_to_decimal(base_score.risk_score),
+        market_score=_to_decimal(base_score.market_score),
+        relative_strength_score=_to_decimal(base_score.relative_strength_score),
+        sector_relative_strength_score=_to_decimal(
+            base_score.sector_relative_strength_score
         ),
-        htf_score=_to_decimal(score.htf_score),
-        dual_score=_to_decimal(score.dual_score),
-        classification=score.classification,
-        pullback_health=score.pullback_health,
-        action_bias=score.action_bias,
-        suggested_stop=_to_decimal(score.suggested_stop),
-        suggested_target=_to_decimal(score.suggested_target),
-        reward_risk=_to_decimal(score.reward_risk),
-        entry_risk_pct=_to_decimal(score.entry_risk_pct),
+        combined_relative_strength_score=_to_decimal(
+            base_score.combined_relative_strength_score
+        ),
+        htf_score=_to_decimal(base_score.htf_score),
+        dual_score=_to_decimal(dual_score),
+        classification=classification,
+        pullback_health=base_score.pullback_health,
+        action_bias=action_bias,
+        suggested_stop=_to_decimal(base_score.suggested_stop),
+        suggested_target=_to_decimal(base_score.suggested_target),
+        reward_risk=_to_decimal(base_score.reward_risk),
+        entry_risk_pct=_to_decimal(base_score.entry_risk_pct),
         technical_confidence=confidence,
-        insufficient_data=score.insufficient_data,
-        missing_data_json=score.missing_data,
-        debug_json=score.debug,
+        **v4_fields,
+        insufficient_data=base_score.insufficient_data,
+        missing_data_json=base_score.missing_data,
+        debug_json=debug,
     )
 
 
@@ -258,3 +287,49 @@ def _to_decimal(value: float | None) -> Decimal | None:
     if value is None:
         return None
     return Decimal(str(round(float(value), 4)))
+
+
+def _base_score(score: PineReplicaScore | TechnicalScoreV4) -> PineReplicaScore:
+    return score.base_score if isinstance(score, TechnicalScoreV4) else score
+
+
+def _v4_persistence_fields(debug: dict[str, Any] | None) -> dict[str, Any]:
+    explainability = _dict((debug or {}).get("explainability"))
+    adaptive = _dict(explainability.get("adaptive"))
+    contraction = _dict(explainability.get("contraction"))
+    box = _dict(explainability.get("box"))
+    stage = _dict(explainability.get("stage"))
+    regime = _dict(explainability.get("regime"))
+    leadership = _dict(explainability.get("leadership"))
+    climax = _dict(explainability.get("climax"))
+    data_readiness = _dict(explainability.get("data_readiness"))
+
+    return {
+        "technical_engine_version": explainability.get("engine_version"),
+        "data_quality_score": _to_decimal(data_readiness.get("data_quality_score")),
+        "stage": stage.get("stage"),
+        "market_regime": regime.get("regime"),
+        "leadership_score": _to_decimal(leadership.get("leadership_score")),
+        "vcp_score": _to_decimal(contraction.get("vcp_score")),
+        "box_tightness_score": _to_decimal(box.get("box_tightness_score")),
+        "breakout_quality_score": _to_decimal(box.get("breakout_quality_score")),
+        "climax_risk_score": _to_decimal(climax.get("climax_risk_score")),
+        "atr_percentile_252": _to_decimal(adaptive.get("atr_percentile_252")),
+        "volume_percentile_252": _to_decimal(adaptive.get("volume_percentile_252")),
+        "range_percentile_252": _to_decimal(adaptive.get("range_percentile_252")),
+        "extension_percentile_252": _to_decimal(
+            adaptive.get("extension_percentile_252")
+        ),
+        "feature_flags_json": _list_or_none(explainability.get("feature_flags")),
+        "warning_flags_json": _list_or_none(explainability.get("warning_flags")),
+        "sub_tags_json": _list_or_none(explainability.get("sub_tags")),
+        "v4_debug_json": explainability or None,
+    }
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _list_or_none(value: Any) -> list[Any] | None:
+    return value if isinstance(value, list) else None

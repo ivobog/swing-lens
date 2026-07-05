@@ -247,6 +247,18 @@ def test_build_technical_score_maps_replica_to_model() -> None:
     assert model.dual_score is not None
     assert model.classification == result.classification
     assert model.debug_json["derived"]
+    assert model.technical_engine_version == "4.0.0"
+    assert model.data_quality_score is not None
+    assert model.stage == result.debug["explainability"]["stage"]["stage"]
+    assert model.market_regime == result.debug["explainability"]["regime"]["regime"]
+    assert model.vcp_score is not None
+    assert model.box_tightness_score is not None
+    assert model.breakout_quality_score is not None
+    assert model.climax_risk_score is not None
+    assert model.feature_flags_json == result.debug["explainability"]["feature_flags"]
+    assert model.warning_flags_json == result.debug["explainability"]["warning_flags"]
+    assert model.sub_tags_json == result.debug["explainability"]["sub_tags"]
+    assert model.v4_debug_json == result.debug["explainability"]
 
 
 def _synthetic_uptrend() -> pd.DataFrame:
