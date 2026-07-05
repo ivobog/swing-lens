@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Scoring{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h1>Scoring</h1>
+      <p>Fundamentals V2 components, field coverage, penalties, and combined weights.</p>
+    </div>
+    <span class="status-pill">{{ model.model_version }}</span>
+  </div>
+
+  <div class="summary-strip">
+    {% for key, weight in model.combined_weights.items() %}
+      <span class="summary-item"><strong>{{ "%.0f"|format(weight * 100) }}%</strong> {{ key|replace("_", " ") }}</span>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Fundamentals V2 Components</h2>
+      <p>Weights and contributing canonical fields from config/fundamentals_v2.yaml.</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Weight</th>
+          <th>Fields</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key, component in model.components.items() %}
+          <tr>
+            <td><strong>{{ key|replace("_", " ")|title }}</strong></td>
+            <td>{{ "%.0f"|format((model.weights.get(key, 0) or 0) * 100) }}%</td>
+            <td>{{ component.fields|join(", ") }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="grid">
+  <div>
+    <h2>Field Priorities</h2>
+    <dl class="compact-dl">
+      {% for priority, fields in model.field_priorities.items() %}
+        <dt>{{ priority|title }}</dt>
+        <dd>{{ fields|join(", ") }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+  <div>
+    <h2>Missing Data Penalties</h2>
+    <dl class="compact-dl">
+      {% for key, value in model.missing_data.items() %}
+        <dt>{{ key|replace("_", " ")|title }}</dt>
+        <dd>{{ value }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+</section>
+
+<section class="grid">
+  <div>
+    <h2>Decision Thresholds</h2>
+    <dl class="compact-dl">
+      {% for key, value in model.labels.items() %}
+        <dt>{{ key|replace("_", " ")|title }}</dt>
+        <dd>{{ value }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+  <div>
+    <h2>Combined Penalties</h2>
+    <dl class="compact-dl">
+      {% for key, value in model.penalties.items() %}
+        <dt>{{ key|replace("_", " ")|title }}</dt>
+        <dd>{{ value }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+</section>
+{% endblock %}

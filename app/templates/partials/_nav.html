@@ -1,0 +1,10 @@
+{% set active_nav = active_nav|default("") %}
+<nav class="nav" aria-label="Primary navigation">
+  <a href="/" class="{{ 'active' if active_nav == 'dashboard' else '' }}" {{ 'aria-current=page' if active_nav == 'dashboard' else '' }}>Dashboard</a>
+  <a href="/runs" class="{{ 'active' if active_nav == 'runs' else '' }}" {{ 'aria-current=page' if active_nav == 'runs' else '' }}>Runs</a>
+  <a href="/history" class="{{ 'active' if active_nav == 'history' else '' }}" {{ 'aria-current=page' if active_nav == 'history' else '' }}>History</a>
+  <a href="/ib" class="{{ 'active' if active_nav == 'ib' else '' }}" {{ 'aria-current=page' if active_nav == 'ib' else '' }}>IB Gateway</a>
+  <a href="/scoring" class="{{ 'active' if active_nav == 'scoring' else '' }}" {{ 'aria-current=page' if active_nav == 'scoring' else '' }}>Scoring</a>
+  <a href="/settings" class="{{ 'active' if active_nav == 'settings' else '' }}" {{ 'aria-current=page' if active_nav == 'settings' else '' }}>Settings</a>
+  <a href="/help" class="{{ 'active' if active_nav == 'help' else '' }}" {{ 'aria-current=page' if active_nav == 'help' else '' }}>Help</a>
+</nav>

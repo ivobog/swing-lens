@@ -38,6 +38,7 @@ def upload_page(request: Request, db: DbSession) -> HTMLResponse:
         request,
         "upload.html",
         {
+            "active_nav": "dashboard",
             "settings": settings,
             "ib_status": "Not tested",
             "dashboard": _dashboard_summary(db, latest_run),
@@ -63,6 +64,7 @@ def upload_csv(
             request,
             "upload.html",
             {
+                "active_nav": "dashboard",
                 "settings": settings,
                 "ib_status": "Not tested",
                 "dashboard": _dashboard_summary(db, latest_run),

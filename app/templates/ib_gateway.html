@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens IB Gateway{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h1>IB Gateway</h1>
+      <p>Read-only market data connection settings and workflow entry points.</p>
+    </div>
+    <span class="status-pill">Mode: {{ ib_panel.environment }}</span>
+  </div>
+
+  <div class="summary-strip">
+    <span class="summary-item"><strong>{{ ib_panel.host }}</strong> host</span>
+    <span class="summary-item"><strong>{{ ib_panel.port }}</strong> port</span>
+    <span class="summary-item"><strong>{{ ib_panel.client_id }}</strong> client ID</span>
+    <span class="summary-item"><strong>Read-only</strong> market data</span>
+  </div>
+
+  <div class="actions">
+    <form method="post" action="/ib/test" data-loading-form>
+      <button type="submit" data-loading-label="Testing...">Test connection</button>
+    </form>
+    <a class="button-link secondary" href="/">Open dashboard</a>
+    <a class="button-link secondary" href="/ib/status">IB Status JSON</a>
+  </div>
+</section>
+
+<section class="grid">
+  <div>
+    <h2>Connection</h2>
+    <dl>
+      <dt>Host</dt>
+      <dd>{{ ib_panel.host }}</dd>
+      <dt>Port</dt>
+      <dd>{{ ib_panel.port }}</dd>
+      <dt>Client ID</dt>
+      <dd>{{ ib_panel.client_id }}</dd>
+      <dt>Read-only</dt>
+      <dd>{{ "Yes" if ib_panel.read_only else "No" }}</dd>
+    </dl>
+  </div>
+  <div>
+    <h2>Fetch Defaults</h2>
+    <dl>
+      <dt>Full backfill</dt>
+      <dd>{{ ib_panel.full_backfill_duration }}</dd>
+      <dt>Top-up</dt>
+      <dd>{{ ib_panel.top_up_duration }}</dd>
+      <dt>Refresh</dt>
+      <dd>{{ ib_panel.refresh_duration }}</dd>
+      <dt>Bar size</dt>
+      <dd>{{ ib_panel.default_bar_size }}</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Planning Rules</h2>
+      <p>These values are read from local configuration. No orders are exposed here.</p>
+    </div>
+  </div>
+  <div class="settings-grid">
+    <div class="settings-item">
+      <span>Rate limit</span>
+      <strong>{{ ib_panel.requests_per_minute }}/min</strong>
+    </div>
+    <div class="settings-item">
+      <span>Minimum gap</span>
+      <strong>{{ ib_panel.min_seconds_between_requests }}s</strong>
+    </div>
+    <div class="settings-item">
+      <span>Benchmarks</span>
+      <strong>{{ ib_panel.benchmarks }}</strong>
+    </div>
+    <div class="settings-item">
+      <span>Required bars</span>
+      <strong>{{ ib_panel.required_daily_bars }}</strong>
+    </div>
+    <div class="settings-item">
+      <span>Stale after</span>
+      <strong>{{ ib_panel.stale_after_days }} days</strong>
+    </div>
+  </div>
+</section>
+{% endblock %}

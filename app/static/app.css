@@ -48,13 +48,28 @@ body {
 
 .nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
 .nav a {
   color: var(--muted);
   font-size: 14px;
+  font-weight: 700;
   text-decoration: none;
+}
+
+.nav a.active {
+  color: var(--accent);
+}
+
+.nav a.active::after {
+  display: block;
+  height: 2px;
+  margin-top: 4px;
+  background: var(--accent);
+  border-radius: 999px;
+  content: "";
 }
 
 .page {
@@ -424,6 +439,77 @@ form {
   padding: 20px;
 }
 
+.settings-grid,
+.settings-group-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-item,
+.settings-group {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.settings-item span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-item strong {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.settings-group h2 {
+  margin-bottom: 14px;
+}
+
+.workflow-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: workflow;
+}
+
+.workflow-list li {
+  min-height: 72px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfd;
+  counter-increment: workflow;
+}
+
+.workflow-list li::before {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  content: counter(workflow);
+}
+
+.help-badges {
+  max-width: none;
+}
+
 dl {
   display: grid;
   grid-template-columns: 120px 1fr;
@@ -701,6 +787,9 @@ td a {
   .workflow,
   .metric-grid,
   .dashboard-grid,
+  .settings-grid,
+  .settings-group-grid,
+  .workflow-list,
   .detail-grid,
   .ib-layout,
   .cockpit-controls {
@@ -715,7 +804,10 @@ td a {
 @media (min-width: 721px) and (max-width: 1120px) {
   .workflow,
   .metric-grid,
-  .dashboard-grid {
+  .dashboard-grid,
+  .settings-grid,
+  .settings-group-grid,
+  .workflow-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 

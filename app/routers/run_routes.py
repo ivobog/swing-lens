@@ -79,7 +79,7 @@ WARNING_BADGE_LABELS = {
 @router.get("/runs", response_class=HTMLResponse)
 def runs_page(request: Request, db: DbSession) -> HTMLResponse:
     runs = db.scalars(select(UploadRun).order_by(UploadRun.uploaded_at.desc())).all()
-    return templates.TemplateResponse(request, "runs.html", {"runs": runs})
+    return templates.TemplateResponse(request, "runs.html", {"active_nav": "runs", "runs": runs})
 
 
 @router.get("/history", response_class=HTMLResponse)
@@ -93,6 +93,7 @@ def history_page(request: Request, db: DbSession) -> HTMLResponse:
         request,
         "history.html",
         {
+            "active_nav": "history",
             "run_summaries": summarize_runs(list(runs)),
             "recent_decisions": recent_decisions(list(runs), limit=100),
         },
@@ -122,6 +123,7 @@ def run_detail_page(
         request,
         "run_detail.html",
         {
+            "active_nav": "runs",
             "run": run,
             "rows": rows,
             "raw_preview": rows[:10],
@@ -264,6 +266,7 @@ def preview_run_ib_fetch_plan(
         request,
         "ib_fetch_plan.html",
         {
+            "active_nav": "runs",
             "run": run,
             "plan": plan,
             "action_counts": _fetch_plan_action_counts(plan),

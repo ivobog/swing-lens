@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Help{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h1>Help</h1>
+      <p>Daily workflow, button meanings, decisions, warnings, and exports.</p>
+    </div>
+    <a class="button-link" href="/">Start on dashboard</a>
+  </div>
+
+  <ol class="workflow-list">
+    <li>Upload the daily TradingView screener CSV.</li>
+    <li>Open the run and preview the IB fetch plan.</li>
+    <li>Fetch read-only IB bars for tickers and benchmarks.</li>
+    <li>Refresh the cockpit after OHLCV data is ready.</li>
+    <li>Review decisions, warnings, incomplete rows, and score breakdowns.</li>
+    <li>Open charts externally or export CSVs for research notes.</li>
+  </ol>
+</section>
+
+<section class="grid">
+  <div>
+    <h2>Button Glossary</h2>
+    <dl class="compact-dl">
+      <dt>Preview fetch plan</dt>
+      <dd>Shows which ticker/data requests would run before contacting IB.</dd>
+      <dt>Fetch IB bars</dt>
+      <dd>Queues read-only historical market-data requests.</dd>
+      <dt>Refresh cockpit</dt>
+      <dd>Scores cached technical data and rebuilds combined decisions.</dd>
+      <dt>Exports</dt>
+      <dd>Downloads combined, fundamentals, technicals, raw rows, plan, or fetch results.</dd>
+    </dl>
+  </div>
+  <div>
+    <h2>Decision Labels</h2>
+    <dl class="compact-dl">
+      <dt>Strong candidate</dt>
+      <dd>High combined score with complete data.</dd>
+      <dt>Candidate</dt>
+      <dd>Worth reviewing, but less compelling than the strongest group.</dd>
+      <dt>Watchlist</dt>
+      <dd>Interesting but not yet strong enough for priority review.</dd>
+      <dt>Avoid</dt>
+      <dd>Weak, risky, or structurally unattractive for the model.</dd>
+      <dt>Incomplete data</dt>
+      <dd>Missing fundamentals, technicals, or benchmark context.</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Warning Glossary</h2>
+      <p>Warnings are research prompts, not trading instructions.</p>
+    </div>
+  </div>
+
+  <div class="badge-list help-badges">
+    <span class="badge badge-warning">No technicals</span>
+    <span class="badge badge-warning">No benchmark</span>
+    <span class="badge badge-warning">Short history</span>
+    <span class="badge badge-danger">Negative FCF</span>
+    <span class="badge badge-danger">High leverage</span>
+    <span class="badge badge-warning">Weak liquidity</span>
+    <span class="badge badge-danger">Extreme valuation</span>
+    <span class="badge badge-warning">Dilution</span>
+    <span class="badge badge-danger">Accrual risk</span>
+    <span class="badge badge-danger">Cash conversion</span>
+    <span class="badge badge-warning">Forward weak</span>
+    <span class="badge badge-danger">Dividend payout</span>
+    <span class="badge badge-warning">Sparse data</span>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Safety Notes</h2>
+      <p>SwingLens exposes local research workflows only. It does not place broker orders.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/settings">Settings</a>
+      <a class="button-link secondary" href="/scoring">Scoring</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

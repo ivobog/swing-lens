@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Settings{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h1>Settings</h1>
+      <p>Read-only local configuration for the app, storage, IB Gateway, and scoring.</p>
+    </div>
+    <span class="status-pill">Read-only</span>
+  </div>
+
+  <div class="settings-group-grid">
+    {% for group in settings_groups %}
+      <section class="settings-group" aria-labelledby="settings-{{ loop.index }}">
+        <h2 id="settings-{{ loop.index }}">{{ group.title }}</h2>
+        <dl class="compact-dl">
+          {% for label, value in group.rows %}
+            <dt>{{ label }}</dt>
+            <dd>{{ value }}</dd>
+          {% endfor %}
+        </dl>
+      </section>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Developer Links</h2>
+      <p>Raw endpoints remain available for debugging outside the primary workflow.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/health">Health</a>
+      <a class="button-link secondary" href="/ib/status">IB Status JSON</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

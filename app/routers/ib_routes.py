@@ -1,6 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -10,9 +11,39 @@ from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import build_fetch_plan
 from app.settings import get_settings
+from app.templates import templates
 
 router = APIRouter(prefix="/ib", tags=["interactive-brokers"])
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+@router.get("", response_class=HTMLResponse)
+def ib_gateway_page(request: Request) -> HTMLResponse:
+    settings = get_settings()
+    return templates.TemplateResponse(
+        request,
+        "ib_gateway.html",
+        {
+            "active_nav": "ib",
+            "ib_panel": {
+                "host": settings.ib_host,
+                "port": settings.ib_port,
+                "client_id": settings.ib_client_id,
+                "read_only": True,
+                "environment": "Paper" if settings.ib_port == 4002 else "Configured",
+                "default_duration": settings.ib_default_duration,
+                "full_backfill_duration": settings.ib_full_backfill_duration,
+                "top_up_duration": settings.ib_top_up_duration,
+                "refresh_duration": settings.ib_refresh_duration,
+                "default_bar_size": settings.ib_default_bar_size,
+                "requests_per_minute": settings.ib_requests_per_minute,
+                "min_seconds_between_requests": settings.ib_min_seconds_between_requests,
+                "benchmarks": ", ".join(settings.ib_benchmark_symbols),
+                "required_daily_bars": settings.ib_required_daily_bars,
+                "stale_after_days": settings.ib_daily_bar_stale_after_days,
+            },
+        },
+    )
 
 
 @router.get("/status")

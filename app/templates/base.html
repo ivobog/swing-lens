@@ -10,13 +10,7 @@
   <body>
     <header class="topbar">
       <a class="brand" href="/">SwingLens</a>
-      <nav class="nav">
-        <a href="/">Upload</a>
-        <a href="/runs">Runs</a>
-        <a href="/history">History</a>
-        <a href="/ib/status">IB</a>
-        <a href="/health">Health</a>
-      </nav>
+      {% include "partials/_nav.html" %}
     </header>
     <main class="page">
       {% block content %}{% endblock %}
