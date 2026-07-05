@@ -61,9 +61,20 @@ def test_combined_export_includes_ranked_results() -> None:
     assert "fundamental_model_version" in csv_text
     assert "is_complete,has_warning,warning_flags,sort_bucket" in csv_text
     assert "technical_confidence" in csv_text
+    assert "technical_stage" in csv_text
+    assert "technical_vcp_score" in csv_text
     assert "7,1,MSFT,Microsoft,Technology,8.75" in csv_text
     assert "fundamentals_v2.0,8.70,high_accrual_risk,7.80,8.00,6.50,5.80" in csv_text
     assert row["technical_confidence"] == "normal"
+    assert row["technical_version"] == "4.0.0"
+    assert row["technical_stage"] == "Stage 2"
+    assert row["technical_regime"] == "Bull trend"
+    assert row["technical_leadership_score"] == "9.2"
+    assert row["technical_vcp_score"] == "7.4"
+    assert row["technical_climax_risk_score"] == "2.2"
+    assert row["technical_flags"] == "vcp_detected; stage_2"
+    assert row["technical_warnings"] == "missing_benchmark_data"
+    assert row["technical_sub_tags"] == "VCP; Stage 2"
     assert row["is_complete"] == "True"
     assert row["has_warning"] == "True"
     assert row["warning_flags"] == "high_accrual_risk"
@@ -79,6 +90,31 @@ def test_combined_export_includes_ranked_results() -> None:
     assert row["latest_trades_date"] == "2026-07-02"
     assert row["latest_bar_current"] == "True"
     assert "Strong candidate" in csv_text
+
+
+def test_technical_export_includes_v4_details() -> None:
+    run = _run()
+    run.technical_scores = [_technical("MSFT", confidence="normal")]
+
+    csv_text = export_run_csv(run, "technicals")
+    row = next(csv.DictReader(StringIO(csv_text)))
+
+    assert "technical_version,stage,market_regime,leadership_score" in csv_text
+    assert row["technical_version"] == "4.0.0"
+    assert row["stage"] == "Stage 2"
+    assert row["market_regime"] == "Bull trend"
+    assert row["leadership_score"] == "9.2"
+    assert row["vcp_score"] == "7.4"
+    assert row["vcp_detected"] == "True"
+    assert row["box_breakout"] == "True"
+    assert row["box_tightness_score"] == "8.1"
+    assert row["breakout_quality_score"] == "8.8"
+    assert row["atr_percentile_252"] == "24.5"
+    assert row["volume_percentile_252"] == "72.0"
+    assert row["climax_risk_score"] == "2.2"
+    assert row["feature_flags"] == "vcp_detected; stage_2"
+    assert row["warning_flags"] == "missing_benchmark_data"
+    assert row["sub_tags"] == "VCP; Stage 2"
 
 
 def test_combined_export_order_matches_cockpit_sorting() -> None:
@@ -364,7 +400,55 @@ def _technical(ticker: str, confidence: str) -> TechnicalScore:
         run_id=7,
         ticker=ticker,
         technical_confidence=confidence,
+        trend_score=Decimal("8.10"),
+        local_trend_score=Decimal("8.00"),
+        momentum_score=Decimal("7.90"),
+        setup_score=Decimal("7.80"),
+        risk_score=Decimal("2.10"),
+        market_score=Decimal("8.20"),
+        relative_strength_score=Decimal("8.30"),
+        sector_relative_strength_score=Decimal("7.70"),
+        combined_relative_strength_score=Decimal("8.10"),
+        htf_score=Decimal("7.60"),
+        dual_score=Decimal("8.44"),
+        classification="Prime clean pullback",
+        action_bias="Best buyable, R/R ok",
+        debug_json=_technical_debug(),
     )
+
+
+def _technical_debug() -> dict[str, object]:
+    return {
+        "explainability": {
+            "engine_version": "4.0.0",
+            "adaptive": {
+                "atr_percentile_252": 24.5,
+                "volume_percentile_252": 72.0,
+                "range_percentile_252": 44.0,
+                "extension_percentile_252": 61.0,
+            },
+            "contraction": {
+                "vcp_score": 7.4,
+                "vcp_detected": True,
+            },
+            "box": {
+                "box_breakout": True,
+                "box_tightness_score": 8.1,
+                "breakout_quality_score": 8.8,
+                "box_width_pct": 6.2,
+                "box_age": 20,
+                "donchian_20_breakout": True,
+                "donchian_55_breakout": False,
+            },
+            "stage": {"stage": "Stage 2"},
+            "regime": {"regime": "Bull trend"},
+            "leadership": {"leadership_score": 9.2},
+            "climax": {"climax_risk_score": 2.2},
+            "feature_flags": ["vcp_detected", "stage_2"],
+            "warning_flags": ["missing_benchmark_data"],
+            "sub_tags": ["VCP", "Stage 2"],
+        }
+    }
 
 
 def _combined_result(

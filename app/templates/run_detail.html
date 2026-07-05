@@ -7,6 +7,7 @@
 {% set raw_preview = raw_preview|default([]) %}
 {% set fundamental_by_ticker = fundamental_by_ticker|default({}) %}
 {% set technical_by_ticker = technical_by_ticker|default({}) %}
+{% set technical_details_by_ticker = technical_details_by_ticker|default({}) %}
 {% set combined_by_ticker = combined_by_ticker|default({}) %}
 {% set combined_results = combined_results|default([]) %}
 {% set decision_counts = decision_counts|default({}) %}
@@ -503,6 +504,7 @@
             {% set decision_class = result.combined_decision|default("unclassified", true)|lower|replace(" ", "-") %}
             {% set fundamental = fundamental_by_ticker.get(result.ticker) %}
             {% set technical = technical_by_ticker.get(result.ticker) %}
+            {% set technical_details = technical_details_by_ticker.get(result.ticker, {}) %}
             {% set warning_flags = result.warning_flags_json or [] %}
             {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
             {% set is_candidate_plus = result.combined_decision in ["Strong candidate", "Candidate"] %}
@@ -638,6 +640,10 @@
                     <h3>Technicals</h3>
                     {% if technical %}
                       <dl class="compact-dl">
+                        <dt>Model</dt>
+                        <dd>{{ technical_details.get("technical_version", "") }}</dd>
+                        <dt>Score</dt>
+                        <dd>{{ "%.2f"|format(technical.dual_score) if technical.dual_score is not none else "" }}</dd>
                         <dt>Trend</dt>
                         <dd>{{ "%.2f"|format(technical.trend_score) if technical.trend_score is not none else "" }}</dd>
                         <dt>Momentum</dt>
@@ -646,8 +652,32 @@
                         <dd>{{ "%.2f"|format(technical.setup_score) if technical.setup_score is not none else "" }}</dd>
                         <dt>Risk</dt>
                         <dd>{{ "%.2f"|format(technical.risk_score) if technical.risk_score is not none else "" }}</dd>
+                        <dt>Market</dt>
+                        <dd>{{ "%.2f"|format(technical.market_score) if technical.market_score is not none else "" }}</dd>
+                        <dt>RS</dt>
+                        <dd>{{ "%.2f"|format(technical.combined_relative_strength_score) if technical.combined_relative_strength_score is not none else "" }}</dd>
+                        <dt>HTF</dt>
+                        <dd>{{ "%.2f"|format(technical.htf_score) if technical.htf_score is not none else "" }}</dd>
                         <dt>Confidence</dt>
                         <dd>{{ technical.technical_confidence or "" }}</dd>
+                        <dt>Stage</dt>
+                        <dd>{{ technical_details.get("stage", "") }}</dd>
+                        <dt>Regime</dt>
+                        <dd>{{ technical_details.get("market_regime", "") }}</dd>
+                        <dt>Leadership</dt>
+                        <dd>{{ "%.2f"|format(technical_details.get("leadership_score")) if technical_details.get("leadership_score") is number else technical_details.get("leadership_score", "") }}</dd>
+                        <dt>VCP</dt>
+                        <dd>{{ "%.2f"|format(technical_details.get("vcp_score")) if technical_details.get("vcp_score") is number else technical_details.get("vcp_score", "") }}</dd>
+                        <dt>Box</dt>
+                        <dd>{{ "Breakout" if technical_details.get("box_breakout") else "No breakout" }}</dd>
+                        <dt>Breakout Quality</dt>
+                        <dd>{{ "%.2f"|format(technical_details.get("breakout_quality_score")) if technical_details.get("breakout_quality_score") is number else technical_details.get("breakout_quality_score", "") }}</dd>
+                        <dt>Climax Risk</dt>
+                        <dd>{{ "%.2f"|format(technical_details.get("climax_risk_score")) if technical_details.get("climax_risk_score") is number else technical_details.get("climax_risk_score", "") }}</dd>
+                        <dt>Tags</dt>
+                        <dd>{{ technical_details.get("sub_tags", "") or "None" }}</dd>
+                        <dt>Warnings</dt>
+                        <dd>{{ technical_details.get("warning_flags", "") or "None" }}</dd>
                         <dt>Action</dt>
                         <dd>{{ technical.action_bias or "" }}</dd>
                       </dl>

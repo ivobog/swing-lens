@@ -322,6 +322,48 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert "https://www.tradingview.com/chart/?symbol=MSFT" in html
 
 
+def test_run_detail_template_renders_v4_technical_details(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
+    technical = _technical("MSFT")
+    combined = _combined("MSFT", "Candidate", is_complete=True, has_warning=False)
+    combined.dual_score = Decimal("8.44")
+    combined.technical_classification = "Prime clean pullback"
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        combined_results=[combined],
+        fundamental_by_ticker={},
+        technical_by_ticker={"MSFT": technical},
+        technical_details_by_ticker={
+            "MSFT": {
+                "technical_version": "4.0.0",
+                "stage": "Stage 2",
+                "market_regime": "Bull trend",
+                "leadership_score": 9.2,
+                "vcp_score": 7.4,
+                "box_breakout": True,
+                "breakout_quality_score": 8.8,
+                "climax_risk_score": 2.2,
+                "sub_tags": "VCP; Stage 2",
+                "warning_flags": "missing_benchmark_data",
+            }
+        },
+        warning_badges_by_ticker={"MSFT": []},
+    )
+
+    assert "4.0.0" in html
+    assert "Stage 2" in html
+    assert "Bull trend" in html
+    assert "9.20" in html
+    assert "7.40" in html
+    assert "Breakout" in html
+    assert "8.80" in html
+    assert "2.20" in html
+    assert "VCP; Stage 2" in html
+    assert "missing_benchmark_data" in html
+
+
 def test_ib_fetch_plan_template_preserves_options_for_execution(monkeypatch) -> None:
     monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
     run = UploadRun(id=7, filename="sample.csv", row_count=1, status="COMPLETED")
@@ -494,4 +536,21 @@ def _fundamental(ticker: str) -> FundamentalScore:
                 "missing_high_fields": ["quick_ratio_quarterly"],
             },
         },
+    )
+
+
+def _technical(ticker: str) -> TechnicalScore:
+    return TechnicalScore(
+        run_id=1,
+        ticker=ticker,
+        trend_score=Decimal("8.10"),
+        momentum_score=Decimal("7.90"),
+        setup_score=Decimal("7.80"),
+        risk_score=Decimal("2.10"),
+        market_score=Decimal("8.20"),
+        combined_relative_strength_score=Decimal("8.10"),
+        htf_score=Decimal("7.60"),
+        dual_score=Decimal("8.44"),
+        technical_confidence="normal",
+        action_bias="Best buyable, R/R ok",
     )

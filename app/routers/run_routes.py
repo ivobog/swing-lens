@@ -37,6 +37,7 @@ from app.services.ib_fetch_summary_service import (
     latest_ib_fetch_for_run,
 )
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary, summarize_run_ohlcv_coverage
+from app.services.technical_display_fields import technical_v4_details_by_ticker
 from app.services.technical_score_service import score_run_technicals
 from app.settings import get_settings
 from app.templates import templates
@@ -133,6 +134,9 @@ def run_detail_page(
             "raw_preview": rows[:10],
             "fundamental_by_ticker": fundamental_by_ticker,
             "technical_by_ticker": technical_by_ticker,
+            "technical_details_by_ticker": technical_v4_details_by_ticker(
+                run.technical_scores
+            ),
             "combined_by_ticker": combined_by_ticker,
             "combined_results": combined_results,
             "decision_counts": decision_counts,

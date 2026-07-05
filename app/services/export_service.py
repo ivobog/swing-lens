@@ -16,6 +16,10 @@ from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import ColumnMappingSummary
 from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
+from app.services.technical_display_fields import (
+    technical_v4_detail_fields,
+    technical_v4_summary_fields,
+)
 
 EXPORT_TYPES = {
     "combined",
@@ -46,6 +50,15 @@ COMBINED_HEADERS = [
     "shareholder_quality_score",
     "technical_classification",
     "technical_confidence",
+    "technical_version",
+    "technical_stage",
+    "technical_regime",
+    "technical_leadership_score",
+    "technical_vcp_score",
+    "technical_climax_risk_score",
+    "technical_flags",
+    "technical_warnings",
+    "technical_sub_tags",
     "dual_score",
     "combined_decision",
     "position_size_hint",
@@ -123,6 +136,27 @@ TECHNICAL_HEADERS = [
     "reward_risk",
     "entry_risk_pct",
     "technical_confidence",
+    "technical_version",
+    "stage",
+    "market_regime",
+    "leadership_score",
+    "vcp_score",
+    "vcp_detected",
+    "box_breakout",
+    "box_tightness_score",
+    "breakout_quality_score",
+    "box_width_pct",
+    "box_age",
+    "donchian_20_breakout",
+    "donchian_55_breakout",
+    "atr_percentile_252",
+    "volume_percentile_252",
+    "range_percentile_252",
+    "extension_percentile_252",
+    "climax_risk_score",
+    "feature_flags",
+    "warning_flags",
+    "sub_tags",
     "insufficient_data",
 ]
 
@@ -294,6 +328,7 @@ def _combined_row(
     fundamental: FundamentalScore | None,
     technical: TechnicalScore | None,
 ) -> dict[str, Any]:
+    technical_v4 = technical_v4_summary_fields(technical)
     return {
         "run_id": run_id,
         "rank": result.final_rank,
@@ -314,6 +349,7 @@ def _combined_row(
         "shareholder_quality_score": fundamental.shareholder_quality_score if fundamental else "",
         "technical_classification": result.technical_classification,
         "technical_confidence": technical.technical_confidence if technical else "",
+        **technical_v4,
         "dual_score": result.dual_score,
         "combined_decision": result.combined_decision,
         "position_size_hint": result.position_size_hint,
@@ -380,6 +416,7 @@ def _fundamental_row(run_id: int, score: FundamentalScore) -> dict[str, Any]:
 
 
 def _technical_row(run_id: int, score: TechnicalScore) -> dict[str, Any]:
+    technical_v4 = technical_v4_detail_fields(score)
     return {
         "run_id": run_id,
         "ticker": score.ticker,
@@ -402,6 +439,7 @@ def _technical_row(run_id: int, score: TechnicalScore) -> dict[str, Any]:
         "reward_risk": score.reward_risk,
         "entry_risk_pct": score.entry_risk_pct,
         "technical_confidence": score.technical_confidence,
+        **technical_v4,
         "insufficient_data": score.insufficient_data,
     }
 
