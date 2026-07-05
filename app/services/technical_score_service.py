@@ -8,11 +8,13 @@ from sqlalchemy.orm import Session
 from app.models.tables import RawCompanyRow, TechnicalScore
 from app.services.pine_replica_engine import PineReplicaScore, score_from_feature_result
 from app.services.price_bar_repository import load_preferred_ohlcv_frames
+from app.services.relative_leadership import calculate_beta_adjusted_rs
 from app.services.technical_indicators import (
     calculate_htf_trend_features,
     calculate_relative_strength_features,
     calculate_technical_features,
 )
+from app.services.technical_scoring_config import load_technical_scoring_v4_config
 
 
 class TechnicalScoringError(ValueError):
@@ -26,8 +28,10 @@ def score_run_technicals(
     benchmark_ticker: str = "SPY",
 ) -> list[TechnicalScore]:
     symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
+    v4_params = load_technical_scoring_v4_config()
     benchmark_price = _load_price_frame(db, benchmark_ticker)
     market_features = _market_features(benchmark_price, benchmark_ticker)
+    qqq_market_features = _optional_market_features(db, "QQQ", v4_params)
 
     scores: list[TechnicalScore] = []
     for ticker in symbols:
@@ -37,6 +41,8 @@ def score_run_technicals(
                 ticker=ticker,
                 benchmark_price=benchmark_price,
                 market_features=market_features,
+                qqq_market_features=qqq_market_features,
+                v4_params=v4_params,
             )
             scores.append(build_technical_score(run_id=run_id, score=score))
         except Exception as exc:
@@ -113,7 +119,10 @@ def _score_ticker(
     ticker: str,
     benchmark_price: pd.DataFrame,
     market_features: dict[str, Any],
+    qqq_market_features: dict[str, Any] | None = None,
+    v4_params: dict[str, Any] | None = None,
 ) -> PineReplicaScore:
+    v4_params = v4_params or load_technical_scoring_v4_config()
     price, trades = load_preferred_ohlcv_frames(db, ticker)
     if price.empty:
         raise TechnicalScoringError(
@@ -122,23 +131,34 @@ def _score_ticker(
 
     features = calculate_technical_features(price, trades, ticker=ticker)
     htf_features = calculate_htf_trend_features(price) if not price.empty else {}
-    relative_strength_features = _relative_strength_features(price, benchmark_price)
+    relative_strength_features = _relative_strength_features(
+        price,
+        benchmark_price,
+        v4_params.get("relative_leadership", {}),
+    )
 
     return score_from_feature_result(
         features,
         htf_features=htf_features,
         relative_strength_features=relative_strength_features,
         market_features=market_features,
+        qqq_market_features=qqq_market_features,
+        v4_params=v4_params,
     )
 
 
 def _relative_strength_features(
     price: pd.DataFrame,
     benchmark_price: pd.DataFrame,
+    relative_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if price.empty or benchmark_price.empty:
         return {}
-    return calculate_relative_strength_features(price, benchmark_price)
+    features = calculate_relative_strength_features(price, benchmark_price)
+    relative_params = relative_params or {}
+    if relative_params.get("beta_adjusted_rs", False):
+        features.update(calculate_beta_adjusted_rs(price, benchmark_price, relative_params))
+    return features
 
 
 def _market_features(price: pd.DataFrame, ticker: str) -> dict[str, Any]:
@@ -150,6 +170,18 @@ def _market_features(price: pd.DataFrame, ticker: str) -> dict[str, Any]:
 def _load_price_frame(db: Session, ticker: str) -> pd.DataFrame:
     price, _ = load_preferred_ohlcv_frames(db, ticker)
     return price
+
+
+def _optional_market_features(
+    db: Session,
+    ticker: str,
+    v4_params: dict[str, Any],
+) -> dict[str, Any]:
+    market_regime_params = v4_params.get("market_regime_v4", {})
+    if ticker.upper() == "QQQ" and not market_regime_params.get("use_qqq", True):
+        return {}
+    price = _load_price_frame(db, ticker)
+    return _market_features(price, ticker)
 
 
 def _tickers_for_run(db: Session, run_id: int) -> list[str]:

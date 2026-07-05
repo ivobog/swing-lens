@@ -196,6 +196,21 @@ def test_score_from_feature_result_returns_technical_score_shape() -> None:
     assert result.debug["derived"]
 
 
+def test_score_from_feature_result_includes_market_regime_v4_debug() -> None:
+    frame = _synthetic_uptrend()
+    features = calculate_technical_features(frame, ticker="TEST")
+    market_features = calculate_technical_features(frame, ticker="SPY").latest
+
+    result = score_from_feature_result(
+        features,
+        market_features=market_features,
+        qqq_market_features=market_features,
+    )
+
+    assert result.debug["market_regime_v4"]["regime"] == "Bull trend"
+    assert result.debug["market_regime_v4"]["gate_ok"] is True
+
+
 def test_build_technical_score_maps_replica_to_model() -> None:
     frame = _synthetic_uptrend()
     features = calculate_technical_features(frame, ticker="TEST")

@@ -1,8 +1,10 @@
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from app.services.market_regime import classify_market_regime
 from app.services.technical_confidence import build_data_readiness
 from app.services.technical_indicators import TechnicalFeatureResult, load_pine_defaults
+from app.services.technical_scoring_config import load_technical_scoring_v4_config
 
 ENGINE_VERSION = "3.2.0"
 FLOAT_THRESHOLD_EPSILON = 1e-9
@@ -678,13 +680,22 @@ def score_from_feature_result(
     htf_features: dict[str, Any] | None = None,
     relative_strength_features: dict[str, Any] | None = None,
     market_features: dict[str, Any] | None = None,
+    qqq_market_features: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
+    v4_params: dict[str, Any] | None = None,
 ) -> PineReplicaScore:
     params = params or load_pine_defaults()
+    v4_params = v4_params or load_technical_scoring_v4_config()
     latest = feature_result.latest
     htf_features = htf_features or {}
     relative_strength_features = relative_strength_features or {}
     market_features = market_features or {}
+    qqq_market_features = qqq_market_features or {}
+    regime_v4 = classify_market_regime(
+        market_features,
+        qqq_market_features,
+        v4_params.get("market_regime_v4", {}),
+    )
     data_readiness = build_data_readiness(
         feature_result=feature_result,
         htf_features=htf_features,
@@ -901,6 +912,7 @@ def score_from_feature_result(
         debug={
             "derived": derived,
             "data_readiness": asdict(data_readiness),
+            "market_regime_v4": asdict(regime_v4),
             "indicator_debug": feature_result.debug,
         },
         technical_confidence=data_readiness.confidence,
