@@ -12,6 +12,7 @@ from app.services.pine_replica_engine import (
     CLASS_PRIME_PULLBACK,
     PineReplicaScore,
 )
+from app.services.technical_feature_flags import promote_explainability_flags
 
 CLASS_CLIMAX_REVERSAL_RISK = "Climax reversal risk"
 CLASS_LATE_STAGE_EXTENSION = "Late-stage extension"
@@ -116,6 +117,15 @@ def technical_score_v4_from_base_score(
         base_score.warning_flags
     )
     sub_tags = _list(explainability.get("sub_tags"))
+    promoted_flags = promote_explainability_flags(
+        explainability,
+        feature_flags=feature_flags,
+        warning_flags=warning_flags,
+        sub_tags=sub_tags,
+    )
+    feature_flags = promoted_flags["feature_flags"]
+    warning_flags = promoted_flags["warning_flags"]
+    sub_tags = promoted_flags["sub_tags"]
     scoring = _regime_weighted_score(
         base_score=base_score,
         explainability=explainability,

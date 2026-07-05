@@ -278,6 +278,43 @@ def test_v4_stage_gate_keeps_danger_classification_priority() -> None:
     assert "stage_4_downtrend" in v4_score.warning_flags
 
 
+def test_v4_wrapper_promotes_feature_flags_warnings_and_sub_tags() -> None:
+    score = _base_score(
+        classification="No trade",
+        debug=_debug(
+            explainability={
+                "data_readiness": {"confidence": "low"},
+                "contraction": {
+                    "vcp_score": 6.9,
+                    "volume_dry_up_quality": 7.2,
+                    "tight_close_count_5": 4,
+                },
+                "stage": {
+                    "stage": "Stage 1",
+                    "stage_tags": ["stage_1_to_2_transition"],
+                },
+                "regime": {"risk_off": True},
+            },
+        ),
+    )
+
+    v4_score = technical_score_v4_from_base_score(score)
+
+    assert {"volume_dry_up", "tight_closes", "stage_1_to_2_transition"}.issubset(
+        set(v4_score.feature_flags)
+    )
+    assert {"market_risk_off", "low_technical_confidence"}.issubset(
+        set(v4_score.warning_flags)
+    )
+    assert {
+        "Stage 1-to-2 transition",
+        "Volume dry-up",
+        "Tight closes",
+        "Low confidence",
+        "Market risk",
+    }.issubset(set(v4_score.sub_tags))
+
+
 def _synthetic_uptrend() -> pd.DataFrame:
     rows = []
     for index in range(320):

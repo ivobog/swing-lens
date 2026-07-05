@@ -8,6 +8,11 @@ from app.services.market_regime import MarketRegimeResult
 from app.services.relative_leadership import LeadershipResult
 from app.services.stage_analysis import StageAnalysisResult
 from app.services.technical_confidence import TechnicalDataReadiness
+from app.services.technical_feature_flags import (
+    feature_flags_from_latest,
+    sub_tags_from_latest,
+    warning_flags_from_latest,
+)
 
 
 @dataclass(frozen=True)
@@ -102,9 +107,14 @@ def build_technical_explainability(
         regime=regime,
         leadership=None,
         climax=_climax_snapshot(latest),
-        feature_flags=_feature_flags(latest),
-        warning_flags=_warning_flags(latest, derived, warning_flags),
-        sub_tags=_sub_tags(latest),
+        feature_flags=feature_flags_from_latest(latest),
+        warning_flags=warning_flags_from_latest(
+            latest=latest,
+            derived=derived,
+            warning_flags=warning_flags,
+            data_readiness=data_readiness,
+        ),
+        sub_tags=sub_tags_from_latest(latest, data_readiness=data_readiness),
         final_v4_score=round(float(final_score), 4),
         final_v4_classification=final_classification,
         final_v4_action=final_action,
@@ -221,56 +231,6 @@ def _climax_snapshot(latest: dict[str, Any]) -> ClimaxRiskResult:
         momentum_crash_risk=_bool(latest.get("momentum_crash_risk")),
         reasons=list(reasons) if isinstance(reasons, list) else [],
     )
-
-
-def _feature_flags(latest: dict[str, Any]) -> list[str]:
-    checks = {
-        "vcp_detected": latest.get("vcp_detected"),
-        "squeeze_release": latest.get("squeeze_release"),
-        "box_breakout": latest.get("box_breakout"),
-        "box_failure": latest.get("box_failure"),
-        "donchian_20_breakout": latest.get("donchian_20_breakout"),
-        "donchian_55_breakout": latest.get("donchian_55_breakout"),
-        "stage_2": latest.get("stage") == "Stage 2",
-        "vertical_move": latest.get("vertical_move_flag"),
-        "volume_climax": latest.get("volume_climax_flag")
-        or latest.get("climax_volume_flag"),
-        "range_climax": latest.get("range_climax_flag") or latest.get("climax_range_flag"),
-        "momentum_crash_risk": latest.get("momentum_crash_risk"),
-    }
-    return [flag for flag, active in checks.items() if _bool(active)]
-
-
-def _warning_flags(
-    latest: dict[str, Any],
-    derived: dict[str, Any],
-    warning_flags: list[str] | tuple[str, ...],
-) -> list[str]:
-    flags = list(warning_flags)
-    checks = {
-        "failed_breakout": latest.get("failed_breakout"),
-        "distribution_risk": latest.get("distribution_risk"),
-        "blowoff_top": latest.get("blowoff_top"),
-        "box_failure": latest.get("box_failure"),
-        "liquidity_warning": latest.get("liquidity_warning"),
-        "market_risk_off": derived.get("market_risk_off"),
-        "climax_reversal_risk": latest.get("momentum_crash_risk"),
-    }
-    for flag, active in checks.items():
-        if _bool(active) and flag not in flags:
-            flags.append(flag)
-    return flags
-
-
-def _sub_tags(latest: dict[str, Any]) -> list[str]:
-    checks = {
-        "VCP": latest.get("vcp_detected"),
-        "Darvas box": latest.get("box_breakout"),
-        "Donchian breakout": latest.get("donchian_20_breakout")
-        or latest.get("donchian_55_breakout"),
-        "Stage 2": latest.get("stage") == "Stage 2",
-    }
-    return [tag for tag, active in checks.items() if _bool(active)]
 
 
 def _append_unique(values: list[str], additions: list[str]) -> list[str]:

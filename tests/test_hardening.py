@@ -37,8 +37,12 @@ def test_score_run_technicals_continues_when_symbol_fails(monkeypatch) -> None:
     assert len(rows) == 1
     assert rows[0].ticker == "BAD"
     assert rows[0].technical_confidence == "error"
+    assert rows[0].technical_engine_version == "4.0.0"
     assert rows[0].insufficient_data is True
     assert rows[0].missing_data_json["reason"] == "bad cached bars"
+    assert rows[0].warning_flags_json == ["technical_error"]
+    assert rows[0].v4_debug_json["debug"]["score_source"] == "technical_error"
+    assert rows[0].debug_json["explainability"] == rows[0].v4_debug_json
 
 
 def test_unavailable_technical_score_is_export_safe() -> None:
@@ -53,6 +57,11 @@ def test_unavailable_technical_score_is_export_safe() -> None:
     assert score.dual_score is None
     assert score.classification == "No trade"
     assert score.action_bias == "No data"
+    assert score.technical_engine_version == "4.0.0"
+    assert score.data_quality_score == 0
+    assert score.warning_flags_json == ["technical_error"]
+    assert score.v4_debug_json["error"]["reason"] == "No cached OHLCV bars"
+    assert score.v4_debug_json["final_v4_classification"] == "No trade"
 
 
 def test_score_run_technicals_adds_run_level_leadership_debug(monkeypatch) -> None:

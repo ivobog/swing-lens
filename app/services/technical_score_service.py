@@ -52,7 +52,14 @@ def score_run_technicals(
             )
             score_results.append(score)
         except Exception as exc:
-            score_results.append(unavailable_technical_score(run_id, ticker, str(exc)))
+            score_results.append(
+                unavailable_technical_score(
+                    run_id,
+                    ticker,
+                    str(exc),
+                    v4_params=v4_params,
+                )
+            )
 
     scored = [
         result
@@ -92,20 +99,30 @@ def unavailable_technical_score(
     run_id: int,
     ticker: str,
     reason: str,
+    v4_params: dict[str, Any] | None = None,
 ) -> TechnicalScore:
+    error_payload = _v4_error_payload(reason, v4_params or {})
     return TechnicalScore(
         run_id=run_id,
         ticker=ticker.upper(),
         classification="No trade",
         action_bias="No data",
         technical_confidence="error",
+        technical_engine_version=error_payload["engine_version"],
+        data_quality_score=Decimal("0.0"),
+        feature_flags_json=[],
+        warning_flags_json=["technical_error"],
+        sub_tags_json=[],
+        v4_debug_json=error_payload,
         insufficient_data=True,
         missing_data_json={
             "unavailable": True,
             "reason": reason,
+            "technical_error": True,
         },
         debug_json={
             "error": reason,
+            "explainability": error_payload,
         },
     )
 
@@ -324,6 +341,37 @@ def _v4_persistence_fields(debug: dict[str, Any] | None) -> dict[str, Any]:
         "warning_flags_json": _list_or_none(explainability.get("warning_flags")),
         "sub_tags_json": _list_or_none(explainability.get("sub_tags")),
         "v4_debug_json": explainability or None,
+    }
+
+
+def _v4_error_payload(reason: str, v4_params: dict[str, Any]) -> dict[str, Any]:
+    engine = _dict(v4_params.get("engine"))
+    engine_version = str(engine.get("version") or "4.0.0")
+    return {
+        "engine_version": engine_version,
+        "data_readiness": {
+            "confidence": "error",
+            "data_quality_score": 0.0,
+            "missing_reasons": ["technical_error"],
+        },
+        "adaptive": {},
+        "contraction": {},
+        "box": {},
+        "stage": {"stage": "Unknown"},
+        "regime": {"regime": "Unknown"},
+        "leadership": None,
+        "climax": {},
+        "feature_flags": [],
+        "warning_flags": ["technical_error"],
+        "sub_tags": [],
+        "final_v4_score": None,
+        "final_v4_classification": "No trade",
+        "final_v4_action": "No data",
+        "error": {"reason": reason},
+        "debug": {
+            "score_source": "technical_error",
+            "error": reason,
+        },
     }
 
 
