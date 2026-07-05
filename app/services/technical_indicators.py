@@ -8,6 +8,7 @@ import yaml
 
 from app.services.adaptive_technical_features import add_adaptive_features
 from app.services.box_breakout import add_box_features
+from app.services.climax_risk import add_climax_risk_features
 from app.services.stage_analysis import add_stage_features
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
 from app.services.volatility_contraction import add_contraction_features
@@ -55,11 +56,13 @@ def calculate_technical_features(
     contraction_params = v4_params.get("volatility_contraction", {})
     box_params = v4_params.get("donchian_darvas", {})
     stage_params = v4_params.get("stage_analysis", {})
+    climax_params = v4_params.get("climax_risk", {})
     features = _calculate_feature_frame(df, params)
     features = add_adaptive_features(features, adaptive_params)
     features = add_contraction_features(features, contraction_params)
     features = add_box_features(features, box_params)
     features = add_stage_features(features, stage_params)
+    features = add_climax_risk_features(features, climax_params)
     latest = _latest_features(features)
     debug = {
         "row_count": len(df),
@@ -74,6 +77,7 @@ def calculate_technical_features(
         ),
         "donchian_darvas_enabled": bool(box_params.get("enabled", True)),
         "stage_analysis_enabled": bool(stage_params.get("enabled", True)),
+        "climax_risk_enabled": bool(climax_params.get("enabled", True)),
     }
 
     return TechnicalFeatureResult(
