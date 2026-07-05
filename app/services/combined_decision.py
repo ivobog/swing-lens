@@ -20,11 +20,16 @@ DANGER_CLASSIFICATIONS = {
     "Distribution risk",
     "Blowoff top",
     "Failed breakout",
+    "Climax reversal risk",
+    "Late-stage extension",
 }
 BUYABLE_CLASSIFICATIONS = {
     "Prime clean pullback",
     "Clean bull pullback",
     "Fresh breakout",
+    "Volatility contraction setup",
+    "Tight base breakout",
+    "RS leader pullback",
 }
 
 

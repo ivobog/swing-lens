@@ -33,6 +33,32 @@ def test_combined_decision_danger_classification_overrides_score() -> None:
     assert "failed breakout" in decision.notes
 
 
+def test_combined_decision_treats_v4_danger_as_avoid() -> None:
+    decision = combine_row_decision(
+        _row("TSLA"),
+        _fundamental("TSLA", "Quality growth", "8.7"),
+        _technical("TSLA", "Climax reversal risk", "8.2", risk_score="4.0"),
+        config=_config(),
+    )
+
+    assert decision.final_score == 5.475
+    assert decision.combined_decision == "Avoid"
+    assert decision.position_size_hint == "Avoid"
+    assert "climax reversal risk" in decision.notes
+
+
+def test_combined_decision_treats_v4_buyable_as_full_starter() -> None:
+    decision = combine_row_decision(
+        _row("SHOP"),
+        _fundamental("SHOP", "Clean compounder", "8.8"),
+        _technical("SHOP", "Tight base breakout", "8.6", risk_score="2.5"),
+        config=_config(),
+    )
+
+    assert decision.combined_decision == "Strong candidate"
+    assert decision.position_size_hint == "Full starter"
+
+
 def test_combined_decision_missing_technical_waits_for_data() -> None:
     decision = combine_row_decision(
         _row("ADBE"),
