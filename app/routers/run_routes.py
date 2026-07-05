@@ -19,7 +19,14 @@ from app.services.export_service import (
 )
 from app.services.history_service import recent_decisions, summarize_runs
 from app.services.ib_connection import check_ib_connection
-from app.services.ib_fetch_executor import execute_fetch_plan
+from app.services.ib_fetch_job_service import (
+    FetchJobOptions,
+    cancel_fetch_job,
+    create_queued_fetch_run,
+    get_fetch_progress,
+    resume_fetch_job,
+    submit_fetch_job,
+)
 from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan, fetch_plan_to_dict
 from app.services.ib_fetch_summary_service import (
     latest_ib_fetch_for_run,
@@ -310,18 +317,19 @@ def fetch_run_ib_bars_action(
     )
 
     try:
-        fetch_run = execute_fetch_plan(
-            db,
-            plan,
+        options = FetchJobOptions(
             include_benchmarks=include_benchmarks,
             force_refresh=force_refresh,
             force_full_backfill=force_full_backfill,
         )
+        fetch_run = create_queued_fetch_run(db, plan, options)
+        db.commit()
+        submit_fetch_job(fetch_run.id, plan, options)
         return _redirect_with_query(
             run_id,
             {
-                "ib_status": "fetch-failed" if fetch_run.status == "FAILED" else "fetch-complete",
-                "ib_message": fetch_run.message or "IB fetch completed.",
+                "ib_status": "fetch-queued",
+                "ib_message": f"IB fetch {fetch_run.id} queued.",
             },
         )
     except Exception as exc:
@@ -333,6 +341,65 @@ def fetch_run_ib_bars_action(
                 "ib_message": str(exc),
             },
         )
+
+
+@router.get("/runs/{run_id}/ib/fetch/{fetch_run_id}/progress")
+def run_ib_fetch_progress(run_id: int, fetch_run_id: int, db: DbSession) -> dict[str, object]:
+    _require_run(db, run_id)
+    progress = get_fetch_progress(db, fetch_run_id)
+    if progress["run_id"] != run_id:
+        raise HTTPException(status_code=404, detail="IB fetch run not found for this run.")
+    return progress
+
+
+@router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/cancel")
+def cancel_run_ib_fetch_action(
+    run_id: int,
+    fetch_run_id: int,
+    db: DbSession,
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    try:
+        existing = get_fetch_progress(db, fetch_run_id)
+        if existing["run_id"] != run_id:
+            raise HTTPException(status_code=404, detail="IB fetch run not found for this run.")
+        progress = cancel_fetch_job(db, fetch_run_id)
+        db.commit()
+        return _redirect_with_query(
+            run_id,
+            {
+                "ib_status": "fetch-cancelled",
+                "ib_message": progress["message"] or "IB fetch cancellation requested.",
+            },
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/resume")
+def resume_run_ib_fetch_action(
+    run_id: int,
+    fetch_run_id: int,
+    db: DbSession,
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    try:
+        fetch_run, plan, options = resume_fetch_job(db, fetch_run_id)
+        if fetch_run.run_id != run_id:
+            raise HTTPException(status_code=404, detail="IB fetch run not found for this run.")
+        db.commit()
+        submit_fetch_job(fetch_run.id, plan, options)
+        return _redirect_with_query(
+            run_id,
+            {
+                "ib_status": "fetch-queued",
+                "ib_message": f"Resume fetch {fetch_run.id} queued.",
+            },
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _decision_counts(results: list) -> dict[str, int]:
@@ -593,3 +660,9 @@ def _load_run(db: Session, run_id: int) -> UploadRun | None:
             selectinload(UploadRun.combined_results),
         )
     )
+
+
+def _require_run(db: Session, run_id: int) -> None:
+    run_exists = db.scalar(select(UploadRun.id).where(UploadRun.id == run_id))
+    if not run_exists:
+        raise HTTPException(status_code=404, detail="Run not found")

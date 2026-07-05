@@ -156,6 +156,58 @@ def test_execute_fetch_plan_persists_contract_resolution_failure(monkeypatch) ->
     assert fetch_run.items[0].error_message == "No contract"
 
 
+def test_execute_fetch_plan_can_cancel_before_next_item(monkeypatch) -> None:
+    db = FakeDb()
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker),
+            error_message=None,
+        ),
+    )
+    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda db, bars: BarUpsertSummary(inserted=1, updated=0, revised=0, unchanged=0),
+    )
+    calls = {"count": 0}
+
+    def should_cancel() -> bool:
+        calls["count"] += 1
+        return calls["count"] > 1
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=FetchPlan(
+            run_id=7,
+            requested_tickers=["MSFT", "AAPL"],
+            symbols_including_benchmarks=["MSFT", "AAPL"],
+            items=[
+                _plan_item("MSFT", FetchAction.TOP_UP_RECENT, duration="10 D"),
+                _plan_item("AAPL", FetchAction.TOP_UP_RECENT, duration="10 D"),
+            ],
+            estimated_request_count=2,
+            estimated_full_backfills=0,
+            estimated_top_ups=2,
+            estimated_refreshes=0,
+            estimated_skips=0,
+            warnings=[],
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+        should_cancel=should_cancel,
+    )
+
+    assert fetch_run.status == "CANCELLED"
+    assert fetch_run.success_count == 1
+    assert fetch_run.executed_request_count == 1
+    assert len(fetch_run.items) == 1
+    assert fetch_run.message == "IB fetch was cancelled."
+
+
 def _plan_item(
     ticker: str,
     action: FetchAction,

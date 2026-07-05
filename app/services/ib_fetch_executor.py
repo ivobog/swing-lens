@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import IBFetchItem, IBFetchRun
@@ -32,17 +33,20 @@ def execute_fetch_plan(
     include_benchmarks: bool = True,
     force_refresh: bool = False,
     force_full_backfill: bool = False,
+    fetch_run_id: int | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> IBFetchRun:
     settings = settings or get_settings()
     rate_limiter = rate_limiter or IbHistoricalRateLimiter(
         rate_limit_config_from_settings(settings)
     )
-    fetch_run = _create_fetch_run(
+    fetch_run = _start_fetch_run(
         db=db,
         plan=plan,
         include_benchmarks=include_benchmarks,
         force_refresh=force_refresh,
         force_full_backfill=force_full_backfill,
+        fetch_run_id=fetch_run_id,
     )
     ib = ib_client_factory() if ib_client_factory else create_ib_client()
 
@@ -55,6 +59,11 @@ def execute_fetch_plan(
             readonly=True,
         )
         for plan_item in plan.items:
+            if should_cancel and should_cancel():
+                _mark_run_cancelled(fetch_run)
+                db.flush()
+                db.commit()
+                break
             fetch_item = _create_fetch_item(fetch_run, plan_item)
             db.add(fetch_item)
             db.flush()
@@ -90,13 +99,30 @@ def execute_fetch_plan(
     return fetch_run
 
 
-def _create_fetch_run(
+def _start_fetch_run(
     db: Session,
     plan: FetchPlan,
     include_benchmarks: bool,
     force_refresh: bool,
     force_full_backfill: bool,
+    fetch_run_id: int | None,
 ) -> IBFetchRun:
+    if fetch_run_id is not None:
+        fetch_run = db.scalar(select(IBFetchRun).where(IBFetchRun.id == fetch_run_id))
+        if fetch_run is None:
+            raise ValueError(f"IB fetch run {fetch_run_id} was not found.")
+        fetch_run.run_id = plan.run_id
+        fetch_run.requested_tickers = plan.requested_tickers
+        fetch_run.symbols_including_benchmarks = plan.symbols_including_benchmarks
+        fetch_run.include_benchmarks = include_benchmarks
+        fetch_run.force_refresh = force_refresh
+        fetch_run.force_full_backfill = force_full_backfill
+        fetch_run.planned_request_count = plan.estimated_request_count
+        fetch_run.status = "RUNNING"
+        fetch_run.message = None
+        db.flush()
+        return fetch_run
+
     fetch_run = IBFetchRun(
         run_id=plan.run_id,
         requested_tickers=plan.requested_tickers,
@@ -245,6 +271,13 @@ def _mark_failed(fetch_item: IBFetchItem, message: str) -> None:
     fetch_item.completed_at = datetime.now(UTC)
 
 
+def _mark_run_cancelled(fetch_run: IBFetchRun) -> None:
+    fetch_run.status = "CANCELLED"
+    fetch_run.completed_at = datetime.now(UTC)
+    _refresh_run_totals(fetch_run)
+    fetch_run.message = "IB fetch was cancelled."
+
+
 def _refresh_run_totals(fetch_run: IBFetchRun) -> None:
     items = fetch_run.items or []
     fetch_run.executed_request_count = sum(item.status in {"SUCCESS", "FAILED"} for item in items)
@@ -260,7 +293,7 @@ def _refresh_run_totals(fetch_run: IBFetchRun) -> None:
 
 def _final_run_status(fetch_run: IBFetchRun) -> str:
     if fetch_run.failure_count and fetch_run.success_count:
-        return "COMPLETED_WITH_WARNINGS"
+        return "PARTIAL"
     if fetch_run.failure_count and not fetch_run.success_count:
         return "FAILED"
     return "COMPLETED"

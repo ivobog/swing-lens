@@ -225,7 +225,7 @@
       </div>
       <div class="actions">
         <a class="button-link secondary" href="/runs/{{ run.id }}/ib/plan">Preview fetch plan</a>
-        <button type="submit" data-loading-label="Fetching...">Fetch IB bars</button>
+        <button type="submit" data-loading-label="Queueing...">Fetch IB bars</button>
       </div>
     </form>
   </div>
@@ -261,7 +261,18 @@
           </p>
         </div>
         <div class="actions">
+          <a class="button-link secondary" href="/runs/{{ run.id }}/ib/fetch/{{ latest_fetch.id }}/progress">Progress JSON</a>
           <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">Results CSV</a>
+          {% if latest_fetch.status in ["QUEUED", "RUNNING"] %}
+            <form method="post" action="/runs/{{ run.id }}/ib/fetch/{{ latest_fetch.id }}/cancel" data-loading-form>
+              <button type="submit" data-loading-label="Cancelling...">Cancel</button>
+            </form>
+          {% endif %}
+          {% if latest_fetch.status in ["FAILED", "PARTIAL", "CANCELLED"] %}
+            <form method="post" action="/runs/{{ run.id }}/ib/fetch/{{ latest_fetch.id }}/resume" data-loading-form>
+              <button type="submit" data-loading-label="Queueing...">Resume</button>
+            </form>
+          {% endif %}
         </div>
       </div>
       {% if latest_fetch.message %}
