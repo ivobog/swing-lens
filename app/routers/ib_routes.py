@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.services.bar_cache_service import ensure_daily_bars
+from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.ib_connection import check_ib_connection, create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
+from app.services.ib_fetch_executor import execute_fetch_plan
+from app.services.ib_fetch_plan_service import build_fetch_plan
 from app.settings import get_settings
 
 router = APIRouter(prefix="/ib", tags=["interactive-brokers"])
@@ -92,33 +94,58 @@ def fetch_bars(
     db: DbSession,
     tickers: Annotated[str, Query(description="Comma-separated ticker list")],
     include_benchmarks: bool = True,
+    force_refresh: bool = False,
+    force_full_backfill: bool = False,
+    what_to_show: Annotated[list[str] | None, Query()] = None,
 ) -> dict[str, object]:
     ticker_list = [ticker.strip() for ticker in tickers.split(",") if ticker.strip()]
     if not ticker_list:
         raise HTTPException(status_code=400, detail="Provide at least one ticker.")
 
     try:
-        summary = ensure_daily_bars(
-            db,
-            ticker_list,
+        plan = build_fetch_plan(
+            db=db,
+            tickers=ticker_list,
             include_benchmarks=include_benchmarks,
+            force_refresh=force_refresh,
+            force_full_backfill=force_full_backfill,
+            what_to_show_values=_what_to_show_values(what_to_show),
+        )
+        fetch_run = execute_fetch_plan(
+            db,
+            plan,
+            include_benchmarks=include_benchmarks,
+            force_refresh=force_refresh,
+            force_full_backfill=force_full_backfill,
         )
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {
+        "fetch_run_id": fetch_run.id,
+        "status": fetch_run.status,
+        "message": fetch_run.message,
         "requested_tickers": ticker_list,
         "include_benchmarks": include_benchmarks,
-        "fetched": summary.fetched,
-        "inserted": summary.inserted,
+        "force_refresh": force_refresh,
+        "force_full_backfill": force_full_backfill,
+        "symbols_including_benchmarks": fetch_run.symbols_including_benchmarks,
+        "planned_request_count": fetch_run.planned_request_count,
+        "executed_request_count": fetch_run.executed_request_count,
+        "fetched": fetch_run.fetched_count,
+        "inserted": fetch_run.inserted_count,
+        "updated": fetch_run.updated_count,
+        "revised": fetch_run.revised_count,
+        "unchanged": fetch_run.unchanged_count,
         "failures": [
             {
                 "ticker": item.ticker,
                 "what_to_show": item.what_to_show,
                 "error_message": item.error_message,
             }
-            for item in summary.failures
+            for item in fetch_run.items
+            if item.status == "FAILED"
         ],
         "items": [
             {
@@ -126,8 +153,20 @@ def fetch_bars(
                 "what_to_show": item.what_to_show,
                 "fetched": item.fetched,
                 "inserted": item.inserted,
+                "updated": item.updated,
+                "revised": item.revised,
+                "unchanged": item.unchanged,
                 "status": item.status,
+                "action": item.action,
+                "duration": item.duration,
+                "reason": item.reason,
             }
-            for item in summary.items
+            for item in fetch_run.items
         ],
     }
+
+
+def _what_to_show_values(values: list[str] | None) -> tuple[str, ...]:
+    allowed = set(DEFAULT_WHAT_TO_SHOW)
+    normalized = tuple(value for value in values or DEFAULT_WHAT_TO_SHOW if value in allowed)
+    return normalized or DEFAULT_WHAT_TO_SHOW

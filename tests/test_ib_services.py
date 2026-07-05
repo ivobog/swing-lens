@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.tables import IBContract, PriceBar
+from app.routers import ib_routes
 from app.services.bar_cache_service import _normalize_symbols, cache_bars
 from app.services.ib_api import Contract
 from app.services.ib_connection import check_ib_connection
@@ -207,6 +208,86 @@ def test_normalize_symbols_uses_configured_benchmarks() -> None:
     )
 
     assert symbols == ["IWM", "MSFT", "QQQ", "SPY"]
+
+
+def test_ib_fetch_route_uses_fetch_plan_executor(monkeypatch) -> None:
+    calls = {}
+    plan = SimpleNamespace(id="plan")
+    fetch_run = SimpleNamespace(
+        id=42,
+        status="COMPLETED",
+        message="Executed 1 IB requests; skipped 0 items.",
+        symbols_including_benchmarks=["MSFT", "SPY"],
+        planned_request_count=1,
+        executed_request_count=1,
+        fetched_count=10,
+        inserted_count=8,
+        updated_count=1,
+        revised_count=1,
+        unchanged_count=1,
+        items=[
+            SimpleNamespace(
+                ticker="MSFT",
+                what_to_show="TRADES",
+                fetched=10,
+                inserted=8,
+                updated=1,
+                revised=1,
+                unchanged=1,
+                status="SUCCESS",
+                action="FULL_BACKFILL",
+                duration="4 Y",
+                reason="MSFT has no cached TRADES daily bars.",
+                error_message=None,
+            )
+        ],
+    )
+
+    def fake_build_fetch_plan(**kwargs):
+        calls["build"] = kwargs
+        return plan
+
+    def fake_execute_fetch_plan(db, received_plan, **kwargs):
+        calls["execute"] = {
+            "db": db,
+            "plan": received_plan,
+            **kwargs,
+        }
+        return fetch_run
+
+    monkeypatch.setattr(ib_routes, "build_fetch_plan", fake_build_fetch_plan)
+    monkeypatch.setattr(ib_routes, "execute_fetch_plan", fake_execute_fetch_plan)
+
+    db = FakeDb()
+    response = ib_routes.fetch_bars(
+        db=db,
+        tickers="msft, MSFT",
+        include_benchmarks=True,
+        force_refresh=True,
+        force_full_backfill=False,
+        what_to_show=["TRADES", "UNSUPPORTED"],
+    )
+
+    assert calls["build"] == {
+        "db": db,
+        "tickers": ["msft", "MSFT"],
+        "include_benchmarks": True,
+        "force_refresh": True,
+        "force_full_backfill": False,
+        "what_to_show_values": ("TRADES",),
+    }
+    assert calls["execute"] == {
+        "db": db,
+        "plan": plan,
+        "include_benchmarks": True,
+        "force_refresh": True,
+        "force_full_backfill": False,
+    }
+    assert response["fetch_run_id"] == 42
+    assert response["status"] == "COMPLETED"
+    assert response["symbols_including_benchmarks"] == ["MSFT", "SPY"]
+    assert response["items"][0]["status"] == "SUCCESS"
+    assert response["failures"] == []
 
 
 def test_ib_status_route_does_not_require_gateway() -> None:
