@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindConfirmActions();
   bindLoadingForms();
   bindCockpitTables();
+  bindFetchProgressPolling();
   bindFileInputs();
 });
 
@@ -314,6 +315,94 @@ function bindFileInputs() {
       if (label && input.files.length) label.textContent = input.files[0].name;
     });
   });
+}
+
+function bindFetchProgressPolling() {
+  const root = document.querySelector("[data-fetch-progress]");
+  if (!root) return;
+
+  const statusUrl = root.dataset.statusUrl;
+  const terminalStatuses = new Set((root.dataset.terminalStatuses || "").split(","));
+  if (!statusUrl) return;
+
+  const poll = async () => {
+    try {
+      const response = await fetch(statusUrl, { headers: { Accept: "application/json" } });
+      if (!response.ok) return;
+      const data = await response.json();
+      updateFetchProgress(root, data);
+      if (!terminalStatuses.has(data.status)) {
+        window.setTimeout(poll, 3000);
+      }
+    } catch (_error) {
+      window.setTimeout(poll, 5000);
+    }
+  };
+
+  if (!terminalStatuses.has(textOf(root, "[data-progress-status]"))) {
+    window.setTimeout(poll, 1000);
+  }
+}
+
+function updateFetchProgress(root, data) {
+  setText(root, "[data-progress-status]", data.status);
+  setText(root, "[data-progress-started]", data.started_at || "");
+  setText(root, "[data-progress-completed]", data.completed_at || "");
+  setText(root, "[data-progress-current]", data.current_ticker || "");
+  setText(root, "[data-progress-percentage]", `${Number(data.percentage || 0).toFixed(1)}%`);
+  setText(root, "[data-progress-completed-items]", data.completed_items);
+  setText(root, "[data-progress-total-items]", data.total_items);
+  setText(root, "[data-progress-planned]", data.planned_request_count);
+  setText(root, "[data-progress-executed]", data.executed_request_count);
+  setText(root, "[data-progress-inserted]", data.inserted_count);
+  setText(root, "[data-progress-updated]", data.updated_count);
+  setText(root, "[data-progress-revised]", data.revised_count);
+  setText(root, "[data-progress-unchanged]", data.unchanged_count);
+  setText(root, "[data-progress-failures]", data.failure_count);
+  setText(root, "[data-progress-skipped]", data.skipped_count);
+
+  const message = root.querySelector("[data-progress-message]");
+  if (message) {
+    message.textContent = data.message || "";
+    message.hidden = !data.message;
+  }
+
+  const fill = root.querySelector("[data-progress-fill]");
+  if (fill) fill.style.width = `${Math.min(Number(data.percentage || 0), 100)}%`;
+
+  updateFetchItemRows(data.items || []);
+}
+
+function updateFetchItemRows(items) {
+  items.forEach((item) => {
+    const selector = `[data-fetch-item-row][data-ticker="${cssEscape(item.ticker)}"][data-what-to-show="${cssEscape(item.what_to_show)}"]`;
+    const row = document.querySelector(selector);
+    if (!row) return;
+    setText(row, "[data-item-status]", item.status);
+    setText(row, "[data-item-action]", item.action || "");
+    setText(row, "[data-item-fetched]", item.fetched);
+    setText(row, "[data-item-inserted]", item.inserted);
+    setText(row, "[data-item-updated]", item.updated);
+    setText(row, "[data-item-revised]", item.revised);
+    setText(row, "[data-item-unchanged]", item.unchanged);
+    setText(row, "[data-item-attempts]", item.attempt_count);
+    setText(row, "[data-item-error]", item.error_message || "");
+  });
+}
+
+function setText(root, selector, value) {
+  const element = root.querySelector(selector);
+  if (element) element.textContent = value;
+}
+
+function textOf(root, selector) {
+  const element = root.querySelector(selector);
+  return element ? element.textContent.trim() : "";
+}
+
+function cssEscape(value) {
+  if (window.CSS && window.CSS.escape) return window.CSS.escape(String(value));
+  return String(value).replace(/"/g, '\\"');
 }
 
 function bindConfirmActions() {

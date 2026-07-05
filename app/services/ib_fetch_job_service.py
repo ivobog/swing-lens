@@ -134,6 +134,10 @@ def get_fetch_progress(db: Session, fetch_run_id: int) -> dict[str, Any]:
 def fetch_progress(fetch_run: IBFetchRun, cancel_requested: bool = False) -> dict[str, Any]:
     items = list(fetch_run.items or [])
     terminal_items = [item for item in items if item.status in ITEM_TERMINAL_STATUSES]
+    running_item = next(
+        (item for item in items if item.status in {"PLANNED", "RUNNING"}),
+        None,
+    )
     total_items = len(items) or fetch_run.planned_request_count or 0
     completed_items = len(terminal_items)
     percentage = round((completed_items / total_items) * 100, 1) if total_items else 0.0
@@ -144,6 +148,9 @@ def fetch_progress(fetch_run: IBFetchRun, cancel_requested: bool = False) -> dic
         "status": fetch_run.status,
         "message": fetch_run.message,
         "cancel_requested": cancel_requested,
+        "started_at": fetch_run.started_at,
+        "completed_at": fetch_run.completed_at,
+        "current_ticker": running_item.ticker if running_item else None,
         "percentage": min(percentage, 100.0),
         "completed_items": completed_items,
         "total_items": total_items,

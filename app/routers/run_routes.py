@@ -425,9 +425,10 @@ def fetch_run_ib_bars_action(
         fetch_run = create_queued_fetch_run(db, plan, options)
         db.commit()
         submit_fetch_job(fetch_run.id, plan, options)
-        return _redirect_with_query(
-            run_id,
-            {
+        return _redirect_to_fetch_progress(
+            run_id=run_id,
+            fetch_run_id=fetch_run.id,
+            params={
                 "ib_status": "fetch-queued",
                 "ib_message": f"IB fetch {fetch_run.id} queued.",
             },
@@ -452,6 +453,64 @@ def run_ib_fetch_progress(run_id: int, fetch_run_id: int, db: DbSession) -> dict
     return progress
 
 
+@router.get("/runs/{run_id}/ib/fetches/{fetch_run_id}", response_class=HTMLResponse)
+def run_ib_fetch_progress_page(
+    run_id: int,
+    fetch_run_id: int,
+    request: Request,
+    db: DbSession,
+) -> HTMLResponse:
+    run = _load_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    progress = get_fetch_progress(db, fetch_run_id)
+    if progress["run_id"] != run_id:
+        raise HTTPException(status_code=404, detail="IB fetch run not found for this run.")
+    return templates.TemplateResponse(
+        request,
+        "fetch_progress.html",
+        {
+            "active_nav": "runs",
+            "run": run,
+            "progress": progress,
+            "terminal_statuses": ["COMPLETED", "PARTIAL", "FAILED", "CANCELLED"],
+            "status_url": f"/runs/{run_id}/ib/fetches/{fetch_run_id}/status",
+        },
+    )
+
+
+@router.get("/runs/{run_id}/ib/fetches/{fetch_run_id}/status")
+def run_ib_fetch_status(run_id: int, fetch_run_id: int, db: DbSession) -> dict[str, object]:
+    return run_ib_fetch_progress(run_id=run_id, fetch_run_id=fetch_run_id, db=db)
+
+
+@router.get("/runs/{run_id}/ib/fetches/{fetch_run_id}/failed.csv")
+def export_failed_fetch_items(run_id: int, fetch_run_id: int, db: DbSession) -> Response:
+    progress = run_ib_fetch_progress(run_id=run_id, fetch_run_id=fetch_run_id, db=db)
+    lines = ["ticker,what_to_show,status,error_message"]
+    for item in progress["items"]:
+        if item["status"] == "FAILED":
+            lines.append(
+                ",".join(
+                    [
+                        _csv_cell(item["ticker"]),
+                        _csv_cell(item["what_to_show"]),
+                        _csv_cell(item["status"]),
+                        _csv_cell(item["error_message"] or ""),
+                    ]
+                )
+            )
+    return Response(
+        content="\n".join(lines) + "\n",
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="run-{run_id}-fetch-{fetch_run_id}-failed.csv"'
+            ),
+        },
+    )
+
+
 @router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/cancel")
 def cancel_run_ib_fetch_action(
     run_id: int,
@@ -465,9 +524,10 @@ def cancel_run_ib_fetch_action(
             raise HTTPException(status_code=404, detail="IB fetch run not found for this run.")
         progress = cancel_fetch_job(db, fetch_run_id)
         db.commit()
-        return _redirect_with_query(
-            run_id,
-            {
+        return _redirect_to_fetch_progress(
+            run_id=run_id,
+            fetch_run_id=fetch_run_id,
+            params={
                 "ib_status": "fetch-cancelled",
                 "ib_message": progress["message"] or "IB fetch cancellation requested.",
             },
@@ -477,11 +537,29 @@ def cancel_run_ib_fetch_action(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/retry-failed")
+def retry_failed_run_ib_fetch_action(
+    run_id: int,
+    fetch_run_id: int,
+    db: DbSession,
+) -> RedirectResponse:
+    return _resume_fetch_action(run_id=run_id, fetch_run_id=fetch_run_id, db=db, label="Retry")
+
+
 @router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/resume")
 def resume_run_ib_fetch_action(
     run_id: int,
     fetch_run_id: int,
     db: DbSession,
+) -> RedirectResponse:
+    return _resume_fetch_action(run_id=run_id, fetch_run_id=fetch_run_id, db=db, label="Resume")
+
+
+def _resume_fetch_action(
+    run_id: int,
+    fetch_run_id: int,
+    db: Session,
+    label: str,
 ) -> RedirectResponse:
     _require_run(db, run_id)
     try:
@@ -490,11 +568,12 @@ def resume_run_ib_fetch_action(
             raise HTTPException(status_code=404, detail="IB fetch run not found for this run.")
         db.commit()
         submit_fetch_job(fetch_run.id, plan, options)
-        return _redirect_with_query(
-            run_id,
-            {
+        return _redirect_to_fetch_progress(
+            run_id=run_id,
+            fetch_run_id=fetch_run.id,
+            params={
                 "ib_status": "fetch-queued",
-                "ib_message": f"Resume fetch {fetch_run.id} queued.",
+                "ib_message": f"{label} fetch {fetch_run.id} queued.",
             },
         )
     except ValueError as exc:
@@ -796,6 +875,18 @@ def _redirect_with_query(run_id: int, params: dict[str, str]) -> RedirectRespons
     )
 
 
+def _redirect_to_fetch_progress(
+    run_id: int,
+    fetch_run_id: int,
+    params: dict[str, str],
+) -> RedirectResponse:
+    safe_params = {key: value.replace("\n", " ").strip()[:500] for key, value in params.items()}
+    return RedirectResponse(
+        url=f"/runs/{run_id}/ib/fetches/{fetch_run_id}?{urlencode(safe_params)}",
+        status_code=303,
+    )
+
+
 def _load_run(db: Session, run_id: int) -> UploadRun | None:
     return db.scalar(
         select(UploadRun)
@@ -807,6 +898,11 @@ def _load_run(db: Session, run_id: int) -> UploadRun | None:
             selectinload(UploadRun.combined_results),
         )
     )
+
+
+def _csv_cell(value: object) -> str:
+    text = str(value).replace('"', '""')
+    return f'"{text}"' if any(char in text for char in [",", '"', "\n"]) else text
 
 
 def _require_run(db: Session, run_id: int) -> None:

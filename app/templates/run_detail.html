@@ -278,7 +278,7 @@
           </p>
         </div>
         <div class="actions">
-          <a class="button-link secondary" href="/runs/{{ run.id }}/ib/fetch/{{ latest_fetch.id }}/progress">Progress JSON</a>
+          <a class="button-link secondary" href="/runs/{{ run.id }}/ib/fetches/{{ latest_fetch.id }}">Open progress</a>
           <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">Results CSV</a>
           {% if latest_fetch.status in ["QUEUED", "RUNNING"] %}
             <form method="post" action="/runs/{{ run.id }}/ib/fetch/{{ latest_fetch.id }}/cancel" data-loading-form>

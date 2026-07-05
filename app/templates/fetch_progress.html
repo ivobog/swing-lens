@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Fetch {{ progress.fetch_run_id }}{% endblock %}
+
+{% block content %}
+{% set is_terminal = progress.status in terminal_statuses %}
+<section
+  class="panel"
+  data-fetch-progress
+  data-status-url="{{ status_url }}"
+  data-terminal-statuses="{{ terminal_statuses|join(',') }}"
+>
+  <div class="panel-header run-header">
+    <div>
+      <h1>IB Fetch {{ progress.fetch_run_id }}</h1>
+      <p>Run {{ run.id }} - {{ run.filename }}</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ run.id }}">Run detail</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">Results CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/ib/fetches/{{ progress.fetch_run_id }}/failed.csv">Failed CSV</a>
+    </div>
+  </div>
+
+  <div class="run-meta">
+    <span class="status-pill" data-progress-status>{{ progress.status }}</span>
+    <span>Started <span data-progress-started>{{ progress.started_at or "" }}</span></span>
+    <span>Finished <span data-progress-completed>{{ progress.completed_at or "" }}</span></span>
+    <span>Current <span data-progress-current>{{ progress.current_ticker or "" }}</span></span>
+  </div>
+
+  {% if progress.message %}
+    <div class="alert section-gap" data-progress-message>{{ progress.message }}</div>
+  {% else %}
+    <div class="alert section-gap" data-progress-message hidden></div>
+  {% endif %}
+
+  <div class="progress-block">
+    <div class="progress-bar" aria-label="Fetch progress">
+      <div class="progress-fill" data-progress-fill style="width: {{ progress.percentage }}%"></div>
+    </div>
+    <strong data-progress-percentage>{{ "%.1f"|format(progress.percentage) }}%</strong>
+    <span>
+      <span data-progress-completed-items>{{ progress.completed_items }}</span> /
+      <span data-progress-total-items>{{ progress.total_items }}</span> items
+    </span>
+  </div>
+
+  <div class="progress-grid">
+    <div class="metric">
+      <span>Planned</span>
+      <strong data-progress-planned>{{ progress.planned_request_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Executed</span>
+      <strong data-progress-executed>{{ progress.executed_request_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Inserted</span>
+      <strong data-progress-inserted>{{ progress.inserted_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Updated</span>
+      <strong data-progress-updated>{{ progress.updated_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Revised</span>
+      <strong data-progress-revised>{{ progress.revised_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Unchanged</span>
+      <strong data-progress-unchanged>{{ progress.unchanged_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Failures</span>
+      <strong data-progress-failures>{{ progress.failure_count }}</strong>
+    </div>
+    <div class="metric">
+      <span>Skipped</span>
+      <strong data-progress-skipped>{{ progress.skipped_count }}</strong>
+    </div>
+  </div>
+
+  <div class="actions section-gap">
+    {% if progress.status in ["QUEUED", "RUNNING"] %}
+      <form method="post" action="/runs/{{ run.id }}/ib/fetch/{{ progress.fetch_run_id }}/cancel" data-loading-form data-confirm="Cancel this fetch after the current request finishes?">
+        <button type="submit" data-loading-label="Cancelling...">Cancel fetch</button>
+      </form>
+    {% endif %}
+    {% if progress.status in ["FAILED", "PARTIAL", "CANCELLED"] %}
+      <form method="post" action="/runs/{{ run.id }}/ib/fetch/{{ progress.fetch_run_id }}/retry-failed" data-loading-form>
+        <button type="submit" data-loading-label="Queueing...">Retry failed items</button>
+      </form>
+      <form method="post" action="/runs/{{ run.id }}/ib/fetch/{{ progress.fetch_run_id }}/resume" data-loading-form>
+        <button class="secondary" type="submit" data-loading-label="Queueing...">Resume remaining items</button>
+      </form>
+    {% endif %}
+    {% if not is_terminal %}
+      <span class="badge badge-warning">Auto-refreshing</span>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Fetch Items</h2>
+      <p>Per ticker and data-type execution state.</p>
+    </div>
+  </div>
+
+  {% if progress["items"] %}
+    <div class="table-wrap">
+      <table data-fetch-items-table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Data</th>
+            <th>Status</th>
+            <th>Action</th>
+            <th>Fetched</th>
+            <th>Inserted</th>
+            <th>Updated</th>
+            <th>Revised</th>
+            <th>Unchanged</th>
+            <th>Attempts</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+            {% for item in progress["items"] %}
+            <tr data-fetch-item-row data-ticker="{{ item.ticker }}" data-what-to-show="{{ item.what_to_show }}">
+              <td>{{ item.ticker }}</td>
+              <td>{{ item.what_to_show }}</td>
+              <td data-item-status>
+                <span class="badge badge-{{ 'success' if item.status in ['SUCCESS', 'SKIPPED'] else 'warning' if item.status in ['PLANNED', 'RUNNING'] else 'danger' }}">
+                  {{ item.status|replace("_", " ")|title }}
+                </span>
+              </td>
+              <td data-item-action>{{ item.action or "" }}</td>
+              <td data-item-fetched>{{ item.fetched }}</td>
+              <td data-item-inserted>{{ item.inserted }}</td>
+              <td data-item-updated>{{ item.updated }}</td>
+              <td data-item-revised>{{ item.revised }}</td>
+              <td data-item-unchanged>{{ item.unchanged }}</td>
+              <td data-item-attempts>{{ item.attempt_count }}</td>
+              <td data-item-error>{{ item.error_message or "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No fetch items have been written yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

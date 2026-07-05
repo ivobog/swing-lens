@@ -375,6 +375,36 @@ dd {
   margin-bottom: 12px;
 }
 
+.progress-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #eef2f6;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
 .fetch-summary h3 {
   margin: 0 0 6px;
   font-size: 15px;
@@ -886,6 +916,7 @@ td a {
   .detail-grid,
   .ib-layout,
   .plan-options,
+  .progress-grid,
   .cockpit-toolbar,
   .cockpit-controls {
     grid-template-columns: 1fr;
@@ -902,7 +933,8 @@ td a {
   .dashboard-grid,
   .settings-grid,
   .settings-group-grid,
-  .workflow-list {
+  .workflow-list,
+  .progress-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
