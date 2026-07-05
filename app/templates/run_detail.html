@@ -406,6 +406,27 @@
   {% endif %}
 
   {% if combined_results %}
+    <div class="cockpit-toolbar" data-cockpit-toolbar>
+      <div class="quick-filter-row" data-quick-filters>
+        <button class="quick-filter-chip" type="button" data-quick-filter="top10">Top 10</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="top20">Top 20</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="strong">Strong only</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="candidate">Candidate+</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="clean">Clean only</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="warnings">Warnings only</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="incomplete">Incomplete only</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="hide-avoid">Hide avoid</button>
+      </div>
+      <div class="copy-actions">
+        <button class="secondary" type="button" data-copy-tickers="visible">Copy visible tickers</button>
+        <button class="secondary" type="button" data-copy-tickers="top10">Copy top 10</button>
+        <button class="secondary" type="button" data-copy-tickers="candidates">Copy candidates</button>
+        <button class="secondary" type="button" data-copy-tickers="warnings">Copy warnings</button>
+        <button class="secondary" type="button" data-copy-tickers="incomplete">Copy incomplete</button>
+        <span class="copy-feedback" data-copy-feedback aria-live="polite"></span>
+      </div>
+    </div>
+
     <div class="cockpit-controls" data-cockpit-controls>
       <label>
         <span>Search</span>
@@ -449,6 +470,7 @@
         <input type="checkbox" data-filter-warnings>
         <span>Warnings only</span>
       </label>
+      <button class="secondary" type="button" data-filter-clear>Clear filters</button>
     </div>
 
     <p class="filter-empty" data-filter-empty hidden>No cockpit rows match the current filters.</p>
@@ -457,17 +479,17 @@
       <table class="cockpit-table" data-cockpit-table>
         <thead>
           <tr>
-            <th>Rank</th>
-            <th>Ticker</th>
+            <th><button class="sort-button" type="button" data-sort-key="rank" data-sort-type="number">Rank</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="ticker" data-sort-type="text">Ticker</button></th>
             <th>Company</th>
-            <th>Sector</th>
-            <th>Final</th>
-            <th>Decision</th>
-            <th>Warnings</th>
-            <th>Fundamental</th>
-            <th>Technical</th>
-            <th>Size</th>
-            <th>Details</th>
+            <th><button class="sort-button" type="button" data-sort-key="sector" data-sort-type="text">Sector</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="final-score" data-sort-type="number">Final</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="decision" data-sort-type="text">Decision</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="warning-count" data-sort-type="number">Warnings</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="fundamental-score" data-sort-type="number">Fundamental</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="technical-score" data-sort-type="number">Technical</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="position-size" data-sort-type="text">Size</button></th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -477,9 +499,11 @@
             {% set technical = technical_by_ticker.get(result.ticker) %}
             {% set warning_flags = result.warning_flags_json or [] %}
             {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
+            {% set is_candidate_plus = result.combined_decision in ["Strong candidate", "Candidate"] %}
             <tr
               class="cockpit-row"
               data-cockpit-row
+              data-rank="{{ result.final_rank or loop.index }}"
               data-ticker="{{ result.ticker }}"
               data-company="{{ result.company_name or '' }}"
               data-sector="{{ result.sector or '' }}"
@@ -491,7 +515,12 @@
               data-technical-score="{{ result.dual_score if result.dual_score is not none else '' }}"
               data-incomplete="{{ 'true' if not result.is_complete else 'false' }}"
               data-has-warning="{{ 'true' if result.has_warning else 'false' }}"
+              data-warning-count="{{ warning_flags|length }}"
               data-warning-flags="{{ warning_flags|join(' ') }}"
+              data-clean="{{ 'true' if result.is_complete and not result.has_warning else 'false' }}"
+              data-candidate-plus="{{ 'true' if is_candidate_plus else 'false' }}"
+              data-avoid="{{ 'true' if result.combined_decision == 'Avoid' else 'false' }}"
+              data-position-size="{{ result.position_size_hint or '' }}"
             >
               <td>{{ result.final_rank }}</td>
               <td><strong>{{ result.ticker }}</strong></td>
@@ -534,9 +563,11 @@
                 <span class="muted-line">Research hint</span>
               </td>
               <td>
-                <button class="icon-button" type="button" data-detail-toggle aria-expanded="false">
-                  Details
-                </button>
+                <div class="row-actions">
+                  <button class="icon-button" type="button" data-detail-toggle aria-expanded="false">Details</button>
+                  <button class="icon-button" type="button" data-copy-single="{{ result.ticker }}">Copy</button>
+                  <a href="https://www.tradingview.com/chart/?symbol={{ result.ticker }}" target="_blank" rel="noopener">TradingView</a>
+                </div>
               </td>
             </tr>
             <tr class="detail-row" data-detail-row hidden>

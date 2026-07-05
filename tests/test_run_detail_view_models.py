@@ -234,6 +234,17 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert "Capital" in html
     assert "quick_ratio_quarterly" in html
     assert "high_accrual_risk" in html
+    assert 'data-quick-filter="top10"' in html
+    assert 'data-filter-clear' in html
+    assert 'data-copy-tickers="visible"' in html
+    assert 'data-copy-tickers="candidates"' in html
+    assert 'data-sort-key="final-score"' in html
+    assert 'data-sort-key="warning-count"' in html
+    assert 'data-warning-count="1"' in html
+    assert 'data-candidate-plus="true"' in html
+    assert 'data-clean="false"' in html
+    assert 'data-copy-single="MSFT"' in html
+    assert "https://www.tradingview.com/chart/?symbol=MSFT" in html
 
 
 def test_ib_fetch_plan_template_preserves_options_for_execution(monkeypatch) -> None:

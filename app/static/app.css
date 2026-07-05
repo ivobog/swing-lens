@@ -560,10 +560,52 @@ table {
 
 .cockpit-controls {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(120px, 1fr)) auto auto;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(120px, 1fr)) auto auto auto;
   gap: 10px;
   align-items: end;
   margin-bottom: 16px;
+}
+
+.cockpit-toolbar {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.quick-filter-row,
+.copy-actions,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.quick-filter-chip {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  background: #f7f9fb;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.quick-filter-chip.active {
+  border-color: #a9d5c6;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.copy-actions button {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.copy-feedback {
+  min-height: 20px;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .cockpit-controls label {
@@ -641,6 +683,29 @@ th {
   color: var(--muted);
   font-size: 12px;
   text-transform: uppercase;
+}
+
+.sort-button {
+  min-height: 28px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.sort-button.sorted-asc,
+.sort-button.sorted-desc {
+  color: var(--accent);
+}
+
+.sort-button.sorted-asc::after {
+  content: " ^";
+}
+
+.sort-button.sorted-desc::after {
+  content: " v";
 }
 
 td a {
@@ -762,6 +827,13 @@ td a {
   font-size: 12px;
 }
 
+.row-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  white-space: nowrap;
+}
+
 .detail-row td {
   background: #fbfcfd;
   white-space: normal;
@@ -814,6 +886,7 @@ td a {
   .detail-grid,
   .ib-layout,
   .plan-options,
+  .cockpit-toolbar,
   .cockpit-controls {
     grid-template-columns: 1fr;
   }
