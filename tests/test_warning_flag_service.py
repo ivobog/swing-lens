@@ -69,6 +69,15 @@ def test_warning_flags_include_technical_confidence_and_liquidity() -> None:
     assert "liquidity_warning" in flags
 
 
+def test_warning_flags_do_not_mark_high_technical_confidence_as_low() -> None:
+    flags = warning_flags_for_row(
+        _fundamental(),
+        _technical(technical_confidence="high"),
+    )
+
+    assert "low_technical_confidence" not in flags
+
+
 def test_warning_flags_include_persisted_v4_technical_warnings() -> None:
     technical = _technical(
         warning_flags_json=[

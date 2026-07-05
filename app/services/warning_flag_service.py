@@ -61,7 +61,8 @@ def _technical_warning_flags(technical: TechnicalScore) -> set[str]:
 
     if confidence == "error":
         flags.add("technical_error")
-    elif confidence and confidence != "normal":
+        flags.add("low_technical_confidence")
+    elif confidence == "low":
         flags.add("low_technical_confidence")
 
     if technical.insufficient_data or _truthy(missing_data.get("insufficient_history")):

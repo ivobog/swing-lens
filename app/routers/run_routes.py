@@ -271,12 +271,16 @@ def refresh_combined_results_action(run_id: int, db: DbSession) -> RedirectRespo
 def recalculate_fundamentals_action(run_id: int, db: DbSession) -> RedirectResponse:
     _require_run(db, run_id)
     scores = recalculate_run_fundamentals(db, run_id)
+    combined = refresh_combined_results(db, run_id)
     db.commit()
     return _redirect_with_query(
         run_id,
         {
             "ib_status": "fundamentals-refreshed",
-            "ib_message": f"Recalculated {len(scores)} fundamental score rows.",
+            "ib_message": (
+                f"Recalculated {len(scores)} fundamental score rows and rebuilt "
+                f"{len(combined)} combined rows."
+            ),
         },
     )
 
@@ -285,12 +289,16 @@ def recalculate_fundamentals_action(run_id: int, db: DbSession) -> RedirectRespo
 def refresh_technicals_action(run_id: int, db: DbSession) -> RedirectResponse:
     _require_run(db, run_id)
     scores = score_run_technicals(db, run_id)
+    combined = refresh_combined_results(db, run_id)
     db.commit()
     return _redirect_with_query(
         run_id,
         {
             "ib_status": "technicals-refreshed",
-            "ib_message": f"Refreshed {len(scores)} technical score rows from cached OHLCV.",
+            "ib_message": (
+                f"Refreshed {len(scores)} technical score rows from cached OHLCV "
+                f"and rebuilt {len(combined)} combined rows."
+            ),
         },
     )
 

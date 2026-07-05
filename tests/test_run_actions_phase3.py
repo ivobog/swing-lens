@@ -60,29 +60,43 @@ def test_refresh_combined_route_rebuilds_combined_only(monkeypatch) -> None:
 
 
 def test_recalculate_fundamentals_route_commits_scores(monkeypatch) -> None:
+    calls = {"combined": 0}
     monkeypatch.setattr(
         run_routes,
         "recalculate_run_fundamentals",
         lambda _db, _run_id: [SimpleNamespace(ticker="MSFT")],
     )
+    monkeypatch.setattr(
+        run_routes,
+        "refresh_combined_results",
+        lambda _db, _run_id: calls.__setitem__("combined", calls["combined"] + 1) or [],
+    )
     db = RouteFakeDb()
 
     response = run_routes.recalculate_fundamentals_action(run_id=7, db=db)
 
+    assert calls == {"combined": 1}
     assert db.commits == 1
     assert "fundamentals-refreshed" in response.headers["location"]
 
 
 def test_refresh_technicals_route_commits_scores(monkeypatch) -> None:
+    calls = {"combined": 0}
     monkeypatch.setattr(
         run_routes,
         "score_run_technicals",
         lambda _db, _run_id: [SimpleNamespace(ticker="MSFT")],
     )
+    monkeypatch.setattr(
+        run_routes,
+        "refresh_combined_results",
+        lambda _db, _run_id: calls.__setitem__("combined", calls["combined"] + 1) or [],
+    )
     db = RouteFakeDb()
 
     response = run_routes.refresh_technicals_action(run_id=7, db=db)
 
+    assert calls == {"combined": 1}
     assert db.commits == 1
     assert "technicals-refreshed" in response.headers["location"]
 
