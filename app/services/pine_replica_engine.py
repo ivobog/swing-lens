@@ -3,6 +3,7 @@ from typing import Any
 
 from app.services.market_regime import classify_market_regime
 from app.services.technical_confidence import build_data_readiness
+from app.services.technical_explainability import build_technical_explainability
 from app.services.technical_indicators import TechnicalFeatureResult, load_pine_defaults
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
 
@@ -881,6 +882,14 @@ def score_from_feature_result(
     )
     buyable_text = "R/R ok" if derived["reward_risk_ok"] else "R/R below required minimum"
     action_bias = action_bias_text(classification, buyable_text, filter_problem)
+    explainability_derived = {
+        **derived,
+        "trend_score": trend_score_value,
+        "momentum_score": momentum_score_value,
+        "setup_score": setup_score_value,
+        "risk_score": risk_score_value,
+    }
+    warning_flags = tuple(data_readiness.missing_reasons)
 
     return PineReplicaScore(
         ticker=feature_result.ticker,
@@ -913,11 +922,22 @@ def score_from_feature_result(
             "derived": derived,
             "data_readiness": asdict(data_readiness),
             "market_regime_v4": asdict(regime_v4),
+            "explainability": build_technical_explainability(
+                latest=latest,
+                derived=explainability_derived,
+                data_readiness=data_readiness,
+                regime=regime_v4,
+                final_score=dual_score_value,
+                final_classification=classification,
+                final_action=action_bias,
+                warning_flags=warning_flags,
+                v4_params=v4_params,
+            ),
             "indicator_debug": feature_result.debug,
         },
         technical_confidence=data_readiness.confidence,
         data_quality_score=data_readiness.data_quality_score,
-        warning_flags=tuple(data_readiness.missing_reasons),
+        warning_flags=warning_flags,
     )
 
 

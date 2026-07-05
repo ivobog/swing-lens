@@ -10,6 +10,7 @@ from app.models.tables import RawCompanyRow, TechnicalScore
 from app.services.pine_replica_engine import PineReplicaScore, score_from_feature_result
 from app.services.price_bar_repository import load_preferred_ohlcv_frames
 from app.services.relative_leadership import calculate_beta_adjusted_rs, rank_technical_universe
+from app.services.technical_explainability import add_leadership_to_explainability
 from app.services.technical_indicators import (
     calculate_htf_trend_features,
     calculate_relative_strength_features,
@@ -228,6 +229,7 @@ def _with_leadership_debug(
         **(score.debug or {}),
         "leadership": asdict(leadership_result),
     }
+    debug = add_leadership_to_explainability(debug, leadership_result)
     return replace(score, debug=debug)
 
 

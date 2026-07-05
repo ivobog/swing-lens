@@ -211,6 +211,30 @@ def test_score_from_feature_result_includes_market_regime_v4_debug() -> None:
     assert result.debug["market_regime_v4"]["gate_ok"] is True
 
 
+def test_score_from_feature_result_includes_v4_explainability_snapshot() -> None:
+    frame = _synthetic_uptrend()
+    features = calculate_technical_features(frame, ticker="TEST")
+    result = score_from_feature_result(features)
+
+    explainability = result.debug["explainability"]
+
+    assert explainability["engine_version"] == "4.0.0"
+    assert explainability["base_engine_version"] == "3.2.0"
+    assert explainability["data_readiness"]["confidence"] == result.technical_confidence
+    assert "atr_percentile_252" in explainability["adaptive"]
+    assert "vcp_score" in explainability["contraction"]
+    assert "box_tightness_score" in explainability["box"]
+    assert "stage" in explainability["stage"]
+    assert "regime" in explainability["regime"]
+    assert "climax_risk_score" in explainability["climax"]
+    assert isinstance(explainability["feature_flags"], list)
+    assert isinstance(explainability["warning_flags"], list)
+    assert isinstance(explainability["sub_tags"], list)
+    assert explainability["final_v4_score"] == result.dual_score
+    assert explainability["final_v4_classification"] == result.classification
+    assert explainability["final_v4_action"] == result.action_bias
+
+
 def test_build_technical_score_maps_replica_to_model() -> None:
     frame = _synthetic_uptrend()
     features = calculate_technical_features(frame, ticker="TEST")

@@ -107,8 +107,12 @@ def test_score_run_technicals_adds_run_level_leadership_debug(monkeypatch) -> No
 
     assert rows[0].debug_json["leadership"]["leadership_score"] == 5.0
     assert rows[0].debug_json["leadership"]["leadership_tags"] == []
+    assert rows[0].debug_json["explainability"]["leadership"]["leadership_score"] == 5.0
     assert rows[1].debug_json["leadership"]["leadership_score"] == 10.0
     assert rows[1].debug_json["leadership"]["leadership_tags"] == ["rs_leader"]
+    assert rows[1].debug_json["explainability"]["leadership"]["leadership_score"] == 10.0
+    assert "rs_leader" in rows[1].debug_json["explainability"]["feature_flags"]
+    assert "RS leader" in rows[1].debug_json["explainability"]["sub_tags"]
 
 
 def test_ready_route_returns_operational_shape() -> None:
