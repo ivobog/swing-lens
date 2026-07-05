@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+  bindConfirmActions();
   bindLoadingForms();
   bindCockpitTables();
   bindFileInputs();
@@ -6,8 +7,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindLoadingForms() {
   document.querySelectorAll("[data-loading-form]").forEach((form) => {
-    form.addEventListener("submit", () => {
-      const button = form.querySelector("button[type='submit']");
+    form.addEventListener("submit", (event) => {
+      if (event.defaultPrevented) return;
+      const button = event.submitter || form.querySelector("button[type='submit']");
       if (!button) return;
       const label = button.getAttribute("data-loading-label");
       if (label) button.textContent = label;
@@ -129,6 +131,14 @@ function bindFileInputs() {
     input.addEventListener("change", () => {
       const label = document.querySelector(`[for='${input.id}'] span`);
       if (label && input.files.length) label.textContent = input.files[0].name;
+    });
+  });
+}
+
+function bindConfirmActions() {
+  document.querySelectorAll("[data-confirm]").forEach((element) => {
+    element.addEventListener("submit", (event) => {
+      if (!window.confirm(element.dataset.confirm)) event.preventDefault();
     });
   });
 }

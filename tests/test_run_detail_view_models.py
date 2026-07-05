@@ -1,4 +1,5 @@
 from decimal import Decimal
+from types import SimpleNamespace
 
 from app.models.tables import (
     CombinedResult,
@@ -8,13 +9,16 @@ from app.models.tables import (
     UploadRun,
 )
 from app.routers.run_routes import (
+    _estimated_fetch_duration_label,
     _fetch_plan_action_counts,
     _fetch_plan_json_url,
+    _fetch_request_options,
     _run_summary,
     _tickers_from_fetch_form,
     _warning_badges,
     _what_to_show_values,
     _workflow_steps,
+    preview_run_ib_fetch_plan,
 )
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
@@ -83,6 +87,44 @@ def test_fetch_form_helpers_normalize_tickers_and_data_types() -> None:
     assert _what_to_show_values([]) == ("ADJUSTED_LAST", "TRADES")
 
 
+def test_fetch_request_options_and_duration_label() -> None:
+    plan = FetchPlan(
+        run_id=7,
+        requested_tickers=["MSFT"],
+        symbols_including_benchmarks=["MSFT"],
+        items=[],
+        estimated_request_count=20,
+        estimated_full_backfills=0,
+        estimated_top_ups=20,
+        estimated_refreshes=0,
+        estimated_skips=0,
+        warnings=[],
+    )
+
+    options = _fetch_request_options(
+        ticker_subset="MSFT",
+        include_benchmarks=False,
+        force_refresh=True,
+        force_full_backfill=False,
+        what_to_show=("TRADES",),
+    )
+    label = _estimated_fetch_duration_label(
+        plan,
+        SimpleNamespace(ib_min_seconds_between_requests=3.0, ib_requests_per_minute=20),
+    )
+
+    assert options == {
+        "ticker_subset": "MSFT",
+        "include_benchmarks": False,
+        "force_refresh": True,
+        "force_full_backfill": False,
+        "what_to_show": ["TRADES"],
+        "include_adjusted": False,
+        "include_trades": True,
+    }
+    assert label == "About 1.0 minutes minimum."
+
+
 def test_warning_badges_map_flags_to_labels_and_tones() -> None:
     badges = _warning_badges(
         ["incomplete_data", "value_trap_risk", "liquidity_warning", "high_accrual_risk"]
@@ -143,6 +185,9 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert "Run 1" in html
     assert "Raw CSV Preview" in html
     assert "No combined decisions yet." in html
+    assert 'formaction="/runs/1/ib/plan"' in html
+    assert 'formmethod="get"' in html
+    assert 'name="include_benchmarks" value="false"' in html
 
 
 def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None:
@@ -169,6 +214,91 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert "Capital" in html
     assert "quick_ratio_quarterly" in html
     assert "high_accrual_risk" in html
+
+
+def test_ib_fetch_plan_template_preserves_options_for_execution(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=7, filename="sample.csv", row_count=1, status="COMPLETED")
+    plan = FetchPlan(
+        run_id=7,
+        requested_tickers=["MSFT"],
+        symbols_including_benchmarks=["MSFT"],
+        items=[_plan_item("MSFT", FetchAction.TOP_UP_RECENT)],
+        estimated_request_count=1,
+        estimated_full_backfills=0,
+        estimated_top_ups=1,
+        estimated_refreshes=0,
+        estimated_skips=0,
+        warnings=[],
+    )
+
+    html = templates.get_template("ib_fetch_plan.html").render(
+        run=run,
+        plan=plan,
+        action_counts=_fetch_plan_action_counts(plan),
+        request_options={
+            "ticker_subset": "MSFT",
+            "include_benchmarks": False,
+            "force_refresh": True,
+            "force_full_backfill": False,
+            "what_to_show": ["TRADES"],
+        },
+        estimated_duration_label="About 3 seconds minimum.",
+        json_url="/runs/7/ib/plan?format=json",
+    )
+
+    assert "Execute this plan" in html
+    assert 'action="/runs/7/ib/fetch"' in html
+    assert 'name="ticker_subset" value="MSFT"' in html
+    assert 'name="include_benchmarks" value="false"' in html
+    assert 'name="force_refresh" value="true"' in html
+    assert 'name="what_to_show" value="TRADES"' in html
+    assert "About 3 seconds minimum." in html
+
+
+def test_preview_fetch_plan_uses_current_request_options(monkeypatch) -> None:
+    calls = {}
+    run = UploadRun(id=7, filename="sample.csv", row_count=1, status="COMPLETED")
+    run.raw_company_rows = [_row("SHOULD_NOT_USE", 1)]
+
+    def fake_build_fetch_plan(*args, **kwargs):
+        calls["args"] = args
+        calls["kwargs"] = kwargs
+        tickers = args[1]
+        return FetchPlan(
+            run_id=7,
+            requested_tickers=tickers,
+            symbols_including_benchmarks=tickers,
+            items=[],
+            estimated_request_count=0,
+            estimated_full_backfills=0,
+            estimated_top_ups=0,
+            estimated_refreshes=0,
+            estimated_skips=0,
+            warnings=[],
+        )
+
+    monkeypatch.setattr("app.routers.run_routes._load_run", lambda _db, _run_id: run)
+    monkeypatch.setattr("app.routers.run_routes.build_fetch_plan", fake_build_fetch_plan)
+
+    payload = preview_run_ib_fetch_plan(
+        run_id=7,
+        request=SimpleNamespace(),
+        db=SimpleNamespace(),
+        ticker_subset="aapl, msft",
+        include_benchmarks=False,
+        force_refresh=True,
+        force_full_backfill=True,
+        what_to_show=["TRADES"],
+        format="json",
+    )
+
+    assert payload["requested_tickers"] == ["AAPL", "MSFT"]
+    assert calls["args"][1] == ["AAPL", "MSFT"]
+    assert calls["kwargs"]["include_benchmarks"] is False
+    assert calls["kwargs"]["force_refresh"] is True
+    assert calls["kwargs"]["force_full_backfill"] is True
+    assert calls["kwargs"]["what_to_show_values"] == ("TRADES",)
 
 
 def _row(ticker: str, row_number: int) -> RawCompanyRow:

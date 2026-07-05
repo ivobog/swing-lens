@@ -3,6 +3,14 @@
 {% block title %}SwingLens Run {{ run.id }} IB Fetch Plan{% endblock %}
 
 {% block content %}
+{% set request_options = request_options|default({
+  "ticker_subset": "",
+  "include_benchmarks": true,
+  "force_refresh": false,
+  "force_full_backfill": false,
+  "what_to_show": ["ADJUSTED_LAST", "TRADES"]
+}) %}
+{% set estimated_duration_label = estimated_duration_label|default("No IB requests expected.") %}
 <section class="panel">
   <div class="panel-header run-header">
     <div>
@@ -32,6 +40,7 @@
     <span class="summary-item"><strong>{{ plan.estimated_top_ups }}</strong> top-up</span>
     <span class="summary-item"><strong>{{ plan.estimated_refreshes }}</strong> refresh</span>
     <span class="summary-item"><strong>{{ plan.estimated_skips }}</strong> skip</span>
+    <span class="summary-item"><strong>{{ estimated_duration_label }}</strong> duration</span>
   </div>
 
   {% if action_counts %}
@@ -41,6 +50,44 @@
       {% endfor %}
     </div>
   {% endif %}
+
+  <div class="plan-options">
+    <div>
+      <h2>Plan Options</h2>
+      <dl class="compact-dl">
+        <dt>Ticker subset</dt>
+        <dd>{{ request_options.ticker_subset or "All uploaded tickers" }}</dd>
+        <dt>Benchmarks</dt>
+        <dd>{{ "Included" if request_options.include_benchmarks else "Excluded" }}</dd>
+        <dt>Data types</dt>
+        <dd>{{ request_options.what_to_show|join(", ") }}</dd>
+        <dt>Force refresh</dt>
+        <dd>{{ "Yes" if request_options.force_refresh else "No" }}</dd>
+        <dt>Force full backfill</dt>
+        <dd>{{ "Yes" if request_options.force_full_backfill else "No" }}</dd>
+      </dl>
+    </div>
+    <form
+      method="post"
+      action="/runs/{{ run.id }}/ib/fetch"
+      data-loading-form
+      {% if request_options.force_full_backfill %}
+        data-confirm="Force full backfill may take several minutes. Continue?"
+      {% endif %}
+    >
+      <input type="hidden" name="ticker_subset" value="{{ request_options.ticker_subset }}">
+      <input type="hidden" name="include_benchmarks" value="{{ 'true' if request_options.include_benchmarks else 'false' }}">
+      <input type="hidden" name="force_refresh" value="{{ 'true' if request_options.force_refresh else 'false' }}">
+      <input type="hidden" name="force_full_backfill" value="{{ 'true' if request_options.force_full_backfill else 'false' }}">
+      {% for value in request_options.what_to_show %}
+        <input type="hidden" name="what_to_show" value="{{ value }}">
+      {% endfor %}
+      <div class="actions">
+        <a class="button-link secondary" href="/runs/{{ run.id }}">Edit options</a>
+        <button type="submit" data-loading-label="Queueing...">Execute this plan</button>
+      </div>
+    </form>
+  </div>
 
   <div class="table-wrap">
     <table>

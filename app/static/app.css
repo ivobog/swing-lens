@@ -359,6 +359,22 @@ dd {
   margin-top: 16px;
 }
 
+.plan-options {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 18px;
+  align-items: end;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.plan-options h2 {
+  margin-bottom: 12px;
+}
+
 .fetch-summary h3 {
   margin: 0 0 6px;
   font-size: 15px;
@@ -414,6 +430,11 @@ button {
   background: var(--accent);
   color: #ffffff;
   font-weight: 700;
+}
+
+button.secondary {
+  background: #eef2f6;
+  color: var(--text);
 }
 
 button:disabled {
@@ -792,6 +813,7 @@ td a {
   .workflow-list,
   .detail-grid,
   .ib-layout,
+  .plan-options,
   .cockpit-controls {
     grid-template-columns: 1fr;
   }

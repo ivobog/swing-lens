@@ -250,6 +250,7 @@ def preview_run_ib_fetch_plan(
     if not tickers:
         raise HTTPException(status_code=400, detail="No uploaded tickers are available.")
 
+    what_to_show_values = _what_to_show_values(what_to_show)
     plan = build_fetch_plan(
         db,
         tickers,
@@ -257,11 +258,12 @@ def preview_run_ib_fetch_plan(
         include_benchmarks=include_benchmarks,
         force_refresh=force_refresh,
         force_full_backfill=force_full_backfill,
-        what_to_show_values=_what_to_show_values(what_to_show),
+        what_to_show_values=what_to_show_values,
     )
     if format == "json":
         return fetch_plan_to_dict(plan)
 
+    settings = get_settings()
     return templates.TemplateResponse(
         request,
         "ib_fetch_plan.html",
@@ -270,6 +272,14 @@ def preview_run_ib_fetch_plan(
             "run": run,
             "plan": plan,
             "action_counts": _fetch_plan_action_counts(plan),
+            "request_options": _fetch_request_options(
+                ticker_subset=ticker_subset,
+                include_benchmarks=include_benchmarks,
+                force_refresh=force_refresh,
+                force_full_backfill=force_full_backfill,
+                what_to_show=what_to_show_values,
+            ),
+            "estimated_duration_label": _estimated_fetch_duration_label(plan, settings),
             "json_url": _fetch_plan_json_url(
                 run_id=run_id,
                 ticker_subset=ticker_subset,
@@ -594,6 +604,43 @@ def _what_to_show_values(values: list[str] | None) -> tuple[str, ...]:
     allowed = set(DEFAULT_WHAT_TO_SHOW)
     normalized = tuple(value for value in values or DEFAULT_WHAT_TO_SHOW if value in allowed)
     return normalized or DEFAULT_WHAT_TO_SHOW
+
+
+def _fetch_request_options(
+    ticker_subset: str,
+    include_benchmarks: bool,
+    force_refresh: bool,
+    force_full_backfill: bool,
+    what_to_show: tuple[str, ...],
+) -> dict[str, object]:
+    return {
+        "ticker_subset": ticker_subset,
+        "include_benchmarks": include_benchmarks,
+        "force_refresh": force_refresh,
+        "force_full_backfill": force_full_backfill,
+        "what_to_show": list(what_to_show),
+        "include_adjusted": "ADJUSTED_LAST" in what_to_show,
+        "include_trades": "TRADES" in what_to_show,
+    }
+
+
+def _estimated_fetch_duration_label(plan: FetchPlan, settings) -> str:
+    request_count = plan.estimated_request_count
+    if request_count <= 0:
+        return "No IB requests expected."
+
+    seconds_from_gap = request_count * float(settings.ib_min_seconds_between_requests)
+    seconds_from_rate = request_count / float(settings.ib_requests_per_minute) * 60
+    estimated_seconds = max(seconds_from_gap, seconds_from_rate)
+    if estimated_seconds < 60:
+        return f"About {round(estimated_seconds)} seconds minimum."
+
+    estimated_minutes = estimated_seconds / 60
+    if estimated_minutes < 60:
+        return f"About {round(estimated_minutes, 1)} minutes minimum."
+
+    estimated_hours = estimated_minutes / 60
+    return f"About {round(estimated_hours, 1)} hours minimum."
 
 
 def _fetch_plan_action_counts(plan: FetchPlan) -> list[dict[str, object]]:
