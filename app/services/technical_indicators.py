@@ -8,6 +8,7 @@ import yaml
 
 from app.services.adaptive_technical_features import add_adaptive_features
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
+from app.services.volatility_contraction import add_contraction_features
 
 REQUIRED_COLUMNS = ("date", "open", "high", "low", "close", "volume")
 
@@ -49,8 +50,10 @@ def calculate_technical_features(
         )
 
     adaptive_params = v4_params.get("adaptive_percentiles", {})
+    contraction_params = v4_params.get("volatility_contraction", {})
     features = _calculate_feature_frame(df, params)
     features = add_adaptive_features(features, adaptive_params)
+    features = add_contraction_features(features, contraction_params)
     latest = _latest_features(features)
     debug = {
         "row_count": len(df),
@@ -59,6 +62,9 @@ def calculate_technical_features(
         "columns": list(df.columns),
         "adaptive_percentiles_enabled": bool(
             adaptive_params.get("enabled", True)
+        ),
+        "volatility_contraction_enabled": bool(
+            contraction_params.get("enabled", True)
         ),
     }
 
