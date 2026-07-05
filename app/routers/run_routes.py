@@ -18,6 +18,7 @@ from app.services.export_service import (
     export_filename,
     export_run_csv,
 )
+from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.history_service import recent_decisions, summarize_runs
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_fetch_job_service import (
@@ -208,10 +209,98 @@ def refresh_combined_results_action(run_id: int, db: DbSession) -> RedirectRespo
     if not run_exists:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    score_run_technicals(db, run_id)
     refresh_combined_results(db, run_id)
     db.commit()
-    return RedirectResponse(url=f"/runs/{run_id}", status_code=303)
+    return _redirect_with_query(
+        run_id,
+        {
+            "ib_status": "combined-refreshed",
+            "ib_message": "Combined cockpit rebuilt from existing fundamentals and technicals.",
+        },
+    )
+
+
+@router.post("/runs/{run_id}/fundamentals/recalculate")
+def recalculate_fundamentals_action(run_id: int, db: DbSession) -> RedirectResponse:
+    _require_run(db, run_id)
+    scores = recalculate_run_fundamentals(db, run_id)
+    db.commit()
+    return _redirect_with_query(
+        run_id,
+        {
+            "ib_status": "fundamentals-refreshed",
+            "ib_message": f"Recalculated {len(scores)} fundamental score rows.",
+        },
+    )
+
+
+@router.post("/runs/{run_id}/technicals/refresh")
+def refresh_technicals_action(run_id: int, db: DbSession) -> RedirectResponse:
+    _require_run(db, run_id)
+    scores = score_run_technicals(db, run_id)
+    db.commit()
+    return _redirect_with_query(
+        run_id,
+        {
+            "ib_status": "technicals-refreshed",
+            "ib_message": f"Refreshed {len(scores)} technical score rows from cached OHLCV.",
+        },
+    )
+
+
+@router.post("/runs/{run_id}/pipeline")
+def run_full_pipeline_action(run_id: int, db: DbSession) -> RedirectResponse:
+    run = _load_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    tickers = _unique_tickers(run.raw_company_rows)
+    if not tickers:
+        return _redirect_with_query(
+            run_id,
+            {
+                "ib_status": "pipeline-failed",
+                "ib_message": "No uploaded tickers are available for this run.",
+            },
+        )
+
+    fundamental_scores = recalculate_run_fundamentals(db, run_id)
+    plan = build_fetch_plan(
+        db=db,
+        tickers=tickers,
+        run_id=run_id,
+        include_benchmarks=True,
+        what_to_show_values=DEFAULT_WHAT_TO_SHOW,
+    )
+    technical_scores = score_run_technicals(db, run_id)
+    combined_results = refresh_combined_results(db, run_id)
+
+    message = (
+        f"Recalculated {len(fundamental_scores)} fundamentals, refreshed "
+        f"{len(technical_scores)} technicals, and rebuilt {len(combined_results)} "
+        "combined rows."
+    )
+    status = "pipeline-refreshed"
+    if plan.estimated_request_count:
+        options = FetchJobOptions(include_benchmarks=True)
+        fetch_run = create_queued_fetch_run(db, plan, options)
+        db.commit()
+        submit_fetch_job(fetch_run.id, plan, options)
+        status = "pipeline-queued"
+        message = (
+            f"IB fetch {fetch_run.id} queued for {plan.estimated_request_count} requests. "
+            f"{message} Refresh technicals and combined again after fetch completion."
+        )
+    else:
+        db.commit()
+
+    return _redirect_with_query(
+        run_id,
+        {
+            "ib_status": status,
+            "ib_message": message,
+        },
+    )
 
 
 @router.post("/runs/{run_id}/ib/test")
@@ -236,7 +325,7 @@ def preview_run_ib_fetch_plan(
     request: Request,
     db: DbSession,
     ticker_subset: str = "",
-    include_benchmarks: bool = True,
+    include_benchmarks: bool = False,
     force_refresh: bool = False,
     force_full_backfill: bool = False,
     what_to_show: Annotated[list[str] | None, Query()] = None,
@@ -463,7 +552,7 @@ def _workflow_steps(
     )
     return [
         _workflow_step(
-            "CSV uploaded",
+            "Uploaded",
             "failed" if run.status == "FAILED" else "completed" if rows else "not-started",
             "Raw rows are stored." if rows else "Waiting for a valid CSV.",
         ),
@@ -473,7 +562,17 @@ def _workflow_steps(
             f"{len(run.fundamental_scores)} score rows.",
         ),
         _workflow_step(
-            "IB bars fetched",
+            "Column mapping checked",
+            "completed" if rows else "not-started",
+            "Raw columns mapped to canonical scoring fields." if rows else "Upload a CSV first.",
+        ),
+        _workflow_step(
+            "IB fetch planned",
+            "completed" if rows else "not-started",
+            "Fetch plan can be previewed." if rows else "Upload tickers first.",
+        ),
+        _workflow_step(
+            "OHLCV ready",
             _coverage_status(coverage),
             (
                 f"{coverage.ready_count} ready, {coverage.insufficient_count} short, "
@@ -490,12 +589,12 @@ def _workflow_steps(
             ),
         ),
         _workflow_step(
-            "Combined cockpit",
+            "Cockpit ready",
             "completed" if combined_results else "not-started",
             f"{len(combined_results)} combined rows.",
         ),
         _workflow_step(
-            "Export/review",
+            "Export ready",
             "completed" if combined_results else "not-started",
             "CSV exports are ready." if combined_results else "Generate combined results first.",
         ),

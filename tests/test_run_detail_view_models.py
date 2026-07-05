@@ -74,11 +74,23 @@ def test_workflow_steps_show_warning_for_partial_coverage_and_low_confidence() -
         ),
     )
 
+    assert [step["label"] for step in steps] == [
+        "Uploaded",
+        "Fundamentals scored",
+        "Column mapping checked",
+        "IB fetch planned",
+        "OHLCV ready",
+        "Technicals scored",
+        "Cockpit ready",
+        "Export ready",
+    ]
     assert steps[0]["status"] == "completed"
     assert steps[1]["status"] == "completed"
-    assert steps[2]["status"] == "warning"
-    assert steps[3]["status"] == "warning"
-    assert steps[4]["status"] == "not-started"
+    assert steps[2]["status"] == "completed"
+    assert steps[3]["status"] == "completed"
+    assert steps[4]["status"] == "warning"
+    assert steps[5]["status"] == "warning"
+    assert steps[6]["status"] == "not-started"
 
 
 def test_fetch_form_helpers_normalize_tickers_and_data_types() -> None:
@@ -185,9 +197,17 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert "Run 1" in html
     assert "Raw CSV Preview" in html
     assert "No combined decisions yet." in html
+    assert 'action="/runs/1/pipeline"' in html
+    assert "Run full pipeline" in html
+    assert 'action="/runs/1/fundamentals/recalculate"' in html
+    assert "Recalculate fundamentals" in html
+    assert 'action="/runs/1/technicals/refresh"' in html
+    assert "Refresh technicals" in html
+    assert "Refresh combined" in html
     assert 'formaction="/runs/1/ib/plan"' in html
     assert 'formmethod="get"' in html
-    assert 'name="include_benchmarks" value="false"' in html
+    assert 'name="include_benchmarks" value="true"' in html
+    assert 'name="include_benchmarks" value="false"' not in html
 
 
 def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None:
