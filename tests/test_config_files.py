@@ -62,3 +62,26 @@ def test_fundamentals_v2_config_is_normalized_and_mapped() -> None:
 
     assert configured_fields.issubset(aliases)
     assert priority_fields.issubset(aliases)
+
+
+def test_technical_scoring_v4_config_has_required_sections() -> None:
+    config = yaml.safe_load(Path("config/technical_scoring_v4.yaml").read_text(encoding="utf-8"))
+
+    required_sections = {
+        "engine",
+        "data_confidence",
+        "adaptive_percentiles",
+        "volatility_contraction",
+        "donchian_darvas",
+        "stage_analysis",
+        "relative_leadership",
+        "market_regime_v4",
+        "climax_risk",
+        "regime_weights",
+        "classification_v4",
+    }
+
+    assert required_sections.issubset(config)
+    assert config["engine"]["version"] == "4.0.0"
+    assert config["relative_leadership"]["benchmark_symbols"] == ["SPY", "QQQ"]
+    assert "Late-stage extension" in config["classification_v4"]["danger_priority"]

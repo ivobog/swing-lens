@@ -1,0 +1,124 @@
+engine:
+  version: "4.0.0"
+  base_engine_version: "3.2.0"
+  enabled: true
+  keep_v3_debug: true
+
+data_confidence:
+  require_market_data: true
+  require_benchmark_data: true
+  require_htf_data: true
+  low_confidence_on_missing_optional_data: true
+  minimum_data_quality_score: 7.0
+
+adaptive_percentiles:
+  enabled: true
+  long_lookback: 252
+  medium_lookback: 126
+  atr_contraction_percentile: 35
+  atr_expansion_percentile: 80
+  volume_breakout_percentile: 70
+  volume_climax_percentile: 90
+  range_climax_percentile: 90
+  extension_danger_percentile: 90
+
+volatility_contraction:
+  enabled: true
+  bb_length: 20
+  bb_stddev: 2.0
+  kc_length: 20
+  kc_atr_multiple: 1.5
+  squeeze_enabled: true
+  vcp_min_score: 7.0
+  tight_close_lookback_short: 5
+  tight_close_lookback_long: 10
+  tight_close_max_pct: 2.0
+
+donchian_darvas:
+  enabled: true
+  donchian_short_len: 20
+  donchian_long_len: 55
+  box_lookback: 20
+  max_box_width_pct: 15.0
+  min_box_age: 7
+  breakout_volume_percentile_min: 70
+  breakout_close_ratio_min: 0.65
+
+stage_analysis:
+  enabled: true
+  allow_prime_only_in_stage_2: true
+  allow_stage_1_to_2_transition: true
+  stage3_distribution_min_count: 3
+
+relative_leadership:
+  enabled: true
+  benchmark_symbols:
+    - "SPY"
+    - "QQQ"
+  beta_adjusted_rs: true
+  beta_lookbacks:
+    - 63
+    - 126
+  run_percentiles: true
+  leadership_min_percentile: 70
+
+market_regime_v4:
+  enabled: true
+  use_spy: true
+  use_qqq: true
+  allow_unknown_market_low_confidence: true
+
+climax_risk:
+  enabled: true
+  rsi_warning: 75
+  rsi_danger: 80
+  vertical_move_3d_atr: 3.0
+  vertical_move_5d_atr: 4.5
+  climax_risk_threshold: 7.0
+
+regime_weights:
+  bull_trend:
+    trend: 0.22
+    momentum: 0.20
+    setup: 0.20
+    leadership: 0.14
+    risk_control: 0.10
+    market: 0.08
+    execution: 0.06
+  choppy:
+    trend: 0.18
+    momentum: 0.10
+    setup: 0.24
+    leadership: 0.10
+    risk_control: 0.22
+    market: 0.10
+    execution: 0.06
+  risk_off:
+    trend: 0.10
+    momentum: 0.05
+    setup: 0.10
+    leadership: 0.05
+    risk_control: 0.40
+    market: 0.25
+    execution: 0.05
+
+classification_v4:
+  danger_priority:
+    - "Failed breakout"
+    - "Blowoff top"
+    - "Climax reversal risk"
+    - "Distribution risk"
+    - "Late-stage extension"
+  buyable_classifications:
+    - "Prime clean pullback"
+    - "Clean bull pullback"
+    - "Fresh breakout"
+    - "Volatility contraction setup"
+    - "Tight base breakout"
+    - "RS leader pullback"
+  sub_tags:
+    - "VCP"
+    - "Darvas box"
+    - "Donchian breakout"
+    - "Stage 2"
+    - "RS leader"
