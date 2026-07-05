@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services import technical_score_service
+from app.services.pine_replica_engine import PineReplicaScore
 
 
 def test_score_run_technicals_continues_when_symbol_fails(monkeypatch) -> None:
@@ -54,6 +55,62 @@ def test_unavailable_technical_score_is_export_safe() -> None:
     assert score.action_bias == "No data"
 
 
+def test_score_run_technicals_adds_run_level_leadership_debug(monkeypatch) -> None:
+    class FakeDb:
+        def __init__(self) -> None:
+            self.added = []
+            self.executed = False
+            self.flushed = False
+
+        def execute(self, statement):
+            self.executed = True
+
+        def add_all(self, rows):
+            self.added = rows
+
+        def flush(self):
+            self.flushed = True
+
+    fake_scores = {
+        "AAA": _replica_score("AAA", roc21=1, roc63=2, roc126=3, dual_score=5),
+        "BBB": _replica_score("BBB", roc21=3, roc63=4, roc126=5, dual_score=8),
+    }
+
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_technical_scoring_v4_config",
+        lambda: {
+            "relative_leadership": {
+                "run_percentiles": True,
+                "leadership_min_percentile": 70,
+            },
+            "market_regime_v4": {"use_qqq": False},
+        },
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "_load_price_frame",
+        lambda *args: pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"]),
+    )
+    monkeypatch.setattr(technical_score_service, "_market_features", lambda *args: {})
+    monkeypatch.setattr(
+        technical_score_service,
+        "_score_ticker",
+        lambda **kwargs: fake_scores[kwargs["ticker"].upper()],
+    )
+
+    rows = technical_score_service.score_run_technicals(
+        FakeDb(),
+        run_id=9,
+        tickers=["aaa", "bbb"],
+    )
+
+    assert rows[0].debug_json["leadership"]["leadership_score"] == 5.0
+    assert rows[0].debug_json["leadership"]["leadership_tags"] == []
+    assert rows[1].debug_json["leadership"]["leadership_score"] == 10.0
+    assert rows[1].debug_json["leadership"]["leadership_tags"] == ["rs_leader"]
+
+
 def test_ready_route_returns_operational_shape() -> None:
     response = TestClient(app).get("/ready")
 
@@ -63,3 +120,42 @@ def test_ready_route_returns_operational_shape() -> None:
     assert "database_ok" in payload
     assert "local_dirs_ok" in payload
     assert "checks" in payload
+
+
+def _replica_score(
+    ticker: str,
+    roc21: float,
+    roc63: float,
+    roc126: float,
+    dual_score: float,
+) -> PineReplicaScore:
+    return PineReplicaScore(
+        ticker=ticker,
+        local_trend_score=5.0,
+        trend_score=5.0,
+        momentum_score=5.0,
+        setup_score=dual_score,
+        risk_score=2.0,
+        market_score=5.0,
+        relative_strength_score=dual_score,
+        sector_relative_strength_score=5.0,
+        combined_relative_strength_score=dual_score,
+        htf_score=5.0,
+        dual_score=dual_score,
+        classification="No trade",
+        action_bias="No clear trade",
+        pullback_health="Mixed",
+        suggested_stop=None,
+        suggested_target=None,
+        reward_risk=None,
+        entry_risk_pct=None,
+        insufficient_data=False,
+        missing_data={},
+        debug={
+            "derived": {
+                "stock_roc_short": roc21,
+                "stock_roc_medium": roc63,
+                "stock_roc_long": roc126,
+            }
+        },
+    )

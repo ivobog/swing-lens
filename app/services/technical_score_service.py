@@ -1,3 +1,4 @@
+from dataclasses import asdict, replace
 from decimal import Decimal
 from typing import Any
 
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.tables import RawCompanyRow, TechnicalScore
 from app.services.pine_replica_engine import PineReplicaScore, score_from_feature_result
 from app.services.price_bar_repository import load_preferred_ohlcv_frames
-from app.services.relative_leadership import calculate_beta_adjusted_rs
+from app.services.relative_leadership import calculate_beta_adjusted_rs, rank_technical_universe
 from app.services.technical_indicators import (
     calculate_htf_trend_features,
     calculate_relative_strength_features,
@@ -33,7 +34,7 @@ def score_run_technicals(
     market_features = _market_features(benchmark_price, benchmark_ticker)
     qqq_market_features = _optional_market_features(db, "QQQ", v4_params)
 
-    scores: list[TechnicalScore] = []
+    score_results: list[PineReplicaScore | TechnicalScore] = []
     for ticker in symbols:
         try:
             score = _score_ticker(
@@ -44,9 +45,28 @@ def score_run_technicals(
                 qqq_market_features=qqq_market_features,
                 v4_params=v4_params,
             )
-            scores.append(build_technical_score(run_id=run_id, score=score))
+            score_results.append(score)
         except Exception as exc:
-            scores.append(unavailable_technical_score(run_id, ticker, str(exc)))
+            score_results.append(unavailable_technical_score(run_id, ticker, str(exc)))
+
+    scored = [
+        result
+        for result in score_results
+        if isinstance(result, PineReplicaScore)
+    ]
+    leadership = rank_technical_universe(
+        [_leadership_rank_input(score) for score in scored],
+        v4_params.get("relative_leadership", {}),
+    )
+    scores = [
+        build_technical_score(
+            run_id=run_id,
+            score=_with_leadership_debug(result, leadership),
+        )
+        if isinstance(result, PineReplicaScore)
+        else result
+        for result in score_results
+    ]
 
     if symbols:
         db.execute(
@@ -182,6 +202,33 @@ def _optional_market_features(
         return {}
     price = _load_price_frame(db, ticker)
     return _market_features(price, ticker)
+
+
+def _leadership_rank_input(score: PineReplicaScore) -> dict[str, Any]:
+    derived = score.debug.get("derived", {}) if score.debug else {}
+    return {
+        "ticker": score.ticker,
+        "roc21": derived.get("stock_roc_short"),
+        "roc63": derived.get("stock_roc_medium"),
+        "roc126": derived.get("stock_roc_long"),
+        "benchmark_rs_score": score.relative_strength_score,
+        "dual_score": score.dual_score,
+        "setup_score": score.setup_score,
+    }
+
+
+def _with_leadership_debug(
+    score: PineReplicaScore,
+    leadership: dict[str, Any],
+) -> PineReplicaScore:
+    leadership_result = leadership.get(score.ticker.upper())
+    if leadership_result is None:
+        return score
+    debug = {
+        **(score.debug or {}),
+        "leadership": asdict(leadership_result),
+    }
+    return replace(score, debug=debug)
 
 
 def _tickers_for_run(db: Session, run_id: int) -> list[str]:
