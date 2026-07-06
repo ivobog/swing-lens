@@ -290,6 +290,7 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
     fundamental = _fundamental("MSFT")
     combined = _combined("MSFT", "Candidate", is_complete=True, has_warning=True)
+    combined.company_name = "Microsoft Corporation"
     combined.fundamental_score = Decimal("7.4")
     combined.fundamental_label = "High-quality quant"
     combined.warning_flags_json = ["high_accrual_risk"]
@@ -315,10 +316,13 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert 'data-copy-tickers="candidates"' in html
     assert 'data-sort-key="final-score"' in html
     assert 'data-sort-key="warning-count"' in html
+    assert "<th>Company</th>" not in html
+    assert 'data-sort-key="position-size"' not in html
+    assert 'class="ticker-with-company" title="Microsoft Corporation">MSFT</strong>' in html
     assert 'data-warning-count="1"' in html
     assert 'data-candidate-plus="true"' in html
     assert 'data-clean="false"' in html
-    assert 'data-copy-single="MSFT"' in html
+    assert 'data-copy-single="MSFT"' not in html
     assert "https://www.tradingview.com/chart/?symbol=MSFT" in html
 
 

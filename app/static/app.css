@@ -743,11 +743,15 @@ table {
 }
 
 .cockpit-table td:nth-child(3),
+.cockpit-table td:nth-child(6),
 .cockpit-table td:nth-child(7),
-.cockpit-table td:nth-child(8),
-.cockpit-table td:nth-child(9) {
+.cockpit-table td:nth-child(8) {
   min-width: 150px;
   white-space: normal;
+}
+
+.ticker-with-company {
+  cursor: help;
 }
 
 th,

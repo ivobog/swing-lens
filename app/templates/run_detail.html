@@ -488,14 +488,12 @@
           <tr>
             <th><button class="sort-button" type="button" data-sort-key="rank" data-sort-type="number">Rank</button></th>
             <th><button class="sort-button" type="button" data-sort-key="ticker" data-sort-type="text">Ticker</button></th>
-            <th>Company</th>
             <th><button class="sort-button" type="button" data-sort-key="sector" data-sort-type="text">Sector</button></th>
             <th><button class="sort-button" type="button" data-sort-key="final-score" data-sort-type="number">Final</button></th>
             <th><button class="sort-button" type="button" data-sort-key="decision" data-sort-type="text">Decision</button></th>
             <th><button class="sort-button" type="button" data-sort-key="warning-count" data-sort-type="number">Warnings</button></th>
             <th><button class="sort-button" type="button" data-sort-key="fundamental-score" data-sort-type="number">Fundamental</button></th>
             <th><button class="sort-button" type="button" data-sort-key="technical-score" data-sort-type="number">Technical</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="position-size" data-sort-type="text">Size</button></th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -531,8 +529,7 @@
               data-position-size="{{ result.position_size_hint or '' }}"
             >
               <td>{{ result.final_rank }}</td>
-              <td><strong>{{ result.ticker }}</strong></td>
-              <td>{{ result.company_name or "" }}</td>
+              <td><strong class="ticker-with-company" title="{{ result.company_name or '' }}">{{ result.ticker }}</strong></td>
               <td>{{ result.sector or "" }}</td>
               <td>{{ "%.2f"|format(result.final_score) if result.final_score is not none else "" }}</td>
               <td>
@@ -567,19 +564,14 @@
                 {% endif %}
               </td>
               <td>
-                {{ result.position_size_hint or "" }}
-                <span class="muted-line">Research hint</span>
-              </td>
-              <td>
                 <div class="row-actions">
                   <button class="icon-button" type="button" data-detail-toggle aria-expanded="false">Details</button>
-                  <button class="icon-button" type="button" data-copy-single="{{ result.ticker }}">Copy</button>
                   <a href="https://www.tradingview.com/chart/?symbol={{ result.ticker }}" target="_blank" rel="noopener">TradingView</a>
                 </div>
               </td>
             </tr>
             <tr class="detail-row" data-detail-row hidden>
-              <td colspan="11">
+              <td colspan="9">
                 <div class="detail-grid">
                   <div>
                     <h3>Fundamentals</h3>
