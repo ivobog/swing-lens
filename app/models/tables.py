@@ -61,6 +61,10 @@ class UploadRun(Base):
         back_populates="run",
         cascade="all, delete-orphan",
     )
+    pipeline_runs: Mapped[list["PipelineRun"]] = relationship(
+        back_populates="upload_run",
+        cascade="all, delete-orphan",
+    )
     engine_parameters: Mapped[list["EngineParameters"]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",
@@ -516,6 +520,77 @@ class EngineParameters(Base):
     run: Mapped[UploadRun] = relationship(back_populates="engine_parameters")
 
     __table_args__ = (Index("idx_engine_parameters_run_id", "run_id"),)
+
+
+class PipelineRun(Base):
+    __tablename__ = "pipeline_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    upload_run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    current_step: Mapped[str | None] = mapped_column(Text)
+    requested_by: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    message: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    upload_run: Mapped[UploadRun] = relationship(back_populates="pipeline_runs")
+    steps: Mapped[list["PipelineStep"]] = relationship(
+        back_populates="pipeline_run",
+        cascade="all, delete-orphan",
+        order_by="PipelineStep.step_order",
+    )
+
+    __table_args__ = (
+        Index("idx_pipeline_runs_upload_run_id", "upload_run_id"),
+        Index("idx_pipeline_runs_status", "status"),
+        Index("idx_pipeline_runs_created_at", "created_at"),
+    )
+
+
+class PipelineStep(Base):
+    __tablename__ = "pipeline_steps"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    step_name: Mapped[str] = mapped_column(Text, nullable=False)
+    step_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    message: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    retry_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    pipeline_run: Mapped[PipelineRun] = relationship(back_populates="steps")
+
+    __table_args__ = (
+        Index("idx_pipeline_steps_pipeline_run_id", "pipeline_run_id"),
+        UniqueConstraint(
+            "pipeline_run_id",
+            "step_name",
+            name="uq_pipeline_steps_pipeline_step",
+        ),
+    )
 
 
 class BackgroundJob(Base):
