@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens {{ ticker }} Chart{% endblock %}
+
+{% block content %}
+{% set score_cards = score_cards|default([]) %}
+{% set chart_data_url = chart_data_url|default("/api/runs/" ~ run.id ~ "/tickers/" ~ ticker ~ "/chart-data") %}
+{% set back_url = back_url|default("/runs/" ~ run.id) %}
+
+<section class="panel chart-panel" data-chart-url="{{ chart_data_url }}">
+  <div class="panel-header chart-panel-header">
+    <div>
+      <a class="back-link" href="{{ back_url }}">Back to run {{ run.id }}</a>
+      <h1>{{ ticker }}</h1>
+      <p>
+        {{ company_name or "Unknown company" }}
+        {% if sector %}<span class="muted-inline">/ {{ sector }}</span>{% endif %}
+      </p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="{{ back_url }}">Run detail</a>
+    </div>
+  </div>
+
+  <div class="run-meta">
+    {% if combined %}
+      <span class="summary-item"><strong>Rank</strong> {{ combined.final_rank or "N/A" }}</span>
+      <span class="summary-item">
+        <strong>Final</strong>
+        {{ "%.2f"|format(combined.final_score) if combined.final_score is not none else "N/A" }}
+      </span>
+      <span class="summary-item">
+        <strong>Decision</strong> {{ combined.combined_decision or "Unclassified" }}
+      </span>
+      <span class="summary-item">
+        <strong>Position</strong> {{ combined.position_size_hint or "N/A" }}
+      </span>
+    {% else %}
+      <span class="summary-item"><strong>Decision</strong> No combined result</span>
+    {% endif %}
+  </div>
+</section>
+
+<section class="chart-panel-grid section-gap">
+  <article class="panel chart-card">
+    <div class="panel-header compact-header">
+      <div>
+        <h2>Price Chart</h2>
+        <p>Cached daily OHLCV bars, volume, moving averages, and risk levels.</p>
+      </div>
+    </div>
+    <div id="ticker-chart" class="ticker-chart" role="img" aria-label="{{ ticker }} price chart">
+      <div id="ticker-chart-empty" class="chart-empty" hidden>
+        Chart data has not loaded yet.
+      </div>
+    </div>
+    <noscript>
+      <p class="chart-empty">Chart rendering requires JavaScript. Scoring values are shown below.</p>
+    </noscript>
+  </article>
+
+  <aside class="panel score-card score-card-primary">
+    <h2>Decision Summary</h2>
+    <dl class="compact-dl">
+      <dt>Company</dt>
+      <dd>{{ company_name or "N/A" }}</dd>
+      <dt>Sector</dt>
+      <dd>{{ sector or "N/A" }}</dd>
+      <dt>Final Score</dt>
+      <dd>{{ "%.2f"|format(combined.final_score) if combined and combined.final_score is not none else "N/A" }}</dd>
+      <dt>Decision</dt>
+      <dd>{{ combined.combined_decision if combined else "N/A" }}</dd>
+      <dt>Position Size</dt>
+      <dd>{{ combined.position_size_hint if combined else "N/A" }}</dd>
+      {% if technical %}
+        <dt>Stop</dt>
+        <dd>{{ "%.2f"|format(technical.suggested_stop) if technical.suggested_stop is not none else "N/A" }}</dd>
+        <dt>Target</dt>
+        <dd>{{ "%.2f"|format(technical.suggested_target) if technical.suggested_target is not none else "N/A" }}</dd>
+        <dt>Reward/Risk</dt>
+        <dd>{{ "%.2f"|format(technical.reward_risk) if technical.reward_risk is not none else "N/A" }}</dd>
+        <dt>Entry Risk</dt>
+        <dd>{{ "%.2f"|format(technical.entry_risk_pct) if technical.entry_risk_pct is not none else "N/A" }}</dd>
+      {% endif %}
+    </dl>
+  </aside>
+</section>
+
+<section class="score-grid section-gap" aria-label="Ticker score cards">
+  {% for card in score_cards %}
+    <article class="panel score-card">
+      <h2>{{ card.title }}</h2>
+      {% if card["badges"] %}
+        <div class="badge-list">
+          {% for badge in card["badges"] %}
+            <span class="badge badge-{{ badge['tone'] }}">{{ badge["label"] }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <dl class="score-list">
+        {% for item in card["items"] %}
+          <div class="score-item">
+            <dt>{{ item["label"] }}</dt>
+            <dd class="score-value {{ item['tone'] }}">{{ item["value"] }}</dd>
+          </div>
+        {% endfor %}
+      </dl>
+    </article>
+  {% else %}
+    <article class="panel score-card">
+      <h2>Scoring</h2>
+      <p>No scoring values are available for this ticker.</p>
+    </article>
+  {% endfor %}
+</section>
+
+<script src="{{ url_for('static', path='/vendor/lightweight-charts.standalone.production.js') }}"></script>
+<script src="{{ url_for('static', path='/ticker_chart_panel.js') }}"></script>
+{% endblock %}

@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from app.models.tables import CombinedResult, FundamentalScore, RawCompanyRow, UploadRun
 from app.routers import run_routes
+from app.templates import templates
 
 
 def test_ticker_chart_panel_renders_context(monkeypatch) -> None:
@@ -99,6 +100,32 @@ def test_ticker_chart_data_validates_ticker_and_returns_payload(monkeypatch) -> 
 
     assert result is payload
     assert calls == {"db": db, "run_id": 7, "ticker": "MSFT"}
+
+
+def test_ticker_chart_panel_template_smoke_renders_chart_hooks(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = _run()
+
+    monkeypatch.setattr(run_routes, "_load_run", lambda db, run_id: run)
+    context = run_routes._ticker_chart_context(SimpleNamespace(), 7, "MSFT")
+    html = templates.get_template("ticker_chart_panel.html").render(
+        active_nav="runs",
+        **context,
+    )
+
+    assert "SwingLens MSFT Chart" in html
+    assert 'class="panel chart-panel"' in html
+    assert 'data-chart-url="/api/runs/7/tickers/MSFT/chart-data"' in html
+    assert 'id="ticker-chart"' in html
+    assert 'id="ticker-chart-empty"' in html
+    assert "ticker_chart_panel.js" in html
+    assert "vendor/lightweight-charts.standalone.production.js" in html
+    assert "Combined Decision" in html
+    assert "Fundamentals" in html
+    assert "Technicals" in html
+    assert "Risk Context" in html
+    assert "Warnings and Missing Data" in html
+    assert "Back to run 7" in html
 
 
 def _run() -> UploadRun:
