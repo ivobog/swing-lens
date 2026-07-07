@@ -38,7 +38,7 @@ def run_worker(
 ) -> None:
     settings = settings or get_settings()
     worker_id = settings.job_worker_id
-    handlers = handlers or {}
+    handlers = handlers or default_job_handlers()
 
     while True:
         ran_job = run_worker_once(
@@ -60,7 +60,7 @@ def run_worker_once(
     session_factory: sessionmaker[Session],
     handlers: Mapping[str, JobHandler] | None = None,
 ) -> bool:
-    handlers = handlers or {}
+    handlers = handlers or default_job_handlers()
     db = session_factory()
     try:
         recovered_count = recover_stale_jobs(db, stale_after_seconds)
@@ -105,3 +105,26 @@ def execute_job(
     if handler is None:
         raise ValueError(f"Unsupported job type: {job.job_type}")
     return handler(db, job)
+
+
+def default_job_handlers() -> dict[str, JobHandler]:
+    return {"FULL_PIPELINE": _execute_full_pipeline_job}
+
+
+def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any] | None:
+    from app.services.background_job_service import is_cancel_requested
+    from app.services.pipeline_executor import PipelineCancelled, execute_full_pipeline
+
+    pipeline_run_id = job.payload_json.get("pipeline_run_id")
+    if pipeline_run_id is None:
+        raise ValueError("FULL_PIPELINE job payload is missing pipeline_run_id.")
+
+    try:
+        result = execute_full_pipeline(
+            db=db,
+            pipeline_run_id=int(pipeline_run_id),
+            should_cancel=lambda: is_cancel_requested(db, job.id),
+        )
+    except PipelineCancelled as exc:
+        raise CancelRequested(str(exc)) from exc
+    return result.__dict__
