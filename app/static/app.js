@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindCockpitTables();
   bindCoverageTables();
   bindFetchProgressPolling();
+  bindPipelineProgressPolling();
   bindFileInputs();
 });
 
@@ -436,6 +437,76 @@ function updateFetchItemRows(items) {
     setText(row, "[data-item-unchanged]", item.unchanged);
     setText(row, "[data-item-attempts]", item.attempt_count);
     setText(row, "[data-item-error]", item.error_message || "");
+  });
+}
+
+function bindPipelineProgressPolling() {
+  const root = document.querySelector("[data-pipeline-progress]");
+  if (!root) return;
+
+  const statusUrl = root.dataset.statusUrl;
+  const terminalStatuses = new Set((root.dataset.terminalStatuses || "").split(","));
+  if (!statusUrl) return;
+
+  const poll = async () => {
+    try {
+      const response = await fetch(statusUrl, { headers: { Accept: "application/json" } });
+      if (!response.ok) return;
+      const data = await response.json();
+      updatePipelineProgress(root, data);
+      if (!terminalStatuses.has(data.status)) {
+        window.setTimeout(poll, 3000);
+      }
+    } catch (_error) {
+      window.setTimeout(poll, 5000);
+    }
+  };
+
+  if (!terminalStatuses.has(textOf(root, "[data-pipeline-status]"))) {
+    window.setTimeout(poll, 1000);
+  }
+}
+
+function updatePipelineProgress(root, data) {
+  const current = data.current_step_label || "";
+  const message = data.error_message || data.message || "";
+
+  setText(root, "[data-pipeline-status]", data.status);
+  setText(root, "[data-pipeline-status-metric]", data.status);
+  setText(root, "[data-pipeline-created]", data.created_at || "");
+  setText(root, "[data-pipeline-started]", data.started_at || "");
+  setText(root, "[data-pipeline-completed]", data.completed_at || "");
+  setText(root, "[data-pipeline-current]", current);
+  setText(root, "[data-pipeline-current-metric]", current || "None");
+  setText(root, "[data-pipeline-job-status]", data.job_status || "");
+  setText(root, "[data-pipeline-job-metric]", data.job_status || "None");
+  setText(root, "[data-pipeline-cancel-metric]", data.job_cancel_requested ? "Requested" : "No");
+  setText(root, "[data-pipeline-percentage]", `${Number(data.percentage || 0).toFixed(1)}%`);
+  setText(root, "[data-pipeline-completed-steps]", data.completed_steps);
+  setText(root, "[data-pipeline-total-steps]", data.total_steps);
+
+  const messageElement = root.querySelector("[data-pipeline-message]");
+  if (messageElement) {
+    messageElement.textContent = message;
+    messageElement.hidden = !message;
+  }
+
+  const fill = root.querySelector("[data-pipeline-fill]");
+  if (fill) fill.style.width = `${Math.min(Number(data.percentage || 0), 100)}%`;
+
+  updatePipelineStepRows(data.steps || []);
+}
+
+function updatePipelineStepRows(steps) {
+  steps.forEach((step) => {
+    const selector = `[data-pipeline-step-row][data-step-name="${cssEscape(step.step_name)}"]`;
+    const row = document.querySelector(selector);
+    if (!row) return;
+    setText(row, "[data-step-status]", step.status);
+    setText(row, "[data-step-started]", step.started_at || "");
+    setText(row, "[data-step-completed]", step.completed_at || "");
+    setText(row, "[data-step-message]", step.message || "");
+    setText(row, "[data-step-error]", step.error_message || "");
   });
 }
 

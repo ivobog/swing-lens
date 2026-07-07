@@ -14,6 +14,9 @@ from app.routers.run_routes import (
     _fetch_plan_action_counts,
     _fetch_plan_json_url,
     _fetch_request_options,
+    _parse_bool_filter,
+    _parse_date_filter,
+    _parse_decimal_filter,
     _run_summary,
     _tickers_from_fetch_form,
     _warning_badges,
@@ -98,6 +101,16 @@ def test_fetch_form_helpers_normalize_tickers_and_data_types() -> None:
     assert _tickers_from_fetch_form("msft, AAPL\nmsft NVDA") == ["MSFT", "AAPL", "NVDA"]
     assert _what_to_show_values(["TRADES", "BAD"]) == ("TRADES",)
     assert _what_to_show_values([]) == ("ADJUSTED_LAST", "TRADES")
+
+
+def test_filter_parsers_ignore_blank_values() -> None:
+    assert _parse_date_filter("") is None
+    assert _parse_decimal_filter("") is None
+    assert _parse_bool_filter("") is None
+    assert str(_parse_date_filter("2026-07-07")) == "2026-07-07"
+    assert _parse_decimal_filter("7.5") == Decimal("7.5")
+    assert _parse_bool_filter("true") is True
+    assert _parse_bool_filter("false") is False
 
 
 def test_fetch_request_options_and_duration_label() -> None:
@@ -213,6 +226,61 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert 'formmethod="get"' in html
     assert 'name="include_benchmarks" value="true"' in html
     assert 'name="include_benchmarks" value="false"' not in html
+
+
+def test_pipeline_progress_template_renders_steps(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=7, filename="sample.csv", row_count=1, status="COMPLETED")
+    pipeline = {
+        "pipeline_run_id": 99,
+        "status": "RUNNING",
+        "current_step_label": "Fetching Market Data",
+        "created_at": "",
+        "started_at": "",
+        "completed_at": "",
+        "message": "working",
+        "error_message": None,
+        "job_status": "RUNNING",
+        "job_cancel_requested": False,
+        "completed_steps": 1,
+        "total_steps": 2,
+        "percentage": 50.0,
+        "steps": [
+            {
+                "step_name": "VALIDATING_RUN",
+                "label": "Validating Run",
+                "step_order": 1,
+                "status": "COMPLETED",
+                "started_at": "",
+                "completed_at": "",
+                "message": None,
+                "error_message": None,
+            },
+            {
+                "step_name": "FETCHING_MARKET_DATA",
+                "label": "Fetching Market Data",
+                "step_order": 2,
+                "status": "RUNNING",
+                "started_at": "",
+                "completed_at": "",
+                "message": None,
+                "error_message": None,
+            },
+        ],
+    }
+
+    html = templates.get_template("pipeline_progress.html").render(
+        run=run,
+        pipeline=pipeline,
+        terminal_statuses=["COMPLETED", "PARTIAL", "FAILED", "CANCELLED"],
+        status_url="/runs/7/pipeline/99/status",
+    )
+
+    assert "Pipeline 99" in html
+    assert 'data-pipeline-progress' in html
+    assert 'data-status-url="/runs/7/pipeline/99/status"' in html
+    assert "Fetching Market Data" in html
+    assert "Cancel pipeline" in html
 
 
 def test_run_detail_collapses_secondary_tables_by_default(monkeypatch) -> None:

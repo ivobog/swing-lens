@@ -1,3 +1,5 @@
+from datetime import date
+from decimal import Decimal
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -7,7 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
-from app.models.tables import CombinedResult, RawCompanyRow, TechnicalScore, UploadRun
+from app.models.tables import (
+    BackgroundJob,
+    CombinedResult,
+    RawCompanyRow,
+    TechnicalScore,
+    UploadRun,
+)
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import summarize_run_column_mapping
@@ -22,7 +30,12 @@ from app.services.export_service import (
     export_run_csv,
 )
 from app.services.fundamental_score_service import recalculate_run_fundamentals
-from app.services.history_service import recent_decisions, summarize_runs
+from app.services.history_query_service import (
+    DecisionFilters,
+    RunFilters,
+    paged_decisions,
+    paged_runs,
+)
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_fetch_job_service import (
     FetchJobOptions,
@@ -37,6 +50,13 @@ from app.services.ib_fetch_summary_service import (
     latest_ib_fetch_for_run,
 )
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary, summarize_run_ohlcv_coverage
+from app.services.pipeline_service import (
+    PIPELINE_TERMINAL_STATUSES,
+    PipelineStatusDto,
+    cancel_pipeline,
+    get_pipeline_status,
+    start_pipeline,
+)
 from app.services.technical_display_fields import technical_v4_details_by_ticker
 from app.services.technical_score_service import score_run_technicals
 from app.settings import get_settings
@@ -82,25 +102,99 @@ WARNING_BADGE_LABELS = {
 
 
 @router.get("/runs", response_class=HTMLResponse)
-def runs_page(request: Request, db: DbSession) -> HTMLResponse:
-    runs = db.scalars(select(UploadRun).order_by(UploadRun.uploaded_at.desc())).all()
-    return templates.TemplateResponse(request, "runs.html", {"active_nav": "runs", "runs": runs})
+def runs_page(
+    request: Request,
+    db: DbSession,
+    page: int = 1,
+    page_size: int | None = None,
+    status: str = "",
+    from_date: str = "",
+    to_date: str = "",
+    search: str = "",
+    sort: str = "uploaded_at",
+    direction: str = "desc",
+) -> HTMLResponse:
+    settings = get_settings()
+    effective_page_size = page_size or settings.runs_default_page_size
+    filters = RunFilters(
+        status=status or None,
+        from_date=_parse_date_filter(from_date),
+        to_date=_parse_date_filter(to_date),
+        search=search.strip() or None,
+        sort=sort,
+        direction=direction,
+    )
+    runs_page_data = paged_runs(
+        db,
+        filters,
+        page=page,
+        page_size=effective_page_size,
+        max_page_size=settings.history_max_page_size,
+    )
+    return templates.TemplateResponse(
+        request,
+        "runs.html",
+        {
+            "active_nav": "runs",
+            "runs": runs_page_data.items,
+            "page": runs_page_data,
+            "filters": filters,
+            "query_params": _pagination_query_params(request),
+        },
+    )
 
 
 @router.get("/history", response_class=HTMLResponse)
-def history_page(request: Request, db: DbSession) -> HTMLResponse:
-    runs = db.scalars(
-        select(UploadRun)
-        .options(selectinload(UploadRun.combined_results))
-        .order_by(UploadRun.uploaded_at.desc())
-    ).all()
+def history_page(
+    request: Request,
+    db: DbSession,
+    page: int = 1,
+    page_size: int | None = None,
+    from_date: str = "",
+    to_date: str = "",
+    decision: str = "",
+    ticker: str = "",
+    sector: str = "",
+    min_score: str = "",
+    has_warning: str = "",
+    incomplete_only: bool = False,
+) -> HTMLResponse:
+    settings = get_settings()
+    effective_page_size = page_size or settings.history_default_page_size
+    filters = DecisionFilters(
+        from_date=_parse_date_filter(from_date),
+        to_date=_parse_date_filter(to_date),
+        decision=decision or None,
+        ticker=ticker.strip() or None,
+        sector=sector or None,
+        min_score=_parse_decimal_filter(min_score),
+        has_warning=_parse_bool_filter(has_warning),
+        incomplete_only=incomplete_only,
+    )
+    decisions_page_data = paged_decisions(
+        db,
+        filters,
+        page=page,
+        page_size=effective_page_size,
+        max_page_size=settings.history_max_page_size,
+    )
+    recent_runs_page = paged_runs(
+        db,
+        RunFilters(),
+        page=1,
+        page_size=5,
+        max_page_size=5,
+    )
     return templates.TemplateResponse(
         request,
         "history.html",
         {
             "active_nav": "history",
-            "run_summaries": summarize_runs(list(runs)),
-            "recent_decisions": recent_decisions(list(runs), limit=100),
+            "run_summaries": recent_runs_page.items,
+            "recent_decisions": decisions_page_data.items,
+            "decisions_page": decisions_page_data,
+            "filters": filters,
+            "query_params": _pagination_query_params(request),
         },
     )
 
@@ -110,6 +204,7 @@ def run_detail_page(
     run_id: int,
     request: Request,
     db: DbSession,
+    pipeline_id: int | None = None,
 ) -> HTMLResponse:
     run = _load_run(db, run_id)
     if not run:
@@ -124,6 +219,7 @@ def run_detail_page(
     coverage = summarize_run_ohlcv_coverage(db, run.id)
     latest_fetch = latest_ib_fetch_for_run(db, run.id)
     settings = get_settings()
+    latest_pipeline = _pipeline_status_for_run(db, run.id, pipeline_id)
     return templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -150,6 +246,7 @@ def run_detail_page(
             ),
             "coverage": coverage,
             "latest_fetch": latest_fetch,
+            "latest_pipeline": latest_pipeline,
             "ib_panel": {
                 "host": settings.ib_host,
                 "port": settings.ib_port,
@@ -305,6 +402,22 @@ def refresh_technicals_action(run_id: int, db: DbSession) -> RedirectResponse:
 
 @router.post("/runs/{run_id}/pipeline")
 def run_full_pipeline_action(run_id: int, db: DbSession) -> RedirectResponse:
+    settings = get_settings()
+    if settings.use_durable_pipeline:
+        try:
+            pipeline = start_pipeline(db, run_id)
+            db.commit()
+            return RedirectResponse(
+                url=f"/runs/{run_id}/pipeline/{pipeline.id}",
+                status_code=303,
+            )
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception:
+            db.rollback()
+            raise
+
     run = _load_run(db, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
@@ -356,6 +469,59 @@ def run_full_pipeline_action(run_id: int, db: DbSession) -> RedirectResponse:
             "ib_message": message,
         },
     )
+
+
+@router.get("/runs/{run_id}/pipeline/{pipeline_id}", response_class=HTMLResponse)
+def run_pipeline_progress_page(
+    run_id: int,
+    pipeline_id: int,
+    request: Request,
+    db: DbSession,
+) -> HTMLResponse:
+    run = _load_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    status = _require_pipeline_for_run(db, pipeline_id, run_id)
+    return templates.TemplateResponse(
+        request,
+        "pipeline_progress.html",
+        {
+            "active_nav": "runs",
+            "run": run,
+            "pipeline": _pipeline_status_payload(db, status),
+            "terminal_statuses": sorted(PIPELINE_TERMINAL_STATUSES),
+            "status_url": f"/runs/{run_id}/pipeline/{pipeline_id}/status",
+        },
+    )
+
+
+@router.get("/runs/{run_id}/pipeline/{pipeline_id}/status")
+def run_pipeline_status(run_id: int, pipeline_id: int, db: DbSession) -> dict[str, object]:
+    status = _require_pipeline_for_run(db, pipeline_id, run_id)
+    return _pipeline_status_payload(db, status)
+
+
+@router.post("/runs/{run_id}/pipeline/{pipeline_id}/cancel")
+def cancel_run_pipeline_action(
+    run_id: int,
+    pipeline_id: int,
+    db: DbSession,
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    try:
+        existing = get_pipeline_status(db, pipeline_id)
+        if existing.upload_run_id != run_id:
+            raise HTTPException(status_code=404, detail="Pipeline run not found for this run.")
+        cancel_pipeline(db, pipeline_id)
+        db.commit()
+        return RedirectResponse(
+            url=f"/runs/{run_id}/pipeline/{pipeline_id}",
+            status_code=303,
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/runs/{run_id}/ib/test")
@@ -938,6 +1104,104 @@ def _coverage_actions(coverage: OhlcvCoverageSummary) -> dict[str, str]:
         )
         for name, target_statuses in statuses.items()
     }
+
+
+def _pipeline_status_for_run(
+    db: Session,
+    run_id: int,
+    pipeline_id: int | None,
+) -> dict[str, object] | None:
+    if pipeline_id is None:
+        return None
+    status = _require_pipeline_for_run(db, pipeline_id, run_id)
+    return _pipeline_status_payload(db, status)
+
+
+def _require_pipeline_for_run(
+    db: Session,
+    pipeline_id: int,
+    run_id: int,
+) -> PipelineStatusDto:
+    try:
+        status = get_pipeline_status(db, pipeline_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if status.upload_run_id != run_id:
+        raise HTTPException(status_code=404, detail="Pipeline run not found for this run.")
+    return status
+
+
+def _pipeline_status_payload(
+    db: Session,
+    status: PipelineStatusDto,
+) -> dict[str, object]:
+    steps = [
+        {
+            "step_name": step.step_name,
+            "label": step.step_name.replace("_", " ").title(),
+            "step_order": step.step_order,
+            "status": step.status,
+            "started_at": step.started_at,
+            "completed_at": step.completed_at,
+            "message": step.message,
+            "error_message": step.error_message,
+            "retry_count": step.retry_count,
+        }
+        for step in status.steps
+    ]
+    completed_steps = sum(step["status"] in {"COMPLETED", "SKIPPED"} for step in steps)
+    total_steps = len(steps)
+    job = db.get(BackgroundJob, status.background_job_id) if status.background_job_id else None
+    return {
+        "pipeline_run_id": status.pipeline_run_id,
+        "upload_run_id": status.upload_run_id,
+        "status": status.status,
+        "current_step": status.current_step,
+        "current_step_label": (
+            status.current_step.replace("_", " ").title() if status.current_step else ""
+        ),
+        "requested_by": status.requested_by,
+        "started_at": status.started_at,
+        "completed_at": status.completed_at,
+        "created_at": status.created_at,
+        "message": status.message,
+        "error_message": status.error_message,
+        "background_job_id": status.background_job_id,
+        "job_status": job.status if job else None,
+        "job_cancel_requested": bool(job.requested_cancel) if job else False,
+        "completed_steps": completed_steps,
+        "total_steps": total_steps,
+        "percentage": round((completed_steps / total_steps) * 100, 1) if total_steps else 0.0,
+        "steps": steps,
+    }
+
+
+def _pagination_query_params(request: Request) -> str:
+    params = [
+        (key, value)
+        for key, value in request.query_params.multi_items()
+        if key != "page" and value not in {"", "None"}
+    ]
+    return urlencode(params)
+
+
+def _parse_date_filter(value: str) -> date | None:
+    value = value.strip()
+    return date.fromisoformat(value) if value else None
+
+
+def _parse_decimal_filter(value: str) -> Decimal | None:
+    value = value.strip()
+    return Decimal(value) if value else None
+
+
+def _parse_bool_filter(value: str) -> bool | None:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "off"}:
+        return False
+    return None
 
 
 def _redirect_with_query(run_id: int, params: dict[str, str]) -> RedirectResponse:

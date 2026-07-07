@@ -649,6 +649,42 @@ table {
   margin-bottom: 16px;
 }
 
+.history-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.history-filters label:not(.toggle-row) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.history-filters input,
+.history-filters select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.pagination-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .cockpit-toolbar {
   display: grid;
   gap: 10px;
@@ -976,7 +1012,8 @@ td a {
   .progress-grid,
   .coverage-action-grid,
   .cockpit-toolbar,
-  .cockpit-controls {
+  .cockpit-controls,
+  .history-filters {
     grid-template-columns: 1fr;
   }
 
@@ -998,6 +1035,10 @@ td a {
   }
 
   .cockpit-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .history-filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 

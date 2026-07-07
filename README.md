@@ -31,13 +31,17 @@ The project supports the locally installed Python 3.12 line and can move forward
 
 ## Local Setup
 
-Create a virtual environment:
+Recommended reproducible setup uses the checked-in `uv.lock` file:
 
 ```powershell
-python -m venv .venv
+python -m pip install uv
+uv sync --frozen --extra dev
+```
+
+Activate the environment:
+
+```powershell
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
 ```
 
 Create a local `.env` from `.env.example` and adjust PostgreSQL or IB Gateway settings if needed:
@@ -69,6 +73,29 @@ Readiness check:
 ```text
 http://127.0.0.1:8000/ready
 ```
+
+## Dependency Management
+
+`pyproject.toml` is the source of direct dependencies. `uv.lock` stores exact resolved
+versions for reproducible installs.
+
+Install exact locked dependencies:
+
+```powershell
+uv sync --frozen --extra dev
+```
+
+Update dependencies intentionally:
+
+```powershell
+uv lock --upgrade
+ruff check app tests
+pytest -q
+pytest tests/test_golden_pipeline.py -q
+```
+
+Review any golden scoring changes before committing dependency updates. Commit the dependency
+definition and `uv.lock` together.
 
 ## Database Migrations
 
@@ -145,6 +172,7 @@ Before a trading-research session:
 alembic upgrade head
 ruff check app tests
 pytest -q
+pytest tests/test_golden_pipeline.py -q
 ```
 
 Then confirm:
