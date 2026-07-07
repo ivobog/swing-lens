@@ -1,3 +1,4 @@
+import hashlib
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -139,6 +140,23 @@ def test_ticker_chart_panel_static_renderer_exists() -> None:
     assert "LineSeries" in script
     assert "createPriceLine" in script
     assert "No chart data available." in script
+
+
+def test_ticker_chart_panel_vendor_asset_is_pinned() -> None:
+    vendor_path = Path("app/static/vendor/lightweight-charts.standalone.production.js")
+    readme = Path("app/static/vendor/README.md").read_text(encoding="utf-8")
+    bundle = vendor_path.read_bytes()
+    text = bundle[:256].decode("utf-8", errors="replace")
+
+    assert vendor_path.exists()
+    assert b"LightweightCharts" in bundle
+    assert "TradingView Lightweight Charts" in text
+    assert "v5.2.0" in text
+    assert hashlib.sha256(bundle).hexdigest().upper() == (
+        "C0992580867C4912CC9385B3C2728315BCC1A76C7F1087DCA908430FCCDF31D7"
+    )
+    assert "lightweight-charts-5.2.0.tgz" in readme
+    assert "Apache-2.0" in readme
 
 
 def _run() -> UploadRun:
