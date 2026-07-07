@@ -1,6 +1,6 @@
 """add history pagination indexes
 
-Revision ID: 0009_add_history_pagination_indexes
+Revision ID: 0009_history_indexes
 Revises: 0008_add_pipeline_tables
 Create Date: 2026-07-07 00:00:00.000000
 """
@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0009_add_history_pagination_indexes"
+revision: str = "0009_history_indexes"
 down_revision: str | None = "0008_add_pipeline_tables"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
