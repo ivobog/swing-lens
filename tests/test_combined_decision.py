@@ -1,8 +1,12 @@
+from datetime import date
 from decimal import Decimal
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
 from app.services.cockpit_sorting import cockpit_sort_key
-from app.services.combined_decision import combine_row_decision
+from app.services.combined_decision import _to_model, combine_row_decision
+
+
+TODAY = date(2026, 7, 7)
 
 
 def test_combined_decision_marks_aligned_buyable_setup_strong() -> None:
@@ -112,14 +116,139 @@ def test_complete_candidate_sorts_above_higher_scoring_incomplete_result() -> No
     assert ranked == [complete, incomplete]
 
 
-def _row(ticker: str) -> RawCompanyRow:
+def test_blocked_earnings_overrides_strong_candidate() -> None:
+    decision = combine_row_decision(
+        _row("AAPL", earnings_date=date(2026, 7, 8), raw_earnings="2026-07-08"),
+        _fundamental("AAPL", "Clean compounder", "8.8"),
+        _technical("AAPL", "Prime clean pullback", "8.6", risk_score="2.5"),
+        config=_config_with_earnings_gate(),
+        today=TODAY,
+    )
+
+    assert decision.final_score == 5.71
+    assert decision.combined_decision == "Blocked by earnings gate"
+    assert decision.position_size_hint == "No new entry"
+    assert decision.earnings_risk_level == "blocked"
+    assert decision.days_until_earnings == 1
+    assert decision.earnings_warning_flags == ["earnings_blocked"]
+    assert "earnings_blocked" in decision.warning_flags
+    assert decision.has_warning is True
+    assert decision.sort_bucket == 40
+
+
+def test_high_earnings_risk_applies_penalty_without_blocking() -> None:
+    decision = combine_row_decision(
+        _row("AAPL", earnings_date=date(2026, 7, 11), raw_earnings="2026-07-11"),
+        _fundamental("AAPL", "Clean compounder", "9.0"),
+        _technical("AAPL", "Prime clean pullback", "9.0", risk_score="2.5"),
+        config=_config_with_earnings_gate(),
+        today=TODAY,
+    )
+
+    assert decision.final_score == 7.0
+    assert decision.combined_decision == "Candidate"
+    assert decision.position_size_hint == "Half starter"
+    assert decision.earnings_risk_level == "high"
+    assert decision.earnings_warning_flags == ["earnings_high_risk"]
+    assert "earnings_high_risk" in decision.warning_flags
+
+
+def test_medium_earnings_risk_applies_smaller_penalty() -> None:
+    decision = combine_row_decision(
+        _row("AAPL", earnings_date=date(2026, 7, 15), raw_earnings="2026-07-15"),
+        _fundamental("AAPL", "Clean compounder", "9.0"),
+        _technical("AAPL", "Prime clean pullback", "9.0", risk_score="2.5"),
+        config=_config_with_earnings_gate(),
+        today=TODAY,
+    )
+
+    assert decision.final_score == 8.0
+    assert decision.combined_decision == "Strong candidate"
+    assert decision.position_size_hint == "Full starter"
+    assert decision.earnings_risk_level == "medium"
+    assert decision.earnings_warning_flags == ["earnings_medium_risk"]
+
+
+def test_clear_earnings_risk_leaves_score_unchanged() -> None:
+    decision = combine_row_decision(
+        _row("AAPL", earnings_date=date(2026, 7, 18), raw_earnings="2026-07-18"),
+        _fundamental("AAPL", "Clean compounder", "8.8"),
+        _technical("AAPL", "Prime clean pullback", "8.6", risk_score="2.5"),
+        config=_config_with_earnings_gate(),
+        today=TODAY,
+    )
+
+    assert decision.final_score == 8.71
+    assert decision.combined_decision == "Strong candidate"
+    assert decision.earnings_risk_level == "clear"
+    assert decision.earnings_warning_flags == []
+    assert decision.warning_flags == []
+
+
+def test_missing_earnings_date_is_unknown_without_failing_combined_scoring() -> None:
+    decision = combine_row_decision(
+        _row("AAPL"),
+        _fundamental("AAPL", "Clean compounder", "8.8"),
+        _technical("AAPL", "Prime clean pullback", "8.6", risk_score="2.5"),
+        config=_config_with_earnings_gate(),
+        today=TODAY,
+    )
+
+    assert decision.final_score == 8.41
+    assert decision.combined_decision == "Strong candidate"
+    assert decision.earnings_risk_level == "unknown"
+    assert decision.earnings_warning_flags == ["earnings_date_missing"]
+    assert "earnings_date_missing" in decision.warning_flags
+
+
+def test_unparseable_earnings_date_is_unknown_with_unparseable_warning() -> None:
+    decision = combine_row_decision(
+        _row("AAPL", raw_earnings="not a date"),
+        _fundamental("AAPL", "Clean compounder", "8.8"),
+        _technical("AAPL", "Prime clean pullback", "8.6", risk_score="2.5"),
+        config=_config_with_earnings_gate(),
+        today=TODAY,
+    )
+
+    assert decision.final_score == 8.41
+    assert decision.earnings_risk_level == "unknown"
+    assert decision.earnings_warning_flags == ["earnings_date_unparseable"]
+    assert "earnings_date_unparseable" in decision.warning_flags
+
+
+def test_combined_decision_model_persists_earnings_risk_fields() -> None:
+    decision = combine_row_decision(
+        _row("AAPL", earnings_date=date(2026, 7, 11), raw_earnings="2026-07-11"),
+        _fundamental("AAPL", "Clean compounder", "9.0"),
+        _technical("AAPL", "Prime clean pullback", "9.0", risk_score="2.5"),
+        config=_config_with_earnings_gate(),
+        today=TODAY,
+    )
+
+    model = _to_model(run_id=7, final_rank=1, decision=decision)
+
+    assert model.upcoming_earnings_date == date(2026, 7, 11)
+    assert model.days_until_earnings == 4
+    assert model.earnings_risk_level == "high"
+    assert model.earnings_warning_flags_json == ["earnings_high_risk"]
+
+
+def _row(
+    ticker: str,
+    earnings_date: date | None = None,
+    raw_earnings: str | None = None,
+) -> RawCompanyRow:
+    raw_json = {"Symbol": ticker}
+    if raw_earnings is not None:
+        raw_json["upcoming_earnings_date"] = raw_earnings
     return RawCompanyRow(
         run_id=1,
         row_number=1,
         ticker=ticker,
         company_name=f"{ticker} Corp",
         sector="Technology",
-        raw_json={"Symbol": ticker},
+        upcoming_earnings_date=earnings_date,
+        raw_json=raw_json,
     )
 
 
@@ -172,3 +301,24 @@ def _config() -> dict:
             "watch_min_score": 5.5,
         },
     }
+
+
+def _config_with_earnings_gate() -> dict:
+    config = _config()
+    config["earnings_risk_gate"] = {
+        "enabled": True,
+        "block_if_within_days": 2,
+        "high_risk_if_within_days": 5,
+        "medium_risk_if_within_days": 10,
+        "missing_date_policy": "warn",
+        "apply_to_combined_score": True,
+        "block_new_entries": True,
+        "penalties": {
+            "blocked": 3.0,
+            "high": 2.0,
+            "medium": 1.0,
+            "unknown": 0.3,
+            "clear": 0.0,
+        },
+    }
+    return config

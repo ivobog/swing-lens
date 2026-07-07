@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,12 @@ from app.models.tables import (
 )
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.confidence_service import build_combined_warning_flags
+from app.services.earnings_date_parser import MISSING_EARNINGS_DATE_VALUES
+from app.services.earnings_risk_service import (
+    EarningsRiskResult,
+    calculate_earnings_risk,
+    current_local_date,
+)
 
 DANGER_CLASSIFICATIONS = {
     "Distribution risk",
@@ -31,6 +38,15 @@ BUYABLE_CLASSIFICATIONS = {
     "Tight base breakout",
     "RS leader pullback",
 }
+EARNINGS_DATE_RAW_KEYS = {
+    "upcoming earnings date",
+    "earnings date",
+    "next earnings date",
+    "earnings",
+    "upcoming_earnings_date",
+    "earnings_date",
+    "next_earnings_date",
+}
 
 
 @dataclass(frozen=True)
@@ -45,6 +61,10 @@ class CombinedDecision:
     dual_score: float | None
     combined_decision: str
     position_size_hint: str
+    upcoming_earnings_date: date | None
+    days_until_earnings: int | None
+    earnings_risk_level: str | None
+    earnings_warning_flags: list[str]
     notes: str
     warning_flags: list[str]
     is_complete: bool
@@ -88,6 +108,7 @@ def combine_row_decision(
     fundamental: FundamentalScore | None,
     technical: TechnicalScore | None,
     config: dict[str, Any] | None = None,
+    today: date | None = None,
 ) -> CombinedDecision:
     config = config or _load_scoring_config()
     weights = config["combined_score"]
@@ -134,6 +155,11 @@ def combine_row_decision(
         final_score -= float(penalties["liquidity_warning"])
         notes.append("liquidity warning")
 
+    earnings_risk = _calculate_row_earnings_risk(row, config, today)
+    final_score -= earnings_risk.penalty
+    if earnings_risk.warning_flags:
+        notes.append(earnings_risk.message)
+
     final_score = _clamp(final_score)
     decision = _decision_label(
         final_score=final_score,
@@ -143,6 +169,12 @@ def combine_row_decision(
         technical_classification=technical_classification,
         fundamental_label=fundamental_label,
     )
+    if (
+        earnings_risk.decision_blocked
+        and config.get("earnings_risk_gate", {}).get("block_new_entries", True)
+    ):
+        decision = "Blocked by earnings gate"
+
     position_size = _position_size_hint(
         decision=decision,
         technical_classification=technical_classification,
@@ -153,6 +185,7 @@ def combine_row_decision(
         technical=technical,
         decision=decision,
     )
+    warning_flags = _merge_warning_flags(warnings.flags, earnings_risk.warning_flags)
 
     return CombinedDecision(
         ticker=row.ticker.upper(),
@@ -165,10 +198,14 @@ def combine_row_decision(
         dual_score=dual_score,
         combined_decision=decision,
         position_size_hint=position_size,
+        upcoming_earnings_date=earnings_risk.upcoming_earnings_date,
+        days_until_earnings=earnings_risk.days_until_earnings,
+        earnings_risk_level=earnings_risk.risk_level,
+        earnings_warning_flags=list(earnings_risk.warning_flags),
         notes=", ".join(notes) if notes else "aligned",
-        warning_flags=warnings.flags,
+        warning_flags=warning_flags,
         is_complete=warnings.is_complete,
-        has_warning=warnings.has_warning,
+        has_warning=bool(warning_flags),
         has_fundamental=warnings.has_fundamental,
         has_technical=warnings.has_technical,
         sort_bucket=warnings.sort_bucket,
@@ -221,6 +258,8 @@ def _position_size_hint(
     technical: TechnicalScore | None,
 ) -> str:
     risk_score = _float_or_none(technical.risk_score if technical else None)
+    if decision == "Blocked by earnings gate":
+        return "No new entry"
     if decision == "Incomplete data":
         return "Wait"
     if decision == "Avoid":
@@ -254,6 +293,10 @@ def _to_model(
         dual_score=_to_decimal(decision.dual_score),
         combined_decision=decision.combined_decision,
         position_size_hint=decision.position_size_hint,
+        upcoming_earnings_date=decision.upcoming_earnings_date,
+        days_until_earnings=decision.days_until_earnings,
+        earnings_risk_level=decision.earnings_risk_level,
+        earnings_warning_flags_json=decision.earnings_warning_flags,
         notes=decision.notes,
         warning_flags_json=decision.warning_flags,
         is_complete=decision.is_complete,
@@ -298,6 +341,44 @@ def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
 def _load_scoring_config(path: Path = Path("config/scoring_weights.yaml")) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         return yaml.safe_load(handle) or {}
+
+
+def _calculate_row_earnings_risk(
+    row: RawCompanyRow,
+    config: dict[str, Any],
+    today: date | None,
+) -> EarningsRiskResult:
+    gate_config = config.get("earnings_risk_gate")
+    if gate_config is None:
+        gate_config = {"enabled": False}
+
+    return calculate_earnings_risk(
+        upcoming_earnings_date=row.upcoming_earnings_date,
+        raw_value_present=_raw_earnings_value_present(row.raw_json),
+        today=today or current_local_date(),
+        config=gate_config,
+    )
+
+
+def _raw_earnings_value_present(raw_json: dict[str, Any]) -> bool:
+    for key, value in raw_json.items():
+        if str(key).strip().casefold() not in EARNINGS_DATE_RAW_KEYS:
+            continue
+        if value is None:
+            return False
+        text = str(value).strip()
+        return text.casefold() not in MISSING_EARNINGS_DATE_VALUES
+    return False
+
+
+def _merge_warning_flags(existing: list[str], extra: tuple[str, ...]) -> list[str]:
+    flags = list(existing)
+    seen = set(flags)
+    for flag in extra:
+        if flag not in seen:
+            flags.append(flag)
+            seen.add(flag)
+    return flags
 
 
 def _liquidity_warning(debug_json: dict[str, Any] | None) -> bool:
