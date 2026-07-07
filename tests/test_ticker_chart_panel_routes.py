@@ -1,4 +1,5 @@
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -126,6 +127,18 @@ def test_ticker_chart_panel_template_smoke_renders_chart_hooks(monkeypatch) -> N
     assert "Risk Context" in html
     assert "Warnings and Missing Data" in html
     assert "Back to run 7" in html
+
+
+def test_ticker_chart_panel_static_renderer_exists() -> None:
+    script = Path("app/static/ticker_chart_panel.js").read_text(encoding="utf-8")
+
+    assert "loadTickerChart" in script
+    assert "LightweightCharts.createChart" in script
+    assert "BarSeries" in script
+    assert "HistogramSeries" in script
+    assert "LineSeries" in script
+    assert "createPriceLine" in script
+    assert "No chart data available." in script
 
 
 def _run() -> UploadRun:
