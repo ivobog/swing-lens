@@ -43,7 +43,11 @@ def test_combined_export_includes_ranked_results() -> None:
             combined_decision="Strong candidate",
             position_size_hint="Full starter",
             notes="aligned",
-            warning_flags_json=["high_accrual_risk"],
+            warning_flags_json=["high_accrual_risk", "earnings_medium_risk"],
+            upcoming_earnings_date=date(2026, 7, 14),
+            days_until_earnings=7,
+            earnings_risk_level="medium",
+            earnings_warning_flags_json=["earnings_medium_risk"],
             is_complete=True,
             has_warning=True,
             has_fundamental=True,
@@ -59,7 +63,10 @@ def test_combined_export_includes_ranked_results() -> None:
 
     assert "run_id,rank,ticker" in csv_text
     assert "fundamental_model_version" in csv_text
-    assert "is_complete,has_warning,warning_flags,sort_bucket" in csv_text
+    assert (
+        "is_complete,has_warning,warning_flags,upcoming_earnings_date,"
+        "days_until_earnings,earnings_risk_level,earnings_warning_flags,sort_bucket"
+    ) in csv_text
     assert "technical_confidence" in csv_text
     assert "technical_stage" in csv_text
     assert "technical_vcp_score" in csv_text
@@ -77,7 +84,11 @@ def test_combined_export_includes_ranked_results() -> None:
     assert row["technical_sub_tags"] == "VCP; Stage 2"
     assert row["is_complete"] == "True"
     assert row["has_warning"] == "True"
-    assert row["warning_flags"] == "high_accrual_risk"
+    assert row["warning_flags"] == "high_accrual_risk; earnings_medium_risk"
+    assert row["upcoming_earnings_date"] == "2026-07-14"
+    assert row["days_until_earnings"] == "7"
+    assert row["earnings_risk_level"] == "medium"
+    assert row["earnings_warning_flags"] == "earnings_medium_risk"
     assert row["sort_bucket"] == "10"
     assert row["has_fundamental"] == "True"
     assert row["has_technical"] == "True"
