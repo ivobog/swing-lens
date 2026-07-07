@@ -1,9 +1,13 @@
 from types import SimpleNamespace
 
-from app.models.tables import FundamentalScore, RawCompanyRow, UploadRun
+from app.models.tables import BackgroundJob, FundamentalScore, RawCompanyRow, UploadRun
 from app.routers import run_routes
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_plan_service import FetchPlan
+from app.services.pipeline_service import (
+    PipelineStatusDto,
+    PipelineStepStatusDto,
+)
 
 
 def test_recalculate_run_fundamentals_replaces_scores_from_stored_raw_rows() -> None:
@@ -154,6 +158,108 @@ def test_full_pipeline_queues_fetch_and_refreshes_scores(monkeypatch) -> None:
     assert "pipeline-queued" in response.headers["location"]
 
 
+def test_full_pipeline_uses_durable_pipeline_when_feature_flag_enabled(monkeypatch) -> None:
+    calls = {}
+    monkeypatch.setattr(
+        run_routes,
+        "get_settings",
+        lambda: SimpleNamespace(use_durable_pipeline=True),
+    )
+    monkeypatch.setattr(
+        run_routes,
+        "start_pipeline",
+        lambda _db, run_id: calls.update({"run_id": run_id}) or SimpleNamespace(id=99),
+    )
+    db = RouteFakeDb()
+
+    response = run_routes.run_full_pipeline_action(run_id=7, db=db)
+
+    assert calls["run_id"] == 7
+    assert db.commits == 1
+    assert response.headers["location"] == "/runs/7/pipeline/99"
+
+
+def test_pipeline_status_route_returns_progress_payload(monkeypatch) -> None:
+    status = PipelineStatusDto(
+        pipeline_run_id=99,
+        upload_run_id=7,
+        status="RUNNING",
+        current_step="FETCHING_MARKET_DATA",
+        requested_by=None,
+        started_at=None,
+        completed_at=None,
+        created_at=None,
+        message="working",
+        error_message=None,
+        background_job_id=42,
+        steps=[
+            PipelineStepStatusDto(
+                step_name="VALIDATING_RUN",
+                step_order=1,
+                status="COMPLETED",
+                started_at=None,
+                completed_at=None,
+                message=None,
+                error_message=None,
+                retry_count=0,
+            ),
+            PipelineStepStatusDto(
+                step_name="FETCHING_MARKET_DATA",
+                step_order=2,
+                status="RUNNING",
+                started_at=None,
+                completed_at=None,
+                message=None,
+                error_message=None,
+                retry_count=0,
+            ),
+        ],
+    )
+    monkeypatch.setattr(run_routes, "get_pipeline_status", lambda _db, _pipeline_id: status)
+    db = RouteFakeDb(job=BackgroundJob(id=42, job_type="FULL_PIPELINE", status="RUNNING"))
+
+    payload = run_routes.run_pipeline_status(run_id=7, pipeline_id=99, db=db)
+
+    assert payload["pipeline_run_id"] == 99
+    assert payload["status"] == "RUNNING"
+    assert payload["current_step_label"] == "Fetching Market Data"
+    assert payload["job_status"] == "RUNNING"
+    assert payload["completed_steps"] == 1
+    assert payload["total_steps"] == 2
+    assert payload["percentage"] == 50.0
+
+
+def test_cancel_pipeline_route_requests_cancel_and_redirects(monkeypatch) -> None:
+    status = PipelineStatusDto(
+        pipeline_run_id=99,
+        upload_run_id=7,
+        status="RUNNING",
+        current_step="FETCHING_MARKET_DATA",
+        requested_by=None,
+        started_at=None,
+        completed_at=None,
+        created_at=None,
+        message=None,
+        error_message=None,
+        background_job_id=42,
+        steps=[],
+    )
+    calls = {}
+    monkeypatch.setattr(run_routes, "get_pipeline_status", lambda _db, _pipeline_id: status)
+    monkeypatch.setattr(
+        run_routes,
+        "cancel_pipeline",
+        lambda _db, pipeline_id: calls.setdefault("pipeline_id", pipeline_id),
+    )
+    db = RouteFakeDb()
+
+    response = run_routes.cancel_run_pipeline_action(run_id=7, pipeline_id=99, db=db)
+
+    assert calls["pipeline_id"] == 99
+    assert db.commits == 1
+    assert response.headers["location"] == "/runs/7/pipeline/99"
+
+
 class FundamentalFakeDb:
     def __init__(self, raw_rows: list[RawCompanyRow]) -> None:
         self.raw_rows = raw_rows
@@ -178,16 +284,26 @@ class FundamentalFakeDb:
 
 
 class RouteFakeDb:
-    def __init__(self) -> None:
+    def __init__(self, job: BackgroundJob | None = None) -> None:
         self.commits = 0
+        self.rollbacks = 0
+        self.job = job
 
     def scalar(self, statement):
         if "upload_runs" in str(statement):
             return 7
         return None
 
+    def get(self, model, row_id):
+        if model is BackgroundJob:
+            return self.job
+        return None
+
     def commit(self) -> None:
         self.commits += 1
+
+    def rollback(self) -> None:
+        self.rollbacks += 1
 
 
 class FakeScalarResult:

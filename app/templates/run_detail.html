@@ -35,6 +35,7 @@
   items=[]
 )) %}
 {% set latest_fetch = latest_fetch|default(none) %}
+{% set latest_pipeline = latest_pipeline|default(none) %}
 {% set ib_panel = ib_panel|default({
   "host": "",
   "port": "",
@@ -88,6 +89,31 @@
     {% if run.notes %}<span>{{ run.notes }}</span>{% endif %}
   </div>
 </section>
+
+{% if latest_pipeline %}
+  <section class="panel section-gap">
+    <div class="panel-header compact-header">
+      <div>
+        <h2>Pipeline {{ latest_pipeline.pipeline_run_id }}</h2>
+        <p>{{ latest_pipeline.message or latest_pipeline.current_step_label or "Pipeline status is available." }}</p>
+      </div>
+      <div class="actions">
+        <a class="button-link secondary" href="/runs/{{ run.id }}/pipeline/{{ latest_pipeline.pipeline_run_id }}">Open progress</a>
+        {% if latest_pipeline.status not in ["COMPLETED", "PARTIAL", "FAILED", "CANCELLED"] %}
+          <form method="post" action="/runs/{{ run.id }}/pipeline/{{ latest_pipeline.pipeline_run_id }}/cancel" data-loading-form data-confirm="Cancel this pipeline after the current operation finishes?">
+            <button type="submit" data-loading-label="Cancelling...">Cancel</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+    <div class="run-meta section-gap">
+      <span class="status-pill status-{{ latest_pipeline.status|lower|replace('_', '-') }}">{{ latest_pipeline.status }}</span>
+      <span>{{ latest_pipeline.completed_steps }} / {{ latest_pipeline.total_steps }} steps</span>
+      {% if latest_pipeline.current_step_label %}<span>{{ latest_pipeline.current_step_label }}</span>{% endif %}
+      {% if latest_pipeline.job_status %}<span>Job {{ latest_pipeline.job_status }}</span>{% endif %}
+    </div>
+  </section>
+{% endif %}
 
 <section class="panel section-gap">
   <div class="workflow" aria-label="Run workflow">

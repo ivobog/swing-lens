@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}SwingLens Pipeline {{ pipeline.pipeline_run_id }}{% endblock %}
+
+{% block content %}
+{% set is_terminal = pipeline.status in terminal_statuses %}
+<section
+  class="panel"
+  data-pipeline-progress
+  data-status-url="{{ status_url }}"
+  data-terminal-statuses="{{ terminal_statuses|join(',') }}"
+>
+  <div class="panel-header run-header">
+    <div>
+      <h1>Pipeline {{ pipeline.pipeline_run_id }}</h1>
+      <p>Run {{ run.id }} - {{ run.filename }}</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ run.id }}?pipeline_id={{ pipeline.pipeline_run_id }}">Run detail</a>
+      {% if not is_terminal %}
+        <form method="post" action="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/cancel" data-loading-form data-confirm="Cancel this pipeline after the current operation finishes?">
+          <button type="submit" data-loading-label="Cancelling...">Cancel pipeline</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="run-meta">
+    <span class="status-pill" data-pipeline-status>{{ pipeline.status }}</span>
+    <span>Created <span data-pipeline-created>{{ pipeline.created_at or "" }}</span></span>
+    <span>Started <span data-pipeline-started>{{ pipeline.started_at or "" }}</span></span>
+    <span>Finished <span data-pipeline-completed>{{ pipeline.completed_at or "" }}</span></span>
+    <span>Current <span data-pipeline-current>{{ pipeline.current_step_label or "" }}</span></span>
+    {% if pipeline.job_status %}<span>Job <span data-pipeline-job-status>{{ pipeline.job_status }}</span></span>{% endif %}
+  </div>
+
+  {% if pipeline.message or pipeline.error_message %}
+    <div class="alert section-gap" data-pipeline-message>{{ pipeline.error_message or pipeline.message }}</div>
+  {% else %}
+    <div class="alert section-gap" data-pipeline-message hidden></div>
+  {% endif %}
+
+  <div class="progress-block">
+    <div class="progress-bar" aria-label="Pipeline progress">
+      <div class="progress-fill" data-pipeline-fill style="width: {{ pipeline.percentage }}%"></div>
+    </div>
+    <strong data-pipeline-percentage>{{ "%.1f"|format(pipeline.percentage) }}%</strong>
+    <span>
+      <span data-pipeline-completed-steps>{{ pipeline.completed_steps }}</span> /
+      <span data-pipeline-total-steps>{{ pipeline.total_steps }}</span> steps
+    </span>
+  </div>
+
+  <div class="progress-grid">
+    <div class="metric">
+      <span>Status</span>
+      <strong data-pipeline-status-metric>{{ pipeline.status }}</strong>
+    </div>
+    <div class="metric">
+      <span>Current</span>
+      <strong data-pipeline-current-metric>{{ pipeline.current_step_label or "None" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Job</span>
+      <strong data-pipeline-job-metric>{{ pipeline.job_status or "None" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Cancel</span>
+      <strong data-pipeline-cancel-metric>{{ "Requested" if pipeline.job_cancel_requested else "No" }}</strong>
+    </div>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header">
+    <div>
+      <h2>Pipeline Steps</h2>
+      <p>Durable step state is persisted in PostgreSQL.</p>
+    </div>
+    {% if not is_terminal %}
+      <span class="badge badge-warning">Auto-refreshing</span>
+    {% endif %}
+  </div>
+
+  <div class="table-wrap">
+    <table data-pipeline-steps-table>
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Step</th>
+          <th>Status</th>
+          <th>Started</th>
+          <th>Finished</th>
+          <th>Message</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for step in pipeline.steps %}
+          <tr data-pipeline-step-row data-step-name="{{ step.step_name }}">
+            <td>{{ step.step_order }}</td>
+            <td>{{ step.label }}</td>
+            <td data-step-status>
+              <span class="badge badge-{{ 'success' if step.status in ['COMPLETED', 'SKIPPED'] else 'warning' if step.status in ['PENDING', 'RUNNING'] else 'danger' }}">
+                {{ step.status|replace("_", " ")|title }}
+              </span>
+            </td>
+            <td data-step-started>{{ step.started_at or "" }}</td>
+            <td data-step-completed>{{ step.completed_at or "" }}</td>
+            <td data-step-message>{{ step.message or "" }}</td>
+            <td data-step-error>{{ step.error_message or "" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
