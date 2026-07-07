@@ -48,8 +48,8 @@ def test_upload_fetch_plan_execution_cockpit_and_export_flow(tmp_path, monkeypat
         UploadFile(
             filename="daily.csv",
             file=BytesIO(
-                b"Symbol,Description,Sector,Price,Market capitalization\n"
-                b"MSFT,Microsoft,Technology,410,3050000000000\n"
+                b"Symbol,Description,Sector,Price,Market capitalization,Upcoming earnings date\n"
+                b"MSFT,Microsoft,Technology,410,3050000000000,2099-01-15\n"
             ),
         ),
     )
@@ -57,6 +57,8 @@ def test_upload_fetch_plan_execution_cockpit_and_export_flow(tmp_path, monkeypat
     assert run.status == "COMPLETED"
     assert run.row_count == 1
     assert upload_db.raw_rows[0].ticker == "MSFT"
+    assert upload_db.raw_rows[0].upcoming_earnings_date == date(2099, 1, 15)
+    assert upload_db.raw_rows[0].raw_json["upcoming_earnings_date"] == "2099-01-15"
     assert upload_db.fundamental_scores[0].ticker == "MSFT"
 
     plan = build_fetch_plan(
@@ -116,6 +118,8 @@ def test_upload_fetch_plan_execution_cockpit_and_export_flow(tmp_path, monkeypat
     assert len(combined) == 1
     assert combined[0].ticker == "MSFT"
     assert combined[0].is_complete
+    assert combined[0].upcoming_earnings_date == date(2099, 1, 15)
+    assert combined[0].earnings_risk_level == "clear"
 
     run.raw_company_rows = upload_db.raw_rows
     run.fundamental_scores = upload_db.fundamental_scores
@@ -125,6 +129,9 @@ def test_upload_fetch_plan_execution_cockpit_and_export_flow(tmp_path, monkeypat
     csv_text = export_run_csv(run, "combined", coverage=_coverage())
 
     assert "warning_flags,sort_bucket" in csv_text
+    assert "upcoming_earnings_date,days_until_earnings,earnings_risk_level" in csv_text
+    assert "2099-01-15" in csv_text
+    assert "clear" in csv_text
     assert "technical_confidence" in csv_text
     assert "MSFT,Microsoft,Technology" in csv_text
     assert "normal" in csv_text

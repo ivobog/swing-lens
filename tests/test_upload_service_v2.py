@@ -67,6 +67,15 @@ def test_raw_company_row_from_mapped_keeps_unparseable_earnings_value() -> None:
     assert model.raw_json["upcoming_earnings_date"] == "not a date"
 
 
+def test_raw_company_row_from_mapped_allows_missing_earnings_column() -> None:
+    mapped = map_csv_rows([{"Symbol": "AAPL", "Description": "Apple Inc."}])[0]
+
+    model = _raw_company_row_from_mapped(run_id=7, row=mapped)
+
+    assert model.upcoming_earnings_date is None
+    assert "upcoming_earnings_date" not in model.raw_json
+
+
 def _v2_score() -> FundamentalScoreV2Result:
     return FundamentalScoreV2Result(
         ticker="MSFT",

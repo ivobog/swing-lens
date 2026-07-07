@@ -50,3 +50,21 @@ def test_duplicate_like_columns_are_mapped_separately() -> None:
     assert mapped[0].canonical["ev_revenue"] == "3.2"
     assert mapped[0].canonical["ev_revenue_duplicate"] == "3.3"
     assert mapped[0].raw["Unmapped Column"] == "still preserved"
+
+
+@pytest.mark.parametrize(
+    "alias",
+    [
+        "Upcoming earnings date",
+        "Earnings date",
+        "Next earnings date",
+        "Earnings",
+        "upcoming_earnings_date",
+        "earnings_date",
+        "next_earnings_date",
+    ],
+)
+def test_earnings_date_aliases_map_to_canonical_field(alias: str) -> None:
+    mapped = map_csv_rows([{"Symbol": "AAPL", alias: "2026-07-14"}])
+
+    assert mapped[0].canonical["upcoming_earnings_date"] == "2026-07-14"
