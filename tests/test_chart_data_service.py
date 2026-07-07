@@ -97,6 +97,36 @@ def test_build_ticker_chart_payload_returns_empty_state_when_no_price_bars(
     }
 
 
+def test_build_ticker_chart_payload_populates_all_sma_overlays(monkeypatch) -> None:
+    frame = pd.DataFrame(
+        [
+            _bar(
+                date(2026, 1, 1) + timedelta(days=index),
+                float(index + 1),
+                float(index + 2),
+                float(index),
+                float(index + 1),
+                1_000 + index,
+            )
+            for index in range(205)
+        ]
+    )
+    monkeypatch.setattr(
+        chart_data_service,
+        "load_preferred_ohlcv_frames",
+        lambda db, ticker: (frame, frame),
+    )
+
+    payload = build_ticker_chart_payload(_FakeDb(), 7, "msft")
+
+    assert len(payload["overlays"]["sma20"]) == 186
+    assert len(payload["overlays"]["sma50"]) == 156
+    assert len(payload["overlays"]["sma200"]) == 6
+    assert payload["overlays"]["sma20"][-1] == {"time": "2026-07-24", "value": 195.5}
+    assert payload["overlays"]["sma50"][-1] == {"time": "2026-07-24", "value": 180.5}
+    assert payload["overlays"]["sma200"][-1] == {"time": "2026-07-24", "value": 105.5}
+
+
 def _bar(
     bar_date: date,
     open_value: float,

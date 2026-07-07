@@ -104,6 +104,16 @@ def test_ticker_chart_data_validates_ticker_and_returns_payload(monkeypatch) -> 
     assert calls == {"db": db, "run_id": 7, "ticker": "MSFT"}
 
 
+def test_ticker_chart_data_returns_404_for_unknown_ticker(monkeypatch) -> None:
+    monkeypatch.setattr(run_routes, "_load_run", lambda db, run_id: _run())
+
+    with pytest.raises(HTTPException) as exc_info:
+        run_routes.ticker_chart_data(run_id=7, ticker="NVDA", db=SimpleNamespace())
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Ticker not found in this run."
+
+
 def test_ticker_chart_panel_template_smoke_renders_chart_hooks(monkeypatch) -> None:
     monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
     run = _run()
@@ -128,6 +138,38 @@ def test_ticker_chart_panel_template_smoke_renders_chart_hooks(monkeypatch) -> N
     assert "Risk Context" in html
     assert "Warnings and Missing Data" in html
     assert "Back to run 7" in html
+
+
+def test_ticker_chart_panel_template_renders_score_tones(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = _run()
+
+    html = templates.get_template("ticker_chart_panel.html").render(
+        active_nav="runs",
+        run=run,
+        ticker="MSFT",
+        company_name="Microsoft Corporation",
+        sector="Technology",
+        combined=run.combined_results[0],
+        technical=None,
+        chart_data_url="/api/runs/7/tickers/MSFT/chart-data",
+        back_url="/runs/7",
+        score_cards=[
+            {
+                "title": "Tone Check",
+                "badges": [],
+                "items": [
+                    {"label": "Good", "value": "8.00", "tone": "good"},
+                    {"label": "Neutral", "value": "6.00", "tone": "neutral"},
+                    {"label": "Bad", "value": "4.00", "tone": "bad"},
+                ],
+            }
+        ],
+    )
+
+    assert 'class="score-value good">8.00</dd>' in html
+    assert 'class="score-value neutral">6.00</dd>' in html
+    assert 'class="score-value bad">4.00</dd>' in html
 
 
 def test_ticker_chart_panel_static_renderer_exists() -> None:
