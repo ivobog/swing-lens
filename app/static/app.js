@@ -32,6 +32,11 @@ function bindCockpitTables() {
     const quickFilters = new Set();
 
     rows.forEach((row) => {
+      row.addEventListener("click", (event) => {
+        if (event.defaultPrevented || shouldIgnoreRowNavigation(event)) return;
+        if (row.dataset.href) window.location.href = row.dataset.href;
+      });
+
       const detailRow = row.nextElementSibling;
       const toggle = row.querySelector("[data-detail-toggle]");
       if (!toggle || !detailRow || !detailRow.matches("[data-detail-row]")) return;
@@ -109,6 +114,14 @@ function bindCockpitTables() {
       });
     }
   });
+}
+
+function shouldIgnoreRowNavigation(event) {
+  return Boolean(
+    event.target.closest(
+      "[data-no-row-nav], a, button, input, select, textarea, label, summary",
+    ),
+  );
 }
 
 function applyCockpitFilters(rows, controls, empty, quickFilters) {

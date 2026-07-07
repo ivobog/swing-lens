@@ -564,8 +564,9 @@
             {% set earnings_risk = result.earnings_risk_level or "unknown" %}
             {% set earnings_badge_tone = "danger" if earnings_risk == "blocked" else "warning" if earnings_risk in ["high", "medium"] else "success" if earnings_risk == "clear" else "muted" %}
             <tr
-              class="cockpit-row"
+              class="cockpit-row clickable-row"
               data-cockpit-row
+              data-href="/runs/{{ run.id }}/tickers/{{ result.ticker }}/chart"
               data-rank="{{ result.final_rank or loop.index }}"
               data-ticker="{{ result.ticker }}"
               data-company="{{ result.company_name or '' }}"
@@ -630,8 +631,8 @@
               </td>
               <td>
                 <div class="row-actions">
-                  <button class="icon-button" type="button" data-detail-toggle aria-expanded="false">Details</button>
-                  <a href="https://www.tradingview.com/chart/?symbol={{ result.ticker }}" target="_blank" rel="noopener">TradingView</a>
+                  <button class="icon-button" type="button" data-detail-toggle data-no-row-nav="true" aria-expanded="false">Details</button>
+                  <a data-no-row-nav="true" href="https://www.tradingview.com/chart/?symbol={{ result.ticker }}" target="_blank" rel="noopener">TradingView</a>
                 </div>
               </td>
             </tr>

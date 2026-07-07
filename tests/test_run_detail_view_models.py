@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 
 from app.models.tables import (
@@ -475,6 +476,10 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert 'data-sort-key="position-size"' not in html
     assert 'class="ticker-with-company" title="Microsoft Corporation">MSFT</strong>' in html
     assert 'data-warning-count="1"' in html
+    assert 'class="cockpit-row clickable-row"' in html
+    assert 'data-href="/runs/1/tickers/MSFT/chart"' in html
+    assert 'data-no-row-nav="true" aria-expanded="false">Details</button>' in html
+    assert '<a data-no-row-nav="true" href="https://www.tradingview.com/chart/?symbol=MSFT"' in html
     assert 'data-candidate-plus="true"' in html
     assert 'data-clean="false"' in html
     assert 'data-copy-single="MSFT"' not in html
@@ -653,6 +658,14 @@ def test_preview_fetch_plan_uses_current_request_options(monkeypatch) -> None:
     assert calls["kwargs"]["force_refresh"] is True
     assert calls["kwargs"]["force_full_backfill"] is True
     assert calls["kwargs"]["what_to_show_values"] == ("TRADES",)
+
+
+def test_app_js_binds_cockpit_row_navigation() -> None:
+    script = Path("app/static/app.js").read_text(encoding="utf-8")
+
+    assert "shouldIgnoreRowNavigation" in script
+    assert "window.location.href = row.dataset.href" in script
+    assert "[data-no-row-nav], a, button, input, select, textarea, label, summary" in script
 
 
 def _row(ticker: str, row_number: int) -> RawCompanyRow:
