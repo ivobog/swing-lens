@@ -159,6 +159,20 @@ def test_ticker_chart_panel_vendor_asset_is_pinned() -> None:
     assert "Apache-2.0" in readme
 
 
+def test_ticker_chart_panel_css_hooks_exist() -> None:
+    css = Path("app/static/app.css").read_text(encoding="utf-8")
+
+    assert ".chart-panel-grid" in css
+    assert ".ticker-chart" in css
+    assert ".chart-empty" in css
+    assert ".score-grid" in css
+    assert ".score-item" in css
+    assert ".score-value.good" in css
+    assert ".score-value.neutral" in css
+    assert ".score-value.bad" in css
+    assert ".clickable-row:hover" in css
+
+
 def _run() -> UploadRun:
     run = UploadRun(id=7, filename="sample.csv", row_count=1, status="COMPLETED")
     run.raw_company_rows = [

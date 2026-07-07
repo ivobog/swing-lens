@@ -795,6 +795,19 @@ table {
   cursor: help;
 }
 
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: #f8fafc;
+}
+
+.clickable-row:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 th,
 td {
   padding: 10px 12px;
@@ -987,6 +1000,129 @@ td a {
   font-size: 13px;
 }
 
+.chart-panel {
+  overflow: hidden;
+}
+
+.chart-panel-header {
+  align-items: flex-start;
+}
+
+.back-link {
+  display: inline-flex;
+  margin-bottom: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.muted-inline {
+  color: var(--muted);
+}
+
+.chart-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 0.85fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.chart-card {
+  min-width: 0;
+}
+
+.ticker-chart {
+  position: relative;
+  width: 100%;
+  height: 520px;
+  min-height: 360px;
+  overflow: hidden;
+}
+
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #f9fafb;
+  color: var(--muted);
+  font-weight: 700;
+  text-align: center;
+}
+
+.ticker-chart .chart-empty {
+  position: absolute;
+  inset: 0;
+}
+
+.chart-empty[hidden] {
+  display: none;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.score-card {
+  min-width: 0;
+}
+
+.score-card-primary {
+  align-self: stretch;
+}
+
+.score-list {
+  display: block;
+}
+
+.score-item {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.95fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.score-item:last-child {
+  border-bottom: 0;
+}
+
+.score-item dt {
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.score-item dd {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.score-value.good {
+  color: var(--success);
+}
+
+.score-value.neutral {
+  color: #4d5b6a;
+}
+
+.score-value.bad {
+  color: var(--danger);
+}
+
 @media (max-width: 720px) {
   .topbar,
   .panel-header,
@@ -1018,6 +1154,8 @@ td a {
   .plan-options,
   .progress-grid,
   .coverage-action-grid,
+  .chart-panel-grid,
+  .score-grid,
   .cockpit-toolbar,
   .cockpit-controls,
   .history-filters {
@@ -1049,7 +1187,16 @@ td a {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .ib-layout {
+  .ib-layout,
+  .chart-panel-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ticker-chart {
+    height: 420px;
+  }
+
+  .score-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
