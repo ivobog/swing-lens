@@ -26,6 +26,20 @@ def test_combined_result_model_includes_warning_persistence_columns() -> None:
         assert column_name in table.c
 
 
+def test_earnings_risk_gate_model_includes_persistence_columns() -> None:
+    raw_table = Base.metadata.tables["raw_company_rows"]
+    combined_table = Base.metadata.tables["combined_results"]
+
+    assert "upcoming_earnings_date" in raw_table.c
+    for column_name in [
+        "upcoming_earnings_date",
+        "days_until_earnings",
+        "earnings_risk_level",
+        "earnings_warning_flags",
+    ]:
+        assert column_name in combined_table.c
+
+
 def test_ib_fetch_summary_models_match_phase2_tables() -> None:
     fetch_run_columns = IBFetchRun.__table__.c
     fetch_item_columns = IBFetchItem.__table__.c
@@ -183,6 +197,15 @@ def test_technical_v4_migration_follows_current_head() -> None:
 
     assert 'revision: str = "0006_add_technical_v4_columns"' in migration
     assert 'down_revision: str | None = "0005_add_fundamentals_v2_columns"' in migration
+
+
+def test_earnings_risk_gate_migration_follows_current_head() -> None:
+    migration = Path(
+        "alembic/versions/20260707_0010_add_earnings_risk_gate.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0010_add_earnings_risk_gate"' in migration
+    assert 'down_revision: str | None = "0009_history_indexes"' in migration
 
 
 def test_combined_decision_to_model_persists_phase2_fields() -> None:

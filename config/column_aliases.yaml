@@ -256,3 +256,11 @@ eps_estimate_quarterly_currency:
   - Earnings per share estimate, Quarterly - Currency
 analyst_rating:
   - Analyst rating
+upcoming_earnings_date:
+  - Upcoming earnings date
+  - Earnings date
+  - Next earnings date
+  - Earnings
+  - upcoming_earnings_date
+  - earnings_date
+  - next_earnings_date

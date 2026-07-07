@@ -83,6 +83,7 @@ class RawCompanyRow(Base):
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     company_name: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(Text)
+    upcoming_earnings_date: Mapped[date | None] = mapped_column(Date)
     raw_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -95,6 +96,7 @@ class RawCompanyRow(Base):
     __table_args__ = (
         Index("idx_raw_company_rows_run_id", "run_id"),
         Index("idx_raw_company_rows_ticker", "ticker"),
+        Index("idx_raw_company_rows_upcoming_earnings_date", "upcoming_earnings_date"),
     )
 
 
@@ -301,6 +303,16 @@ class CombinedResult(Base):
     dual_score: Mapped[Decimal | None] = mapped_column(Numeric)
     combined_decision: Mapped[str | None] = mapped_column(Text)
     position_size_hint: Mapped[str | None] = mapped_column(Text)
+    upcoming_earnings_date: Mapped[date | None] = mapped_column(Date)
+    days_until_earnings: Mapped[int | None]
+    earnings_risk_level: Mapped[str | None] = mapped_column(Text)
+    earnings_warning_flags_json: Mapped[list[str]] = mapped_column(
+        "earnings_warning_flags",
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
     notes: Mapped[str | None] = mapped_column(Text)
     warning_flags_json: Mapped[list[str] | None] = mapped_column(JSONB)
     is_complete: Mapped[bool] = mapped_column(
@@ -336,6 +348,7 @@ class CombinedResult(Base):
         UniqueConstraint("run_id", "ticker", name="uq_combined_results_run_ticker"),
         Index("idx_combined_results_run_id", "run_id"),
         Index("idx_combined_results_run_rank", "run_id", "final_rank"),
+        Index("idx_combined_results_earnings_risk", "earnings_risk_level"),
     )
 
 
