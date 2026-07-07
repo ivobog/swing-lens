@@ -3,11 +3,12 @@
 {% block title %}SwingLens Runs{% endblock %}
 
 {% block content %}
+{% set query_params = query_params|default("") %}
 <section class="panel">
   <div class="panel-header">
     <div>
       <h1>Runs</h1>
-      <p>Uploaded CSV files and their raw-row storage status.</p>
+      <p>Uploaded CSV files and their cockpit summaries.</p>
     </div>
     <div class="actions">
       <a class="button-link secondary" href="/history">History</a>
@@ -15,8 +16,58 @@
     </div>
   </div>
 
+  <form class="history-filters" method="get" action="/runs">
+    <label>
+      <span>Search</span>
+      <input type="search" name="search" value="{{ filters.search or '' }}" placeholder="Filename">
+    </label>
+    <label>
+      <span>Status</span>
+      <input type="text" name="status" value="{{ filters.status or '' }}" placeholder="COMPLETED">
+    </label>
+    <label>
+      <span>From</span>
+      <input type="date" name="from_date" value="{{ filters.from_date or '' }}">
+    </label>
+    <label>
+      <span>To</span>
+      <input type="date" name="to_date" value="{{ filters.to_date or '' }}">
+    </label>
+    <label>
+      <span>Page size</span>
+      <select name="page_size">
+        {% for size in [25, 50, 100, 200] %}
+          <option value="{{ size }}" {% if page.page_size == size %}selected{% endif %}>{{ size }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Sort</span>
+      <select name="sort">
+        {% for value, label in [("uploaded_at", "Uploaded"), ("run_id", "Run ID"), ("status", "Status"), ("row_count", "Rows"), ("combined_count", "Combined"), ("incomplete_count", "Incomplete"), ("warning_count", "Warnings"), ("strong_count", "Strong"), ("best_score", "Best Score")] %}
+          <option value="{{ value }}" {% if filters.sort == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Direction</span>
+      <select name="direction">
+        <option value="desc" {% if filters.direction == "desc" %}selected{% endif %}>Desc</option>
+        <option value="asc" {% if filters.direction == "asc" %}selected{% endif %}>Asc</option>
+      </select>
+    </label>
+    <div class="actions">
+      <button type="submit">Apply</button>
+      <a class="button-link secondary" href="/runs">Clear</a>
+    </div>
+  </form>
+
   {% if runs %}
-    <div class="table-wrap">
+    <div class="run-meta section-gap">
+      <span>{{ page.total_items }} runs</span>
+      <span>Page {{ page.page }} of {{ page.total_pages }}</span>
+    </div>
+    <div class="table-wrap section-gap">
       <table>
         <thead>
           <tr>
@@ -24,6 +75,11 @@
             <th>Filename</th>
             <th>Status</th>
             <th>Rows</th>
+            <th>Combined</th>
+            <th>Incomplete</th>
+            <th>Warnings</th>
+            <th>Strong</th>
+            <th>Top Complete</th>
             <th>Uploaded</th>
             <th>Processed</th>
           </tr>
@@ -31,10 +87,20 @@
         <tbody>
           {% for run in runs %}
             <tr>
-              <td><a href="/runs/{{ run.id }}">{{ run.id }}</a></td>
+              <td><a href="/runs/{{ run.run_id }}">{{ run.run_id }}</a></td>
               <td>{{ run.filename }}</td>
               <td>{{ run.status }}</td>
-              <td>{{ run.row_count or 0 }}</td>
+              <td>{{ run.row_count }}</td>
+              <td>{{ run.combined_count }}</td>
+              <td>{{ run.incomplete_count }}</td>
+              <td>{{ run.warning_count }}</td>
+              <td>{{ run.strong_count }}</td>
+              <td>
+                {% if run.top_complete_ticker %}
+                  {{ run.top_complete_ticker }}
+                  <span class="muted-line">{{ "%.2f"|format(run.top_complete_score) if run.top_complete_score is not none else "" }}</span>
+                {% endif %}
+              </td>
               <td>{{ run.uploaded_at }}</td>
               <td>{{ run.processed_at or "" }}</td>
             </tr>
@@ -42,8 +108,16 @@
         </tbody>
       </table>
     </div>
+    <div class="pagination-actions">
+      {% if page.has_previous %}
+        <a class="button-link secondary" href="/runs?page={{ page.page - 1 }}{% if query_params %}&{{ query_params }}{% endif %}">Previous</a>
+      {% endif %}
+      {% if page.has_next %}
+        <a class="button-link secondary" href="/runs?page={{ page.page + 1 }}{% if query_params %}&{{ query_params }}{% endif %}">Next</a>
+      {% endif %}
+    </div>
   {% else %}
-    <p>No CSV runs have been uploaded yet.</p>
+    <p class="section-gap">No CSV runs match the current filters.</p>
   {% endif %}
 </section>
 {% endblock %}

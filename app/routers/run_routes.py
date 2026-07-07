@@ -1,3 +1,5 @@
+from datetime import date
+from decimal import Decimal
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -28,7 +30,12 @@ from app.services.export_service import (
     export_run_csv,
 )
 from app.services.fundamental_score_service import recalculate_run_fundamentals
-from app.services.history_service import recent_decisions, summarize_runs
+from app.services.history_query_service import (
+    DecisionFilters,
+    RunFilters,
+    paged_decisions,
+    paged_runs,
+)
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_fetch_job_service import (
     FetchJobOptions,
@@ -95,25 +102,99 @@ WARNING_BADGE_LABELS = {
 
 
 @router.get("/runs", response_class=HTMLResponse)
-def runs_page(request: Request, db: DbSession) -> HTMLResponse:
-    runs = db.scalars(select(UploadRun).order_by(UploadRun.uploaded_at.desc())).all()
-    return templates.TemplateResponse(request, "runs.html", {"active_nav": "runs", "runs": runs})
+def runs_page(
+    request: Request,
+    db: DbSession,
+    page: int = 1,
+    page_size: int | None = None,
+    status: str = "",
+    from_date: str = "",
+    to_date: str = "",
+    search: str = "",
+    sort: str = "uploaded_at",
+    direction: str = "desc",
+) -> HTMLResponse:
+    settings = get_settings()
+    effective_page_size = page_size or settings.runs_default_page_size
+    filters = RunFilters(
+        status=status or None,
+        from_date=_parse_date_filter(from_date),
+        to_date=_parse_date_filter(to_date),
+        search=search.strip() or None,
+        sort=sort,
+        direction=direction,
+    )
+    runs_page_data = paged_runs(
+        db,
+        filters,
+        page=page,
+        page_size=effective_page_size,
+        max_page_size=settings.history_max_page_size,
+    )
+    return templates.TemplateResponse(
+        request,
+        "runs.html",
+        {
+            "active_nav": "runs",
+            "runs": runs_page_data.items,
+            "page": runs_page_data,
+            "filters": filters,
+            "query_params": _pagination_query_params(request),
+        },
+    )
 
 
 @router.get("/history", response_class=HTMLResponse)
-def history_page(request: Request, db: DbSession) -> HTMLResponse:
-    runs = db.scalars(
-        select(UploadRun)
-        .options(selectinload(UploadRun.combined_results))
-        .order_by(UploadRun.uploaded_at.desc())
-    ).all()
+def history_page(
+    request: Request,
+    db: DbSession,
+    page: int = 1,
+    page_size: int | None = None,
+    from_date: str = "",
+    to_date: str = "",
+    decision: str = "",
+    ticker: str = "",
+    sector: str = "",
+    min_score: str = "",
+    has_warning: str = "",
+    incomplete_only: bool = False,
+) -> HTMLResponse:
+    settings = get_settings()
+    effective_page_size = page_size or settings.history_default_page_size
+    filters = DecisionFilters(
+        from_date=_parse_date_filter(from_date),
+        to_date=_parse_date_filter(to_date),
+        decision=decision or None,
+        ticker=ticker.strip() or None,
+        sector=sector or None,
+        min_score=_parse_decimal_filter(min_score),
+        has_warning=_parse_bool_filter(has_warning),
+        incomplete_only=incomplete_only,
+    )
+    decisions_page_data = paged_decisions(
+        db,
+        filters,
+        page=page,
+        page_size=effective_page_size,
+        max_page_size=settings.history_max_page_size,
+    )
+    recent_runs_page = paged_runs(
+        db,
+        RunFilters(),
+        page=1,
+        page_size=5,
+        max_page_size=5,
+    )
     return templates.TemplateResponse(
         request,
         "history.html",
         {
             "active_nav": "history",
-            "run_summaries": summarize_runs(list(runs)),
-            "recent_decisions": recent_decisions(list(runs), limit=100),
+            "run_summaries": recent_runs_page.items,
+            "recent_decisions": decisions_page_data.items,
+            "decisions_page": decisions_page_data,
+            "filters": filters,
+            "query_params": _pagination_query_params(request),
         },
     )
 
@@ -1093,6 +1174,34 @@ def _pipeline_status_payload(
         "percentage": round((completed_steps / total_steps) * 100, 1) if total_steps else 0.0,
         "steps": steps,
     }
+
+
+def _pagination_query_params(request: Request) -> str:
+    params = [
+        (key, value)
+        for key, value in request.query_params.multi_items()
+        if key != "page" and value not in {"", "None"}
+    ]
+    return urlencode(params)
+
+
+def _parse_date_filter(value: str) -> date | None:
+    value = value.strip()
+    return date.fromisoformat(value) if value else None
+
+
+def _parse_decimal_filter(value: str) -> Decimal | None:
+    value = value.strip()
+    return Decimal(value) if value else None
+
+
+def _parse_bool_filter(value: str) -> bool | None:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "off"}:
+        return False
+    return None
 
 
 def _redirect_with_query(run_id: int, params: dict[str, str]) -> RedirectResponse:

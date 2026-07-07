@@ -14,6 +14,9 @@ from app.routers.run_routes import (
     _fetch_plan_action_counts,
     _fetch_plan_json_url,
     _fetch_request_options,
+    _parse_bool_filter,
+    _parse_date_filter,
+    _parse_decimal_filter,
     _run_summary,
     _tickers_from_fetch_form,
     _warning_badges,
@@ -98,6 +101,16 @@ def test_fetch_form_helpers_normalize_tickers_and_data_types() -> None:
     assert _tickers_from_fetch_form("msft, AAPL\nmsft NVDA") == ["MSFT", "AAPL", "NVDA"]
     assert _what_to_show_values(["TRADES", "BAD"]) == ("TRADES",)
     assert _what_to_show_values([]) == ("ADJUSTED_LAST", "TRADES")
+
+
+def test_filter_parsers_ignore_blank_values() -> None:
+    assert _parse_date_filter("") is None
+    assert _parse_decimal_filter("") is None
+    assert _parse_bool_filter("") is None
+    assert str(_parse_date_filter("2026-07-07")) == "2026-07-07"
+    assert _parse_decimal_filter("7.5") == Decimal("7.5")
+    assert _parse_bool_filter("true") is True
+    assert _parse_bool_filter("false") is False
 
 
 def test_fetch_request_options_and_duration_label() -> None:
