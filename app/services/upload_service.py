@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.models.enums import RunStatus
 from app.models.tables import FundamentalScore, RawCompanyRow, UploadRun
-from app.services.column_mapper import map_csv_rows
+from app.services.column_mapper import MappedCsvRow, map_csv_rows
 from app.services.csv_loader import CsvLoadError, load_csv_rows
+from app.services.earnings_date_parser import parse_earnings_date
 from app.services.fundamental_ranker_v2 import (
     FundamentalScoreV2Result,
     score_rows_v2,
@@ -53,14 +54,7 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         return run
 
     raw_rows = [
-        RawCompanyRow(
-            run_id=run.id,
-            row_number=row.row_number,
-            ticker=row.ticker,
-            company_name=row.company_name,
-            sector=row.sector,
-            raw_json=row.raw,
-        )
+        _raw_company_row_from_mapped(run.id, row)
         for row in mapped_rows
         if row.ticker
     ]
@@ -80,6 +74,23 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
     db.commit()
     db.refresh(run)
     return run
+
+
+def _raw_company_row_from_mapped(run_id: int, row: MappedCsvRow) -> RawCompanyRow:
+    raw_json = dict(row.raw)
+    raw_earnings_value = row.canonical.get("upcoming_earnings_date")
+    if raw_earnings_value is not None:
+        raw_json["upcoming_earnings_date"] = raw_earnings_value
+
+    return RawCompanyRow(
+        run_id=run_id,
+        row_number=row.row_number,
+        ticker=row.ticker,
+        company_name=row.company_name,
+        sector=row.sector,
+        upcoming_earnings_date=parse_earnings_date(raw_earnings_value),
+        raw_json=raw_json,
+    )
 
 
 def _fundamental_score_from_v2(
