@@ -310,7 +310,8 @@ dd {
 
 .ib-card,
 .fetch-summary,
-.coverage-details {
+.coverage-details,
+.collapsible-table {
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -404,7 +405,8 @@ dd {
 }
 
 .fetch-summary,
-.coverage-details {
+.coverage-details,
+.collapsible-table {
   margin-top: 16px;
 }
 
@@ -459,12 +461,14 @@ dd {
   font-size: 15px;
 }
 
-.coverage-details summary {
+.coverage-details summary,
+.collapsible-table summary {
   cursor: pointer;
   font-weight: 700;
 }
 
-.coverage-details .table-wrap {
+.coverage-details .table-wrap,
+.collapsible-table .table-wrap {
   margin-top: 12px;
 }
 

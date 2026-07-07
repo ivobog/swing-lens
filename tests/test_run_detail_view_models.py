@@ -215,6 +215,55 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert 'name="include_benchmarks" value="false"' not in html
 
 
+def test_run_detail_collapses_secondary_tables_by_default(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
+    combined = _combined("MSFT", "Candidate", is_complete=True, has_warning=False)
+    latest_fetch = SimpleNamespace(
+        id=9,
+        status="COMPLETED",
+        fetched_count=1,
+        executed_request_count=1,
+        planned_request_count=1,
+        inserted_count=1,
+        revised_count=0,
+        unchanged_count=0,
+        failure_count=0,
+        message="",
+        items=[
+            SimpleNamespace(
+                ticker="MSFT",
+                what_to_show="TRADES",
+                status="SUCCESS",
+                action="TOP_UP_RECENT",
+                duration="1 D",
+                fetched=1,
+                inserted=1,
+                updated=0,
+                revised=0,
+                unchanged=0,
+                attempt_count=1,
+                error_message="",
+            )
+        ],
+    )
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        raw_preview=[_row("MSFT", 1)],
+        latest_fetch=latest_fetch,
+        combined_results=[combined],
+        decision_counts={"Candidate": 1},
+        warning_badges_by_ticker={"MSFT": []},
+    )
+
+    assert "<summary>Latest Fetch rows</summary>" in html
+    assert "<summary>Raw CSV Preview rows</summary>" in html
+    assert '<details class="collapsible-table" open>' not in html
+    assert 'data-cockpit-table' in html
+    assert "<h2>Decision Cockpit</h2>" in html
+
+
 def test_coverage_actions_and_template_support_targeted_fetches(monkeypatch) -> None:
     monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
     run = UploadRun(id=7, filename="sample.csv", row_count=3, status="COMPLETED")

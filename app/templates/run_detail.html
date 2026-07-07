@@ -303,48 +303,51 @@
         <p>{{ latest_fetch.message }}</p>
       {% endif %}
       {% if latest_fetch.items %}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Ticker</th>
-                <th>Data</th>
-                <th>Status</th>
-                <th>Action</th>
-                <th>Duration</th>
-                <th>Fetched</th>
-                <th>Inserted</th>
-                <th>Updated</th>
-                <th>Revised</th>
-                <th>Unchanged</th>
-                <th>Attempts</th>
-                <th>Error</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in latest_fetch.items %}
+        <details class="collapsible-table">
+          <summary>Latest Fetch rows</summary>
+          <div class="table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td>{{ item.ticker }}</td>
-                  <td>{{ item.what_to_show }}</td>
-                  <td>
-                    <span class="badge badge-{{ 'success' if item.status in ['SUCCESS', 'COMPLETED', 'SKIPPED'] else 'warning' if item.status in ['PLANNED', 'RUNNING'] else 'danger' }}">
-                      {{ item.status|replace("_", " ")|title }}
-                    </span>
-                  </td>
-                  <td>{{ item.action or "" }}</td>
-                  <td>{{ item.duration or "" }}</td>
-                  <td>{{ item.fetched }}</td>
-                  <td>{{ item.inserted }}</td>
-                  <td>{{ item.updated }}</td>
-                  <td>{{ item.revised }}</td>
-                  <td>{{ item.unchanged }}</td>
-                  <td>{{ item.attempt_count }}</td>
-                  <td>{{ item.error_message or "" }}</td>
+                  <th>Ticker</th>
+                  <th>Data</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                  <th>Duration</th>
+                  <th>Fetched</th>
+                  <th>Inserted</th>
+                  <th>Updated</th>
+                  <th>Revised</th>
+                  <th>Unchanged</th>
+                  <th>Attempts</th>
+                  <th>Error</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {% for item in latest_fetch.items %}
+                  <tr>
+                    <td>{{ item.ticker }}</td>
+                    <td>{{ item.what_to_show }}</td>
+                    <td>
+                      <span class="badge badge-{{ 'success' if item.status in ['SUCCESS', 'COMPLETED', 'SKIPPED'] else 'warning' if item.status in ['PLANNED', 'RUNNING'] else 'danger' }}">
+                        {{ item.status|replace("_", " ")|title }}
+                      </span>
+                    </td>
+                    <td>{{ item.action or "" }}</td>
+                    <td>{{ item.duration or "" }}</td>
+                    <td>{{ item.fetched }}</td>
+                    <td>{{ item.inserted }}</td>
+                    <td>{{ item.updated }}</td>
+                    <td>{{ item.revised }}</td>
+                    <td>{{ item.unchanged }}</td>
+                    <td>{{ item.attempt_count }}</td>
+                    <td>{{ item.error_message or "" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
       {% endif %}
     </div>
   {% endif %}
@@ -728,49 +731,52 @@
   </div>
 
   {% if raw_preview %}
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Ticker</th>
-            <th>Company</th>
-            <th>Sector</th>
-            <th>Fundamental</th>
-            <th>Technical</th>
-            <th>Combined</th>
-            <th>Raw Columns</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in raw_preview %}
-            {% set fundamental = fundamental_by_ticker.get(row.ticker) %}
-            {% set technical = technical_by_ticker.get(row.ticker) %}
-            {% set combined = combined_by_ticker.get(row.ticker) %}
+    <details class="collapsible-table">
+      <summary>Raw CSV Preview rows</summary>
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td>{{ row.row_number }}</td>
-              <td>{{ row.ticker }}</td>
-              <td>{{ row.company_name or "" }}</td>
-              <td>{{ row.sector or "" }}</td>
-              <td>
-                {{ fundamental.fundamental_label if fundamental else "" }}
-                {% if fundamental and fundamental.fundamental_score is not none %}
-                  <span class="muted-line">{{ "%.2f"|format(fundamental.fundamental_score) }}</span>
-                {% endif %}
-              </td>
-              <td>
-                {{ technical.classification if technical else "" }}
-                {% if technical and technical.dual_score is not none %}
-                  <span class="muted-line">{{ "%.2f"|format(technical.dual_score) }}</span>
-                {% endif %}
-              </td>
-              <td>{{ combined.combined_decision if combined else "" }}</td>
-              <td>{{ row.raw_json|length }}</td>
+              <th>#</th>
+              <th>Ticker</th>
+              <th>Company</th>
+              <th>Sector</th>
+              <th>Fundamental</th>
+              <th>Technical</th>
+              <th>Combined</th>
+              <th>Raw Columns</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {% for row in raw_preview %}
+              {% set fundamental = fundamental_by_ticker.get(row.ticker) %}
+              {% set technical = technical_by_ticker.get(row.ticker) %}
+              {% set combined = combined_by_ticker.get(row.ticker) %}
+              <tr>
+                <td>{{ row.row_number }}</td>
+                <td>{{ row.ticker }}</td>
+                <td>{{ row.company_name or "" }}</td>
+                <td>{{ row.sector or "" }}</td>
+                <td>
+                  {{ fundamental.fundamental_label if fundamental else "" }}
+                  {% if fundamental and fundamental.fundamental_score is not none %}
+                    <span class="muted-line">{{ "%.2f"|format(fundamental.fundamental_score) }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {{ technical.classification if technical else "" }}
+                  {% if technical and technical.dual_score is not none %}
+                    <span class="muted-line">{{ "%.2f"|format(technical.dual_score) }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ combined.combined_decision if combined else "" }}</td>
+                <td>{{ row.raw_json|length }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
   {% else %}
     <p>No rows were stored for this run.</p>
   {% endif %}
