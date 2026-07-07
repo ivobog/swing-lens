@@ -179,6 +179,14 @@ function rowMatchesQuickFilters(row, quickFilters) {
   if (quickFilters.has("warnings") && row.dataset.hasWarning !== "true") return false;
   if (quickFilters.has("incomplete") && row.dataset.incomplete !== "true") return false;
   if (quickFilters.has("hide-avoid") && row.dataset.avoid === "true") return false;
+  if (quickFilters.has("hide-earnings-blocked") && row.dataset.earningsRisk === "blocked") return false;
+  if (
+    quickFilters.has("earnings-risk")
+    && !["blocked", "high", "medium", "unknown"].includes(row.dataset.earningsRisk)
+  ) {
+    return false;
+  }
+  if (quickFilters.has("earnings-clear") && row.dataset.earningsRisk !== "clear") return false;
   return true;
 }
 

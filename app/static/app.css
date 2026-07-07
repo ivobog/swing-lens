@@ -784,8 +784,9 @@ table {
 
 .cockpit-table td:nth-child(3),
 .cockpit-table td:nth-child(6),
-.cockpit-table td:nth-child(7),
-.cockpit-table td:nth-child(8) {
+.cockpit-table td:nth-child(9),
+.cockpit-table td:nth-child(10),
+.cockpit-table td:nth-child(11) {
   min-width: 150px;
   white-space: normal;
 }
@@ -923,6 +924,12 @@ td a {
 }
 
 .decision-avoid {
+  border-color: #e4b4b4;
+  background: #fff0f0;
+  color: #8c2f2f;
+}
+
+.decision-blocked-by-earnings-gate {
   border-color: #e4b4b4;
   background: #fff0f0;
   color: #8c2f2f;

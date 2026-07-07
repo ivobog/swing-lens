@@ -17,6 +17,10 @@
   "incomplete_count": 0,
   "warning_count": 0,
   "strong_count": 0,
+  "earnings_blocked_count": 0,
+  "earnings_high_risk_count": 0,
+  "earnings_medium_risk_count": 0,
+  "earnings_unknown_count": 0,
   "duplicate_ticker_count": 0,
   "raw_column_count": 0,
   "top_complete": none
@@ -150,6 +154,22 @@
   <div class="metric">
     <span>Strong</span>
     <strong>{{ run_summary.strong_count }}</strong>
+  </div>
+  <div class="metric">
+    <span>Earnings Blocked</span>
+    <strong>{{ run_summary.earnings_blocked_count }}</strong>
+  </div>
+  <div class="metric">
+    <span>Earnings High</span>
+    <strong>{{ run_summary.earnings_high_risk_count }}</strong>
+  </div>
+  <div class="metric">
+    <span>Earnings Medium</span>
+    <strong>{{ run_summary.earnings_medium_risk_count }}</strong>
+  </div>
+  <div class="metric">
+    <span>Earnings Unknown</span>
+    <strong>{{ run_summary.earnings_unknown_count }}</strong>
   </div>
   <div class="metric metric-wide">
     <span>Top Complete</span>
@@ -452,6 +472,9 @@
         <button class="quick-filter-chip" type="button" data-quick-filter="warnings">Warnings only</button>
         <button class="quick-filter-chip" type="button" data-quick-filter="incomplete">Incomplete only</button>
         <button class="quick-filter-chip" type="button" data-quick-filter="hide-avoid">Hide avoid</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="hide-earnings-blocked">Hide earnings blocked</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="earnings-risk">Earnings risk</button>
+        <button class="quick-filter-chip" type="button" data-quick-filter="earnings-clear">Earnings clear</button>
       </div>
       <div class="copy-actions">
         <button class="secondary" type="button" data-copy-tickers="visible">Copy visible tickers</button>
@@ -521,6 +544,9 @@
             <th><button class="sort-button" type="button" data-sort-key="final-score" data-sort-type="number">Final</button></th>
             <th><button class="sort-button" type="button" data-sort-key="decision" data-sort-type="text">Decision</button></th>
             <th><button class="sort-button" type="button" data-sort-key="warning-count" data-sort-type="number">Warnings</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="earnings-date" data-sort-type="text">Earnings</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="days-until-earnings" data-sort-type="number">Days</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="earnings-risk" data-sort-type="text">Earnings Risk</button></th>
             <th><button class="sort-button" type="button" data-sort-key="fundamental-score" data-sort-type="number">Fundamental</button></th>
             <th><button class="sort-button" type="button" data-sort-key="technical-score" data-sort-type="number">Technical</button></th>
             <th>Actions</th>
@@ -535,6 +561,8 @@
             {% set warning_flags = result.warning_flags_json or [] %}
             {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
             {% set is_candidate_plus = result.combined_decision in ["Strong candidate", "Candidate"] %}
+            {% set earnings_risk = result.earnings_risk_level or "unknown" %}
+            {% set earnings_badge_tone = "danger" if earnings_risk == "blocked" else "warning" if earnings_risk in ["high", "medium"] else "success" if earnings_risk == "clear" else "muted" %}
             <tr
               class="cockpit-row"
               data-cockpit-row
@@ -552,9 +580,12 @@
               data-has-warning="{{ 'true' if result.has_warning else 'false' }}"
               data-warning-count="{{ warning_flags|length }}"
               data-warning-flags="{{ warning_flags|join(' ') }}"
+              data-earnings-date="{{ result.upcoming_earnings_date or '' }}"
+              data-days-until-earnings="{{ result.days_until_earnings if result.days_until_earnings is not none else '' }}"
+              data-earnings-risk="{{ earnings_risk }}"
               data-clean="{{ 'true' if result.is_complete and not result.has_warning else 'false' }}"
               data-candidate-plus="{{ 'true' if is_candidate_plus else 'false' }}"
-              data-avoid="{{ 'true' if result.combined_decision == 'Avoid' else 'false' }}"
+              data-avoid="{{ 'true' if result.combined_decision in ['Avoid', 'Blocked by earnings gate'] else 'false' }}"
               data-position-size="{{ result.position_size_hint or '' }}"
             >
               <td>{{ result.final_rank }}</td>
@@ -580,6 +611,11 @@
                   <span class="badge badge-success">Clean</span>
                 {% endif %}
               </td>
+              <td>{{ result.upcoming_earnings_date or "" }}</td>
+              <td>{{ result.days_until_earnings if result.days_until_earnings is not none else "" }}</td>
+              <td>
+                <span class="badge badge-{{ earnings_badge_tone }}">{{ earnings_risk|replace("_", " ")|title }}</span>
+              </td>
               <td>
                 {{ "%.2f"|format(result.fundamental_score) if result.fundamental_score is not none else "" }}
                 {% if result.fundamental_label %}
@@ -600,7 +636,7 @@
               </td>
             </tr>
             <tr class="detail-row" data-detail-row hidden>
-              <td colspan="9">
+              <td colspan="12">
                 <div class="detail-grid">
                   <div>
                     <h3>Fundamentals</h3>
@@ -713,6 +749,14 @@
                       <dd>{{ result.notes or "" }}</dd>
                       <dt>Warnings</dt>
                       <dd>{{ warning_flags|join(", ") if warning_flags else "None" }}</dd>
+                      <dt>Earnings Date</dt>
+                      <dd>{{ result.upcoming_earnings_date or "Unknown" }}</dd>
+                      <dt>Days</dt>
+                      <dd>{{ result.days_until_earnings if result.days_until_earnings is not none else "Unknown" }}</dd>
+                      <dt>Earnings Risk</dt>
+                      <dd>{{ earnings_risk|replace("_", " ")|title }}</dd>
+                      <dt>Earnings Flags</dt>
+                      <dd>{{ result.earnings_warning_flags_json|join(", ") if result.earnings_warning_flags_json else "None" }}</dd>
                       {% if technical %}
                         <dt>Stop</dt>
                         <dd>{{ "%.2f"|format(technical.suggested_stop) if technical.suggested_stop is not none else "" }}</dd>

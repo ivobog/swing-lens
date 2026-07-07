@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -44,8 +45,30 @@ def test_run_summary_counts_cockpit_state() -> None:
     assert summary["incomplete_count"] == 1
     assert summary["warning_count"] == 1
     assert summary["strong_count"] == 1
+    assert summary["earnings_blocked_count"] == 0
+    assert summary["earnings_high_risk_count"] == 0
+    assert summary["earnings_medium_risk_count"] == 0
+    assert summary["earnings_unknown_count"] == 0
     assert summary["duplicate_ticker_count"] == 1
     assert summary["top_complete"].ticker == "MSFT"
+
+
+def test_run_summary_counts_earnings_risk_levels() -> None:
+    run = UploadRun(id=1, filename="sample.csv", row_count=4, status="COMPLETED")
+    rows = [_row("MSFT", 1), _row("AAPL", 2), _row("NVDA", 3), _row("ADBE", 4)]
+    results = [
+        _combined("MSFT", "Blocked by earnings gate", True, True, earnings_risk="blocked"),
+        _combined("AAPL", "Candidate", True, True, earnings_risk="high"),
+        _combined("NVDA", "Strong candidate", True, True, earnings_risk="medium"),
+        _combined("ADBE", "Candidate", True, True, earnings_risk="unknown"),
+    ]
+
+    summary = _run_summary(run, rows, results)
+
+    assert summary["earnings_blocked_count"] == 1
+    assert summary["earnings_high_risk_count"] == 1
+    assert summary["earnings_medium_risk_count"] == 1
+    assert summary["earnings_unknown_count"] == 1
 
 
 def test_workflow_steps_show_warning_for_partial_coverage_and_low_confidence() -> None:
@@ -153,7 +176,14 @@ def test_fetch_request_options_and_duration_label() -> None:
 
 def test_warning_badges_map_flags_to_labels_and_tones() -> None:
     badges = _warning_badges(
-        ["incomplete_data", "value_trap_risk", "liquidity_warning", "high_accrual_risk"]
+        [
+            "incomplete_data",
+            "value_trap_risk",
+            "liquidity_warning",
+            "high_accrual_risk",
+            "earnings_blocked",
+            "earnings_date_missing",
+        ]
     )
 
     assert badges == [
@@ -161,6 +191,8 @@ def test_warning_badges_map_flags_to_labels_and_tones() -> None:
         {"flag": "value_trap_risk", "label": "Value trap", "tone": "danger"},
         {"flag": "liquidity_warning", "label": "Liquidity", "tone": "muted"},
         {"flag": "high_accrual_risk", "label": "Accrual risk", "tone": "danger"},
+        {"flag": "earnings_blocked", "label": "Earnings block", "tone": "danger"},
+        {"flag": "earnings_date_missing", "label": "No earnings date", "tone": "warning"},
     ]
 
 
@@ -428,11 +460,17 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert "quick_ratio_quarterly" in html
     assert "high_accrual_risk" in html
     assert 'data-quick-filter="top10"' in html
+    assert 'data-quick-filter="hide-earnings-blocked"' in html
+    assert 'data-quick-filter="earnings-risk"' in html
+    assert 'data-quick-filter="earnings-clear"' in html
     assert 'data-filter-clear' in html
     assert 'data-copy-tickers="visible"' in html
     assert 'data-copy-tickers="candidates"' in html
     assert 'data-sort-key="final-score"' in html
     assert 'data-sort-key="warning-count"' in html
+    assert 'data-sort-key="earnings-date"' in html
+    assert 'data-sort-key="days-until-earnings"' in html
+    assert 'data-sort-key="earnings-risk"' in html
     assert "<th>Company</th>" not in html
     assert 'data-sort-key="position-size"' not in html
     assert 'class="ticker-with-company" title="Microsoft Corporation">MSFT</strong>' in html
@@ -441,6 +479,53 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert 'data-clean="false"' in html
     assert 'data-copy-single="MSFT"' not in html
     assert "https://www.tradingview.com/chart/?symbol=MSFT" in html
+
+
+def test_run_detail_template_renders_earnings_risk_context(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
+    combined = _combined(
+        "MSFT",
+        "Blocked by earnings gate",
+        is_complete=True,
+        has_warning=True,
+        earnings_risk="blocked",
+    )
+    combined.upcoming_earnings_date = date(2026, 7, 14)
+    combined.days_until_earnings = 1
+    combined.earnings_warning_flags_json = ["earnings_blocked"]
+    combined.warning_flags_json = ["earnings_blocked"]
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        combined_results=[combined],
+        decision_counts={"Blocked by earnings gate": 1},
+        run_summary={
+            "row_count": 1,
+            "combined_count": 1,
+            "incomplete_count": 0,
+            "warning_count": 1,
+            "strong_count": 0,
+            "earnings_blocked_count": 1,
+            "earnings_high_risk_count": 0,
+            "earnings_medium_risk_count": 0,
+            "earnings_unknown_count": 0,
+            "duplicate_ticker_count": 0,
+            "raw_column_count": 4,
+            "top_complete": combined,
+        },
+        warning_badges_by_ticker={"MSFT": _warning_badges(["earnings_blocked"])},
+    )
+
+    assert "Earnings Blocked" in html
+    assert 'data-earnings-date="2026-07-14"' in html
+    assert 'data-days-until-earnings="1"' in html
+    assert 'data-earnings-risk="blocked"' in html
+    assert 'data-avoid="true"' in html
+    assert "Blocked by earnings gate" in html
+    assert "Earnings Date" in html
+    assert "Earnings Flags" in html
+    assert "earnings_blocked" in html
 
 
 def test_run_detail_template_renders_v4_technical_details(monkeypatch) -> None:
@@ -586,6 +671,7 @@ def _combined(
     decision: str,
     is_complete: bool,
     has_warning: bool,
+    earnings_risk: str | None = None,
 ) -> CombinedResult:
     return CombinedResult(
         run_id=1,
@@ -595,6 +681,8 @@ def _combined(
         combined_decision=decision,
         is_complete=is_complete,
         has_warning=has_warning,
+        earnings_risk_level=earnings_risk,
+        earnings_warning_flags_json=[],
     )
 
 

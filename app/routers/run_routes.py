@@ -98,6 +98,11 @@ WARNING_BADGE_LABELS = {
     "forward_quality_weak": "Forward weak",
     "dividend_payout_risk": "Dividend payout",
     "sparse_fundamental_data": "Sparse data",
+    "earnings_blocked": "Earnings block",
+    "earnings_high_risk": "Earnings high",
+    "earnings_medium_risk": "Earnings medium",
+    "earnings_date_missing": "No earnings date",
+    "earnings_date_unparseable": "Bad earnings date",
 }
 
 
@@ -821,6 +826,18 @@ def _run_summary(
         result.combined_decision == "Strong candidate" and result.is_complete
         for result in combined_results
     )
+    earnings_blocked_count = sum(
+        result.earnings_risk_level == "blocked" for result in combined_results
+    )
+    earnings_high_risk_count = sum(
+        result.earnings_risk_level == "high" for result in combined_results
+    )
+    earnings_medium_risk_count = sum(
+        result.earnings_risk_level == "medium" for result in combined_results
+    )
+    earnings_unknown_count = sum(
+        result.earnings_risk_level == "unknown" for result in combined_results
+    )
     duplicate_ticker_count = len(rows) - len(_unique_tickers(rows))
     top_complete = next(
         (result for result in combined_results if result.is_complete),
@@ -833,6 +850,10 @@ def _run_summary(
         "incomplete_count": incomplete_count,
         "warning_count": warning_count,
         "strong_count": strong_count,
+        "earnings_blocked_count": earnings_blocked_count,
+        "earnings_high_risk_count": earnings_high_risk_count,
+        "earnings_medium_risk_count": earnings_medium_risk_count,
+        "earnings_unknown_count": earnings_unknown_count,
         "duplicate_ticker_count": duplicate_ticker_count,
         "raw_column_count": raw_column_count,
         "top_complete": top_complete,
@@ -960,6 +981,7 @@ def _warning_tone(flag: str) -> str:
         "poor_cash_conversion",
         "balance_sheet_stress",
         "dividend_payout_risk",
+        "earnings_blocked",
     }:
         return "danger"
     if flag in {
@@ -971,6 +993,10 @@ def _warning_tone(flag: str) -> str:
         "asset_growth_without_returns",
         "forward_quality_weak",
         "sparse_fundamental_data",
+        "earnings_high_risk",
+        "earnings_medium_risk",
+        "earnings_date_missing",
+        "earnings_date_unparseable",
     }:
         return "warning"
     return "muted"
