@@ -1,7 +1,6 @@
 from datetime import date, datetime
 from typing import Any
 
-
 MISSING_EARNINGS_DATE_VALUES = {
     "",
     "-",

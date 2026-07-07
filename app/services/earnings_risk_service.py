@@ -3,7 +3,6 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-
 DEFAULT_EARNINGS_RISK_GATE_CONFIG = {
     "enabled": True,
     "block_if_within_days": 2,
