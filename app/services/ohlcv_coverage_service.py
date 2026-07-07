@@ -1,13 +1,15 @@
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, time
 from enum import StrEnum
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import IBContract, PriceBar, RawCompanyRow
 from app.services.technical_indicators import load_pine_defaults
+from app.services.us_market_calendar import is_latest_daily_bar_current
 from app.settings import Settings, get_settings
 
 
@@ -154,10 +156,10 @@ def _coverage_item(
     has_volume = trades_bars > 0
     sufficient_history = price_bars >= required_rows
     latest_price_date = adjusted.latest_date or trades.latest_date
-    current_date = today or date.today()
-    latest_bar_current = (
-        latest_price_date is not None
-        and latest_price_date >= current_date - timedelta(days=stale_after_days)
+    _ = stale_after_days
+    latest_bar_current = is_latest_daily_bar_current(
+        latest_price_date,
+        now=_coverage_now(today),
     )
 
     if contract_failed:
@@ -174,7 +176,7 @@ def _coverage_item(
         reason = "TRADES bars are missing, so volume coverage is unavailable."
     elif not latest_bar_current:
         status = OhlcvCoverageStatus.STALE
-        reason = f"Latest cached price bar is older than {stale_after_days} calendar days."
+        reason = "Latest cached price bar is older than the latest completed US trading day."
     else:
         status = OhlcvCoverageStatus.READY
         reason = "Adjusted price and trades volume coverage are ready."
@@ -196,6 +198,12 @@ def _coverage_item(
         latest_bar_current=latest_bar_current,
         reason=reason,
     )
+
+
+def _coverage_now(today: date | None) -> datetime | None:
+    if today is None:
+        return None
+    return datetime.combine(today, time(23, 59), tzinfo=ZoneInfo("America/New_York"))
 
 
 def _run_tickers(db: Session, run_id: int) -> list[str]:
