@@ -69,6 +69,8 @@ def test_upload_template_handles_missing_dashboard_context(monkeypatch: pytest.M
 
     assert "Upload a daily screener CSV." in html
     assert "No runs yet." in html
+    assert "<h2>Local App</h2>" not in html
+    assert "<h2>IB Gateway</h2>" not in html
 
 
 def _run(status: str) -> UploadRun:
