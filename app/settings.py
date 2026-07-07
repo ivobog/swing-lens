@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     debug: bool = True
+    use_durable_pipeline: bool = False
 
     database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
 
@@ -45,6 +46,14 @@ class Settings(BaseSettings):
     ib_required_daily_bars: int = 252
     ib_daily_bar_stale_after_days: int = 3
     ib_revision_audit_enabled: bool = False
+
+    job_worker_enabled: bool = False
+    job_poll_interval_seconds: float = 2.0
+    job_stale_after_seconds: int = 900
+    job_worker_id: str = "local-worker-1"
+    runs_default_page_size: int = 25
+    history_default_page_size: int = 50
+    history_max_page_size: int = 200
 
     @property
     def ib_benchmark_symbols(self) -> tuple[str, ...]:
