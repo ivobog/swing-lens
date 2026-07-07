@@ -82,6 +82,8 @@ def _sort_bucket(decision: str, is_complete: bool) -> int:
         return 20
     if decision == "Watchlist":
         return 30
+    if decision == "Blocked by earnings gate":
+        return 40
     if decision == "Avoid":
         return 40
     return 60

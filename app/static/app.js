@@ -32,6 +32,11 @@ function bindCockpitTables() {
     const quickFilters = new Set();
 
     rows.forEach((row) => {
+      row.addEventListener("click", (event) => {
+        if (event.defaultPrevented || shouldIgnoreRowNavigation(event)) return;
+        if (row.dataset.href) window.location.href = row.dataset.href;
+      });
+
       const detailRow = row.nextElementSibling;
       const toggle = row.querySelector("[data-detail-toggle]");
       if (!toggle || !detailRow || !detailRow.matches("[data-detail-row]")) return;
@@ -111,6 +116,14 @@ function bindCockpitTables() {
   });
 }
 
+function shouldIgnoreRowNavigation(event) {
+  return Boolean(
+    event.target.closest(
+      "[data-no-row-nav], a, button, input, select, textarea, label, summary",
+    ),
+  );
+}
+
 function applyCockpitFilters(rows, controls, empty, quickFilters) {
   let visibleCount = 0;
 
@@ -179,6 +192,14 @@ function rowMatchesQuickFilters(row, quickFilters) {
   if (quickFilters.has("warnings") && row.dataset.hasWarning !== "true") return false;
   if (quickFilters.has("incomplete") && row.dataset.incomplete !== "true") return false;
   if (quickFilters.has("hide-avoid") && row.dataset.avoid === "true") return false;
+  if (quickFilters.has("hide-earnings-blocked") && row.dataset.earningsRisk === "blocked") return false;
+  if (
+    quickFilters.has("earnings-risk")
+    && !["blocked", "high", "medium", "unknown"].includes(row.dataset.earningsRisk)
+  ) {
+    return false;
+  }
+  if (quickFilters.has("earnings-clear") && row.dataset.earningsRisk !== "clear") return false;
   return true;
 }
 

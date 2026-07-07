@@ -17,6 +17,7 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
+from app.services.chart_data_service import build_ticker_chart_payload
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import summarize_run_column_mapping
 from app.services.combined_decision import refresh_combined_results
@@ -57,6 +58,7 @@ from app.services.pipeline_service import (
     get_pipeline_status,
     start_pipeline,
 )
+from app.services.score_card_view_service import build_score_cards
 from app.services.technical_display_fields import technical_v4_details_by_ticker
 from app.services.technical_score_service import score_run_technicals
 from app.settings import get_settings
@@ -98,6 +100,11 @@ WARNING_BADGE_LABELS = {
     "forward_quality_weak": "Forward weak",
     "dividend_payout_risk": "Dividend payout",
     "sparse_fundamental_data": "Sparse data",
+    "earnings_blocked": "Earnings block",
+    "earnings_high_risk": "Earnings high",
+    "earnings_medium_risk": "Earnings medium",
+    "earnings_date_missing": "No earnings date",
+    "earnings_date_unparseable": "Bad earnings date",
 }
 
 
@@ -273,6 +280,30 @@ def run_detail_page(
             ),
         },
     )
+
+
+@router.get("/runs/{run_id}/tickers/{ticker}/chart", response_class=HTMLResponse)
+def ticker_chart_panel(
+    run_id: int,
+    ticker: str,
+    request: Request,
+    db: DbSession,
+) -> HTMLResponse:
+    context = _ticker_chart_context(db, run_id, ticker)
+    return templates.TemplateResponse(
+        request,
+        "ticker_chart_panel.html",
+        {
+            "active_nav": "runs",
+            **context,
+        },
+    )
+
+
+@router.get("/api/runs/{run_id}/tickers/{ticker}/chart-data")
+def ticker_chart_data(run_id: int, ticker: str, db: DbSession) -> dict[str, object]:
+    context = _ticker_chart_context(db, run_id, ticker)
+    return build_ticker_chart_payload(db, context["run"].id, context["ticker"])
 
 
 @router.get("/runs/{run_id}/exports/{export_type}.csv")
@@ -821,6 +852,18 @@ def _run_summary(
         result.combined_decision == "Strong candidate" and result.is_complete
         for result in combined_results
     )
+    earnings_blocked_count = sum(
+        result.earnings_risk_level == "blocked" for result in combined_results
+    )
+    earnings_high_risk_count = sum(
+        result.earnings_risk_level == "high" for result in combined_results
+    )
+    earnings_medium_risk_count = sum(
+        result.earnings_risk_level == "medium" for result in combined_results
+    )
+    earnings_unknown_count = sum(
+        result.earnings_risk_level == "unknown" for result in combined_results
+    )
     duplicate_ticker_count = len(rows) - len(_unique_tickers(rows))
     top_complete = next(
         (result for result in combined_results if result.is_complete),
@@ -833,6 +876,10 @@ def _run_summary(
         "incomplete_count": incomplete_count,
         "warning_count": warning_count,
         "strong_count": strong_count,
+        "earnings_blocked_count": earnings_blocked_count,
+        "earnings_high_risk_count": earnings_high_risk_count,
+        "earnings_medium_risk_count": earnings_medium_risk_count,
+        "earnings_unknown_count": earnings_unknown_count,
         "duplicate_ticker_count": duplicate_ticker_count,
         "raw_column_count": raw_column_count,
         "top_complete": top_complete,
@@ -960,6 +1007,7 @@ def _warning_tone(flag: str) -> str:
         "poor_cash_conversion",
         "balance_sheet_stress",
         "dividend_payout_risk",
+        "earnings_blocked",
     }:
         return "danger"
     if flag in {
@@ -971,6 +1019,10 @@ def _warning_tone(flag: str) -> str:
         "asset_growth_without_returns",
         "forward_quality_weak",
         "sparse_fundamental_data",
+        "earnings_high_risk",
+        "earnings_medium_risk",
+        "earnings_date_missing",
+        "earnings_date_unparseable",
     }:
         return "warning"
     return "muted"
@@ -1222,6 +1274,51 @@ def _redirect_to_fetch_progress(
         url=f"/runs/{run_id}/ib/fetches/{fetch_run_id}?{urlencode(safe_params)}",
         status_code=303,
     )
+
+
+def _ticker_chart_context(db: Session, run_id: int, ticker: str) -> dict[str, object]:
+    run = _load_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    normalized_ticker = ticker.upper()
+    raw_row = _by_ticker(run.raw_company_rows).get(normalized_ticker)
+    if raw_row is None:
+        raise HTTPException(status_code=404, detail="Ticker not found in this run.")
+
+    fundamental = _by_ticker(run.fundamental_scores).get(normalized_ticker)
+    technical = _by_ticker(run.technical_scores).get(normalized_ticker)
+    combined = _by_ticker(run.combined_results).get(normalized_ticker)
+    company_name = _first_context_value(
+        getattr(combined, "company_name", None),
+        raw_row.company_name,
+    )
+    sector = _first_context_value(
+        getattr(combined, "sector", None),
+        raw_row.sector,
+    )
+
+    return {
+        "run": run,
+        "ticker": normalized_ticker,
+        "raw_row": raw_row,
+        "fundamental": fundamental,
+        "technical": technical,
+        "combined": combined,
+        "company_name": company_name,
+        "sector": sector,
+        "chart_data_url": f"/api/runs/{run.id}/tickers/{normalized_ticker}/chart-data",
+        "back_url": f"/runs/{run.id}",
+        "score_cards": build_score_cards(raw_row, fundamental, technical, combined),
+    }
+
+
+def _by_ticker(rows: list) -> dict[str, object]:
+    return {row.ticker.upper(): row for row in rows}
+
+
+def _first_context_value(*values: object) -> object:
+    return next((value for value in values if value is not None and value != ""), None)
 
 
 def _load_run(db: Session, run_id: int) -> UploadRun | None:

@@ -17,6 +17,7 @@ def test_column_aliases_cover_core_sample_fields() -> None:
         "forward_pe",
         "dollar_volume_30d",
         "tradingview_atr_pct_14d",
+        "upcoming_earnings_date",
     }
 
     assert expected_fields.issubset(aliases)
@@ -40,6 +41,26 @@ def test_scoring_weights_are_normalized() -> None:
 
     assert fundamental_total == 1.0
     assert combined_total == 1.0
+
+
+def test_scoring_weights_include_earnings_risk_gate_defaults() -> None:
+    weights = yaml.safe_load(Path("config/scoring_weights.yaml").read_text(encoding="utf-8"))
+    gate = weights["earnings_risk_gate"]
+
+    assert gate["enabled"] is True
+    assert gate["block_if_within_days"] == 2
+    assert gate["high_risk_if_within_days"] == 5
+    assert gate["medium_risk_if_within_days"] == 10
+    assert gate["missing_date_policy"] == "warn"
+    assert gate["apply_to_combined_score"] is True
+    assert gate["block_new_entries"] is True
+    assert gate["penalties"] == {
+        "blocked": 3.0,
+        "high": 2.0,
+        "medium": 1.0,
+        "unknown": 0.3,
+        "clear": 0.0,
+    }
 
 
 def test_fundamentals_v2_config_is_normalized_and_mapped() -> None:

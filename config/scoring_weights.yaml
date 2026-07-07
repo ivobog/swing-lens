@@ -24,3 +24,18 @@ labels:
   strong_candidate_min_score: 8.0
   candidate_min_score: 6.8
   watch_min_score: 5.5
+
+earnings_risk_gate:
+  enabled: true
+  block_if_within_days: 2
+  high_risk_if_within_days: 5
+  medium_risk_if_within_days: 10
+  missing_date_policy: warn
+  apply_to_combined_score: true
+  block_new_entries: true
+  penalties:
+    blocked: 3.0
+    high: 2.0
+    medium: 1.0
+    unknown: 0.3
+    clear: 0.0
