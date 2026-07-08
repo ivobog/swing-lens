@@ -75,10 +75,13 @@
       },
     });
 
-    const priceSeries = addSeries(chart, "BarSeries", "addBarSeries", {
+    const priceSeries = addSeries(chart, "CandlestickSeries", "addCandlestickSeries", {
       upColor: COLORS.up,
       downColor: COLORS.down,
-      thinBars: false,
+      borderUpColor: COLORS.up,
+      borderDownColor: COLORS.down,
+      wickUpColor: COLORS.up,
+      wickDownColor: COLORS.down,
     });
     priceSeries.setData(payload.bars);
 

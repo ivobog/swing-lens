@@ -546,7 +546,6 @@
             <th><button class="sort-button" type="button" data-sort-key="warning-count" data-sort-type="number">Warnings</button></th>
             <th><button class="sort-button" type="button" data-sort-key="earnings-date" data-sort-type="text">Earnings</button></th>
             <th><button class="sort-button" type="button" data-sort-key="days-until-earnings" data-sort-type="number">Days</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="earnings-risk" data-sort-type="text">Earnings Risk</button></th>
             <th><button class="sort-button" type="button" data-sort-key="fundamental-score" data-sort-type="number">Fundamental</button></th>
             <th><button class="sort-button" type="button" data-sort-key="technical-score" data-sort-type="number">Technical</button></th>
             <th>Actions</th>
@@ -562,7 +561,6 @@
             {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
             {% set is_candidate_plus = result.combined_decision in ["Strong candidate", "Candidate"] %}
             {% set earnings_risk = result.earnings_risk_level or "unknown" %}
-            {% set earnings_badge_tone = "danger" if earnings_risk == "blocked" else "warning" if earnings_risk in ["high", "medium"] else "success" if earnings_risk == "clear" else "muted" %}
             <tr
               class="cockpit-row clickable-row"
               data-cockpit-row
@@ -614,9 +612,6 @@
               </td>
               <td>{{ result.upcoming_earnings_date or "" }}</td>
               <td>{{ result.days_until_earnings if result.days_until_earnings is not none else "" }}</td>
-              <td>
-                <span class="badge badge-{{ earnings_badge_tone }}">{{ earnings_risk|replace("_", " ")|title }}</span>
-              </td>
               <td>
                 {{ "%.2f"|format(result.fundamental_score) if result.fundamental_score is not none else "" }}
                 {% if result.fundamental_label %}

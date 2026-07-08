@@ -471,7 +471,7 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert 'data-sort-key="warning-count"' in html
     assert 'data-sort-key="earnings-date"' in html
     assert 'data-sort-key="days-until-earnings"' in html
-    assert 'data-sort-key="earnings-risk"' in html
+    assert 'data-sort-key="earnings-risk"' not in html
     assert "<th>Company</th>" not in html
     assert 'data-sort-key="position-size"' not in html
     assert 'class="ticker-with-company" title="Microsoft Corporation">MSFT</strong>' in html
@@ -526,6 +526,7 @@ def test_run_detail_template_renders_earnings_risk_context(monkeypatch) -> None:
     assert 'data-earnings-date="2026-07-14"' in html
     assert 'data-days-until-earnings="1"' in html
     assert 'data-earnings-risk="blocked"' in html
+    assert 'data-sort-key="earnings-risk"' not in html
     assert 'data-avoid="true"' in html
     assert "Blocked by earnings gate" in html
     assert "Earnings Date" in html
