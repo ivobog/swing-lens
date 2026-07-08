@@ -1,10 +1,12 @@
 from datetime import date
 
+import app.services.ohlcv_coverage_service as coverage_service
 from app.services.ohlcv_coverage_service import (
     BarSeriesCoverage,
     OhlcvCoverageStatus,
     _coverage_item,
     _required_rows,
+    summarize_ohlcv_coverage,
 )
 
 
@@ -101,3 +103,19 @@ def test_coverage_item_classifies_missing_volume_stale_and_contract_failed() -> 
     assert stale.status == OhlcvCoverageStatus.STALE
     assert stale.latest_bar_current is False
     assert contract_failed.status == OhlcvCoverageStatus.CONTRACT_FAILED
+
+
+def test_summary_uses_real_current_time_when_today_is_not_forced(monkeypatch) -> None:
+    captured_today_values = []
+
+    def fake_coverage_item(*args, today=None, **kwargs):
+        captured_today_values.append(today)
+        return _coverage_item(*args, today=today, **kwargs)
+
+    monkeypatch.setattr(coverage_service, "_bar_stats", lambda _db, _symbols: {})
+    monkeypatch.setattr(coverage_service, "_failed_contract_tickers", lambda _db, _symbols: set())
+    monkeypatch.setattr(coverage_service, "_coverage_item", fake_coverage_item)
+
+    summarize_ohlcv_coverage(object(), ["MSFT"], benchmarks=())
+
+    assert captured_today_values == [None]

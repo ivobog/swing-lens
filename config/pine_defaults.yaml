@@ -58,9 +58,9 @@ stop_target:
   atrStopMultiple: 1.50
   smaStopAtrBuffer: 0.50
   structureAtrBuffer: 0.30
-  targetMode: "R Multiple"
+  targetMode: "ATR Target"
   targetRewardMultiple: 2.0
-  atrTargetMultiple: 3.0
+  atrTargetMultiple: 1.5
   minRewardRisk: 2.0
   useModeRewardRisk: true
   useRewardRiskFilter: true

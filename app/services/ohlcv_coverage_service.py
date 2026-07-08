@@ -87,15 +87,13 @@ def summarize_ohlcv_coverage(
     symbols = _normalize_tickers([*normalized_tickers, *benchmark_symbols])
     stats = _bar_stats(db, symbols)
     failed_contracts = _failed_contract_tickers(db, symbols)
-    current_date = today or date.today()
-
     items = [
         _coverage_item(
             ticker,
             stats,
             required_rows=required_rows,
             stale_after_days=stale_days,
-            today=current_date,
+            today=today,
             contract_failed=ticker in failed_contracts,
         )
         for ticker in normalized_tickers
@@ -106,7 +104,7 @@ def summarize_ohlcv_coverage(
             stats,
             required_rows=required_rows,
             stale_after_days=stale_days,
-            today=current_date,
+            today=today,
             contract_failed=ticker in failed_contracts,
         )
         for ticker in benchmark_symbols
