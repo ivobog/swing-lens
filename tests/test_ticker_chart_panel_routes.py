@@ -177,7 +177,7 @@ def test_ticker_chart_panel_static_renderer_exists() -> None:
 
     assert "loadTickerChart" in script
     assert "LightweightCharts.createChart" in script
-    assert "BarSeries" in script
+    assert "CandlestickSeries" in script
     assert "HistogramSeries" in script
     assert "LineSeries" in script
     assert "createPriceLine" in script

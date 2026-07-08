@@ -5,7 +5,6 @@ from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.combined_decision import _to_model, combine_row_decision
 
-
 TODAY = date(2026, 7, 7)
 
 

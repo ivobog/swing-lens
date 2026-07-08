@@ -25,11 +25,11 @@ def test_coverage_item_classifies_ready_insufficient_and_missing() -> None:
         {
             ("MSFT", "ADJUSTED_LAST"): BarSeriesCoverage(
                 count=252,
-                latest_date=date(2026, 7, 1),
+                latest_date=date(2026, 7, 2),
             ),
             ("MSFT", "TRADES"): BarSeriesCoverage(
                 count=252,
-                latest_date=date(2026, 7, 1),
+                latest_date=date(2026, 7, 2),
             ),
         },
         required_rows=252,
@@ -65,7 +65,7 @@ def test_coverage_item_classifies_missing_volume_stale_and_contract_failed() -> 
         {
             ("MSFT", "ADJUSTED_LAST"): BarSeriesCoverage(
                 count=252,
-                latest_date=date(2026, 7, 1),
+                latest_date=date(2026, 7, 2),
             )
         },
         required_rows=252,

@@ -122,6 +122,11 @@ def test_full_pipeline_queues_fetch_and_refreshes_scores(monkeypatch) -> None:
         warnings=[],
     )
 
+    monkeypatch.setattr(
+        run_routes,
+        "get_settings",
+        lambda: SimpleNamespace(use_durable_pipeline=False),
+    )
     monkeypatch.setattr(run_routes, "_load_run", lambda _db, _run_id: run)
     monkeypatch.setattr(
         run_routes,

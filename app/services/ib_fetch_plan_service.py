@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from datetime import date
 from enum import StrEnum
 
 from sqlalchemy import select
@@ -12,6 +12,7 @@ from app.services.ohlcv_coverage_service import (
     OhlcvCoverageSummary,
     summarize_ohlcv_coverage,
 )
+from app.services.us_market_calendar import is_latest_daily_bar_current
 from app.settings import Settings, get_settings
 
 
@@ -312,9 +313,8 @@ def _latest_date_for_type(item: OhlcvCoverageItem, what_to_show: str) -> date | 
 
 
 def _latest_date_current(latest: date | None, stale_after_days: int) -> bool:
-    if latest is None:
-        return False
-    return latest >= date.today() - timedelta(days=stale_after_days)
+    _ = stale_after_days
+    return is_latest_daily_bar_current(latest)
 
 
 def _plan_warnings(coverage: OhlcvCoverageSummary, items: list[FetchPlanItem]) -> list[str]:

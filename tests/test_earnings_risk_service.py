@@ -5,7 +5,6 @@ from app.services.earnings_risk_service import (
     calculate_earnings_risk,
 )
 
-
 TODAY = date(2026, 7, 7)
 
 

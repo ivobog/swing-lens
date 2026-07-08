@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from app.services.ib_rate_limiter import (
     IbHistoricalRateLimiter,
     rate_limit_config_from_settings,
 )
+from app.services.us_market_calendar import is_latest_daily_bar_current
 from app.settings import Settings, get_settings
 
 NON_FETCH_ACTIONS = {
@@ -254,9 +255,8 @@ def _execution_action(
 
 
 def _latest_date_current(latest: date | None, stale_after_days: int) -> bool:
-    if latest is None:
-        return False
-    return latest >= date.today() - timedelta(days=stale_after_days)
+    _ = stale_after_days
+    return is_latest_daily_bar_current(latest)
 
 
 def _mark_skipped(fetch_item: IBFetchItem, reason: str) -> None:
