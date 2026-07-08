@@ -469,8 +469,9 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert 'data-copy-tickers="candidates"' in html
     assert 'data-sort-key="final-score"' in html
     assert 'data-sort-key="warning-count"' in html
-    assert 'data-sort-key="earnings-date"' in html
+    assert 'data-sort-key="earnings-date"' not in html
     assert 'data-sort-key="days-until-earnings"' in html
+    assert "Earning Days" in html
     assert 'data-sort-key="earnings-risk"' not in html
     assert "<th>Company</th>" not in html
     assert 'data-sort-key="position-size"' not in html

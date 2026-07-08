@@ -544,8 +544,7 @@
             <th><button class="sort-button" type="button" data-sort-key="final-score" data-sort-type="number">Final</button></th>
             <th><button class="sort-button" type="button" data-sort-key="decision" data-sort-type="text">Decision</button></th>
             <th><button class="sort-button" type="button" data-sort-key="warning-count" data-sort-type="number">Warnings</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="earnings-date" data-sort-type="text">Earnings</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="days-until-earnings" data-sort-type="number">Days</button></th>
+            <th><button class="sort-button" type="button" data-sort-key="days-until-earnings" data-sort-type="number">Earning Days</button></th>
             <th><button class="sort-button" type="button" data-sort-key="fundamental-score" data-sort-type="number">Fundamental</button></th>
             <th><button class="sort-button" type="button" data-sort-key="technical-score" data-sort-type="number">Technical</button></th>
             <th>Actions</th>
@@ -610,7 +609,6 @@
                   <span class="badge badge-success">Clean</span>
                 {% endif %}
               </td>
-              <td>{{ result.upcoming_earnings_date or "" }}</td>
               <td>{{ result.days_until_earnings if result.days_until_earnings is not none else "" }}</td>
               <td>
                 {{ "%.2f"|format(result.fundamental_score) if result.fundamental_score is not none else "" }}
