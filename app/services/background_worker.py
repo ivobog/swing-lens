@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Mapping
+from threading import Event
 from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
@@ -35,12 +36,13 @@ def run_worker(
     session_factory: sessionmaker[Session] = SessionLocal,
     handlers: Mapping[str, JobHandler] | None = None,
     stop_after_one: bool = False,
+    stop_event: Event | None = None,
 ) -> None:
     settings = settings or get_settings()
     worker_id = settings.job_worker_id
     handlers = handlers or default_job_handlers()
 
-    while True:
+    while stop_event is None or not stop_event.is_set():
         ran_job = run_worker_once(
             worker_id=worker_id,
             stale_after_seconds=settings.job_stale_after_seconds,
@@ -50,7 +52,10 @@ def run_worker(
         if stop_after_one:
             return
         if not ran_job:
-            time.sleep(settings.job_poll_interval_seconds)
+            if stop_event is None:
+                time.sleep(settings.job_poll_interval_seconds)
+            else:
+                stop_event.wait(settings.job_poll_interval_seconds)
 
 
 def run_worker_once(

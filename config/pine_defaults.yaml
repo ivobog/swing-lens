@@ -68,7 +68,7 @@ stop_target:
 market_rs:
   useMarketFilter: true
   useRelativeStrengthFilter: true
-  useSectorBenchmark: false
+  useSectorBenchmark: true
   marketSymbol: "SPY"
   benchmarkSymbol: "SPY"
   sectorSymbol: "QQQ"
