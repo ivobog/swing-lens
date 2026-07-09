@@ -173,6 +173,31 @@ def test_relative_strength_features_compare_stock_to_benchmark() -> None:
     assert "benchmark_rs_new_high" in features
 
 
+def test_relative_strength_features_compare_stock_to_sector() -> None:
+    stock = _synthetic_ohlcv(rows=180)
+    benchmark = _synthetic_ohlcv(rows=180).assign(
+        close=lambda frame: frame["close"] * 0.9,
+        high=lambda frame: frame["high"] * 0.9,
+        low=lambda frame: frame["low"] * 0.9,
+        open=lambda frame: frame["open"] * 0.9,
+    )
+    sector = _synthetic_ohlcv(rows=180).assign(
+        close=lambda frame: frame["close"] * 0.8,
+        high=lambda frame: frame["high"] * 0.8,
+        low=lambda frame: frame["low"] * 0.8,
+        open=lambda frame: frame["open"] * 0.8,
+    )
+
+    features = calculate_relative_strength_features(stock, benchmark, sector)
+
+    assert features["sector_rs_line"] is not None
+    assert features["sector_rs_sma"] is not None
+    assert features["sector_rs_roc21"] is not None
+    assert features["sector_rs_roc63"] is not None
+    assert features["sector_rs_roc126"] is not None
+    assert "sector_rs_new_high" in features
+
+
 def test_weekly_resample_and_htf_features() -> None:
     frame = _synthetic_ohlcv(rows=320)
 

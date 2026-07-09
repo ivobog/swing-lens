@@ -127,6 +127,58 @@ def test_score_run_technicals_adds_run_level_leadership_debug(monkeypatch) -> No
     assert "RS leader" in rows[1].debug_json["explainability"]["sub_tags"]
 
 
+def test_score_run_technicals_passes_configured_sector_benchmark(monkeypatch) -> None:
+    class FakeDb:
+        def execute(self, statement):
+            pass
+
+        def add_all(self, rows):
+            self.added = rows
+
+        def flush(self):
+            pass
+
+    frames = {
+        "SPY": pd.DataFrame(
+            {"date": [], "open": [], "high": [], "low": [], "close": [], "volume": []}
+        ),
+        "QQQ": pd.DataFrame(
+            {"date": [1], "open": [1], "high": [1], "low": [1], "close": [1], "volume": [1]}
+        ),
+    }
+    captured = {}
+
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_pine_defaults",
+        lambda: {"market_rs": {"useSectorBenchmark": True, "sectorSymbol": "QQQ"}},
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_technical_scoring_v4_config",
+        lambda: {
+            "relative_leadership": {"run_percentiles": False},
+            "market_regime_v4": {"use_qqq": False},
+        },
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "_load_price_frame",
+        lambda _db, ticker: frames[ticker.upper()],
+    )
+    monkeypatch.setattr(technical_score_service, "_market_features", lambda *args: {})
+
+    def fake_score_ticker(**kwargs):
+        captured["sector_price"] = kwargs["sector_price"]
+        return _replica_score("AAA", roc21=1, roc63=2, roc126=3, dual_score=5)
+
+    monkeypatch.setattr(technical_score_service, "_score_ticker", fake_score_ticker)
+
+    technical_score_service.score_run_technicals(FakeDb(), run_id=9, tickers=["aaa"])
+
+    assert captured["sector_price"] is frames["QQQ"]
+
+
 def test_ready_route_returns_operational_shape() -> None:
     response = TestClient(app).get("/ready")
 
