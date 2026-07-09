@@ -132,6 +132,20 @@ def calculate_relative_strength_features(
         ]
         sector_aligned["rs_sma"] = sma(sector_aligned["rs_line"], market_rs["rsSmaLen"])
         sector_aligned["rs_roc21"] = roc_pct(sector_aligned["rs_line"], market_rs["rocShortLen"])
+        sector_aligned["rs_roc63"] = roc_pct(
+            sector_aligned["rs_line"],
+            market_rs["rocMediumLen"],
+        )
+        sector_aligned["rs_roc126"] = roc_pct(
+            sector_aligned["rs_line"],
+            market_rs["rocLongLen"],
+        )
+        sector_aligned["rs_new_high"] = sector_aligned["rs_line"] >= sector_aligned[
+            "rs_line"
+        ].rolling(
+            market_rs["rsNewHighLookback"],
+            min_periods=market_rs["rsNewHighLookback"],
+        ).max()
         latest.update(
             {
                 f"sector_{key}": value

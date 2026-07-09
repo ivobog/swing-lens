@@ -1098,6 +1098,8 @@ def _rs_score_from_features(
 ) -> float:
     if not features:
         return 5.0
+    if f"{prefix}_rs_line" not in features:
+        return 5.0
 
     line = _num(features.get(f"{prefix}_rs_line"))
     sma = _num(features.get(f"{prefix}_rs_sma"))

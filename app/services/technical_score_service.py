@@ -15,6 +15,7 @@ from app.services.technical_indicators import (
     calculate_htf_trend_features,
     calculate_relative_strength_features,
     calculate_technical_features,
+    load_pine_defaults,
 )
 from app.services.technical_score_v4 import (
     TechnicalScoreV4,
@@ -35,8 +36,10 @@ def score_run_technicals(
 ) -> list[TechnicalScore]:
     symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
     v4_params = load_technical_scoring_v4_config()
+    pine_params = load_pine_defaults()
     benchmark_price = _load_price_frame(db, benchmark_ticker)
     market_features = _market_features(benchmark_price, benchmark_ticker)
+    sector_price = _sector_benchmark_price(db, pine_params)
     qqq_market_features = _optional_market_features(db, "QQQ", v4_params)
 
     score_results: list[PineReplicaScore | TechnicalScore] = []
@@ -46,6 +49,7 @@ def score_run_technicals(
                 db=db,
                 ticker=ticker,
                 benchmark_price=benchmark_price,
+                sector_price=sector_price,
                 market_features=market_features,
                 qqq_market_features=qqq_market_features,
                 v4_params=v4_params,
@@ -185,6 +189,7 @@ def _score_ticker(
     db: Session,
     ticker: str,
     benchmark_price: pd.DataFrame,
+    sector_price: pd.DataFrame | None,
     market_features: dict[str, Any],
     qqq_market_features: dict[str, Any] | None = None,
     v4_params: dict[str, Any] | None = None,
@@ -201,6 +206,7 @@ def _score_ticker(
     relative_strength_features = _relative_strength_features(
         price,
         benchmark_price,
+        sector_price,
         v4_params.get("relative_leadership", {}),
     )
 
@@ -217,15 +223,30 @@ def _score_ticker(
 def _relative_strength_features(
     price: pd.DataFrame,
     benchmark_price: pd.DataFrame,
+    sector_price: pd.DataFrame | None = None,
     relative_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if price.empty or benchmark_price.empty:
         return {}
-    features = calculate_relative_strength_features(price, benchmark_price)
+    features = calculate_relative_strength_features(price, benchmark_price, sector_price)
     relative_params = relative_params or {}
     if relative_params.get("beta_adjusted_rs", False):
         features.update(calculate_beta_adjusted_rs(price, benchmark_price, relative_params))
     return features
+
+
+def _sector_benchmark_price(
+    db: Session,
+    pine_params: dict[str, Any],
+) -> pd.DataFrame | None:
+    market_rs = pine_params.get("market_rs", {})
+    if not market_rs.get("useSectorBenchmark", False):
+        return None
+
+    sector_symbol = str(market_rs.get("sectorSymbol") or "").strip().upper()
+    if not sector_symbol:
+        return None
+    return _load_price_frame(db, sector_symbol)
 
 
 def _market_features(price: pd.DataFrame, ticker: str) -> dict[str, Any]:
