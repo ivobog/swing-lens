@@ -604,6 +604,23 @@ Exit criteria:
 - Automated checks pass.
 - One run can produce, display, export, and reuse a market regime snapshot.
 
+Phase 9 implementation captured on `2026-07-28`:
+
+- Added `docs/market_regime_command_center.md`
+- Updated `README.md` with config and export references
+- Documented config fields, default policy meaning, snapshot creation paths, export endpoints, pipeline behavior, ranking-profile integration, and v1 limitations
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_market_regime.py tests/test_market_regime_policy.py -q`: `14 passed`
+  - `pytest tests/test_market_regime_command_center.py tests/test_market_participation_service.py tests/test_sector_leadership_service.py -q`: `13 passed`
+  - `pytest tests/test_market_regime_routes.py tests/test_market_regime_export_service.py -q`: `16 passed`
+  - `pytest tests/test_pipeline_service.py tests/test_pipeline_executor.py -q`: `12 passed`
+  - `pytest tests/test_ranking_profile_routes.py -q`: `11 passed`
+  - `pytest -q`: `443 passed`
+  - `alembic heads`: `0012_add_market_regime_snapshots (head)`
+  - `alembic upgrade head`: passed
+  - `alembic current`: `0012_add_market_regime_snapshots (head)`
+
 ## Recommended Implementation Order
 
 1. Policy YAML and `MarketRegimePolicyService`.

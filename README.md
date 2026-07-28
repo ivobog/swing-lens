@@ -118,8 +118,13 @@ SwingLens keeps MVP scoring and mapping defaults in `config/`:
 - `column_aliases.yaml` maps uploaded CSV headers to canonical internal field names.
 - `pine_defaults.yaml` stores the Pine v3.2 parameter defaults to port into Python.
 - `scoring_weights.yaml` stores initial fundamental and combined-decision weights.
+- `market_regime_command_center.yaml` stores market-regime policy, benchmark symbols,
+  risk-state mapping, and ranking-profile permissions.
 
 Uploaded CSV rows are still preserved exactly as raw JSON in PostgreSQL.
+
+Market Regime Command Center operation is documented in
+`docs/market_regime_command_center.md`.
 
 ## Interactive Brokers
 
@@ -155,6 +160,10 @@ Every run exposes CSV exports:
 /runs/{run_id}/exports/fundamentals.csv
 /runs/{run_id}/exports/technicals.csv
 /runs/{run_id}/exports/raw.csv
+/market-regime/export.json
+/market-regime/export.csv
+/runs/{run_id}/market-regime/export.json
+/runs/{run_id}/market-regime/export.csv
 ```
 
 ## Technical Indicators
