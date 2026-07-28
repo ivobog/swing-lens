@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="panel sector-rotation-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>{{ row.sector }} Sector Rotation</h1>
+      <p>Score components, advisory permission, and ticker-level context for run {{ run_id }}.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ run_id }}/sector-rotation">Sector dashboard</a>
+      <a class="button-link secondary" href="/runs/{{ run_id }}">Run detail</a>
+      <a class="button-link secondary" href="/runs/{{ run_id }}/sector-rotation/export.csv">CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run_id }}/sector-rotation/export.json">JSON</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-{{ state_tone }}">{{ row.rotation_state }}</span>
+    <span class="badge badge-{{ permission_tone }}">{{ row.permission|replace("_", " ") }}</span>
+    <span>As of {{ snapshot.as_of_date }}</span>
+    <span>{{ snapshot.mode|replace("_", " ")|title }}</span>
+    <span>Default profile {{ snapshot.default_ranking_profile or "N/A" }}</span>
+  </div>
+</section>
+
+<section class="metric-grid section-gap sector-rotation-metrics" aria-label="Sector summary">
+  <div class="metric"><span>Rank</span><strong>{{ row.rank or "N/A" }}</strong></div>
+  <div class="metric"><span>Final Score</span><strong>{{ "%.2f"|format(row.sector_final_score) if row.sector_final_score is number else "" }}</strong></div>
+  <div class="metric"><span>Universe Score</span><strong>{{ "%.2f"|format(row.universe_leadership_score) if row.universe_leadership_score is number else "" }}</strong></div>
+  <div class="metric"><span>Tickers</span><strong>{{ row.ticker_count or 0 }}</strong></div>
+  <div class="metric"><span>Top 25</span><strong>{{ row.top_25_count or 0 }}</strong><small>{{ "%.0f"|format(row.top_25_share * 100) ~ "%" if row.top_25_share is number else "" }}</small></div>
+  <div class="metric"><span>Position Size</span><strong>{{ "%.0f"|format(row.position_size_multiplier * 100) ~ "%" if row.position_size_multiplier is number else "" }}</strong></div>
+  <div class="metric"><span>Confidence</span><strong>{{ row.confidence }}</strong></div>
+</section>
+
+<section class="grid section-gap sector-rotation-two-col">
+  <div>
+    <h2>Score Components</h2>
+    {% if row.component_scores %}
+      <dl class="compact-dl sector-component-list">
+        {% for name, value in row.component_scores.items() %}
+          <dt>{{ name|replace("_", " ")|title }}</dt>
+          <dd>{{ "%.2f"|format(value) if value is number else value }}</dd>
+        {% endfor %}
+      </dl>
+    {% else %}
+      <div class="empty-state"><strong>No component scores.</strong></div>
+    {% endif %}
+  </div>
+  <div>
+    <h2>History</h2>
+    <dl class="compact-dl sector-component-list">
+      <dt>Previous Rank</dt>
+      <dd>{{ row.previous_rank or "N/A" }}</dd>
+      <dt>Rank Change</dt>
+      <dd>{{ "%+d"|format(row.rank_change) if row.rank_change is number else "New" }}</dd>
+      <dt>Score Change</dt>
+      <dd>{{ "%+.2f"|format(row.score_change) if row.score_change is number else "N/A" }}</dd>
+      <dt>ETF Confirmation</dt>
+      <dd>
+        {% if row.etf_rotation_score is number %}
+          {{ "%.2f"|format(row.etf_rotation_score) }}
+        {% elif snapshot.mode == "universe_only" %}
+          Unavailable in universe-only mode
+        {% else %}
+          Unavailable
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Reasons And Warnings</h2>
+    </div>
+  </div>
+  <div class="sector-reason-grid">
+    <div class="sector-reason-block">
+      <strong>Reasons</strong>
+      <div class="badge-list market-badge-list">
+        {% for reason in row.reasons %}
+          <span class="badge badge-muted">{{ reason }}</span>
+        {% else %}
+          <span class="badge badge-muted">No reason codes</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="sector-reason-block">
+      <strong>Sector Warnings</strong>
+      <div class="badge-list market-badge-list">
+        {% for warning in row.warnings %}
+          <span class="badge badge-warning">{{ warning }}</span>
+        {% else %}
+          <span class="badge badge-success">No sector warnings</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="sector-reason-block">
+      <strong>Ticker Warning Flags</strong>
+      {% if warning_rows %}
+        <div class="badge-list market-badge-list">
+          {% for warning in warning_rows %}
+            <span class="badge badge-warning">{{ warning.warning }}: {{ warning.count }}</span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <span class="badge badge-success">No ticker warnings</span>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="grid section-gap sector-rotation-three-col">
+  <div>
+    <h2>Top Profile</h2>
+    {% set ticker_subset = top_by_profile %}
+    {% include "partials/_sector_ticker_table.html" %}
+  </div>
+  <div>
+    <h2>Top Technical</h2>
+    {% set ticker_subset = top_by_technical %}
+    {% include "partials/_sector_ticker_table.html" %}
+  </div>
+  <div>
+    <h2>Top Fundamental</h2>
+    {% set ticker_subset = top_by_fundamental %}
+    {% include "partials/_sector_ticker_table.html" %}
+  </div>
+</section>
+
+<section class="grid section-gap sector-rotation-three-col">
+  <div>
+    <h2>Buyable</h2>
+    {% set ticker_subset = setup_groups.buyable[:12] %}
+    {% include "partials/_sector_ticker_table.html" %}
+  </div>
+  <div>
+    <h2>Watch</h2>
+    {% set ticker_subset = setup_groups.watch[:12] %}
+    {% include "partials/_sector_ticker_table.html" %}
+  </div>
+  <div>
+    <h2>Danger</h2>
+    {% set ticker_subset = setup_groups.danger[:12] %}
+    {% include "partials/_sector_ticker_table.html" %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>All {{ row.sector }} Tickers</h2>
+    </div>
+  </div>
+  {% set ticker_subset = ticker_rows %}
+  {% include "partials/_sector_ticker_table.html" %}
+</section>
+
+<details class="panel section-gap debug-panel">
+  <summary>Debug JSON</summary>
+  <pre>{{ row.debug|tojson(indent=2) }}</pre>
+</details>
+{% endblock %}

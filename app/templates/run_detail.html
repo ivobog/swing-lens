@@ -88,6 +88,7 @@
       <form method="post" action="/runs/{{ run.id }}/rankings/refresh?redirect=true" data-loading-form>
         <button class="secondary" type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
       </form>
+      <a class="button-link secondary" href="/runs/{{ run.id }}/sector-rotation">Sector rotation</a>
       <a class="button-link secondary" href="/runs">All runs</a>
     </div>
   </div>
@@ -280,6 +281,7 @@
       {% if ranking_profile_summary.result_count %}
         <a class="button-link secondary" href="/runs/{{ run.id }}/rankings/export.csv">Ranking Profiles CSV</a>
       {% endif %}
+      <a class="button-link secondary" href="/runs/{{ run.id }}/sector-rotation">Sector rotation</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/coverage">Coverage detail</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/mapping">Column mapping</a>
     </div>

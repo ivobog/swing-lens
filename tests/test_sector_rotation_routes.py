@@ -1,4 +1,6 @@
 from datetime import date
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -16,34 +18,151 @@ from app.services.sector_rotation_dtos import (
 
 
 def test_sector_rotation_dashboard_returns_html(monkeypatch) -> None:
+    captured = {}
+
+    def fake_template_response(request, template_name, context):
+        captured["request"] = request
+        captured["template_name"] = template_name
+        captured["context"] = context
+        return SimpleNamespace(media_type="text/html")
+
     monkeypatch.setattr(
         sector_rotation_routes,
         "_run_payload_or_calculate",
         lambda _db, _run_id: _payload(),
     )
+    monkeypatch.setattr(
+        sector_rotation_routes.templates,
+        "TemplateResponse",
+        fake_template_response,
+    )
 
-    response = sector_rotation_routes.sector_rotation_dashboard(run_id=7, db=RouteFakeDb())
+    response = sector_rotation_routes.sector_rotation_dashboard(
+        request=object(),
+        run_id=7,
+        db=RouteFakeDb(),
+    )
 
-    assert response.status_code == 200
-    assert "Run 7 Sector Rotation" in response.body.decode()
-    assert "Technology" in response.body.decode()
+    assert response.media_type == "text/html"
+    assert captured["template_name"] == "sector_rotation_dashboard.html"
+    assert captured["context"]["active_nav"] == "runs"
+    assert captured["context"]["summary_metrics"][0]["value"] == "Technology"
 
 
 def test_sector_rotation_drilldown_returns_html(monkeypatch) -> None:
+    captured = {}
+
+    def fake_template_response(request, template_name, context):
+        captured["request"] = request
+        captured["template_name"] = template_name
+        captured["context"] = context
+        return SimpleNamespace(media_type="text/html")
+
     monkeypatch.setattr(
         sector_rotation_routes,
         "_run_payload_or_calculate",
         lambda _db, _run_id: _payload(),
     )
+    monkeypatch.setattr(
+        sector_rotation_routes,
+        "_sector_ticker_drilldown_rows",
+        lambda _db, _run_id, _sector_slug: [_ticker_row()],
+    )
+    monkeypatch.setattr(
+        sector_rotation_routes.templates,
+        "TemplateResponse",
+        fake_template_response,
+    )
 
     response = sector_rotation_routes.sector_rotation_drilldown(
+        request=object(),
         run_id=7,
         sector_slug="technology",
         db=RouteFakeDb(),
     )
 
+    assert response.media_type == "text/html"
+    assert captured["template_name"] == "sector_rotation_drilldown.html"
+    assert captured["context"]["row"]["sector"] == "Technology"
+    assert captured["context"]["top_by_profile"][0]["ticker"] == "MSFT"
+
+
+def test_sector_rotation_dashboard_renders_template_in_app(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sector_rotation_routes,
+        "_run_payload_or_calculate",
+        lambda _db, _run_id: _payload(),
+    )
+
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: RouteFakeDb()
+    client = TestClient(app)
+
+    response = client.get("/runs/7/sector-rotation")
+
     assert response.status_code == 200
-    assert "Technology Sector Rotation" in response.body.decode()
+    assert "Run 7 Sector Rotation" in response.text
+    assert "Technology" in response.text
+    assert "/runs/7/sector-rotation/technology" in response.text
+    assert "top_candidate_overrepresentation" in response.text
+
+
+def test_sector_rotation_dashboard_renders_empty_data(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sector_rotation_routes,
+        "_run_payload_or_calculate",
+        lambda _db, _run_id: _empty_payload(),
+    )
+
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: RouteFakeDb()
+    client = TestClient(app)
+
+    response = client.get("/runs/7/sector-rotation")
+
+    assert response.status_code == 200
+    assert "No sector rows." in response.text
+
+
+def test_sector_rotation_drilldown_renders_missing_profile_data(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sector_rotation_routes,
+        "_run_payload_or_calculate",
+        lambda _db, _run_id: _missing_profile_payload(),
+    )
+    monkeypatch.setattr(
+        sector_rotation_routes,
+        "_sector_ticker_drilldown_rows",
+        lambda _db, _run_id, _sector_slug: [],
+    )
+
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: RouteFakeDb()
+    client = TestClient(app)
+
+    response = client.get("/runs/7/sector-rotation/unknown")
+
+    assert response.status_code == 200
+    assert "Unknown Sector Rotation" in response.text
+    assert "Unavailable in universe-only mode" in response.text
+    assert "No component scores." in response.text
+
+
+def test_run_detail_links_to_sector_rotation() -> None:
+    template = Path("app/templates/run_detail.html").read_text(encoding="utf-8")
+    assert "/runs/{{ run.id }}/sector-rotation" in template
+
+
+def test_sector_ticker_drilldown_rows_use_default_profile() -> None:
+    rows = sector_rotation_routes._sector_ticker_drilldown_rows(
+        DrilldownFakeDb(),
+        run_id=7,
+        selected_slug="technology",
+    )
+
+    assert [row["ticker"] for row in rows] == ["MSFT"]
+    assert rows[0]["profile_rank"] == 1
+    assert rows[0]["technical_score"] == 8.9
 
 
 def test_sector_rotation_drilldown_404s_missing_sector(monkeypatch) -> None:
@@ -240,15 +359,83 @@ class FakeSectorRotationService:
         return _snapshot_dto()
 
 
+class DrilldownFakeDb:
+    def scalars(self, statement):
+        statement_text = str(statement)
+        if "raw_company_rows" in statement_text:
+            return [
+                SimpleNamespace(
+                    ticker="MSFT",
+                    company_name="Microsoft",
+                    sector="Technology",
+                    row_number=1,
+                ),
+                SimpleNamespace(
+                    ticker="XLU",
+                    company_name="Utilities ETF",
+                    sector="Utilities",
+                    row_number=2,
+                ),
+            ]
+        if "combined_results" in statement_text:
+            return [
+                SimpleNamespace(
+                    ticker="MSFT",
+                    company_name="Microsoft",
+                    sector="Technology",
+                    final_rank=1,
+                    final_score=9.0,
+                    fundamental_score=8.1,
+                    technical_classification="Breakout",
+                    combined_decision="Candidate",
+                    position_size_hint="Full",
+                    warning_flags_json=[],
+                )
+            ]
+        if "technical_scores" in statement_text:
+            return [
+                SimpleNamespace(
+                    ticker="MSFT",
+                    dual_score=8.9,
+                    classification="Breakout",
+                    warning_flags_json=[],
+                )
+            ]
+        if "ranking_results" in statement_text:
+            return [
+                SimpleNamespace(
+                    ticker="MSFT",
+                    company_name="Microsoft",
+                    sector="Technology",
+                    profile_rank=1,
+                    profile_score=9.2,
+                    fundamental_score=8.1,
+                    technical_classification="Breakout",
+                    decision_label="Strong candidate",
+                    position_size_hint="Full",
+                    warning_flags_json=[],
+                )
+            ]
+        return []
+
+
 def _payload() -> dict:
     return {
         "snapshot": {
             "id": None,
             "run_id": 7,
+            "market_regime_snapshot_id": None,
             "as_of_date": "2026-07-28",
             "mode": "universe_only",
-            "summary": {"leading_sector": "Technology"},
+            "default_ranking_profile": "momentum_swing",
+            "benchmark_ticker": "SPY",
+            "summary": {
+                "leading_sector": "Technology",
+                "weakest_sector": "Utilities",
+                "riskiest_sector": "Utilities",
+            },
             "warnings": [],
+            "debug": {"mode": "universe_only"},
         },
         "rows": [
             {
@@ -259,11 +446,91 @@ def _payload() -> dict:
                 "permission": "full_allowed",
                 "sector_final_score": 8.1,
                 "warnings": [],
-                "reasons": [],
+                "reasons": ["top_candidate_overrepresentation"],
                 "confidence": "high",
                 "position_size_multiplier": 1.0,
+                "universe_leadership_score": 8.1,
+                "etf_rotation_score": None,
+                "ticker_count": 14,
+                "top_25_count": 6,
+                "top_25_share": 0.4286,
+                "buyable_share": 0.2143,
+                "danger_share": 0.0,
+                "average_technical_score": 8.1,
+                "average_fundamental_score": 7.0,
+                "average_profile_score": 8.1,
+                "previous_rank": None,
+                "rank_change": None,
+                "score_change": None,
+                "component_scores": {"risk_control": 9.0},
+                "profile_distribution": {"momentum_swing": {"top_25_count": 6}},
+                "setup_distribution": {"Clean pullback": 1},
+                "warning_distribution": {},
+                "debug": {"score_source": "universe"},
             }
         ],
+    }
+
+
+def _empty_payload() -> dict:
+    return {
+        "snapshot": {
+            "id": None,
+            "run_id": 7,
+            "market_regime_snapshot_id": None,
+            "as_of_date": "2026-07-28",
+            "mode": "universe_only",
+            "default_ranking_profile": "momentum_swing",
+            "benchmark_ticker": "SPY",
+            "summary": {},
+            "warnings": ["empty_sector_universe"],
+            "debug": {},
+        },
+        "rows": [],
+    }
+
+
+def _missing_profile_payload() -> dict:
+    payload = _payload()
+    payload["snapshot"] = {**payload["snapshot"], "summary": {}, "warnings": []}
+    payload["rows"] = [
+        {
+            **payload["rows"][0],
+            "rank": None,
+            "sector": "Unknown",
+            "sector_slug": "unknown",
+            "sector_final_score": None,
+            "universe_leadership_score": None,
+            "ticker_count": 0,
+            "top_25_count": 0,
+            "top_25_share": None,
+            "buyable_share": None,
+            "danger_share": None,
+            "average_profile_score": None,
+            "component_scores": {},
+            "profile_distribution": {},
+            "setup_distribution": {},
+            "warning_distribution": {},
+            "reasons": [],
+        }
+    ]
+    return payload
+
+
+def _ticker_row() -> dict:
+    return {
+        "ticker": "MSFT",
+        "company_name": "Microsoft",
+        "final_rank": 1,
+        "final_score": 9.0,
+        "profile_rank": 1,
+        "profile_score": 9.2,
+        "technical_score": 8.9,
+        "fundamental_score": 8.1,
+        "technical_classification": "Breakout",
+        "decision_label": "Strong candidate",
+        "position_size_hint": "Full",
+        "warning_flags": [],
     }
 
 

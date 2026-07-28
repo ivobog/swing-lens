@@ -799,6 +799,54 @@ Exit criteria:
 
 - A user can identify leading, risky, crowded, and improving sectors from the page.
 
+Phase 9 implementation captured on `2026-07-28`:
+
+- Replaced backend-only sector rotation HTML with template-rendered pages:
+  - `app/templates/sector_rotation_dashboard.html`,
+  - `app/templates/sector_rotation_drilldown.html`,
+  - `app/templates/partials/_sector_ticker_table.html`.
+- Dashboard page now renders:
+  - run/date/mode/default-profile/market snapshot metadata,
+  - sector summary metrics,
+  - sector leadership table with state and permission badges,
+  - drilldown links by sector slug,
+  - profile, setup, and warning distributions,
+  - actual reason codes,
+  - export links,
+  - collapsed debug JSON.
+- Drilldown page now renders:
+  - sector summary and advisory permission,
+  - component score breakdown,
+  - rank/score change fields,
+  - ETF unavailable messaging for `universe_only` mode,
+  - top tickers by default profile, technical score, and fundamental score,
+  - buyable/watch/danger ticker groups,
+  - ticker warning flags,
+  - collapsed row debug JSON.
+- Added lightweight ticker drilldown context from run-scoped raw rows, combined results, technical scores, and default ranking profile results.
+- Added run-detail entry points to `/runs/{run_id}/sector-rotation`.
+- Added responsive CSS for the sector rotation metric grids, tables, reason blocks, and ticker panels.
+- Extended route tests for:
+  - template response context,
+  - full dashboard rendering,
+  - empty sector data,
+  - missing profile/component data,
+  - drilldown rendering,
+  - sector slug links,
+  - ticker drilldown default-profile hydration,
+  - run-detail discovery link.
+- Verification:
+  - `pytest tests/test_sector_rotation_routes.py -q`: `16 passed`
+  - TestClient smoke on run `60`:
+    - `GET /runs/60/sector-rotation`: `200`
+    - `GET /runs/60/sector-rotation/technology`: `200`
+  - Live server smoke on `http://127.0.0.1:8000`:
+    - `GET /runs/60/sector-rotation`: `200`
+    - `GET /runs/60/sector-rotation/technology`: `200`
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_rotation_routes.py tests/test_market_regime_routes.py tests/test_ranking_profile_routes.py tests/test_run_detail_view_models.py -q`: `63 passed`
+  - `$env:USE_DURABLE_PIPELINE='false'; $env:JOB_WORKER_ENABLED='false'; pytest -q`: `515 passed`
+
 ## Phase 10: Pipeline and Run Detail Integration
 
 Goal: make sector snapshots naturally available after ranking refreshes.
