@@ -22,6 +22,7 @@ RANKING_ENGINE_VERSION = "1.0.0"
 @dataclass(frozen=True)
 class RankingProfileDecision:
     ticker: str
+    raw_row_id: int | None
     company_name: str | None
     sector: str | None
     ranking_profile: str
@@ -132,6 +133,7 @@ def rank_single_row(
 
     return RankingProfileDecision(
         ticker=row.ticker.upper(),
+        raw_row_id=getattr(row, "id", None),
         company_name=row.company_name,
         sector=row.sector,
         ranking_profile=profile.name,
