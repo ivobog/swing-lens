@@ -253,6 +253,18 @@ Exit criteria:
 
 - `build_snapshot(db, run_id=None)` creates a persisted, complete index-only snapshot.
 
+Phase 3 implementation captured on `2026-07-28`:
+
+- Added `app/services/market_regime_command_center.py`
+- Added DTOs for command-center snapshot, index health, participation, and sector rows
+- Implemented SPY/QQQ market input loading through existing price-bar and feature paths
+- Implemented index health, freshness/staleness handling, classification, policy application, action summary, and repository persistence
+- Added `tests/test_market_regime_command_center.py`
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_market_regime_command_center.py tests/test_market_regime_policy.py tests/test_market_regime_repository.py -q`: `20 passed`
+  - `pytest -q`: `416 passed`
+
 ## Phase 4: Universe Participation and Sector Leadership
 
 Goal: enrich run-scoped snapshots with current-universe breadth proxies.
