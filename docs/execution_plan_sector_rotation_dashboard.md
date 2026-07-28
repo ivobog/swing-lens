@@ -298,6 +298,39 @@ Exit criteria:
 
 - Sector strength can be ranked explainably from current run data.
 
+Phase 3 implementation captured on `2026-07-28`:
+
+- Extended `SectorUniverseMetrics` with `reason_codes`.
+- Added universe leadership score components:
+  - `average_technical_score`,
+  - `average_profile_score` with final-score fallback when profile results are missing,
+  - `top_candidate_share`,
+  - `setup_density`,
+  - `risk_control`.
+- Added config-weighted 0-10 `universe_leadership_score`.
+- Added sector confidence calculation:
+  - `insufficient`,
+  - `low`,
+  - `normal`,
+  - `high`.
+- Added score/debug output for:
+  - component score source,
+  - top-25 share and expected top-25 share,
+  - setup density,
+  - danger density,
+  - danger warning count,
+  - technical availability.
+- Added reason codes for strong technical score, top-candidate overrepresentation, high setup density, low danger density, high danger density, and low/insufficient confidence.
+- Real-data smoke on run `60`:
+  - `Technology`: score `4.8779`, confidence `high`
+  - `Utilities`: score `1.6345`, confidence `low`
+  - `Unknown`: score `3.3505`, confidence `high`
+  - Note: v1 config currently counts `No trade` as a danger setup, so risk-control components are intentionally conservative.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_universe_service.py tests/test_sector_rotation_config.py tests/test_sector_taxonomy.py -q`: `22 passed`
+  - `pytest -q`: `466 passed`
+
 ## Phase 4: Rotation Policy
 
 Goal: convert scores and risk metrics into sector states, permissions, multipliers, reasons, and warnings.
@@ -347,6 +380,41 @@ Tests:
 Exit criteria:
 
 - Policy decisions are pure, deterministic, and database-free.
+
+Phase 4 implementation captured on `2026-07-28`:
+
+- Added `app/services/sector_rotation_policy.py`
+- Added `tests/test_sector_rotation_policy.py`
+- Implemented pure `decide_sector_rotation(...)` and `SectorRotationPolicyService`.
+- Implemented final score source handling:
+  - universe only,
+  - ETF only placeholder,
+  - combined score when ETF mode is enabled and ETF score exists,
+  - universe-only fallback when ETF mode is enabled but ETF score is missing.
+- Implemented rotation states:
+  - `Insufficient data`,
+  - `Risk-off`,
+  - `Crowded risk`,
+  - `Improving`,
+  - `Fading`,
+  - `Leading`,
+  - `Lagging`,
+  - `Neutral`.
+- Implemented market buckets:
+  - `supportive`,
+  - `choppy`,
+  - `risk_off`,
+  - `unknown`.
+- Implemented sector permissions and multipliers from config:
+  - `full_allowed`,
+  - `reduced_size`,
+  - `watch_only`,
+  - `avoid_new_longs`.
+- Added decision reason and warning generation for state, permission, market bucket, score source, score changes, crowded risk, sector risk-off, market risk-off, and missing ETF confirmation when ETF mode is enabled.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_rotation_policy.py tests/test_sector_universe_service.py -q`: `24 passed`
+  - `pytest -q`: `479 passed`
 
 ## Phase 5: Persistence Schema and Repository
 

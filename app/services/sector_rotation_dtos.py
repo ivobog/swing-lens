@@ -34,6 +34,7 @@ class SectorUniverseMetrics:
     component_scores: dict[str, float] = field(default_factory=dict)
     universe_leadership_score: float | None = None
     confidence: str = "unscored"
+    reason_codes: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     debug: dict[str, Any] = field(default_factory=dict)
 

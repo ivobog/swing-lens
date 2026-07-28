@@ -1,3 +1,4 @@
+from copy import deepcopy
 from decimal import Decimal
 
 from app.models.tables import (
@@ -85,12 +86,32 @@ def test_universe_metrics_groups_sector_metrics_and_profile_distribution(
         "best_ticker": "TECH1",
     }
     assert technology.profile_distribution["defensive_quality"]["top_10_count"] == 1
+    assert technology.component_scores == {
+        "average_technical_score": 8.5,
+        "average_profile_score": 8.5,
+        "top_candidate_share": 5.0,
+        "setup_density": 10.0,
+        "risk_control": 10.0,
+    }
+    assert technology.universe_leadership_score == 8.325
+    assert technology.confidence == "low"
+    assert technology.reason_codes == [
+        "strong_average_technical_score",
+        "high_setup_density",
+        "low_danger_density",
+        "low_confidence_sector",
+    ]
 
     healthcare = rows[0]
     assert healthcare.sector == "Healthcare"
     assert healthcare.danger_count == 1
     assert healthcare.danger_share == 1.0
     assert healthcare.warning_distribution == {"failed_breakout": 1}
+    assert healthcare.component_scores["risk_control"] == 0.0
+    assert healthcare.reason_codes == [
+        "high_danger_density",
+        "low_confidence_sector",
+    ]
 
 
 def test_universe_metrics_groups_missing_sector_as_unknown(monkeypatch) -> None:
@@ -133,6 +154,7 @@ def test_universe_metrics_groups_missing_sector_as_unknown(monkeypatch) -> None:
         "missing_sector",
         "missing_fundamental_scores",
         "missing_ranking_profile_results",
+        "low_confidence_sector",
     ]
     assert row.debug["raw_missing_sector_tickers"] == ["MISS"]
 
@@ -214,6 +236,7 @@ def test_universe_metrics_falls_back_to_combined_top_counts_without_rankings(
         "missing_technical_scores",
         "missing_fundamental_scores",
         "missing_ranking_profile_results",
+        "low_confidence_sector",
     ]
 
 
@@ -247,6 +270,264 @@ def test_universe_metrics_empty_run_returns_empty_list(monkeypatch) -> None:
         )
         == []
     )
+
+
+def test_universe_score_uses_final_score_fallback_when_profile_is_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._raw_rows_for_run",
+        lambda _db, _run_id: [_row("FALL", "Technology")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._fundamentals_for_run",
+        lambda _db, _run_id: [_fundamental("FALL", "7.0")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._technicals_for_run",
+        lambda _db, _run_id: [_technical("FALL", "Clean bull pullback", "8.0")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._combined_results_for_run",
+        lambda _db, _run_id: [_combined("FALL", "Technology", 1, "6.5")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._ranking_results_for_run",
+        lambda _db, _run_id: [],
+    )
+
+    row = SectorUniverseService().build(
+        object(),
+        run_id=7,
+        config=load_sector_rotation_config(),
+    )[0]
+
+    assert row.average_profile_score is None
+    assert row.component_scores["average_profile_score"] == 6.5
+    assert row.debug["component_debug"]["average_profile_score_source"] == (
+        "final_score_fallback"
+    )
+    assert 0 <= row.universe_leadership_score <= 10
+
+
+def test_universe_score_rewards_top_candidate_overrepresentation(monkeypatch) -> None:
+    tech = [f"TECH{i}" for i in range(1, 11)]
+    other = [f"OTHER{i}" for i in range(1, 31)]
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._raw_rows_for_run",
+        lambda _db, _run_id: [
+            *[_row(ticker, "Technology") for ticker in tech],
+            *[_row(ticker, "Healthcare") for ticker in other],
+        ],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._fundamentals_for_run",
+        lambda _db, _run_id: [_fundamental(ticker, "5.0") for ticker in [*tech, *other]],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._technicals_for_run",
+        lambda _db, _run_id: [
+            _technical(ticker, "No trade", "5.0")
+            for ticker in [*tech, *other]
+        ],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._combined_results_for_run",
+        lambda _db, _run_id: [],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._ranking_results_for_run",
+        lambda _db, _run_id: [
+            *[
+                _ranking("momentum_swing", ticker, "Technology", index, "5.0")
+                for index, ticker in enumerate(tech, start=1)
+            ],
+            *[
+                _ranking("momentum_swing", ticker, "Healthcare", index + 10, "5.0")
+                for index, ticker in enumerate(other, start=1)
+            ],
+        ],
+    )
+
+    rows = SectorUniverseService().build(
+        object(),
+        run_id=7,
+        config=load_sector_rotation_config(),
+    )
+    row = next(row for row in rows if row.sector == "Technology")
+
+    assert row.top_counts["top_25"] == 10
+    assert row.component_scores["top_candidate_share"] == 8.0
+    assert row.confidence == "high"
+    assert "top_candidate_overrepresentation" in row.reason_codes
+
+
+def test_universe_score_does_not_reward_large_sector_for_size_alone(
+    monkeypatch,
+) -> None:
+    big = [f"BIG{i}" for i in range(1, 31)]
+    small = [f"SMALL{i}" for i in range(1, 6)]
+    all_tickers = [*big, *small]
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._raw_rows_for_run",
+        lambda _db, _run_id: [
+            *[_row(ticker, "Technology") for ticker in big],
+            *[_row(ticker, "Healthcare") for ticker in small],
+        ],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._fundamentals_for_run",
+        lambda _db, _run_id: [_fundamental(ticker, "5.0") for ticker in all_tickers],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._technicals_for_run",
+        lambda _db, _run_id: [
+            *[_technical(ticker, "No trade", "5.0") for ticker in big],
+            *[_technical(ticker, "Fresh breakout", "8.0") for ticker in small],
+        ],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._combined_results_for_run",
+        lambda _db, _run_id: [],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._ranking_results_for_run",
+        lambda _db, _run_id: [
+            *[
+                _ranking("momentum_swing", ticker, "Technology", index + 25, "5.0")
+                for index, ticker in enumerate(big, start=1)
+            ],
+            *[
+                _ranking("momentum_swing", ticker, "Healthcare", index, "8.0")
+                for index, ticker in enumerate(small, start=1)
+            ],
+        ],
+    )
+
+    rows = SectorUniverseService().build(
+        object(),
+        run_id=7,
+        config=load_sector_rotation_config(),
+    )
+
+    healthcare = next(row for row in rows if row.sector == "Healthcare")
+    technology = next(row for row in rows if row.sector == "Technology")
+    assert technology.ticker_count > healthcare.ticker_count
+    assert technology.universe_leadership_score < healthcare.universe_leadership_score
+
+
+def test_universe_confidence_uses_ticker_count_and_technical_availability(
+    monkeypatch,
+) -> None:
+    tickers = [f"NORM{i}" for i in range(1, 7)]
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._raw_rows_for_run",
+        lambda _db, _run_id: [_row(ticker, "Technology") for ticker in tickers],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._fundamentals_for_run",
+        lambda _db, _run_id: [_fundamental(ticker, "6.0") for ticker in tickers],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._technicals_for_run",
+        lambda _db, _run_id: [
+            _technical(ticker, "No trade", "6.0")
+            for ticker in tickers[:3]
+        ],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._combined_results_for_run",
+        lambda _db, _run_id: [],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._ranking_results_for_run",
+        lambda _db, _run_id: [
+            _ranking("momentum_swing", ticker, "Technology", index, "6.0")
+            for index, ticker in enumerate(tickers, start=1)
+        ],
+    )
+
+    row = SectorUniverseService().build(
+        object(),
+        run_id=7,
+        config=load_sector_rotation_config(),
+    )[0]
+
+    assert row.confidence == "normal"
+    assert row.debug["technical_availability"] == 0.5
+
+
+def test_universe_confidence_low_when_technical_availability_is_poor(
+    monkeypatch,
+) -> None:
+    tickers = [f"LOW{i}" for i in range(1, 7)]
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._raw_rows_for_run",
+        lambda _db, _run_id: [_row(ticker, "Technology") for ticker in tickers],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._fundamentals_for_run",
+        lambda _db, _run_id: [_fundamental(ticker, "6.0") for ticker in tickers],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._technicals_for_run",
+        lambda _db, _run_id: [_technical(tickers[0], "No trade", "6.0")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._combined_results_for_run",
+        lambda _db, _run_id: [],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._ranking_results_for_run",
+        lambda _db, _run_id: [
+            _ranking("momentum_swing", ticker, "Technology", index, "6.0")
+            for index, ticker in enumerate(tickers, start=1)
+        ],
+    )
+
+    row = SectorUniverseService().build(
+        object(),
+        run_id=7,
+        config=load_sector_rotation_config(),
+    )[0]
+
+    assert row.confidence == "low"
+    assert "low_confidence_sector" in row.warnings
+
+
+def test_universe_score_weights_are_configurable(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._raw_rows_for_run",
+        lambda _db, _run_id: [_row("CFG", "Technology")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._fundamentals_for_run",
+        lambda _db, _run_id: [_fundamental("CFG", "5.0")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._technicals_for_run",
+        lambda _db, _run_id: [_technical("CFG", "No trade", "7.0")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._combined_results_for_run",
+        lambda _db, _run_id: [_combined("CFG", "Technology", 1, "3.0")],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._ranking_results_for_run",
+        lambda _db, _run_id: [],
+    )
+    config = deepcopy(load_sector_rotation_config())
+    config["universe_score"]["weights"] = {
+        "average_technical_score": 1.0,
+        "average_profile_score": 0.0,
+        "top_candidate_share": 0.0,
+        "setup_density": 0.0,
+        "risk_control": 0.0,
+    }
+
+    row = SectorUniverseService().build(object(), run_id=7, config=config)[0]
+
+    assert row.universe_leadership_score == 7.0
 
 
 def _row(ticker: str, sector: str | None) -> RawCompanyRow:

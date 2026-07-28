@@ -81,6 +81,7 @@ def build_universe_sector_metrics(
             total_tickers=total_tickers,
             default_profile=default_profile,
             cutoffs=config["defaults"]["top_candidate_cutoffs"],
+            config=config,
         )
         for bucket in buckets.values()
     ]
@@ -225,6 +226,7 @@ def _to_metrics(
     total_tickers: int,
     default_profile: str,
     cutoffs: list[int],
+    config: dict[str, Any],
 ) -> SectorUniverseMetrics:
     ticker_count = len(bucket.tickers)
     warnings = _bucket_warnings(bucket, default_profile)
@@ -232,16 +234,46 @@ def _to_metrics(
         f"top_{int(cutoff)}": bucket.top_counts.get(f"top_{int(cutoff)}", 0)
         for cutoff in cutoffs
     }
+    averages = {
+        "fundamental": _average(bucket.fundamental_scores),
+        "technical": _average(bucket.technical_scores),
+        "final": _average(bucket.final_scores),
+        "profile": _average(bucket.default_profile_scores),
+    }
+    component_result = _universe_score_components(
+        bucket=bucket,
+        ticker_count=ticker_count,
+        total_tickers=total_tickers,
+        average_technical_score=averages["technical"],
+        average_profile_score=averages["profile"],
+        average_final_score=averages["final"],
+        top_counts=top_counts,
+        config=config,
+    )
+    confidence = _sector_confidence(
+        ticker_count=ticker_count,
+        technical_available_count=len(bucket.technical_scores),
+        config=config,
+    )
+    reason_codes = _reason_codes(
+        component_scores=component_result.component_scores,
+        confidence=confidence,
+        danger_share=_share(bucket.danger_count, ticker_count),
+    )
+    if confidence == "low":
+        warnings = _append_unique(warnings, "low_confidence_sector")
+    elif confidence == "insufficient":
+        warnings = _append_unique(warnings, "insufficient_sector_data")
 
     return SectorUniverseMetrics(
         sector=bucket.sector,
         sector_slug=sector_slug(bucket.sector),
         ticker_count=ticker_count,
         universe_share=_share(ticker_count, total_tickers),
-        average_fundamental_score=_average(bucket.fundamental_scores),
-        average_technical_score=_average(bucket.technical_scores),
-        average_final_score=_average(bucket.final_scores),
-        average_profile_score=_average(bucket.default_profile_scores),
+        average_fundamental_score=averages["fundamental"],
+        average_technical_score=averages["technical"],
+        average_final_score=averages["final"],
+        average_profile_score=averages["profile"],
         top_counts=top_counts,
         setup_distribution=dict(sorted(bucket.setup_distribution.items())),
         warning_distribution=dict(sorted(bucket.warning_distribution.items())),
@@ -259,13 +291,167 @@ def _to_metrics(
         missing_fundamental_count=bucket.missing_fundamental_count,
         missing_technical_count=bucket.missing_technical_count,
         profile_distribution=_profile_distribution(bucket.profile_buckets),
+        component_scores=component_result.component_scores,
+        universe_leadership_score=component_result.universe_leadership_score,
+        confidence=confidence,
+        reason_codes=reason_codes,
         warnings=warnings,
         debug={
             "default_ranking_profile": default_profile,
             "raw_missing_sector_tickers": sorted(bucket.raw_missing_sector_tickers),
             "technical_score_available_count": len(bucket.technical_scores),
             "fundamental_score_available_count": len(bucket.fundamental_scores),
+            "technical_availability": _availability(
+                available_count=len(bucket.technical_scores),
+                ticker_count=ticker_count,
+            ),
+            "component_debug": component_result.debug,
         },
+    )
+
+
+@dataclass(frozen=True)
+class _UniverseComponentResult:
+    component_scores: dict[str, float]
+    universe_leadership_score: float
+    debug: dict[str, Any]
+
+
+def _universe_score_components(
+    bucket: _SectorBucket,
+    ticker_count: int,
+    total_tickers: int,
+    average_technical_score: float | None,
+    average_profile_score: float | None,
+    average_final_score: float | None,
+    top_counts: dict[str, int],
+    config: dict[str, Any],
+) -> _UniverseComponentResult:
+    profile_source = "profile_score"
+    profile_component = average_profile_score
+    if profile_component is None:
+        profile_component = average_final_score
+        profile_source = "final_score_fallback" if average_final_score is not None else "missing"
+
+    danger_warning_count = _danger_warning_count(
+        warning_distribution=bucket.warning_distribution,
+        config=config,
+    )
+    top_25_share = _share(top_counts.get("top_25", 0), ticker_count) or 0.0
+    expected_top_25_share = min(1.0, 25 / total_tickers) if total_tickers > 0 else 0.0
+    setup_density = (
+        (bucket.buyable_count + bucket.watch_count * 0.5) / ticker_count
+        if ticker_count > 0
+        else 0.0
+    )
+    danger_density = bucket.danger_count / ticker_count if ticker_count > 0 else 0.0
+    warning_density = danger_warning_count / ticker_count if ticker_count > 0 else 0.0
+
+    component_scores = {
+        "average_technical_score": _clamp(average_technical_score or 0.0),
+        "average_profile_score": _clamp(profile_component or 0.0),
+        "top_candidate_share": _top_candidate_component(
+            top_25_share=top_25_share,
+            expected_top_25_share=expected_top_25_share,
+        ),
+        "setup_density": _clamp(setup_density * 10),
+        "risk_control": _risk_control_component(
+            danger_density=danger_density,
+            warning_density=warning_density,
+        ),
+    }
+    weights = config["universe_score"]["weights"]
+    score = _clamp(
+        sum(
+            component_scores[component] * float(weight)
+            for component, weight in weights.items()
+        )
+    )
+
+    return _UniverseComponentResult(
+        component_scores=component_scores,
+        universe_leadership_score=score,
+        debug={
+            "average_profile_score_source": profile_source,
+            "top_25_share": top_25_share,
+            "expected_top_25_share": round(expected_top_25_share, 4),
+            "setup_density": round(setup_density, 4),
+            "danger_density": round(danger_density, 4),
+            "danger_warning_count": danger_warning_count,
+            "warning_density": round(warning_density, 4),
+        },
+    )
+
+
+def _top_candidate_component(
+    top_25_share: float,
+    expected_top_25_share: float,
+) -> float:
+    if expected_top_25_share <= 0:
+        return 0.0
+    return _clamp(top_25_share / expected_top_25_share * 5)
+
+
+def _risk_control_component(danger_density: float, warning_density: float) -> float:
+    penalty = danger_density * 7 + warning_density * 3
+    return _clamp(10 - _clamp(penalty))
+
+
+def _sector_confidence(
+    ticker_count: int,
+    technical_available_count: int,
+    config: dict[str, Any],
+) -> str:
+    if ticker_count == 0:
+        return "insufficient"
+
+    technical_availability = _availability(
+        available_count=technical_available_count,
+        ticker_count=ticker_count,
+    )
+    defaults = config["defaults"]
+    if ticker_count < int(defaults["min_tickers_for_normal_confidence"]):
+        return "low"
+    if technical_availability < 0.50:
+        return "low"
+    if (
+        ticker_count >= int(defaults["min_tickers_for_high_confidence"])
+        and technical_availability >= 0.80
+    ):
+        return "high"
+    return "normal"
+
+
+def _reason_codes(
+    component_scores: dict[str, float],
+    confidence: str,
+    danger_share: float | None,
+) -> list[str]:
+    reasons: list[str] = []
+    if component_scores["average_technical_score"] >= 7.5:
+        reasons.append("strong_average_technical_score")
+    if component_scores["top_candidate_share"] >= 7.0:
+        reasons.append("top_candidate_overrepresentation")
+    if component_scores["setup_density"] >= 6.0:
+        reasons.append("high_setup_density")
+    if component_scores["risk_control"] >= 8.0:
+        reasons.append("low_danger_density")
+    if (danger_share or 0.0) >= 0.25:
+        reasons.append("high_danger_density")
+    if confidence in {"low", "insufficient"}:
+        reasons.append(f"{confidence}_confidence_sector")
+    return reasons
+
+
+def _danger_warning_count(
+    warning_distribution: dict[str, int],
+    config: dict[str, Any],
+) -> int:
+    danger_flags = set(config["universe_score"]["warning_flags"]["danger"])
+    return sum(
+        count
+        for warning, count in warning_distribution.items()
+        if warning in danger_flags
     )
 
 
@@ -430,6 +616,22 @@ def _share(count: int, denominator: int) -> float | None:
     if denominator <= 0:
         return None
     return round(count / denominator, 4)
+
+
+def _availability(available_count: int, ticker_count: int) -> float:
+    if ticker_count <= 0:
+        return 0.0
+    return round(available_count / ticker_count, 4)
+
+
+def _append_unique(values: list[str], value: str) -> list[str]:
+    if value not in values:
+        return [*values, value]
+    return values
+
+
+def _clamp(value: float) -> float:
+    return max(0.0, min(10.0, round(float(value), 4)))
 
 
 def _float_or_none(value: Any) -> float | None:
