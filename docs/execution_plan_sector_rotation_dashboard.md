@@ -484,6 +484,36 @@ Exit criteria:
 
 - Sector rotation snapshots and rows can be persisted/read without page integration.
 
+Phase 5 implementation captured on `2026-07-28`:
+
+- Added `SectorRotationSnapshot` ORM model.
+- Added `SectorRotationRow` ORM model.
+- Added `UploadRun.sector_rotation_snapshots` relationship with cascade delete-orphan.
+- Added Alembic migration `20260728_0013_add_sector_rotation_tables.py`.
+- Added `app/services/sector_rotation_repository.py`.
+- Added `tests/test_sector_rotation_repository.py`.
+- Extended `tests/test_schema_phase2.py`.
+- Persistence behavior:
+  - snapshot identity uses `run_id`, `as_of_date`, `calculation_version`, `config_hash`, and `mode`,
+  - run-derived snapshots cascade with run deletion,
+  - `market_regime_snapshot_id` is optional and uses `SET NULL`,
+  - rows are unique by `snapshot_id` and `sector_slug`,
+  - saving a matching snapshot replaces existing rows deterministically.
+- Repository methods implemented:
+  - `save_snapshot(db, dto)`,
+  - `latest_for_run(db, run_id)`,
+  - `get_previous_snapshot(db, as_of_date, mode, config_hash=None, run_id=None)`,
+  - `get_snapshot_rows(db, snapshot_id)`,
+  - `get_sector_row(db, snapshot_id, sector_slug)`,
+  - `history(db, limit=30, run_id=None)`.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_schema_phase2.py tests/test_sector_rotation_repository.py -q`: `33 passed`
+  - `alembic heads`: `0013_add_sector_rotation_tables (head)`
+  - `alembic upgrade head`: upgraded `0012_add_market_regime_snapshots -> 0013_add_sector_rotation_tables`
+  - `alembic current`: `0013_add_sector_rotation_tables (head)`
+  - `pytest -q`: `489 passed`
+
 ## Phase 6: Orchestration Service
 
 Goal: produce one complete snapshot DTO and optionally persist it.
