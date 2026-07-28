@@ -123,3 +123,32 @@ def test_ranking_profiles_config_defines_enabled_starter_profiles() -> None:
         assert profile["enabled"] is True
         assert round(sum(profile["weights"].values()), 6) == 1.0
         assert round(sum(profile["technical_components"].values()), 6) == 1.0
+
+
+def test_market_regime_command_center_config_defines_policy_matrix() -> None:
+    config = yaml.safe_load(
+        Path("config/market_regime_command_center.yaml").read_text(encoding="utf-8")
+    )
+    policies = config["policies"]
+
+    expected_regimes = {
+        "Bull trend",
+        "Risk-on breakout",
+        "Bull pullback",
+        "Choppy",
+        "Bear rally",
+        "Distribution",
+        "Correction",
+        "Crash risk",
+        "Unknown",
+    }
+
+    assert config["engine"]["version"] == "mrcc-1.0.0"
+    assert config["symbols"]["primary_market"] == "SPY"
+    assert config["symbols"]["risk_proxy"] == "QQQ"
+    assert set(config["risk_state_mapping"]) == expected_regimes
+    assert set(policies) == expected_regimes
+    for regime, policy in policies.items():
+        assert 0 <= float(policy["position_size_multiplier"]) <= 1
+        assert policy["summary"]
+        assert config["risk_state_mapping"][regime] in {"Green", "Yellow", "Orange", "Red", "Gray"}
