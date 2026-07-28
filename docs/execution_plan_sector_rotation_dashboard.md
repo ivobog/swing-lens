@@ -562,6 +562,40 @@ Exit criteria:
 
 - One service call can calculate the complete dashboard payload.
 
+Phase 6 implementation captured on `2026-07-28`:
+
+- Added `app/services/sector_rotation_service.py`
+- Added `tests/test_sector_rotation_service.py`
+- Extended `SectorRotationSnapshotDto` with:
+  - market regime snapshot id,
+  - benchmark ticker,
+  - universe rows for persistence/export conversion.
+- Implemented `SectorRotationService.build_sector_rotation_snapshot(...)`.
+- Orchestration now:
+  - loads config and config hash,
+  - resolves default profile and mode,
+  - uses latest run-scoped market regime snapshot or falls back to latest global snapshot,
+  - builds universe sector metrics,
+  - loads previous comparable sector rotation rows,
+  - applies sector policy decisions,
+  - sorts and ranks decisions,
+  - calculates rank changes and score changes,
+  - builds summary fields,
+  - emits snapshot-level warnings,
+  - optionally persists through `SectorRotationRepository`.
+- Real-data smoke on run `60` with `persist=False`:
+  - mode: `universe_only`
+  - summary: leading `Technology`, weakest `Utilities`, riskiest `Utilities`, top-25 representation `Unknown`, `3` sectors, `158` tickers
+  - ranked decisions:
+    - `1 Technology`, score `4.8779`, state `Risk-off`, permission `avoid_new_longs`
+    - `2 Unknown`, score `3.3505`, state `Risk-off`, permission `avoid_new_longs`
+    - `3 Utilities`, score `1.6345`, state `Risk-off`, permission `avoid_new_longs`
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_rotation_service.py tests/test_sector_rotation_policy.py tests/test_sector_rotation_repository.py -q`: `22 passed`
+  - `pytest tests/test_sector_rotation_service.py tests/test_sector_universe_service.py tests/test_sector_rotation_policy.py tests/test_sector_rotation_repository.py tests/test_sector_rotation_config.py tests/test_sector_taxonomy.py -q`: `44 passed`
+  - `pytest -q`: `494 passed`
+
 ## Phase 7: Exports
 
 Goal: export dashboard and drilldown data in stable CSV/JSON/Markdown forms.

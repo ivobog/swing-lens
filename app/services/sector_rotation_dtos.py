@@ -78,13 +78,16 @@ class SectorTickerDrilldownRow:
 @dataclass(frozen=True)
 class SectorRotationSnapshotDto:
     run_id: int | None
-    as_of_date: str | None
+    as_of_date: str
     mode: str
     calculation_version: str
     config_version: str | None
     config_hash: str | None
     default_ranking_profile: str | None
     rows: list[SectorRotationDecision]
+    market_regime_snapshot_id: int | None = None
+    benchmark_ticker: str | None = None
+    universe_rows: list[SectorUniverseMetrics] = field(default_factory=list)
     summary: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     debug: dict[str, Any] = field(default_factory=dict)
