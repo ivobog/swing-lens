@@ -6,8 +6,10 @@ from app.models.tables import (
     FundamentalScore,
     IBFetchItem,
     IBFetchRun,
+    RankingResult,
     RawCompanyRow,
     TechnicalScore,
+    UploadRun,
 )
 from app.services.combined_decision import _to_model, combine_row_decision
 
@@ -38,6 +40,104 @@ def test_earnings_risk_gate_model_includes_persistence_columns() -> None:
         "earnings_warning_flags",
     ]:
         assert column_name in combined_table.c
+
+
+def test_ranking_result_model_includes_profile_persistence_columns() -> None:
+    table = Base.metadata.tables["ranking_results"]
+
+    for column_name in [
+        "run_id",
+        "raw_row_id",
+        "ticker",
+        "company_name",
+        "sector",
+        "ranking_profile",
+        "ranking_label",
+        "profile_rank",
+        "profile_score",
+        "technical_profile_score",
+        "fundamental_score",
+        "base_technical_score",
+        "technical_classification",
+        "fundamental_label",
+        "decision_label",
+        "position_size_hint",
+        "notes",
+        "warning_flags_json",
+        "penalties_json",
+        "gates_json",
+        "component_scores_json",
+        "debug_json",
+        "upcoming_earnings_date",
+        "days_until_earnings",
+        "earnings_risk_level",
+        "is_complete",
+        "has_warning",
+        "has_fundamental",
+        "has_technical",
+        "sort_bucket",
+        "created_at",
+        "updated_at",
+    ]:
+        assert column_name in table.c
+
+
+def test_ranking_result_model_defines_constraints_and_indexes() -> None:
+    table = RankingResult.__table__
+    constraint_names = {constraint.name for constraint in table.constraints}
+    index_names = {index.name for index in table.indexes}
+
+    assert "uq_ranking_results_run_profile_ticker" in constraint_names
+    assert {
+        "idx_ranking_results_run_id",
+        "idx_ranking_results_ticker",
+        "idx_ranking_results_profile",
+        "idx_ranking_results_run_profile_rank",
+        "idx_ranking_results_run_profile_score",
+        "idx_ranking_results_earnings_risk",
+    }.issubset(index_names)
+
+
+def test_upload_run_has_ranking_results_relationship() -> None:
+    assert "ranking_results" in UploadRun.__mapper__.relationships
+    assert UploadRun.__mapper__.relationships["ranking_results"].cascade.delete
+
+
+def test_ranking_result_model_accepts_profile_values() -> None:
+    result = RankingResult(
+        run_id=7,
+        raw_row_id=11,
+        ticker="MSFT",
+        company_name="Microsoft",
+        sector="Technology",
+        ranking_profile="momentum_swing",
+        ranking_label="Momentum Swing",
+        profile_rank=1,
+        profile_score=Decimal("8.1234"),
+        technical_profile_score=Decimal("8.4"),
+        fundamental_score=Decimal("7.8"),
+        base_technical_score=Decimal("8.1"),
+        technical_classification="Prime clean pullback",
+        fundamental_label="High-quality quant",
+        decision_label="Strong candidate",
+        position_size_hint="Full starter",
+        notes="aligned",
+        warning_flags_json=["earnings_medium_risk"],
+        penalties_json={"earnings_medium_risk": 1.0},
+        gates_json={"earnings_block": False},
+        component_scores_json={"momentum_strength": 8.7},
+        debug_json={"ranking_engine_version": "1.0.0"},
+        is_complete=True,
+        has_warning=True,
+        has_fundamental=True,
+        has_technical=True,
+        sort_bucket=0,
+    )
+
+    assert result.ranking_profile == "momentum_swing"
+    assert result.profile_score == Decimal("8.1234")
+    assert result.warning_flags_json == ["earnings_medium_risk"]
+    assert result.debug_json == {"ranking_engine_version": "1.0.0"}
 
 
 def test_ib_fetch_summary_models_match_phase2_tables() -> None:
@@ -206,6 +306,15 @@ def test_earnings_risk_gate_migration_follows_current_head() -> None:
 
     assert 'revision: str = "0010_add_earnings_risk_gate"' in migration
     assert 'down_revision: str | None = "0009_history_indexes"' in migration
+
+
+def test_ranking_results_migration_follows_current_head() -> None:
+    migration = Path(
+        "alembic/versions/20260709_0011_create_ranking_results.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0011_create_ranking_results"' in migration
+    assert 'down_revision: str | None = "0010_add_earnings_risk_gate"' in migration
 
 
 def test_combined_decision_to_model_persists_phase2_fields() -> None:

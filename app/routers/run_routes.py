@@ -12,6 +12,7 @@ from app.db import get_db
 from app.models.tables import (
     BackgroundJob,
     CombinedResult,
+    RankingResult,
     RawCompanyRow,
     TechnicalScore,
     UploadRun,
@@ -57,6 +58,17 @@ from app.services.pipeline_service import (
     cancel_pipeline,
     get_pipeline_status,
     start_pipeline,
+)
+from app.services.ranking_profile_config import get_ranking_profile
+from app.services.ranking_profile_service import (
+    get_ranking_profiles,
+    get_ranking_results,
+    refresh_all_ranking_profiles,
+    refresh_ranking_profile,
+)
+from app.services.ranking_result_export import (
+    export_all_ranking_profiles_csv,
+    export_ranking_profile_csv,
 )
 from app.services.score_card_view_service import build_score_cards
 from app.services.technical_display_fields import technical_v4_details_by_ticker
@@ -223,6 +235,7 @@ def run_detail_page(
     combined_by_ticker = {result.ticker: result for result in run.combined_results}
     combined_results = sorted(run.combined_results, key=cockpit_sort_key)
     decision_counts = _decision_counts(combined_results)
+    ranking_profile_summary = _ranking_profile_summary(run.ranking_results)
     coverage = summarize_run_ohlcv_coverage(db, run.id)
     latest_fetch = latest_ib_fetch_for_run(db, run.id)
     settings = get_settings()
@@ -243,6 +256,7 @@ def run_detail_page(
             "combined_by_ticker": combined_by_ticker,
             "combined_results": combined_results,
             "decision_counts": decision_counts,
+            "ranking_profile_summary": ranking_profile_summary,
             "run_summary": _run_summary(run, rows, combined_results),
             "workflow_steps": _workflow_steps(
                 run=run,
@@ -340,6 +354,129 @@ def export_run_results(run_id: int, export_type: str, db: DbSession) -> Response
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/runs/{run_id}/rankings/profiles")
+def list_ranking_profiles(run_id: int, db: DbSession) -> list[dict[str, object]]:
+    _require_run(db, run_id)
+    return [_ranking_profile_payload(profile) for profile in get_ranking_profiles()]
+
+
+@router.post("/runs/{run_id}/rankings/refresh", response_model=None)
+def refresh_all_ranking_profiles_action(
+    run_id: int,
+    db: DbSession,
+    redirect: bool = False,
+) -> object:
+    _require_run(db, run_id)
+    try:
+        results = refresh_all_ranking_profiles(db, run_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
+    payload = {
+        "run_id": run_id,
+        "profile_count": len({result.ranking_profile for result in results}),
+        "result_count": len(results),
+    }
+    if redirect:
+        return _redirect_with_query(
+            run_id,
+            {
+                "ib_status": "ranking-profiles-refreshed",
+                "ib_message": (
+                    f"Refreshed {payload['result_count']} ranking rows across "
+                    f"{payload['profile_count']} profiles."
+                ),
+            },
+        )
+    return payload
+
+
+@router.post("/runs/{run_id}/rankings/{profile_name}/refresh")
+def refresh_ranking_profile_action(
+    run_id: int,
+    profile_name: str,
+    db: DbSession,
+) -> dict[str, object]:
+    _require_run(db, run_id)
+    try:
+        results = refresh_ranking_profile(db, run_id, profile_name)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
+    return {
+        "run_id": run_id,
+        "profile_name": profile_name,
+        "result_count": len(results),
+    }
+
+
+@router.get("/runs/{run_id}/rankings/export.csv")
+def export_all_ranking_results(run_id: int, db: DbSession) -> Response:
+    _require_run(db, run_id)
+    content = export_all_ranking_profiles_csv(db, run_id)
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="swinglens_run_{run_id}_ranking_profiles.csv"'
+            )
+        },
+    )
+
+
+@router.get("/runs/{run_id}/rankings/{profile_name}/export.csv")
+def export_ranking_profile_results(
+    run_id: int,
+    profile_name: str,
+    db: DbSession,
+) -> Response:
+    _require_run(db, run_id)
+    try:
+        profile = get_ranking_profile(profile_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    content = export_ranking_profile_csv(db, run_id, profile.name)
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="swinglens_run_{run_id}_{profile.name}_rankings.csv"'
+            )
+        },
+    )
+
+
+@router.get("/runs/{run_id}/rankings/{profile_name}")
+def view_ranking_profile_results(
+    run_id: int,
+    profile_name: str,
+    db: DbSession,
+) -> dict[str, object]:
+    _require_run(db, run_id)
+    try:
+        profile = get_ranking_profile(profile_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "run_id": run_id,
+        "profile": _ranking_profile_payload(profile),
+        "results": [
+            _ranking_result_payload(result)
+            for result in get_ranking_results(db, run_id, profile.name)
+        ],
+    }
 
 
 @router.get("/runs/{run_id}/coverage", response_class=HTMLResponse)
@@ -841,6 +978,44 @@ def _decision_counts(results: list) -> dict[str, int]:
     return counts
 
 
+def _ranking_profile_summary(results: list[RankingResult]) -> dict[str, object]:
+    profiles: dict[str, dict[str, object]] = {}
+    for result in sorted(
+        results,
+        key=lambda item: (item.ranking_profile, item.profile_rank),
+    ):
+        summary = profiles.setdefault(
+            result.ranking_profile,
+            {
+                "name": result.ranking_profile,
+                "label": result.ranking_label,
+                "row_count": 0,
+                "warning_count": 0,
+                "candidate_count": 0,
+                "top_ticker": None,
+                "top_score": None,
+                "top_decision": None,
+            },
+        )
+        summary["row_count"] = int(summary["row_count"]) + 1
+        if result.has_warning:
+            summary["warning_count"] = int(summary["warning_count"]) + 1
+        if result.decision_label in {"Strong candidate", "Candidate"}:
+            summary["candidate_count"] = int(summary["candidate_count"]) + 1
+        if summary["top_ticker"] is None or result.profile_rank == 1:
+            summary["top_ticker"] = result.ticker
+            summary["top_score"] = result.profile_score
+            summary["top_decision"] = result.decision_label
+
+    profile_summaries = sorted(profiles.values(), key=lambda item: str(item["label"]))
+    return {
+        "profile_count": len(profile_summaries),
+        "result_count": sum(int(profile["row_count"]) for profile in profile_summaries),
+        "warning_count": sum(int(profile["warning_count"]) for profile in profile_summaries),
+        "profiles": profile_summaries,
+    }
+
+
 def _run_summary(
     run: UploadRun,
     rows: list[RawCompanyRow],
@@ -1026,6 +1201,62 @@ def _warning_tone(flag: str) -> str:
     }:
         return "warning"
     return "muted"
+
+
+def _ranking_profile_payload(profile) -> dict[str, object]:
+    return {
+        "name": profile.name,
+        "enabled": profile.enabled,
+        "label": profile.label,
+        "description": profile.description,
+        "weights": {
+            "technical": profile.technical_weight,
+            "fundamental": profile.fundamental_weight,
+        },
+        "technical_components": profile.technical_components,
+        "thresholds": {
+            "strong_candidate_min_score": profile.thresholds.strong_candidate_min_score,
+            "candidate_min_score": profile.thresholds.candidate_min_score,
+            "watch_min_score": profile.thresholds.watch_min_score,
+        },
+    }
+
+
+def _ranking_result_payload(result) -> dict[str, object]:
+    return {
+        "rank": result.profile_rank,
+        "ticker": result.ticker,
+        "company_name": result.company_name,
+        "sector": result.sector,
+        "profile_name": result.ranking_profile,
+        "profile_label": result.ranking_label,
+        "profile_score": _json_number(result.profile_score),
+        "technical_profile_score": _json_number(result.technical_profile_score),
+        "fundamental_score": _json_number(result.fundamental_score),
+        "base_technical_score": _json_number(result.base_technical_score),
+        "technical_classification": result.technical_classification,
+        "fundamental_label": result.fundamental_label,
+        "decision": result.decision_label,
+        "position_size_hint": result.position_size_hint,
+        "notes": result.notes,
+        "warning_flags": result.warning_flags_json or [],
+        "earnings_date": result.upcoming_earnings_date.isoformat()
+        if result.upcoming_earnings_date
+        else None,
+        "days_until_earnings": result.days_until_earnings,
+        "earnings_risk": result.earnings_risk_level,
+        "is_complete": result.is_complete,
+        "has_warning": result.has_warning,
+        "has_fundamental": result.has_fundamental,
+        "has_technical": result.has_technical,
+        "sort_bucket": result.sort_bucket,
+    }
+
+
+def _json_number(value: object) -> float | None:
+    if value is None:
+        return None
+    return float(value)
 
 
 def _unique_tickers(rows: list[RawCompanyRow]) -> list[str]:
@@ -1330,6 +1561,7 @@ def _load_run(db: Session, run_id: int) -> UploadRun | None:
             selectinload(UploadRun.fundamental_scores),
             selectinload(UploadRun.technical_scores),
             selectinload(UploadRun.combined_results),
+            selectinload(UploadRun.ranking_results),
         )
     )
 

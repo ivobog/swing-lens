@@ -57,6 +57,10 @@ class UploadRun(Base):
         back_populates="run",
         cascade="all, delete-orphan",
     )
+    ranking_results: Mapped[list["RankingResult"]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+    )
     ib_fetch_runs: Mapped[list["IBFetchRun"]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",
@@ -349,6 +353,131 @@ class CombinedResult(Base):
         Index("idx_combined_results_run_id", "run_id"),
         Index("idx_combined_results_run_rank", "run_id", "final_rank"),
         Index("idx_combined_results_earnings_risk", "earnings_risk_level"),
+    )
+
+
+class RankingResult(Base):
+    __tablename__ = "ranking_results"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    raw_row_id: Mapped[int | None] = mapped_column(
+        ForeignKey("raw_company_rows.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    company_name: Mapped[str | None] = mapped_column(Text)
+    sector: Mapped[str | None] = mapped_column(Text)
+    ranking_profile: Mapped[str] = mapped_column(Text, nullable=False)
+    ranking_label: Mapped[str] = mapped_column(Text, nullable=False)
+    profile_rank: Mapped[int] = mapped_column(nullable=False)
+    profile_score: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
+    technical_profile_score: Mapped[Decimal | None] = mapped_column(Numeric)
+    fundamental_score: Mapped[Decimal | None] = mapped_column(Numeric)
+    base_technical_score: Mapped[Decimal | None] = mapped_column(Numeric)
+    technical_classification: Mapped[str | None] = mapped_column(Text)
+    fundamental_label: Mapped[str | None] = mapped_column(Text)
+    decision_label: Mapped[str] = mapped_column(Text, nullable=False)
+    position_size_hint: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    warning_flags_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    penalties_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    gates_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    component_scores_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    debug_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    upcoming_earnings_date: Mapped[date | None] = mapped_column(Date)
+    days_until_earnings: Mapped[int | None]
+    earnings_risk_level: Mapped[str | None] = mapped_column(Text)
+    is_complete: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    has_warning: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    has_fundamental: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    has_technical: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    sort_bucket: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    run: Mapped[UploadRun] = relationship(back_populates="ranking_results")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "ranking_profile",
+            "ticker",
+            name="uq_ranking_results_run_profile_ticker",
+        ),
+        Index("idx_ranking_results_run_id", "run_id"),
+        Index("idx_ranking_results_ticker", "ticker"),
+        Index("idx_ranking_results_profile", "ranking_profile"),
+        Index(
+            "idx_ranking_results_run_profile_rank",
+            "run_id",
+            "ranking_profile",
+            "profile_rank",
+        ),
+        Index(
+            "idx_ranking_results_run_profile_score",
+            "run_id",
+            "ranking_profile",
+            "profile_score",
+        ),
+        Index("idx_ranking_results_earnings_risk", "earnings_risk_level"),
     )
 
 

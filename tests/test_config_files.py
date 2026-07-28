@@ -106,3 +106,20 @@ def test_technical_scoring_v4_config_has_required_sections() -> None:
     assert config["engine"]["version"] == "4.0.0"
     assert config["relative_leadership"]["benchmark_symbols"] == ["SPY", "QQQ"]
     assert "Late-stage extension" in config["classification_v4"]["danger_priority"]
+
+
+def test_ranking_profiles_config_defines_enabled_starter_profiles() -> None:
+    config = yaml.safe_load(Path("config/ranking_profiles.yaml").read_text(encoding="utf-8"))
+    profiles = config["profiles"]
+
+    assert list(profiles) == [
+        "momentum_swing",
+        "quality_momentum",
+        "early_rocket",
+        "clean_compounder_pullback",
+        "defensive_quality",
+    ]
+    for profile in profiles.values():
+        assert profile["enabled"] is True
+        assert round(sum(profile["weights"].values()), 6) == 1.0
+        assert round(sum(profile["technical_components"].values()), 6) == 1.0

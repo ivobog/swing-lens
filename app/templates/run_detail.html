@@ -11,6 +11,12 @@
 {% set combined_by_ticker = combined_by_ticker|default({}) %}
 {% set combined_results = combined_results|default([]) %}
 {% set decision_counts = decision_counts|default({}) %}
+{% set ranking_profile_summary = ranking_profile_summary|default({
+  "profile_count": 0,
+  "result_count": 0,
+  "warning_count": 0,
+  "profiles": []
+}) %}
 {% set run_summary = run_summary|default({
   "row_count": run.row_count or 0,
   "combined_count": 0,
@@ -77,6 +83,9 @@
       </form>
       <form method="post" action="/runs/{{ run.id }}/combined-results" data-loading-form>
         <button class="secondary" type="submit" data-loading-label="Refreshing...">Refresh combined</button>
+      </form>
+      <form method="post" action="/runs/{{ run.id }}/rankings/refresh?redirect=true" data-loading-form>
+        <button class="secondary" type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
       </form>
       <a class="button-link secondary" href="/runs">All runs</a>
     </div>
@@ -185,6 +194,44 @@
 <section class="panel section-gap">
   <div class="panel-header compact-header">
     <div>
+      <h2>Ranking Profiles</h2>
+      <p>{{ ranking_profile_summary.result_count }} profile rows across {{ ranking_profile_summary.profile_count }} profiles.</p>
+    </div>
+    <div class="actions">
+      <form method="post" action="/runs/{{ run.id }}/rankings/refresh?redirect=true" data-loading-form>
+        <button type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
+      </form>
+      {% if ranking_profile_summary.result_count %}
+        <a class="button-link secondary" href="/runs/{{ run.id }}/rankings/export.csv">All profiles CSV</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if ranking_profile_summary.profiles %}
+    <div class="summary-strip">
+      {% for profile in ranking_profile_summary.profiles %}
+        <span class="summary-item">
+          <strong>{{ profile.top_ticker or "None" }}</strong>
+          {{ profile.label }}
+          {% if profile.top_score is not none %}
+            <small>{{ "%.2f"|format(profile.top_score) }} - {{ profile.top_decision }}</small>
+          {% endif %}
+          <small>{{ profile.row_count }} rows - {{ profile.candidate_count }} candidates - {{ profile.warning_count }} warnings</small>
+          <a href="/runs/{{ run.id }}/rankings/{{ profile.name }}/export.csv">CSV</a>
+        </span>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <strong>No ranking profiles yet.</strong>
+      <p>Refresh rankings after fundamentals and technicals are available.</p>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
       <h2>Actions</h2>
       <p>Refresh scores, export data, or move back through stored runs.</p>
     </div>
@@ -197,6 +244,9 @@
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/ib-fetch-results.csv">IB Results CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/coverage.csv">Coverage CSV</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/exports/mapping.csv">Mapping CSV</a>
+      {% if ranking_profile_summary.result_count %}
+        <a class="button-link secondary" href="/runs/{{ run.id }}/rankings/export.csv">Ranking Profiles CSV</a>
+      {% endif %}
       <a class="button-link secondary" href="/runs/{{ run.id }}/coverage">Coverage detail</a>
       <a class="button-link secondary" href="/runs/{{ run.id }}/mapping">Column mapping</a>
     </div>

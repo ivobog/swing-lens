@@ -1,0 +1,57 @@
+{
+  "profile_order": [
+    "momentum_swing",
+    "quality_momentum",
+    "early_rocket",
+    "clean_compounder_pullback",
+    "defensive_quality"
+  ],
+  "expected_top_tickers": {
+    "momentum_swing": "MOMO",
+    "quality_momentum": "QUAL",
+    "early_rocket": "ROKT",
+    "clean_compounder_pullback": "QUAL",
+    "defensive_quality": "QUAL"
+  },
+  "directional_expectations": [
+    {
+      "profile": "momentum_swing",
+      "higher": "MOMO",
+      "lower": "COMP"
+    },
+    {
+      "profile": "quality_momentum",
+      "higher": "QUAL",
+      "lower": "ROKT"
+    },
+    {
+      "profile": "early_rocket",
+      "higher": "ROKT",
+      "lower": "QUAL"
+    },
+    {
+      "profile": "clean_compounder_pullback",
+      "higher": "COMP",
+      "lower": "ROKT"
+    },
+    {
+      "profile": "defensive_quality",
+      "higher": "QUAL",
+      "lower": "MOMO"
+    }
+  ],
+  "gate_expectations": {
+    "RISK": {
+      "decision": "Avoid",
+      "required_warning": "danger_classification"
+    },
+    "MISS": {
+      "decision": "Low confidence",
+      "required_warning": "missing_technical"
+    },
+    "EARN": {
+      "decision": "Blocked by earnings gate",
+      "required_warning": "earnings_blocked"
+    }
+  }
+}
