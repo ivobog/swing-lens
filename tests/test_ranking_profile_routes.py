@@ -40,6 +40,28 @@ def test_refresh_all_ranking_profiles_route_commits(monkeypatch) -> None:
     assert db.rollbacks == 0
 
 
+def test_refresh_all_ranking_profiles_route_can_redirect_for_browser(monkeypatch) -> None:
+    monkeypatch.setattr(
+        run_routes,
+        "refresh_all_ranking_profiles",
+        lambda _db, _run_id: [
+            SimpleNamespace(ranking_profile="momentum_swing"),
+            SimpleNamespace(ranking_profile="quality_momentum"),
+        ],
+    )
+    db = RouteFakeDb()
+
+    response = run_routes.refresh_all_ranking_profiles_action(
+        run_id=7,
+        db=db,
+        redirect=True,
+    )
+
+    assert db.commits == 1
+    assert "ranking-profiles-refreshed" in response.headers["location"]
+    assert "Refreshed+2+ranking+rows" in response.headers["location"]
+
+
 def test_refresh_one_ranking_profile_route_commits(monkeypatch) -> None:
     monkeypatch.setattr(
         run_routes,

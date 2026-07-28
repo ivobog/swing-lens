@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
+    RankingResult,
     RawCompanyRow,
     TechnicalScore,
     UploadRun,
@@ -19,6 +20,7 @@ from app.routers.run_routes import (
     _parse_bool_filter,
     _parse_date_filter,
     _parse_decimal_filter,
+    _ranking_profile_summary,
     _run_summary,
     _tickers_from_fetch_form,
     _warning_badges,
@@ -70,6 +72,42 @@ def test_run_summary_counts_earnings_risk_levels() -> None:
     assert summary["earnings_high_risk_count"] == 1
     assert summary["earnings_medium_risk_count"] == 1
     assert summary["earnings_unknown_count"] == 1
+
+
+def test_ranking_profile_summary_counts_profile_state() -> None:
+    results = [
+        _ranking_result("MOMO", "momentum_swing", "Momentum Swing", 1, "8.4", False),
+        _ranking_result("MISS", "momentum_swing", "Momentum Swing", 2, "5.1", True),
+        _ranking_result("QUAL", "quality_momentum", "Quality Momentum", 1, "8.7", False),
+    ]
+
+    summary = _ranking_profile_summary(results)
+
+    assert summary["profile_count"] == 2
+    assert summary["result_count"] == 3
+    assert summary["warning_count"] == 1
+    assert summary["profiles"] == [
+        {
+            "name": "momentum_swing",
+            "label": "Momentum Swing",
+            "row_count": 2,
+            "warning_count": 1,
+            "candidate_count": 1,
+            "top_ticker": "MOMO",
+            "top_score": Decimal("8.4"),
+            "top_decision": "Strong candidate",
+        },
+        {
+            "name": "quality_momentum",
+            "label": "Quality Momentum",
+            "row_count": 1,
+            "warning_count": 0,
+            "candidate_count": 1,
+            "top_ticker": "QUAL",
+            "top_score": Decimal("8.7"),
+            "top_decision": "Strong candidate",
+        },
+    ]
 
 
 def test_workflow_steps_show_warning_for_partial_coverage_and_low_confidence() -> None:
@@ -251,6 +289,11 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert 'action="/runs/1/technicals/refresh"' in html
     assert "Refresh technicals" in html
     assert "Refresh combined" in html
+    assert "Refresh rankings" in html
+    assert 'action="/runs/1/rankings/refresh?redirect=true"' in html
+    assert "Ranking Profiles" in html
+    assert "No ranking profiles yet." in html
+    assert 'href="/runs/1/rankings/export.csv"' not in html
     assert 'href="/runs/1/coverage"' in html
     assert 'href="/runs/1/mapping"' in html
     assert 'href="/runs/1/exports/coverage.csv"' in html
@@ -363,6 +406,35 @@ def test_run_detail_collapses_secondary_tables_by_default(monkeypatch) -> None:
     assert '<details class="collapsible-table" open>' not in html
     assert 'data-cockpit-table' in html
     assert "<h2>Decision Cockpit</h2>" in html
+
+
+def test_run_detail_template_renders_ranking_profile_summary(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=2, status="COMPLETED")
+    summary = _ranking_profile_summary(
+        [
+            _ranking_result("MOMO", "momentum_swing", "Momentum Swing", 1, "8.4", False),
+            _ranking_result("QUAL", "quality_momentum", "Quality Momentum", 1, "8.7", True),
+        ]
+    )
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        ranking_profile_summary=summary,
+    )
+
+    assert "Ranking Profiles" in html
+    assert "2 profile rows across 2 profiles." in html
+    assert "Momentum Swing" in html
+    assert "Quality Momentum" in html
+    assert "MOMO" in html
+    assert "QUAL" in html
+    assert "8.40 - Strong candidate" in html
+    assert "1 rows - 1 candidates - 1 warnings" in html
+    assert 'href="/runs/1/rankings/export.csv"' in html
+    assert 'href="/runs/1/rankings/momentum_swing/export.csv"' in html
+    assert 'href="/runs/1/rankings/quality_momentum/export.csv"' in html
+    assert "Ranking Profiles CSV" in html
 
 
 def test_coverage_actions_and_template_support_targeted_fetches(monkeypatch) -> None:
@@ -698,6 +770,35 @@ def _combined(
         has_warning=has_warning,
         earnings_risk_level=earnings_risk,
         earnings_warning_flags_json=[],
+    )
+
+
+def _ranking_result(
+    ticker: str,
+    profile: str,
+    label: str,
+    rank: int,
+    score: str,
+    has_warning: bool,
+) -> RankingResult:
+    return RankingResult(
+        run_id=1,
+        ticker=ticker,
+        ranking_profile=profile,
+        ranking_label=label,
+        profile_rank=rank,
+        profile_score=Decimal(score),
+        decision_label="Strong candidate" if float(score) >= 8 else "Watch",
+        warning_flags_json=["missing_technical"] if has_warning else [],
+        penalties_json={},
+        gates_json={},
+        component_scores_json={},
+        debug_json={},
+        is_complete=not has_warning,
+        has_warning=has_warning,
+        has_fundamental=True,
+        has_technical=not has_warning,
+        sort_bucket=0 if not has_warning else 1,
     )
 
 

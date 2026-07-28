@@ -12,6 +12,7 @@ from app.db import get_db
 from app.models.tables import (
     BackgroundJob,
     CombinedResult,
+    RankingResult,
     RawCompanyRow,
     TechnicalScore,
     UploadRun,
@@ -234,6 +235,7 @@ def run_detail_page(
     combined_by_ticker = {result.ticker: result for result in run.combined_results}
     combined_results = sorted(run.combined_results, key=cockpit_sort_key)
     decision_counts = _decision_counts(combined_results)
+    ranking_profile_summary = _ranking_profile_summary(run.ranking_results)
     coverage = summarize_run_ohlcv_coverage(db, run.id)
     latest_fetch = latest_ib_fetch_for_run(db, run.id)
     settings = get_settings()
@@ -254,6 +256,7 @@ def run_detail_page(
             "combined_by_ticker": combined_by_ticker,
             "combined_results": combined_results,
             "decision_counts": decision_counts,
+            "ranking_profile_summary": ranking_profile_summary,
             "run_summary": _run_summary(run, rows, combined_results),
             "workflow_steps": _workflow_steps(
                 run=run,
@@ -359,8 +362,12 @@ def list_ranking_profiles(run_id: int, db: DbSession) -> list[dict[str, object]]
     return [_ranking_profile_payload(profile) for profile in get_ranking_profiles()]
 
 
-@router.post("/runs/{run_id}/rankings/refresh")
-def refresh_all_ranking_profiles_action(run_id: int, db: DbSession) -> dict[str, object]:
+@router.post("/runs/{run_id}/rankings/refresh", response_model=None)
+def refresh_all_ranking_profiles_action(
+    run_id: int,
+    db: DbSession,
+    redirect: bool = False,
+) -> object:
     _require_run(db, run_id)
     try:
         results = refresh_all_ranking_profiles(db, run_id)
@@ -371,11 +378,23 @@ def refresh_all_ranking_profiles_action(run_id: int, db: DbSession) -> dict[str,
     except Exception:
         db.rollback()
         raise
-    return {
+    payload = {
         "run_id": run_id,
         "profile_count": len({result.ranking_profile for result in results}),
         "result_count": len(results),
     }
+    if redirect:
+        return _redirect_with_query(
+            run_id,
+            {
+                "ib_status": "ranking-profiles-refreshed",
+                "ib_message": (
+                    f"Refreshed {payload['result_count']} ranking rows across "
+                    f"{payload['profile_count']} profiles."
+                ),
+            },
+        )
+    return payload
 
 
 @router.post("/runs/{run_id}/rankings/{profile_name}/refresh")
@@ -959,6 +978,44 @@ def _decision_counts(results: list) -> dict[str, int]:
     return counts
 
 
+def _ranking_profile_summary(results: list[RankingResult]) -> dict[str, object]:
+    profiles: dict[str, dict[str, object]] = {}
+    for result in sorted(
+        results,
+        key=lambda item: (item.ranking_profile, item.profile_rank),
+    ):
+        summary = profiles.setdefault(
+            result.ranking_profile,
+            {
+                "name": result.ranking_profile,
+                "label": result.ranking_label,
+                "row_count": 0,
+                "warning_count": 0,
+                "candidate_count": 0,
+                "top_ticker": None,
+                "top_score": None,
+                "top_decision": None,
+            },
+        )
+        summary["row_count"] = int(summary["row_count"]) + 1
+        if result.has_warning:
+            summary["warning_count"] = int(summary["warning_count"]) + 1
+        if result.decision_label in {"Strong candidate", "Candidate"}:
+            summary["candidate_count"] = int(summary["candidate_count"]) + 1
+        if summary["top_ticker"] is None or result.profile_rank == 1:
+            summary["top_ticker"] = result.ticker
+            summary["top_score"] = result.profile_score
+            summary["top_decision"] = result.decision_label
+
+    profile_summaries = sorted(profiles.values(), key=lambda item: str(item["label"]))
+    return {
+        "profile_count": len(profile_summaries),
+        "result_count": sum(int(profile["row_count"]) for profile in profile_summaries),
+        "warning_count": sum(int(profile["warning_count"]) for profile in profile_summaries),
+        "profiles": profile_summaries,
+    }
+
+
 def _run_summary(
     run: UploadRun,
     rows: list[RawCompanyRow],
@@ -1504,6 +1561,7 @@ def _load_run(db: Session, run_id: int) -> UploadRun | None:
             selectinload(UploadRun.fundamental_scores),
             selectinload(UploadRun.technical_scores),
             selectinload(UploadRun.combined_results),
+            selectinload(UploadRun.ranking_results),
         )
     )
 
