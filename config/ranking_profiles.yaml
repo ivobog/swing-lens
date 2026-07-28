@@ -1,0 +1,171 @@
+profiles:
+  momentum_swing:
+    enabled: true
+    label: "Momentum Swing"
+    description: "Technical-led swing ranking with fundamental confirmation."
+    weights:
+      technical: 0.55
+      fundamental: 0.45
+    technical_components:
+      momentum_strength: 0.30
+      momentum_health: 0.25
+      trend_quality: 0.15
+      setup_quality: 0.10
+      breakout_or_vcp_quality: 0.10
+      risk_control: 0.10
+    missing_data_policy:
+      rescale_available: true
+      penalty: 1.0
+    thresholds:
+      strong_candidate_min_score: 8.0
+      candidate_min_score: 6.8
+      watch_min_score: 5.5
+    penalties:
+      danger_classification: 3.0
+      overheated_momentum: 1.5
+      liquidity_warning: 1.0
+      earnings_blocked: 3.0
+      earnings_high_risk: 2.0
+      earnings_medium_risk: 1.0
+      missing_data: 1.0
+      value_trap_risk: 1.5
+      growth_trap_risk: 1.5
+    gates:
+      earnings_block: true
+      danger_blocks_candidate: true
+      fundamental_floor:
+        enabled: true
+        min_score: 3.0
+        max_decision: "Speculative watch"
+
+  quality_momentum:
+    enabled: true
+    label: "Quality Momentum"
+    description: "Balanced ranking for strong charts and strong businesses."
+    weights:
+      technical: 0.45
+      fundamental: 0.55
+    technical_components:
+      momentum_strength: 0.25
+      momentum_health: 0.25
+      trend_quality: 0.20
+      setup_quality: 0.15
+      risk_control: 0.15
+    missing_data_policy:
+      rescale_available: true
+      penalty: 1.0
+    thresholds:
+      strong_candidate_min_score: 8.0
+      candidate_min_score: 6.8
+      watch_min_score: 5.5
+    penalties:
+      danger_classification: 3.0
+      overheated_momentum: 1.5
+      value_trap_risk: 2.0
+      growth_trap_risk: 2.0
+      missing_data: 1.0
+    gates:
+      earnings_block: true
+      danger_blocks_candidate: true
+
+  early_rocket:
+    enabled: true
+    label: "Early Rocket"
+    description: "Aggressive ranking for emerging technical leaders."
+    weights:
+      technical: 0.70
+      fundamental: 0.30
+    technical_components:
+      momentum_strength: 0.35
+      trend_repair: 0.20
+      breakout_quality: 0.15
+      relative_strength_acceleration: 0.10
+      volume_expansion: 0.10
+      risk_control: 0.10
+    missing_data_policy:
+      rescale_available: true
+      penalty: 0.8
+    thresholds:
+      strong_candidate_min_score: 8.2
+      candidate_min_score: 7.0
+      watch_min_score: 5.8
+    penalties:
+      failed_breakout: 4.0
+      climax_risk: 3.0
+      heavy_distribution: 2.5
+      extreme_dilution: 2.0
+      missing_data: 0.8
+    gates:
+      earnings_block: true
+      danger_blocks_candidate: true
+      fundamental_floor:
+        enabled: true
+        min_score: 2.5
+        max_decision: "Speculative watch"
+
+  clean_compounder_pullback:
+    enabled: true
+    label: "Clean Compounder Pullback"
+    description: "Fundamental-led ranking for high-quality businesses with clean entries."
+    weights:
+      technical: 0.35
+      fundamental: 0.65
+    technical_components:
+      pullback_health: 0.30
+      trend_quality: 0.25
+      risk_control: 0.20
+      momentum_health: 0.15
+      relative_strength: 0.10
+    missing_data_policy:
+      rescale_available: true
+      penalty: 1.2
+    thresholds:
+      strong_candidate_min_score: 8.0
+      candidate_min_score: 6.9
+      watch_min_score: 5.7
+    penalties:
+      value_trap_risk: 2.0
+      growth_trap_risk: 2.0
+      danger_classification: 3.0
+      missing_data: 1.2
+    gates:
+      earnings_block: true
+      danger_blocks_candidate: true
+      fundamental_floor:
+        enabled: true
+        min_score: 5.5
+        max_decision: "Watch"
+
+  defensive_quality:
+    enabled: true
+    label: "Defensive Quality"
+    description: "Risk-first ranking for avoiding technical and fundamental traps."
+    weights:
+      technical: 0.40
+      fundamental: 0.60
+    technical_components:
+      risk_control: 0.35
+      trend_quality: 0.20
+      momentum_health: 0.15
+      setup_quality: 0.15
+      market_regime_alignment: 0.15
+    missing_data_policy:
+      rescale_available: true
+      penalty: 1.5
+    thresholds:
+      strong_candidate_min_score: 8.2
+      candidate_min_score: 7.0
+      watch_min_score: 5.8
+    penalties:
+      danger_classification: 4.0
+      overheated_momentum: 2.5
+      climax_risk: 3.0
+      liquidity_warning: 2.0
+      value_trap_risk: 2.5
+      growth_trap_risk: 2.0
+      earnings_high_risk: 2.5
+      missing_data: 1.5
+    gates:
+      earnings_block: true
+      danger_blocks_candidate: true
+      liquidity_caps_candidate: true
