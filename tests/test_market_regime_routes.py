@@ -1,24 +1,77 @@
 from datetime import date
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
+from app.db import get_db
+from app.main import create_app
 from app.models.tables import MarketRegimeSnapshot
 from app.routers import market_regime_routes
 
 
 def test_market_regime_page_returns_html(monkeypatch) -> None:
+    captured = {}
+
+    def fake_template_response(request, template_name, context):
+        captured["request"] = request
+        captured["template_name"] = template_name
+        captured["context"] = context
+        return SimpleNamespace(media_type="text/html")
+
     monkeypatch.setattr(
         market_regime_routes,
         "_latest_or_calculate",
         lambda _db: _snapshot(regime="Bull trend", risk_state="Green"),
     )
+    monkeypatch.setattr(
+        market_regime_routes,
+        "MarketRegimeRepository",
+        lambda: FakeRepository(history=[_snapshot(regime="Bull trend", risk_state="Green")]),
+    )
+    monkeypatch.setattr(
+        market_regime_routes.templates,
+        "TemplateResponse",
+        fake_template_response,
+    )
 
     response = market_regime_routes.market_regime_page(request=object(), db=RouteFakeDb())
 
     assert response.media_type == "text/html"
-    assert b"Market Regime Command Center" in response.body
-    assert b"Bull trend" in response.body
+    assert captured["template_name"] == "market_regime.html"
+    assert captured["context"]["active_nav"] == "market-regime"
+    assert captured["context"]["snapshot"]["regime"] == "Bull trend"
+
+
+def test_market_regime_nav_includes_command_center_link() -> None:
+    nav = Path("app/templates/partials/_nav.html")
+    assert "Market Regime" in nav.read_text(encoding="utf-8")
+
+
+def test_market_regime_page_renders_template_in_app(monkeypatch) -> None:
+    monkeypatch.setattr(
+        market_regime_routes,
+        "_latest_or_calculate",
+        lambda _db: _snapshot(regime="Bull trend", risk_state="Green"),
+    )
+    monkeypatch.setattr(
+        market_regime_routes,
+        "MarketRegimeRepository",
+        lambda: FakeRepository(history=[_snapshot(regime="Bull trend", risk_state="Green")]),
+    )
+
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: RouteFakeDb()
+    client = TestClient(app)
+
+    response = client.get("/market-regime")
+
+    assert response.status_code == 200
+    assert "Market Regime Command Center" in response.text
+    assert "Bull trend" in response.text
+    assert "Market Permission Layer" in response.text
 
 
 def test_latest_api_returns_snapshot_payload(monkeypatch) -> None:

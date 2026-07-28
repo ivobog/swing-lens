@@ -17,15 +17,68 @@ from app.services.market_regime_export_service import (
     snapshot_to_payload,
 )
 from app.services.market_regime_repository import MarketRegimeRepository
+from app.services.ranking_profile_service import get_ranking_profiles
+from app.templates import templates
 
 router = APIRouter(tags=["market-regime"])
 DbSession = Annotated[Session, Depends(get_db)]
+
+WARNING_EXPLANATIONS = {
+    "spy_distribution": {
+        "title": "SPY distribution",
+        "description": "Broad market selling pressure is elevated.",
+        "behavior": "Reduce new long exposure and favor high-quality pullbacks.",
+    },
+    "qqq_distribution": {
+        "title": "QQQ distribution",
+        "description": "Growth and technology risk appetite is weakening.",
+        "behavior": "Be careful with momentum and Early Rocket setups.",
+    },
+    "missing_spy_market_data": {
+        "title": "Missing SPY data",
+        "description": "The primary market proxy is unavailable.",
+        "behavior": "Treat market guidance as low confidence.",
+    },
+    "missing_qqq_market_data": {
+        "title": "Missing QQQ data",
+        "description": "The risk proxy is unavailable.",
+        "behavior": "Lower confidence for growth-stock setups.",
+    },
+    "market_risk_off": {
+        "title": "Market risk-off",
+        "description": "The broad market is defensive or hostile.",
+        "behavior": "Avoid or strongly reduce new long entries.",
+    },
+    "low_market_confidence": {
+        "title": "Low market confidence",
+        "description": "Market context has missing or weak input quality.",
+        "behavior": "Verify market data before acting.",
+    },
+    "stale_market_data": {
+        "title": "Stale market data",
+        "description": "The latest market bar is older than the freshness window.",
+        "behavior": "Refresh market data before relying on the regime.",
+    },
+    "severely_stale_market_data": {
+        "title": "Severely stale market data",
+        "description": "Market data is too old for confident guidance.",
+        "behavior": "Treat market state as unavailable until refreshed.",
+    },
+}
 
 
 @router.get("/market-regime", response_class=HTMLResponse)
 def market_regime_page(request: Request, db: DbSession) -> HTMLResponse:
     snapshot = _latest_or_calculate(db)
-    return HTMLResponse(_render_snapshot_html(snapshot, "Market Regime Command Center"))
+    return templates.TemplateResponse(
+        request,
+        "market_regime.html",
+        _snapshot_template_context(
+            snapshot=snapshot,
+            title="Market Regime Command Center",
+            history=MarketRegimeRepository().history(db, limit=30),
+        ),
+    )
 
 
 @router.get("/runs/{run_id}/market-regime", response_class=HTMLResponse)
@@ -36,7 +89,15 @@ def run_market_regime_page(
 ) -> HTMLResponse:
     _require_run(db, run_id)
     snapshot = _run_snapshot_or_calculate(db, run_id)
-    return HTMLResponse(_render_snapshot_html(snapshot, f"Run {run_id} Market Regime"))
+    return templates.TemplateResponse(
+        request,
+        "market_regime.html",
+        _snapshot_template_context(
+            snapshot=snapshot,
+            title=f"Run {run_id} Market Regime",
+            history=MarketRegimeRepository().history(db, limit=30),
+        ),
+    )
 
 
 @router.get("/api/market-regime/latest")
@@ -163,29 +224,6 @@ def _require_run(db: Session, run_id: int) -> None:
         raise HTTPException(status_code=404, detail=f"Run {run_id} was not found.")
 
 
-def _render_snapshot_html(snapshot: MarketRegimeSnapshot, title: str) -> str:
-    safe_title = _html_text(title)
-    regime = _html_text(snapshot.regime)
-    risk_state = _html_text(snapshot.risk_state)
-    score = _html_text(str(snapshot.score))
-    confidence = _html_text(snapshot.confidence)
-    action = _html_text(snapshot.action_summary)
-    return (
-        "<!doctype html>"
-        f"<html><head><title>{safe_title}</title></head>"
-        "<body>"
-        "<main>"
-        f"<h1>{safe_title}</h1>"
-        f"<p><strong>Regime:</strong> {regime}</p>"
-        f"<p><strong>Risk state:</strong> {risk_state}</p>"
-        f"<p><strong>Score:</strong> {score}</p>"
-        f"<p><strong>Confidence:</strong> {confidence}</p>"
-        f"<p><strong>Action:</strong> {action}</p>"
-        "</main>"
-        "</body></html>"
-    )
-
-
 def _json_export_response(content: str, filename: str) -> Response:
     return Response(
         content,
@@ -202,10 +240,57 @@ def _csv_export_response(content: str, filename: str) -> Response:
     )
 
 
-def _html_text(value: str) -> str:
-    return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
+def _snapshot_template_context(
+    snapshot: MarketRegimeSnapshot,
+    title: str,
+    history: list[MarketRegimeSnapshot],
+) -> dict:
+    payload = snapshot_to_payload(snapshot)
+    return {
+        "active_nav": "market-regime",
+        "title": title,
+        "snapshot": payload,
+        "history": history_to_payload(history),
+        "profile_alignment": _profile_alignment(payload["policy"]),
+        "warning_explanations": [
+            {**WARNING_EXPLANATIONS[warning], "code": warning}
+            for warning in payload["warnings"]
+            if warning in WARNING_EXPLANATIONS
+        ],
+    }
+
+
+def _profile_alignment(policy: dict) -> list[dict[str, str]]:
+    try:
+        profiles = get_ranking_profiles()
+    except Exception:
+        profiles = []
+
+    if not profiles:
+        names = sorted(
+            set(policy["preferred_profiles"])
+            | set(policy["allowed_profiles"])
+            | set(policy["reduced_profiles"])
+            | set(policy["blocked_profiles"])
+        )
+        return [
+            _profile_alignment_row(name=name, label=name.replace("_", " ").title(), policy=policy)
+            for name in names
+        ]
+
+    return [
+        _profile_alignment_row(name=profile.name, label=profile.label, policy=policy)
+        for profile in profiles
+    ]
+
+
+def _profile_alignment_row(name: str, label: str, policy: dict) -> dict[str, str]:
+    if name in policy["preferred_profiles"]:
+        return {"name": name, "label": label, "status": "Preferred", "tone": "success"}
+    if name in policy["blocked_profiles"]:
+        return {"name": name, "label": label, "status": "Blocked", "tone": "danger"}
+    if name in policy["reduced_profiles"]:
+        return {"name": name, "label": label, "status": "Reduced", "tone": "warning"}
+    if name in policy["allowed_profiles"]:
+        return {"name": name, "label": label, "status": "Allowed", "tone": "muted"}
+    return {"name": name, "label": label, "status": "Unavailable", "tone": "muted"}

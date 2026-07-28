@@ -439,6 +439,18 @@ Exit criteria:
 
 - A user can open `/market-regime` and understand trade stance, allowed profiles, allowed setups, and warnings.
 
+Phase 6 implementation captured on `2026-07-28`:
+
+- Added `app/templates/market_regime.html`
+- Added Market Regime navigation link in `app/templates/partials/_nav.html`
+- Added MRCC-specific responsive styling in `app/static/app.css`
+- Updated `app/routers/market_regime_routes.py` to render the template with snapshot, history, warning explanations, and profile alignment context
+- Extended `tests/test_market_regime_routes.py` with template context, navigation, and real TestClient render coverage
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_market_regime_routes.py -q`: `13 passed`
+  - `pytest -q`: `439 passed`
+
 ## Phase 7: Pipeline Integration
 
 Goal: create run-scoped snapshots automatically during full pipeline execution.
