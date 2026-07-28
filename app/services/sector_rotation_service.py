@@ -15,6 +15,7 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.market_regime_repository import MarketRegimeRepository
+from app.services.sector_etf_rotation_service import SectorEtfRotationService
 from app.services.sector_rotation_config import (
     load_sector_rotation_config,
     sector_rotation_config_hash,
@@ -41,11 +42,13 @@ class SectorRotationService:
     def __init__(
         self,
         universe_service: SectorUniverseService | None = None,
+        etf_service: SectorEtfRotationService | None = None,
         policy_service: SectorRotationPolicyService | None = None,
         repository: SectorRotationRepository | None = None,
         market_repository: MarketRegimeRepository | None = None,
     ) -> None:
         self.universe_service = universe_service or SectorUniverseService()
+        self.etf_service = etf_service or SectorEtfRotationService()
         self.policy_service = policy_service or SectorRotationPolicyService()
         self.repository = repository or SectorRotationRepository()
         self.market_repository = market_repository or MarketRegimeRepository()
@@ -65,6 +68,7 @@ class SectorRotationService:
             persist=persist,
             config=config,
             universe_service=self.universe_service,
+            etf_service=self.etf_service,
             policy_service=self.policy_service,
             repository=self.repository,
             market_repository=self.market_repository,
@@ -78,6 +82,7 @@ def build_sector_rotation_snapshot(
     persist: bool = True,
     config: dict[str, Any] | None = None,
     universe_service: SectorUniverseService | None = None,
+    etf_service: SectorEtfRotationService | None = None,
     policy_service: SectorRotationPolicyService | None = None,
     repository: SectorRotationRepository | None = None,
     market_repository: MarketRegimeRepository | None = None,
@@ -92,6 +97,7 @@ def build_sector_rotation_snapshot(
     )
     as_of_date = as_of_date or _resolve_as_of_date(db, run_id)
     universe_service = universe_service or SectorUniverseService()
+    etf_service = etf_service or SectorEtfRotationService()
     policy_service = policy_service or SectorRotationPolicyService()
     repository = repository or SectorRotationRepository()
     market_repository = market_repository or MarketRegimeRepository()
@@ -107,6 +113,8 @@ def build_sector_rotation_snapshot(
         if run_id is not None
         else []
     )
+    etf_rows = etf_service.build(db=db, universe_rows=universe_rows, config=config)
+    etf_by_slug = {row.sector_slug: row for row in etf_rows}
     previous_snapshot = repository.get_previous_snapshot(
         db,
         as_of_date=as_of_date,
@@ -119,7 +127,7 @@ def build_sector_rotation_snapshot(
     decisions = [
         policy_service.decide(
             universe=universe,
-            etf=None,
+            etf=etf_by_slug.get(universe.sector_slug),
             market_regime=market_snapshot,
             previous=previous_rows.get(universe.sector_slug),
             config=config,
@@ -144,11 +152,14 @@ def build_sector_rotation_snapshot(
         market_regime_snapshot_id=getattr(market_snapshot, "id", None),
         benchmark_ticker=config.get("etf_score", {}).get("benchmark_ticker"),
         universe_rows=universe_rows,
+        etf_rows=etf_rows,
         summary=summary,
         warnings=warnings,
         debug={
             "sector_count": len(decisions),
             "ticker_count": sum(row.ticker_count for row in universe_rows),
+            "etf_enabled": bool(config.get("etf_score", {}).get("enabled", False)),
+            "etf_count": len(etf_rows),
             "market_regime": _market_debug(market_snapshot),
             "persist_requested": persist,
         },
@@ -244,6 +255,7 @@ def _to_snapshot_write(
     config: dict[str, Any],
 ) -> SectorRotationSnapshotWrite:
     universe_by_slug = {row.sector_slug: row for row in dto.universe_rows}
+    etf_by_slug = {row.sector_slug: row for row in dto.etf_rows}
     return SectorRotationSnapshotWrite(
         run_id=dto.run_id,
         market_regime_snapshot_id=dto.market_regime_snapshot_id,
@@ -263,7 +275,12 @@ def _to_snapshot_write(
         warning_flags=list(dto.warnings),
         debug=dict(dto.debug),
         rows=[
-            _to_row_write(decision, universe_by_slug[decision.sector_slug], config)
+            _to_row_write(
+                decision,
+                universe_by_slug[decision.sector_slug],
+                config,
+                etf_by_slug.get(decision.sector_slug),
+            )
             for decision in dto.rows
             if decision.sector_slug in universe_by_slug
         ],
@@ -274,6 +291,7 @@ def _to_row_write(
     decision: SectorRotationDecision,
     universe: SectorUniverseMetrics,
     config: dict[str, Any],
+    etf: Any | None = None,
 ) -> SectorRotationRowWrite:
     proxy = config.get("sector_etf_proxies", {}).get(universe.sector)
     return SectorRotationRowWrite(
@@ -320,8 +338,24 @@ def _to_row_write(
         component_scores=universe.component_scores,
         reason_codes=decision.reasons,
         warning_flags=decision.warnings,
+        etf_metrics=_etf_metrics_payload(etf),
         debug={**universe.debug, **decision.debug},
     )
+
+
+def _etf_metrics_payload(etf: Any | None) -> dict[str, Any]:
+    if etf is None:
+        return {}
+    return {
+        "proxy_ticker": etf.proxy_ticker,
+        "benchmark_ticker": etf.benchmark_ticker,
+        "as_of_date": etf.as_of_date,
+        "score": etf.etf_rotation_score,
+        "component_scores": dict(etf.component_scores),
+        "metrics": dict(etf.metrics),
+        "warnings": list(etf.warnings),
+        "debug": dict(etf.debug),
+    }
 
 
 def _previous_rows_by_sector(

@@ -60,6 +60,20 @@ class SectorRotationDecision:
 
 
 @dataclass(frozen=True)
+class SectorEtfRotationMetrics:
+    sector: str
+    sector_slug: str
+    proxy_ticker: str
+    benchmark_ticker: str
+    as_of_date: str | None
+    etf_rotation_score: float | None
+    component_scores: dict[str, float] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
+    debug: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class SectorTickerDrilldownRow:
     ticker: str
     company_name: str | None
@@ -88,6 +102,7 @@ class SectorRotationSnapshotDto:
     market_regime_snapshot_id: int | None = None
     benchmark_ticker: str | None = None
     universe_rows: list[SectorUniverseMetrics] = field(default_factory=list)
+    etf_rows: list[SectorEtfRotationMetrics] = field(default_factory=list)
     summary: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     debug: dict[str, Any] = field(default_factory=dict)

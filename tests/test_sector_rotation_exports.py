@@ -5,6 +5,7 @@ from io import StringIO
 
 from app.models.tables import SectorRotationRow, SectorRotationSnapshot
 from app.services.sector_rotation_dtos import (
+    SectorEtfRotationMetrics,
     SectorRotationDecision,
     SectorRotationSnapshotDto,
     SectorUniverseMetrics,
@@ -29,6 +30,7 @@ def test_snapshot_to_payload_includes_snapshot_rows_components_and_debug() -> No
     assert payload["snapshot"]["summary"] == {"leading_sector": "Technology"}
     assert [row["sector"] for row in payload["rows"]] == ["Technology", "Utilities"]
     assert payload["rows"][0]["component_scores"] == {"risk_control": 9.0}
+    assert payload["rows"][0]["etf_metrics"]["proxy_ticker"] == "XLK"
     assert payload["rows"][0]["reasons"] == ["top_candidate_overrepresentation"]
     assert payload["rows"][0]["debug"] == {"source": "unit"}
 
@@ -57,6 +59,7 @@ def test_export_sector_rotation_json_returns_stable_json() -> None:
     assert payload["snapshot"]["run_id"] == 7
     assert payload["rows"][0]["sector_slug"] == "technology"
     assert payload["rows"][0]["warning_distribution"] == {"liquidity_warning": 1}
+    assert payload["rows"][0]["etf_metrics"]["metrics"]["above_sma50"] is True
 
 
 def test_export_sector_rotation_markdown_omits_fake_etf_details_for_universe_only() -> None:
@@ -139,6 +142,11 @@ def _row(sector: str, rank: int) -> SectorRotationRow:
         setup_distribution_json={"Fresh breakout": 2},
         warning_distribution_json={"liquidity_warning": 1},
         component_scores_json={"risk_control": 9.0},
+        etf_metrics_json={
+            "proxy_ticker": "XLK",
+            "benchmark_ticker": "SPY",
+            "metrics": {"above_sma50": True},
+        },
         reason_codes_json=["top_candidate_overrepresentation"],
         warning_flags_json=["missing_etf_confirmation"],
         debug_json={"source": "unit"},
@@ -176,6 +184,17 @@ def _snapshot_dto() -> SectorRotationSnapshotDto:
         rows=[decision],
         benchmark_ticker="SPY",
         universe_rows=[universe],
+        etf_rows=[
+            SectorEtfRotationMetrics(
+                sector="Technology",
+                sector_slug="technology",
+                proxy_ticker="XLK",
+                benchmark_ticker="SPY",
+                as_of_date="2026-07-28",
+                etf_rotation_score=None,
+                metrics={"above_sma50": True},
+            )
+        ],
         summary={"leading_sector": "Technology"},
         warnings=[],
         debug={},

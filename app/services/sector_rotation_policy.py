@@ -77,6 +77,7 @@ def decide_sector_rotation(
     )
     warnings = _decision_warnings(
         universe=universe,
+        etf=etf,
         rotation_state=rotation_state,
         market_bucket=market_bucket,
         score_source=score_source,
@@ -233,12 +234,15 @@ def _decision_reasons(
 
 def _decision_warnings(
     universe: SectorUniverseMetrics,
+    etf: Any | None,
     rotation_state: str,
     market_bucket: str,
     score_source: str,
     config: dict[str, Any],
 ) -> list[str]:
     warnings = list(universe.warnings)
+    for warning in _value(etf, "warnings") or []:
+        warnings = _append_unique(warnings, str(warning))
     if rotation_state == STATE_RISK_OFF:
         warnings = _append_unique(warnings, "sector_risk_off")
     if rotation_state == STATE_CROWDED_RISK:

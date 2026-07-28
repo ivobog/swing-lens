@@ -166,13 +166,67 @@ def test_build_snapshot_uses_global_market_snapshot_when_run_snapshot_missing() 
     assert "market_risk_off" in dto.rows[0].warnings
 
 
+def test_build_snapshot_uses_etf_metrics_when_enabled() -> None:
+    config = load_sector_rotation_config()
+    config["etf_score"]["enabled"] = True
+    repository = FakeSectorRepository()
+    service = _service(
+        universe_rows=[_metrics("Technology", score=8.0)],
+        etf_rows=[_etf_metrics("Technology", score=6.0)],
+        repository=repository,
+        market_repository=FakeMarketRepository(run_snapshot=_market_snapshot()),
+    )
+
+    dto = service.build_sector_rotation_snapshot(
+        object(),
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        persist=True,
+        config=config,
+    )
+
+    assert dto.mode == "combined"
+    assert dto.rows[0].final_score == 7.1
+    assert dto.rows[0].etf_score == 6.0
+    assert dto.rows[0].debug["score_source"] == "combined"
+    assert dto.etf_rows[0].proxy_ticker == "XLK"
+    saved_row = repository.saved[0].rows[0]
+    assert saved_row.etf_rotation_score == 6.0
+    assert saved_row.etf_metrics["proxy_ticker"] == "XLK"
+
+
+def test_build_snapshot_falls_back_when_etf_enabled_but_proxy_missing() -> None:
+    config = load_sector_rotation_config()
+    config["etf_score"]["enabled"] = True
+    service = _service(
+        universe_rows=[_metrics("Technology", score=8.0)],
+        etf_rows=[_etf_metrics("Technology", score=None, warnings=["missing_xlk_etf_data"])],
+        market_repository=FakeMarketRepository(run_snapshot=_market_snapshot()),
+    )
+
+    dto = service.build_sector_rotation_snapshot(
+        object(),
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        persist=False,
+        config=config,
+    )
+
+    assert dto.rows[0].final_score == 8.0
+    assert dto.rows[0].etf_score is None
+    assert "missing_etf_confirmation" in dto.rows[0].warnings
+    assert "missing_xlk_etf_data" in dto.rows[0].warnings
+
+
 def _service(
     universe_rows: list[SectorUniverseMetrics],
+    etf_rows=None,
     repository=None,
     market_repository=None,
 ) -> SectorRotationService:
     return SectorRotationService(
         universe_service=FakeUniverseService(universe_rows),
+        etf_service=FakeEtfService(etf_rows or []),
         repository=repository or FakeSectorRepository(),
         market_repository=market_repository or FakeMarketRepository(),
     )
@@ -234,8 +288,33 @@ def _market_snapshot(risk_state: str = "Green", risk_off: bool = False):
     )
 
 
+def _etf_metrics(sector: str, score: float | None, warnings: list[str] | None = None):
+    return SimpleNamespace(
+        sector=sector,
+        sector_slug=sector.lower().replace(" ", "-"),
+        proxy_ticker="XLK",
+        benchmark_ticker="SPY",
+        as_of_date="2026-07-28",
+        etf_rotation_score=score,
+        component_scores={"trend": score or 0.0},
+        metrics={"above_sma50": True},
+        warnings=warnings or [],
+        debug={},
+    )
+
+
 class FakeUniverseService:
     def __init__(self, rows: list[SectorUniverseMetrics]) -> None:
+        self.rows = rows
+        self.calls = []
+
+    def build(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.rows
+
+
+class FakeEtfService:
+    def __init__(self, rows) -> None:
         self.rows = rows
         self.calls = []
 

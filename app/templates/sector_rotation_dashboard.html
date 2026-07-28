@@ -55,6 +55,7 @@
             <th>Permission</th>
             <th>Final</th>
             <th>Universe</th>
+            <th>ETF</th>
             <th>Tickers</th>
             <th>Top 25</th>
             <th>Buyable</th>
@@ -65,6 +66,7 @@
         </thead>
         <tbody>
           {% for row in rows %}
+            {% set etf_metrics = row.etf_metrics|default({}) %}
             <tr>
               <td>{{ row.rank or "" }}</td>
               <td><a href="/runs/{{ run_id }}/sector-rotation/{{ row.sector_slug }}"><strong>{{ row.sector }}</strong></a></td>
@@ -72,6 +74,10 @@
               <td><span class="badge badge-{{ permission_tones.get(row.permission, "muted") }}">{{ row.permission|replace("_", " ") }}</span></td>
               <td>{{ "%.2f"|format(row.sector_final_score) if row.sector_final_score is number else "" }}</td>
               <td>{{ "%.2f"|format(row.universe_leadership_score) if row.universe_leadership_score is number else "" }}</td>
+              <td>
+                {{ "%.2f"|format(row.etf_rotation_score) if row.etf_rotation_score is number else "N/A" }}
+                {% if etf_metrics.proxy_ticker %}<small>{{ etf_metrics.proxy_ticker }}</small>{% endif %}
+              </td>
               <td>{{ row.ticker_count or 0 }}</td>
               <td>
                 {{ row.top_25_count or 0 }}

@@ -72,6 +72,43 @@
   </div>
 </section>
 
+{% if row.etf_metrics %}
+  <section class="panel section-gap">
+    <div class="panel-header compact-header">
+      <div>
+        <h2>ETF Confirmation</h2>
+      </div>
+    </div>
+    <div class="metric-grid sector-rotation-metrics">
+      <div class="metric"><span>Proxy</span><strong>{{ row.etf_metrics.proxy_ticker or "N/A" }}</strong></div>
+      <div class="metric"><span>Benchmark</span><strong>{{ row.etf_metrics.benchmark_ticker or "N/A" }}</strong></div>
+      <div class="metric"><span>As Of</span><strong>{{ row.etf_metrics.as_of_date or "N/A" }}</strong></div>
+      <div class="metric"><span>Score</span><strong>{{ "%.2f"|format(row.etf_metrics.score) if row.etf_metrics.score is number else "N/A" }}</strong></div>
+      <div class="metric"><span>Trend</span><strong>{{ "%.2f"|format(row.etf_metrics.component_scores.trend) if row.etf_metrics.component_scores.trend is number else "N/A" }}</strong></div>
+      <div class="metric"><span>RS</span><strong>{{ "%.2f"|format(row.etf_metrics.component_scores.relative_strength) if row.etf_metrics.component_scores.relative_strength is number else "N/A" }}</strong></div>
+      <div class="metric"><span>Risk</span><strong>{{ "%.2f"|format(row.etf_metrics.component_scores.risk_control) if row.etf_metrics.component_scores.risk_control is number else "N/A" }}</strong></div>
+    </div>
+    <div class="summary-strip section-gap">
+      <span class="summary-item">
+        <strong>{{ "Yes" if row.etf_metrics.metrics.above_sma50 else "No" if row.etf_metrics.metrics.above_sma50 is not none else "N/A" }}</strong>
+        above SMA50
+      </span>
+      <span class="summary-item">
+        <strong>{{ "Yes" if row.etf_metrics.metrics.above_sma200 else "No" if row.etf_metrics.metrics.above_sma200 is not none else "N/A" }}</strong>
+        above SMA200
+      </span>
+      <span class="summary-item">
+        <strong>{{ "%.2f"|format(row.etf_metrics.metrics.rs_roc21) if row.etf_metrics.metrics.rs_roc21 is number else "N/A" }}</strong>
+        RS ROC21
+      </span>
+      <span class="summary-item">
+        <strong>{{ row.etf_metrics.warnings|length }}</strong>
+        ETF warnings
+      </span>
+    </div>
+  </section>
+{% endif %}
+
 <section class="panel section-gap">
   <div class="panel-header compact-header">
     <div>

@@ -166,6 +166,21 @@ def test_policy_uses_universe_only_when_etf_mode_enabled_but_missing() -> None:
     assert "missing_etf_confirmation" in decision.warnings
 
 
+def test_policy_carries_etf_warnings_into_decision() -> None:
+    config = deepcopy(load_sector_rotation_config())
+    config["etf_score"]["enabled"] = True
+
+    decision = _decide(
+        _metrics(score=8.0),
+        etf={"etf_rotation_score": None, "warnings": ["missing_xlk_etf_data"]},
+        market={"risk_state": "Green"},
+        config=config,
+    )
+
+    assert "missing_xlk_etf_data" in decision.warnings
+    assert "missing_etf_confirmation" in decision.warnings
+
+
 def _decide(
     metrics: SectorUniverseMetrics,
     etf=None,

@@ -969,6 +969,51 @@ Exit criteria:
 
 - ETF mode can be enabled by config without breaking universe mode.
 
+Phase 11 implementation captured on `2026-07-28`:
+
+- Added `SectorEtfRotationMetrics` DTO and `SectorRotationSnapshotDto.etf_rows`.
+- Added `app/services/sector_etf_rotation_service.py`.
+- ETF mode remains config-gated by `config/sector_rotation.yaml`:
+  - default `etf_score.enabled: false`,
+  - when enabled, sector ETF proxies are loaded from `sector_etf_proxies`,
+  - benchmark is loaded from `etf_score.benchmark_ticker`.
+- ETF service now loads preferred OHLCV frames from `PriceBar` through `load_preferred_ohlcv_frames`.
+- ETF metrics reuse existing technical feature calculations:
+  - close,
+  - SMA50/SMA200 state,
+  - SMA50/SMA200 slope,
+  - ROC21/ROC63/ROC126,
+  - ATR percent,
+  - Donchian 20/55 breakout,
+  - distribution count.
+- ETF relative strength reuses `calculate_relative_strength_features` against the configured benchmark.
+- ETF score components implemented:
+  - trend,
+  - relative_strength,
+  - momentum,
+  - breakout,
+  - risk_control.
+- Sector orchestration now:
+  - builds ETF rows only when ETF mode is enabled,
+  - combines universe and ETF scores with configured weights when both are available,
+  - falls back to universe-only score when ETF proxy data is missing,
+  - carries ETF warnings such as missing proxy data, missing benchmark data, insufficient ETF history, and ETF risk-off into sector decisions.
+- Persisted sector rows now store ETF metrics JSON when ETF mode produces data.
+- JSON payloads now include `etf_metrics` per row.
+- Existing CSV export continues to expose the stable `etf_score` column.
+- Dashboard table now shows ETF score/proxy when available.
+- Drilldown page now shows ETF confirmation details when ETF metrics exist.
+- Universe-only mode remains unchanged and continues to render without ETF details.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_etf_rotation_service.py tests/test_sector_rotation_service.py tests/test_sector_rotation_policy.py tests/test_sector_rotation_exports.py -q`: `29 passed`
+  - `pytest tests/test_sector_etf_rotation_service.py tests/test_sector_rotation_service.py tests/test_sector_rotation_policy.py tests/test_sector_rotation_exports.py tests/test_sector_rotation_routes.py -q`: `45 passed`
+  - `pytest tests/test_pipeline_executor.py tests/test_pipeline_service.py tests/test_sector_rotation_service.py tests/test_sector_etf_rotation_service.py tests/test_run_detail_view_models.py -q`: `47 passed`
+  - `$env:USE_DURABLE_PIPELINE='false'; $env:JOB_WORKER_ENABLED='false'; pytest -q`: `523 passed`
+  - Live server smoke on `http://127.0.0.1:8000`:
+    - `GET /runs/60/sector-rotation`: `200`
+    - `GET /runs/60/sector-rotation/technology`: `200`
+
 ## Phase 12: Documentation and Verification
 
 Goal: make the feature maintainable and safe to operate.

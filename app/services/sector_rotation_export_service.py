@@ -133,6 +133,7 @@ def export_sector_rotation_markdown(
 
 def _dto_to_payload(snapshot: SectorRotationSnapshotDto) -> dict[str, Any]:
     universe_by_slug = {row.sector_slug: row for row in snapshot.universe_rows}
+    etf_by_slug = {row.sector_slug: row for row in snapshot.etf_rows}
     return {
         "snapshot": {
             "id": None,
@@ -152,7 +153,13 @@ def _dto_to_payload(snapshot: SectorRotationSnapshotDto) -> dict[str, Any]:
             "updated_at": None,
         },
         "rows": [
-            _row_payload(_dto_row_context(decision, universe_by_slug.get(decision.sector_slug)))
+            _row_payload(
+                _dto_row_context(
+                    decision,
+                    universe_by_slug.get(decision.sector_slug),
+                    etf_by_slug.get(decision.sector_slug),
+                )
+            )
             for decision in _sorted_decisions(snapshot.rows)
         ],
     }
@@ -164,8 +171,13 @@ def _row_contexts(
 ) -> list[dict[str, Any]]:
     if isinstance(snapshot, SectorRotationSnapshotDto):
         universe_by_slug = {row.sector_slug: row for row in snapshot.universe_rows}
+        etf_by_slug = {row.sector_slug: row for row in snapshot.etf_rows}
         return [
-            _dto_row_context(decision, universe_by_slug.get(decision.sector_slug))
+            _dto_row_context(
+                decision,
+                universe_by_slug.get(decision.sector_slug),
+                etf_by_slug.get(decision.sector_slug),
+            )
             for decision in _sorted_decisions(snapshot.rows)
         ]
     rows = rows if rows is not None else list(getattr(snapshot, "rows", []) or [])
@@ -175,6 +187,7 @@ def _row_contexts(
 def _dto_row_context(
     decision: SectorRotationDecision,
     universe: SectorUniverseMetrics | None,
+    etf: Any | None = None,
 ) -> dict[str, Any]:
     top_counts = universe.top_counts if universe is not None else {}
     return {
@@ -207,6 +220,7 @@ def _dto_row_context(
         "profile_distribution": universe.profile_distribution if universe is not None else {},
         "setup_distribution": universe.setup_distribution if universe is not None else {},
         "warning_distribution": universe.warning_distribution if universe is not None else {},
+        "etf_metrics": _etf_metrics_payload(etf),
         "debug": {**(universe.debug if universe is not None else {}), **decision.debug},
     }
 
@@ -272,6 +286,7 @@ def _row_payload(context: dict[str, Any]) -> dict[str, Any]:
         "profile_distribution": context["profile_distribution"],
         "setup_distribution": context["setup_distribution"],
         "warning_distribution": context["warning_distribution"],
+        "etf_metrics": context["etf_metrics"],
         "reasons": context["reasons"],
         "warnings": context["warnings"],
         "debug": context["debug"],
@@ -299,6 +314,21 @@ def _csv_row(context: dict[str, Any]) -> dict[str, Any]:
         "confidence": context["confidence"],
         "warnings": _list_text(context["warnings"]),
         "reasons": _list_text(context["reasons"]),
+    }
+
+
+def _etf_metrics_payload(etf: Any | None) -> dict[str, Any]:
+    if etf is None:
+        return {}
+    return {
+        "proxy_ticker": etf.proxy_ticker,
+        "benchmark_ticker": etf.benchmark_ticker,
+        "as_of_date": etf.as_of_date,
+        "score": etf.etf_rotation_score,
+        "component_scores": dict(etf.component_scores),
+        "metrics": dict(etf.metrics),
+        "warnings": list(etf.warnings),
+        "debug": dict(etf.debug),
     }
 
 
