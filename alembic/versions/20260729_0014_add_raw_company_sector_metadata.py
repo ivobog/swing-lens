@@ -1,6 +1,6 @@
 """add raw company sector metadata
 
-Revision ID: 0014_add_raw_company_sector_metadata
+Revision ID: 0014_sector_metadata
 Revises: 0013_add_sector_rotation_tables
 Create Date: 2026-07-29 00:00:00.000000
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0014_add_raw_company_sector_metadata"
+revision: str = "0014_sector_metadata"
 down_revision: str | None = "0013_add_sector_rotation_tables"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
