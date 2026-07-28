@@ -1070,6 +1070,31 @@ Exit criteria:
 - Automated checks pass.
 - One run can produce, display, drill into, export, and reuse a persisted sector rotation snapshot.
 
+Implementation captured on 2026-07-28:
+
+- Added `docs/sector_rotation_dashboard.md` as the operator-facing documentation page.
+- Updated `README.md` with sector rotation status, configuration, documentation, and export references.
+- Documented:
+  - `config/sector_rotation.yaml` fields,
+  - default universe, ETF, and combined score weights,
+  - lazy dashboard/API snapshot creation,
+  - recalculation route creation,
+  - full pipeline `SECTOR_ROTATION_SNAPSHOT` creation,
+  - dashboard/API/export endpoints,
+  - v1 universe-only and advisory-permission limitations,
+  - ETF mode configuration and fallback behavior,
+  - recommended automated and manual verification.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_taxonomy.py tests/test_sector_universe_service.py -q`: `16 passed`
+  - `pytest tests/test_sector_rotation_policy.py tests/test_sector_rotation_service.py -q`: `21 passed`
+  - `pytest tests/test_sector_rotation_repository.py tests/test_sector_rotation_exports.py -q`: `9 passed`
+  - `pytest tests/test_sector_rotation_routes.py -q`: `16 passed`
+  - `pytest tests/test_pipeline_service.py tests/test_pipeline_executor.py -q`: `12 passed`
+  - `$env:USE_DURABLE_PIPELINE='false'; $env:JOB_WORKER_ENABLED='false'; pytest -q`: `523 passed`
+  - `alembic upgrade head`: passed
+  - `alembic current`: `0013_add_sector_rotation_tables (head)`
+
 ## Recommended Implementation Order
 
 1. Config and taxonomy.
