@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.models.tables import RankingResult
+from app.models.tables import MarketRegimeSnapshot, RankingResult
 from app.routers import run_routes
 
 
@@ -128,6 +128,42 @@ def test_view_ranking_profile_results_route_returns_ranked_payload(monkeypatch) 
     assert payload["results"][0]["profile_score"] == 8.75
     assert payload["results"][0]["warning_flags"] == ["earnings_medium_risk"]
     assert payload["results"][0]["earnings_date"] == "2026-07-14"
+    assert payload["market_context"] is None
+
+
+def test_view_ranking_profile_results_route_includes_market_context(monkeypatch) -> None:
+    monkeypatch.setattr(
+        run_routes,
+        "get_ranking_results",
+        lambda _db, _run_id, _profile_name: [_ranking_result("MSFT", rank=1)],
+    )
+    monkeypatch.setattr(
+        run_routes,
+        "MarketRegimeRepository",
+        lambda: FakeMarketRegimeRepository(_market_snapshot()),
+    )
+
+    payload = run_routes.view_ranking_profile_results(
+        run_id=7,
+        profile_name="early_rocket",
+        db=RouteFakeDb(),
+    )
+
+    assert payload["market_context"]["regime"] == "Choppy"
+    assert payload["market_context"]["risk_state"] == "Yellow"
+    assert payload["market_context"]["position_size_multiplier"] == 0.5
+    assert payload["market_context"]["current_profile"] == {
+        "name": "early_rocket",
+        "label": "Early Rocket",
+        "status": "Blocked",
+        "tone": "danger",
+    }
+    assert (
+        payload["market_context"]["profile_warning"]
+        == "Current market policy blocks Early Rocket entries."
+    )
+    assert payload["market_context"]["score_threshold_adjustments_enabled"] is False
+    assert payload["results"][0]["profile_score"] == 8.75
 
 
 def test_view_ranking_profile_results_route_404s_unknown_profile() -> None:
@@ -196,6 +232,49 @@ class RouteFakeDb:
 
     def rollback(self) -> None:
         self.rollbacks += 1
+
+
+class FakeMarketRegimeRepository:
+    def __init__(self, snapshot: MarketRegimeSnapshot | None) -> None:
+        self.snapshot = snapshot
+
+    def latest_for_run(self, _db, _run_id):
+        return self.snapshot
+
+
+def _market_snapshot() -> MarketRegimeSnapshot:
+    return MarketRegimeSnapshot(
+        id=5,
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        calculation_version="mrcc-1.0.0",
+        config_version="2026-07-28",
+        regime="Choppy",
+        risk_state="Yellow",
+        score=4.2,
+        risk_off=False,
+        gate_ok=True,
+        confidence="normal",
+        action_summary="Choppy market. Tight bases and quality pullbacks only.",
+        position_size_multiplier=0.5,
+        preferred_profiles_json=["defensive_quality", "clean_compounder_pullback"],
+        allowed_profiles_json=[
+            "quality_momentum",
+            "clean_compounder_pullback",
+            "defensive_quality",
+        ],
+        reduced_profiles_json=["momentum_swing"],
+        blocked_profiles_json=["early_rocket"],
+        allowed_setups_json=["Volatility contraction setup"],
+        blocked_setups_json=["Fresh breakout"],
+        input_symbols_json={"primary_market": "SPY"},
+        index_health_json={},
+        universe_participation_json={},
+        sector_leadership_json=[],
+        reasons_json=[],
+        warnings_json=[],
+        debug_json={},
+    )
 
 
 def _ranking_result(

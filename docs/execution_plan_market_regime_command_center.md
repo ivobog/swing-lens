@@ -539,6 +539,20 @@ Exit criteria:
 
 - Ranking profile pages can read and display current market policy without score mutation.
 
+Phase 8 implementation captured on `2026-07-28`:
+
+- Loaded latest run-scoped market-regime snapshots into run detail and ranking-profile result routes
+- Added shared route view-model helpers for market context, profile alignment, and profile-specific reduced/blocked warnings
+- Displayed regime, risk state, position-size guidance, preferred profiles, and reduced/blocked profile labels beside run-detail ranking profiles
+- Included market context in ranking-profile JSON payloads while leaving `RankingResult.profile_score` and ranking order unchanged
+- Added disabled `score_threshold_adjustments_enabled` metadata for future threshold adjustments
+- Extended ranking route and run-detail view-model tests for snapshot/no-snapshot behavior and Choppy `early_rocket` blocking
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_ranking_profile_routes.py tests/test_run_detail_view_models.py -q`: `34 passed`
+  - `pytest tests/test_market_regime_routes.py -q`: `13 passed`
+  - `pytest -q`: `443 passed`
+
 ## Phase 9: Documentation and Verification
 
 Goal: make the feature maintainable and safe to operate.

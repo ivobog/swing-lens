@@ -17,6 +17,7 @@
   "warning_count": 0,
   "profiles": []
 }) %}
+{% set market_regime_context = market_regime_context|default(none) %}
 {% set run_summary = run_summary|default({
   "row_count": run.row_count or 0,
   "combined_count": 0,
@@ -206,6 +207,38 @@
       {% endif %}
     </div>
   </div>
+
+  {% if market_regime_context %}
+    <div class="summary-strip" aria-label="Market policy for ranking profiles">
+      <span class="summary-item">
+        <strong>{{ market_regime_context.regime }}</strong>
+        {{ market_regime_context.risk_state }} risk
+        <small>{{ market_regime_context.as_of_date }}</small>
+      </span>
+      <span class="summary-item">
+        <strong>{{ "%.0f"|format(market_regime_context.position_size_multiplier * 100) }}%</strong>
+        starter size
+        <small>{{ market_regime_context.confidence }} confidence</small>
+      </span>
+      <span class="summary-item">
+        <strong>Preferred</strong>
+        {% if market_regime_context.preferred_profiles %}
+          {{ market_regime_context.preferred_profiles|join(", ")|replace("_", " ")|title }}
+        {% else %}
+          None
+        {% endif %}
+      </span>
+      {% for profile in market_regime_context.alignment %}
+        {% if profile.status in ["Reduced", "Blocked"] %}
+          <span class="summary-item">
+            <strong>{{ profile.status }}</strong>
+            {{ profile.label }}
+          </span>
+        {% endif %}
+      {% endfor %}
+      <a class="button-link secondary compact-link" href="/runs/{{ run.id }}/market-regime">Market detail</a>
+    </div>
+  {% endif %}
 
   {% if ranking_profile_summary.profiles %}
     <div class="summary-strip">
