@@ -61,6 +61,9 @@ class UploadRun(Base):
         back_populates="run",
         cascade="all, delete-orphan",
     )
+    market_regime_snapshots: Mapped[list["MarketRegimeSnapshot"]] = relationship(
+        back_populates="run",
+    )
     ib_fetch_runs: Mapped[list["IBFetchRun"]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",
@@ -478,6 +481,142 @@ class RankingResult(Base):
             "profile_score",
         ),
         Index("idx_ranking_results_earnings_risk", "earnings_risk_level"),
+    )
+
+
+class MarketRegimeSnapshot(Base):
+    __tablename__ = "market_regime_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    config_version: Mapped[str | None] = mapped_column(String(64))
+    regime: Mapped[str] = mapped_column(String(64), nullable=False)
+    risk_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    score: Mapped[float] = mapped_column(nullable=False)
+    risk_off: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    gate_ok: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    confidence: Mapped[str] = mapped_column(String(32), nullable=False, default="normal")
+    action_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    position_size_multiplier: Mapped[float] = mapped_column(
+        nullable=False,
+        default=1.0,
+        server_default="1.0",
+    )
+    preferred_profiles_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    allowed_profiles_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    reduced_profiles_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    blocked_profiles_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    allowed_setups_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    blocked_setups_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    input_symbols_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    index_health_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    universe_participation_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    sector_leadership_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    reasons_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    warnings_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    debug_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+    )
+
+    run: Mapped[UploadRun | None] = relationship(back_populates="market_regime_snapshots")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "as_of_date",
+            "calculation_version",
+            "config_version",
+            name="uq_market_regime_snapshots_run_date_version",
+        ),
+        Index("idx_market_regime_snapshots_as_of_date", "as_of_date"),
+        Index("idx_market_regime_snapshots_run_id", "run_id"),
+        Index("idx_market_regime_snapshots_regime", "regime"),
+        Index("idx_market_regime_snapshots_risk_state", "risk_state"),
     )
 
 

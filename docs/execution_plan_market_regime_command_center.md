@@ -190,6 +190,21 @@ Exit criteria:
 
 - Snapshots can be stored and read without page or pipeline integration.
 
+Phase 2 implementation captured on `2026-07-28`:
+
+- Added `MarketRegimeSnapshot` ORM model and `UploadRun.market_regime_snapshots`
+- Added Alembic migration `20260728_0012_add_market_regime_snapshots.py`
+- Added `app/services/market_regime_repository.py`
+- Added `tests/test_market_regime_repository.py`
+- Extended `tests/test_schema_phase2.py`
+- Verification:
+  - `alembic heads`: `0012_add_market_regime_snapshots (head)`
+  - `ruff check app tests`: passed
+  - `pytest tests/test_schema_phase2.py tests/test_market_regime_repository.py -q`: `28 passed`
+  - `pytest -q`: `410 passed`
+  - `alembic upgrade head`: upgraded `0011_create_ranking_results -> 0012_add_market_regime_snapshots`
+  - `alembic current`: `0012_add_market_regime_snapshots (head)`
+
 ## Phase 3: Market Input and Index Health Services
 
 Goal: reuse existing price-bar and feature-calculation paths for SPY/QQQ.
