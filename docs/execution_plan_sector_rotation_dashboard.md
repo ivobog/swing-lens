@@ -640,6 +640,33 @@ Exit criteria:
 
 - Persisted snapshots can be exported without recalculation.
 
+Phase 7 implementation captured on `2026-07-28`:
+
+- Added `app/services/sector_rotation_export_service.py`.
+- Added `tests/test_sector_rotation_exports.py`.
+- Implemented export helpers for both persisted ORM snapshots/rows and in-memory `SectorRotationSnapshotDto` values:
+  - `snapshot_to_payload(snapshot, rows=None)`,
+  - `export_sector_rotation_json(snapshot, rows=None)`,
+  - `export_sector_rotation_csv(snapshot, rows=None)`,
+  - `export_sector_rotation_markdown(snapshot, rows=None)`.
+- CSV export uses stable headers:
+  - rank, sector, state, permission, final/universe/ETF scores, ticker count, top-25 metrics, setup/risk shares, average scores, multiplier, confidence, warnings, reasons.
+- JSON export includes:
+  - snapshot metadata and summary,
+  - component scores,
+  - profile distribution,
+  - setup and warning distributions,
+  - reasons, warnings, and debug payloads.
+- Markdown export creates a concise journaling brief and explicitly notes when ETF confirmation was not used for `universe_only` snapshots.
+- Real-data smoke on run `60` with an in-memory `persist=False` snapshot:
+  - CSV header emitted correctly.
+  - First row: `Technology`, rank `1`, state `Risk-off`, permission `avoid_new_longs`.
+  - Markdown starts with `# Sector Rotation Brief - 2026-07-28`.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_rotation_exports.py tests/test_sector_rotation_service.py tests/test_sector_rotation_repository.py -q`: `14 passed`
+  - `pytest -q` initially picked up local `.env` durable/background-worker overrides; rerun with `$env:USE_DURABLE_PIPELINE='false'; $env:JOB_WORKER_ENABLED='false'; pytest -q`: `499 passed`
+
 ## Phase 8: Routes and API
 
 Goal: expose dashboard, drilldown, history, recalculation, and exports.
