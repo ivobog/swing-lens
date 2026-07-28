@@ -11,13 +11,14 @@ from app.services.market_regime import (
 from app.services.market_regime_command_center import (
     MarketRegimeCommandCenterService,
 )
+from app.services.market_regime_dtos import MarketParticipationDto, SectorLeadershipRow
 
 
 def test_build_snapshot_missing_spy_creates_unknown_low_confidence(monkeypatch) -> None:
     _patch_market_data(monkeypatch, {"SPY": None, "QQQ": _features()})
     repo = FakeRepository()
 
-    dto = MarketRegimeCommandCenterService(repository=repo).build_snapshot(
+    dto = _service(repository=repo).build_snapshot(
         FakeDb(),
         run_id=7,
         today=date(2026, 7, 28),
@@ -43,7 +44,7 @@ def test_build_snapshot_missing_qqq_lowers_confidence_when_enabled(monkeypatch) 
     )
     repo = FakeRepository()
 
-    dto = MarketRegimeCommandCenterService(repository=repo).build_snapshot(
+    dto = _service(repository=repo).build_snapshot(
         FakeDb(),
         today=date(2026, 7, 28),
     )
@@ -79,7 +80,7 @@ def test_build_snapshot_passes_spy_and_qqq_features_to_classifier(monkeypatch) -
         fake_classify,
     )
 
-    dto = MarketRegimeCommandCenterService(repository=FakeRepository()).build_snapshot(
+    dto = _service(repository=FakeRepository()).build_snapshot(
         FakeDb(),
         today=date(2026, 7, 28),
     )
@@ -99,7 +100,7 @@ def test_build_snapshot_action_summary_includes_position_size(monkeypatch) -> No
         },
     )
 
-    dto = MarketRegimeCommandCenterService(repository=FakeRepository()).build_snapshot(
+    dto = _service(repository=FakeRepository()).build_snapshot(
         FakeDb(),
         today=date(2026, 7, 28),
     )
@@ -113,7 +114,7 @@ def test_build_snapshot_write_stores_symbols_health_and_warnings(monkeypatch) ->
     _patch_market_data(monkeypatch, {"SPY": _features(), "QQQ": None})
     repo = FakeRepository()
 
-    dto = MarketRegimeCommandCenterService(repository=repo).build_snapshot(
+    dto = _service(repository=repo).build_snapshot(
         FakeDb(),
         run_id=11,
         today=date(2026, 7, 28),
@@ -140,7 +141,7 @@ def test_build_snapshot_stale_data_forces_gray_policy(monkeypatch) -> None:
         },
     )
 
-    dto = MarketRegimeCommandCenterService(repository=FakeRepository()).build_snapshot(
+    dto = _service(repository=FakeRepository()).build_snapshot(
         FakeDb(),
         today=date(2026, 7, 28),
     )
@@ -148,6 +149,43 @@ def test_build_snapshot_stale_data_forces_gray_policy(monkeypatch) -> None:
     assert dto.risk_state == "Gray"
     assert dto.index_health["SPY"].stale is True
     assert "severely_stale_market_data" in dto.warnings
+
+
+def test_build_snapshot_run_context_stores_participation_and_sector_payloads(
+    monkeypatch,
+) -> None:
+    _patch_market_data(monkeypatch, {"SPY": _features(), "QQQ": _features()})
+    repo = FakeRepository()
+
+    dto = MarketRegimeCommandCenterService(
+        repository=repo,
+        participation_service=FakeParticipationService(
+            MarketParticipationDto(ticker_count=3, technical_count=2)
+        ),
+        sector_service=FakeSectorService(
+            [
+                SectorLeadershipRow(
+                    sector="Technology",
+                    ticker_count=2,
+                    average_technical_score=8.0,
+                    average_fundamental_score=7.0,
+                    top_25_count=1,
+                    clean_pullback_count=1,
+                    breakout_count=0,
+                    vcp_count=1,
+                    danger_count=0,
+                    leadership_score=7.8,
+                )
+            ]
+        ),
+    ).build_snapshot(FakeDb(), run_id=7, today=date(2026, 7, 28))
+
+    written = repo.calls[0][1]
+    assert dto.universe_participation is not None
+    assert dto.universe_participation.ticker_count == 3
+    assert dto.sector_leadership[0].sector == "Technology"
+    assert written.universe_participation["ticker_count"] == 3
+    assert written.sector_leadership[0]["sector"] == "Technology"
 
 
 def _patch_market_data(monkeypatch, feature_by_symbol: dict[str, dict | None]) -> None:
@@ -180,6 +218,14 @@ def _patch_market_data(monkeypatch, feature_by_symbol: dict[str, dict | None]) -
     monkeypatch.setattr(
         "app.services.market_regime_command_center.calculate_technical_features",
         fake_calculate_technical_features,
+    )
+
+
+def _service(repository):
+    return MarketRegimeCommandCenterService(
+        repository=repository,
+        participation_service=FakeParticipationService(),
+        sector_service=FakeSectorService(),
     )
 
 
@@ -223,6 +269,22 @@ class FakeRepository:
     def upsert_snapshot(self, _db, dto, run_id=None):
         self.calls.append((run_id, dto))
         return object()
+
+
+class FakeParticipationService:
+    def __init__(self, result=None) -> None:
+        self.result = result
+
+    def build(self, _db, _run_id):
+        return self.result
+
+
+class FakeSectorService:
+    def __init__(self, result=None) -> None:
+        self.result = result or []
+
+    def build(self, _db, _run_id):
+        return self.result
 
 
 class FakeDb:

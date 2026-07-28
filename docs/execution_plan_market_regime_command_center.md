@@ -314,6 +314,20 @@ Exit criteria:
 
 - Run-scoped snapshot contains participation and sector panels.
 
+Phase 4 implementation captured on `2026-07-28`:
+
+- Added shared DTO module `app/services/market_regime_dtos.py`
+- Added `app/services/market_participation_service.py`
+- Added `app/services/sector_leadership_service.py`
+- Wired run-scoped participation and sector leadership into `MarketRegimeCommandCenterService.build_snapshot`
+- Added `tests/test_market_participation_service.py`
+- Added `tests/test_sector_leadership_service.py`
+- Extended `tests/test_market_regime_command_center.py`
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_market_participation_service.py tests/test_sector_leadership_service.py tests/test_market_regime_command_center.py -q`: `13 passed`
+  - `pytest -q`: `423 passed`
+
 ## Phase 5: Routes, API, and Exports
 
 Goal: expose snapshots through HTML, JSON, CSV, and explicit recalculation.
