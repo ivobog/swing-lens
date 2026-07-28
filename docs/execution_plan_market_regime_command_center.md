@@ -383,6 +383,20 @@ Exit criteria:
 
 - The Command Center is accessible as a backend/API feature.
 
+Phase 5 implementation captured on `2026-07-28`:
+
+- Added `app/services/market_regime_export_service.py`
+- Added `app/routers/market_regime_routes.py`
+- Registered market-regime routes in `app/main.py`
+- Added simple Phase 5 HTML responses for `/market-regime` and `/runs/{run_id}/market-regime`
+- Added latest/history/run API routes, run recalculation route, and JSON/CSV export routes
+- Added `tests/test_market_regime_export_service.py`
+- Added `tests/test_market_regime_routes.py`
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_market_regime_export_service.py tests/test_market_regime_routes.py -q`: `14 passed`
+  - `pytest -q`: `437 passed`
+
 ## Phase 6: HTML Template and Navigation
 
 Goal: make the Command Center usable as a daily cockpit page.
