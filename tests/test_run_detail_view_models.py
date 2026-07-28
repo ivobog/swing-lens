@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
+    MarketRegimeSnapshot,
     RankingResult,
     RawCompanyRow,
     TechnicalScore,
@@ -17,6 +18,7 @@ from app.routers.run_routes import (
     _fetch_plan_action_counts,
     _fetch_plan_json_url,
     _fetch_request_options,
+    _market_regime_context,
     _parse_bool_filter,
     _parse_date_filter,
     _parse_decimal_filter,
@@ -108,6 +110,26 @@ def test_ranking_profile_summary_counts_profile_state() -> None:
             "top_decision": "Strong candidate",
         },
     ]
+
+
+def test_market_regime_context_marks_choppy_early_rocket_blocked() -> None:
+    context = _market_regime_context(
+        _market_snapshot(),
+        profile_name="early_rocket",
+    )
+
+    assert context is not None
+    assert context["regime"] == "Choppy"
+    assert context["risk_state"] == "Yellow"
+    assert context["position_size_multiplier"] == 0.5
+    assert context["current_profile"] == {
+        "name": "early_rocket",
+        "label": "Early Rocket",
+        "status": "Blocked",
+        "tone": "danger",
+    }
+    assert context["profile_warning"] == "Current market policy blocks Early Rocket entries."
+    assert context["score_threshold_adjustments_enabled"] is False
 
 
 def test_workflow_steps_show_warning_for_partial_coverage_and_low_confidence() -> None:
@@ -435,6 +457,26 @@ def test_run_detail_template_renders_ranking_profile_summary(monkeypatch) -> Non
     assert 'href="/runs/1/rankings/momentum_swing/export.csv"' in html
     assert 'href="/runs/1/rankings/quality_momentum/export.csv"' in html
     assert "Ranking Profiles CSV" in html
+
+
+def test_run_detail_template_renders_market_context_near_rankings(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=2, status="COMPLETED")
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        ranking_profile_summary={"profile_count": 0, "result_count": 0, "profiles": []},
+        market_regime_context=_market_regime_context(_market_snapshot()),
+    )
+
+    assert "Ranking Profiles" in html
+    assert "Choppy" in html
+    assert "Yellow risk" in html
+    assert "50%" in html
+    assert "starter size" in html
+    assert "Early Rocket" in html
+    assert "Blocked" in html
+    assert 'href="/runs/1/market-regime"' in html
 
 
 def test_coverage_actions_and_template_support_targeted_fetches(monkeypatch) -> None:
@@ -799,6 +841,41 @@ def _ranking_result(
         has_fundamental=True,
         has_technical=not has_warning,
         sort_bucket=0 if not has_warning else 1,
+    )
+
+
+def _market_snapshot() -> MarketRegimeSnapshot:
+    return MarketRegimeSnapshot(
+        id=5,
+        run_id=1,
+        as_of_date=date(2026, 7, 28),
+        calculation_version="mrcc-1.0.0",
+        config_version="2026-07-28",
+        regime="Choppy",
+        risk_state="Yellow",
+        score=4.2,
+        risk_off=False,
+        gate_ok=True,
+        confidence="normal",
+        action_summary="Choppy market. Tight bases and quality pullbacks only.",
+        position_size_multiplier=0.5,
+        preferred_profiles_json=["defensive_quality", "clean_compounder_pullback"],
+        allowed_profiles_json=[
+            "quality_momentum",
+            "clean_compounder_pullback",
+            "defensive_quality",
+        ],
+        reduced_profiles_json=["momentum_swing"],
+        blocked_profiles_json=["early_rocket"],
+        allowed_setups_json=["Volatility contraction setup"],
+        blocked_setups_json=["Fresh breakout"],
+        input_symbols_json={"primary_market": "SPY"},
+        index_health_json={},
+        universe_participation_json={},
+        sector_leadership_json=[],
+        reasons_json=[],
+        warnings_json=[],
+        debug_json={},
     )
 
 

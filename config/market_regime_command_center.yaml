@@ -1,0 +1,134 @@
+engine:
+  enabled: true
+  version: "mrcc-1.0.0"
+  config_version: "2026-07-28"
+
+symbols:
+  primary_market: "SPY"
+  risk_proxy: "QQQ"
+  use_risk_proxy: true
+  optional_symbols:
+    small_caps: "IWM"
+    bonds: "TLT"
+    volatility_proxy: "VIXY"
+
+freshness:
+  max_stale_trading_days: 3
+  stale_data_risk_state: "Gray"
+
+risk_state_mapping:
+  Bull trend: "Green"
+  Risk-on breakout: "Green"
+  Bull pullback: "Yellow"
+  Choppy: "Yellow"
+  Bear rally: "Orange"
+  Distribution: "Orange"
+  Correction: "Red"
+  Crash risk: "Red"
+  Unknown: "Gray"
+
+market_regime_v4:
+  enabled: true
+  use_spy: true
+  use_qqq: true
+  allow_unknown_market_low_confidence: true
+
+policies:
+  Bull trend:
+    position_size_multiplier: 1.0
+    preferred_profiles: ["momentum_swing", "quality_momentum"]
+    allowed_profiles: ["momentum_swing", "quality_momentum", "early_rocket", "clean_compounder_pullback", "defensive_quality"]
+    reduced_profiles: []
+    blocked_profiles: []
+    allowed_setups: ["Prime clean pullback", "Clean bull pullback", "Fresh breakout", "Tight base breakout", "Volatility contraction setup", "RS leader pullback", "Momentum continuation"]
+    blocked_setups: ["Failed breakout", "Distribution risk", "Blowoff top", "Climax reversal risk"]
+    minimum_score_adjustment: 0.0
+    summary: "Risk-on. Normal long swing conditions."
+
+  Risk-on breakout:
+    position_size_multiplier: 0.85
+    preferred_profiles: ["momentum_swing", "early_rocket", "quality_momentum"]
+    allowed_profiles: ["momentum_swing", "quality_momentum", "early_rocket", "clean_compounder_pullback", "defensive_quality"]
+    reduced_profiles: []
+    blocked_profiles: []
+    allowed_setups: ["Fresh breakout", "Tight base breakout", "Volatility contraction setup", "Clean bull pullback"]
+    blocked_setups: ["Overheated momentum", "Late-stage extension", "Failed breakout", "Blowoff top", "Climax reversal risk"]
+    minimum_score_adjustment: 0.2
+    summary: "Risk-on breakout. Breakouts allowed, but avoid chase conditions."
+
+  Bull pullback:
+    position_size_multiplier: 0.75
+    preferred_profiles: ["quality_momentum", "clean_compounder_pullback"]
+    allowed_profiles: ["momentum_swing", "quality_momentum", "clean_compounder_pullback", "defensive_quality"]
+    reduced_profiles: ["early_rocket"]
+    blocked_profiles: []
+    allowed_setups: ["Prime clean pullback", "Clean bull pullback", "Volatility contraction setup", "RS leader pullback"]
+    blocked_setups: ["Overheated momentum", "Failed breakout", "Distribution risk", "Blowoff top", "Climax reversal risk"]
+    minimum_score_adjustment: 0.4
+    summary: "Market pullback. Prefer high-quality pullbacks and reduce breakout aggression."
+
+  Choppy:
+    position_size_multiplier: 0.5
+    preferred_profiles: ["defensive_quality", "clean_compounder_pullback"]
+    allowed_profiles: ["quality_momentum", "clean_compounder_pullback", "defensive_quality"]
+    reduced_profiles: ["momentum_swing"]
+    blocked_profiles: ["early_rocket"]
+    allowed_setups: ["Volatility contraction setup", "Clean bull pullback", "Tight base breakout"]
+    blocked_setups: ["Fresh breakout", "Extended momentum", "Overheated momentum", "Failed breakout", "Distribution risk", "Blowoff top", "Climax reversal risk"]
+    minimum_score_adjustment: 0.7
+    summary: "Choppy market. Tight bases and quality pullbacks only."
+
+  Bear rally:
+    position_size_multiplier: 0.25
+    preferred_profiles: ["defensive_quality"]
+    allowed_profiles: ["defensive_quality", "clean_compounder_pullback"]
+    reduced_profiles: ["quality_momentum"]
+    blocked_profiles: ["momentum_swing", "early_rocket"]
+    allowed_setups: ["RS leader pullback", "Volatility contraction setup"]
+    blocked_setups: ["Fresh breakout", "Momentum continuation", "Extended momentum", "Overheated momentum", "Failed breakout", "Distribution risk", "Blowoff top", "Climax reversal risk"]
+    minimum_score_adjustment: 1.0
+    summary: "Bear rally. Treat strength suspiciously and use tiny size only."
+
+  Distribution:
+    position_size_multiplier: 0.25
+    preferred_profiles: ["defensive_quality"]
+    allowed_profiles: ["defensive_quality"]
+    reduced_profiles: ["clean_compounder_pullback"]
+    blocked_profiles: ["momentum_swing", "quality_momentum", "early_rocket"]
+    allowed_setups: []
+    blocked_setups: ["Fresh breakout", "Momentum continuation", "Extended momentum", "Overheated momentum", "Failed breakout", "Distribution risk", "Blowoff top", "Climax reversal risk"]
+    minimum_score_adjustment: 1.5
+    summary: "Distribution warning. Avoid most new long entries."
+
+  Correction:
+    position_size_multiplier: 0.1
+    preferred_profiles: ["defensive_quality"]
+    allowed_profiles: ["defensive_quality"]
+    reduced_profiles: []
+    blocked_profiles: ["momentum_swing", "quality_momentum", "early_rocket", "clean_compounder_pullback"]
+    allowed_setups: []
+    blocked_setups: ["Fresh breakout", "Tight base breakout", "Momentum continuation", "Extended momentum", "Overheated momentum", "Failed breakout", "Distribution risk", "Blowoff top", "Climax reversal risk"]
+    minimum_score_adjustment: 2.0
+    summary: "Correction. New long entries are watch-only or blocked."
+
+  Crash risk:
+    position_size_multiplier: 0.0
+    preferred_profiles: []
+    allowed_profiles: []
+    reduced_profiles: []
+    blocked_profiles: ["momentum_swing", "quality_momentum", "early_rocket", "clean_compounder_pullback", "defensive_quality"]
+    allowed_setups: []
+    blocked_setups: ["*"]
+    minimum_score_adjustment: 99.0
+    summary: "Crash risk. Block new long entries."
+
+  Unknown:
+    position_size_multiplier: 0.25
+    preferred_profiles: ["defensive_quality"]
+    allowed_profiles: ["defensive_quality"]
+    reduced_profiles: []
+    blocked_profiles: ["early_rocket"]
+    allowed_setups: []
+    blocked_setups: ["Fresh breakout", "Momentum continuation"]
+    minimum_score_adjustment: 1.0
+    summary: "Market data confidence is low. Reduce risk."

@@ -1123,6 +1123,93 @@ td a {
   color: var(--danger);
 }
 
+.market-regime-hero p {
+  max-width: 760px;
+}
+
+.market-regime-metrics {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.permission-grid,
+.market-index-grid,
+.warning-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.market-index-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.permission-grid > div,
+.market-index,
+.warning-item {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.permission-grid h3,
+.market-two-col h3,
+.warning-item strong {
+  display: block;
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.market-index-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.market-badge-list {
+  max-width: none;
+}
+
+.market-two-col {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.warning-item p {
+  margin-bottom: 8px;
+}
+
+.warning-item small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.market-participation-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.regime-change-row td {
+  background: var(--info-soft);
+}
+
+.debug-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.debug-panel pre {
+  max-height: 420px;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0f1720;
+  color: #eef2f6;
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .topbar,
   .panel-header,
@@ -1156,6 +1243,12 @@ td a {
   .coverage-action-grid,
   .chart-panel-grid,
   .score-grid,
+  .market-regime-metrics,
+  .permission-grid,
+  .market-index-grid,
+  .warning-grid,
+  .market-two-col,
+  .market-participation-grid,
   .cockpit-toolbar,
   .cockpit-controls,
   .history-filters {
@@ -1176,6 +1269,13 @@ td a {
   .workflow-list,
   .progress-grid,
   .coverage-action-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .market-regime-metrics,
+  .permission-grid,
+  .warning-grid,
+  .market-participation-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 

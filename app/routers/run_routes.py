@@ -12,6 +12,7 @@ from app.db import get_db
 from app.models.tables import (
     BackgroundJob,
     CombinedResult,
+    MarketRegimeSnapshot,
     RankingResult,
     RawCompanyRow,
     TechnicalScore,
@@ -51,6 +52,7 @@ from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan, fetc
 from app.services.ib_fetch_summary_service import (
     latest_ib_fetch_for_run,
 )
+from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary, summarize_run_ohlcv_coverage
 from app.services.pipeline_service import (
     PIPELINE_TERMINAL_STATUSES,
@@ -240,6 +242,7 @@ def run_detail_page(
     latest_fetch = latest_ib_fetch_for_run(db, run.id)
     settings = get_settings()
     latest_pipeline = _pipeline_status_for_run(db, run.id, pipeline_id)
+    market_regime_context = _market_regime_context(_latest_run_market_snapshot(db, run.id))
     return templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -257,6 +260,7 @@ def run_detail_page(
             "combined_results": combined_results,
             "decision_counts": decision_counts,
             "ranking_profile_summary": ranking_profile_summary,
+            "market_regime_context": market_regime_context,
             "run_summary": _run_summary(run, rows, combined_results),
             "workflow_steps": _workflow_steps(
                 run=run,
@@ -469,9 +473,14 @@ def view_ranking_profile_results(
         profile = get_ranking_profile(profile_name)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    market_regime_context = _market_regime_context(
+        _latest_run_market_snapshot(db, run_id),
+        profile_name=profile.name,
+    )
     return {
         "run_id": run_id,
         "profile": _ranking_profile_payload(profile),
+        "market_context": market_regime_context,
         "results": [
             _ranking_result_payload(result)
             for result in get_ranking_results(db, run_id, profile.name)
@@ -1014,6 +1023,108 @@ def _ranking_profile_summary(results: list[RankingResult]) -> dict[str, object]:
         "warning_count": sum(int(profile["warning_count"]) for profile in profile_summaries),
         "profiles": profile_summaries,
     }
+
+
+def _latest_run_market_snapshot(
+    db: Session,
+    run_id: int,
+) -> MarketRegimeSnapshot | None:
+    return MarketRegimeRepository().latest_for_run(db, run_id)
+
+
+def _market_regime_context(
+    snapshot: MarketRegimeSnapshot | None,
+    profile_name: str | None = None,
+) -> dict[str, object] | None:
+    if snapshot is None:
+        return None
+
+    policy = {
+        "preferred_profiles": list(snapshot.preferred_profiles_json or []),
+        "allowed_profiles": list(snapshot.allowed_profiles_json or []),
+        "reduced_profiles": list(snapshot.reduced_profiles_json or []),
+        "blocked_profiles": list(snapshot.blocked_profiles_json or []),
+    }
+    alignment = _market_profile_alignment(policy)
+    current_profile = next(
+        (row for row in alignment if row["name"] == profile_name),
+        None,
+    )
+    return {
+        "snapshot_id": snapshot.id,
+        "run_id": snapshot.run_id,
+        "as_of_date": snapshot.as_of_date.isoformat(),
+        "regime": snapshot.regime,
+        "risk_state": snapshot.risk_state,
+        "confidence": snapshot.confidence,
+        "position_size_multiplier": snapshot.position_size_multiplier,
+        "preferred_profiles": policy["preferred_profiles"],
+        "allowed_profiles": policy["allowed_profiles"],
+        "reduced_profiles": policy["reduced_profiles"],
+        "blocked_profiles": policy["blocked_profiles"],
+        "alignment": alignment,
+        "current_profile": current_profile,
+        "profile_warning": _market_profile_warning(current_profile),
+        "score_threshold_adjustments_enabled": False,
+    }
+
+
+def _market_profile_alignment(policy: dict[str, list[str]]) -> list[dict[str, str]]:
+    try:
+        profiles = get_ranking_profiles()
+    except Exception:
+        profiles = []
+
+    if not profiles:
+        names = sorted(
+            set(policy["preferred_profiles"])
+            | set(policy["allowed_profiles"])
+            | set(policy["reduced_profiles"])
+            | set(policy["blocked_profiles"])
+        )
+        return [
+            _market_profile_alignment_row(
+                name=name,
+                label=name.replace("_", " ").title(),
+                policy=policy,
+            )
+            for name in names
+        ]
+
+    return [
+        _market_profile_alignment_row(
+            name=profile.name,
+            label=profile.label,
+            policy=policy,
+        )
+        for profile in profiles
+    ]
+
+
+def _market_profile_alignment_row(
+    name: str,
+    label: str,
+    policy: dict[str, list[str]],
+) -> dict[str, str]:
+    if name in policy["preferred_profiles"]:
+        return {"name": name, "label": label, "status": "Preferred", "tone": "success"}
+    if name in policy["blocked_profiles"]:
+        return {"name": name, "label": label, "status": "Blocked", "tone": "danger"}
+    if name in policy["reduced_profiles"]:
+        return {"name": name, "label": label, "status": "Reduced", "tone": "warning"}
+    if name in policy["allowed_profiles"]:
+        return {"name": name, "label": label, "status": "Allowed", "tone": "muted"}
+    return {"name": name, "label": label, "status": "Unavailable", "tone": "muted"}
+
+
+def _market_profile_warning(profile: dict[str, str] | None) -> str | None:
+    if profile is None:
+        return None
+    if profile["status"] == "Blocked":
+        return f"Current market policy blocks {profile['label']} entries."
+    if profile["status"] == "Reduced":
+        return f"Current market policy reduces {profile['label']} aggression."
+    return None
 
 
 def _run_summary(

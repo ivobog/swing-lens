@@ -22,6 +22,8 @@ from app.services.combined_decision import refresh_combined_results
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan
+from app.services.market_regime_command_center import MarketRegimeCommandCenterService
+from app.services.market_regime_dtos import MarketRegimeCommandCenterDto
 from app.services.pipeline_service import (
     PipelineStatus,
     PipelineStepStatus,
@@ -31,6 +33,13 @@ from app.services.technical_score_service import score_run_technicals
 
 class PipelineCancelled(Exception):
     pass
+
+
+def build_market_regime_snapshot_for_run(
+    db: Session,
+    run_id: int,
+) -> MarketRegimeCommandCenterDto:
+    return MarketRegimeCommandCenterService().build_snapshot(db, run_id=run_id)
 
 
 @dataclass(frozen=True)
@@ -46,6 +55,11 @@ class PipelineExecutionResult:
     ib_failure_count: int
     ib_skipped_count: int
     technical_scores: int
+    market_regime_snapshots: int
+    market_regime: str | None
+    market_risk_state: str | None
+    market_regime_confidence: str | None
+    market_regime_warning_count: int
     combined_results: int
     incomplete_rows: int
     warning_rows: int
@@ -57,6 +71,9 @@ class PipelineExecutionDependencies:
     build_fetch_plan: Callable[..., FetchPlan] = build_fetch_plan
     execute_fetch_plan: Callable[..., IBFetchRun] = execute_fetch_plan
     score_technicals: Callable[[Session, int], list[Any]] = score_run_technicals
+    build_market_regime_snapshot: Callable[
+        [Session, int], MarketRegimeCommandCenterDto
+    ] = build_market_regime_snapshot_for_run
     refresh_combined: Callable[[Session, int], list[CombinedResult]] = refresh_combined_results
 
 
@@ -116,6 +133,16 @@ def execute_full_pipeline(
             technical_scores = dependencies.score_technicals(db, upload_run.id)
             result["technical_scores"] = len(technical_scores)
             result["technical_error_count"] = _technical_error_count(technical_scores)
+
+        _raise_if_cancelled(should_cancel)
+        with _pipeline_step(db, pipeline, "MARKET_REGIME_SNAPSHOT"):
+            snapshot = dependencies.build_market_regime_snapshot(db, upload_run.id)
+            result["market_regime_snapshots"] = 1
+            result["market_regime"] = snapshot.regime
+            result["market_risk_state"] = snapshot.risk_state
+            result["market_regime_confidence"] = snapshot.confidence
+            result["market_regime_warning_count"] = len(snapshot.warnings)
+            result["market_regime_low_confidence"] = int(snapshot.confidence == "low")
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(db, pipeline, "COMBINING_RESULTS"):
@@ -218,7 +245,7 @@ def _mark_pipeline_finished(
     db: Session,
     pipeline: PipelineRun,
     status: str,
-    result: dict[str, int],
+    result: dict[str, Any],
 ) -> None:
     pipeline.status = status
     pipeline.current_step = None
@@ -275,13 +302,14 @@ def _pipeline_status_for_step(step_name: str) -> str:
         PipelineStatus.SCORING_FUNDAMENTALS,
         PipelineStatus.FETCHING_MARKET_DATA,
         PipelineStatus.SCORING_TECHNICALS,
+        PipelineStatus.MARKET_REGIME_SNAPSHOT,
         PipelineStatus.COMBINING_RESULTS,
     }:
         return step_name
     return PipelineStatus.RUNNING
 
 
-def _apply_fetch_result(result: dict[str, int], fetch_run: IBFetchRun) -> None:
+def _apply_fetch_result(result: dict[str, Any], fetch_run: IBFetchRun) -> None:
     result["ib_executed_requests"] = fetch_run.executed_request_count or 0
     result["ib_success_count"] = fetch_run.success_count or 0
     result["ib_failure_count"] = fetch_run.failure_count or 0
@@ -297,7 +325,7 @@ def _technical_error_count(scores: list[Any]) -> int:
     )
 
 
-def _final_pipeline_status(result: dict[str, int]) -> str:
+def _final_pipeline_status(result: dict[str, Any]) -> str:
     if result["combined_results"] <= 0:
         return PipelineStatus.FAILED
     if (
@@ -306,12 +334,13 @@ def _final_pipeline_status(result: dict[str, int]) -> str:
         or result["ib_failure_count"]
         or result["technical_error_count"]
         or result["fetch_failed"]
+        or result["market_regime_low_confidence"]
     ):
         return PipelineStatus.PARTIAL
     return PipelineStatus.COMPLETED
 
 
-def _completion_message(status: str, result: dict[str, int]) -> str:
+def _completion_message(status: str, result: dict[str, Any]) -> str:
     if status == PipelineStatus.COMPLETED:
         return f"Pipeline completed with {result['combined_results']} combined rows."
     if status == PipelineStatus.PARTIAL:
@@ -323,7 +352,7 @@ def _completion_message(status: str, result: dict[str, int]) -> str:
     return "Pipeline failed before combined results were produced."
 
 
-def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, int]:
+def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any]:
     return {
         "pipeline_run_id": pipeline.id,
         "upload_run_id": upload_run.id,
@@ -336,6 +365,12 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, int
         "ib_skipped_count": 0,
         "technical_scores": 0,
         "technical_error_count": 0,
+        "market_regime_snapshots": 0,
+        "market_regime": None,
+        "market_risk_state": None,
+        "market_regime_confidence": None,
+        "market_regime_warning_count": 0,
+        "market_regime_low_confidence": 0,
         "combined_results": 0,
         "incomplete_rows": 0,
         "warning_rows": 0,
@@ -345,7 +380,7 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, int
 
 def _to_execution_result(
     pipeline: PipelineRun,
-    result: dict[str, int],
+    result: dict[str, Any],
 ) -> PipelineExecutionResult:
     return PipelineExecutionResult(
         pipeline_run_id=pipeline.id,
@@ -359,17 +394,26 @@ def _to_execution_result(
         ib_failure_count=result["ib_failure_count"],
         ib_skipped_count=result["ib_skipped_count"],
         technical_scores=result["technical_scores"],
+        market_regime_snapshots=result["market_regime_snapshots"],
+        market_regime=result["market_regime"],
+        market_risk_state=result["market_risk_state"],
+        market_regime_confidence=result["market_regime_confidence"],
+        market_regime_warning_count=result["market_regime_warning_count"],
         combined_results=result["combined_results"],
         incomplete_rows=result["incomplete_rows"],
         warning_rows=result["warning_rows"],
     )
 
 
-def _public_result(result: dict[str, int]) -> dict[str, int]:
+def _public_result(result: dict[str, Any]) -> dict[str, Any]:
     return {
         key: value
         for key, value in result.items()
-        if key not in {"fetch_failed", "technical_error_count"}
+        if key not in {
+            "fetch_failed",
+            "technical_error_count",
+            "market_regime_low_confidence",
+        }
     }
 
 

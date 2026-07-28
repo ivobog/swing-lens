@@ -26,14 +26,29 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
 
     result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
 
-    assert calls == ["fundamentals", "build_fetch_plan", "technicals", "combined"]
+    assert calls == [
+        "fundamentals",
+        "build_fetch_plan",
+        "technicals",
+        "market_regime",
+        "combined",
+    ]
     assert result.status == PipelineStatus.COMPLETED
     assert result.ib_planned_requests == 0
     assert result.ib_skipped_count == 2
+    assert result.market_regime_snapshots == 1
+    assert result.market_regime == "Confirmed Uptrend"
+    assert result.market_risk_state == "green"
+    assert result.market_regime_confidence == "normal"
+    assert result.market_regime_warning_count == 0
     assert result.combined_results == 1
     assert db.pipeline.status == PipelineStatus.COMPLETED
     assert db.pipeline.current_step is None
     assert db.pipeline.result_json["combined_results"] == 1
+    assert db.pipeline.result_json["market_regime"] == "Confirmed Uptrend"
+    assert db.pipeline.result_json["market_risk_state"] == "green"
+    assert db.pipeline.result_json["market_regime_confidence"] == "normal"
+    assert db.pipeline.result_json["market_regime_warning_count"] == 0
     assert {step.status for step in db.steps} == {PipelineStepStatus.COMPLETED}
 
 
@@ -67,7 +82,14 @@ def test_execute_full_pipeline_runs_fetch_before_technicals_and_finishes_partial
 
     result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
 
-    assert calls == ["fundamentals", "build_fetch_plan", "fetch", "technicals", "combined"]
+    assert calls == [
+        "fundamentals",
+        "build_fetch_plan",
+        "fetch",
+        "technicals",
+        "market_regime",
+        "combined",
+    ]
     assert result.status == PipelineStatus.PARTIAL
     assert result.ib_executed_requests == 2
     assert result.ib_failure_count == 1
@@ -75,6 +97,44 @@ def test_execute_full_pipeline_runs_fetch_before_technicals_and_finishes_partial
     assert result.incomplete_rows == 1
     assert result.warning_rows == 1
     assert db.pipeline.status == PipelineStatus.PARTIAL
+
+
+def test_execute_full_pipeline_keeps_low_confidence_market_snapshot_nonfatal() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    calls = []
+    dependencies = _dependencies(
+        calls,
+        plan=_plan(estimated_request_count=0),
+        market_regime_snapshot=SimpleNamespace(
+            regime="Unknown",
+            risk_state="gray",
+            confidence="low",
+            warnings=["missing_spy_market_data"],
+        ),
+        combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ],
+    )
+
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert calls == [
+        "fundamentals",
+        "build_fetch_plan",
+        "technicals",
+        "market_regime",
+        "combined",
+    ]
+    assert result.status == PipelineStatus.PARTIAL
+    assert result.market_regime == "Unknown"
+    assert result.market_risk_state == "gray"
+    assert result.market_regime_confidence == "low"
+    assert result.market_regime_warning_count == 1
+    assert db.pipeline.result_json["market_regime_snapshots"] == 1
+    assert db.pipeline.result_json["market_regime"] == "Unknown"
+    assert db.pipeline.result_json["market_risk_state"] == "gray"
+    assert db.pipeline.result_json["market_regime_confidence"] == "low"
+    assert db.pipeline.result_json["market_regime_warning_count"] == 1
 
 
 def test_execute_full_pipeline_marks_pipeline_cancelled_before_next_step() -> None:
@@ -100,7 +160,12 @@ def test_execute_full_pipeline_marks_pipeline_cancelled_before_next_step() -> No
     unfinished = [
         step.status
         for step in db.steps
-        if step.step_name in {"FETCHING_MARKET_DATA", "SCORING_TECHNICALS", "COMBINING_RESULTS"}
+        if step.step_name in {
+            "FETCHING_MARKET_DATA",
+            "SCORING_TECHNICALS",
+            "MARKET_REGIME_SNAPSHOT",
+            "COMBINING_RESULTS",
+        }
     ]
     assert set(unfinished) == {PipelineStepStatus.CANCELLED}
 
@@ -121,6 +186,7 @@ def _dependencies(
     plan: FetchPlan | None = None,
     fetch_run: IBFetchRun | None = None,
     technical_scores: list[object] | None = None,
+    market_regime_snapshot: object | None = None,
     combined_results: list[CombinedResult] | None = None,
 ) -> PipelineExecutionDependencies:
     plan = plan or _plan(estimated_request_count=0)
@@ -136,6 +202,12 @@ def _dependencies(
         skipped_count=0,
     )
     technical_scores = technical_scores or []
+    market_regime_snapshot = market_regime_snapshot or SimpleNamespace(
+        regime="Confirmed Uptrend",
+        risk_state="green",
+        confidence="normal",
+        warnings=[],
+    )
     combined_results = combined_results or []
 
     def fundamentals(_db, _run_id):
@@ -154,6 +226,10 @@ def _dependencies(
         calls.append("technicals")
         return technical_scores
 
+    def market_regime(_db, _run_id):
+        calls.append("market_regime")
+        return market_regime_snapshot
+
     def combined(_db, _run_id):
         calls.append("combined")
         return combined_results
@@ -163,6 +239,7 @@ def _dependencies(
         build_fetch_plan=fetch_plan,
         execute_fetch_plan=fetch,
         score_technicals=technicals,
+        build_market_regime_snapshot=market_regime,
         refresh_combined=combined,
     )
 

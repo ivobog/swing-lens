@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -6,6 +7,7 @@ from app.models.tables import (
     FundamentalScore,
     IBFetchItem,
     IBFetchRun,
+    MarketRegimeSnapshot,
     RankingResult,
     RawCompanyRow,
     TechnicalScore,
@@ -101,6 +103,94 @@ def test_ranking_result_model_defines_constraints_and_indexes() -> None:
 def test_upload_run_has_ranking_results_relationship() -> None:
     assert "ranking_results" in UploadRun.__mapper__.relationships
     assert UploadRun.__mapper__.relationships["ranking_results"].cascade.delete
+
+
+def test_market_regime_snapshot_model_includes_persistence_columns() -> None:
+    table = Base.metadata.tables["market_regime_snapshots"]
+
+    for column_name in [
+        "run_id",
+        "as_of_date",
+        "calculation_version",
+        "config_version",
+        "regime",
+        "risk_state",
+        "score",
+        "risk_off",
+        "gate_ok",
+        "confidence",
+        "action_summary",
+        "position_size_multiplier",
+        "preferred_profiles_json",
+        "allowed_profiles_json",
+        "reduced_profiles_json",
+        "blocked_profiles_json",
+        "allowed_setups_json",
+        "blocked_setups_json",
+        "input_symbols_json",
+        "index_health_json",
+        "universe_participation_json",
+        "sector_leadership_json",
+        "reasons_json",
+        "warnings_json",
+        "debug_json",
+        "created_at",
+        "updated_at",
+    ]:
+        assert column_name in table.c
+
+
+def test_market_regime_snapshot_model_defines_constraints_and_indexes() -> None:
+    table = MarketRegimeSnapshot.__table__
+    constraint_names = {constraint.name for constraint in table.constraints}
+    index_names = {index.name for index in table.indexes}
+
+    assert "uq_market_regime_snapshots_run_date_version" in constraint_names
+    assert {
+        "idx_market_regime_snapshots_as_of_date",
+        "idx_market_regime_snapshots_run_id",
+        "idx_market_regime_snapshots_regime",
+        "idx_market_regime_snapshots_risk_state",
+    }.issubset(index_names)
+
+
+def test_upload_run_has_market_regime_snapshots_relationship() -> None:
+    assert "market_regime_snapshots" in UploadRun.__mapper__.relationships
+
+
+def test_market_regime_snapshot_model_accepts_values() -> None:
+    snapshot = MarketRegimeSnapshot(
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        calculation_version="mrcc-1.0.0",
+        config_version="2026-07-28",
+        regime="Bull pullback",
+        risk_state="Yellow",
+        score=6.8,
+        risk_off=False,
+        gate_ok=True,
+        confidence="normal",
+        action_summary="Prefer quality pullbacks.",
+        position_size_multiplier=0.75,
+        preferred_profiles_json=["quality_momentum"],
+        allowed_profiles_json=["quality_momentum", "defensive_quality"],
+        reduced_profiles_json=["early_rocket"],
+        blocked_profiles_json=[],
+        allowed_setups_json=["Clean bull pullback"],
+        blocked_setups_json=["Failed breakout"],
+        input_symbols_json={"primary_market": "SPY"},
+        index_health_json={"SPY": {"above_sma200": True}},
+        universe_participation_json={"ticker_count": 42},
+        sector_leadership_json=[{"sector": "Technology"}],
+        reasons_json=["missing_qqq_market_data"],
+        warnings_json=["low_market_confidence"],
+        debug_json={"source": "test"},
+    )
+
+    assert snapshot.regime == "Bull pullback"
+    assert snapshot.position_size_multiplier == 0.75
+    assert snapshot.reduced_profiles_json == ["early_rocket"]
+    assert snapshot.index_health_json == {"SPY": {"above_sma200": True}}
 
 
 def test_ranking_result_model_accepts_profile_values() -> None:
@@ -315,6 +405,15 @@ def test_ranking_results_migration_follows_current_head() -> None:
 
     assert 'revision: str = "0011_create_ranking_results"' in migration
     assert 'down_revision: str | None = "0010_add_earnings_risk_gate"' in migration
+
+
+def test_market_regime_snapshots_migration_follows_current_head() -> None:
+    migration = Path(
+        "alembic/versions/20260728_0012_add_market_regime_snapshots.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0012_add_market_regime_snapshots"' in migration
+    assert 'down_revision: str | None = "0011_create_ranking_results"' in migration
 
 
 def test_combined_decision_to_model_persists_phase2_fields() -> None:

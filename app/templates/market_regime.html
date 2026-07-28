@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% set state_tone = {
+  "Green": "success",
+  "Yellow": "warning",
+  "Orange": "warning",
+  "Red": "danger",
+  "Gray": "muted"
+}.get(snapshot.risk_state, "muted") %}
+{% set state_label = {
+  "Green": "Risk-on",
+  "Yellow": "Selective",
+  "Orange": "Defensive",
+  "Red": "Risk-off",
+  "Gray": "Low confidence"
+}.get(snapshot.risk_state, snapshot.risk_state) %}
+
+<section class="panel market-regime-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>{{ title }}</h1>
+      <p>{{ snapshot.action_summary }}</p>
+    </div>
+    <div class="actions">
+      {% if snapshot.run_id %}
+        <a class="button-link secondary" href="/runs/{{ snapshot.run_id }}/market-regime/export.json">JSON</a>
+        <a class="button-link secondary" href="/runs/{{ snapshot.run_id }}/market-regime/export.csv">CSV</a>
+      {% else %}
+        <a class="button-link secondary" href="/market-regime/export.json">JSON</a>
+        <a class="button-link secondary" href="/market-regime/export.csv">CSV</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-{{ state_tone }}">{{ snapshot.risk_state }} - {{ state_label }}</span>
+    <span>{{ snapshot.regime }}</span>
+    <span>Score {{ "%.2f"|format(snapshot.score) }}</span>
+    <span>Confidence {{ snapshot.confidence }}</span>
+    <span>As of {{ snapshot.as_of_date }}</span>
+    {% if snapshot.run_id %}<span>Run {{ snapshot.run_id }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="metric-grid section-gap market-regime-metrics" aria-label="Market regime summary">
+  <div class="metric">
+    <span>Regime</span>
+    <strong>{{ snapshot.regime }}</strong>
+  </div>
+  <div class="metric">
+    <span>Risk State</span>
+    <strong>{{ snapshot.risk_state }}</strong>
+    <small>{{ state_label }}</small>
+  </div>
+  <div class="metric">
+    <span>Score</span>
+    <strong>{{ "%.2f"|format(snapshot.score) }}</strong>
+  </div>
+  <div class="metric">
+    <span>Position Size</span>
+    <strong>{{ "%.0f"|format(snapshot.position_size_multiplier * 100) }}%</strong>
+  </div>
+  <div class="metric">
+    <span>Gate</span>
+    <strong>{{ "Open" if snapshot.gate_ok else "Closed" }}</strong>
+  </div>
+  <div class="metric">
+    <span>Risk Off</span>
+    <strong>{{ "Yes" if snapshot.risk_off else "No" }}</strong>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Market Permission Layer</h2>
+    </div>
+  </div>
+  <div class="permission-grid">
+    <div>
+      <h3>Preferred Profiles</h3>
+      <div class="badge-list market-badge-list">
+        {% for profile in snapshot.policy.preferred_profiles %}
+          <span class="badge badge-success">{{ profile|replace("_", " ")|title }}</span>
+        {% else %}
+          <span class="badge badge-muted">None</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <h3>Allowed Profiles</h3>
+      <div class="badge-list market-badge-list">
+        {% for profile in snapshot.policy.allowed_profiles %}
+          <span class="badge badge-muted">{{ profile|replace("_", " ")|title }}</span>
+        {% else %}
+          <span class="badge badge-muted">None</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <h3>Reduced Profiles</h3>
+      <div class="badge-list market-badge-list">
+        {% for profile in snapshot.policy.reduced_profiles %}
+          <span class="badge badge-warning">{{ profile|replace("_", " ")|title }}</span>
+        {% else %}
+          <span class="badge badge-muted">None</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <h3>Blocked Profiles</h3>
+      <div class="badge-list market-badge-list">
+        {% for profile in snapshot.policy.blocked_profiles %}
+          <span class="badge badge-danger">{{ profile|replace("_", " ")|title }}</span>
+        {% else %}
+          <span class="badge badge-muted">None</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Index Health</h2>
+    </div>
+  </div>
+  <div class="market-index-grid">
+    {% for symbol, health in snapshot.index_health.items() %}
+      <div class="market-index">
+        <div class="market-index-title">
+          <strong>{{ symbol }}</strong>
+          <span class="badge badge-{{ 'warning' if health.stale else 'success' }}">{{ "Stale" if health.stale else "Fresh" }}</span>
+        </div>
+        <dl class="compact-dl">
+          <dt>Close</dt>
+          <dd>{{ "%.2f"|format(health.latest_close) if health.latest_close is number else "" }}</dd>
+          <dt>As Of</dt>
+          <dd>{{ health.as_of_date or "" }}</dd>
+          <dt>Above SMA50</dt>
+          <dd>{{ "Yes" if health.above_sma50 else "No" if health.above_sma50 is not none else "" }}</dd>
+          <dt>Above SMA200</dt>
+          <dd>{{ "Yes" if health.above_sma200 else "No" if health.above_sma200 is not none else "" }}</dd>
+          <dt>SMA50 &gt; SMA200</dt>
+          <dd>{{ "Yes" if health.sma50_above_sma200 else "No" if health.sma50_above_sma200 is not none else "" }}</dd>
+          <dt>SMA50 Slope</dt>
+          <dd>{{ "%.2f"|format(health.sma50_slope_pct) if health.sma50_slope_pct is number else "" }}</dd>
+          <dt>ROC21</dt>
+          <dd>{{ "%.2f"|format(health.roc21) if health.roc21 is number else "" }}</dd>
+          <dt>ROC63</dt>
+          <dd>{{ "%.2f"|format(health.roc63) if health.roc63 is number else "" }}</dd>
+          <dt>Distribution</dt>
+          <dd>{{ "%.0f"|format(health.distribution_count) if health.distribution_count is number else "" }}</dd>
+          <dt>Donchian 20</dt>
+          <dd>{{ "Breakout" if health.donchian_20_breakout else "No breakout" if health.donchian_20_breakout is not none else "" }}</dd>
+        </dl>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="grid section-gap market-two-col">
+  <div>
+    <h2>Setup Permissions</h2>
+    <h3>Allowed</h3>
+    <div class="badge-list market-badge-list">
+      {% for setup in snapshot.policy.allowed_setups %}
+        <span class="badge badge-success">{{ setup }}</span>
+      {% else %}
+        <span class="badge badge-muted">None</span>
+      {% endfor %}
+    </div>
+    <h3>Blocked</h3>
+    <div class="badge-list market-badge-list">
+      {% for setup in snapshot.policy.blocked_setups %}
+        <span class="badge badge-danger">{{ setup }}</span>
+      {% else %}
+        <span class="badge badge-muted">None</span>
+      {% endfor %}
+    </div>
+  </div>
+  <div>
+    <h2>Ranking Profile Alignment</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Profile</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for profile in profile_alignment %}
+            <tr>
+              <td>{{ profile.label }}</td>
+              <td><span class="badge badge-{{ profile.tone }}">{{ profile.status }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Warnings And Reasons</h2>
+    </div>
+  </div>
+  {% if warning_explanations %}
+    <div class="warning-grid">
+      {% for warning in warning_explanations %}
+        <div class="warning-item">
+          <strong>{{ warning.title }}</strong>
+          <p>{{ warning.description }}</p>
+          <small>{{ warning.behavior }}</small>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <span class="badge badge-success">No market warnings</span>
+  {% endif %}
+  {% if snapshot.reasons %}
+    <div class="summary-strip section-gap">
+      {% for reason in snapshot.reasons %}
+        <span class="summary-item">{{ reason }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Universe Participation</h2>
+    </div>
+  </div>
+  {% if snapshot.universe_participation %}
+    {% set participation = snapshot.universe_participation %}
+    <div class="metric-grid market-participation-grid">
+      <div class="metric"><span>Tickers</span><strong>{{ participation.ticker_count }}</strong></div>
+      <div class="metric"><span>Technicals</span><strong>{{ participation.technical_count }}</strong></div>
+      <div class="metric"><span>Avg Technical</span><strong>{{ "%.2f"|format(participation.average_technical_score) if participation.average_technical_score is number else "" }}</strong></div>
+      <div class="metric"><span>Above SMA50</span><strong>{{ "%.0f"|format(participation.above_sma50_pct) ~ "%" if participation.above_sma50_pct is number else "" }}</strong></div>
+      <div class="metric"><span>Above SMA200</span><strong>{{ "%.0f"|format(participation.above_sma200_pct) ~ "%" if participation.above_sma200_pct is number else "" }}</strong></div>
+      <div class="metric"><span>Danger</span><strong>{{ participation.danger_count }}</strong></div>
+    </div>
+    <div class="summary-strip section-gap">
+      <span class="summary-item">{{ participation.clean_pullback_count }} pullbacks</span>
+      <span class="summary-item">{{ participation.fresh_breakout_count }} breakouts</span>
+      <span class="summary-item">{{ participation.vcp_count }} VCP</span>
+      <span class="summary-item">{{ participation.market_risk_warning_count }} market warnings</span>
+    </div>
+  {% else %}
+    <div class="empty-state"><strong>Index-only snapshot.</strong></div>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Sector Leadership</h2>
+    </div>
+  </div>
+  {% if snapshot.sector_leadership %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Sector</th>
+            <th>Leadership</th>
+            <th>Tickers</th>
+            <th>Technical</th>
+            <th>Fundamental</th>
+            <th>Top 25</th>
+            <th>Setups</th>
+            <th>Danger</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sector in snapshot.sector_leadership %}
+            <tr>
+              <td>{{ sector.sector }}</td>
+              <td>{{ "%.2f"|format(sector.leadership_score) if sector.leadership_score is number else "" }}</td>
+              <td>{{ sector.ticker_count or "" }}</td>
+              <td>{{ "%.2f"|format(sector.average_technical_score) if sector.average_technical_score is number else "" }}</td>
+              <td>{{ "%.2f"|format(sector.average_fundamental_score) if sector.average_fundamental_score is number else "" }}</td>
+              <td>{{ sector.top_25_count or 0 }}</td>
+              <td>{{ (sector.clean_pullback_count or 0) + (sector.breakout_count or 0) + (sector.vcp_count or 0) }}</td>
+              <td>{{ sector.danger_count or 0 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state"><strong>No sector rows.</strong></div>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Regime History</h2>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>As Of</th>
+          <th>Regime</th>
+          <th>Risk</th>
+          <th>Score</th>
+          <th>Confidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in history %}
+          <tr class="{{ 'regime-change-row' if not loop.first and row.regime != history[loop.index0 - 1].regime else '' }}">
+            <td>{{ row.as_of_date }}</td>
+            <td>{{ row.regime }}</td>
+            <td>{{ row.risk_state }}</td>
+            <td>{{ "%.2f"|format(row.score) }}</td>
+            <td>{{ row.confidence }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<details class="panel section-gap debug-panel">
+  <summary>Debug JSON</summary>
+  <pre>{{ snapshot.debug|tojson(indent=2) }}</pre>
+</details>
+{% endblock %}
