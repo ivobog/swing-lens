@@ -712,6 +712,42 @@ Exit criteria:
 
 - Backend and route surface are complete before template polish.
 
+Phase 8 implementation captured on `2026-07-28`:
+
+- Added `app/routers/sector_rotation_routes.py`.
+- Registered sector rotation router in `app/main.py`.
+- Added `tests/test_sector_rotation_routes.py`.
+- Implemented backend-focused HTML routes:
+  - `GET /runs/{run_id}/sector-rotation`,
+  - `GET /runs/{run_id}/sector-rotation/{sector_slug}`.
+- Implemented API routes:
+  - `GET /api/runs/{run_id}/sector-rotation`,
+  - `GET /api/runs/{run_id}/sector-rotation/{sector_slug}`,
+  - `GET /api/sector-rotation/snapshots`,
+  - `GET /api/sector-rotation/snapshots/{snapshot_id}`,
+  - `POST /api/runs/{run_id}/sector-rotation/recalculate`.
+- Implemented export routes:
+  - `GET /runs/{run_id}/sector-rotation/export.csv`,
+  - `GET /runs/{run_id}/sector-rotation/export.json`,
+  - `GET /runs/{run_id}/sector-rotation/brief.md`.
+- Route behavior:
+  - requires run existence before run-scoped actions,
+  - prefers latest persisted run snapshot,
+  - calculates and persists on demand when missing,
+  - commits on successful recalculation and rolls back on service errors,
+  - returns structured 404s for missing runs, snapshots, and sector slugs,
+  - returns attachment responses for CSV/JSON/Markdown exports.
+- TestClient smoke on run `60`:
+  - `GET /api/runs/60/sector-rotation`: `200`
+  - mode: `universe_only`
+  - sector count: `3`
+  - first row: `Technology`, state `Risk-off`.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_rotation_routes.py tests/test_sector_rotation_exports.py tests/test_sector_rotation_service.py -q`: `21 passed`
+  - `pytest tests/test_sector_rotation_routes.py tests/test_market_regime_routes.py tests/test_ranking_profile_routes.py -q`: `35 passed`
+  - `$env:USE_DURABLE_PIPELINE='false'; $env:JOB_WORKER_ENABLED='false'; pytest -q`: `510 passed`
+
 ## Phase 9: Templates, Navigation, and Drilldown UI
 
 Goal: make the dashboard usable as a daily sector cockpit.
