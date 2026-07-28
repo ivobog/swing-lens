@@ -152,3 +152,22 @@ def test_market_regime_command_center_config_defines_policy_matrix() -> None:
         assert 0 <= float(policy["position_size_multiplier"]) <= 1
         assert policy["summary"]
         assert config["risk_state_mapping"][regime] in {"Green", "Yellow", "Orange", "Red", "Gray"}
+
+
+def test_sector_rotation_config_defines_v1_universe_defaults() -> None:
+    config = yaml.safe_load(Path("config/sector_rotation.yaml").read_text(encoding="utf-8"))
+
+    assert config["version"] == "1.0.0"
+    assert config["defaults"]["default_ranking_profile"] == "momentum_swing"
+    assert "Unknown" in config["sector_taxonomy"]["canonical"]
+    assert config["sector_taxonomy"]["aliases"]["Health Care"] == "Healthcare"
+    assert round(sum(config["universe_score"]["weights"].values()), 6) == 1.0
+    assert config["etf_score"]["enabled"] is False
+    assert round(sum(config["combined_score"]["weights"].values()), 6) == 1.0
+    assert config["combined_score"]["missing_etf_policy"] == "use_universe_only"
+    assert set(config["permissions"]["market_buckets"]) == {
+        "supportive",
+        "choppy",
+        "risk_off",
+        "unknown",
+    }
