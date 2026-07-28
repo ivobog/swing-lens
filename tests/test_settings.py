@@ -1,11 +1,11 @@
 from app.settings import Settings
 
 
-def test_phase_0_durable_pipeline_settings_default_to_safe_values() -> None:
+def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     settings = Settings(_env_file=None)
 
-    assert settings.use_durable_pipeline is False
-    assert settings.job_worker_enabled is False
+    assert settings.use_durable_pipeline is True
+    assert settings.job_worker_enabled is True
     assert settings.job_poll_interval_seconds == 2.0
     assert settings.job_stale_after_seconds == 900
     assert settings.job_worker_id == "local-worker-1"
