@@ -28,7 +28,7 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
 
     steps = db.pipeline_steps_for(pipeline.id)
     assert [step.step_name for step in steps] == list(PIPELINE_STEP_NAMES)
-    assert [step.step_order for step in steps] == [1, 2, 3, 4, 5, 6]
+    assert [step.step_order for step in steps] == [1, 2, 3, 4, 5, 6, 7]
     assert {step.status for step in steps} == {PipelineStepStatus.PENDING}
 
     jobs = list(db.background_jobs.values())

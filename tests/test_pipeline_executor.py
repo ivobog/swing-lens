@@ -10,6 +10,7 @@ from app.services.pipeline_executor import (
     execute_full_pipeline,
 )
 from app.services.pipeline_service import PIPELINE_STEP_NAMES, PipelineStatus, PipelineStepStatus
+from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 
 
 def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> None:
@@ -32,6 +33,7 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
         "technicals",
         "market_regime",
         "combined",
+        "sector_rotation",
     ]
     assert result.status == PipelineStatus.COMPLETED
     assert result.ib_planned_requests == 0
@@ -42,6 +44,10 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
     assert result.market_regime_confidence == "normal"
     assert result.market_regime_warning_count == 0
     assert result.combined_results == 1
+    assert result.sector_rotation_snapshots == 1
+    assert result.sector_rotation_sector_count == 2
+    assert result.sector_rotation_leading_sector == "Technology"
+    assert result.sector_rotation_warning_count == 0
     assert db.pipeline.status == PipelineStatus.COMPLETED
     assert db.pipeline.current_step is None
     assert db.pipeline.result_json["combined_results"] == 1
@@ -49,6 +55,10 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
     assert db.pipeline.result_json["market_risk_state"] == "green"
     assert db.pipeline.result_json["market_regime_confidence"] == "normal"
     assert db.pipeline.result_json["market_regime_warning_count"] == 0
+    assert db.pipeline.result_json["sector_rotation_snapshots"] == 1
+    assert db.pipeline.result_json["sector_rotation_sector_count"] == 2
+    assert db.pipeline.result_json["sector_rotation_leading_sector"] == "Technology"
+    assert db.pipeline.result_json["sector_rotation_warning_count"] == 0
     assert {step.status for step in db.steps} == {PipelineStepStatus.COMPLETED}
 
 
@@ -89,6 +99,7 @@ def test_execute_full_pipeline_runs_fetch_before_technicals_and_finishes_partial
         "technicals",
         "market_regime",
         "combined",
+        "sector_rotation",
     ]
     assert result.status == PipelineStatus.PARTIAL
     assert result.ib_executed_requests == 2
@@ -124,6 +135,7 @@ def test_execute_full_pipeline_keeps_low_confidence_market_snapshot_nonfatal() -
         "technicals",
         "market_regime",
         "combined",
+        "sector_rotation",
     ]
     assert result.status == PipelineStatus.PARTIAL
     assert result.market_regime == "Unknown"
@@ -165,6 +177,7 @@ def test_execute_full_pipeline_marks_pipeline_cancelled_before_next_step() -> No
             "SCORING_TECHNICALS",
             "MARKET_REGIME_SNAPSHOT",
             "COMBINING_RESULTS",
+            "SECTOR_ROTATION_SNAPSHOT",
         }
     ]
     assert set(unfinished) == {PipelineStepStatus.CANCELLED}
@@ -188,6 +201,7 @@ def _dependencies(
     technical_scores: list[object] | None = None,
     market_regime_snapshot: object | None = None,
     combined_results: list[CombinedResult] | None = None,
+    sector_rotation_snapshot: SectorRotationSnapshotDto | None = None,
 ) -> PipelineExecutionDependencies:
     plan = plan or _plan(estimated_request_count=0)
     fetch_run = fetch_run or IBFetchRun(
@@ -209,6 +223,7 @@ def _dependencies(
         warnings=[],
     )
     combined_results = combined_results or []
+    sector_rotation_snapshot = sector_rotation_snapshot or _sector_snapshot()
 
     def fundamentals(_db, _run_id):
         calls.append("fundamentals")
@@ -234,6 +249,10 @@ def _dependencies(
         calls.append("combined")
         return combined_results
 
+    def sector_rotation(_db, _run_id):
+        calls.append("sector_rotation")
+        return sector_rotation_snapshot
+
     return PipelineExecutionDependencies(
         recalculate_fundamentals=fundamentals,
         build_fetch_plan=fetch_plan,
@@ -241,6 +260,30 @@ def _dependencies(
         score_technicals=technicals,
         build_market_regime_snapshot=market_regime,
         refresh_combined=combined,
+        build_sector_rotation_snapshot=sector_rotation,
+    )
+
+
+def _sector_snapshot(
+    warnings: list[str] | None = None,
+) -> SectorRotationSnapshotDto:
+    return SectorRotationSnapshotDto(
+        run_id=7,
+        as_of_date="2026-07-28",
+        mode="universe_only",
+        calculation_version="sector-rotation-1.0.0",
+        config_version="1.0.0",
+        config_hash="hash-a",
+        default_ranking_profile="momentum_swing",
+        rows=[],
+        summary={
+            "sector_count": 2,
+            "ticker_count": 5,
+            "leading_sector": "Technology",
+            "weakest_sector": "Utilities",
+        },
+        warnings=warnings or [],
+        debug={},
     )
 
 

@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -63,6 +64,10 @@ class UploadRun(Base):
     )
     market_regime_snapshots: Mapped[list["MarketRegimeSnapshot"]] = relationship(
         back_populates="run",
+    )
+    sector_rotation_snapshots: Mapped[list["SectorRotationSnapshot"]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
     )
     ib_fetch_runs: Mapped[list["IBFetchRun"]] = relationship(
         back_populates="run",
@@ -617,6 +622,218 @@ class MarketRegimeSnapshot(Base):
         Index("idx_market_regime_snapshots_run_id", "run_id"),
         Index("idx_market_regime_snapshots_regime", "regime"),
         Index("idx_market_regime_snapshots_risk_state", "risk_state"),
+    )
+
+
+class SectorRotationSnapshot(Base):
+    __tablename__ = "sector_rotation_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    market_regime_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_regime_snapshots.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    config_version: Mapped[str | None] = mapped_column(String(32))
+    config_hash: Mapped[str | None] = mapped_column(String(64))
+    mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    default_ranking_profile: Mapped[str | None] = mapped_column(String(64))
+    benchmark_ticker: Mapped[str | None] = mapped_column(String(16))
+    sector_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    ticker_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    leading_sector: Mapped[str | None] = mapped_column(String(128))
+    weakest_sector: Mapped[str | None] = mapped_column(String(128))
+    riskiest_sector: Mapped[str | None] = mapped_column(String(128))
+    summary_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    warning_flags_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    debug_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+    )
+
+    run: Mapped[UploadRun | None] = relationship(back_populates="sector_rotation_snapshots")
+    rows: Mapped[list["SectorRotationRow"]] = relationship(
+        back_populates="snapshot",
+        cascade="all, delete-orphan",
+        order_by="SectorRotationRow.current_rank",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "as_of_date",
+            "calculation_version",
+            "config_hash",
+            "mode",
+            name="uq_sector_rotation_snapshots_run_date_version_mode",
+        ),
+        Index("idx_sector_rotation_snapshot_run_date", "run_id", "as_of_date"),
+        Index("idx_sector_rotation_snapshot_date", "as_of_date"),
+    )
+
+
+class SectorRotationRow(Base):
+    __tablename__ = "sector_rotation_rows"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    snapshot_id: Mapped[int] = mapped_column(
+        ForeignKey("sector_rotation_snapshots.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    sector: Mapped[str] = mapped_column(String(128), nullable=False)
+    sector_slug: Mapped[str] = mapped_column(String(160), nullable=False)
+    sector_proxy_ticker: Mapped[str | None] = mapped_column(String(16))
+    ticker_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    universe_share: Mapped[float | None] = mapped_column(Float)
+    average_fundamental_score: Mapped[float | None] = mapped_column(Float)
+    average_technical_score: Mapped[float | None] = mapped_column(Float)
+    average_final_score: Mapped[float | None] = mapped_column(Float)
+    average_profile_score: Mapped[float | None] = mapped_column(Float)
+    top_10_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    top_25_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    top_50_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    top_25_share: Mapped[float | None] = mapped_column(Float)
+    buyable_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    watch_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    danger_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    buyable_share: Mapped[float | None] = mapped_column(Float)
+    watch_share: Mapped[float | None] = mapped_column(Float)
+    danger_share: Mapped[float | None] = mapped_column(Float)
+    clean_pullback_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    breakout_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    vcp_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    tight_base_breakout_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    extended_or_overheated_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    missing_fundamental_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    missing_technical_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    universe_leadership_score: Mapped[float | None] = mapped_column(Float)
+    etf_rotation_score: Mapped[float | None] = mapped_column(Float)
+    sector_final_score: Mapped[float | None] = mapped_column(Float)
+    rotation_state: Mapped[str] = mapped_column(String(64), nullable=False)
+    sector_permission: Mapped[str] = mapped_column(String(64), nullable=False)
+    position_size_multiplier: Mapped[float | None] = mapped_column(Float)
+    confidence: Mapped[str] = mapped_column(String(32), nullable=False)
+    previous_rank: Mapped[int | None]
+    current_rank: Mapped[int | None]
+    rank_change: Mapped[int | None]
+    score_change: Mapped[float | None] = mapped_column(Float)
+    profile_distribution_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    setup_distribution_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    warning_distribution_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    etf_metrics_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    component_scores_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    reason_codes_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    warning_flags_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    debug_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+
+    snapshot: Mapped[SectorRotationSnapshot] = relationship(back_populates="rows")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id",
+            "sector_slug",
+            name="uq_sector_rotation_rows_snapshot_sector_slug",
+        ),
+        Index("idx_sector_rotation_rows_snapshot_rank", "snapshot_id", "current_rank"),
+        Index("idx_sector_rotation_rows_sector_slug", "sector_slug"),
     )
 
 

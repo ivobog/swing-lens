@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="panel sector-rotation-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>{{ title }}</h1>
+      <p>Universe-based sector leadership, risk, and advisory permissions for this run.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ run_id }}">Run detail</a>
+      <a class="button-link secondary" href="/runs/{{ run_id }}/sector-rotation/export.csv">CSV</a>
+      <a class="button-link secondary" href="/runs/{{ run_id }}/sector-rotation/export.json">JSON</a>
+      <a class="button-link secondary" href="/runs/{{ run_id }}/sector-rotation/brief.md">Brief</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-muted">{{ snapshot.mode|replace("_", " ")|title }}</span>
+    <span>As of {{ snapshot.as_of_date }}</span>
+    <span>Default profile {{ snapshot.default_ranking_profile or "N/A" }}</span>
+    {% if snapshot.market_regime_snapshot_id %}
+      <span>Market snapshot {{ snapshot.market_regime_snapshot_id }}</span>
+    {% else %}
+      <span>No run market snapshot</span>
+    {% endif %}
+    {% if snapshot.benchmark_ticker %}<span>Benchmark {{ snapshot.benchmark_ticker }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="metric-grid section-gap sector-rotation-metrics" aria-label="Sector rotation summary">
+  {% for metric in summary_metrics %}
+    <div class="metric">
+      <span>{{ metric.label }}</span>
+      <strong>{{ metric.value }}</strong>
+    </div>
+  {% endfor %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Sector Leadership</h2>
+    </div>
+  </div>
+  {% if rows %}
+    <div class="table-wrap">
+      <table class="sector-rotation-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Sector</th>
+            <th>State</th>
+            <th>Permission</th>
+            <th>Final</th>
+            <th>Universe</th>
+            <th>ETF</th>
+            <th>Tickers</th>
+            <th>Top 25</th>
+            <th>Buyable</th>
+            <th>Danger</th>
+            <th>Confidence</th>
+            <th>Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            {% set etf_metrics = row.etf_metrics|default({}) %}
+            <tr>
+              <td>{{ row.rank or "" }}</td>
+              <td><a href="/runs/{{ run_id }}/sector-rotation/{{ row.sector_slug }}"><strong>{{ row.sector }}</strong></a></td>
+              <td><span class="badge badge-{{ state_tones.get(row.rotation_state, "muted") }}">{{ row.rotation_state }}</span></td>
+              <td><span class="badge badge-{{ permission_tones.get(row.permission, "muted") }}">{{ row.permission|replace("_", " ") }}</span></td>
+              <td>{{ "%.2f"|format(row.sector_final_score) if row.sector_final_score is number else "" }}</td>
+              <td>{{ "%.2f"|format(row.universe_leadership_score) if row.universe_leadership_score is number else "" }}</td>
+              <td>
+                {{ "%.2f"|format(row.etf_rotation_score) if row.etf_rotation_score is number else "N/A" }}
+                {% if etf_metrics.proxy_ticker %}<small>{{ etf_metrics.proxy_ticker }}</small>{% endif %}
+              </td>
+              <td>{{ row.ticker_count or 0 }}</td>
+              <td>
+                {{ row.top_25_count or 0 }}
+                {% if row.top_25_share is number %}
+                  <small>({{ "%.0f"|format(row.top_25_share * 100) }}%)</small>
+                {% endif %}
+              </td>
+              <td>{{ "%.0f"|format(row.buyable_share * 100) ~ "%" if row.buyable_share is number else "" }}</td>
+              <td>{{ "%.0f"|format(row.danger_share * 100) ~ "%" if row.danger_share is number else "" }}</td>
+              <td>{{ row.confidence }}</td>
+              <td>
+                {% if row.rank_change is number %}
+                  {{ "%+d"|format(row.rank_change) }}
+                {% else %}
+                  New
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <strong>No sector rows.</strong>
+      <p>Refresh scores or recalculate sector rotation after run data is available.</p>
+    </div>
+  {% endif %}
+</section>
+
+<section class="grid section-gap sector-rotation-two-col">
+  <div>
+    <h2>Profile Distribution</h2>
+    {% if profile_distribution_rows %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Profile</th>
+              {% for row in rows %}<th>{{ row.sector }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for distribution in profile_distribution_rows %}
+              <tr>
+                <td>{{ distribution.name|replace("_", " ")|title }}</td>
+                {% for value in distribution["values"] %}<td>{{ value.count }}</td>{% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><strong>No profile distribution.</strong></div>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Setup Distribution</h2>
+    {% if setup_distribution_rows %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Setup</th>
+              {% for row in rows %}<th>{{ row.sector }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for distribution in setup_distribution_rows %}
+              <tr>
+                <td>{{ distribution.name }}</td>
+                {% for value in distribution["values"] %}<td>{{ value.count }}</td>{% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><strong>No setup distribution.</strong></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Risk And Warnings</h2>
+    </div>
+  </div>
+  {% if warning_distribution_rows %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Warning</th>
+            {% for row in rows %}<th>{{ row.sector }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for distribution in warning_distribution_rows %}
+            <tr>
+              <td>{{ distribution.name }}</td>
+              {% for value in distribution["values"] %}<td>{{ value.count }}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <span class="badge badge-success">No sector warning distribution</span>
+  {% endif %}
+
+  {% if snapshot.warnings %}
+    <div class="summary-strip section-gap">
+      {% for warning in snapshot.warnings %}
+        <span class="summary-item">{{ warning }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Reasons</h2>
+    </div>
+  </div>
+  {% if rows %}
+    <div class="sector-reason-grid">
+      {% for row in rows %}
+        <div class="sector-reason-block">
+          <strong>{{ row.sector }}</strong>
+          <div class="badge-list market-badge-list">
+            {% for reason in row.reasons %}
+              <span class="badge badge-muted">{{ reason }}</span>
+            {% else %}
+              <span class="badge badge-muted">No reason codes</span>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state"><strong>No reasons available.</strong></div>
+  {% endif %}
+</section>
+
+<details class="panel section-gap debug-panel">
+  <summary>Debug JSON</summary>
+  <pre>{{ snapshot.debug|tojson(indent=2) }}</pre>
+</details>
+{% endblock %}

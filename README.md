@@ -18,6 +18,8 @@ This repository currently contains the MVP application:
 - IB Gateway contract and daily bar cache
 - Pine v3.2 replica technical scoring
 - Combined decision cockpit
+- Market regime command center
+- Sector rotation dashboard
 - CSV exports and run history
 
 ## Runtime Targets
@@ -120,11 +122,16 @@ SwingLens keeps MVP scoring and mapping defaults in `config/`:
 - `scoring_weights.yaml` stores initial fundamental and combined-decision weights.
 - `market_regime_command_center.yaml` stores market-regime policy, benchmark symbols,
   risk-state mapping, and ranking-profile permissions.
+- `sector_rotation.yaml` stores sector taxonomy, universe leadership weights, optional ETF
+  confirmation weights, rotation-state thresholds, and advisory permission mappings.
 
 Uploaded CSV rows are still preserved exactly as raw JSON in PostgreSQL.
 
 Market Regime Command Center operation is documented in
 `docs/market_regime_command_center.md`.
+
+Sector Rotation Dashboard operation is documented in
+`docs/sector_rotation_dashboard.md`.
 
 ## Interactive Brokers
 
@@ -164,6 +171,9 @@ Every run exposes CSV exports:
 /market-regime/export.csv
 /runs/{run_id}/market-regime/export.json
 /runs/{run_id}/market-regime/export.csv
+/runs/{run_id}/sector-rotation/export.csv
+/runs/{run_id}/sector-rotation/export.json
+/runs/{run_id}/sector-rotation/brief.md
 ```
 
 ## Technical Indicators

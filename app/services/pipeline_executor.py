@@ -28,6 +28,8 @@ from app.services.pipeline_service import (
     PipelineStatus,
     PipelineStepStatus,
 )
+from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
+from app.services.sector_rotation_service import SectorRotationService
 from app.services.technical_score_service import score_run_technicals
 
 
@@ -40,6 +42,13 @@ def build_market_regime_snapshot_for_run(
     run_id: int,
 ) -> MarketRegimeCommandCenterDto:
     return MarketRegimeCommandCenterService().build_snapshot(db, run_id=run_id)
+
+
+def build_sector_rotation_snapshot_for_run(
+    db: Session,
+    run_id: int,
+) -> SectorRotationSnapshotDto:
+    return SectorRotationService().build_sector_rotation_snapshot(db, run_id=run_id)
 
 
 @dataclass(frozen=True)
@@ -61,6 +70,11 @@ class PipelineExecutionResult:
     market_regime_confidence: str | None
     market_regime_warning_count: int
     combined_results: int
+    sector_rotation_snapshots: int
+    sector_rotation_sector_count: int
+    sector_rotation_leading_sector: str | None
+    sector_rotation_weakest_sector: str | None
+    sector_rotation_warning_count: int
     incomplete_rows: int
     warning_rows: int
 
@@ -75,6 +89,9 @@ class PipelineExecutionDependencies:
         [Session, int], MarketRegimeCommandCenterDto
     ] = build_market_regime_snapshot_for_run
     refresh_combined: Callable[[Session, int], list[CombinedResult]] = refresh_combined_results
+    build_sector_rotation_snapshot: Callable[
+        [Session, int], SectorRotationSnapshotDto
+    ] = build_sector_rotation_snapshot_for_run
 
 
 def execute_full_pipeline(
@@ -150,6 +167,21 @@ def execute_full_pipeline(
             result["combined_results"] = len(combined_results)
             result["incomplete_rows"] = sum(not row.is_complete for row in combined_results)
             result["warning_rows"] = sum(row.has_warning for row in combined_results)
+
+        _raise_if_cancelled(should_cancel)
+        with _pipeline_step(db, pipeline, "SECTOR_ROTATION_SNAPSHOT"):
+            sector_snapshot = dependencies.build_sector_rotation_snapshot(db, upload_run.id)
+            result["sector_rotation_snapshots"] = 1
+            result["sector_rotation_sector_count"] = int(
+                sector_snapshot.summary.get("sector_count") or len(sector_snapshot.rows)
+            )
+            result["sector_rotation_leading_sector"] = sector_snapshot.summary.get(
+                "leading_sector"
+            )
+            result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get(
+                "weakest_sector"
+            )
+            result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
 
         final_status = _final_pipeline_status(result)
         _mark_pipeline_finished(db, pipeline, final_status, result)
@@ -304,6 +336,7 @@ def _pipeline_status_for_step(step_name: str) -> str:
         PipelineStatus.SCORING_TECHNICALS,
         PipelineStatus.MARKET_REGIME_SNAPSHOT,
         PipelineStatus.COMBINING_RESULTS,
+        PipelineStatus.SECTOR_ROTATION_SNAPSHOT,
     }:
         return step_name
     return PipelineStatus.RUNNING
@@ -372,6 +405,11 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
         "market_regime_warning_count": 0,
         "market_regime_low_confidence": 0,
         "combined_results": 0,
+        "sector_rotation_snapshots": 0,
+        "sector_rotation_sector_count": 0,
+        "sector_rotation_leading_sector": None,
+        "sector_rotation_weakest_sector": None,
+        "sector_rotation_warning_count": 0,
         "incomplete_rows": 0,
         "warning_rows": 0,
         "fetch_failed": 0,
@@ -400,6 +438,11 @@ def _to_execution_result(
         market_regime_confidence=result["market_regime_confidence"],
         market_regime_warning_count=result["market_regime_warning_count"],
         combined_results=result["combined_results"],
+        sector_rotation_snapshots=result["sector_rotation_snapshots"],
+        sector_rotation_sector_count=result["sector_rotation_sector_count"],
+        sector_rotation_leading_sector=result["sector_rotation_leading_sector"],
+        sector_rotation_weakest_sector=result["sector_rotation_weakest_sector"],
+        sector_rotation_warning_count=result["sector_rotation_warning_count"],
         incomplete_rows=result["incomplete_rows"],
         warning_rows=result["warning_rows"],
     )

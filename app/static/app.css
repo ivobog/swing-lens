@@ -1190,6 +1190,70 @@ td a {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.sector-rotation-hero p {
+  max-width: 760px;
+}
+
+.sector-rotation-metrics {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.sector-rotation-table th,
+.sector-rotation-table td {
+  white-space: nowrap;
+}
+
+.sector-rotation-table td:nth-child(2),
+.sector-rotation-table td:nth-child(3),
+.sector-rotation-table td:nth-child(4) {
+  white-space: normal;
+}
+
+.sector-rotation-two-col {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.sector-rotation-three-col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sector-reason-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sector-reason-block {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.sector-reason-block strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.sector-component-list {
+  margin-top: 0;
+}
+
+.sector-ticker-table table {
+  min-width: 560px;
+}
+
+.sector-ticker-table td:first-child small,
+.sector-ticker-table td small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: normal;
+}
+
 .regime-change-row td {
   background: var(--info-soft);
 }
@@ -1249,6 +1313,10 @@ td a {
   .warning-grid,
   .market-two-col,
   .market-participation-grid,
+  .sector-rotation-metrics,
+  .sector-rotation-two-col,
+  .sector-rotation-three-col,
+  .sector-reason-grid,
   .cockpit-toolbar,
   .cockpit-controls,
   .history-filters {
@@ -1275,8 +1343,15 @@ td a {
   .market-regime-metrics,
   .permission-grid,
   .warning-grid,
-  .market-participation-grid {
+  .market-participation-grid,
+  .sector-rotation-metrics,
+  .sector-reason-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sector-rotation-two-col,
+  .sector-rotation-three-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .cockpit-controls {

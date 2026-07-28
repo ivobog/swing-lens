@@ -1,0 +1,153 @@
+version: "1.0.0"
+
+defaults:
+  default_ranking_profile: "momentum_swing"
+  top_candidate_cutoffs: [10, 25, 50]
+  min_tickers_for_normal_confidence: 5
+  min_tickers_for_high_confidence: 10
+  unknown_sector_label: "Unknown"
+
+sector_taxonomy:
+  canonical:
+    - Technology
+    - Communication Services
+    - Consumer Discretionary
+    - Consumer Staples
+    - Financials
+    - Healthcare
+    - Industrials
+    - Energy
+    - Materials
+    - Real Estate
+    - Utilities
+    - Unknown
+  aliases:
+    Information Technology: Technology
+    Technology Services: Technology
+    Health Care: Healthcare
+    Financial Services: Financials
+    Consumer Cyclical: Consumer Discretionary
+    Consumer Defensive: Consumer Staples
+    Basic Materials: Materials
+    Real Estate Services: Real Estate
+
+sector_etf_proxies:
+  Technology: XLK
+  Communication Services: XLC
+  Consumer Discretionary: XLY
+  Consumer Staples: XLP
+  Financials: XLF
+  Healthcare: XLV
+  Industrials: XLI
+  Energy: XLE
+  Materials: XLB
+  Real Estate: XLRE
+  Utilities: XLU
+
+universe_score:
+  weights:
+    average_technical_score: 0.25
+    average_profile_score: 0.20
+    top_candidate_share: 0.20
+    setup_density: 0.20
+    risk_control: 0.15
+  setup_labels:
+    buyable:
+      - "Prime clean pullback"
+      - "Clean bull pullback"
+      - "Fresh breakout"
+      - "Tight base breakout"
+      - "RS leader pullback"
+    watch:
+      - "Volatility contraction setup"
+      - "Momentum continuation"
+      - "Trend repair"
+    danger:
+      - "Distribution risk"
+      - "Failed breakout"
+      - "Blowoff top"
+      - "Climax reversal risk"
+      - "Late-stage extension"
+      - "No trade"
+  warning_flags:
+    danger:
+      - failed_breakout
+      - distribution_risk
+      - blowoff_top
+      - box_failure
+      - climax_reversal_risk
+      - stage_4_downtrend
+    caution:
+      - market_risk_off
+      - liquidity_warning
+      - low_technical_confidence
+      - stage_3_distribution
+
+etf_score:
+  enabled: false
+  benchmark_ticker: SPY
+  weights:
+    trend: 0.25
+    relative_strength: 0.30
+    momentum: 0.20
+    breakout: 0.10
+    risk_control: 0.15
+
+combined_score:
+  weights:
+    universe: 0.55
+    etf: 0.45
+  missing_etf_policy: "use_universe_only"
+
+rotation_states:
+  leading_min_score: 7.5
+  improving_min_score: 6.0
+  lagging_max_score: 4.5
+  crowded_top25_share_min: 0.35
+  danger_share_risk_off_min: 0.30
+  score_change_improving_min: 0.75
+  score_change_fading_min: -0.75
+
+permissions:
+  position_size_multipliers:
+    full_allowed: 1.0
+    reduced_size: 0.5
+    watch_only: 0.25
+    avoid_new_longs: 0.0
+  market_buckets:
+    supportive:
+      Leading: full_allowed
+      Improving: reduced_size
+      Neutral: watch_only
+      Fading: watch_only
+      Lagging: avoid_new_longs
+      Crowded risk: reduced_size
+      Risk-off: avoid_new_longs
+      Insufficient data: watch_only
+    choppy:
+      Leading: reduced_size
+      Improving: watch_only
+      Neutral: watch_only
+      Fading: avoid_new_longs
+      Lagging: avoid_new_longs
+      Crowded risk: watch_only
+      Risk-off: avoid_new_longs
+      Insufficient data: watch_only
+    risk_off:
+      Leading: watch_only
+      Improving: watch_only
+      Neutral: avoid_new_longs
+      Fading: avoid_new_longs
+      Lagging: avoid_new_longs
+      Crowded risk: avoid_new_longs
+      Risk-off: avoid_new_longs
+      Insufficient data: avoid_new_longs
+    unknown:
+      Leading: reduced_size
+      Improving: watch_only
+      Neutral: watch_only
+      Fading: watch_only
+      Lagging: avoid_new_longs
+      Crowded risk: watch_only
+      Risk-off: avoid_new_longs
+      Insufficient data: watch_only

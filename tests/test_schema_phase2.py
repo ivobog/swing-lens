@@ -10,6 +10,8 @@ from app.models.tables import (
     MarketRegimeSnapshot,
     RankingResult,
     RawCompanyRow,
+    SectorRotationRow,
+    SectorRotationSnapshot,
     TechnicalScore,
     UploadRun,
 )
@@ -156,6 +158,177 @@ def test_market_regime_snapshot_model_defines_constraints_and_indexes() -> None:
 
 def test_upload_run_has_market_regime_snapshots_relationship() -> None:
     assert "market_regime_snapshots" in UploadRun.__mapper__.relationships
+
+
+def test_sector_rotation_snapshot_model_includes_persistence_columns() -> None:
+    table = Base.metadata.tables["sector_rotation_snapshots"]
+
+    for column_name in [
+        "run_id",
+        "market_regime_snapshot_id",
+        "as_of_date",
+        "calculation_version",
+        "config_version",
+        "config_hash",
+        "mode",
+        "default_ranking_profile",
+        "benchmark_ticker",
+        "sector_count",
+        "ticker_count",
+        "leading_sector",
+        "weakest_sector",
+        "riskiest_sector",
+        "summary_json",
+        "warning_flags_json",
+        "debug_json",
+        "created_at",
+        "updated_at",
+    ]:
+        assert column_name in table.c
+
+
+def test_sector_rotation_row_model_includes_persistence_columns() -> None:
+    table = Base.metadata.tables["sector_rotation_rows"]
+
+    for column_name in [
+        "snapshot_id",
+        "sector",
+        "sector_slug",
+        "sector_proxy_ticker",
+        "ticker_count",
+        "universe_share",
+        "average_fundamental_score",
+        "average_technical_score",
+        "average_final_score",
+        "average_profile_score",
+        "top_10_count",
+        "top_25_count",
+        "top_50_count",
+        "top_25_share",
+        "buyable_count",
+        "watch_count",
+        "danger_count",
+        "buyable_share",
+        "watch_share",
+        "danger_share",
+        "clean_pullback_count",
+        "breakout_count",
+        "vcp_count",
+        "tight_base_breakout_count",
+        "extended_or_overheated_count",
+        "missing_fundamental_count",
+        "missing_technical_count",
+        "universe_leadership_score",
+        "etf_rotation_score",
+        "sector_final_score",
+        "rotation_state",
+        "sector_permission",
+        "position_size_multiplier",
+        "confidence",
+        "previous_rank",
+        "current_rank",
+        "rank_change",
+        "score_change",
+        "profile_distribution_json",
+        "setup_distribution_json",
+        "warning_distribution_json",
+        "etf_metrics_json",
+        "component_scores_json",
+        "reason_codes_json",
+        "warning_flags_json",
+        "debug_json",
+    ]:
+        assert column_name in table.c
+
+
+def test_sector_rotation_models_define_constraints_and_indexes() -> None:
+    snapshot_constraints = {
+        constraint.name for constraint in SectorRotationSnapshot.__table__.constraints
+    }
+    snapshot_indexes = {index.name for index in SectorRotationSnapshot.__table__.indexes}
+    row_constraints = {constraint.name for constraint in SectorRotationRow.__table__.constraints}
+    row_indexes = {index.name for index in SectorRotationRow.__table__.indexes}
+
+    assert "uq_sector_rotation_snapshots_run_date_version_mode" in snapshot_constraints
+    assert {
+        "idx_sector_rotation_snapshot_run_date",
+        "idx_sector_rotation_snapshot_date",
+    }.issubset(snapshot_indexes)
+    assert "uq_sector_rotation_rows_snapshot_sector_slug" in row_constraints
+    assert {
+        "idx_sector_rotation_rows_snapshot_rank",
+        "idx_sector_rotation_rows_sector_slug",
+    }.issubset(row_indexes)
+
+
+def test_upload_run_has_sector_rotation_snapshots_relationship() -> None:
+    relationship = UploadRun.__mapper__.relationships["sector_rotation_snapshots"]
+
+    assert relationship.cascade.delete
+    assert relationship.cascade.delete_orphan
+
+
+def test_sector_rotation_models_accept_values() -> None:
+    snapshot = SectorRotationSnapshot(
+        run_id=7,
+        market_regime_snapshot_id=3,
+        as_of_date=date(2026, 7, 28),
+        calculation_version="sector-rotation-1.0.0",
+        config_version="1.0.0",
+        config_hash="abc123",
+        mode="universe_only",
+        default_ranking_profile="momentum_swing",
+        benchmark_ticker="SPY",
+        sector_count=2,
+        ticker_count=42,
+        leading_sector="Technology",
+        weakest_sector="Utilities",
+        riskiest_sector="Energy",
+        summary_json={"leading_sector": "Technology"},
+        warning_flags_json=["missing_etf_confirmation"],
+        debug_json={"source": "unit"},
+    )
+    row = SectorRotationRow(
+        snapshot_id=1,
+        sector="Technology",
+        sector_slug="technology",
+        sector_proxy_ticker="XLK",
+        ticker_count=14,
+        universe_share=0.3333,
+        average_fundamental_score=7.1,
+        average_technical_score=8.2,
+        average_final_score=7.8,
+        average_profile_score=7.5,
+        top_10_count=3,
+        top_25_count=6,
+        top_50_count=10,
+        top_25_share=0.4286,
+        buyable_count=4,
+        watch_count=2,
+        danger_count=1,
+        buyable_share=0.2857,
+        watch_share=0.1429,
+        danger_share=0.0714,
+        universe_leadership_score=8.1,
+        sector_final_score=8.1,
+        rotation_state="Leading",
+        sector_permission="full_allowed",
+        position_size_multiplier=1.0,
+        confidence="high",
+        current_rank=1,
+        profile_distribution_json={"momentum_swing": {"top_25_count": 6}},
+        setup_distribution_json={"Fresh breakout": 2},
+        warning_distribution_json={"liquidity_warning": 1},
+        component_scores_json={"risk_control": 9.0},
+        reason_codes_json=["top_candidate_overrepresentation"],
+        warning_flags_json=[],
+        debug_json={"source": "unit"},
+    )
+
+    assert snapshot.mode == "universe_only"
+    assert snapshot.leading_sector == "Technology"
+    assert row.sector == "Technology"
+    assert row.profile_distribution_json["momentum_swing"]["top_25_count"] == 6
 
 
 def test_market_regime_snapshot_model_accepts_values() -> None:
@@ -414,6 +587,15 @@ def test_market_regime_snapshots_migration_follows_current_head() -> None:
 
     assert 'revision: str = "0012_add_market_regime_snapshots"' in migration
     assert 'down_revision: str | None = "0011_create_ranking_results"' in migration
+
+
+def test_sector_rotation_tables_migration_follows_current_head() -> None:
+    migration = Path(
+        "alembic/versions/20260728_0013_add_sector_rotation_tables.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0013_add_sector_rotation_tables"' in migration
+    assert 'down_revision: str | None = "0012_add_market_regime_snapshots"' in migration
 
 
 def test_combined_decision_to_model_persists_phase2_fields() -> None:

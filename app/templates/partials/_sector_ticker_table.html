@@ -1,0 +1,40 @@
+{% if ticker_subset %}
+  <div class="table-wrap sector-ticker-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Profile</th>
+          <th>Technical</th>
+          <th>Fundamental</th>
+          <th>Decision</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ticker in ticker_subset %}
+          <tr>
+            <td>
+              <strong>{{ ticker.ticker }}</strong>
+              {% if ticker.company_name %}<small>{{ ticker.company_name }}</small>{% endif %}
+            </td>
+            <td>
+              {% if ticker.profile_rank %}<small>#{{ ticker.profile_rank }}</small>{% endif %}
+              {{ "%.2f"|format(ticker.profile_score) if ticker.profile_score is number else "" }}
+            </td>
+            <td>
+              {{ "%.2f"|format(ticker.technical_score) if ticker.technical_score is number else "" }}
+              {% if ticker.technical_classification %}<small>{{ ticker.technical_classification }}</small>{% endif %}
+            </td>
+            <td>{{ "%.2f"|format(ticker.fundamental_score) if ticker.fundamental_score is number else "" }}</td>
+            <td>
+              {{ ticker.decision_label or "" }}
+              {% if ticker.position_size_hint %}<small>{{ ticker.position_size_hint }}</small>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state"><strong>No tickers.</strong></div>
+{% endif %}
