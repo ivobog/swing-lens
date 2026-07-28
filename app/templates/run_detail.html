@@ -18,6 +18,7 @@
   "profiles": []
 }) %}
 {% set market_regime_context = market_regime_context|default(none) %}
+{% set sector_rotation_context = sector_rotation_context|default(none) %}
 {% set run_summary = run_summary|default({
   "row_count": run.row_count or 0,
   "combined_count": 0,
@@ -191,6 +192,50 @@
       <strong>None</strong>
     {% endif %}
   </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Sector Rotation</h2>
+      {% if sector_rotation_context %}
+        <p>Latest snapshot from {{ sector_rotation_context.as_of_date }} with {{ sector_rotation_context.sector_count }} sectors and {{ sector_rotation_context.ticker_count }} tickers.</p>
+      {% else %}
+        <p>No persisted sector snapshot yet. Opening the dashboard will calculate one from this run.</p>
+      {% endif %}
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ run.id }}/sector-rotation">Open dashboard</a>
+      {% if sector_rotation_context %}
+        <a class="button-link secondary" href="{{ sector_rotation_context.csv_url }}">CSV</a>
+        <a class="button-link secondary" href="{{ sector_rotation_context.brief_url }}">Brief</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if sector_rotation_context %}
+    <div class="summary-strip">
+      <span class="summary-item">
+        <strong>{{ sector_rotation_context.leading_sector or "N/A" }}</strong>
+        leading sector
+        <small>{{ sector_rotation_context.mode|replace("_", " ")|title }}</small>
+      </span>
+      <span class="summary-item">
+        <strong>{{ sector_rotation_context.weakest_sector or "N/A" }}</strong>
+        weakest sector
+        <small>{{ sector_rotation_context.default_ranking_profile or "No default profile" }}</small>
+      </span>
+      <span class="summary-item">
+        <strong>{{ sector_rotation_context.riskiest_sector or "N/A" }}</strong>
+        riskiest sector
+        <small>{{ sector_rotation_context.warning_count }} warnings</small>
+      </span>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <strong>Sector rotation is ready to calculate.</strong>
+      <p>The dashboard uses current run scores and keeps ranking scores unchanged.</p>
+    </div>
+  {% endif %}
 </section>
 
 <section class="panel section-gap">

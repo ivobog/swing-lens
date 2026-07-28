@@ -890,6 +890,34 @@ Exit criteria:
 
 - Full pipeline creates a run-scoped sector rotation snapshot automatically.
 
+Phase 10 implementation captured on `2026-07-28`:
+
+- Added pipeline step `SECTOR_ROTATION_SNAPSHOT` after `COMBINING_RESULTS`.
+- Added `PipelineStatus.SECTOR_ROTATION_SNAPSHOT` so pipeline progress surfaces the active sector step.
+- Added `build_sector_rotation_snapshot` to `PipelineExecutionDependencies`.
+- Full pipeline now calls `SectorRotationService.build_sector_rotation_snapshot(db, run_id=...)` after combined results are refreshed.
+- Pipeline result JSON now includes:
+  - `sector_rotation_snapshots`,
+  - `sector_rotation_sector_count`,
+  - `sector_rotation_leading_sector`,
+  - `sector_rotation_weakest_sector`,
+  - `sector_rotation_warning_count`.
+- Existing ranking and combined result scores remain unchanged; the sector snapshot is advisory and persisted separately.
+- Because the current full pipeline does not generate ranking profiles, the v1 sector step runs after combined results and lets the sector universe service use ranking data when present or combined-result fallback when ranking rows are absent.
+- Run detail now includes a Sector Rotation panel with:
+  - latest snapshot date,
+  - sector/ticker counts,
+  - leading, weakest, and riskiest sectors,
+  - warning count,
+  - dashboard, CSV, and brief links.
+- Run detail still renders without a persisted sector snapshot and directs the user to open the dashboard for lazy calculation.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_pipeline_service.py tests/test_pipeline_executor.py tests/test_run_detail_view_models.py -q`: `37 passed`
+  - `pytest tests/test_pipeline_service.py tests/test_pipeline_executor.py tests/test_sector_rotation_service.py tests/test_sector_rotation_routes.py tests/test_run_detail_view_models.py -q`: `58 passed`
+  - `$env:USE_DURABLE_PIPELINE='false'; $env:JOB_WORKER_ENABLED='false'; pytest -q`: `517 passed`
+  - Live server smoke on `http://127.0.0.1:8000/runs/60`: `200`, Sector Rotation panel present
+
 ## Phase 11: ETF Rotation Mode
 
 Goal: add optional ETF confirmation and combined scoring after universe mode is stable.

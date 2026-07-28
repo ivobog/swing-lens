@@ -9,6 +9,7 @@ from app.models.tables import (
     MarketRegimeSnapshot,
     RankingResult,
     RawCompanyRow,
+    SectorRotationSnapshot,
     TechnicalScore,
     UploadRun,
 )
@@ -24,6 +25,7 @@ from app.routers.run_routes import (
     _parse_decimal_filter,
     _ranking_profile_summary,
     _run_summary,
+    _sector_rotation_context,
     _tickers_from_fetch_form,
     _warning_badges,
     _what_to_show_values,
@@ -130,6 +132,34 @@ def test_market_regime_context_marks_choppy_early_rocket_blocked() -> None:
     }
     assert context["profile_warning"] == "Current market policy blocks Early Rocket entries."
     assert context["score_threshold_adjustments_enabled"] is False
+
+
+def test_sector_rotation_context_formats_latest_snapshot() -> None:
+    snapshot = SectorRotationSnapshot(
+        id=12,
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        calculation_version="sector-rotation-1.0.0",
+        mode="universe_only",
+        default_ranking_profile="momentum_swing",
+        sector_count=3,
+        ticker_count=158,
+        leading_sector="Technology",
+        weakest_sector="Utilities",
+        riskiest_sector="Utilities",
+        summary_json={},
+        warning_flags_json=["missing_sector"],
+        debug_json={},
+    )
+
+    context = _sector_rotation_context(snapshot)
+
+    assert context["snapshot_id"] == 12
+    assert context["as_of_date"] == "2026-07-28"
+    assert context["leading_sector"] == "Technology"
+    assert context["warning_count"] == 1
+    assert context["dashboard_url"] == "/runs/7/sector-rotation"
+    assert context["csv_url"] == "/runs/7/sector-rotation/export.csv"
 
 
 def test_workflow_steps_show_warning_for_partial_coverage_and_low_confidence() -> None:
@@ -477,6 +507,36 @@ def test_run_detail_template_renders_market_context_near_rankings(monkeypatch) -
     assert "Early Rocket" in html
     assert "Blocked" in html
     assert 'href="/runs/1/market-regime"' in html
+
+
+def test_run_detail_template_renders_sector_rotation_snapshot(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=2, status="COMPLETED")
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        sector_rotation_context={
+            "as_of_date": "2026-07-28",
+            "mode": "universe_only",
+            "default_ranking_profile": "momentum_swing",
+            "sector_count": 3,
+            "ticker_count": 158,
+            "leading_sector": "Technology",
+            "weakest_sector": "Utilities",
+            "riskiest_sector": "Utilities",
+            "warning_count": 1,
+            "csv_url": "/runs/1/sector-rotation/export.csv",
+            "brief_url": "/runs/1/sector-rotation/brief.md",
+        },
+    )
+
+    assert "Sector Rotation" in html
+    assert "Latest snapshot from 2026-07-28" in html
+    assert "Technology" in html
+    assert "leading sector" in html
+    assert 'href="/runs/1/sector-rotation"' in html
+    assert 'href="/runs/1/sector-rotation/export.csv"' in html
+    assert 'href="/runs/1/sector-rotation/brief.md"' in html
 
 
 def test_coverage_actions_and_template_support_targeted_fetches(monkeypatch) -> None:

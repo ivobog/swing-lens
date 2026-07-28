@@ -73,6 +73,7 @@ from app.services.ranking_result_export import (
     export_ranking_profile_csv,
 )
 from app.services.score_card_view_service import build_score_cards
+from app.services.sector_rotation_repository import SectorRotationRepository
 from app.services.technical_display_fields import technical_v4_details_by_ticker
 from app.services.technical_score_service import score_run_technicals
 from app.settings import get_settings
@@ -243,6 +244,7 @@ def run_detail_page(
     settings = get_settings()
     latest_pipeline = _pipeline_status_for_run(db, run.id, pipeline_id)
     market_regime_context = _market_regime_context(_latest_run_market_snapshot(db, run.id))
+    sector_rotation_context = _latest_sector_rotation_context(db, run.id)
     return templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -261,6 +263,7 @@ def run_detail_page(
             "decision_counts": decision_counts,
             "ranking_profile_summary": ranking_profile_summary,
             "market_regime_context": market_regime_context,
+            "sector_rotation_context": sector_rotation_context,
             "run_summary": _run_summary(run, rows, combined_results),
             "workflow_steps": _workflow_steps(
                 run=run,
@@ -1125,6 +1128,32 @@ def _market_profile_warning(profile: dict[str, str] | None) -> str | None:
     if profile["status"] == "Reduced":
         return f"Current market policy reduces {profile['label']} aggression."
     return None
+
+
+def _latest_sector_rotation_context(db: Session, run_id: int) -> dict[str, object] | None:
+    snapshot = SectorRotationRepository().latest_for_run(db, run_id)
+    if snapshot is None:
+        return None
+    return _sector_rotation_context(snapshot)
+
+
+def _sector_rotation_context(snapshot) -> dict[str, object]:
+    return {
+        "snapshot_id": snapshot.id,
+        "run_id": snapshot.run_id,
+        "as_of_date": snapshot.as_of_date.isoformat(),
+        "mode": snapshot.mode,
+        "default_ranking_profile": snapshot.default_ranking_profile,
+        "sector_count": snapshot.sector_count,
+        "ticker_count": snapshot.ticker_count,
+        "leading_sector": snapshot.leading_sector,
+        "weakest_sector": snapshot.weakest_sector,
+        "riskiest_sector": snapshot.riskiest_sector,
+        "warning_count": len(snapshot.warning_flags_json or []),
+        "dashboard_url": f"/runs/{snapshot.run_id}/sector-rotation",
+        "csv_url": f"/runs/{snapshot.run_id}/sector-rotation/export.csv",
+        "brief_url": f"/runs/{snapshot.run_id}/sector-rotation/brief.md",
+    }
 
 
 def _run_summary(
