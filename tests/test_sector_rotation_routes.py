@@ -163,6 +163,9 @@ def test_sector_ticker_drilldown_rows_use_default_profile() -> None:
     assert [row["ticker"] for row in rows] == ["MSFT"]
     assert rows[0]["profile_rank"] == 1
     assert rows[0]["technical_score"] == 8.9
+    assert rows[0]["sector"] == "Technology"
+    assert rows[0]["raw_sector"] == "Technology"
+    assert rows[0]["sector_mapping_status"] == "canonical"
 
 
 def test_sector_rotation_drilldown_404s_missing_sector(monkeypatch) -> None:

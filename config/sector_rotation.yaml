@@ -8,39 +8,73 @@ defaults:
   unknown_sector_label: "Unknown"
 
 sector_taxonomy:
+  source: "tradingview"
+  unknown_sector_label: "Unknown"
+  preserve_raw_sector: true
   canonical:
     - Technology
     - Communication Services
-    - Consumer Discretionary
-    - Consumer Staples
-    - Financials
+    - Consumer Cyclical
+    - Consumer Defensive
+    - Financial Services
     - Healthcare
     - Industrials
     - Energy
-    - Materials
+    - Basic Materials
     - Real Estate
     - Utilities
+    - Government / Other
+    - Miscellaneous / Other
+    - ETF / Fund
     - Unknown
+  tradingview_map:
+    Energy minerals: Energy
+    Non-energy minerals: Basic Materials
+    Process industries: Basic Materials
+    Producer manufacturing: Industrials
+    Industrial services: Industrials
+    Transportation: Industrials
+    Distribution services: Industrials
+    Commercial services: Industrials
+    Technology services: Technology
+    Electronic technology: Technology
+    Communications: Communication Services
+    Finance: Financial Services
+    Health services: Healthcare
+    Health technology: Healthcare
+    Consumer durables: Consumer Cyclical
+    Consumer services: Consumer Cyclical
+    Retail trade: Consumer Cyclical
+    Consumer non-durables: Consumer Defensive
+    Utilities: Utilities
+    Government: Government / Other
+    Miscellaneous: Miscellaneous / Other
   aliases:
     Information Technology: Technology
     Technology Services: Technology
+    Electronic Technology: Technology
     Health Care: Healthcare
-    Financial Services: Financials
-    Consumer Cyclical: Consumer Discretionary
-    Consumer Defensive: Consumer Staples
-    Basic Materials: Materials
+    Financials: Financial Services
+    Consumer Discretionary: Consumer Cyclical
+    Consumer Staples: Consumer Defensive
+    Materials: Basic Materials
     Real Estate Services: Real Estate
+  mapping_statuses:
+    - mapped
+    - canonical
+    - missing
+    - unmapped
 
 sector_etf_proxies:
   Technology: XLK
   Communication Services: XLC
-  Consumer Discretionary: XLY
-  Consumer Staples: XLP
-  Financials: XLF
+  Consumer Cyclical: XLY
+  Consumer Defensive: XLP
+  Financial Services: XLF
   Healthcare: XLV
   Industrials: XLI
   Energy: XLE
-  Materials: XLB
+  Basic Materials: XLB
   Real Estate: XLRE
   Utilities: XLU
 

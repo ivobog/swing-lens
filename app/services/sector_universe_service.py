@@ -19,7 +19,11 @@ from app.services.market_participation_service import (
     _is_vcp,
 )
 from app.services.sector_rotation_dtos import SectorUniverseMetrics
-from app.services.sector_taxonomy import normalize_sector, sector_slug
+from app.services.sector_taxonomy import (
+    SectorNormalizationResult,
+    normalize_sector_result,
+    sector_slug,
+)
 
 
 class SectorUniverseService:
@@ -93,7 +97,9 @@ class _TickerRecord:
     ticker: str
     company_name: str | None
     sector: str
-    raw_sector_missing: bool = False
+    raw_sector: str | None = None
+    sector_taxonomy: str | None = None
+    sector_mapping_status: str = "missing"
 
 
 @dataclass
@@ -121,6 +127,9 @@ class _SectorBucket:
     sector: str
     tickers: set[str] = field(default_factory=set)
     raw_missing_sector_tickers: set[str] = field(default_factory=set)
+    unmapped_sector_tickers: set[str] = field(default_factory=set)
+    raw_sector_distribution: dict[str, int] = field(default_factory=dict)
+    sector_mapping_status_counts: dict[str, int] = field(default_factory=dict)
     fundamental_scores: list[Any] = field(default_factory=list)
     technical_scores: list[Any] = field(default_factory=list)
     final_scores: list[Any] = field(default_factory=list)
@@ -151,8 +160,17 @@ class _SectorBucket:
         config: dict[str, Any],
     ) -> None:
         self.tickers.add(record.ticker)
-        if record.raw_sector_missing:
+        raw_distribution_key = record.raw_sector or "(missing)"
+        self.raw_sector_distribution[raw_distribution_key] = (
+            self.raw_sector_distribution.get(raw_distribution_key, 0) + 1
+        )
+        self.sector_mapping_status_counts[record.sector_mapping_status] = (
+            self.sector_mapping_status_counts.get(record.sector_mapping_status, 0) + 1
+        )
+        if record.sector_mapping_status == "missing":
             self.raw_missing_sector_tickers.add(record.ticker)
+        elif record.sector_mapping_status == "unmapped":
+            self.unmapped_sector_tickers.add(record.ticker)
 
         if fundamental is None or _float_or_none(fundamental.fundamental_score) is None:
             self.missing_fundamental_count += 1
@@ -268,6 +286,10 @@ def _to_metrics(
     return SectorUniverseMetrics(
         sector=bucket.sector,
         sector_slug=sector_slug(bucket.sector),
+        raw_sector_distribution=dict(sorted(bucket.raw_sector_distribution.items())),
+        sector_mapping_status_counts=dict(
+            sorted(bucket.sector_mapping_status_counts.items())
+        ),
         ticker_count=ticker_count,
         universe_share=_share(ticker_count, total_tickers),
         average_fundamental_score=averages["fundamental"],
@@ -298,7 +320,12 @@ def _to_metrics(
         warnings=warnings,
         debug={
             "default_ranking_profile": default_profile,
+            "raw_sector_distribution": dict(sorted(bucket.raw_sector_distribution.items())),
+            "sector_mapping_status_counts": dict(
+                sorted(bucket.sector_mapping_status_counts.items())
+            ),
             "raw_missing_sector_tickers": sorted(bucket.raw_missing_sector_tickers),
+            "unmapped_sector_tickers": sorted(bucket.unmapped_sector_tickers),
             "technical_score_available_count": len(bucket.technical_scores),
             "fundamental_score_available_count": len(bucket.fundamental_scores),
             "technical_availability": _availability(
@@ -466,46 +493,80 @@ def _ticker_records(
     records: dict[str, _TickerRecord] = {}
     for row in raw_rows:
         ticker = row.ticker.upper()
+        normalization = _normalization_for_row(row, config)
         records[ticker] = _TickerRecord(
             ticker=ticker,
             company_name=row.company_name,
-            sector=normalize_sector(row.sector, config),
-            raw_sector_missing=not str(row.sector or "").strip(),
+            sector=normalization.canonical_sector,
+            raw_sector=normalization.raw_sector,
+            sector_taxonomy=normalization.taxonomy,
+            sector_mapping_status=normalization.status,
         )
 
     for ticker, combined in combined_results.items():
+        normalization = normalize_sector_result(combined.sector, config)
         records.setdefault(
             ticker,
             _TickerRecord(
                 ticker=ticker,
                 company_name=combined.company_name,
-                sector=normalize_sector(combined.sector, config),
+                sector=normalization.canonical_sector,
+                raw_sector=normalization.raw_sector,
+                sector_taxonomy=normalization.taxonomy,
+                sector_mapping_status=normalization.status,
             ),
         )
 
     for ticker, rankings in rankings_by_ticker.items():
         first = rankings[0]
+        normalization = normalize_sector_result(first.sector, config)
         records.setdefault(
             ticker,
             _TickerRecord(
                 ticker=ticker,
                 company_name=first.company_name,
-                sector=normalize_sector(first.sector, config),
+                sector=normalization.canonical_sector,
+                raw_sector=normalization.raw_sector,
+                sector_taxonomy=normalization.taxonomy,
+                sector_mapping_status=normalization.status,
             ),
         )
 
     for ticker in sorted(set(fundamentals) | set(technicals)):
+        normalization = normalize_sector_result(None, config)
         records.setdefault(
             ticker,
             _TickerRecord(
                 ticker=ticker,
                 company_name=None,
-                sector=normalize_sector(None, config),
-                raw_sector_missing=True,
+                sector=normalization.canonical_sector,
+                raw_sector=normalization.raw_sector,
+                sector_taxonomy=normalization.taxonomy,
+                sector_mapping_status=normalization.status,
             ),
         )
 
     return records
+
+
+def _normalization_for_row(
+    row: RawCompanyRow,
+    config: dict[str, Any],
+) -> SectorNormalizationResult:
+    raw_sector = getattr(row, "sector", None)
+    canonical = str(getattr(row, "sector_canonical", None) or "").strip()
+    status = str(getattr(row, "sector_mapping_status", None) or "").strip()
+    taxonomy = str(getattr(row, "sector_taxonomy", None) or "").strip()
+    if canonical and status:
+        return SectorNormalizationResult(
+            raw_sector=str(raw_sector).strip() if raw_sector is not None else None,
+            canonical_sector=canonical,
+            taxonomy=taxonomy or str(
+                config.get("sector_taxonomy", {}).get("source") or "unknown"
+            ),
+            status=status,
+        )
+    return normalize_sector_result(raw_sector, config)
 
 
 def _profile_distribution(profile_buckets: dict[str, _ProfileBucket]) -> dict[str, Any]:
@@ -525,6 +586,8 @@ def _bucket_warnings(bucket: _SectorBucket, default_profile: str) -> list[str]:
     warnings: list[str] = []
     if bucket.raw_missing_sector_tickers:
         warnings.append("missing_sector")
+    if bucket.unmapped_sector_tickers:
+        warnings.append("unmapped_sector")
     if bucket.missing_technical_count:
         warnings.append("missing_technical_scores")
     if bucket.missing_fundamental_count:

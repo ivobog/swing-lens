@@ -46,9 +46,32 @@ def test_raw_company_row_from_mapped_parses_upcoming_earnings_date() -> None:
     assert model.run_id == 7
     assert model.ticker == "AAPL"
     assert model.company_name == "Apple Inc."
+    assert model.sector == "Technology"
+    assert model.sector_canonical == "Technology"
+    assert model.sector_taxonomy == "tradingview"
+    assert model.sector_mapping_status == "canonical"
     assert model.upcoming_earnings_date == date(2026, 7, 14)
     assert model.raw_json["Upcoming earnings date"] == "2026-07-14"
     assert model.raw_json["upcoming_earnings_date"] == "2026-07-14"
+
+
+def test_raw_company_row_from_mapped_preserves_raw_sector_and_maps_tradingview() -> None:
+    mapped = map_csv_rows(
+        [
+            {
+                "Symbol": "NVDA",
+                "Description": "Nvidia Corp.",
+                "Sector": " Electronic technology ",
+            }
+        ]
+    )[0]
+
+    model = _raw_company_row_from_mapped(run_id=7, row=mapped)
+
+    assert model.sector == "Electronic technology"
+    assert model.sector_canonical == "Technology"
+    assert model.sector_taxonomy == "tradingview"
+    assert model.sector_mapping_status == "mapped"
 
 
 def test_raw_company_row_from_mapped_keeps_unparseable_earnings_value() -> None:

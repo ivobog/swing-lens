@@ -25,7 +25,11 @@ from app.services.sector_rotation_export_service import (
 )
 from app.services.sector_rotation_repository import SectorRotationRepository
 from app.services.sector_rotation_service import SectorRotationService
-from app.services.sector_taxonomy import normalize_sector, sector_slug
+from app.services.sector_taxonomy import (
+    SectorNormalizationResult,
+    normalize_sector_result,
+    sector_slug,
+)
 from app.templates import templates
 
 router = APIRouter(tags=["sector-rotation"])
@@ -355,13 +359,16 @@ def _sector_ticker_drilldown_rows(db: Session, run_id: int, selected_slug: str) 
         combined = combined_by_ticker.get(ticker)
         ranking = ranking_by_ticker.get(ticker)
         technical = technical_by_ticker.get(ticker)
-        sector = normalize_sector(
-            raw_row.sector
-            or getattr(combined, "sector", None)
-            or getattr(ranking, "sector", None),
-            config,
+        normalization = _normalization_for_drilldown_row(
+            raw_row=raw_row,
+            fallback_sector=(
+                raw_row.sector
+                or getattr(combined, "sector", None)
+                or getattr(ranking, "sector", None)
+            ),
+            config=config,
         )
-        if sector_slug(sector) != selected_slug:
+        if sector_slug(normalization.canonical_sector) != selected_slug:
             continue
         rows.append(
             {
@@ -369,6 +376,10 @@ def _sector_ticker_drilldown_rows(db: Session, run_id: int, selected_slug: str) 
                 "company_name": raw_row.company_name
                 or getattr(combined, "company_name", None)
                 or getattr(ranking, "company_name", None),
+                "sector": normalization.canonical_sector,
+                "raw_sector": normalization.raw_sector,
+                "sector_taxonomy": normalization.taxonomy,
+                "sector_mapping_status": normalization.status,
                 "final_rank": getattr(combined, "final_rank", None),
                 "final_score": _float_or_none(getattr(combined, "final_score", None)),
                 "profile_rank": getattr(ranking, "profile_rank", None),
@@ -398,6 +409,26 @@ def _sector_ticker_drilldown_rows(db: Session, run_id: int, selected_slug: str) 
             }
         )
     return sorted(rows, key=lambda row: (row["profile_rank"] or 999999, row["ticker"]))
+
+
+def _normalization_for_drilldown_row(
+    raw_row: object,
+    fallback_sector: object,
+    config: dict,
+) -> SectorNormalizationResult:
+    raw_sector = getattr(raw_row, "sector", None) or fallback_sector
+    canonical = str(getattr(raw_row, "sector_canonical", None) or "").strip()
+    status = str(getattr(raw_row, "sector_mapping_status", None) or "").strip()
+    taxonomy = str(getattr(raw_row, "sector_taxonomy", None) or "").strip()
+    if canonical and status:
+        return SectorNormalizationResult(
+            raw_sector=str(raw_sector).strip() if raw_sector is not None else None,
+            canonical_sector=canonical,
+            taxonomy=taxonomy
+            or str(config.get("sector_taxonomy", {}).get("source") or "unknown"),
+            status=status,
+        )
+    return normalize_sector_result(raw_sector, config)
 
 
 def _top_tickers(rows: list[dict], key: str, limit: int = 10) -> list[dict]:

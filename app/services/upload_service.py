@@ -16,6 +16,8 @@ from app.services.fundamental_ranker_v2 import (
     score_rows_v2,
     to_decimal,
 )
+from app.services.sector_rotation_config import load_sector_rotation_config
+from app.services.sector_taxonomy import normalize_sector_result
 from app.services.validation_service import CsvValidationError, validate_mapped_rows
 from app.settings import get_settings
 
@@ -53,8 +55,9 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         db.refresh(run)
         return run
 
+    sector_config = load_sector_rotation_config()
     raw_rows = [
-        _raw_company_row_from_mapped(run.id, row)
+        _raw_company_row_from_mapped(run.id, row, sector_config)
         for row in mapped_rows
         if row.ticker
     ]
@@ -76,18 +79,29 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
     return run
 
 
-def _raw_company_row_from_mapped(run_id: int, row: MappedCsvRow) -> RawCompanyRow:
+def _raw_company_row_from_mapped(
+    run_id: int,
+    row: MappedCsvRow,
+    sector_config: dict | None = None,
+) -> RawCompanyRow:
     raw_json = dict(row.raw)
     raw_earnings_value = row.canonical.get("upcoming_earnings_date")
     if raw_earnings_value is not None:
         raw_json["upcoming_earnings_date"] = raw_earnings_value
+    sector_result = normalize_sector_result(
+        row.sector,
+        sector_config or load_sector_rotation_config(),
+    )
 
     return RawCompanyRow(
         run_id=run_id,
         row_number=row.row_number,
         ticker=row.ticker,
         company_name=row.company_name,
-        sector=row.sector,
+        sector=sector_result.raw_sector,
+        sector_canonical=sector_result.canonical_sector,
+        sector_taxonomy=sector_result.taxonomy,
+        sector_mapping_status=sector_result.status,
         upcoming_earnings_date=parse_earnings_date(raw_earnings_value),
         raw_json=raw_json,
     )

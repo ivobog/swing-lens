@@ -131,6 +131,28 @@ def _validate_taxonomy(taxonomy: dict[str, Any]) -> None:
                 f"sector_taxonomy.aliases.{alias} must resolve to a canonical sector"
             )
 
+    tradingview_map = taxonomy.get("tradingview_map", {})
+    if not isinstance(tradingview_map, dict):
+        raise SectorRotationConfigError("sector_taxonomy.tradingview_map must be a mapping")
+    for source, target in tradingview_map.items():
+        if not _text(source):
+            raise SectorRotationConfigError("sector_taxonomy.tradingview_map keys must be text")
+        target_text = _text(target)
+        if target_text not in canonical_set:
+            raise SectorRotationConfigError(
+                f"sector_taxonomy.tradingview_map.{source} must resolve to a canonical sector"
+            )
+
+    statuses = taxonomy.get("mapping_statuses", [])
+    if statuses:
+        status_set = set(_text_list(statuses, "sector_taxonomy.mapping_statuses"))
+        required_statuses = {"mapped", "canonical", "missing", "unmapped"}
+        if not required_statuses.issubset(status_set):
+            raise SectorRotationConfigError(
+                "sector_taxonomy.mapping_statuses must include mapped, canonical, "
+                "missing, and unmapped"
+            )
+
 
 def _validate_etf_proxies(proxies: dict[str, Any], canonical_sectors: set[str]) -> None:
     if not proxies:

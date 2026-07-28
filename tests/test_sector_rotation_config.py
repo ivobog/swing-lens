@@ -42,7 +42,7 @@ def test_load_sector_rotation_config_rejects_alias_to_unknown_canonical(
 ) -> None:
     config = _config_with_replacement(
         tmp_path,
-        "    Basic Materials: Materials",
+        "    Materials: Basic Materials",
         "    Basic Materials: Not Canonical",
     )
 

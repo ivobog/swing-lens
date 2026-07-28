@@ -95,6 +95,9 @@ class RawCompanyRow(Base):
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     company_name: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(Text)
+    sector_canonical: Mapped[str | None] = mapped_column(Text)
+    sector_taxonomy: Mapped[str | None] = mapped_column(Text)
+    sector_mapping_status: Mapped[str | None] = mapped_column(Text)
     upcoming_earnings_date: Mapped[date | None] = mapped_column(Date)
     raw_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -109,6 +112,12 @@ class RawCompanyRow(Base):
         Index("idx_raw_company_rows_run_id", "run_id"),
         Index("idx_raw_company_rows_ticker", "ticker"),
         Index("idx_raw_company_rows_upcoming_earnings_date", "upcoming_earnings_date"),
+        Index("idx_raw_company_rows_sector_canonical", "run_id", "sector_canonical"),
+        Index(
+            "idx_raw_company_rows_sector_mapping_status",
+            "run_id",
+            "sector_mapping_status",
+        ),
     )
 
 

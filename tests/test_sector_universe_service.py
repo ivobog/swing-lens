@@ -78,6 +78,11 @@ def test_universe_metrics_groups_sector_metrics_and_profile_distribution(
     assert technology.clean_pullback_count == 1
     assert technology.breakout_count == 1
     assert technology.warning_distribution == {"liquidity_warning": 1}
+    assert technology.raw_sector_distribution == {
+        "Information Technology": 1,
+        "Technology": 1,
+    }
+    assert technology.sector_mapping_status_counts == {"canonical": 1, "mapped": 1}
     assert technology.profile_distribution["momentum_swing"] == {
         "average_profile_score": 8.5,
         "top_10_count": 1,
@@ -157,6 +162,65 @@ def test_universe_metrics_groups_missing_sector_as_unknown(monkeypatch) -> None:
         "low_confidence_sector",
     ]
     assert row.debug["raw_missing_sector_tickers"] == ["MISS"]
+    assert row.raw_sector_distribution == {"(missing)": 1}
+    assert row.sector_mapping_status_counts == {"missing": 1}
+
+
+def test_universe_metrics_maps_tradingview_sectors_before_grouping(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._raw_rows_for_run",
+        lambda _db, _run_id: [
+            _row("NVDA", "Electronic technology"),
+            _row("MSFT", "Technology services"),
+            _row("XOM", "Energy minerals"),
+            _row("ODD", "Made Up Sector"),
+            _row("MISS", None),
+        ],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._fundamentals_for_run",
+        lambda _db, _run_id: [],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._technicals_for_run",
+        lambda _db, _run_id: [],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._combined_results_for_run",
+        lambda _db, _run_id: [],
+    )
+    monkeypatch.setattr(
+        "app.services.sector_universe_service._ranking_results_for_run",
+        lambda _db, _run_id: [],
+    )
+
+    rows = SectorUniverseService().build(
+        object(),
+        run_id=7,
+        config=load_sector_rotation_config(),
+    )
+
+    by_sector = {row.sector: row for row in rows}
+    assert sorted(by_sector) == ["Energy", "Technology", "Unknown"]
+    assert by_sector["Technology"].ticker_count == 2
+    assert by_sector["Technology"].raw_sector_distribution == {
+        "Electronic technology": 1,
+        "Technology services": 1,
+    }
+    assert by_sector["Technology"].sector_mapping_status_counts == {"mapped": 2}
+    assert by_sector["Energy"].ticker_count == 1
+    assert by_sector["Unknown"].ticker_count == 2
+    assert by_sector["Unknown"].raw_sector_distribution == {
+        "(missing)": 1,
+        "Made Up Sector": 1,
+    }
+    assert by_sector["Unknown"].sector_mapping_status_counts == {
+        "missing": 1,
+        "unmapped": 1,
+    }
+    assert "unmapped_sector" in by_sector["Unknown"].warnings
 
 
 def test_universe_metrics_deduplicates_raw_rows(monkeypatch) -> None:

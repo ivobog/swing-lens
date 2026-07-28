@@ -217,6 +217,12 @@ def _dto_row_context(
         "warnings": decision.warnings,
         "reasons": decision.reasons,
         "component_scores": universe.component_scores if universe is not None else {},
+        "raw_sector_distribution": (
+            universe.raw_sector_distribution if universe is not None else {}
+        ),
+        "sector_mapping_status_counts": (
+            universe.sector_mapping_status_counts if universe is not None else {}
+        ),
         "profile_distribution": universe.profile_distribution if universe is not None else {},
         "setup_distribution": universe.setup_distribution if universe is not None else {},
         "warning_distribution": universe.warning_distribution if universe is not None else {},
@@ -251,6 +257,14 @@ def _orm_row_context(row: SectorRotationRow) -> dict[str, Any]:
         "warnings": row.warning_flags_json,
         "reasons": row.reason_codes_json,
         "component_scores": row.component_scores_json,
+        "raw_sector_distribution": (row.debug_json or {}).get(
+            "raw_sector_distribution",
+            {},
+        ),
+        "sector_mapping_status_counts": (row.debug_json or {}).get(
+            "sector_mapping_status_counts",
+            {},
+        ),
         "profile_distribution": row.profile_distribution_json,
         "setup_distribution": row.setup_distribution_json,
         "warning_distribution": row.warning_distribution_json,
@@ -283,6 +297,8 @@ def _row_payload(context: dict[str, Any]) -> dict[str, Any]:
         "rank_change": context["rank_change"],
         "score_change": context["score_change"],
         "component_scores": context["component_scores"],
+        "raw_sector_distribution": context["raw_sector_distribution"],
+        "sector_mapping_status_counts": context["sector_mapping_status_counts"],
         "profile_distribution": context["profile_distribution"],
         "setup_distribution": context["setup_distribution"],
         "warning_distribution": context["warning_distribution"],

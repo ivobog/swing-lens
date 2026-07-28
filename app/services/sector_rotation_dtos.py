@@ -30,6 +30,8 @@ class SectorUniverseMetrics:
     extended_or_overheated_count: int
     missing_fundamental_count: int
     missing_technical_count: int
+    raw_sector_distribution: dict[str, int] = field(default_factory=dict)
+    sector_mapping_status_counts: dict[str, int] = field(default_factory=dict)
     profile_distribution: dict[str, Any] = field(default_factory=dict)
     component_scores: dict[str, float] = field(default_factory=dict)
     universe_leadership_score: float | None = None

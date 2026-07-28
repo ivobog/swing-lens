@@ -72,6 +72,35 @@
   </div>
 </section>
 
+<section class="grid section-gap sector-rotation-two-col">
+  <div>
+    <h2>Raw Sector Breakdown</h2>
+    {% if row.raw_sector_distribution %}
+      <dl class="compact-dl sector-component-list">
+        {% for raw_sector, count in row.raw_sector_distribution.items() %}
+          <dt>{{ raw_sector }}</dt>
+          <dd>{{ count }}</dd>
+        {% endfor %}
+      </dl>
+    {% else %}
+      <div class="empty-state"><strong>No raw sector breakdown.</strong></div>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Mapping Status</h2>
+    {% if row.sector_mapping_status_counts %}
+      <dl class="compact-dl sector-component-list">
+        {% for status, count in row.sector_mapping_status_counts.items() %}
+          <dt>{{ status }}</dt>
+          <dd>{{ count }}</dd>
+        {% endfor %}
+      </dl>
+    {% else %}
+      <div class="empty-state"><strong>No mapping status counts.</strong></div>
+    {% endif %}
+  </div>
+</section>
+
 {% if row.etf_metrics %}
   <section class="panel section-gap">
     <div class="panel-header compact-header">
