@@ -485,6 +485,18 @@ Exit criteria:
 
 - Full pipeline creates a run-scoped market regime snapshot automatically.
 
+Phase 7 implementation captured on `2026-07-28`:
+
+- Added durable `MARKET_REGIME_SNAPSHOT` pipeline step after technical scoring
+- Added `PipelineStatus.MARKET_REGIME_SNAPSHOT`
+- Wired `PipelineExecutionDependencies.build_market_regime_snapshot` to `MarketRegimeCommandCenterService.build_snapshot(db, run_id=...)`
+- Added snapshot count, regime, risk-state, confidence, and warning-count fields to pipeline execution result and public `result_json`
+- Extended pipeline service and executor tests for step creation, execution order, low-confidence nonfatal partial snapshots, and result JSON fields
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_pipeline_service.py tests/test_pipeline_executor.py -q`: `12 passed`
+  - `pytest -q`: `440 passed`
+
 ## Phase 8: Ranking Profile Integration
 
 Goal: show market policy beside rankings without mutating v1 scores.
