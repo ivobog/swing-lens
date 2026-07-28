@@ -228,6 +228,31 @@ Exit criteria:
 
 - A run can produce complete in-memory sector universe metrics with no route or schema dependency.
 
+Phase 2 implementation captured on `2026-07-28`:
+
+- Added `app/services/sector_rotation_dtos.py`
+- Added `app/services/sector_universe_service.py`
+- Added `tests/test_sector_universe_service.py`
+- Universe metrics now aggregate:
+  - normalized sector and slug,
+  - ticker count and universe share,
+  - average fundamental, technical, final, and default-profile scores,
+  - top 10/top 25/top 50 counts from the default ranking profile with combined-rank fallback,
+  - buyable/watch/danger counts and shares,
+  - setup distribution,
+  - warning distribution,
+  - clean pullback, breakout, VCP, tight-base breakout, and extended/overheated counts,
+  - missing fundamental and technical counts,
+  - per-profile distribution summaries.
+- Real-data smoke on run `60`:
+  - `sector_count=3`
+  - `ticker_count=158`
+  - largest bucket is `Unknown` with `141` tickers, confirming the dashboard must clearly label universe CSV sector availability.
+- Verification:
+  - `ruff check app tests`: passed
+  - `pytest tests/test_sector_universe_service.py tests/test_sector_rotation_config.py tests/test_sector_taxonomy.py -q`: `16 passed`
+  - `pytest -q`: `460 passed`
+
 ## Phase 3: Universe Leadership Score and Confidence
 
 Goal: calculate explainable 0-10 universe scores and confidence levels.
