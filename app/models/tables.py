@@ -83,6 +83,12 @@ class UploadRun(Base):
         back_populates="run",
         cascade="all, delete-orphan",
     )
+    setup_lifecycle_evaluation_runs: Mapped[list["SetupLifecycleEvaluationRun"]] = relationship(
+        back_populates="upload_run",
+    )
+    setup_signal_snapshots: Mapped[list["SetupSignalSnapshot"]] = relationship(
+        back_populates="run",
+    )
 
 
 class RawCompanyRow(Base):
@@ -2100,4 +2106,582 @@ class WinnerSimilarityLink(Base):
         ),
         Index("idx_winner_similarity_links_prediction", "prediction_id"),
         Index("idx_winner_similarity_links_neighbor", "neighbor_prediction_id"),
+    )
+
+
+class SetupLifecycleEvaluationRun(Base):
+    __tablename__ = "setup_lifecycle_evaluation_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="SET NULL")
+    )
+    source_run_id_text: Mapped[str | None] = mapped_column(Text)
+    mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    current_phase: Mapped[str | None] = mapped_column(String(64))
+    engine_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    output_evaluation_version: Mapped[str | None] = mapped_column(Text)
+    date_from: Mapped[date | None] = mapped_column(Date)
+    date_to: Mapped[date | None] = mapped_column(Date)
+    ticker_scope_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    requested_config_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    dry_run: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    requester: Mapped[str | None] = mapped_column(Text)
+    source_snapshot_min_id: Mapped[int | None] = mapped_column(BigInteger)
+    source_snapshot_max_id: Mapped[int | None] = mapped_column(BigInteger)
+    read_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    captured_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    canonical_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    changed_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    transitioned_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    alerted_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    skipped_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    warning_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    failed_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    counts_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    error_summary_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    audit_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    upload_run: Mapped[UploadRun | None] = relationship(
+        back_populates="setup_lifecycle_evaluation_runs"
+    )
+    snapshots: Mapped[list["SetupSignalSnapshot"]] = relationship(
+        back_populates="evaluation_run"
+    )
+
+    __table_args__ = (
+        Index("idx_setup_lifecycle_eval_runs_status", "status", "created_at"),
+        Index("idx_setup_lifecycle_eval_runs_mode_status", "mode", "status"),
+        Index("idx_setup_lifecycle_eval_runs_source_run", "source_run_id"),
+        Index("idx_setup_lifecycle_eval_runs_version", "output_evaluation_version"),
+        Index("idx_setup_lifecycle_eval_runs_date_range", "date_from", "date_to"),
+    )
+
+
+class SetupSignalSnapshot(Base):
+    __tablename__ = "setup_signal_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("upload_runs.id", ondelete="SET NULL"))
+    source_run_id_text: Mapped[str | None] = mapped_column(Text)
+    raw_row_id: Mapped[int | None] = mapped_column(
+        ForeignKey("raw_company_rows.id", ondelete="SET NULL")
+    )
+    fundamental_score_id: Mapped[int | None] = mapped_column(
+        ForeignKey("fundamental_scores.id", ondelete="SET NULL")
+    )
+    technical_score_id: Mapped[int | None] = mapped_column(
+        ForeignKey("technical_scores.id", ondelete="SET NULL")
+    )
+    combined_result_id: Mapped[int | None] = mapped_column(
+        ForeignKey("combined_results.id", ondelete="SET NULL")
+    )
+    ranking_result_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ranking_results.id", ondelete="SET NULL")
+    )
+    market_regime_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_regime_snapshots.id", ondelete="SET NULL")
+    )
+    sector_rotation_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sector_rotation_snapshots.id", ondelete="SET NULL")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    company_name: Mapped[str | None] = mapped_column(Text)
+    sector: Mapped[str | None] = mapped_column(Text)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    data_as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    origin_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    engine_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    source_data_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    is_canonical: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    canonical_reason: Mapped[str | None] = mapped_column(Text)
+    canonicalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    superseded_by_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    primary_setup_family: Mapped[str | None] = mapped_column(String(32))
+    primary_phase: Mapped[str | None] = mapped_column(String(64))
+    lifecycle_state_candidate: Mapped[str | None] = mapped_column(String(32))
+    actionability_candidate: Mapped[str | None] = mapped_column(String(32))
+    data_quality_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence_score: Mapped[int | None] = mapped_column(Integer)
+    confidence_label: Mapped[str | None] = mapped_column(String(32))
+    fundamental_score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    dual_score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    trend_score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    momentum_score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    setup_score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    risk_score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    final_score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    profile_score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    technical_classification: Mapped[str | None] = mapped_column(Text)
+    stage: Mapped[str | None] = mapped_column(Text)
+    pullback_health: Mapped[str | None] = mapped_column(Text)
+    action_bias: Mapped[str | None] = mapped_column(Text)
+    combined_decision: Mapped[str | None] = mapped_column(Text)
+    ranking_profile: Mapped[str | None] = mapped_column(Text)
+    close_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    pivot_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    trigger_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    stop_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    target_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    distance_to_pivot_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    entry_risk_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    reward_risk: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    close_above_trigger: Mapped[bool | None] = mapped_column(Boolean)
+    high_above_trigger: Mapped[bool | None] = mapped_column(Boolean)
+    high_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    technical_confidence: Mapped[str | None] = mapped_column(String(32))
+    required_feature_coverage: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    freshness_status: Mapped[str | None] = mapped_column(String(32))
+    signals_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    feature_flags_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    warning_flags_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    missing_data_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    source_lineage_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    diagnostic_high_cross_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    canonical_decision_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    debug_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+    evaluation_run: Mapped[SetupLifecycleEvaluationRun | None] = relationship(
+        back_populates="snapshots"
+    )
+    run: Mapped[UploadRun | None] = relationship(back_populates="setup_signal_snapshots")
+    superseded_by_snapshot: Mapped["SetupSignalSnapshot | None"] = relationship(
+        remote_side=[id]
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "ticker",
+            "timeframe",
+            "engine_version",
+            "config_hash",
+            name="uq_setup_signal_snapshots_run_identity",
+        ),
+        Index("idx_setup_signal_snapshots_run_ticker", "run_id", "ticker"),
+        Index("idx_setup_signal_snapshots_ticker_as_of", "ticker", "data_as_of_date"),
+        Index("idx_setup_signal_snapshots_family_phase", "primary_setup_family", "primary_phase"),
+        Index("idx_setup_signal_snapshots_quality", "data_quality_label"),
+        Index("idx_setup_signal_snapshots_source_hash", "source_data_hash"),
+        Index("idx_setup_signal_snapshots_eval_run", "evaluation_run_id"),
+        Index(
+            "uq_setup_signal_snapshots_canonical_day",
+            "ticker",
+            "timeframe",
+            "data_as_of_date",
+            unique=True,
+            postgresql_where=text("is_canonical"),
+        ),
+    )
+
+
+class SetupLifecycleEpisode(Base):
+    __tablename__ = "setup_lifecycle_episodes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    setup_family: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    opened_on: Mapped[date] = mapped_column(Date, nullable=False)
+    current_as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    last_observed_on: Mapped[date] = mapped_column(Date, nullable=False)
+    closed_on: Mapped[date | None] = mapped_column(Date)
+    missing_observation_sessions: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    current_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    current_phase: Mapped[str] = mapped_column(String(64), nullable=False)
+    state_entered_on: Mapped[date] = mapped_column(Date, nullable=False)
+    state_age_sessions: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    current_actionability: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    confidence_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    opening_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    current_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    closing_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    opening_evaluation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    closing_evaluation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    terminal_state: Mapped[str | None] = mapped_column(String(32))
+    terminal_reason_code: Mapped[str | None] = mapped_column(Text)
+    is_primary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    primary_rank: Mapped[int | None] = mapped_column(Integer)
+    summary: Mapped[str | None] = mapped_column(Text)
+    engine_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    lifecycle_events: Mapped[list["SetupLifecycleEvent"]] = relationship(
+        back_populates="episode"
+    )
+    signal_change_events: Mapped[list["SignalChangeEvent"]] = relationship(
+        back_populates="episode"
+    )
+
+    __table_args__ = (
+        Index("idx_setup_lifecycle_episodes_ticker_status", "ticker", "status"),
+        Index("idx_setup_lifecycle_episodes_family_state", "setup_family", "current_state"),
+        Index("idx_setup_lifecycle_episodes_current_snapshot", "current_snapshot_id"),
+        Index(
+            "uq_setup_lifecycle_episodes_active_family",
+            "ticker",
+            "timeframe",
+            "setup_family",
+            unique=True,
+            postgresql_where=text("status = 'ACTIVE'"),
+        ),
+    )
+
+
+class SetupLifecycleEvent(Base):
+    __tablename__ = "setup_lifecycle_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    episode_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_episodes.id", ondelete="SET NULL")
+    )
+    evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    setup_family: Mapped[str] = mapped_column(String(32), nullable=False)
+    effective_date: Mapped[date] = mapped_column(Date, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    from_state: Mapped[str | None] = mapped_column(String(32))
+    to_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    from_phase: Mapped[str | None] = mapped_column(String(64))
+    to_phase: Mapped[str] = mapped_column(String(64), nullable=False)
+    state_age_before: Mapped[int | None] = mapped_column(Integer)
+    immediate_transition: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    actionability_before: Mapped[str | None] = mapped_column(String(32))
+    actionability_after: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    confidence_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_event_key: Mapped[str] = mapped_column(Text, nullable=False)
+    is_current_version: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    superseded_by_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_events.id", ondelete="SET NULL")
+    )
+    engine_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    reason_codes_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    evidence_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    warning_flags_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    episode: Mapped[SetupLifecycleEpisode | None] = relationship(
+        back_populates="lifecycle_events",
+        foreign_keys=[episode_id],
+    )
+    superseded_by_event: Mapped["SetupLifecycleEvent | None"] = relationship(
+        remote_side=[id],
+        foreign_keys=[superseded_by_event_id],
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "evaluation_run_id",
+            "source_event_key",
+            name="uq_setup_lifecycle_events_eval_source_key",
+        ),
+        Index("idx_setup_lifecycle_events_episode", "episode_id"),
+        Index("idx_setup_lifecycle_events_ticker_date", "ticker", "effective_date"),
+        Index("idx_setup_lifecycle_events_type", "event_type"),
+        Index("idx_setup_lifecycle_events_current", "is_current_version"),
+    )
+
+
+class SignalChangeEvent(Base):
+    __tablename__ = "signal_change_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    episode_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_episodes.id", ondelete="SET NULL")
+    )
+    previous_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    current_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    effective_date: Mapped[date] = mapped_column(Date, nullable=False)
+    category: Mapped[str] = mapped_column(String(64), nullable=False)
+    signal_key: Mapped[str] = mapped_column(Text, nullable=False)
+    value_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    old_value_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    new_value_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    delta_numeric: Mapped[Decimal | None] = mapped_column(Numeric(18, 8))
+    percentage_delta: Mapped[Decimal | None] = mapped_column(Numeric(18, 8))
+    percentile_delta: Mapped[Decimal | None] = mapped_column(Numeric(18, 8))
+    rank_delta: Mapped[int | None] = mapped_column(Integer)
+    normalized_delta: Mapped[Decimal | None] = mapped_column(Numeric(18, 8))
+    direction: Mapped[str] = mapped_column(String(32), nullable=False)
+    threshold_name: Mapped[str | None] = mapped_column(Text)
+    threshold_direction: Mapped[str | None] = mapped_column(String(32))
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    signal_definition_version: Mapped[str] = mapped_column(Text, nullable=False)
+    source_event_key: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    reason_codes_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    evidence_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    episode: Mapped[SetupLifecycleEpisode | None] = relationship(
+        back_populates="signal_change_events"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("source_event_key", name="uq_signal_change_events_source_key"),
+        Index("idx_signal_change_events_ticker_date", "ticker", "effective_date"),
+        Index("idx_signal_change_events_signal", "signal_key"),
+        Index("idx_signal_change_events_category_severity", "category", "severity"),
+        Index("idx_signal_change_events_eval_run", "evaluation_run_id"),
+    )
+
+
+class SignalAlertRule(Base):
+    __tablename__ = "signal_alert_rules"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False)
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    setup_family: Mapped[str | None] = mapped_column(String(32))
+    cooldown_sessions: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    minimum_confidence: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    condition_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    market_restrictions_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    alert_events: Mapped[list["SignalAlertEvent"]] = relationship(back_populates="alert_rule")
+
+    __table_args__ = (
+        UniqueConstraint("rule_id", name="uq_signal_alert_rules_rule_id"),
+        Index("idx_signal_alert_rules_enabled_severity", "enabled", "severity"),
+    )
+
+
+class SignalAlertEvent(Base):
+    __tablename__ = "signal_alert_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    alert_rule_id: Mapped[int] = mapped_column(
+        ForeignKey("signal_alert_rules.id", ondelete="RESTRICT"), nullable=False
+    )
+    lifecycle_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_events.id", ondelete="SET NULL")
+    )
+    signal_change_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_change_events.id", ondelete="SET NULL")
+    )
+    evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    effective_date: Mapped[date] = mapped_column(Date, nullable=False)
+    event_key: Mapped[str] = mapped_column(Text, nullable=False)
+    source_event_key: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="UNREAD", server_default="UNREAD"
+    )
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_codes_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    evidence_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    alert_rule: Mapped[SignalAlertRule] = relationship(back_populates="alert_events")
+
+    __table_args__ = (
+        UniqueConstraint("event_key", name="uq_signal_alert_events_event_key"),
+        Index("idx_signal_alert_events_status_severity", "status", "severity"),
+        Index("idx_signal_alert_events_ticker_date", "ticker", "effective_date"),
+        Index("idx_signal_alert_events_rule", "alert_rule_id"),
+    )
+
+
+class SetupLifecycleAdministrativeAuditEvent(Base):
+    __tablename__ = "setup_lifecycle_administrative_audit_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    requester: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    preview_token_hash: Mapped[str | None] = mapped_column(Text)
+    scope_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    before_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    after_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    affected_counts_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_setup_lifecycle_admin_audit_type", "event_type"),
+        Index("idx_setup_lifecycle_admin_audit_eval", "evaluation_run_id"),
+        Index("idx_setup_lifecycle_admin_audit_created", "created_at"),
     )
