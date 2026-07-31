@@ -9,6 +9,7 @@ from app.models.tables import (
     WinnerForwardOutcome,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
+    WinnerProbabilityEstimate,
 )
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.decision_time_estimate_service import (
@@ -17,14 +18,27 @@ from app.services.winner_probability.decision_time_estimate_service import (
 )
 
 
-def test_decision_time_stub_persists_insufficient_record() -> None:
+def test_decision_time_service_persists_real_estimator_contract() -> None:
     config = load_winner_probability_config()
     repository = FakeWinnerRepository()
-    service = DecisionTimeEstimateService(repository)
     prediction = _prediction()
     definition = _definition()
-    repository.add(object(), prediction)
-    repository.add(object(), definition)
+    estimate = WinnerProbabilityEstimate(
+        id=9,
+        prediction_id=prediction.id,
+        outcome_definition_id=definition.id,
+        estimate_kind="DECISION_TIME",
+        source="COHORT",
+        source_version="cohort_baseline_v1",
+        training_cutoff_at=prediction.source_data_cutoff_at,
+        evidence_grade="Low",
+        config_hash=config.config_hash,
+        feature_schema_version=config.feature_schema.version,
+    )
+    service = DecisionTimeEstimateService(
+        repository,
+        probability_estimator=FakeProbabilityEstimator(estimate),
+    )
 
     result = service.create_decision_time_estimate(
         object(),
@@ -33,11 +47,10 @@ def test_decision_time_stub_persists_insufficient_record() -> None:
         config=config,
     )
 
-    assert result.status == "insufficient"
+    assert result.status == "estimated"
     assert result.estimate.estimate_kind == "DECISION_TIME"
-    assert result.estimate.source == "INSUFFICIENT"
+    assert result.estimate.source == "COHORT"
     assert result.estimate.training_cutoff_at == prediction.source_data_cutoff_at
-    assert repository.estimates[0] is result.estimate
 
 
 def test_decision_time_contract_rejects_evidence_maturing_at_or_after_cutoff() -> None:
@@ -99,3 +112,18 @@ def _outcome(datetime_at: datetime | None = None, *, matured_at: datetime | None
         status="MATURED" if matured_at else "PENDING",
         matured_at=matured_at or datetime_at,
     )
+
+
+class FakeProbabilityEstimator:
+    def __init__(self, estimate: WinnerProbabilityEstimate) -> None:
+        self.estimate = estimate
+
+    def create_decision_time_estimate(self, _db, **_kwargs):
+        return type(
+            "Result",
+            (),
+            {
+                "estimate": self.estimate,
+                "status": "estimated",
+            },
+        )()
