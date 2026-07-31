@@ -31,6 +31,7 @@ from app.services.pipeline_service import (
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 from app.services.sector_rotation_service import SectorRotationService
 from app.services.technical_score_service import score_run_technicals
+from app.settings import get_settings
 
 
 class PipelineCancelled(Exception):
@@ -75,6 +76,13 @@ class PipelineExecutionResult:
     sector_rotation_leading_sector: str | None
     sector_rotation_weakest_sector: str | None
     sector_rotation_warning_count: int
+    winner_prediction_inserted: int
+    winner_prediction_duplicate: int
+    winner_prediction_excluded: int
+    winner_prediction_failed: int
+    winner_prediction_pending_outcomes: int
+    winner_prediction_decision_time_estimates: int
+    winner_prediction_capture_skipped: int
     incomplete_rows: int
     warning_rows: int
 
@@ -85,13 +93,15 @@ class PipelineExecutionDependencies:
     build_fetch_plan: Callable[..., FetchPlan] = build_fetch_plan
     execute_fetch_plan: Callable[..., IBFetchRun] = execute_fetch_plan
     score_technicals: Callable[[Session, int], list[Any]] = score_run_technicals
-    build_market_regime_snapshot: Callable[
-        [Session, int], MarketRegimeCommandCenterDto
-    ] = build_market_regime_snapshot_for_run
+    build_market_regime_snapshot: Callable[[Session, int], MarketRegimeCommandCenterDto] = (
+        build_market_regime_snapshot_for_run
+    )
     refresh_combined: Callable[[Session, int], list[CombinedResult]] = refresh_combined_results
-    build_sector_rotation_snapshot: Callable[
-        [Session, int], SectorRotationSnapshotDto
-    ] = build_sector_rotation_snapshot_for_run
+    build_sector_rotation_snapshot: Callable[[Session, int], SectorRotationSnapshotDto] = (
+        build_sector_rotation_snapshot_for_run
+    )
+    capture_winner_predictions: Callable[[Session, int], Any] | None = None
+    winner_probability_capture_enabled: bool | None = None
 
 
 def execute_full_pipeline(
@@ -175,13 +185,18 @@ def execute_full_pipeline(
             result["sector_rotation_sector_count"] = int(
                 sector_snapshot.summary.get("sector_count") or len(sector_snapshot.rows)
             )
-            result["sector_rotation_leading_sector"] = sector_snapshot.summary.get(
-                "leading_sector"
-            )
-            result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get(
-                "weakest_sector"
-            )
+            result["sector_rotation_leading_sector"] = sector_snapshot.summary.get("leading_sector")
+            result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get("weakest_sector")
             result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
+
+        _raise_if_cancelled(should_cancel)
+        with _pipeline_step(db, pipeline, "CAPTURING_WINNER_PREDICTIONS"):
+            if _winner_probability_capture_enabled(dependencies):
+                capture = dependencies.capture_winner_predictions or _capture_winner_predictions
+                capture_result = capture(db, upload_run.id)
+                _apply_winner_capture_result(result, capture_result)
+            else:
+                result["winner_prediction_capture_skipped"] = 1
 
         final_status = _final_pipeline_status(result)
         _mark_pipeline_finished(db, pipeline, final_status, result)
@@ -337,6 +352,7 @@ def _pipeline_status_for_step(step_name: str) -> str:
         PipelineStatus.MARKET_REGIME_SNAPSHOT,
         PipelineStatus.COMBINING_RESULTS,
         PipelineStatus.SECTOR_ROTATION_SNAPSHOT,
+        PipelineStatus.CAPTURING_WINNER_PREDICTIONS,
     }:
         return step_name
     return PipelineStatus.RUNNING
@@ -368,6 +384,7 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
         or result["technical_error_count"]
         or result["fetch_failed"]
         or result["market_regime_low_confidence"]
+        or result["winner_prediction_failed"]
     ):
         return PipelineStatus.PARTIAL
     return PipelineStatus.COMPLETED
@@ -410,6 +427,13 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
         "sector_rotation_leading_sector": None,
         "sector_rotation_weakest_sector": None,
         "sector_rotation_warning_count": 0,
+        "winner_prediction_inserted": 0,
+        "winner_prediction_duplicate": 0,
+        "winner_prediction_excluded": 0,
+        "winner_prediction_failed": 0,
+        "winner_prediction_pending_outcomes": 0,
+        "winner_prediction_decision_time_estimates": 0,
+        "winner_prediction_capture_skipped": 0,
         "incomplete_rows": 0,
         "warning_rows": 0,
         "fetch_failed": 0,
@@ -443,6 +467,15 @@ def _to_execution_result(
         sector_rotation_leading_sector=result["sector_rotation_leading_sector"],
         sector_rotation_weakest_sector=result["sector_rotation_weakest_sector"],
         sector_rotation_warning_count=result["sector_rotation_warning_count"],
+        winner_prediction_inserted=result["winner_prediction_inserted"],
+        winner_prediction_duplicate=result["winner_prediction_duplicate"],
+        winner_prediction_excluded=result["winner_prediction_excluded"],
+        winner_prediction_failed=result["winner_prediction_failed"],
+        winner_prediction_pending_outcomes=result["winner_prediction_pending_outcomes"],
+        winner_prediction_decision_time_estimates=result[
+            "winner_prediction_decision_time_estimates"
+        ],
+        winner_prediction_capture_skipped=result["winner_prediction_capture_skipped"],
         incomplete_rows=result["incomplete_rows"],
         warning_rows=result["warning_rows"],
     )
@@ -452,7 +485,8 @@ def _public_result(result: dict[str, Any]) -> dict[str, Any]:
     return {
         key: value
         for key, value in result.items()
-        if key not in {
+        if key
+        not in {
             "fetch_failed",
             "technical_error_count",
             "market_regime_low_confidence",
@@ -462,6 +496,32 @@ def _public_result(result: dict[str, Any]) -> dict[str, Any]:
 
 def _safe_message(message: str) -> str:
     return message.replace("\n", " ").strip()[:500]
+
+
+def _winner_probability_capture_enabled(dependencies: PipelineExecutionDependencies) -> bool:
+    if dependencies.winner_probability_capture_enabled is not None:
+        return dependencies.winner_probability_capture_enabled
+    return get_settings().winner_probability_capture_in_pipeline
+
+
+def _capture_winner_predictions(db: Session, run_id: int):
+    from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
+
+    return WinnerPredictionCaptureService().capture_run(db, run_id=run_id)
+
+
+def _apply_winner_capture_result(result: dict[str, Any], capture_result: Any) -> None:
+    values = (
+        capture_result.as_dict() if hasattr(capture_result, "as_dict") else dict(capture_result)
+    )
+    result["winner_prediction_inserted"] = int(values.get("inserted", 0))
+    result["winner_prediction_duplicate"] = int(values.get("duplicate", 0))
+    result["winner_prediction_excluded"] = int(values.get("excluded", 0))
+    result["winner_prediction_failed"] = int(values.get("failed", 0))
+    result["winner_prediction_pending_outcomes"] = int(values.get("pending_outcomes", 0))
+    result["winner_prediction_decision_time_estimates"] = int(
+        values.get("decision_time_estimates", 0)
+    )
 
 
 def _utcnow() -> datetime:

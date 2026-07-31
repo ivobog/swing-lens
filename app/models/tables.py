@@ -1186,17 +1186,16 @@ class PredictionEligibility:
 
 
 class EntryScheduleStatus:
-    PLANNED = "PLANNED"
-    READY = "READY"
-    MISSING_SESSION = "MISSING_SESSION"
-    CANCELLED = "CANCELLED"
+    RESOLVED = "RESOLVED"
+    UNRESOLVED = "UNRESOLVED"
 
 
 class EntryDataStatus:
+    NOT_DUE = "NOT_DUE"
     PENDING = "PENDING"
-    READY = "READY"
-    MISSING_BAR = "MISSING_BAR"
-    INVALID_BAR = "INVALID_BAR"
+    AVAILABLE = "AVAILABLE"
+    MISSING = "MISSING"
+    INVALID = "INVALID"
 
 
 class OutcomeStatus:

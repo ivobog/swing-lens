@@ -48,6 +48,7 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
     assert result.sector_rotation_sector_count == 2
     assert result.sector_rotation_leading_sector == "Technology"
     assert result.sector_rotation_warning_count == 0
+    assert result.winner_prediction_capture_skipped == 1
     assert db.pipeline.status == PipelineStatus.COMPLETED
     assert db.pipeline.current_step is None
     assert db.pipeline.result_json["combined_results"] == 1
@@ -60,6 +61,35 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
     assert db.pipeline.result_json["sector_rotation_leading_sector"] == "Technology"
     assert db.pipeline.result_json["sector_rotation_warning_count"] == 0
     assert {step.status for step in db.steps} == {PipelineStepStatus.COMPLETED}
+
+
+def test_execute_full_pipeline_runs_winner_capture_when_enabled() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    calls = []
+    dependencies = _dependencies(
+        calls,
+        plan=_plan(estimated_request_count=0),
+        combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ],
+        winner_capture_enabled=True,
+    )
+
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert calls == [
+        "fundamentals",
+        "build_fetch_plan",
+        "technicals",
+        "market_regime",
+        "combined",
+        "sector_rotation",
+        "winner_capture",
+    ]
+    assert result.status == PipelineStatus.COMPLETED
+    assert result.winner_prediction_inserted == 1
+    assert result.winner_prediction_pending_outcomes == 10
+    assert result.winner_prediction_decision_time_estimates == 1
 
 
 def test_execute_full_pipeline_runs_fetch_before_technicals_and_finishes_partial() -> None:
@@ -172,7 +202,8 @@ def test_execute_full_pipeline_marks_pipeline_cancelled_before_next_step() -> No
     unfinished = [
         step.status
         for step in db.steps
-        if step.step_name in {
+        if step.step_name
+        in {
             "FETCHING_MARKET_DATA",
             "SCORING_TECHNICALS",
             "MARKET_REGIME_SNAPSHOT",
@@ -202,6 +233,7 @@ def _dependencies(
     market_regime_snapshot: object | None = None,
     combined_results: list[CombinedResult] | None = None,
     sector_rotation_snapshot: SectorRotationSnapshotDto | None = None,
+    winner_capture_enabled: bool | None = None,
 ) -> PipelineExecutionDependencies:
     plan = plan or _plan(estimated_request_count=0)
     fetch_run = fetch_run or IBFetchRun(
@@ -253,6 +285,14 @@ def _dependencies(
         calls.append("sector_rotation")
         return sector_rotation_snapshot
 
+    def winner_capture(_db, _run_id):
+        calls.append("winner_capture")
+        return {
+            "inserted": 1,
+            "pending_outcomes": 10,
+            "decision_time_estimates": 1,
+        }
+
     return PipelineExecutionDependencies(
         recalculate_fundamentals=fundamentals,
         build_fetch_plan=fetch_plan,
@@ -261,6 +301,8 @@ def _dependencies(
         build_market_regime_snapshot=market_regime,
         refresh_combined=combined,
         build_sector_rotation_snapshot=sector_rotation,
+        capture_winner_predictions=winner_capture,
+        winner_probability_capture_enabled=winner_capture_enabled,
     )
 
 
