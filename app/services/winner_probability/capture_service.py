@@ -81,6 +81,9 @@ class WinnerPredictionCaptureService:
         run_id: int,
         config: WinnerProbabilityConfig | None = None,
         captured_at: datetime | None = None,
+        reconstruction_method: str | None = None,
+        source_quality_flags: tuple[str, ...] = (),
+        production_training_allowed: bool = False,
         should_cancel: Callable[[], bool] | None = None,
     ) -> WinnerPredictionCaptureResult:
         config = config or load_winner_probability_config()
@@ -121,6 +124,9 @@ class WinnerPredictionCaptureService:
                     ticker_context=ticker_context,
                     features=features,
                     config=config,
+                    reconstruction_method=reconstruction_method,
+                    source_quality_flags=source_quality_flags,
+                    production_training_allowed=production_training_allowed,
                 )
                 assignment = self.episode_service.assign_episode(db, features, config)
                 prediction.episode_id = assignment.episode.id
@@ -177,6 +183,9 @@ class WinnerPredictionCaptureService:
         ticker_context: TickerCaptureContext,
         features: ExtractedPredictionFeatures,
         config: WinnerProbabilityConfig,
+        reconstruction_method: str | None,
+        source_quality_flags: tuple[str, ...],
+        production_training_allowed: bool,
     ) -> WinnerPredictionSnapshot:
         raw_row = ticker_context.raw_row
         technical = ticker_context.technical_score
@@ -244,7 +253,12 @@ class WinnerPredictionCaptureService:
             feature_json=features.feature_json,
             source_ids_json=features.source_ids_json,
             warning_flags_json=list(features.warnings),
-            lineage_json=features.lineage_json,
+            lineage_json={
+                **features.lineage_json,
+                "source_quality_flags": list(source_quality_flags),
+                "production_training_allowed": production_training_allowed,
+            },
+            reconstruction_method=reconstruction_method,
             retention_class="permanent",
         )
 

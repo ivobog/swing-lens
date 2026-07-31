@@ -10,6 +10,11 @@ from sqlalchemy.orm import Session
 from app.models.tables import BackgroundJob, WinnerPredictionSnapshot, WinnerProcessingRun
 from app.services.background_job_service import JobStatus, is_cancel_requested
 from app.services.background_worker import CancelRequested
+from app.services.winner_probability.backfill import (
+    BackfillRequest,
+    WinnerBackfillCancelled,
+    WinnerProbabilityBackfillService,
+)
 from app.services.winner_probability.capture_service import (
     WinnerPredictionCaptureCancelled,
     WinnerPredictionCaptureService,
@@ -26,6 +31,7 @@ WINNER_OUTCOME_REVISION_CHECK = "WINNER_OUTCOME_REVISION_CHECK"
 WINNER_COHORT_REFRESH = "WINNER_COHORT_REFRESH"
 WINNER_MODEL_TRAINING = "WINNER_MODEL_TRAINING"
 WINNER_SIMILARITY_CACHE = "WINNER_SIMILARITY_CACHE"
+WINNER_HISTORICAL_BACKFILL = "WINNER_HISTORICAL_BACKFILL"
 
 FEATURE_NOT_ENABLED = "FEATURE_NOT_ENABLED"
 
@@ -43,6 +49,7 @@ def implemented_winner_job_handlers() -> dict[str, WinnerJobHandler]:
     return {
         WINNER_PREDICTION_CAPTURE: execute_prediction_capture_job,
         WINNER_OUTCOME_MATURATION: execute_outcome_maturation_job,
+        WINNER_HISTORICAL_BACKFILL: execute_historical_backfill_job,
     }
 
 
@@ -203,6 +210,94 @@ def execute_outcome_maturation_job(
     }
 
 
+def execute_historical_backfill_job(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    backfill_service: WinnerProbabilityBackfillService | None = None,
+) -> dict[str, Any]:
+    payload = job.payload_json or {}
+    run_ids = tuple(_int_list(payload, "run_ids"))
+    trusted_run_ids = tuple(_int_list(payload, "trusted_run_ids", required=False))
+    limit = _optional_int(payload, "limit") or 100
+    reconstruction_method = str(payload.get("reconstruction_method") or "HISTORICAL_AS_OF_REPLAY")
+    allow_reconstructed_training = bool(payload.get("allow_reconstructed_training") or False)
+    config = load_winner_probability_config()
+    processing_run = _start_processing_run(
+        db,
+        job=job,
+        process_type=WINNER_HISTORICAL_BACKFILL,
+        run_id=None,
+        config_hash=config.config_hash,
+    )
+    backfill_service = backfill_service or WinnerProbabilityBackfillService()
+    started_at = processing_run.started_at or _utcnow()
+
+    try:
+        result = backfill_service.execute_backfill(
+            db,
+            BackfillRequest(
+                run_ids=run_ids,
+                trusted_run_ids=trusted_run_ids,
+                reconstruction_method=reconstruction_method,
+                limit=limit,
+                allow_reconstructed_training=allow_reconstructed_training,
+            ),
+            config=config,
+            should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+        )
+    except WinnerBackfillCancelled as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.CANCELLED,
+            started_at=started_at,
+            error=str(exc),
+        )
+        raise CancelRequested(str(exc)) from exc
+    except Exception as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.FAILED,
+            started_at=started_at,
+            error=str(exc),
+        )
+        raise
+
+    counts = {
+        "planned_runs": len(result.plan.items),
+        "ready_runs": result.plan.ready_count,
+        "skipped_runs": result.skipped_runs,
+        "captured_runs": result.captured_runs,
+        **result.counts,
+    }
+    status = (
+        JobStatus.PARTIAL
+        if result.skipped_runs or counts.get("failed", 0)
+        else JobStatus.COMPLETED
+    )
+    if status == JobStatus.PARTIAL:
+        job.status = JobStatus.PARTIAL
+    _finish_processing_run(
+        db,
+        processing_run,
+        status=status,
+        started_at=started_at,
+        counts=counts,
+        checkpoint={
+            "last_completed_phase": "historical_backfill",
+            "reconstruction_method": reconstruction_method,
+        },
+    )
+    return {
+        "job_type": WINNER_HISTORICAL_BACKFILL,
+        "processing_run_id": processing_run.id,
+        "status": status,
+        **counts,
+    }
+
+
 def _start_processing_run(
     db: Session,
     *,
@@ -286,6 +381,22 @@ def _optional_int(payload: dict[str, Any], key: str) -> int | None:
     if value is None:
         return None
     return _coerce_int(value, key)
+
+
+def _int_list(
+    payload: dict[str, Any],
+    key: str,
+    *,
+    required: bool = True,
+) -> list[int]:
+    value = payload.get(key)
+    if value is None:
+        if required:
+            raise ValueError(f"{WINNER_HISTORICAL_BACKFILL} job payload is missing {key}.")
+        return []
+    if not isinstance(value, list | tuple):
+        raise ValueError(f"{WINNER_HISTORICAL_BACKFILL} job payload has invalid {key}.")
+    return [_coerce_int(item, key) for item in value]
 
 
 def _coerce_int(value: Any, key: str) -> int:

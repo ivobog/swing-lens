@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    EstimateKind,
     WinnerForwardOutcome,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
@@ -51,6 +52,7 @@ class DecisionTimeEstimateService:
             db,
             prediction_id=prediction.id,
             outcome_definition_id=outcome_definition.id,
+            estimate_kind=_estimate_kind_for_prediction(prediction),
             source_version=COHORT_BASELINE_SOURCE_VERSION,
             training_cutoff_at=prediction.source_data_cutoff_at,
         )
@@ -78,3 +80,9 @@ class DecisionTimeEstimateService:
                 raise DecisionTimeEstimateContractError(
                     "decision-time evidence cannot mature at or after prediction cutoff"
                 )
+
+
+def _estimate_kind_for_prediction(prediction: WinnerPredictionSnapshot) -> str:
+    if prediction.reconstruction_method:
+        return EstimateKind.AS_OF_REPLAY
+    return EstimateKind.DECISION_TIME

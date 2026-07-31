@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    EstimateKind,
     EstimateSource,
     EvidenceGrade,
     WinnerCohortStatistic,
@@ -70,14 +71,19 @@ class ProbabilityEstimator:
         config: WinnerProbabilityConfig | None = None,
     ) -> ProbabilityEstimateResult:
         config = config or load_winner_probability_config()
+        estimate_kind = (
+            EstimateKind.AS_OF_REPLAY
+            if prediction.reconstruction_method
+            else ESTIMATE_KIND_DECISION_TIME
+        )
         return self._create_estimate(
             db,
             prediction=prediction,
             outcome_definition=outcome_definition,
-            estimate_kind=ESTIMATE_KIND_DECISION_TIME,
+            estimate_kind=estimate_kind,
             training_cutoff_at=prediction.source_data_cutoff_at,
             config=config,
-            reconstruction_method=None,
+            reconstruction_method=prediction.reconstruction_method,
         )
 
     def create_latest_rescore(

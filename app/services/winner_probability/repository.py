@@ -207,6 +207,7 @@ class WinnerProbabilityRepository:
         *,
         prediction_id: int,
         outcome_definition_id: int,
+        estimate_kind: str = "DECISION_TIME",
         source_version: str,
         training_cutoff_at,
     ) -> WinnerProbabilityEstimate | None:
@@ -214,7 +215,7 @@ class WinnerProbabilityRepository:
             select(WinnerProbabilityEstimate)
             .where(WinnerProbabilityEstimate.prediction_id == prediction_id)
             .where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition_id)
-            .where(WinnerProbabilityEstimate.estimate_kind == "DECISION_TIME")
+            .where(WinnerProbabilityEstimate.estimate_kind == estimate_kind)
             .where(WinnerProbabilityEstimate.source_version == source_version)
             .where(WinnerProbabilityEstimate.training_cutoff_at == training_cutoff_at)
         )
