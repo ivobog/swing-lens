@@ -9,7 +9,7 @@ from app.services.pipeline_executor import (
     PipelineExecutionDependencies,
     execute_full_pipeline,
 )
-from app.services.pipeline_service import PIPELINE_STEP_NAMES, PipelineStatus, PipelineStepStatus
+from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 
 
@@ -90,6 +90,55 @@ def test_execute_full_pipeline_runs_winner_capture_when_enabled() -> None:
     assert result.winner_prediction_inserted == 1
     assert result.winner_prediction_pending_outcomes == 10
     assert result.winner_prediction_decision_time_estimates == 1
+
+
+def test_execute_full_pipeline_runs_setup_lifecycle_steps_when_enabled() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"], setup_lifecycle_enabled=True)
+    calls = []
+    dependencies = _dependencies(
+        calls,
+        plan=_plan(estimated_request_count=0),
+        combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ],
+        setup_lifecycle_enabled=True,
+        setup_capture_result={
+            "snapshots_captured": 1,
+            "canonical_snapshots": 1,
+            "low_confidence": 0,
+            "failed": 0,
+        },
+        setup_evaluation_result={
+            "change_events": 2,
+            "lifecycle_transitions": 1,
+            "alerts": 1,
+            "active_episodes": 1,
+            "low_confidence": 0,
+            "failed": 0,
+        },
+    )
+
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert calls == [
+        "fundamentals",
+        "build_fetch_plan",
+        "technicals",
+        "market_regime",
+        "combined",
+        "sector_rotation",
+        "setup_capture",
+        "setup_evaluate",
+    ]
+    assert result.status == PipelineStatus.COMPLETED
+    assert result.setup_lifecycle_snapshots_captured == 1
+    assert result.setup_lifecycle_canonical_snapshots == 1
+    assert result.setup_lifecycle_change_events == 2
+    assert result.setup_lifecycle_transitions == 1
+    assert result.setup_lifecycle_alerts == 1
+    assert result.setup_lifecycle_active_episodes == 1
+    assert result.setup_lifecycle_capture_skipped == 0
+    assert result.setup_lifecycle_evaluation_skipped == 0
 
 
 def test_execute_full_pipeline_runs_fetch_before_technicals_and_finishes_partial() -> None:
@@ -233,6 +282,9 @@ def _dependencies(
     market_regime_snapshot: object | None = None,
     combined_results: list[CombinedResult] | None = None,
     sector_rotation_snapshot: SectorRotationSnapshotDto | None = None,
+    setup_lifecycle_enabled: bool | None = None,
+    setup_capture_result: dict[str, int] | None = None,
+    setup_evaluation_result: dict[str, int] | None = None,
     winner_capture_enabled: bool | None = None,
 ) -> PipelineExecutionDependencies:
     plan = plan or _plan(estimated_request_count=0)
@@ -285,6 +337,14 @@ def _dependencies(
         calls.append("sector_rotation")
         return sector_rotation_snapshot
 
+    def setup_capture(_db, _run_id):
+        calls.append("setup_capture")
+        return setup_capture_result or {}
+
+    def setup_evaluate(_db, _run_id):
+        calls.append("setup_evaluate")
+        return setup_evaluation_result or {}
+
     def winner_capture(_db, _run_id):
         calls.append("winner_capture")
         return {
@@ -301,6 +361,11 @@ def _dependencies(
         build_market_regime_snapshot=market_regime,
         refresh_combined=combined,
         build_sector_rotation_snapshot=sector_rotation,
+        capture_setup_signals=setup_capture if setup_capture_result is not None else None,
+        evaluate_setup_lifecycles=setup_evaluate
+        if setup_evaluation_result is not None
+        else None,
+        setup_lifecycle_pipeline_step_enabled=setup_lifecycle_enabled,
         capture_winner_predictions=winner_capture,
         winner_probability_capture_enabled=winner_capture_enabled,
     )
@@ -359,7 +424,11 @@ class FakeScalarResult:
 
 
 class PipelineExecutorFakeDb:
-    def __init__(self, tickers: list[str]) -> None:
+    def __init__(
+        self,
+        tickers: list[str],
+        setup_lifecycle_enabled: bool = False,
+    ) -> None:
         self.pipeline = PipelineRun(
             id=3,
             upload_run_id=7,
@@ -383,7 +452,12 @@ class PipelineExecutorFakeDb:
                 status=PipelineStepStatus.PENDING,
                 retry_count=0,
             )
-            for index, step_name in enumerate(PIPELINE_STEP_NAMES, start=1)
+            for index, step_name in enumerate(
+                pipeline_step_names(
+                    setup_lifecycle_pipeline_step_enabled=setup_lifecycle_enabled
+                ),
+                start=1,
+            )
         ]
         self.flushes = 0
         self.commits = 0

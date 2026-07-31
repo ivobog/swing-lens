@@ -8,12 +8,14 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import PipelineRun, PipelineStep, UploadRun
 from app.services.background_job_service import enqueue_job, request_job_cancel
+from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
+from app.settings import get_settings
 
 FULL_PIPELINE_JOB_TYPE = "FULL_PIPELINE"
 PIPELINE_JOB_PRIORITY = 100
 PIPELINE_JOB_MAX_RETRIES = 3
 
-PIPELINE_STEP_NAMES = (
+PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH = (
     "VALIDATING_RUN",
     "SCORING_FUNDAMENTALS",
     "FETCHING_MARKET_DATA",
@@ -21,6 +23,9 @@ PIPELINE_STEP_NAMES = (
     "MARKET_REGIME_SNAPSHOT",
     "COMBINING_RESULTS",
     "SECTOR_ROTATION_SNAPSHOT",
+)
+PIPELINE_STEP_NAMES = (
+    *PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH,
     "CAPTURING_WINNER_PREDICTIONS",
 )
 
@@ -37,6 +42,8 @@ class PipelineStatus:
     MARKET_REGIME_SNAPSHOT = "MARKET_REGIME_SNAPSHOT"
     COMBINING_RESULTS = "COMBINING_RESULTS"
     SECTOR_ROTATION_SNAPSHOT = "SECTOR_ROTATION_SNAPSHOT"
+    CAPTURING_SETUP_SIGNALS = "CAPTURING_SETUP_SIGNALS"
+    EVALUATING_SETUP_LIFECYCLES = "EVALUATING_SETUP_LIFECYCLES"
     CAPTURING_WINNER_PREDICTIONS = "CAPTURING_WINNER_PREDICTIONS"
     COMPLETED = "COMPLETED"
     PARTIAL = "PARTIAL"
@@ -85,22 +92,24 @@ def start_pipeline(
     db: Session,
     upload_run_id: int,
     requested_by: str | None = None,
+    setup_lifecycle_pipeline_step_enabled: bool | None = None,
 ) -> PipelineRun:
     upload_run = db.get(UploadRun, upload_run_id)
     if upload_run is None:
         raise ValueError(f"Upload run {upload_run_id} was not found.")
 
+    step_names = pipeline_step_names(setup_lifecycle_pipeline_step_enabled)
     pipeline = PipelineRun(
         upload_run_id=upload_run_id,
         status=PipelineStatus.PENDING,
-        current_step=PIPELINE_STEP_NAMES[0],
+        current_step=step_names[0],
         requested_by=requested_by,
         message="Full pipeline is queued.",
     )
     db.add(pipeline)
     db.flush()
 
-    for step_order, step_name in enumerate(PIPELINE_STEP_NAMES, start=1):
+    for step_order, step_name in enumerate(step_names, start=1):
         db.add(
             PipelineStep(
                 pipeline_run_id=pipeline.id,
@@ -123,6 +132,23 @@ def start_pipeline(
     pipeline.result_json = {"background_job_id": job.id}
     db.flush()
     return pipeline
+
+
+def pipeline_step_names(
+    setup_lifecycle_pipeline_step_enabled: bool | None = None,
+) -> tuple[str, ...]:
+    enabled = (
+        get_settings().setup_lifecycle_pipeline_step_enabled
+        if setup_lifecycle_pipeline_step_enabled is None
+        else setup_lifecycle_pipeline_step_enabled
+    )
+    if not enabled:
+        return PIPELINE_STEP_NAMES
+    return (
+        *PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH,
+        *SLSE_PIPELINE_STEPS,
+        "CAPTURING_WINNER_PREDICTIONS",
+    )
 
 
 def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:

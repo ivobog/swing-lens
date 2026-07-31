@@ -9,8 +9,10 @@ from app.services.pipeline_service import (
     PipelineStepStatus,
     cancel_pipeline,
     get_pipeline_status,
+    pipeline_step_names,
     start_pipeline,
 )
+from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 
 
 def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
@@ -39,6 +41,33 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     assert job.status == JobStatus.QUEUED
     assert job.payload_json == {"pipeline_run_id": pipeline.id}
     assert pipeline.result_json == {"background_job_id": job.id}
+
+
+def test_pipeline_step_names_insert_setup_lifecycle_only_when_enabled() -> None:
+    assert pipeline_step_names(setup_lifecycle_pipeline_step_enabled=False) == PIPELINE_STEP_NAMES
+
+    enabled_steps = pipeline_step_names(setup_lifecycle_pipeline_step_enabled=True)
+
+    sector_index = enabled_steps.index("SECTOR_ROTATION_SNAPSHOT")
+    winner_index = enabled_steps.index("CAPTURING_WINNER_PREDICTIONS")
+    assert enabled_steps[sector_index + 1 : winner_index] == SLSE_PIPELINE_STEPS
+
+
+def test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled() -> None:
+    upload_run = UploadRun(id=7, filename="sample.csv", status="COMPLETED")
+    db = FakeDb(upload_runs={7: upload_run})
+
+    pipeline = start_pipeline(
+        db,
+        upload_run_id=7,
+        setup_lifecycle_pipeline_step_enabled=True,
+    )
+
+    steps = db.pipeline_steps_for(pipeline.id)
+    assert [step.step_name for step in steps] == list(
+        pipeline_step_names(setup_lifecycle_pipeline_step_enabled=True)
+    )
+    assert [step.step_order for step in steps] == list(range(1, 11))
 
 
 def test_start_pipeline_raises_for_missing_upload_run() -> None:
