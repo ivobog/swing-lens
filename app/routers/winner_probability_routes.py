@@ -4,7 +4,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -39,11 +39,215 @@ from app.services.winner_probability.outcome_explorer_service import (
     OutcomeExplorerService,
 )
 from app.services.winner_probability.reproduction_service import ReproductionService
+from app.templates import templates
 
 router = APIRouter(tags=["winner-probability"])
 DbSession = Annotated[Session, Depends(get_db)]
 
 LOCAL_ADMIN_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
+
+
+@router.get("/runs/{run_id}/winner-probability", response_class=HTMLResponse)
+def winner_probability_run_page(
+    run_id: int,
+    request: Request,
+    db: DbSession,
+    outcome_definition_id: str | None = None,
+    estimate_view: str = "DECISION_TIME",
+    sort: str = "lower_bound",
+    direction: str = "desc",
+    probability_min: float | None = None,
+    lower_bound_min: float | None = None,
+    interval_width_max: float | None = None,
+    evidence_grade: str | None = None,
+    effective_sample_size_min: int | None = None,
+    median_return_min: float | None = None,
+    mfe_min: float | None = None,
+    mae_max: float | None = None,
+    target_first_rate_min: float | None = None,
+    earnings_risk: str | None = None,
+    market_risk_state: str | None = None,
+    sector_state: str | None = None,
+    data_quality: str | None = None,
+) -> HTMLResponse:
+    run = _load_run(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} was not found.")
+    query = _api_query(
+        outcome_definition_id=outcome_definition_id,
+        estimate_view=estimate_view,
+        sort=sort,
+        direction=direction,
+        filters=WinnerProbabilityFilters(
+            probability_min=probability_min,
+            lower_bound_min=lower_bound_min,
+            interval_width_max=interval_width_max,
+            evidence_grade=evidence_grade,
+            effective_sample_size_min=effective_sample_size_min,
+            median_return_min=median_return_min,
+            mfe_min=mfe_min,
+            mae_max=mae_max,
+            target_first_rate_min=target_first_rate_min,
+            earnings_risk=earnings_risk,
+            market_risk_state=market_risk_state,
+            sector_state=sector_state,
+            data_quality=data_quality,
+        ),
+    )
+    payload, ui_error = _ui_payload_or_empty(
+        lambda: WinnerProbabilityApiService().get_run_evidence(
+            db,
+            run_id=run_id,
+            query=query,
+        )
+    )
+    return templates.TemplateResponse(
+        request,
+        "winner_probability_run.html",
+        {
+            "active_nav": "winner-probability",
+            "run": run,
+            "payload": payload,
+            "summary": _run_evidence_summary(payload),
+            "filters": {
+                "outcome_definition_id": outcome_definition_id or "",
+                "estimate_view": estimate_view,
+                "sort": sort,
+                "direction": direction,
+                "probability_min": probability_min,
+                "lower_bound_min": lower_bound_min,
+                "interval_width_max": interval_width_max,
+                "evidence_grade": evidence_grade or "",
+                "effective_sample_size_min": effective_sample_size_min,
+                "median_return_min": median_return_min,
+                "mfe_min": mfe_min,
+                "mae_max": mae_max,
+                "target_first_rate_min": target_first_rate_min,
+                "earnings_risk": earnings_risk or "",
+                "market_risk_state": market_risk_state or "",
+                "sector_state": sector_state or "",
+                "data_quality": data_quality or "",
+            },
+            "ui_error": ui_error,
+        },
+    )
+
+
+@router.get("/winner-probability/predictions/{prediction_id}", response_class=HTMLResponse)
+def winner_probability_prediction_page(
+    prediction_id: int,
+    request: Request,
+    db: DbSession,
+    outcome_definition_id: str | None = None,
+    estimate_view: str = "DECISION_TIME",
+    as_of_date: date | None = None,
+) -> HTMLResponse:
+    payload = _call_api(
+        lambda: WinnerProbabilityApiService().get_prediction_detail(
+            db,
+            prediction_id=prediction_id,
+            query=_api_query(
+                outcome_definition_id=outcome_definition_id,
+                estimate_view=estimate_view,
+                as_of_date=as_of_date,
+                outcome_revision_view="AS_OF" if as_of_date else "CURRENT",
+            ),
+        )
+    )
+    reproduction = None
+    selected_estimate = payload.get("selected_estimate")
+    if selected_estimate:
+        try:
+            reproduction = winner_probability_estimate_reproduction(
+                estimate_id=selected_estimate["id"],
+                db=db,
+            )
+        except HTTPException:
+            reproduction = None
+    return templates.TemplateResponse(
+        request,
+        "winner_probability_ticker.html",
+        {
+            "active_nav": "winner-probability",
+            "payload": payload,
+            "reproduction": reproduction,
+            "estimate_view": estimate_view,
+            "as_of_date": as_of_date.isoformat() if as_of_date else "",
+        },
+    )
+
+
+@router.get("/winner-probability/outcomes", response_class=HTMLResponse)
+def winner_probability_outcomes_page(
+    request: Request,
+    db: DbSession,
+    segment_by: str = "setup_family",
+    min_sample: int = 10,
+    estimate_view: str = "DECISION_TIME",
+) -> HTMLResponse:
+    payload, ui_error = _ui_payload_or_empty(
+        lambda: OutcomeExplorerService().explorer_table(
+            db,
+            query=OutcomeExplorerQuery(
+                segment_by=segment_by,
+                min_sample=min_sample,
+                api_query=_api_query(estimate_view=estimate_view),
+            ),
+        )
+    )
+    return templates.TemplateResponse(
+        request,
+        "winner_probability_outcomes.html",
+        {
+            "active_nav": "winner-probability",
+            "payload": payload or {"segments": []},
+            "segment_by": segment_by,
+            "min_sample": min_sample,
+            "estimate_view": estimate_view,
+            "ui_error": ui_error,
+        },
+    )
+
+
+@router.get("/winner-probability/operations", response_class=HTMLResponse)
+def winner_probability_operations_page(request: Request, db: DbSession) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "winner_probability_operations.html",
+        {
+            "active_nav": "winner-probability",
+            "status": WinnerProbabilityOperationsService().status(db),
+            "admin_enabled": _admin_enabled(request),
+        },
+    )
+
+
+@router.get("/winner-probability/models", response_class=HTMLResponse)
+def winner_probability_models_page(
+    request: Request,
+    db: DbSession,
+    model_id: int | None = None,
+) -> HTMLResponse:
+    service = WinnerProbabilityApiService()
+    models_payload = _call_api(lambda: service.list_models(db))
+    selected_id = model_id or _first_model_id(models_payload)
+    calibration = {"bins": []}
+    drift = {"metrics": []}
+    if selected_id is not None:
+        calibration = _call_api(lambda: service.get_model_calibration(db, model_id=selected_id))
+        drift = _call_api(lambda: service.get_model_drift(db, model_id=selected_id))
+    return templates.TemplateResponse(
+        request,
+        "winner_probability_models.html",
+        {
+            "active_nav": "winner-probability",
+            "models": models_payload.get("models", []),
+            "selected_model_id": selected_id,
+            "calibration": calibration,
+            "drift": drift,
+            "admin_enabled": _admin_enabled(request),
+        },
+    )
 
 
 @router.get("/api/winner-probability/run/{run_id}")
@@ -442,6 +646,51 @@ def _require_run(db: Session, run_id: int) -> None:
     exists = db.scalar(select(UploadRun.id).where(UploadRun.id == run_id))
     if exists is None:
         raise HTTPException(status_code=404, detail=f"Run {run_id} was not found.")
+
+
+def _load_run(db: Session, run_id: int) -> UploadRun | None:
+    return db.get(UploadRun, run_id)
+
+
+def _admin_enabled(request: Request) -> bool:
+    settings = getattr(request.app.state, "settings", None)
+    return bool(settings and settings.winner_probability_admin_enabled)
+
+
+def _ui_payload_or_empty(callback) -> tuple[dict, dict[str, str] | None]:
+    try:
+        return callback(), None
+    except WinnerProbabilityApiError as exc:
+        if exc.code in {"INVALID_OUTCOME_DEFINITION", "PREDICTION_NOT_FOUND"}:
+            return {"items": [], "segments": []}, {"code": exc.code, "message": str(exc)}
+        raise
+    except ValueError as exc:
+        return {"items": [], "segments": []}, {"code": "INVALID_REQUEST", "message": str(exc)}
+
+
+def _run_evidence_summary(payload: dict) -> dict[str, int]:
+    rows = payload.get("items", [])
+    estimates = [row.get("estimate") for row in rows if row.get("estimate")]
+    calibrated = [
+        estimate for estimate in estimates if estimate.get("point_probability") is not None
+    ]
+    insufficient = [
+        estimate
+        for estimate in estimates
+        if estimate.get("evidence_grade") == "Insufficient"
+        or estimate.get("point_probability") is None
+    ]
+    return {
+        "row_count": len(rows),
+        "estimate_count": len(estimates),
+        "calibrated_count": len(calibrated),
+        "insufficient_count": len(insufficient),
+    }
+
+
+def _first_model_id(payload: dict) -> int | None:
+    models = payload.get("models", [])
+    return models[0]["id"] if models else None
 
 
 def _api_query(

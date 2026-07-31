@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Winner Outcome Explorer{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/winner_probability.js') }}" defer></script>
+
+<section class="panel winner-probability-hero" data-winner-probability-page>
+  <div class="panel-header run-header">
+    <div>
+      <h1>Outcome Explorer</h1>
+      <p>Segmented target-before-stop evidence with low-sample cells marked before interpretation.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/api/winner-probability/outcomes/explorer/export.csv?segment_by={{ segment_by }}&min_sample={{ min_sample }}">CSV</a>
+      <a class="button-link secondary" href="/winner-probability/operations">Operations</a>
+      <a class="button-link secondary" href="/winner-probability/models">Model Health</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-muted">{{ estimate_view }}</span>
+    <span>Suppression threshold {{ min_sample }}</span>
+    <span>Research evidence only</span>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Segment View</h2></div></div>
+  <form class="winner-filter-grid compact-winner-filter" method="get">
+    <label><span>Segment by</span>
+      <select name="segment_by">
+        {% for value, label in [
+          ("setup_family", "Setup family"),
+          ("setup_classification", "Technical classification"),
+          ("ranking_profile", "Ranking profile"),
+          ("market_regime", "Market regime"),
+          ("market_risk_state", "Market risk"),
+          ("sector_state", "Sector state"),
+          ("earnings_risk_level", "Earnings risk"),
+          ("technical_data_quality", "Data quality")
+        ] %}
+          <option value="{{ value }}" {{ "selected" if segment_by == value else "" }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Estimate view</span>
+      <select name="estimate_view">
+        <option value="DECISION_TIME" {{ "selected" if estimate_view == "DECISION_TIME" else "" }}>Decision time</option>
+        <option value="LATEST" {{ "selected" if estimate_view in ["LATEST", "LATEST_RESCORE"] else "" }}>Latest re-score</option>
+      </select>
+    </label>
+    <label><span>Min sample</span><input name="min_sample" type="number" min="0" step="1" value="{{ min_sample }}"></label>
+    <div class="actions winner-filter-actions"><button type="submit">Apply</button></div>
+  </form>
+</section>
+
+{% if ui_error %}
+  <section class="empty-state section-gap">
+    <strong>{{ ui_error.code|replace("_", " ")|title }}</strong>
+    <p>{{ ui_error.message }}</p>
+  </section>
+{% endif %}
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Segment Statistics</h2></div></div>
+  {% if payload.segments %}
+    <div class="table-wrap">
+      <table class="winner-table">
+        <thead>
+          <tr>
+            <th>Segment</th>
+            <th>Sample</th>
+            <th>Status</th>
+            <th>Mean Probability</th>
+            <th>Mean Lower Bound</th>
+            <th>Evidence Grades</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in payload.segments %}
+            <tr>
+              <td><strong>{{ row.segment_value }}</strong><small>{{ row.segment|replace("_", " ")|title }}</small></td>
+              <td>{{ row.sample_n }}</td>
+              <td>
+                {% if row.suppressed %}
+                  <span class="badge badge-warning">Low sample</span>
+                {% else %}
+                  <span class="badge badge-success">Visible</span>
+                {% endif %}
+              </td>
+              <td>{{ "%.0f"|format(row.mean_probability * 100) ~ "%" if row.mean_probability is not none else "Suppressed" }}</td>
+              <td>{{ "%.0f"|format(row.mean_lower_bound * 100) ~ "%" if row.mean_lower_bound is not none else "Suppressed" }}</td>
+              <td>
+                <div class="badge-list">
+                  {% for grade, count in row.evidence_grade_counts.items() %}
+                    <span class="badge badge-muted">{{ grade }} {{ count }}</span>
+                  {% else %}
+                    <span class="badge badge-muted">No estimates</span>
+                  {% endfor %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <strong>No matured evidence is available yet.</strong>
+      <p>Once outcomes mature, this view compares segment behavior while marking insufficient groups.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

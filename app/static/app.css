@@ -1254,6 +1254,75 @@ td a {
   white-space: normal;
 }
 
+.winner-probability-hero p {
+  max-width: 820px;
+}
+
+.winner-probability-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.winner-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.compact-winner-filter {
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) auto;
+}
+
+.winner-filter-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.winner-filter-grid input,
+.winner-filter-grid select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.winner-filter-actions {
+  align-self: end;
+}
+
+.winner-table td small,
+.winner-table td code,
+.winner-table td .muted-inline {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: normal;
+}
+
+.winner-table th,
+.winner-table td {
+  white-space: nowrap;
+}
+
+.winner-table td:first-child,
+.winner-table td:last-child {
+  white-space: normal;
+}
+
+.winner-two-col {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
 .regime-change-row td {
   background: var(--info-soft);
 }
@@ -1314,12 +1383,16 @@ td a {
   .market-two-col,
   .market-participation-grid,
   .sector-rotation-metrics,
+  .winner-probability-metrics,
   .sector-rotation-two-col,
   .sector-rotation-three-col,
   .sector-reason-grid,
   .cockpit-toolbar,
   .cockpit-controls,
-  .history-filters {
+  .history-filters,
+  .winner-filter-grid,
+  .compact-winner-filter,
+  .winner-two-col {
     grid-template-columns: 1fr;
   }
 
@@ -1345,12 +1418,14 @@ td a {
   .warning-grid,
   .market-participation-grid,
   .sector-rotation-metrics,
+  .winner-probability-metrics,
   .sector-reason-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .sector-rotation-two-col,
-  .sector-rotation-three-col {
+  .sector-rotation-three-col,
+  .winner-two-col {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1359,6 +1434,11 @@ td a {
   }
 
   .history-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .winner-filter-grid,
+  .compact-winner-filter {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 

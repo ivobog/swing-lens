@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Winner Probability Model Health{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/winner_probability.js') }}" defer></script>
+
+<section class="panel winner-probability-hero" data-winner-probability-page>
+  <div class="panel-header run-header">
+    <div>
+      <h1>Model Health</h1>
+      <p>Calibration, drift, and lifecycle state for OWPE model and cohort sources.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/winner-probability/outcomes">Outcome Explorer</a>
+      <a class="button-link secondary" href="/winner-probability/operations">Operations</a>
+      <a class="button-link secondary" href="/api/winner-probability/models">JSON</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-muted">Promotion and retirement are local audited actions</span>
+    <span>{{ "Admin enabled" if admin_enabled else "Admin disabled" }}</span>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Registered Models</h2></div></div>
+  {% if models %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Status</th>
+            <th>Algorithm</th>
+            <th>Entry</th>
+            <th>Training Cutoff</th>
+            <th>Brier</th>
+            <th>Log Loss</th>
+            <th>ECE</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for model in models %}
+            <tr>
+              <td><strong>{{ model.model_key }}</strong><small>{{ model.artifact_hash }}</small></td>
+              <td><span class="badge badge-{{ 'success' if model.status == 'ACTIVE' else 'warning' if model.status == 'SHADOW' else 'muted' }}">{{ model.status }}</span></td>
+              <td>{{ model.algorithm }}</td>
+              <td>{{ model.entry_model }}</td>
+              <td>{{ model.training_cutoff_at }}</td>
+              <td>{{ "%.4f"|format(model.metrics.brier_score) if model.metrics.brier_score is number else "" }}</td>
+              <td>{{ "%.4f"|format(model.metrics.log_loss) if model.metrics.log_loss is number else "" }}</td>
+              <td>{{ "%.4f"|format(model.metrics.ece) if model.metrics.ece is number else "" }}</td>
+              <td>
+                <a href="/winner-probability/models?model_id={{ model.id }}">Health</a>
+                {% if admin_enabled and model.status != "RETIRED" %}
+                  <form method="post" action="/api/winner-probability/models/{{ model.id }}/retire" data-loading-form data-confirm="Retire this model version?">
+                    <button class="secondary compact-link" type="submit" data-loading-label="Retiring...">Retire</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <strong>No model versions are registered.</strong>
+      <p>The cohort baseline can still serve decision-time evidence; model promotion remains blocked until governance checks exist.</p>
+    </div>
+  {% endif %}
+</section>
+
+<section class="grid section-gap winner-two-col">
+  <div>
+    <h2>Calibration Bins</h2>
+    {% if calibration.bins %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Bin</th>
+              <th>n</th>
+              <th>Mean Prediction</th>
+              <th>Observed</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in calibration.bins %}
+              <tr>
+                <td>{{ "%.0f"|format(row.bin_floor * 100) }}-{{ "%.0f"|format(row.bin_ceiling * 100) }}%</td>
+                <td>{{ row.sample_n }}</td>
+                <td>{{ "%.0f"|format(row.mean_prediction * 100) ~ "%" if row.mean_prediction is not none else "" }}</td>
+                <td>{{ "%.0f"|format(row.observed_rate * 100) ~ "%" if row.observed_rate is not none else "" }}</td>
+                <td>{{ "%.4f"|format(row.error) if row.error is not none else "" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><strong>No calibration bins yet.</strong></div>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Drift Indicators</h2>
+    {% if drift.metrics %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>As Of</th>
+              <th>Metric</th>
+              <th>Value</th>
+              <th>Threshold</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in drift.metrics %}
+              <tr>
+                <td>{{ row.as_of_date }}</td>
+                <td>{{ row.metric_name }}</td>
+                <td>{{ "%.4f"|format(row.metric_value) if row.metric_value is not none else "" }}</td>
+                <td>{{ "%.4f"|format(row.threshold_value) if row.threshold_value is not none else "" }}</td>
+                <td><span class="badge badge-{{ 'danger' if row.breached else 'success' if row.sufficient_sample else 'warning' }}">{{ "Breached" if row.breached else "OK" if row.sufficient_sample else "Insufficient" }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><strong>No drift metrics yet.</strong></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
