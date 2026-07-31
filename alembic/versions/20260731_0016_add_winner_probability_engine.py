@@ -7,8 +7,9 @@ Create Date: 2026-07-31 00:00:00.000000
 
 from collections.abc import Sequence
 
-from alembic import op
+import sqlalchemy as sa
 
+from alembic import op
 from app.models.tables import (
     WinnerCalibrationBin,
     WinnerCohortDefinition,
@@ -77,6 +78,13 @@ OWPE_TABLE_NAMES = (
 
 
 def upgrade() -> None:
+    op.alter_column(
+        "alembic_version",
+        "version_num",
+        existing_type=sa.String(length=32),
+        type_=sa.String(length=64),
+        existing_nullable=False,
+    )
     bind = op.get_bind()
     for table in OWPE_TABLES:
         table.create(bind=bind, checkfirst=False)
