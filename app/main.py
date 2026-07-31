@@ -14,6 +14,7 @@ from app.routers import (
     run_routes,
     sector_rotation_routes,
     upload_routes,
+    winner_probability_routes,
 )
 from app.services.background_worker import run_worker
 from app.settings import Settings, get_settings
@@ -75,6 +76,7 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     app.include_router(sector_rotation_routes.router)
     app.include_router(gui_routes.router)
     app.include_router(ib_routes.router)
+    app.include_router(winner_probability_routes.router)
     return app
 
 

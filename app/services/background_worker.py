@@ -137,7 +137,12 @@ def execute_job(
 
 
 def default_job_handlers() -> dict[str, JobHandler]:
-    return {"FULL_PIPELINE": _execute_full_pipeline_job}
+    from app.services.winner_probability.job_handlers import implemented_winner_job_handlers
+
+    return {
+        "FULL_PIPELINE": _execute_full_pipeline_job,
+        **implemented_winner_job_handlers(),
+    }
 
 
 def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any] | None:

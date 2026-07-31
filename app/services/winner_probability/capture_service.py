@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -30,6 +31,10 @@ from app.services.winner_probability.repository import (
 
 
 class WinnerPredictionCaptureConflict(ValueError):
+    pass
+
+
+class WinnerPredictionCaptureCancelled(RuntimeError):
     pass
 
 
@@ -76,6 +81,7 @@ class WinnerPredictionCaptureService:
         run_id: int,
         config: WinnerProbabilityConfig | None = None,
         captured_at: datetime | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> WinnerPredictionCaptureResult:
         config = config or load_winner_probability_config()
         captured_at = captured_at or datetime.now(UTC)
@@ -83,6 +89,8 @@ class WinnerPredictionCaptureService:
 
         totals = _MutableCaptureCounts()
         for ticker_context in run_context.tickers:
+            if should_cancel is not None and should_cancel():
+                raise WinnerPredictionCaptureCancelled("winner prediction capture was cancelled")
             try:
                 features = self.feature_extractor.extract(
                     run_context,
