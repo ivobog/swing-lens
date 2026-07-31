@@ -1,0 +1,224 @@
+engine:
+  enabled: false
+  feature_schema_version: owpe-features-1.0.0
+  calculation_version: owpe-calc-1.0.0
+
+entry_models:
+  production: NEXT_OPEN
+  diagnostics:
+    - SIGNAL_CLOSE_DIAGNOSTIC
+
+horizon:
+  counting_convention: ENTRY_SESSION_IS_SESSION_1
+  sessions:
+    - 1
+    - 3
+    - 5
+    - 10
+    - 20
+
+pending_outcomes:
+  materialize_at_capture: true
+
+estimate_kinds:
+  - DECISION_TIME
+  - LATEST_RESCORE
+
+estimate_views:
+  decision_time: DECISION_TIME
+  latest_rescore: LATEST_RESCORE
+  as_of: AS_OF
+  current: CURRENT
+
+outcome_definitions:
+  - id: T2_5_S2_0_H5_NEXT_OPEN
+    label: "+2.5% target before -2.0% stop within 5 sessions"
+    entry_model: NEXT_OPEN
+    horizon_sessions: 5
+    target_pct: 2.5
+    stop_pct: 2.0
+    same_bar_conflict_policy: CONSERVATIVE_STOP_FIRST
+    primary: true
+  - id: T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC
+    label: "+2.5% target before -2.0% stop within 5 signal-close sessions"
+    entry_model: SIGNAL_CLOSE_DIAGNOSTIC
+    horizon_sessions: 5
+    target_pct: 2.5
+    stop_pct: 2.0
+    same_bar_conflict_policy: CONSERVATIVE_STOP_FIRST
+    primary: false
+
+episode:
+  cooldown_sessions: 5
+  dependency_keys:
+    - ticker
+    - setup_family
+    - trigger_state
+
+cohort:
+  prior_strength: 20
+  prior_probability: 0.5
+  min_coverage: 0.75
+  max_interval_width: 0.35
+  hierarchy:
+    - level: L0
+      dimensions:
+        - setup_family
+        - dual_score_band
+        - market_risk_state
+        - sector_state
+        - ranking_profile
+      min_effective_n: 100
+    - level: L1
+      dimensions:
+        - setup_family
+        - score_band
+        - market_risk_state
+        - sector_leadership_bucket
+      min_effective_n: 40
+    - level: L2
+      dimensions:
+        - setup_family
+        - score_band
+        - market_regime_family
+      min_effective_n: 25
+    - level: L3
+      dimensions:
+        - setup_family
+        - score_band
+      min_effective_n: 15
+    - level: L4
+      dimensions:
+        - setup_family
+      min_effective_n: 15
+    - level: L5
+      dimensions:
+        - global
+      min_effective_n: 15
+
+evidence_grades:
+  high:
+    min_effective_n: 100
+    max_interval_width: 0.20
+  medium:
+    min_effective_n: 40
+    max_interval_width: 0.30
+  low:
+    min_effective_n: 15
+    max_interval_width: 0.40
+  insufficient:
+    min_effective_n: 0
+    max_interval_width: 1.00
+
+evidence_membership:
+  persistence: ROWS
+  include_outcome_revision: true
+  compressed_manifest_threshold: 10000
+  manifest_hash_algorithm: sha256
+
+cold_start:
+  show_raw_evidence_counts: true
+  show_insufficient_reasons: true
+  minimum_display_n: 5
+
+drift:
+  windows_sessions:
+    short: 20
+    medium: 60
+    long: 120
+  thresholds:
+    brier_score_delta: 0.05
+    ece_delta: 0.04
+    win_rate_delta: 0.10
+    psi: 0.20
+    min_sample: 40
+
+retention:
+  permanent:
+    - prediction_snapshots
+    - outcome_revisions
+    - decision_time_estimates
+    - evidence_membership
+    - evidence_manifests
+    - model_versions
+    - cohort_versions
+    - training_runs
+    - lifecycle_events
+  rebuildable:
+    - neighbor_caches
+    - temporary_aggregates
+    - export_files
+    - operational_logs
+  operational_log_retention_days: 90
+
+api:
+  default_view: CURRENT
+  default_estimate_kind: DECISION_TIME
+  max_as_of_window_days: 3650
+  max_page_size: 500
+
+feature_schema:
+  version: owpe-features-1.0.0
+  core_features:
+    - setup_family
+    - ranking_profile
+    - fundamental_score
+    - technical_score
+    - combined_score
+    - market_regime
+    - market_risk_state
+    - sector_state
+    - sector_rank
+    - reward_risk
+    - earnings_risk
+    - technical_data_quality
+    - fundamental_coverage
+    - universe_provenance
+    - screener_provenance
+
+filters:
+  probability:
+    min: 0.0
+    max: 1.0
+  lower_bound:
+    min: 0.0
+    max: 1.0
+  interval_width:
+    min: 0.0
+    max: 1.0
+  expected_return_pct:
+    min: -100.0
+    max: 1000.0
+  median_return_pct:
+    min: -100.0
+    max: 1000.0
+  mfe_pct:
+    min: 0.0
+    max: 1000.0
+  mae_pct:
+    min: -1000.0
+    max: 0.0
+  target_first_rate:
+    min: 0.0
+    max: 1.0
+  effective_sample_size:
+    min: 0
+  evidence_grade:
+    allowed:
+      - High
+      - Medium
+      - Low
+      - Insufficient
+  earnings_risk:
+    allowed:
+      - none
+      - low
+      - medium
+      - high
+      - unknown
+  data_quality:
+    allowed:
+      - ok
+      - warning
+      - insufficient
+      - unknown
