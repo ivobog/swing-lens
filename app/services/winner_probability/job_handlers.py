@@ -15,6 +15,10 @@ from app.services.winner_probability.capture_service import (
     WinnerPredictionCaptureService,
 )
 from app.services.winner_probability.config import load_winner_probability_config
+from app.services.winner_probability.outcome_service import (
+    OutcomeMaturationCancelled,
+    OutcomeMaturationService,
+)
 
 WINNER_PREDICTION_CAPTURE = "WINNER_PREDICTION_CAPTURE"
 WINNER_OUTCOME_MATURATION = "WINNER_OUTCOME_MATURATION"
@@ -36,7 +40,10 @@ class WinnerJobFeatureNotEnabled(RuntimeError):
 
 
 def implemented_winner_job_handlers() -> dict[str, WinnerJobHandler]:
-    return {WINNER_PREDICTION_CAPTURE: execute_prediction_capture_job}
+    return {
+        WINNER_PREDICTION_CAPTURE: execute_prediction_capture_job,
+        WINNER_OUTCOME_MATURATION: execute_outcome_maturation_job,
+    }
 
 
 def disabled_winner_job_handler(job_type: str) -> WinnerJobHandler:
@@ -123,6 +130,73 @@ def execute_prediction_capture_job(
     return {
         "job_type": WINNER_PREDICTION_CAPTURE,
         "run_id": run_id,
+        "processing_run_id": processing_run.id,
+        "status": status,
+        **counts,
+    }
+
+
+def execute_outcome_maturation_job(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    outcome_service: OutcomeMaturationService | None = None,
+) -> dict[str, Any]:
+    limit = _optional_int(job.payload_json or {}, "limit") or 500
+    config = load_winner_probability_config()
+    processing_run = _start_processing_run(
+        db,
+        job=job,
+        process_type=WINNER_OUTCOME_MATURATION,
+        run_id=None,
+        config_hash=config.config_hash,
+    )
+    outcome_service = outcome_service or OutcomeMaturationService()
+    started_at = processing_run.started_at or _utcnow()
+
+    try:
+        result = outcome_service.process_due_outcomes(
+            db,
+            limit=limit,
+            should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+        )
+    except OutcomeMaturationCancelled as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.CANCELLED,
+            started_at=started_at,
+            error=str(exc),
+        )
+        raise CancelRequested(str(exc)) from exc
+    except Exception as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.FAILED,
+            started_at=started_at,
+            error=str(exc),
+        )
+        raise
+
+    counts = result.as_dict()
+    status = (
+        JobStatus.PARTIAL
+        if counts.get("failed", 0) or counts.get("warnings", 0)
+        else JobStatus.COMPLETED
+    )
+    if status == JobStatus.PARTIAL:
+        job.status = JobStatus.PARTIAL
+    _finish_processing_run(
+        db,
+        processing_run,
+        status=status,
+        started_at=started_at,
+        counts=counts,
+        checkpoint={"last_completed_phase": "outcome_maturation", "limit": limit},
+    )
+    return {
+        "job_type": WINNER_OUTCOME_MATURATION,
         "processing_run_id": processing_run.id,
         "status": status,
         **counts,

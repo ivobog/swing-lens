@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.tables import UploadRun
 from app.services.background_job_service import enqueue_job
-from app.services.winner_probability.job_handlers import WINNER_PREDICTION_CAPTURE
+from app.services.winner_probability.job_handlers import (
+    WINNER_OUTCOME_MATURATION,
+    WINNER_PREDICTION_CAPTURE,
+)
 
 router = APIRouter(tags=["winner-probability"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -41,6 +44,33 @@ def queue_winner_prediction_capture(
         "job_type": job.job_type,
         "status": job.status,
         "run_id": run_id,
+    }
+
+
+@router.post("/api/winner-probability/outcomes/process")
+def queue_winner_outcome_maturation(
+    request: Request,
+    db: DbSession,
+    limit: int = 500,
+) -> dict:
+    _require_local_admin(request)
+    if limit <= 0 or limit > 5000:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 5000.")
+    try:
+        job = enqueue_job(
+            db,
+            job_type=WINNER_OUTCOME_MATURATION,
+            payload={"limit": limit},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {
+        "job_id": job.id,
+        "job_type": job.job_type,
+        "status": job.status,
+        "limit": limit,
     }
 
 

@@ -6,7 +6,10 @@ from app.db import get_db
 from app.main import create_app
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
-from app.services.winner_probability.job_handlers import WINNER_PREDICTION_CAPTURE
+from app.services.winner_probability.job_handlers import (
+    WINNER_OUTCOME_MATURATION,
+    WINNER_PREDICTION_CAPTURE,
+)
 from app.settings import Settings
 
 
@@ -61,6 +64,48 @@ def test_capture_admin_endpoint_rejects_unknown_run() -> None:
     response = TestClient(app).post("/api/winner-probability/runs/404/capture")
 
     assert response.status_code == 404
+    assert db.jobs == []
+
+
+def test_outcome_process_admin_endpoint_queues_maturation_job() -> None:
+    db = AdminRouteFakeDb(run_exists=True)
+    app = create_app(
+        Settings(
+            _env_file=None,
+            job_worker_enabled=False,
+            winner_probability_admin_enabled=True,
+        )
+    )
+    app.dependency_overrides[get_db] = lambda: db
+
+    response = TestClient(app).post("/api/winner-probability/outcomes/process?limit=25")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "job_id": 1,
+        "job_type": WINNER_OUTCOME_MATURATION,
+        "status": JobStatus.QUEUED,
+        "limit": 25,
+    }
+    assert db.jobs[0].job_type == WINNER_OUTCOME_MATURATION
+    assert db.jobs[0].payload_json == {"limit": 25}
+    assert db.commits == 1
+
+
+def test_outcome_process_admin_endpoint_rejects_invalid_limit() -> None:
+    db = AdminRouteFakeDb(run_exists=True)
+    app = create_app(
+        Settings(
+            _env_file=None,
+            job_worker_enabled=False,
+            winner_probability_admin_enabled=True,
+        )
+    )
+    app.dependency_overrides[get_db] = lambda: db
+
+    response = TestClient(app).post("/api/winner-probability/outcomes/process?limit=0")
+
+    assert response.status_code == 422
     assert db.jobs == []
 
 
