@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -14,7 +14,6 @@ from app.models.tables import (
     WinnerDriftMetric,
     WinnerEstimateEvidenceMember,
     WinnerForwardOutcome,
-    WinnerModelLifecycleEvent,
     WinnerModelVersion,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
@@ -27,6 +26,7 @@ from app.services.winner_probability.dtos import (
     WinnerProbabilityApiQuery,
     WinnerProbabilityFilters,
 )
+from app.services.winner_probability.model_registry import ModelRegistry, ModelRegistryError
 
 ERROR_INVALID_OUTCOME_DEFINITION = "INVALID_OUTCOME_DEFINITION"
 ERROR_PREDICTION_NOT_FOUND = "PREDICTION_NOT_FOUND"
@@ -285,33 +285,19 @@ class WinnerProbabilityApiService:
         actor: str,
         reason: str,
     ) -> dict[str, Any]:
-        model = _require_model(db, model_id)
-        old_status = model.status
-        if model.status == "ACTIVE":
-            active_count = db.scalar(
-                select(func.count(WinnerModelVersion.id))
-                .where(WinnerModelVersion.outcome_definition_id == model.outcome_definition_id)
-                .where(WinnerModelVersion.status == "ACTIVE")
+        try:
+            model, event = ModelRegistry().retire_model(
+                db,
+                model_id=model_id,
+                actor=actor,
+                reason=reason,
             )
-            if int(active_count or 0) <= 1:
-                raise WinnerProbabilityApiError(
-                    ERROR_MODEL_RETIREMENT_BLOCKED,
-                    "Cannot retire the only active model for this outcome definition.",
-                    status_code=409,
-                )
-        model.status = "RETIRED"
-        model.retired_at = _utcnow()
-        event = WinnerModelLifecycleEvent(
-            model_version_id=model.id,
-            event_type="RETIRED",
-            actor=actor,
-            reason=reason.strip() or "Retired through local OWPE API.",
-            old_status=old_status,
-            new_status="RETIRED",
-            metadata_json={"api": "winner_probability_phase_7"},
-        )
-        db.add(event)
-        db.flush()
+        except ModelRegistryError as exc:
+            raise WinnerProbabilityApiError(
+                exc.code,
+                str(exc),
+                status_code=409 if exc.code == ERROR_MODEL_RETIREMENT_BLOCKED else 400,
+            ) from exc
         return {"model": _model_payload(model), "lifecycle_event_id": event.id}
 
     def _resolve_outcome_definition(
@@ -857,10 +843,6 @@ def _cutoff_from_query(query: WinnerProbabilityApiQuery) -> datetime | None:
 
 def _end_of_day(value: date) -> datetime:
     return datetime.combine(value, time.max, tzinfo=UTC)
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 def _min(value: Any, minimum: float | int | None) -> bool:

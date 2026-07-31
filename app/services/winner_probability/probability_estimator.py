@@ -33,6 +33,7 @@ from app.services.winner_probability.config import (
 )
 from app.services.winner_probability.evidence_manifest_service import EvidenceManifestService
 from app.services.winner_probability.evidence_service import EvidenceOutcome, EvidenceService
+from app.services.winner_probability.model_registry import ModelRegistry
 
 
 @dataclass(frozen=True)
@@ -52,11 +53,13 @@ class ProbabilityEstimator:
         evidence_service: EvidenceService | None = None,
         statistics_service: CohortStatisticsService | None = None,
         manifest_service: EvidenceManifestService | None = None,
+        model_registry: ModelRegistry | None = None,
     ) -> None:
         self.cohort_definition_service = cohort_definition_service or CohortDefinitionService()
         self.evidence_service = evidence_service or EvidenceService()
         self.statistics_service = statistics_service or CohortStatisticsService()
         self.manifest_service = manifest_service or EvidenceManifestService()
+        self.model_registry = model_registry or ModelRegistry()
 
     def create_decision_time_estimate(
         self,
@@ -85,8 +88,13 @@ class ProbabilityEstimator:
         outcome_definition: WinnerOutcomeDefinition,
         as_of: datetime,
         config: WinnerProbabilityConfig | None = None,
+        model_version_id: int | None = None,
     ) -> ProbabilityEstimateResult:
         config = config or load_winner_probability_config()
+        self.model_registry.ensure_can_serve_latest_rescore(
+            db,
+            model_version_id=model_version_id,
+        )
         return self._create_estimate(
             db,
             prediction=prediction,
@@ -95,6 +103,7 @@ class ProbabilityEstimator:
             training_cutoff_at=as_of,
             config=config,
             reconstruction_method=None,
+            model_version_id=model_version_id,
         )
 
     def _create_estimate(
@@ -107,6 +116,7 @@ class ProbabilityEstimator:
         training_cutoff_at: datetime,
         config: WinnerProbabilityConfig,
         reconstruction_method: str | None,
+        model_version_id: int | None = None,
     ) -> ProbabilityEstimateResult:
         existing = _existing_estimate(
             db,
@@ -140,6 +150,7 @@ class ProbabilityEstimator:
                 training_cutoff_at=training_cutoff_at,
                 config=config,
                 reconstruction_method=reconstruction_method,
+                model_version_id=model_version_id,
                 insufficient_reasons=("no_eligible_cohort",),
             )
 
@@ -188,6 +199,7 @@ class ProbabilityEstimator:
             source=EstimateSource.COHORT,
             source_version=COHORT_BASELINE_SOURCE_VERSION,
             cohort_definition_id=cohort_definition.id,
+            model_version_id=model_version_id,
             evidence_manifest_id=manifest.manifest.id,
             training_cutoff_at=training_cutoff_at,
             point_probability=statistics.posterior_probability,
@@ -269,6 +281,7 @@ class ProbabilityEstimator:
         training_cutoff_at: datetime,
         config: WinnerProbabilityConfig,
         reconstruction_method: str | None,
+        model_version_id: int | None = None,
         insufficient_reasons: tuple[str, ...],
     ) -> ProbabilityEstimateResult:
         keys = self.cohort_definition_service.cohort_keys_for_prediction(prediction, config)
@@ -296,6 +309,7 @@ class ProbabilityEstimator:
             estimate_kind=estimate_kind,
             source=EstimateSource.INSUFFICIENT,
             source_version=COHORT_BASELINE_SOURCE_VERSION,
+            model_version_id=model_version_id,
             evidence_manifest_id=manifest.manifest.id,
             training_cutoff_at=training_cutoff_at,
             point_probability=None,
