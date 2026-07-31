@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     job_poll_interval_seconds: float = 2.0
     job_stale_after_seconds: int = 900
     job_worker_id: str = "local-worker-1"
+    winner_probability_enabled: bool = False
+    winner_probability_capture_in_pipeline: bool = False
+    winner_probability_config_path: Path = Field(
+        default=Path("config/winner_probability.yaml")
+    )
+    winner_probability_admin_enabled: bool = False
     runs_default_page_size: int = 25
     history_default_page_size: int = 50
     history_max_page_size: int = 200

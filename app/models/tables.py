@@ -1140,7 +1140,11 @@ class BackgroundJob(Base):
         server_default="false",
     )
     worker_id: Mapped[str | None] = mapped_column(Text)
+    lease_owner: Mapped[str | None] = mapped_column(Text)
+    execution_token: Mapped[str | None] = mapped_column(Text)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     run_after: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -1153,6 +1157,12 @@ class BackgroundJob(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    operational_metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
 
     __table_args__ = (
         Index(
@@ -1164,4 +1174,6 @@ class BackgroundJob(Base):
         ),
         Index("idx_background_jobs_related_run_id", "related_run_id"),
         Index("idx_background_jobs_locked_at", "locked_at"),
+        Index("idx_background_jobs_lease_expires_at", "lease_expires_at"),
+        Index("idx_background_jobs_execution_token", "execution_token"),
     )
