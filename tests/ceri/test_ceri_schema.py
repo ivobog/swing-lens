@@ -17,6 +17,7 @@ from app.models.ceri_tables import (
     CeriCompany,
     CeriCompanyAlias,
     CeriEstimateSnapshot,
+    CeriIngestionRun,
     CeriProcessingRun,
     CeriPurgeAudit,
     CeriRevisionFeature,
@@ -83,6 +84,44 @@ def test_source_record_preserves_provider_lineage_and_restrictions() -> None:
     constraint_names = {constraint.name for constraint in table.constraints}
     assert "uq_ceri_source_records_provider_record" in constraint_names
     assert "uq_ceri_source_records_idempotency" in constraint_names
+
+
+def test_ingestion_runs_preserve_audit_counts_and_checkpoints() -> None:
+    table = CeriIngestionRun.__table__
+
+    for column_name in [
+        "provider",
+        "provider_terms_version",
+        "dataset",
+        "scope_json",
+        "status",
+        "request_key",
+        "config_version",
+        "config_hash",
+        "quota_state_json",
+        "retry_count",
+        "checkpoint_json",
+        "requested_count",
+        "fetched_count",
+        "inserted_count",
+        "deduplicated_count",
+        "corrected_count",
+        "quarantined_count",
+        "failed_count",
+        "warning_count",
+        "errors_json",
+        "warnings_json",
+        "duration_ms",
+        "started_at",
+        "completed_at",
+    ]:
+        assert column_name in table.c
+
+    assert isinstance(table.c.scope_json.type, JSONB)
+    assert isinstance(table.c.quota_state_json.type, JSONB)
+    assert isinstance(table.c.checkpoint_json.type, JSONB)
+    constraint_names = {constraint.name for constraint in table.constraints}
+    assert "uq_ceri_ingestion_runs_request_key" in constraint_names
 
 
 def test_estimate_snapshot_fields_keep_missing_values_nullable() -> None:
@@ -252,3 +291,15 @@ def test_ceri_migration_follows_current_head_and_lists_tables() -> None:
     assert 'revision: str = "0018_add_ceri_tables"' in migration
     assert 'down_revision: str | None = "0017_create_setup_lifecycle_tables"' in migration
     assert "CERI_TABLES" in migration
+
+
+def test_ceri_ingestion_audit_migration_follows_ceri_schema_head() -> None:
+    migration = Path(
+        "alembic/versions/20260801_0019_add_ceri_ingestion_audit_fields.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0019_add_ceri_ingestion_audit_fields"' in migration
+    assert 'down_revision: str | None = "0018_add_ceri_tables"' in migration
+    assert "retry_count" in migration
+    assert "checkpoint_json" in migration
+    assert "duration_ms" in migration

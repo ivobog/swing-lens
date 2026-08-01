@@ -98,6 +98,8 @@ class CeriIngestionRun(Base):
     config_version: Mapped[str | None] = mapped_column(Text)
     config_hash: Mapped[str | None] = mapped_column(Text)
     quota_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    checkpoint_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     requested_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     fetched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     inserted_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -108,6 +110,7 @@ class CeriIngestionRun(Base):
     warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     errors_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     warnings_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(

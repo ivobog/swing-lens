@@ -45,6 +45,17 @@ class ProviderHealth:
 
 
 @dataclass(frozen=True)
+class ProviderCompany:
+    provider: str
+    provider_company_id: str | None
+    ticker: str
+    exchange: str | None = None
+    cik: str | None = None
+    name: str | None = None
+    aliases: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class CompanyQuery:
     ticker: str | None = None
     exchange: str | None = None
