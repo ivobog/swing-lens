@@ -188,6 +188,20 @@ def test_revision_score_change_alert_and_purge_indexes_are_defined() -> None:
     )
 
 
+def test_revision_features_preserve_phase_5_lineage_fields() -> None:
+    table = CeriRevisionFeature.__table__
+
+    for column_name in [
+        "source_observation_ids_json",
+        "provider_selection_reason",
+        "unavailable_reason",
+        "evidence_hash",
+    ]:
+        assert column_name in table.c
+
+    assert isinstance(table.c.source_observation_ids_json.type, JSONB)
+
+
 def test_upload_run_fk_retains_ceri_score_snapshot_on_run_deletion() -> None:
     run_fk = next(
         fk
@@ -303,3 +317,14 @@ def test_ceri_ingestion_audit_migration_follows_ceri_schema_head() -> None:
     assert "retry_count" in migration
     assert "checkpoint_json" in migration
     assert "duration_ms" in migration
+
+
+def test_ceri_revision_feature_lineage_migration_follows_ingestion_audit_head() -> None:
+    migration = Path(
+        "alembic/versions/20260801_0020_add_ceri_revision_feature_lineage.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0020_add_ceri_revision_feature_lineage"' in migration
+    assert 'down_revision: str | None = "0019_add_ceri_ingestion_audit_fields"' in migration
+    assert "source_observation_ids_json" in migration
+    assert "evidence_hash" in migration
