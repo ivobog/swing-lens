@@ -34,6 +34,7 @@ class EpisodeEvaluationResult:
     decision: LifecycleDecision
     actionability: ActionabilityDecision
     lifecycle_event: SetupLifecycleEvent | None = None
+    actionability_before: str | None = None
     opened: bool = False
     updated: bool = False
     closed: bool = False
@@ -252,6 +253,7 @@ class SetupLifecycleEpisodeService:
             decision=decision,
             actionability=actionability,
             lifecycle_event=event,
+            actionability_before=None,
             opened=True,
             updated=True,
         )
@@ -337,6 +339,7 @@ class SetupLifecycleEpisodeService:
             decision=decision,
             actionability=actionability,
             lifecycle_event=event,
+            actionability_before=previous_actionability,
             updated=True,
             closed=closed,
         )

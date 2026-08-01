@@ -39,6 +39,7 @@ def test_evaluation_service_captures_canonicalizes_and_finalizes_counts() -> Non
         ),
         change_detector=FakeChangeDetector(SignalChangeDetectionResult(created_events=4)),
         episode_service=FakeEpisodeService(transitions=1),
+        alert_service=FakeAlertService(change_alerts=2, episode_alerts=1),
         config=load_setup_lifecycle_config(),
     )
 
@@ -50,6 +51,7 @@ def test_evaluation_service_captures_canonicalizes_and_finalizes_counts() -> Non
     assert result.canonical_changed == 1
     assert result.change_events == 4
     assert result.lifecycle_transitions == 1
+    assert result.alerts == 3
     assert result.low_confidence == 1
     assert result.active_episodes == 3
     assert repository.completed[-1].canonical_count == 1
@@ -59,6 +61,7 @@ def test_evaluation_service_captures_canonicalizes_and_finalizes_counts() -> Non
         "capture",
         "canonicalize",
         "change_detection",
+        "alerts",
         "lifecycle",
         "finalize",
     ]
@@ -82,6 +85,7 @@ def test_evaluation_service_marks_partial_when_capture_has_ticker_failures() -> 
         canonicalizer=FakeCanonicalizer(CanonicalizationResult(selected_snapshot_ids=(10,))),
         change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
         episode_service=FakeEpisodeService(),
+        alert_service=FakeAlertService(),
         config=load_setup_lifecycle_config(),
     )
 
@@ -101,6 +105,7 @@ def test_evaluation_service_cancellation_finalizes_run_as_cancelled() -> None:
         canonicalizer=FakeCanonicalizer(CanonicalizationResult()),
         change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
         episode_service=FakeEpisodeService(),
+        alert_service=FakeAlertService(),
         config=load_setup_lifecycle_config(),
     )
     checks = iter([True])
@@ -154,6 +159,9 @@ class FakeEvaluationRepository:
     def get_snapshots_by_ids(self, _db, snapshot_ids):
         return [object() for _snapshot_id in snapshot_ids]
 
+    def get_signal_change_events_by_ids(self, _db, event_ids):
+        return [object() for _event_id in event_ids]
+
 
 class FakeCaptureService:
     def __init__(self, result: SnapshotCaptureResult) -> None:
@@ -201,3 +209,18 @@ class FakeEpisodeService:
                 "opened": False,
             },
         )()
+
+
+class FakeAlertService:
+    def __init__(self, *, change_alerts: int = 0, episode_alerts: int = 0) -> None:
+        self.change_alerts = change_alerts
+        self.episode_alerts = episode_alerts
+
+    def seed_builtin_rules(self, _db):
+        return ()
+
+    def evaluate_signal_change_events(self, _db, _events):
+        return type("AlertResult", (), {"created": self.change_alerts})()
+
+    def evaluate_episode_result(self, _db, _result, *, evaluation_run_id=None):
+        return type("AlertResult", (), {"created": self.episode_alerts, "suppressed": 0})()

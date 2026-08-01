@@ -595,6 +595,21 @@ class SetupLifecycleRepository:
             .limit(1)
         )
 
+    def get_signal_change_events_by_ids(
+        self,
+        db: Session,
+        event_ids: tuple[int, ...] | list[int],
+    ) -> list[SignalChangeEvent]:
+        if not event_ids:
+            return []
+        return list(
+            db.scalars(
+                select(SignalChangeEvent)
+                .where(SignalChangeEvent.id.in_(event_ids))
+                .order_by(SignalChangeEvent.effective_date, SignalChangeEvent.id)
+            )
+        )
+
     def upsert_alert_rule(
         self,
         db: Session,
@@ -626,6 +641,17 @@ class SetupLifecycleRepository:
         db.flush()
         return rule
 
+    def alert_rules(
+        self,
+        db: Session,
+        *,
+        enabled_only: bool = True,
+    ) -> list[SignalAlertRule]:
+        statement = select(SignalAlertRule).order_by(SignalAlertRule.rule_id)
+        if enabled_only:
+            statement = statement.where(SignalAlertRule.enabled.is_(True))
+        return list(db.scalars(statement))
+
     def add_alert_event(
         self,
         db: Session,
@@ -637,6 +663,66 @@ class SetupLifecycleRepository:
         if existing is not None:
             return existing
         return self.add(db, event)
+
+    def recent_alert_events(
+        self,
+        db: Session,
+        *,
+        alert_rule_id: int,
+        ticker: str,
+        timeframe: str,
+        since_date: date,
+        semantic_key: str | None = None,
+    ) -> list[SignalAlertEvent]:
+        statement = (
+            select(SignalAlertEvent)
+            .where(SignalAlertEvent.alert_rule_id == alert_rule_id)
+            .where(SignalAlertEvent.ticker == self.normalize_ticker(ticker))
+            .where(SignalAlertEvent.timeframe == timeframe)
+            .where(SignalAlertEvent.effective_date >= since_date)
+            .order_by(SignalAlertEvent.effective_date.desc(), SignalAlertEvent.id.desc())
+        )
+        rows = list(db.scalars(statement))
+        if semantic_key is None:
+            return rows
+        return [
+            row
+            for row in rows
+            if (row.evidence_json or {}).get("semantic_key") == semantic_key
+        ]
+
+    def get_alert_event(self, db: Session, alert_id: int) -> SignalAlertEvent | None:
+        return db.get(SignalAlertEvent, alert_id)
+
+    def acknowledge_alert_event(
+        self,
+        db: Session,
+        alert_id: int,
+        *,
+        acknowledged_at: datetime | None = None,
+    ) -> SignalAlertEvent | None:
+        alert = self.get_alert_event(db, alert_id)
+        if alert is None:
+            return None
+        alert.status = "ACKNOWLEDGED"
+        alert.acknowledged_at = acknowledged_at or _utcnow()
+        db.flush()
+        return alert
+
+    def dismiss_alert_event(
+        self,
+        db: Session,
+        alert_id: int,
+        *,
+        dismissed_at: datetime | None = None,
+    ) -> SignalAlertEvent | None:
+        alert = self.get_alert_event(db, alert_id)
+        if alert is None:
+            return None
+        alert.status = "DISMISSED"
+        alert.dismissed_at = dismissed_at or _utcnow()
+        db.flush()
+        return alert
 
     def write_admin_audit_event(
         self,
@@ -769,8 +855,25 @@ class SetupLifecycleRepository:
         return cls.stable_hash(payload)
 
     @classmethod
-    def alert_event_key(cls, *, rule_id: str, source_event_key: str, ticker: str) -> str:
-        return cls.stable_key("alert", rule_id, source_event_key, cls.normalize_ticker(ticker))
+    def alert_event_key(
+        cls,
+        *,
+        rule_id: str,
+        source_event_key: str,
+        ticker: str,
+        episode_id: int | None = None,
+        effective_date: date | None = None,
+        evaluation_run_id: int | None = None,
+    ) -> str:
+        return cls.stable_key(
+            "alert",
+            rule_id,
+            source_event_key,
+            cls.normalize_ticker(ticker),
+            str(episode_id or ""),
+            effective_date.isoformat() if effective_date else "",
+            str(evaluation_run_id or ""),
+        )
 
     @staticmethod
     def stable_key(*parts: str) -> str:

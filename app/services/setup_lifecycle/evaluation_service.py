@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
 from app.services.setup_lifecycle.canonicalization import (
     CanonicalizationResult,
     SetupLifecycleCanonicalizer,
@@ -75,6 +76,7 @@ class SetupLifecycleEvaluationService:
         canonicalizer: SetupLifecycleCanonicalizer | None = None,
         change_detector: SetupLifecycleChangeDetector | None = None,
         episode_service: SetupLifecycleEpisodeService | None = None,
+        alert_service: SetupLifecycleAlertService | None = None,
         config: SetupLifecycleConfig | None = None,
     ) -> None:
         self.config = config or load_setup_lifecycle_config()
@@ -92,6 +94,10 @@ class SetupLifecycleEvaluationService:
             config=self.config,
         )
         self.episode_service = episode_service or SetupLifecycleEpisodeService(
+            repository=self.repository,
+            config=self.config,
+        )
+        self.alert_service = alert_service or SetupLifecycleAlertService(
             repository=self.repository,
             config=self.config,
         )
@@ -139,8 +145,14 @@ class SetupLifecycleEvaluationService:
                 evaluation_run_id=evaluation_run.id,
                 snapshot_ids=canonical.selected_snapshot_ids,
             )
+            self._checkpoint(db, evaluation_run.id, "alerts", should_cancel)
+            self.alert_service.seed_builtin_rules(db)
+            change_alerts = self.alert_service.evaluate_signal_change_events(
+                db,
+                self.repository.get_signal_change_events_by_ids(db, changes.event_ids),
+            )
             self._checkpoint(db, evaluation_run.id, "lifecycle", should_cancel)
-            lifecycle_transitions = self._evaluate_lifecycle_episodes(
+            lifecycle_transitions, lifecycle_alerts = self._evaluate_lifecycle_episodes(
                 db,
                 evaluation_run_id=evaluation_run.id,
                 snapshot_ids=canonical.selected_snapshot_ids,
@@ -173,6 +185,7 @@ class SetupLifecycleEvaluationService:
             canonical,
             changes,
             lifecycle_transitions=lifecycle_transitions,
+            alerts=change_alerts.created + lifecycle_alerts,
         )
         self.repository.complete_evaluation_run(
             db,
@@ -216,6 +229,7 @@ class SetupLifecycleEvaluationService:
         changes: SignalChangeDetectionResult,
         *,
         lifecycle_transitions: int,
+        alerts: int,
     ) -> SetupLifecycleEvaluationResult:
         failed = capture.failed
         status = EvaluationStatus.PARTIAL.value if failed else EvaluationStatus.COMPLETED.value
@@ -227,7 +241,7 @@ class SetupLifecycleEvaluationService:
             canonical_changed=canonical.changed_count,
             change_events=changes.created_events,
             lifecycle_transitions=lifecycle_transitions,
-            alerts=0,
+            alerts=alerts,
             active_episodes=self.repository.count_active_episodes(
                 db,
                 config_hash=self.config.config_hash,
@@ -249,8 +263,9 @@ class SetupLifecycleEvaluationService:
         *,
         evaluation_run_id: int,
         snapshot_ids: tuple[int, ...],
-    ) -> int:
+    ) -> tuple[int, int]:
         transitions = 0
+        alert_created = 0
         for snapshot in self.repository.get_snapshots_by_ids(db, snapshot_ids):
             result = self.episode_service.apply_snapshot(
                 db,
@@ -259,7 +274,13 @@ class SetupLifecycleEvaluationService:
             )
             if result.lifecycle_event is not None and not result.opened:
                 transitions += 1
-        return transitions
+            alerts = self.alert_service.evaluate_episode_result(
+                db,
+                result,
+                evaluation_run_id=evaluation_run_id,
+            )
+            alert_created += alerts.created
+        return transitions, alert_created
 
 
 def evaluate_setup_lifecycles_for_run(
