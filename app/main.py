@@ -13,6 +13,7 @@ from app.routers import (
     market_regime_routes,
     run_routes,
     sector_rotation_routes,
+    setup_lifecycle_routes,
     upload_routes,
     winner_probability_routes,
 )
@@ -77,6 +78,7 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     app.include_router(gui_routes.router)
     app.include_router(ib_routes.router)
     app.include_router(winner_probability_routes.router)
+    app.include_router(setup_lifecycle_routes.router)
     return app
 
 
