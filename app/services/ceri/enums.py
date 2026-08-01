@@ -1,0 +1,128 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class CeriMetric(StrEnum):
+    EPS_DILUTED = "EPS_DILUTED"
+    REVENUE = "REVENUE"
+    EBITDA = "EBITDA"
+    MARGIN = "MARGIN"
+    FCF = "FCF"
+
+
+class CeriPeriodType(StrEnum):
+    CURRENT_QUARTER = "CURRENT_QUARTER"
+    NEXT_QUARTER = "NEXT_QUARTER"
+    CURRENT_FISCAL_YEAR = "CURRENT_FISCAL_YEAR"
+    NEXT_FISCAL_YEAR = "NEXT_FISCAL_YEAR"
+    QUARTERLY = "QUARTERLY"
+    ANNUAL = "ANNUAL"
+
+
+class CeriDataset(StrEnum):
+    ESTIMATES = "estimates"
+    CATALYSTS = "catalysts"
+    EARNINGS = "earnings"
+    GUIDANCE = "guidance"
+
+
+class CeriProvider(StrEnum):
+    MANUAL = "manual"
+    PRIMARY = "primary"
+
+
+class CeriProviderCapability(StrEnum):
+    HEALTH = "health"
+    IDENTITY = "identity"
+    ESTIMATES = "estimates"
+    EARNINGS = "earnings"
+    GUIDANCE = "guidance"
+    CATALYSTS = "catalysts"
+
+
+class CeriConfidenceLabel(StrEnum):
+    HIGH = "High"
+    NORMAL = "Normal"
+    LOW = "Low"
+    INSUFFICIENT = "Insufficient"
+
+
+class GuidanceAction(StrEnum):
+    RAISED = "RAISED"
+    INITIATED = "INITIATED"
+    MAINTAINED = "MAINTAINED"
+    NARROWED = "NARROWED"
+    WIDENED = "WIDENED"
+    LOWERED = "LOWERED"
+    WITHDRAWN = "WITHDRAWN"
+    UNKNOWN = "UNKNOWN"
+
+
+class CatalystCategory(StrEnum):
+    EARNINGS = "EARNINGS"
+    GUIDANCE = "GUIDANCE"
+    PRODUCT = "PRODUCT"
+    CONTRACT = "CONTRACT"
+    REGULATORY = "REGULATORY"
+    LEGAL = "LEGAL"
+    CAPITAL_ALLOCATION = "CAPITAL_ALLOCATION"
+    FINANCING = "FINANCING"
+    INSIDER = "INSIDER"
+    INDEX = "INDEX"
+    ANALYST_ACTION = "ANALYST_ACTION"
+    CORPORATE_ACTION = "CORPORATE_ACTION"
+
+
+class CatalystStatus(StrEnum):
+    SCHEDULED = "SCHEDULED"
+    ANNOUNCED = "ANNOUNCED"
+    COMPLETED = "COMPLETED"
+    DELAYED = "DELAYED"
+    CANCELLED = "CANCELLED"
+    OUTCOME_KNOWN = "OUTCOME_KNOWN"
+
+
+class CatalystDirection(StrEnum):
+    STRONG_POSITIVE = "STRONG_POSITIVE"
+    POSITIVE = "POSITIVE"
+    NEUTRAL = "NEUTRAL"
+    NEGATIVE = "NEGATIVE"
+    STRONG_NEGATIVE = "STRONG_NEGATIVE"
+    UNKNOWN = "UNKNOWN"
+
+
+class DateConfidence(StrEnum):
+    EXACT_TIMESTAMP = "EXACT_TIMESTAMP"
+    EXACT_DATE = "EXACT_DATE"
+    DATE_RANGE = "DATE_RANGE"
+    ESTIMATED_PERIOD = "ESTIMATED_PERIOD"
+    UNKNOWN = "UNKNOWN"
+
+
+class HistoricalViewMode(StrEnum):
+    AS_KNOWN = "AS_KNOWN"
+    LATEST_CORRECTED = "LATEST_CORRECTED"
+
+
+class CeriProcessingStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class CeriChangeType(StrEnum):
+    REVISION_ACCELERATED = "REVISION_ACCELERATED"
+    GUIDANCE_RAISED = "GUIDANCE_RAISED"
+    NEW_BINARY_EVENT = "NEW_BINARY_EVENT"
+    CATALYST_CONFIRMED = "CATALYST_CONFIRMED"
+    OPPORTUNITY_UPGRADED = "OPPORTUNITY_UPGRADED"
+    DATA_STALE = "DATA_STALE"
+
+
+class ExportPolicy(StrEnum):
+    EXPORTABLE = "exportable"
+    RESTRICTED = "restricted"
