@@ -2,7 +2,7 @@ import pytest
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
-from app.services.background_worker import execute_job
+from app.services.background_worker import CancelRequested, execute_job
 
 
 def test_execute_job_dispatches_to_registered_handler() -> None:
@@ -21,6 +21,51 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 
     assert result == {"handled": True}
     assert calls["job"] is job
+
+
+def test_execute_job_exposes_heartbeat_to_handler_until_it_returns() -> None:
+    job = BackgroundJob(id=1, job_type="TEST_JOB", status=JobStatus.RUNNING)
+    calls = {"heartbeat": 0}
+
+    def heartbeat() -> None:
+        calls["heartbeat"] += 1
+
+    def handler(db, handled_job):
+        handled_job._heartbeat()
+        return {"handled": True}
+
+    result = execute_job(
+        db=object(),
+        job=job,
+        handlers={"TEST_JOB": handler},
+        heartbeat=heartbeat,
+    )
+
+    assert result == {"handled": True}
+    assert calls["heartbeat"] == 1
+    assert not hasattr(job, "_heartbeat")
+
+
+def test_cancellation_can_stop_handler_before_next_bounded_batch() -> None:
+    job = BackgroundJob(id=1, job_type="TEST_JOB", status=JobStatus.RUNNING)
+    batches: list[int] = []
+
+    def handler(db, handled_job):
+        for batch_number in range(3):
+            handled_job._heartbeat()
+            if batch_number == 1:
+                raise CancelRequested
+            batches.append(batch_number)
+
+    with pytest.raises(CancelRequested):
+        execute_job(
+            db=object(),
+            job=job,
+            handlers={"TEST_JOB": handler},
+            heartbeat=lambda: None,
+        )
+
+    assert batches == [0]
 
 
 def test_execute_job_rejects_unsupported_job_type() -> None:

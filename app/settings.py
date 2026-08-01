@@ -51,6 +51,24 @@ class Settings(BaseSettings):
     job_poll_interval_seconds: float = 2.0
     job_stale_after_seconds: int = 900
     job_worker_id: str = "local-worker-1"
+    winner_probability_enabled: bool = False
+    winner_probability_capture_in_pipeline: bool = False
+    winner_probability_config_path: Path = Field(
+        default=Path("config/winner_probability.yaml")
+    )
+    winner_probability_admin_enabled: bool = False
+    setup_lifecycle_enabled: bool = False
+    setup_lifecycle_pipeline_step_enabled: bool = False
+    setup_lifecycle_alerts_enabled: bool = False
+    setup_lifecycle_replay_enabled: bool = False
+    setup_lifecycle_reconstruction_enabled: bool = False
+    setup_lifecycle_config_path: Path = Field(default=Path("config/setup_lifecycle.yaml"))
+    setup_lifecycle_capture_evaluation_target_seconds: int = 60
+    setup_lifecycle_api_p95_target_ms: int = 500
+    setup_lifecycle_retain_indefinitely: bool = True
+    setup_lifecycle_purge_enabled: bool = False
+    setup_lifecycle_purge_requires_preview: bool = True
+    setup_lifecycle_replay_promotion_requires_confirmation: bool = True
     runs_default_page_size: int = 25
     history_default_page_size: int = 50
     history_max_page_size: int = 200

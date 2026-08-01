@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Winner Evidence - {{ payload.prediction.ticker }}{% endblock %}
+
+{% block content %}
+{% set prediction = payload.prediction %}
+{% set outcome = payload.outcome_definition %}
+{% set selected = payload.selected_estimate %}
+{% set decision_time = payload.decision_time_estimate %}
+{% set latest = payload.latest_rescore %}
+<script src="{{ url_for('static', path='/winner_probability.js') }}" defer></script>
+
+<section class="panel winner-probability-hero" data-winner-probability-page>
+  <a class="back-link" href="/runs/{{ prediction.run_id }}/winner-probability">Back to run evidence</a>
+  <div class="panel-header run-header">
+    <div>
+      <h1>{{ prediction.ticker }} Winner Evidence</h1>
+      <p>{{ outcome.label }}. This is target-before-stop probability, not generic positive-return probability.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/runs/{{ prediction.run_id }}">Run detail</a>
+      {% if selected %}
+        <a class="button-link secondary" href="/api/winner-probability/estimates/{{ selected.id }}/reproduction/export.json">Audit JSON</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-muted">{{ outcome.definition_id }}</span>
+    <span>{{ outcome.entry_model }}</span>
+    <span>{{ outcome.horizon_sessions }} sessions, entry day is session 1</span>
+    <span>Captured {{ prediction.captured_at }}</span>
+  </div>
+</section>
+
+<section class="grid section-gap winner-two-col">
+  <div>
+    <h2>Decision-Time Estimate</h2>
+    {% set estimate = decision_time %}
+    {% include "partials/_winner_probability_estimate.html" with context %}
+  </div>
+  <div>
+    <h2>Latest Re-score</h2>
+    {% set estimate = latest %}
+    {% include "partials/_winner_probability_estimate.html" with context %}
+  </div>
+</section>
+
+<section class="grid section-gap winner-two-col">
+  <div>
+    <h2>Feature Snapshot</h2>
+    <dl class="compact-dl">
+      <dt>Setup</dt><dd>{{ prediction.setup_classification or prediction.setup_family or "Unknown" }}</dd>
+      <dt>Ranking Profile</dt><dd>{{ prediction.ranking_profile or "Unknown" }}</dd>
+      <dt>Market</dt><dd>{{ prediction.market_regime or "Unknown" }} / {{ prediction.market_risk_state or "Unknown" }}</dd>
+      <dt>Sector</dt><dd>{{ prediction.sector_state or "Unknown" }}{% if prediction.sector_rank %}, rank {{ prediction.sector_rank }}{% endif %}</dd>
+      <dt>Earnings</dt><dd>{{ prediction.earnings_risk_level or "Unknown" }}</dd>
+      <dt>Data Quality</dt><dd>{{ prediction.technical_data_quality or "Unknown" }}</dd>
+      <dt>Feature Hash</dt><dd>{{ prediction.feature_vector_hash }}</dd>
+      <dt>Config Hash</dt><dd>{{ prediction.config_hash }}</dd>
+    </dl>
+  </div>
+  <div>
+    <h2>Lineage And Warnings</h2>
+    <dl class="compact-dl">
+      <dt>Source Cutoff</dt><dd>{{ prediction.source_data_cutoff_at }}</dd>
+      <dt>Schema</dt><dd>{{ prediction.feature_schema_version }}</dd>
+      <dt>Eligibility</dt><dd>{{ prediction.eligibility_status }}</dd>
+      <dt>Warnings</dt><dd>{{ payload.warnings|join(", ") if payload.warnings else "None" }}</dd>
+      <dt>Exclusions</dt><dd>{{ payload.exclusions|join(", ") if payload.exclusions else "None" }}</dd>
+      <dt>Source IDs</dt><dd><code>{{ prediction.source_ids|tojson }}</code></dd>
+    </dl>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Outcomes</h2></div></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Entry</th>
+          <th>Due/Event</th>
+          <th>Return</th>
+          <th>MFE</th>
+          <th>MAE</th>
+          <th>Winner</th>
+          <th>Revision</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in payload.forward_outcomes %}
+          <tr>
+            <td>Forward</td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.entry_session or "" }}</td>
+            <td>{{ row.due_session or "" }}</td>
+            <td>{{ "%.1f"|format(row.close_return_pct) if row.close_return_pct is not none else "" }}</td>
+            <td>{{ "%.1f"|format(row.mfe_pct) if row.mfe_pct is not none else "" }}</td>
+            <td>{{ "%.1f"|format(row.mae_pct) if row.mae_pct is not none else "" }}</td>
+            <td>{{ "Positive" if row.positive_return else "" }}</td>
+            <td>{{ row.revision }}</td>
+          </tr>
+        {% endfor %}
+        {% for row in payload.target_stop_outcomes %}
+          <tr>
+            <td>Target/Stop</td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.entry_model }}</td>
+            <td>{{ row.first_event or row.evaluated_at or "" }}</td>
+            <td></td><td></td><td></td>
+            <td>{{ "Yes" if row.primary_winner else "No" if row.primary_winner is not none else "" }}</td>
+            <td>{{ row.revision }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="grid section-gap winner-two-col">
+  <div>
+    <h2>Evidence Manifest</h2>
+    {% if selected %}
+      <dl class="compact-dl">
+        <dt>Hash</dt><dd>{{ selected.evidence_manifest_hash or "None" }}</dd>
+        <dt>Sample</dt><dd>{{ selected.sample_n or 0 }}</dd>
+        <dt>Effective n</dt><dd>{{ "%.0f"|format(selected.effective_n) if selected.effective_n is not none else "" }}</dd>
+        <dt>Cohort</dt><dd>{{ selected.metadata.cohort_level or "None" }} / {{ selected.metadata.cohort_key or "No eligible cohort" }}</dd>
+        <dt>Source</dt><dd>{{ selected.source }} {{ selected.source_version }}</dd>
+      </dl>
+    {% else %}
+      <div class="empty-state"><strong>No selected estimate.</strong></div>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Reproduction</h2>
+    {% if reproduction %}
+      <dl class="compact-dl">
+        <dt>Status</dt><dd><span class="badge badge-{{ 'success' if reproduction.matches else 'danger' }}">{{ "Matches" if reproduction.matches else "Mismatch" }}</span></dd>
+        <dt>Manifest</dt><dd>{{ reproduction.evidence_manifest_hash }}</dd>
+        <dt>Sample</dt><dd>{{ reproduction.sample_n }}</dd>
+        <dt>Mismatches</dt><dd>{{ reproduction.mismatches|join(", ") if reproduction.mismatches else "None" }}</dd>
+      </dl>
+    {% else %}
+      <div class="empty-state"><strong>Reproduction is unavailable for this estimate.</strong></div>
+    {% endif %}
+  </div>
+</section>
+
+<details class="panel section-gap debug-panel">
+  <summary>Captured Feature JSON</summary>
+  <pre>{{ prediction.feature_json|tojson(indent=2) }}</pre>
+</details>
+{% endblock %}

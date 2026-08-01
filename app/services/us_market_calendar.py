@@ -26,6 +26,25 @@ def is_latest_daily_bar_current(
     return latest >= latest_completed_us_trading_day(now)
 
 
+def next_us_trading_day(day: date) -> date:
+    candidate = day + timedelta(days=1)
+    while not _is_us_trading_day(candidate):
+        candidate += timedelta(days=1)
+    return candidate
+
+
+def nth_us_trading_day_from_entry(entry_day: date, horizon_sessions: int) -> date:
+    if horizon_sessions <= 0:
+        raise ValueError("horizon_sessions must be positive")
+    if not _is_us_trading_day(entry_day):
+        raise ValueError("entry_day must be a US trading day")
+
+    candidate = entry_day
+    for _ in range(horizon_sessions - 1):
+        candidate = next_us_trading_day(candidate)
+    return candidate
+
+
 def _ny_datetime(value: datetime | None) -> datetime:
     if value is None:
         return datetime.now(_NY_TZ)

@@ -19,6 +19,14 @@
 }) %}
 {% set market_regime_context = market_regime_context|default(none) %}
 {% set sector_rotation_context = sector_rotation_context|default(none) %}
+{% set winner_probability_context = winner_probability_context|default({
+  "prediction_count": 0,
+  "estimate_count": 0,
+  "insufficient_count": 0,
+  "run_url": "/runs/" ~ run.id ~ "/winner-probability",
+  "operations_url": "/winner-probability/operations",
+  "prediction_by_ticker": {}
+}) %}
 {% set run_summary = run_summary|default({
   "row_count": run.row_count or 0,
   "combined_count": 0,
@@ -90,6 +98,7 @@
         <button class="secondary" type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
       </form>
       <a class="button-link secondary" href="/runs/{{ run.id }}/sector-rotation">Sector rotation</a>
+      <a class="button-link secondary" href="{{ winner_probability_context.run_url }}">Winner evidence</a>
       <a class="button-link secondary" href="/runs">All runs</a>
     </div>
   </div>
@@ -192,6 +201,32 @@
       <strong>None</strong>
     {% endif %}
   </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Winner Evidence</h2>
+      <p>Research-only target-before-stop evidence for this run. Existing ranks stay unchanged.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="{{ winner_probability_context.run_url }}">Open evidence</a>
+      <a class="button-link secondary" href="/api/winner-probability/run/{{ run.id }}/export.csv">CSV</a>
+      <a class="button-link secondary" href="{{ winner_probability_context.operations_url }}">Operations</a>
+    </div>
+  </div>
+  <div class="summary-strip">
+    <span class="summary-item"><strong>{{ winner_probability_context.prediction_count }}</strong> snapshots</span>
+    <span class="summary-item"><strong>{{ winner_probability_context.estimate_count }}</strong> estimates</span>
+    <span class="summary-item"><strong>{{ winner_probability_context.insufficient_count }}</strong> insufficient</span>
+    <span class="summary-item">NEXT_OPEN and diagnostic evidence remain separate</span>
+  </div>
+  {% if winner_probability_context.prediction_count == 0 %}
+    <div class="empty-state">
+      <strong>No winner evidence captured for this run.</strong>
+      <p>OWPE capture creates immutable snapshots, pending outcomes, and a decision-time estimate or explicit insufficient record.</p>
+    </div>
+  {% endif %}
 </section>
 
 <section class="panel section-gap">
@@ -688,6 +723,7 @@
             {% set technical_details = technical_details_by_ticker.get(result.ticker, {}) %}
             {% set warning_flags = result.warning_flags_json or [] %}
             {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
+            {% set winner_prediction_id = winner_probability_context.prediction_by_ticker.get(result.ticker) %}
             {% set is_candidate_plus = result.combined_decision in ["Strong candidate", "Candidate"] %}
             {% set earnings_risk = result.earnings_risk_level or "unknown" %}
             <tr
@@ -755,6 +791,9 @@
               <td>
                 <div class="row-actions">
                   <button class="icon-button" type="button" data-detail-toggle data-no-row-nav="true" aria-expanded="false">Details</button>
+                  {% if winner_prediction_id %}
+                    <a data-no-row-nav="true" href="/winner-probability/predictions/{{ winner_prediction_id }}">Evidence</a>
+                  {% endif %}
                   <a data-no-row-nav="true" href="https://www.tradingview.com/chart/?symbol={{ result.ticker }}" target="_blank" rel="noopener">TradingView</a>
                 </div>
               </td>

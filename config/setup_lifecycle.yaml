@@ -1,0 +1,419 @@
+engine:
+  enabled: false
+  version: slse-1.0.0
+  schema_version: slse-snapshot-1.0.0
+  config_version: 2026-07-31
+  timeframe: 1d
+  origin_mode: forward_only
+  trigger_authority: COMPLETED_DAILY_CLOSE
+  diagnostic_high_cross_enabled: true
+
+canonicalization:
+  required_context:
+    - technical
+  prefer_market_regime: true
+  prefer_sector_rotation: true
+  precedence:
+    - completed_daily_bar
+    - successful_source_pipeline
+    - required_feature_coverage
+    - context_completeness
+    - latest_calculated_at
+    - highest_snapshot_id
+
+states:
+  supported:
+    - DISCOVERED
+    - DEVELOPING
+    - TIGHTENING
+    - READY
+    - TRIGGERED
+    - CONFIRMED
+    - EXTENDED
+    - FAILED
+    - EXPIRED
+  terminal:
+    - FAILED
+    - EXPIRED
+  transition_precedence:
+    - FAILED
+    - EXTENDED
+    - CONFIRMED
+    - TRIGGERED
+    - READY
+    - TIGHTENING
+    - DEVELOPING
+    - DISCOVERED
+    - EXPIRED
+
+phases:
+  breakout:
+    - BASE_FORMING
+    - RANGE_CONTRACTION
+    - VOLUME_DRY_UP
+    - PIVOT_READY
+    - BREAKOUT
+    - RETEST
+    - FOLLOW_THROUGH
+  pullback:
+    - PULLBACK_STARTED
+    - SELLING_PRESSURE_DECLINING
+    - SUPPORT_APPROACH
+    - SUPPORT_TEST
+    - REVERSAL_READY
+    - REVERSAL_TRIGGER
+    - FOLLOW_THROUGH
+  vcp:
+    - CONTRACTION_1
+    - CONTRACTION_2
+    - CONTRACTION_3
+    - VOLUME_DRY_UP
+    - PIVOT_READY
+    - BREAKOUT
+  continuation:
+    - PAUSE
+    - FLAG_FORMING
+    - TIGHT_RANGE
+    - CONTINUATION_READY
+    - CONTINUATION_TRIGGER
+  generic:
+    - CANDIDATE
+    - IMPROVING
+    - READY
+    - TRIGGERED
+
+families:
+  precedence:
+    - BREAKOUT
+    - PULLBACK
+    - VCP
+    - CONTINUATION
+    - GENERIC
+  generic_fallback:
+    enabled: true
+    prevent_shadowing_supported_family: true
+    min_supported_family_confidence_to_block_generic: 50
+  breakout:
+    enabled: true
+    tracking_score_min: 5.5
+    ready_score_min: 7.5
+    ready_pivot_distance_enter_pct: 2.0
+    ready_pivot_distance_exit_pct: 3.0
+    confirmed_hold_sessions: 2
+    extended_atr_from_trigger: 2.5
+    observation_gap_sessions: 3
+    max_age_sessions: 40
+    failed_rearm_cooldown_sessions: 10
+  pullback:
+    enabled: true
+    tracking_score_min: 5.5
+    ready_score_min: 7.5
+    support_distance_atr: 1.0
+    declining_volume_sessions: 2
+    confirmed_hold_sessions: 2
+    observation_gap_sessions: 3
+    max_age_sessions: 30
+    failed_rearm_cooldown_sessions: 10
+  vcp:
+    enabled: true
+    tracking_score_min: 5.5
+    ready_score_min: 7.5
+    contraction_count_min: 2
+    dry_up_percentile_max: 35
+    observation_gap_sessions: 3
+    max_age_sessions: 45
+    failed_rearm_cooldown_sessions: 10
+  continuation:
+    enabled: true
+    tracking_score_min: 5.5
+    ready_score_min: 7.5
+    tight_range_percentile_max: 40
+    extended_atr_from_trigger: 2.5
+    observation_gap_sessions: 2
+    max_age_sessions: 20
+    failed_rearm_cooldown_sessions: 8
+  generic:
+    enabled: true
+    tracking_score_min: 5.0
+    ready_score_min: 7.0
+    observation_gap_sessions: 2
+    max_age_sessions: 20
+    failed_rearm_cooldown_sessions: 8
+
+episodes:
+  one_active_per_family: true
+  default_max_age_sessions: 40
+  observation_gap_sessions: 3
+  failed_rearm_cooldown_sessions: 10
+
+confidence:
+  high_min: 85
+  normal_min: 70
+  low_min: 50
+  weights:
+    required_feature_coverage: 0.30
+    signal_agreement: 0.25
+    persistence: 0.20
+    freshness_and_lineage: 0.15
+    context_completeness: 0.10
+
+data_quality_labels:
+  HIGH:
+    required_feature_coverage_min: 1.0
+    fresh_completed_bar_required: true
+    context_required: true
+    allows_inferred_required_feature: false
+  NORMAL:
+    required_feature_coverage_min: 0.90
+    optional_omissions_allowed: true
+    fresh_completed_bar_required: true
+  LOW:
+    required_feature_coverage_min: 0.50
+    allows_inferred_required_feature: true
+    allows_missing_context: true
+    allows_near_stale_data: true
+  INSUFFICIENT:
+    hard_required_absent: true
+    stale_beyond_hard_limit: true
+
+actionability:
+  earnings_block_window_sessions: 2
+  minimum_actionable_confidence: 70
+  low_confidence_blocks_when_required_missing: true
+  reconstructed_origin_excluded_from_live_alerts: true
+
+signals:
+  technical_score:
+    source: dual_score
+    type: float
+    category: SCORE
+    direction: higher_is_better
+    unit: points
+    absolute_change: 0.5
+    percentage_change: 0.10
+    velocity_windows:
+      - 1
+      - 3
+      - 5
+      - 10
+    crossings:
+      - 7.0
+      - 7.5
+      - 8.0
+    missing_value_policy: warn
+  setup_score:
+    source: setup_score
+    type: float
+    category: SCORE
+    direction: higher_is_better
+    unit: points
+    absolute_change: 0.5
+    velocity_windows:
+      - 1
+      - 3
+      - 5
+      - 10
+    crossings:
+      - 5.5
+      - 7.5
+    missing_value_policy: warn
+  classification:
+    source: technical_classification
+    type: enum
+    category: SETUP
+    direction: classification_order
+    material_on_change: true
+    missing_value_policy: warn
+  stage:
+    source: stage
+    type: enum
+    category: SETUP
+    direction: neutral
+    material_on_change: true
+    missing_value_policy: ignore
+  relative_strength:
+    source: relative_strength_score
+    type: float
+    category: LEADERSHIP
+    direction: higher_is_better
+    unit: points
+    absolute_change: 0.5
+    crossings:
+      - 5.5
+      - 7.0
+    missing_value_policy: warn
+  sector_rank:
+    source: sector_rank
+    type: integer_rank
+    category: LEADERSHIP
+    direction: lower_rank_is_better
+    absolute_change: 3
+    missing_value_policy: ignore
+  market_regime:
+    source: market_regime
+    type: enum
+    category: MARKET
+    direction: neutral
+    material_on_change: true
+    missing_value_policy: warn
+  earnings_risk:
+    source: earnings_risk
+    type: enum
+    category: RISK
+    direction: lower_is_better
+    material_on_change: true
+    missing_value_policy: ignore
+  liquidity:
+    source: liquidity_risk
+    type: boolean
+    category: RISK
+    direction: false_is_better
+    material_on_change: true
+    missing_value_policy: warn
+  data_quality:
+    source: data_quality_label
+    type: enum
+    category: DATA_QUALITY
+    direction: quality_order
+    material_on_change: true
+    missing_value_policy: warn
+  close_trigger_cross:
+    source: close_above_trigger
+    type: boolean
+    category: SETUP
+    direction: true_is_better
+    trigger_authority: close
+    material_on_change: true
+    missing_value_policy: warn
+  intraday_high_trigger_cross_diagnostic:
+    source: high_above_trigger
+    type: boolean
+    category: SETUP
+    direction: true_is_better
+    trigger_authority: diagnostic_high
+    diagnostic_only: true
+    material_on_change: true
+    missing_value_policy: ignore
+  distance_to_pivot_pct:
+    source: distance_to_pivot_pct
+    type: float
+    category: SETUP
+    direction: lower_is_better_until_trigger
+    unit: pct
+    absolute_change: 0.75
+    crossings:
+      - 5.0
+      - 3.0
+      - 2.0
+      - 1.0
+      - 0.0
+    missing_value_policy: ignore
+
+alerts:
+  built_in_rules_enabled: true
+  default_cooldown_sessions: 5
+  minimum_confidence: 70
+  reconstructed_origin_excluded: true
+  rules:
+    NEW_READY:
+      enabled: true
+      severity: ACTIONABLE
+      source: lifecycle_transition
+      to_state: READY
+      cooldown_sessions: 5
+      minimum_confidence: 70
+    NEW_TRIGGER:
+      enabled: true
+      severity: ACTIONABLE
+      source: lifecycle_transition
+      to_state: TRIGGERED
+      cooldown_sessions: 5
+      minimum_confidence: 70
+    NEW_CONFIRMATION:
+      enabled: true
+      severity: ACTIONABLE
+      source: lifecycle_transition
+      to_state: CONFIRMED
+      cooldown_sessions: 5
+      minimum_confidence: 70
+    NEW_FAILURE:
+      enabled: true
+      severity: RISK
+      source: lifecycle_transition
+      to_state: FAILED
+      cooldown_sessions: 1
+      minimum_confidence: 0
+    NEW_EXTENSION:
+      enabled: true
+      severity: RISK
+      source: lifecycle_transition
+      to_state: EXTENDED
+      cooldown_sessions: 5
+      minimum_confidence: 50
+    SCORE_ACCELERATION:
+      enabled: true
+      severity: NOTABLE
+      source: signal_change
+      signal_key: technical_score
+      cooldown_sessions: 5
+      minimum_confidence: 70
+    SECTOR_ACCELERATION:
+      enabled: true
+      severity: NOTABLE
+      source: signal_change
+      signal_key: sector_rank
+      cooldown_sessions: 5
+      minimum_confidence: 70
+    GATE_BLOCKED:
+      enabled: true
+      severity: RISK
+      source: actionability_change
+      to_actionability: BLOCKED
+      cooldown_sessions: 5
+      minimum_confidence: 0
+    DATA_DEGRADED:
+      enabled: true
+      severity: RISK
+      source: signal_change
+      signal_key: data_quality
+      cooldown_sessions: 5
+      minimum_confidence: 0
+
+api:
+  max_page_size: 500
+  default_page_size: 50
+  capture_evaluation_target_seconds: 60
+  p95_target_ms: 500
+  performance_fixture_min_snapshots: 100000
+  error_codes:
+    - INVALID_STATE
+    - INVALID_DATE
+    - INVALID_THRESHOLD
+    - INVALID_SORT
+    - INVALID_CURSOR
+    - INVALID_CONFIGURATION
+    - TICKER_NOT_FOUND
+    - EPISODE_NOT_FOUND
+    - EVALUATION_NOT_FOUND
+    - ALERT_NOT_FOUND
+    - RUN_LIFECYCLE_NOT_FOUND
+
+replay:
+  enabled: false
+  output_authoritative_by_default: false
+  promotion_requires_explicit_admin_action: true
+  promotion_requires_confirmation: true
+  persisted_replay_creates_parallel_version: true
+
+retention:
+  retain_immutable_evidence_indefinitely: true
+  purge_enabled: false
+  purge_preview_required: true
+  purge_confirmation_required: true
+  purge_audit_required: true
+
+reconstructed_origin:
+  enabled: false
+  exclude_from_live_alerts: true
+  exclude_from_live_alert_statistics: true
+  exclude_from_owpe_export: true

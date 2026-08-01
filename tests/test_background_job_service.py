@@ -4,10 +4,12 @@ import pytest
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import (
+    JobLeaseLost,
     JobStatus,
     claim_next_job,
     default_retry_delay,
     enqueue_job,
+    heartbeat_job,
     is_cancel_requested,
     mark_job_cancelled,
     mark_job_completed,
@@ -49,8 +51,13 @@ def test_claim_next_job_marks_job_running() -> None:
     assert claimed is job
     assert job.status == JobStatus.RUNNING
     assert job.worker_id == "worker-a"
+    assert job.lease_owner == "worker-a"
+    assert job.execution_token is not None
     assert job.locked_at is not None
+    assert job.heartbeat_at == job.locked_at
+    assert job.lease_expires_at is not None
     assert job.started_at is not None
+    assert job.operational_metadata_json["lease_events"][-1]["event_type"] == "CLAIMED"
     assert db.flushes == 1
 
 
@@ -64,13 +71,18 @@ def test_claim_next_job_returns_none_when_queue_is_empty() -> None:
 def test_mark_job_completed_clears_lock_and_stores_result() -> None:
     job = _running_job()
     db = FakeDb(existing=job)
+    token = job.execution_token
 
-    mark_job_completed(db, job, {"ok": True})
+    mark_job_completed(db, job, {"ok": True}, execution_token=token)
 
     assert job.status == JobStatus.COMPLETED
     assert job.result_json == {"ok": True}
     assert job.worker_id is None
+    assert job.lease_owner is None
+    assert job.execution_token is None
     assert job.locked_at is None
+    assert job.heartbeat_at is None
+    assert job.lease_expires_at is None
     assert job.completed_at is not None
     assert db.flushes == 1
 
@@ -79,7 +91,7 @@ def test_mark_job_partial_finishes_with_partial_status() -> None:
     job = _running_job()
     db = FakeDb(existing=job)
 
-    mark_job_partial(db, job, {"failed_tickers": 2})
+    mark_job_partial(db, job, {"failed_tickers": 2}, execution_token=job.execution_token)
 
     assert job.status == JobStatus.PARTIAL
     assert job.result_json == {"failed_tickers": 2}
@@ -90,7 +102,7 @@ def test_mark_job_cancelled_finishes_and_records_cancel_request() -> None:
     job = _running_job()
     db = FakeDb(existing=job)
 
-    mark_job_cancelled(db, job)
+    mark_job_cancelled(db, job, execution_token=job.execution_token)
 
     assert job.status == JobStatus.CANCELLED
     assert job.requested_cancel is True
@@ -103,24 +115,30 @@ def test_failed_job_requeues_with_backoff_until_retries_are_exhausted() -> None:
     job = _running_job(max_retries=2)
     db = FakeDb(existing=job)
 
-    mark_job_failed_or_retry(db, job, "temporary failure")
+    mark_job_failed_or_retry(db, job, "temporary failure", execution_token=job.execution_token)
 
     assert job.status == JobStatus.QUEUED
     assert job.retry_count == 1
     assert job.error_message == "temporary failure"
     assert job.worker_id is None
+    assert job.lease_owner is None
+    assert job.execution_token is None
     assert job.locked_at is None
+    assert job.heartbeat_at is None
+    assert job.lease_expires_at is None
     assert job.run_after is not None
     assert job.completed_at is None
 
     job.status = JobStatus.RUNNING
-    mark_job_failed_or_retry(db, job, "still broken")
+    job.execution_token = "token-2"
+    mark_job_failed_or_retry(db, job, "still broken", execution_token=job.execution_token)
 
     assert job.status == JobStatus.QUEUED
     assert job.retry_count == 2
 
     job.status = JobStatus.RUNNING
-    mark_job_failed_or_retry(db, job, "final failure")
+    job.execution_token = "token-3"
+    mark_job_failed_or_retry(db, job, "final failure", execution_token=job.execution_token)
 
     assert job.status == JobStatus.FAILED
     assert job.retry_count == 3
@@ -131,7 +149,7 @@ def test_failed_job_error_message_is_sanitized_and_truncated() -> None:
     job = _running_job(max_retries=0)
     db = FakeDb(existing=job)
 
-    mark_job_failed_or_retry(db, job, "x\n" * 600)
+    mark_job_failed_or_retry(db, job, "x\n" * 600, execution_token=job.execution_token)
 
     assert "\n" not in job.error_message
     assert len(job.error_message) == 500
@@ -182,8 +200,13 @@ def test_recover_stale_jobs_requeues_jobs_with_retries_remaining() -> None:
     assert count == 1
     assert stale.status == JobStatus.QUEUED
     assert stale.worker_id is None
+    assert stale.lease_owner is None
+    assert stale.execution_token is None
     assert stale.locked_at is None
+    assert stale.heartbeat_at is None
+    assert stale.lease_expires_at is None
     assert stale.error_message == "Recovered after stale worker lock."
+    assert stale.operational_metadata_json["lease_events"][-1]["event_type"] == "RECOVERED"
     assert db.flushes == 1
 
 
@@ -197,6 +220,80 @@ def test_recover_stale_jobs_marks_exhausted_jobs_stale() -> None:
     assert stale.completed_at is not None
 
 
+def test_live_heartbeat_prevents_stale_recovery() -> None:
+    live = _running_job(lease_expires_at=datetime.now(UTC) + timedelta(minutes=5))
+    db = FakeDb(stale_jobs=[live])
+
+    assert recover_stale_jobs(db, stale_after_seconds=900) == 0
+
+    assert live.status == JobStatus.RUNNING
+    assert live.execution_token == "token-1"
+
+
+def test_heartbeat_renews_lease_with_current_token() -> None:
+    job = _running_job(lease_expires_at=datetime.now(UTC) + timedelta(seconds=5))
+    db = FakeDb(existing=job)
+    old_heartbeat = job.heartbeat_at
+    token = job.execution_token
+
+    heartbeat_job(db, job, lease_seconds=900, execution_token=token)
+
+    assert job.execution_token == token
+    assert job.heartbeat_at is not None
+    assert job.heartbeat_at >= old_heartbeat
+    assert job.lease_expires_at is not None
+    assert job.lease_expires_at > job.heartbeat_at
+
+
+def test_expired_lease_can_be_recovered_exactly_once() -> None:
+    stale = _running_job(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    db = FakeDb(stale_jobs=[stale])
+
+    assert recover_stale_jobs(db, stale_after_seconds=900) == 1
+    assert recover_stale_jobs(db, stale_after_seconds=900) == 0
+
+
+def test_recovered_job_receives_new_execution_token_when_claimed() -> None:
+    stale = _running_job(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    db = FakeDb(existing=stale, stale_jobs=[stale], scalar_result=stale.id)
+    old_token = stale.execution_token
+
+    recover_stale_jobs(db, stale_after_seconds=900)
+    claimed = claim_next_job(db, worker_id="worker-b")
+
+    assert claimed is stale
+    assert stale.status == JobStatus.RUNNING
+    assert stale.execution_token is not None
+    assert stale.execution_token != old_token
+    assert stale.lease_owner == "worker-b"
+
+
+def test_old_worker_cannot_commit_after_lease_is_replaced() -> None:
+    job = _running_job()
+    old_token = job.execution_token
+    job.execution_token = "token-2"
+    db = FakeDb(existing=job)
+
+    with pytest.raises(JobLeaseLost):
+        mark_job_completed(db, job, {"ok": True}, execution_token=old_token)
+
+    assert job.status == JobStatus.RUNNING
+
+
+def test_duplicate_workers_cannot_both_mark_job_complete() -> None:
+    job = _running_job()
+    token = job.execution_token
+    db = FakeDb(existing=job)
+
+    mark_job_completed(db, job, {"ok": True}, execution_token=token)
+
+    with pytest.raises(JobLeaseLost):
+        mark_job_completed(db, job, {"ok": "again"}, execution_token=token)
+
+    assert job.status == JobStatus.COMPLETED
+    assert job.result_json == {"ok": True}
+
+
 def test_default_retry_delay_uses_capped_schedule() -> None:
     assert default_retry_delay(1) == timedelta(seconds=60)
     assert default_retry_delay(2) == timedelta(seconds=180)
@@ -207,7 +304,9 @@ def test_default_retry_delay_uses_capped_schedule() -> None:
 def _running_job(
     retry_count: int = 0,
     max_retries: int = 3,
+    lease_expires_at: datetime | None = None,
 ) -> BackgroundJob:
+    locked_at = datetime.now(UTC) - timedelta(hours=1)
     return BackgroundJob(
         id=11,
         job_type="FULL_PIPELINE",
@@ -215,8 +314,13 @@ def _running_job(
         retry_count=retry_count,
         max_retries=max_retries,
         worker_id="worker-a",
-        locked_at=datetime.now(UTC) - timedelta(hours=1),
-        started_at=datetime.now(UTC) - timedelta(hours=1),
+        lease_owner="worker-a",
+        execution_token="token-1",
+        locked_at=locked_at,
+        heartbeat_at=locked_at,
+        lease_expires_at=lease_expires_at or locked_at + timedelta(minutes=15),
+        started_at=locked_at,
+        operational_metadata_json={},
     )
 
 

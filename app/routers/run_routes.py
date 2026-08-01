@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
@@ -17,6 +17,8 @@ from app.models.tables import (
     RawCompanyRow,
     TechnicalScore,
     UploadRun,
+    WinnerPredictionSnapshot,
+    WinnerProbabilityEstimate,
 )
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.chart_data_service import build_ticker_chart_payload
@@ -245,6 +247,7 @@ def run_detail_page(
     latest_pipeline = _pipeline_status_for_run(db, run.id, pipeline_id)
     market_regime_context = _market_regime_context(_latest_run_market_snapshot(db, run.id))
     sector_rotation_context = _latest_sector_rotation_context(db, run.id)
+    winner_probability_context = _winner_probability_context(db, run.id)
     return templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -264,6 +267,7 @@ def run_detail_page(
             "ranking_profile_summary": ranking_profile_summary,
             "market_regime_context": market_regime_context,
             "sector_rotation_context": sector_rotation_context,
+            "winner_probability_context": winner_probability_context,
             "run_summary": _run_summary(run, rows, combined_results),
             "workflow_steps": _workflow_steps(
                 run=run,
@@ -1153,6 +1157,45 @@ def _sector_rotation_context(snapshot) -> dict[str, object]:
         "dashboard_url": f"/runs/{snapshot.run_id}/sector-rotation",
         "csv_url": f"/runs/{snapshot.run_id}/sector-rotation/export.csv",
         "brief_url": f"/runs/{snapshot.run_id}/sector-rotation/brief.md",
+    }
+
+
+def _winner_probability_context(db: Session, run_id: int) -> dict[str, object]:
+    predictions = list(
+        db.scalars(
+            select(WinnerPredictionSnapshot)
+            .where(WinnerPredictionSnapshot.run_id == run_id)
+            .where(WinnerPredictionSnapshot.superseded_at.is_(None))
+            .order_by(WinnerPredictionSnapshot.ticker.asc())
+        )
+    )
+    prediction_ids = [prediction.id for prediction in predictions]
+    estimate_count = 0
+    insufficient_count = 0
+    if prediction_ids:
+        estimate_count = int(
+            db.scalar(
+                select(func.count(WinnerProbabilityEstimate.id)).where(
+                    WinnerProbabilityEstimate.prediction_id.in_(prediction_ids)
+                )
+            )
+            or 0
+        )
+        insufficient_count = int(
+            db.scalar(
+                select(func.count(WinnerProbabilityEstimate.id))
+                .where(WinnerProbabilityEstimate.prediction_id.in_(prediction_ids))
+                .where(WinnerProbabilityEstimate.evidence_grade == "Insufficient")
+            )
+            or 0
+        )
+    return {
+        "prediction_count": len(predictions),
+        "estimate_count": estimate_count,
+        "insufficient_count": insufficient_count,
+        "run_url": f"/runs/{run_id}/winner-probability",
+        "operations_url": "/winner-probability/operations",
+        "prediction_by_ticker": {prediction.ticker: prediction.id for prediction in predictions},
     }
 
 

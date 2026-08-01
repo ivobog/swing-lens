@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Winner Probability Operations{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/winner_probability.js') }}" defer></script>
+
+<section class="panel winner-probability-hero" data-winner-probability-page>
+  <div class="panel-header run-header">
+    <div>
+      <h1>Winner Probability Operations</h1>
+      <p>Outcome state, processing health, and local administrative controls for the research evidence layer.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/winner-probability/outcomes">Outcome Explorer</a>
+      <a class="button-link secondary" href="/winner-probability/models">Model Health</a>
+      <a class="button-link secondary" href="/api/winner-probability/operations/status">JSON</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-muted">Research only</span>
+    <span>No broker order path</span>
+    <span>{{ "Admin enabled" if admin_enabled else "Admin disabled" }}</span>
+  </div>
+</section>
+
+<section class="metric-grid section-gap winner-probability-metrics" aria-label="Outcome operations summary">
+  <div class="metric"><span>Pending</span><strong>{{ status.pending_outcomes }}</strong></div>
+  <div class="metric"><span>Overdue</span><strong>{{ status.overdue_pending_outcomes }}</strong></div>
+  <div class="metric"><span>Failed Runs</span><strong>{{ status.failed_processing_runs }}</strong></div>
+</section>
+
+{% if admin_enabled %}
+  <section class="panel section-gap">
+    <div class="panel-header compact-header"><div><h2>Local Admin</h2></div></div>
+    <div class="actions">
+      <form method="post" action="/api/winner-probability/outcomes/process" data-loading-form>
+        <button type="submit" data-loading-label="Queueing...">Process due outcomes</button>
+      </form>
+      <form method="post" action="/api/winner-probability/cohorts/refresh" data-loading-form>
+        <button class="secondary" type="submit" data-loading-label="Queueing...">Refresh cohorts</button>
+      </form>
+    </div>
+  </section>
+{% endif %}
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Recent Processing Runs</h2></div></div>
+  {% if status.recent_processing_runs %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Run</th>
+            <th>Started</th>
+            <th>Completed</th>
+            <th>Counts</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in status.recent_processing_runs %}
+            <tr>
+              <td>{{ row.id }}</td>
+              <td>{{ row.process_type }}</td>
+              <td><span class="badge badge-{{ 'danger' if row.status == 'FAILED' else 'success' if row.status == 'COMPLETED' else 'warning' }}">{{ row.status }}</span></td>
+              <td>{{ row.run_id or "" }}</td>
+              <td>{{ row.started_at or "" }}</td>
+              <td>{{ row.completed_at or "" }}</td>
+              <td><code>{{ row.counts|tojson }}</code></td>
+              <td>{{ row.error_message or "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <strong>No OWPE processing runs yet.</strong>
+      <p>Capture and maturation jobs will appear here with counts, failures, and checkpoints.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

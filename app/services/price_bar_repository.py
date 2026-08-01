@@ -1,3 +1,5 @@
+from datetime import date
+
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -47,3 +49,55 @@ def load_preferred_ohlcv_frames(
     price = trades if not trades.empty else adjusted
     volume = trades if not trades.empty else None
     return price, volume
+
+
+def load_price_bar_rows(
+    db: Session,
+    ticker: str,
+    *,
+    start_date: date,
+    end_date: date,
+    what_to_show: str,
+    timeframe: str = "1 day",
+) -> list[PriceBar]:
+    return list(
+        db.scalars(
+            select(PriceBar)
+            .where(
+                PriceBar.ticker == ticker.upper(),
+                PriceBar.what_to_show == what_to_show,
+                PriceBar.timeframe == timeframe,
+                PriceBar.bar_date >= start_date,
+                PriceBar.bar_date <= end_date,
+            )
+            .order_by(PriceBar.bar_date)
+        )
+    )
+
+
+def load_preferred_price_bar_rows(
+    db: Session,
+    ticker: str,
+    *,
+    start_date: date,
+    end_date: date,
+    timeframe: str = "1 day",
+) -> list[PriceBar]:
+    trades = load_price_bar_rows(
+        db,
+        ticker,
+        start_date=start_date,
+        end_date=end_date,
+        what_to_show="TRADES",
+        timeframe=timeframe,
+    )
+    if trades:
+        return trades
+    return load_price_bar_rows(
+        db,
+        ticker,
+        start_date=start_date,
+        end_date=end_date,
+        what_to_show="ADJUSTED_LAST",
+        timeframe=timeframe,
+    )

@@ -1,0 +1,37 @@
+{% if estimate %}
+  <dl class="compact-dl">
+    <dt>Probability</dt>
+    <dd>
+      {% if estimate.point_probability is not none %}
+        <strong>{{ "%.0f"|format(estimate.point_probability * 100) }}%</strong>
+      {% else %}
+        <strong>Insufficient</strong>
+      {% endif %}
+    </dd>
+    <dt>Interval</dt>
+    <dd>
+      {% if estimate.lower_bound is not none and estimate.upper_bound is not none %}
+        {{ "%.0f"|format(estimate.lower_bound * 100) }}-{{ "%.0f"|format(estimate.upper_bound * 100) }}%
+      {% else %}
+        Withheld
+      {% endif %}
+    </dd>
+    <dt>Grade</dt><dd>{{ estimate.evidence_grade }}</dd>
+    <dt>Raw n</dt><dd>{{ estimate.sample_n or 0 }}</dd>
+    <dt>Effective n</dt><dd>{{ "%.0f"|format(estimate.effective_n) if estimate.effective_n is not none else "" }}</dd>
+    <dt>Median Return</dt><dd>{{ "%.1f"|format(estimate.median_return_pct) if estimate.median_return_pct is not none else "" }}</dd>
+    <dt>Median MFE</dt><dd>{{ "%.1f"|format(estimate.median_mfe_pct) if estimate.median_mfe_pct is not none else "" }}</dd>
+    <dt>Median MAE</dt><dd>{{ "%.1f"|format(estimate.median_mae_pct) if estimate.median_mae_pct is not none else "" }}</dd>
+    <dt>Target First</dt><dd>{{ "%.0f"|format(estimate.target_first_rate * 100) ~ "%" if estimate.target_first_rate is not none else "" }}</dd>
+    <dt>Training Cutoff</dt><dd>{{ estimate.training_cutoff_at }}</dd>
+    <dt>Manifest</dt><dd>{{ estimate.evidence_manifest_hash or "None" }}</dd>
+    {% if estimate.insufficient_reasons %}
+      <dt>Reasons</dt><dd>{{ estimate.insufficient_reasons|join(", ") }}</dd>
+    {% endif %}
+  </dl>
+{% else %}
+  <div class="empty-state">
+    <strong>No estimate stored.</strong>
+    <p>Decision-time estimates remain immutable once captured; latest re-scores are additive.</p>
+  </div>
+{% endif %}
