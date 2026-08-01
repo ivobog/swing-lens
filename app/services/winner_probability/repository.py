@@ -34,6 +34,7 @@ class TickerCaptureContext:
     combined_result: CombinedResult | None = None
     ranking_results: tuple[RankingResult, ...] = ()
     sector_row: SectorRotationRow | None = None
+    setup_lifecycle_features: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

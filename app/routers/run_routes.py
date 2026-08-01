@@ -15,6 +15,10 @@ from app.models.tables import (
     MarketRegimeSnapshot,
     RankingResult,
     RawCompanyRow,
+    SetupLifecycleEpisode,
+    SetupLifecycleEvaluationRun,
+    SetupLifecycleEvent,
+    SetupSignalSnapshot,
     TechnicalScore,
     UploadRun,
     WinnerPredictionSnapshot,
@@ -248,6 +252,7 @@ def run_detail_page(
     market_regime_context = _market_regime_context(_latest_run_market_snapshot(db, run.id))
     sector_rotation_context = _latest_sector_rotation_context(db, run.id)
     winner_probability_context = _winner_probability_context(db, run.id)
+    setup_lifecycle_context = _setup_lifecycle_context(db, run.id)
     return templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -268,6 +273,7 @@ def run_detail_page(
             "market_regime_context": market_regime_context,
             "sector_rotation_context": sector_rotation_context,
             "winner_probability_context": winner_probability_context,
+            "setup_lifecycle_context": setup_lifecycle_context,
             "run_summary": _run_summary(run, rows, combined_results),
             "workflow_steps": _workflow_steps(
                 run=run,
@@ -1196,6 +1202,41 @@ def _winner_probability_context(db: Session, run_id: int) -> dict[str, object]:
         "run_url": f"/runs/{run_id}/winner-probability",
         "operations_url": "/winner-probability/operations",
         "prediction_by_ticker": {prediction.ticker: prediction.id for prediction in predictions},
+    }
+
+
+def _setup_lifecycle_context(db: Session, run_id: int) -> dict[str, object]:
+    change_count = int(
+        db.scalar(
+            select(func.count(SetupLifecycleEvent.id))
+            .join(
+                SetupSignalSnapshot,
+                SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id,
+            )
+            .where(SetupSignalSnapshot.run_id == run_id)
+        )
+        or 0
+    )
+    latest_run = db.scalar(
+        select(SetupLifecycleEvaluationRun)
+        .where(SetupLifecycleEvaluationRun.source_run_id == run_id)
+        .order_by(SetupLifecycleEvaluationRun.created_at.desc())
+        .limit(1)
+    )
+    active_episode_count = int(
+        db.scalar(
+            select(func.count(SetupLifecycleEpisode.id)).where(
+                SetupLifecycleEpisode.status == "ACTIVE"
+            )
+        )
+        or 0
+    )
+    return {
+        "change_count": change_count,
+        "latest_status": latest_run.status if latest_run is not None else None,
+        "active_episode_count": active_episode_count,
+        "run_url": f"/runs/{run_id}/setup-lifecycle",
+        "operations_url": "/setup-lifecycle/operations",
     }
 
 

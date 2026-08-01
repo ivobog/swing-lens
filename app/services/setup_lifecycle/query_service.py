@@ -1,0 +1,678 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
+
+from app.models.tables import (
+    BackgroundJob,
+    SetupLifecycleEpisode,
+    SetupLifecycleEvaluationRun,
+    SetupLifecycleEvent,
+    SetupSignalSnapshot,
+    SignalAlertEvent,
+    SignalChangeEvent,
+)
+from app.services.background_job_service import JobStatus
+from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.enums import LifecycleState, SetupFamily
+from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+
+
+class SetupLifecycleQueryError(ValueError):
+    def __init__(self, code: str, message: str, *, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.status_code = status_code
+
+
+@dataclass(frozen=True)
+class SetupLifecycleFilters:
+    run_id: int | None = None
+    ticker: str | None = None
+    sector: str | None = None
+    setup_family: str | None = None
+    lifecycle_state: str | None = None
+    transition: str | None = None
+    actionability: str | None = None
+    confidence_min: int | None = None
+    confidence_max: int | None = None
+    state_age_min: int | None = None
+    state_age_max: int | None = None
+    setup_score_min: float | None = None
+    setup_score_max: float | None = None
+    trigger_distance_min: float | None = None
+    trigger_distance_max: float | None = None
+    sector_rank_min: int | None = None
+    sector_rank_max: int | None = None
+    velocity_min: float | None = None
+    velocity_max: float | None = None
+    market_regime: str | None = None
+    warning_flag: str | None = None
+    alert_status: str | None = None
+    alert_severity: str | None = None
+
+
+@dataclass(frozen=True)
+class SetupLifecycleListQuery:
+    filters: SetupLifecycleFilters
+    sort: str = "latest_event_time"
+    direction: str = "desc"
+    limit: int = 50
+    cursor: str | None = None
+
+
+class SetupLifecycleQueryService:
+    def __init__(
+        self,
+        *,
+        repository: SetupLifecycleRepository | None = None,
+        config: SetupLifecycleConfig | None = None,
+    ) -> None:
+        self.repository = repository or SetupLifecycleRepository()
+        self.config = config or load_setup_lifecycle_config()
+
+    def changes(self, db: Session, query: SetupLifecycleListQuery) -> dict[str, Any]:
+        query = _validate_query(query)
+        statement = select(SetupLifecycleEvent).outerjoin(
+            SetupSignalSnapshot,
+            SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id,
+        )
+        statement = _apply_event_filters(statement, query.filters)
+        total = _count(db, statement)
+        rows = list(
+            db.scalars(
+                _sort_events(statement, query.sort, query.direction)
+                .offset(_offset(query.cursor))
+                .limit(query.limit)
+            )
+        )
+        return _page(
+            items=[lifecycle_event_payload(row) for row in rows],
+            total=total,
+            query=query,
+        )
+
+    def alerts(self, db: Session, query: SetupLifecycleListQuery) -> dict[str, Any]:
+        query = _validate_query(query)
+        statement = select(SignalAlertEvent)
+        statement = _apply_alert_filters(statement, query.filters)
+        total = _count(db, statement)
+        rows = list(
+            db.scalars(
+                _sort_alerts(statement, query.sort, query.direction)
+                .offset(_offset(query.cursor))
+                .limit(query.limit)
+            )
+        )
+        return _page(
+            items=[alert_payload(row) for row in rows],
+            total=total,
+            query=query,
+        )
+
+    def ticker_timeline(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        timeframe: str = "1d",
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        normalized = self.repository.normalize_ticker(ticker)
+        snapshots = list(
+            db.scalars(
+                select(SetupSignalSnapshot)
+                .where(SetupSignalSnapshot.ticker == normalized)
+                .where(SetupSignalSnapshot.timeframe == timeframe)
+                .order_by(SetupSignalSnapshot.data_as_of_date.desc(), SetupSignalSnapshot.id.desc())
+                .limit(max(1, min(limit, 500)))
+            )
+        )
+        episodes = list(
+            db.scalars(
+                select(SetupLifecycleEpisode)
+                .where(SetupLifecycleEpisode.ticker == normalized)
+                .where(SetupLifecycleEpisode.timeframe == timeframe)
+                .order_by(SetupLifecycleEpisode.opened_on.desc(), SetupLifecycleEpisode.id.desc())
+            )
+        )
+        lifecycle_events = list(
+            db.scalars(
+                select(SetupLifecycleEvent)
+                .where(SetupLifecycleEvent.ticker == normalized)
+                .where(SetupLifecycleEvent.timeframe == timeframe)
+                .order_by(SetupLifecycleEvent.effective_date.desc(), SetupLifecycleEvent.id.desc())
+                .limit(max(1, min(limit, 500)))
+            )
+        )
+        signal_changes = list(
+            db.scalars(
+                select(SignalChangeEvent)
+                .where(SignalChangeEvent.ticker == normalized)
+                .where(SignalChangeEvent.timeframe == timeframe)
+                .order_by(SignalChangeEvent.effective_date.desc(), SignalChangeEvent.id.desc())
+                .limit(max(1, min(limit, 500)))
+            )
+        )
+        alerts = list(
+            db.scalars(
+                select(SignalAlertEvent)
+                .where(SignalAlertEvent.ticker == normalized)
+                .where(SignalAlertEvent.timeframe == timeframe)
+                .order_by(SignalAlertEvent.effective_date.desc(), SignalAlertEvent.id.desc())
+                .limit(max(1, min(limit, 500)))
+            )
+        )
+        return {
+            "ticker": normalized,
+            "timeframe": timeframe,
+            "snapshots": [snapshot_payload(row) for row in snapshots],
+            "episodes": [episode_payload(row) for row in episodes],
+            "lifecycle_events": [lifecycle_event_payload(row) for row in lifecycle_events],
+            "signal_changes": [signal_change_payload(row) for row in signal_changes],
+            "alerts": [alert_payload(row) for row in alerts],
+            "source_links": _source_links(snapshots[:1]),
+        }
+
+    def episode_detail(self, db: Session, episode_id: int) -> dict[str, Any]:
+        episode = db.get(SetupLifecycleEpisode, episode_id)
+        if episode is None:
+            raise SetupLifecycleQueryError(
+                "EPISODE_NOT_FOUND",
+                "Setup lifecycle episode was not found.",
+                status_code=404,
+            )
+        events = list(
+            db.scalars(
+                select(SetupLifecycleEvent)
+                .where(SetupLifecycleEvent.episode_id == episode_id)
+                .order_by(SetupLifecycleEvent.effective_date.asc(), SetupLifecycleEvent.id.asc())
+            )
+        )
+        changes = list(
+            db.scalars(
+                select(SignalChangeEvent)
+                .where(SignalChangeEvent.episode_id == episode_id)
+                .order_by(SignalChangeEvent.effective_date.asc(), SignalChangeEvent.id.asc())
+            )
+        )
+        snapshot_ids = tuple(
+            {
+                item
+                for item in (
+                    episode.opening_snapshot_id,
+                    episode.current_snapshot_id,
+                    episode.closing_snapshot_id,
+                )
+                if item is not None
+            }
+        )
+        snapshots = self.repository.get_snapshots_by_ids(db, snapshot_ids)
+        return {
+            "episode": episode_payload(episode),
+            "snapshots": [snapshot_payload(row) for row in snapshots],
+            "lifecycle_events": [lifecycle_event_payload(row) for row in events],
+            "signal_changes": [signal_change_payload(row) for row in changes],
+        }
+
+    def operations(self, db: Session) -> dict[str, Any]:
+        runs = list(
+            db.scalars(
+                select(SetupLifecycleEvaluationRun)
+                .order_by(SetupLifecycleEvaluationRun.created_at.desc())
+                .limit(25)
+            )
+        )
+        return {
+            "runs": [evaluation_run_payload(row) for row in runs],
+            "summary": {
+                "latest_status": runs[0].status if runs else None,
+                "latest_evaluation_id": runs[0].id if runs else None,
+                "active_episodes": self.repository.count_active_episodes(db),
+            },
+        }
+
+    def evaluation_run(self, db: Session, evaluation_id: int) -> dict[str, Any]:
+        run = db.get(SetupLifecycleEvaluationRun, evaluation_id)
+        if run is None:
+            raise SetupLifecycleQueryError(
+                "EVALUATION_NOT_FOUND",
+                "Evaluation was not found.",
+                status_code=404,
+            )
+        return evaluation_run_payload(run)
+
+    def diagnostics(self, db: Session) -> dict[str, Any]:
+        latest_canonical_date = db.scalar(
+            select(func.max(SetupSignalSnapshot.data_as_of_date)).where(
+                SetupSignalSnapshot.is_canonical.is_(True)
+            )
+        )
+        latest_success = db.scalar(
+            select(SetupLifecycleEvaluationRun)
+            .where(SetupLifecycleEvaluationRun.status.in_(("COMPLETED", "PARTIAL")))
+            .order_by(
+                SetupLifecycleEvaluationRun.completed_at.desc().nullslast(),
+                SetupLifecycleEvaluationRun.id.desc(),
+            )
+            .limit(1)
+        )
+        active_episodes = self.repository.count_active_episodes(db)
+        pending_jobs = _job_count(db, (JobStatus.QUEUED, JobStatus.RUNNING))
+        stale_lease_count = _stale_lease_count(db)
+        low_confidence_share = _low_confidence_share(db)
+        stale_system_warning = latest_success is None or stale_lease_count > 0
+        return {
+            "latest_canonical_date": _date_or_none(latest_canonical_date),
+            "latest_successful_evaluation": evaluation_run_payload(latest_success)
+            if latest_success is not None
+            else None,
+            "active_episode_count": active_episodes,
+            "pending_jobs": pending_jobs,
+            "stale_lease_count": stale_lease_count,
+            "low_confidence_share": low_confidence_share,
+            "stale_system_warning": stale_system_warning,
+        }
+
+    def filter_options(self, db: Session) -> dict[str, Any]:
+        return {
+            "states": [state.value for state in LifecycleState],
+            "families": [family.value for family in SetupFamily],
+            "tickers": _distinct(db, SetupLifecycleEpisode.ticker),
+            "sectors": _distinct(db, SetupSignalSnapshot.sector),
+            "alert_statuses": _distinct(db, SignalAlertEvent.status),
+            "alert_severities": _distinct(db, SignalAlertEvent.severity),
+        }
+
+
+def lifecycle_event_payload(event: SetupLifecycleEvent) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "episode_id": event.episode_id,
+        "evaluation_run_id": event.evaluation_run_id,
+        "snapshot_id": event.snapshot_id,
+        "ticker": event.ticker,
+        "timeframe": event.timeframe,
+        "setup_family": event.setup_family,
+        "effective_date": _date_or_none(event.effective_date),
+        "event_type": event.event_type,
+        "from_state": event.from_state,
+        "to_state": event.to_state,
+        "from_phase": event.from_phase,
+        "to_phase": event.to_phase,
+        "actionability_before": event.actionability_before,
+        "actionability_after": event.actionability_after,
+        "confidence_score": event.confidence_score,
+        "confidence_label": event.confidence_label,
+        "severity": event.severity,
+        "source_event_key": event.source_event_key,
+        "is_current_version": event.is_current_version,
+        "reason_codes": list(event.reason_codes_json or []),
+        "evidence": dict(event.evidence_json or {}),
+    }
+
+
+def episode_payload(episode: SetupLifecycleEpisode) -> dict[str, Any]:
+    return {
+        "id": episode.id,
+        "ticker": episode.ticker,
+        "timeframe": episode.timeframe,
+        "setup_family": episode.setup_family,
+        "status": episode.status,
+        "opened_on": _date_or_none(episode.opened_on),
+        "current_as_of_date": _date_or_none(episode.current_as_of_date),
+        "last_observed_on": _date_or_none(episode.last_observed_on),
+        "closed_on": _date_or_none(episode.closed_on),
+        "missing_observation_sessions": episode.missing_observation_sessions,
+        "current_state": episode.current_state,
+        "current_phase": episode.current_phase,
+        "state_age_sessions": episode.state_age_sessions,
+        "current_actionability": episode.current_actionability,
+        "confidence_score": episode.confidence_score,
+        "confidence_label": episode.confidence_label,
+        "terminal_state": episode.terminal_state,
+        "terminal_reason_code": episode.terminal_reason_code,
+        "is_primary": episode.is_primary,
+        "primary_rank": episode.primary_rank,
+        "metadata": dict(episode.metadata_json or {}),
+    }
+
+
+def snapshot_payload(snapshot: SetupSignalSnapshot) -> dict[str, Any]:
+    return {
+        "id": snapshot.id,
+        "run_id": snapshot.run_id,
+        "raw_row_id": snapshot.raw_row_id,
+        "fundamental_score_id": snapshot.fundamental_score_id,
+        "technical_score_id": snapshot.technical_score_id,
+        "combined_result_id": snapshot.combined_result_id,
+        "ranking_result_id": snapshot.ranking_result_id,
+        "market_regime_snapshot_id": snapshot.market_regime_snapshot_id,
+        "sector_rotation_snapshot_id": snapshot.sector_rotation_snapshot_id,
+        "ticker": snapshot.ticker,
+        "company_name": snapshot.company_name,
+        "sector": snapshot.sector,
+        "timeframe": snapshot.timeframe,
+        "data_as_of_date": _date_or_none(snapshot.data_as_of_date),
+        "calculated_at": _datetime_or_none(snapshot.calculated_at),
+        "origin_type": snapshot.origin_type,
+        "is_canonical": snapshot.is_canonical,
+        "primary_setup_family": snapshot.primary_setup_family,
+        "primary_phase": snapshot.primary_phase,
+        "lifecycle_state_candidate": snapshot.lifecycle_state_candidate,
+        "actionability_candidate": snapshot.actionability_candidate,
+        "data_quality_label": snapshot.data_quality_label,
+        "confidence_score": snapshot.confidence_score,
+        "confidence_label": snapshot.confidence_label,
+        "setup_score": _number_or_none(snapshot.setup_score),
+        "technical_classification": snapshot.technical_classification,
+        "distance_to_pivot_pct": _number_or_none(snapshot.distance_to_pivot_pct),
+        "warning_flags": list(snapshot.warning_flags_json or []),
+        "source_lineage": dict(snapshot.source_lineage_json or {}),
+    }
+
+
+def signal_change_payload(event: SignalChangeEvent) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "episode_id": event.episode_id,
+        "evaluation_run_id": event.evaluation_run_id,
+        "ticker": event.ticker,
+        "timeframe": event.timeframe,
+        "effective_date": _date_or_none(event.effective_date),
+        "category": event.category,
+        "signal_key": event.signal_key,
+        "old_value": dict(event.old_value_json or {}),
+        "new_value": dict(event.new_value_json or {}),
+        "direction": event.direction,
+        "threshold_name": event.threshold_name,
+        "threshold_direction": event.threshold_direction,
+        "severity": event.severity,
+        "reason_codes": list(event.reason_codes_json or []),
+        "evidence": dict(event.evidence_json or {}),
+    }
+
+
+def alert_payload(alert: SignalAlertEvent) -> dict[str, Any]:
+    return {
+        "id": alert.id,
+        "alert_rule_id": alert.alert_rule_id,
+        "lifecycle_event_id": alert.lifecycle_event_id,
+        "signal_change_event_id": alert.signal_change_event_id,
+        "evaluation_run_id": alert.evaluation_run_id,
+        "ticker": alert.ticker,
+        "timeframe": alert.timeframe,
+        "effective_date": _date_or_none(alert.effective_date),
+        "event_key": alert.event_key,
+        "source_event_key": alert.source_event_key,
+        "status": alert.status,
+        "severity": alert.severity,
+        "reason_codes": list(alert.reason_codes_json or []),
+        "evidence": dict(alert.evidence_json or {}),
+    }
+
+
+def evaluation_run_payload(run: SetupLifecycleEvaluationRun) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "source_run_id": run.source_run_id,
+        "mode": run.mode,
+        "status": run.status,
+        "current_phase": run.current_phase,
+        "engine_version": run.engine_version,
+        "config_version": run.config_version,
+        "output_evaluation_version": run.output_evaluation_version,
+        "date_from": _date_or_none(run.date_from),
+        "date_to": _date_or_none(run.date_to),
+        "dry_run": run.dry_run,
+        "read_count": run.read_count,
+        "captured_count": run.captured_count,
+        "canonical_count": run.canonical_count,
+        "changed_count": run.changed_count,
+        "transitioned_count": run.transitioned_count,
+        "alerted_count": run.alerted_count,
+        "warning_count": run.warning_count,
+        "failed_count": run.failed_count,
+        "created_at": _datetime_or_none(run.created_at),
+        "completed_at": _datetime_or_none(run.completed_at),
+        "duration_ms": run.duration_ms,
+        "errors": dict(run.error_summary_json or {}),
+    }
+
+
+def _validate_query(query: SetupLifecycleListQuery) -> SetupLifecycleListQuery:
+    if query.limit < 1 or query.limit > 500:
+        raise SetupLifecycleQueryError("INVALID_LIMIT", "limit must be between 1 and 500")
+    if query.direction not in {"asc", "desc"}:
+        raise SetupLifecycleQueryError("INVALID_SORT", "direction must be asc or desc")
+    _offset(query.cursor)
+    return query
+
+
+def _apply_event_filters(statement, filters: SetupLifecycleFilters):
+    if filters.ticker:
+        statement = statement.where(SetupLifecycleEvent.ticker == filters.ticker.strip().upper())
+    if filters.run_id is not None:
+        statement = statement.where(SetupSignalSnapshot.run_id == filters.run_id)
+    if filters.setup_family:
+        statement = statement.where(SetupLifecycleEvent.setup_family == filters.setup_family)
+    if filters.lifecycle_state:
+        statement = statement.where(SetupLifecycleEvent.to_state == filters.lifecycle_state)
+    if filters.transition:
+        statement = statement.where(SetupLifecycleEvent.event_type == filters.transition)
+    if filters.actionability:
+        statement = statement.where(
+            SetupLifecycleEvent.actionability_after == filters.actionability
+        )
+    if filters.confidence_min is not None:
+        statement = statement.where(SetupLifecycleEvent.confidence_score >= filters.confidence_min)
+    if filters.confidence_max is not None:
+        statement = statement.where(SetupLifecycleEvent.confidence_score <= filters.confidence_max)
+    if filters.state_age_min is not None:
+        statement = statement.where(SetupLifecycleEvent.state_age_before >= filters.state_age_min)
+    if filters.state_age_max is not None:
+        statement = statement.where(SetupLifecycleEvent.state_age_before <= filters.state_age_max)
+    if filters.sector:
+        statement = statement.where(SetupSignalSnapshot.sector == filters.sector)
+    if filters.setup_score_min is not None:
+        statement = statement.where(SetupSignalSnapshot.setup_score >= filters.setup_score_min)
+    if filters.setup_score_max is not None:
+        statement = statement.where(SetupSignalSnapshot.setup_score <= filters.setup_score_max)
+    if filters.trigger_distance_min is not None:
+        statement = statement.where(
+            SetupSignalSnapshot.distance_to_pivot_pct >= filters.trigger_distance_min
+        )
+    if filters.trigger_distance_max is not None:
+        statement = statement.where(
+            SetupSignalSnapshot.distance_to_pivot_pct <= filters.trigger_distance_max
+        )
+    if filters.sector_rank_min is not None:
+        statement = statement.where(_signal_int("sector_rank") >= filters.sector_rank_min)
+    if filters.sector_rank_max is not None:
+        statement = statement.where(_signal_int("sector_rank") <= filters.sector_rank_max)
+    if filters.velocity_min is not None:
+        statement = statement.where(_event_float("velocity") >= filters.velocity_min)
+    if filters.velocity_max is not None:
+        statement = statement.where(_event_float("velocity") <= filters.velocity_max)
+    if filters.market_regime:
+        statement = statement.where(_signal_text("market_regime") == filters.market_regime)
+    if filters.warning_flag:
+        statement = statement.where(
+            or_(
+                SetupLifecycleEvent.warning_flags_json.contains([filters.warning_flag]),
+                SetupSignalSnapshot.warning_flags_json.contains([filters.warning_flag]),
+            )
+        )
+    return statement
+
+
+def _apply_alert_filters(statement, filters: SetupLifecycleFilters):
+    if filters.ticker:
+        statement = statement.where(SignalAlertEvent.ticker == filters.ticker.strip().upper())
+    if filters.alert_status:
+        statement = statement.where(SignalAlertEvent.status == filters.alert_status)
+    if filters.alert_severity:
+        statement = statement.where(SignalAlertEvent.severity == filters.alert_severity)
+    return statement
+
+
+def _sort_events(statement, sort: str, direction: str):
+    sort_map = {
+        "transition_priority": SetupLifecycleEvent.severity,
+        "confidence": SetupLifecycleEvent.confidence_score,
+        "score": SetupSignalSnapshot.setup_score,
+        "setup_score": SetupSignalSnapshot.setup_score,
+        "velocity": _event_float("velocity"),
+        "state_age": SetupLifecycleEvent.state_age_before,
+        "trigger_distance": SetupSignalSnapshot.distance_to_pivot_pct,
+        "sector_rank": _signal_int("sector_rank"),
+        "latest_event_time": SetupLifecycleEvent.effective_date,
+    }
+    column = sort_map.get(sort)
+    if column is None:
+        raise SetupLifecycleQueryError("INVALID_SORT", f"unsupported sort: {sort}")
+    order = column.asc() if direction == "asc" else column.desc()
+    return statement.order_by(order, SetupLifecycleEvent.id.desc())
+
+
+def _sort_alerts(statement, sort: str, direction: str):
+    sort_map = {
+        "latest_event_time": SignalAlertEvent.effective_date,
+        "severity": SignalAlertEvent.severity,
+    }
+    column = sort_map.get(sort, SignalAlertEvent.effective_date)
+    order = column.asc() if direction == "asc" else column.desc()
+    return statement.order_by(order, SignalAlertEvent.id.desc())
+
+
+def _page(
+    *,
+    items: list[dict[str, Any]],
+    total: int,
+    query: SetupLifecycleListQuery,
+) -> dict[str, Any]:
+    start = _offset(query.cursor)
+    next_offset = start + len(items)
+    return {
+        "items": items,
+        "total": total,
+        "limit": query.limit,
+        "cursor": query.cursor,
+        "next_cursor": str(next_offset) if next_offset < total else None,
+        "sort": query.sort,
+        "direction": query.direction,
+    }
+
+
+def _offset(cursor: str | None) -> int:
+    if cursor in {None, ""}:
+        return 0
+    try:
+        value = int(cursor)
+    except (TypeError, ValueError) as exc:
+        raise SetupLifecycleQueryError("INVALID_CURSOR", "cursor must be an integer") from exc
+    if value < 0:
+        raise SetupLifecycleQueryError("INVALID_CURSOR", "cursor must be non-negative")
+    return value
+
+
+def _count(db: Session, statement) -> int:
+    return int(db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+
+
+def _signal_text(key: str):
+    return SetupSignalSnapshot.signals_json[key]["value"].as_string()
+
+
+def _signal_int(key: str):
+    return SetupSignalSnapshot.signals_json[key]["value"].as_integer()
+
+
+def _event_float(key: str):
+    return SetupLifecycleEvent.evidence_json[key].as_float()
+
+
+def _job_count(db: Session, statuses: tuple[str, ...]) -> int:
+    return int(
+        db.scalar(select(func.count()).select_from(BackgroundJob).where(BackgroundJob.status.in_(statuses)))
+        or 0
+    )
+
+
+def _stale_lease_count(db: Session) -> int:
+    return int(
+        db.scalar(
+            select(func.count())
+            .select_from(BackgroundJob)
+            .where(BackgroundJob.status == JobStatus.RUNNING)
+            .where(BackgroundJob.lease_expires_at.is_not(None))
+            .where(BackgroundJob.lease_expires_at < datetime.now(UTC))
+        )
+        or 0
+    )
+
+
+def _low_confidence_share(db: Session) -> float:
+    total = int(db.scalar(select(func.count()).select_from(SetupSignalSnapshot)) or 0)
+    if total == 0:
+        return 0.0
+    low = int(
+        db.scalar(
+            select(func.count())
+            .select_from(SetupSignalSnapshot)
+            .where(SetupSignalSnapshot.data_quality_label.in_(("LOW", "INSUFFICIENT")))
+        )
+        or 0
+    )
+    return round(low / total, 6)
+
+
+def _distinct(db: Session, column) -> list[Any]:
+    statement = select(column).where(column.is_not(None)).distinct().order_by(column)
+    return [value for value in db.scalars(statement) if value is not None]
+
+
+def _source_links(snapshots: list[SetupSignalSnapshot]) -> dict[str, str | None]:
+    if not snapshots:
+        return {}
+    snapshot = snapshots[0]
+    return {
+        "source_run": f"/runs/{snapshot.run_id}" if snapshot.run_id else None,
+        "technical_score_card": f"/runs/{snapshot.run_id}#ticker-{snapshot.ticker}"
+        if snapshot.run_id
+        else None,
+        "market_regime": f"/runs/{snapshot.run_id}/market-regime"
+        if snapshot.run_id and snapshot.market_regime_snapshot_id
+        else "/market-regime"
+        if snapshot.market_regime_snapshot_id
+        else None,
+        "sector_rotation": f"/runs/{snapshot.run_id}/sector-rotation"
+        if snapshot.run_id and snapshot.sector_rotation_snapshot_id
+        else None,
+        "owpe": f"/winner-probability/tickers/{snapshot.ticker}",
+    }
+
+
+def _date_or_none(value: date | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def _datetime_or_none(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def _number_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

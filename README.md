@@ -20,6 +20,7 @@ This repository currently contains the MVP application:
 - Combined decision cockpit
 - Market regime command center
 - Sector rotation dashboard
+- Setup Lifecycle and Signal-Change Engine
 - CSV exports and run history
 
 ## Runtime Targets
@@ -124,6 +125,8 @@ SwingLens keeps MVP scoring and mapping defaults in `config/`:
   risk-state mapping, and ranking-profile permissions.
 - `sector_rotation.yaml` stores sector taxonomy, universe leadership weights, optional ETF
   confirmation weights, rotation-state thresholds, and advisory permission mappings.
+- `setup_lifecycle.yaml` stores setup lifecycle state semantics, setup-family thresholds,
+  signal-change definitions, alert rules, replay policy, retention policy, and API targets.
 
 Uploaded CSV rows are still preserved exactly as raw JSON in PostgreSQL.
 
@@ -132,6 +135,10 @@ Market Regime Command Center operation is documented in
 
 Sector Rotation Dashboard operation is documented in
 `docs/sector_rotation_dashboard.md`.
+
+Setup Lifecycle and Signal-Change Engine operation is documented in
+`docs/setup_lifecycle_signal_change_engine.md`, with release notes in
+`docs/release_notes_setup_lifecycle_signal_change_engine.md`.
 
 ## Interactive Brokers
 
@@ -174,6 +181,15 @@ Every run exposes CSV exports:
 /runs/{run_id}/sector-rotation/export.csv
 /runs/{run_id}/sector-rotation/export.json
 /runs/{run_id}/sector-rotation/brief.md
+/setup-lifecycle/export.csv
+/setup-lifecycle/export.json
+/api/setup-lifecycle/changes/export.csv
+/api/setup-lifecycle/changes/export.json
+/api/setup-lifecycle/alerts/export.csv
+/api/setup-lifecycle/alerts/export.json
+/api/setup-lifecycle/episodes/{episode_id}/export.csv
+/api/setup-lifecycle/episodes/{episode_id}/export.json
+/api/setup-lifecycle/operations/export.json
 ```
 
 ## Technical Indicators
@@ -215,3 +231,4 @@ They are not copied into the repository by default.
 ## Safety Boundary
 
 SwingLens is decision support only. It must not place, modify, or cancel broker orders.
+Setup lifecycle alerts and state changes are research signals, not trading instructions.

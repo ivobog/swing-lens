@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Setup Lifecycle Operations{% endblock %}
+
+{% block content %}
+<section class="panel setup-lifecycle-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>Setup Lifecycle Operations</h1>
+      <p>Evaluation status, replay controls, counts, warnings, errors, and engine/config versions.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/setup-lifecycle">Market Changes</a>
+      <a class="button-link secondary" href="/api/setup-lifecycle/operations/export.json">JSON</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span>Latest canonical date {{ diagnostics.latest_canonical_date or "N/A" }}</span>
+    <span>Active episodes {{ diagnostics.active_episode_count }}</span>
+    <span>Pending jobs {{ diagnostics.pending_jobs }}</span>
+    {% if diagnostics.stale_system_warning %}<span class="badge badge-warning">Stale-system warning active</span>{% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Replay</h2></div></div>
+  <form class="setup-lifecycle-filter-grid section-gap" method="post" action="/api/setup-lifecycle/replay">
+    <label><span>Ticker</span><input name="ticker" placeholder="Optional"></label>
+    <label><span>From</span><input name="date_from" type="date"></label>
+    <label><span>To</span><input name="date_to" type="date"></label>
+    <label class="toggle-row"><input name="persist" type="checkbox" value="true"><span>Persist replay version</span></label>
+    <div class="actions setup-lifecycle-filter-actions"><button type="submit">Run replay</button></div>
+  </form>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Evaluation Runs</h2></div></div>
+  {% if operations.runs %}
+    <div class="table-wrap section-gap">
+      <table class="setup-lifecycle-table">
+        <caption>Most recent setup lifecycle evaluation runs.</caption>
+        <thead><tr><th scope="col">ID</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col">Counts</th><th scope="col">Version</th><th scope="col">Errors</th></tr></thead>
+        <tbody>
+          {% for run in operations.runs %}
+            <tr>
+              <td>{{ run.id }}</td>
+              <td>{{ run.mode }}</td>
+              <td><span class="status-pill status-{{ run.status|lower|replace('_', '-') }}">{{ run.status }}</span><span class="muted-line">{{ run.current_phase or "" }}</span></td>
+              <td>Read {{ run.read_count }}, canonical {{ run.canonical_count }}, changed {{ run.changed_count }}, transitioned {{ run.transitioned_count }}, alerted {{ run.alerted_count }}</td>
+              <td>{{ run.engine_version }}<span class="muted-line">{{ run.config_version }}</span><span class="muted-line">{{ run.output_evaluation_version or "No output version" }}</span></td>
+              <td>{% if run.errors %}<pre>{{ run.errors|tojson(indent=2) }}</pre>{% else %}None{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state section-gap"><strong>No setup lifecycle evaluations yet.</strong></div>
+  {% endif %}
+</section>
+{% endblock %}

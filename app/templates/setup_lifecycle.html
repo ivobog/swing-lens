@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Market Changes{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/setup_lifecycle.js') }}" defer></script>
+
+<section class="panel setup-lifecycle-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>Market Changes</h1>
+      <p>Daily lifecycle changes from completed signal sessions. Research evidence only; rankings and orders are not changed here.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/setup-lifecycle/alerts">Alert Center</a>
+      <a class="button-link secondary" href="/setup-lifecycle/operations">Operations</a>
+      <a class="button-link secondary" href="/setup-lifecycle/export.csv">CSV</a>
+      <a class="button-link secondary" href="/setup-lifecycle/export.json">JSON</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-muted">Data as of {{ summary.selected_date or "N/A" }}</span>
+    <span>Comparison {{ summary.comparison_date or "N/A" }}</span>
+    <span>Missing-session gap {{ summary.missing_session_gap }}</span>
+    {% if diagnostics.stale_system_warning %}
+      <span class="badge badge-warning">Stale-system warning active</span>
+    {% else %}
+      <span class="badge badge-success">Lifecycle system current</span>
+    {% endif %}
+    {% if filters.run_id %}<span>Run {{ filters.run_id }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="metric-grid section-gap setup-lifecycle-metrics" aria-label="Market change summary">
+  <div class="metric"><span>Total Changes</span><strong>{{ summary.total }}</strong></div>
+  <div class="metric"><span>Newly Ready</span><strong>{{ summary.newly_ready }}</strong></div>
+  <div class="metric"><span>Newly Triggered</span><strong>{{ summary.newly_triggered }}</strong></div>
+  <div class="metric"><span>Failed</span><strong>{{ summary.failed }}</strong></div>
+  <div class="metric"><span>Extended</span><strong>{{ summary.extended }}</strong></div>
+  <div class="metric"><span>Low Confidence</span><strong>{{ "%.0f"|format((summary.low_confidence_share or 0) * 100) }}%</strong></div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Filters</h2>
+    </div>
+  </div>
+  <div class="quick-filter-row section-gap" aria-label="Quick filters">
+    {% for quick in quick_filters %}
+      <a class="quick-filter-chip {{ 'active' if quick.active else '' }}" href="{{ quick.href }}" aria-pressed="{{ 'true' if quick.active else 'false' }}">{{ quick.label }}</a>
+    {% endfor %}
+  </div>
+  <form class="setup-lifecycle-filter-grid section-gap" method="get">
+    <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
+    <label><span>Sector</span><input name="sector" value="{{ filters.sector }}"></label>
+    <label><span>Family</span><input name="setup_family" value="{{ filters.setup_family }}"></label>
+    <label><span>State</span><input name="lifecycle_state" value="{{ filters.lifecycle_state }}"></label>
+    <label><span>Transition</span><input name="transition" value="{{ filters.transition }}"></label>
+    <label><span>Actionability</span><input name="actionability" value="{{ filters.actionability }}"></label>
+    <label><span>Min confidence</span><input name="confidence_min" type="number" min="0" max="100" value="{{ filters.confidence_min if filters.confidence_min is not none else '' }}"></label>
+    <label><span>Sort</span>
+      <select name="sort">
+        {% for option in ["latest_event_time", "transition_priority", "confidence", "score", "velocity", "state_age", "trigger_distance", "sector_rank"] %}
+          <option value="{{ option }}" {{ "selected" if filters.sort == option else "" }}>{{ option|replace("_", " ")|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Direction</span>
+      <select name="direction">
+        <option value="desc" {{ "selected" if filters.direction == "desc" else "" }}>High to low</option>
+        <option value="asc" {{ "selected" if filters.direction == "asc" else "" }}>Low to high</option>
+      </select>
+    </label>
+    <div class="actions setup-lifecycle-filter-actions">
+      <button type="submit">Apply</button>
+      <a class="button-link secondary" href="/setup-lifecycle">Clear</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel section-gap" data-slse-page>
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Candidate Changes</h2>
+    </div>
+  </div>
+  {% if items %}
+    <div class="table-wrap section-gap">
+      <table class="setup-lifecycle-table">
+        <caption>Setup lifecycle changes matching the selected filters.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Ticker</th>
+            <th scope="col">Date</th>
+            <th scope="col">Family</th>
+            <th scope="col">State</th>
+            <th scope="col">Actionability</th>
+            <th scope="col">Confidence</th>
+            <th scope="col">Score</th>
+            <th scope="col">Velocity</th>
+            <th scope="col">Sector Rank</th>
+            <th scope="col">Evidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+            {% set evidence = item.evidence or {} %}
+            <tr>
+              <td><a href="/setup-lifecycle/ticker/{{ item.ticker }}">{{ item.ticker }}</a><small>{{ item.to_phase }}</small></td>
+              <td>{{ item.effective_date }}</td>
+              <td>{{ item.setup_family }}</td>
+              <td><span class="badge badge-{{ state_tones.get(item.to_state, "muted") }}">{{ item.from_state or "New" }} to {{ item.to_state }}</span></td>
+              <td><span class="badge badge-{{ actionability_tones.get(item.actionability_after, "muted") }}">{{ item.actionability_after }}</span></td>
+              <td><span class="badge badge-{{ confidence_tones.get(item.confidence_label, "muted") }}">{{ item.confidence_label }} {{ item.confidence_score }}</span></td>
+              <td>{{ "%.2f"|format(evidence.setup_score) if evidence.setup_score is number else evidence.setup_score or "" }}</td>
+              <td>{{ "%.2f"|format(evidence.velocity) if evidence.velocity is number else evidence.velocity or "" }}</td>
+              <td>{{ evidence.sector_rank or "" }}</td>
+              <td>
+                <div class="row-actions">
+                  {% if item.episode_id %}<a href="/setup-lifecycle/episodes/{{ item.episode_id }}">Episode</a>{% endif %}
+                  <button class="icon-button" type="button" data-slse-detail-url="/api/setup-lifecycle/episodes/{{ item.episode_id }}" data-slse-detail-target="slse-detail-{{ item.id }}" aria-expanded="false" {{ "disabled" if not item.episode_id else "" }}>Expand</button>
+                </div>
+              </td>
+            </tr>
+            <tr id="slse-detail-{{ item.id }}" class="detail-row" hidden>
+              <td colspan="10">
+                <div class="detail-grid">
+                  <div>
+                    <h3>Reasons</h3>
+                    <div class="badge-list market-badge-list">
+                      {% for reason in item.reason_codes %}<span class="badge badge-muted">{{ reason }}</span>{% else %}<span class="badge badge-muted">No reason codes</span>{% endfor %}
+                    </div>
+                  </div>
+                  <div>
+                    <h3>Evidence</h3>
+                    <pre>{{ evidence|tojson(indent=2) }}</pre>
+                  </div>
+                  <div data-slse-detail-content>
+                    <h3>Episode</h3>
+                    <p>Use Expand to load the latest episode evidence without leaving the page.</p>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination.next_url %}
+      <div class="pagination-actions">
+        <a class="button-link secondary" href="{{ pagination.next_url }}">Next page</a>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="empty-state section-gap">
+      <strong>No lifecycle changes match this view.</strong>
+      <p>Try a broader filter set or run a setup lifecycle evaluation after fresh source data is available.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
