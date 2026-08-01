@@ -137,10 +137,12 @@ def execute_job(
 
 
 def default_job_handlers() -> dict[str, JobHandler]:
+    from app.services.setup_lifecycle.job_handlers import implemented_setup_lifecycle_job_handlers
     from app.services.winner_probability.job_handlers import implemented_winner_job_handlers
 
     return {
         "FULL_PIPELINE": _execute_full_pipeline_job,
+        **implemented_setup_lifecycle_job_handlers(),
         **implemented_winner_job_handlers(),
     }
 

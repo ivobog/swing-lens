@@ -209,22 +209,18 @@ def execute_full_pipeline(
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(db, pipeline, SLSE_PIPELINE_CAPTURE_STEP):
-                if dependencies.capture_setup_signals is None:
-                    result["setup_lifecycle_capture_skipped"] = 1
-                else:
-                    capture_result = dependencies.capture_setup_signals(db, upload_run.id)
-                    _apply_setup_lifecycle_capture_result(result, capture_result)
+                capture = dependencies.capture_setup_signals or _capture_setup_signals
+                capture_result = capture(db, upload_run.id)
+                _apply_setup_lifecycle_capture_result(result, capture_result)
 
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(db, pipeline, SLSE_PIPELINE_EVALUATION_STEP):
-                if dependencies.evaluate_setup_lifecycles is None:
-                    result["setup_lifecycle_evaluation_skipped"] = 1
-                else:
-                    evaluation_result = dependencies.evaluate_setup_lifecycles(
-                        db,
-                        upload_run.id,
-                    )
-                    _apply_setup_lifecycle_evaluation_result(result, evaluation_result)
+                evaluate = dependencies.evaluate_setup_lifecycles or _evaluate_setup_lifecycles
+                evaluation_result = evaluate(
+                    db,
+                    upload_run.id,
+                )
+                _apply_setup_lifecycle_evaluation_result(result, evaluation_result)
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(db, pipeline, "CAPTURING_WINNER_PREDICTIONS"):
@@ -576,6 +572,22 @@ def _capture_winner_predictions(db: Session, run_id: int):
     return WinnerPredictionCaptureService().capture_run(db, run_id=run_id)
 
 
+def _capture_setup_signals(db: Session, run_id: int):
+    from app.services.setup_lifecycle.snapshot_builder import (
+        SetupLifecycleSnapshotCaptureService,
+    )
+
+    return SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(db, run_id)
+
+
+def _evaluate_setup_lifecycles(db: Session, run_id: int):
+    from app.services.setup_lifecycle.evaluation_service import (
+        SetupLifecycleEvaluationService,
+    )
+
+    return SetupLifecycleEvaluationService().evaluate_run(db, run_id)
+
+
 def _apply_winner_capture_result(result: dict[str, Any], capture_result: Any) -> None:
     values = (
         capture_result.as_dict() if hasattr(capture_result, "as_dict") else dict(capture_result)
@@ -617,6 +629,12 @@ def _apply_setup_lifecycle_evaluation_result(
     )
     result["setup_lifecycle_change_events"] = int(
         values.get("change_events", values.get("changed", 0))
+    )
+    result["setup_lifecycle_canonical_snapshots"] = int(
+        values.get(
+            "canonical_snapshots",
+            values.get("canonical", result["setup_lifecycle_canonical_snapshots"]),
+        )
     )
     result["setup_lifecycle_transitions"] = int(
         values.get("lifecycle_transitions", values.get("transitioned", 0))

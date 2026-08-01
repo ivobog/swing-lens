@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, delete, func, select, update
+from sqlalchemy import Select, delete, func, select, tuple_, update
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -281,6 +281,124 @@ class SetupLifecycleRepository:
                 SetupSignalSnapshot.id.desc(),
             ).limit(1)
         )
+
+    def get_snapshots_by_ids(
+        self,
+        db: Session,
+        snapshot_ids: tuple[int, ...] | list[int],
+    ) -> list[SetupSignalSnapshot]:
+        if not snapshot_ids:
+            return []
+        return list(
+            db.scalars(
+                select(SetupSignalSnapshot)
+                .where(SetupSignalSnapshot.id.in_(snapshot_ids))
+                .order_by(
+                    SetupSignalSnapshot.ticker,
+                    SetupSignalSnapshot.timeframe,
+                    SetupSignalSnapshot.data_as_of_date,
+                    SetupSignalSnapshot.id,
+                )
+            )
+        )
+
+    def load_snapshots_for_run(
+        self,
+        db: Session,
+        *,
+        run_id: int,
+        config_hash: str | None = None,
+    ) -> list[SetupSignalSnapshot]:
+        statement = select(SetupSignalSnapshot).where(SetupSignalSnapshot.run_id == run_id)
+        if config_hash is not None:
+            statement = statement.where(SetupSignalSnapshot.config_hash == config_hash)
+        return list(
+            db.scalars(
+                statement.order_by(
+                    SetupSignalSnapshot.ticker,
+                    SetupSignalSnapshot.timeframe,
+                    SetupSignalSnapshot.data_as_of_date,
+                    SetupSignalSnapshot.id,
+                )
+            )
+        )
+
+    def load_canonicalization_candidates(
+        self,
+        db: Session,
+        affected_snapshots: tuple[SetupSignalSnapshot, ...] | list[SetupSignalSnapshot],
+        *,
+        lock: bool = False,
+    ) -> list[SetupSignalSnapshot]:
+        keys = {
+            (
+                snapshot.ticker,
+                snapshot.timeframe,
+                snapshot.data_as_of_date,
+                snapshot.config_hash,
+            )
+            for snapshot in affected_snapshots
+        }
+        if not keys:
+            return []
+        statement = (
+            select(SetupSignalSnapshot)
+            .where(
+                tuple_(
+                    SetupSignalSnapshot.ticker,
+                    SetupSignalSnapshot.timeframe,
+                    SetupSignalSnapshot.data_as_of_date,
+                    SetupSignalSnapshot.config_hash,
+                ).in_(keys)
+            )
+            .order_by(
+                SetupSignalSnapshot.ticker,
+                SetupSignalSnapshot.timeframe,
+                SetupSignalSnapshot.data_as_of_date,
+                SetupSignalSnapshot.id,
+            )
+        )
+        if lock:
+            statement = statement.with_for_update()
+        return list(db.scalars(statement))
+
+    def previous_canonical_snapshots(
+        self,
+        db: Session,
+        *,
+        tickers: tuple[str, ...],
+        timeframe: str,
+        before_date: date,
+    ) -> dict[str, SetupSignalSnapshot]:
+        normalized = tuple(sorted({self.normalize_ticker(ticker) for ticker in tickers}))
+        if not normalized:
+            return {}
+        rows = list(
+            db.scalars(
+                select(SetupSignalSnapshot)
+                .where(SetupSignalSnapshot.ticker.in_(normalized))
+                .where(SetupSignalSnapshot.timeframe == timeframe)
+                .where(SetupSignalSnapshot.data_as_of_date < before_date)
+                .where(SetupSignalSnapshot.is_canonical.is_(True))
+                .order_by(
+                    SetupSignalSnapshot.ticker,
+                    SetupSignalSnapshot.data_as_of_date.desc(),
+                    SetupSignalSnapshot.id.desc(),
+                )
+            )
+        )
+        latest: dict[str, SetupSignalSnapshot] = {}
+        for row in rows:
+            latest.setdefault(row.ticker, row)
+        return latest
+
+    def count_active_episodes(self, db: Session, *, config_hash: str | None = None) -> int:
+        statement = select(func.count()).select_from(SetupLifecycleEpisode).where(
+            SetupLifecycleEpisode.status == "ACTIVE"
+        )
+        if config_hash is not None:
+            statement = statement.where(SetupLifecycleEpisode.config_hash == config_hash)
+        return int(db.scalar(statement) or 0)
 
     def latest_authoritative_evaluation_version(
         self,

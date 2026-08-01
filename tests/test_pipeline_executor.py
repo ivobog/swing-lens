@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import app.services.pipeline_executor as pipeline_executor
 from app.models.tables import CombinedResult, IBFetchRun, PipelineRun, PipelineStep, UploadRun
 from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.pipeline_executor import (
@@ -139,6 +140,40 @@ def test_execute_full_pipeline_runs_setup_lifecycle_steps_when_enabled() -> None
     assert result.setup_lifecycle_active_episodes == 1
     assert result.setup_lifecycle_capture_skipped == 0
     assert result.setup_lifecycle_evaluation_skipped == 0
+
+
+def test_execute_full_pipeline_uses_default_setup_lifecycle_hooks_when_enabled(
+    monkeypatch,
+) -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"], setup_lifecycle_enabled=True)
+    calls = []
+    dependencies = _dependencies(
+        calls,
+        plan=_plan(estimated_request_count=0),
+        combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ],
+        setup_lifecycle_enabled=True,
+    )
+
+    def capture(_db, _run_id):
+        calls.append("default_setup_capture")
+        return {"snapshots_captured": 1, "canonical_snapshots": 0, "failed": 0}
+
+    def evaluate(_db, _run_id):
+        calls.append("default_setup_evaluate")
+        return {"canonical_snapshots": 1, "change_events": 0, "failed": 0}
+
+    monkeypatch.setattr(pipeline_executor, "_capture_setup_signals", capture)
+    monkeypatch.setattr(pipeline_executor, "_evaluate_setup_lifecycles", evaluate)
+
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert "default_setup_capture" in calls
+    assert "default_setup_evaluate" in calls
+    assert result.setup_lifecycle_capture_skipped == 0
+    assert result.setup_lifecycle_evaluation_skipped == 0
+    assert result.setup_lifecycle_canonical_snapshots == 1
 
 
 def test_execute_full_pipeline_runs_fetch_before_technicals_and_finishes_partial() -> None:

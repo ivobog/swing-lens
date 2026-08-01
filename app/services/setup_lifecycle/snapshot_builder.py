@@ -71,6 +71,20 @@ class SnapshotCaptureResult:
             "failed": self.failed,
         }
 
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "evaluation_run_id": self.evaluation_run_id,
+            "status": self.status,
+            "snapshots_captured": self.captured,
+            "canonical_snapshots": self.canonical,
+            "change_events": self.changed,
+            "lifecycle_transitions": self.transitioned,
+            "alerts": self.alerted,
+            "low_confidence": self.low_confidence,
+            "failed": self.failed,
+            **self.counts(),
+        }
+
 
 class SetupLifecycleSnapshotBuilder:
     def __init__(self, config: SetupLifecycleConfig | None = None) -> None:
@@ -498,6 +512,7 @@ class SetupLifecycleSnapshotCaptureService:
         *,
         evaluation_run: SetupLifecycleEvaluationRun | None = None,
         requester: str | None = None,
+        finalize_evaluation_run: bool = True,
     ) -> SnapshotCaptureResult:
         try:
             run_context = self.loader.load_run_context(db, run_id)
@@ -561,16 +576,17 @@ class SetupLifecycleSnapshotCaptureService:
             warnings_by_ticker=warnings_by_ticker,
             errors_by_ticker=errors_by_ticker,
         )
-        self.repository.complete_evaluation_run(
-            db,
-            evaluation_run,
-            status=status,
-            current_phase="snapshot_capture",
-            counts=result.counts(),
-            errors=dict(errors_by_ticker),
-            source_snapshot_min_id=min(snapshot_ids) if snapshot_ids else None,
-            source_snapshot_max_id=max(snapshot_ids) if snapshot_ids else None,
-        )
+        if finalize_evaluation_run:
+            self.repository.complete_evaluation_run(
+                db,
+                evaluation_run,
+                status=status,
+                current_phase="snapshot_capture",
+                counts=result.counts(),
+                errors=dict(errors_by_ticker),
+                source_snapshot_min_id=min(snapshot_ids) if snapshot_ids else None,
+                source_snapshot_max_id=max(snapshot_ids) if snapshot_ids else None,
+            )
         return result
 
 
