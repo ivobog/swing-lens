@@ -8,6 +8,7 @@ from app.services.ceri.enums import CeriDataset
 from app.services.ceri.enums import CeriProvider as CeriProviderName
 from app.services.ceri.provider_protocol import CeriProvider
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
+from app.services.ceri.providers.primary_provider import PrimaryCeriProvider
 
 
 class CeriProviderRegistryError(ValueError):
@@ -28,7 +29,7 @@ class CeriProviderRegistry:
         config: CeriConfig | None = None,
     ) -> None:
         self.config = config or load_ceri_config()
-        self._providers = providers or {CeriProviderName.MANUAL.value: ManualCeriProvider()}
+        self._providers = providers or _default_providers()
 
     def get(self, name: str) -> CeriProvider:
         provider = self._providers.get(name)
@@ -58,3 +59,10 @@ class CeriProviderRegistry:
             export_policy=policy.export_policy.value,
             raw_payload_storage_allowed=policy.export_policy.value == "exportable",
         )
+
+
+def _default_providers() -> dict[str, CeriProvider]:
+    return {
+        CeriProviderName.MANUAL.value: ManualCeriProvider(),
+        CeriProviderName.PRIMARY.value: PrimaryCeriProvider(),
+    }

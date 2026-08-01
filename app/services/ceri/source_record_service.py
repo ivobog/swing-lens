@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
 from app.services.ceri.dtos import RawProviderRecord
+from app.services.ceri.observability import ceri_log_event, ceri_metrics
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,19 @@ class CeriSourceRecordService:
         )
         db.add(run)
         db.flush()
+        ceri_metrics.increment(
+            "ceri_ingestion_started_total",
+            provider=provider,
+            dataset=dataset,
+        )
+        ceri_log_event(
+            "ingestion_started",
+            ingestion_run_id=run.id,
+            provider=provider,
+            dataset=dataset,
+            request_key=request_key,
+            config_hash=config_hash,
+        )
         return run
 
     def store_source_record(
@@ -76,6 +90,18 @@ class CeriSourceRecordService:
             select(CeriSourceRecord).where(CeriSourceRecord.idempotency_key == idempotency_key),
         )
         if existing is not None:
+            ceri_metrics.increment(
+                "ceri_ingestion_deduplicated_total",
+                provider=record.provider,
+                dataset=record.dataset.value,
+            )
+            ceri_log_event(
+                "source_record_deduplicated",
+                ingestion_run_id=ingestion_run_id,
+                provider=record.provider,
+                dataset=record.dataset.value,
+                source_record_id=existing.id,
+            )
             return SourceRecordWriteResult(
                 source_record=existing,
                 inserted=False,
@@ -106,6 +132,33 @@ class CeriSourceRecordService:
         )
         db.add(source)
         db.flush()
+        if quarantine_reason:
+            ceri_metrics.increment(
+                "ceri_ingestion_quarantined_total",
+                provider=record.provider,
+                dataset=record.dataset.value,
+            )
+            ceri_log_event(
+                "source_record_quarantined",
+                ingestion_run_id=ingestion_run_id,
+                provider=record.provider,
+                dataset=record.dataset.value,
+                source_record_id=source.id,
+                quarantine_reason=quarantine_reason,
+            )
+        else:
+            ceri_metrics.increment(
+                "ceri_ingestion_inserted_total",
+                provider=record.provider,
+                dataset=record.dataset.value,
+            )
+            ceri_log_event(
+                "source_record_inserted",
+                ingestion_run_id=ingestion_run_id,
+                provider=record.provider,
+                dataset=record.dataset.value,
+                source_record_id=source.id,
+            )
         return SourceRecordWriteResult(
             source_record=source,
             inserted=True,
@@ -150,6 +203,37 @@ class CeriSourceRecordService:
         if run.started_at is not None:
             run.duration_ms = int((now - run.started_at).total_seconds() * 1000)
         db.flush()
+        ceri_metrics.increment(
+            "ceri_ingestion_completed_total",
+            provider=run.provider,
+            dataset=run.dataset,
+            status=status,
+        )
+        if run.duration_ms is not None:
+            ceri_metrics.observe(
+                "ceri_ingestion_duration_ms",
+                float(run.duration_ms),
+                provider=run.provider,
+                dataset=run.dataset,
+                status=status,
+            )
+        ceri_log_event(
+            "ingestion_completed",
+            ingestion_run_id=run.id,
+            provider=run.provider,
+            dataset=run.dataset,
+            request_key=run.request_key,
+            config_hash=run.config_hash,
+            status=status,
+            counts={
+                "requested": requested_count,
+                "fetched": fetched_count,
+                "inserted": inserted_count,
+                "deduplicated": deduplicated_count,
+                "quarantined": quarantined_count,
+                "failed": failed_count,
+            },
+        )
         return run
 
 

@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriProcessingRun, CeriPurgeAudit
+from app.models.ceri_tables import CeriProcessingRun
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
 from app.services.background_worker import CancelRequested
@@ -26,6 +26,11 @@ from app.services.ceri.orchestration import (
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
+from app.services.ceri.purge_service import (
+    CeriPurgeExecuteRequest,
+    CeriPurgePreviewRequest,
+    CeriPurgeService,
+)
 
 CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
 CERI_NORMALIZE = "CERI_NORMALIZE"
@@ -258,6 +263,7 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
 def execute_purge_licensed_data_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     payload = job.payload_json or {}
     preview_hash = str(payload.get("preview_manifest_hash") or f"preview:{job.id}")
+    execute = bool(payload.get("execute"))
     processing, created = _processing_run(
         db,
         CERI_PURGE_LICENSED_DATA,
@@ -271,43 +277,49 @@ def execute_purge_licensed_data_job(db: Session, job: BackgroundJob) -> dict[str
             "processing_run_id": processing.id,
             "coalesced": True,
         }
-    existing = _maybe_scalar(
-        db,
-        select(CeriPurgeAudit).where(CeriPurgeAudit.preview_manifest_hash == preview_hash),
-    )
-    if existing is not None:
-        CeriProcessingRunService().finish(
+    service = CeriPurgeService()
+    if execute:
+        audit = service.execute(
             db,
-            processing,
-            status="COMPLETED",
-            counts={"read": 0, "warnings": 0, "failed": 0},
-            checkpoint={"purge_audit_id": existing.id, "preview_manifest_hash": preview_hash},
+            CeriPurgeExecuteRequest(
+                provider=str(payload.get("provider") or "manual"),
+                license_scope=str(payload.get("license_scope") or "manual"),
+                actor=str(payload.get("actor") or "system"),
+                reason=str(payload.get("reason") or "licensed data purge execution"),
+                confirmation_token=str(payload.get("confirmation_token") or ""),
+                preview_manifest_hash=preview_hash,
+            ),
+            job_id=job.id,
+            processing_run_id=processing.id,
         )
-        return {
-            "job_type": CERI_PURGE_LICENSED_DATA,
-            "processing_run_id": processing.id,
-            "purge_audit_id": existing.id,
-            "status": processing.status,
-            "coalesced": True,
-        }
-    audit = CeriPurgeAudit(
-        provider=str(payload.get("provider") or "manual"),
-        license_scope=str(payload.get("license_scope") or "manual"),
-        preview_manifest_hash=preview_hash,
-        actor=str(payload.get("actor") or "system"),
-        reason=str(payload.get("reason") or "licensed data purge preview"),
-        affected_counts_json={},
-        invalidated_derivatives_json={},
-        status="PREVIEWED",
-    )
-    db.add(audit)
-    db.flush()
+    else:
+        audit = service.preview(
+            db,
+            CeriPurgePreviewRequest(
+                provider=str(payload.get("provider") or "manual"),
+                license_scope=str(payload.get("license_scope") or "manual"),
+                actor=str(payload.get("actor") or "system"),
+                reason=str(payload.get("reason") or "licensed data purge preview"),
+                preview_manifest_hash=preview_hash,
+            ),
+            job_id=job.id,
+            processing_run_id=processing.id,
+        )
+    affected_counts = audit.affected_counts_json or {}
     CeriProcessingRunService().finish(
         db,
         processing,
         status="COMPLETED",
-        counts={"read": 0, "warnings": 0, "failed": 0},
-        checkpoint={"purge_audit_id": audit.id, "preview_manifest_hash": preview_hash},
+        counts={
+            "read": int(affected_counts.get("source_records") or 0),
+            "warnings": 0,
+            "failed": 0,
+        },
+        checkpoint={
+            "purge_audit_id": audit.id,
+            "preview_manifest_hash": audit.preview_manifest_hash,
+            "purge_status": audit.status,
+        },
     )
     return {
         "job_type": CERI_PURGE_LICENSED_DATA,

@@ -18,6 +18,7 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.export_policy import CeriExportPolicyRegistry
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class CeriExportResult:
 class CeriExportService:
     def __init__(self, config: CeriConfig | None = None) -> None:
         self.config = config or load_ceri_config()
+        self.policy = CeriExportPolicyRegistry(self.config)
 
     def current_view(
         self,
@@ -59,18 +61,20 @@ class CeriExportService:
             if tickers_set and snapshot.ticker.upper() not in tickers_set:
                 continue
             rows.append(
-                {
-                    "ticker": snapshot.ticker,
-                    "run_id": snapshot.run_id,
-                    "as_of_session": snapshot.as_of_session,
-                    "cutoff_at": snapshot.cutoff_at,
-                    "opportunity_score": snapshot.opportunity_score,
-                    "event_risk_score": snapshot.event_risk_score,
-                    "data_confidence": snapshot.data_confidence,
-                    "posture": snapshot.posture,
-                    "warnings": snapshot.warnings_json,
-                    "evidence_hash": snapshot.evidence_hash,
-                }
+                self.policy.export_row(
+                    {
+                        "ticker": snapshot.ticker,
+                        "run_id": snapshot.run_id,
+                        "as_of_session": snapshot.as_of_session,
+                        "cutoff_at": snapshot.cutoff_at,
+                        "opportunity_score": snapshot.opportunity_score,
+                        "event_risk_score": snapshot.event_risk_score,
+                        "data_confidence": snapshot.data_confidence,
+                        "posture": snapshot.posture,
+                        "warnings": snapshot.warnings_json,
+                        "evidence_hash": snapshot.evidence_hash,
+                    }
+                )
             )
         return CeriExportResult(rows=rows, format=output_format)
 
@@ -100,12 +104,12 @@ class CeriExportService:
                 "content_hash": source.content_hash,
                 "export_policy": source.export_policy,
                 "quarantine_reason": source.quarantine_reason,
-                "source_url": _restricted("source_url"),
-                "raw_payload": _restricted("raw_payload"),
+                "source_url": self.policy.mask("source_url"),
+                "raw_payload": self.policy.mask("raw_payload"),
                 "permitted_fields": source.restricted_normalized_json
-                or _permitted_payload(source.raw_json),
+                or self.policy.permitted_payload(source.raw_json),
             }
-            rows.append(row)
+            rows.append(self.policy.export_row(row))
         rows.extend(_revision_rows(db, company_id, as_of_session))
         rows.extend(_guidance_rows(db, company_id, as_of_session))
         rows.extend(_catalyst_rows(db, as_of_session))
@@ -181,21 +185,6 @@ def _catalyst_rows(db: Session, as_of_session: date | None) -> list[dict[str, An
             }
         )
     return rows
-
-
-def _permitted_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
-    if payload is None:
-        return None
-    return {
-        key: value
-        for key, value in payload.items()
-        if key not in {"raw_payload", "source_url", "provider_secret"}
-    }
-
-
-def _restricted(field: str) -> str:
-    return f"<restricted:{field}>"
-
 
 def _load(db: Session, model):
     scalars = getattr(db, "scalars", None)
