@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{{ payload.ticker }} Lifecycle{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/setup_lifecycle.js') }}" defer></script>
+
+<a class="back-link" href="/setup-lifecycle">Back to Market Changes</a>
+<section class="panel setup-lifecycle-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>{{ payload.ticker }} Lifecycle</h1>
+      <p>Chronological setup evidence, active episodes, blockers, and warning flags for {{ payload.timeframe }}.</p>
+    </div>
+    <div class="actions">
+      {% for label, href in payload.source_links.items() %}
+        {% if href %}<a class="button-link secondary" href="{{ href }}">{{ label|replace("_", " ")|title }}</a>{% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  <div class="run-meta">
+    {% if latest_snapshot %}
+      <span class="badge badge-muted">Data as of {{ latest_snapshot.data_as_of_date }}</span>
+      <span>{{ latest_snapshot.origin_type|replace("_", " ")|title }}</span>
+      {% if not latest_snapshot.is_canonical %}<span class="badge badge-warning">Noncanonical</span>{% endif %}
+      {% if latest_snapshot.data_quality_label in ["LOW", "INSUFFICIENT"] %}<span class="badge badge-warning">{{ latest_snapshot.data_quality_label }} coverage</span>{% endif %}
+    {% else %}
+      <span class="badge badge-muted">No snapshots</span>
+    {% endif %}
+  </div>
+</section>
+
+<section class="grid section-gap winner-two-col">
+  <div>
+    <h2>Primary Episode</h2>
+    {% if primary_episode %}
+      <dl class="compact-dl">
+        <dt>Family</dt><dd>{{ primary_episode.setup_family }}</dd>
+        <dt>State</dt><dd><span class="badge badge-{{ state_tones.get(primary_episode.current_state, "muted") }}">{{ primary_episode.current_state }}</span></dd>
+        <dt>Actionability</dt><dd><span class="badge badge-{{ actionability_tones.get(primary_episode.current_actionability, "muted") }}">{{ primary_episode.current_actionability }}</span></dd>
+        <dt>Confidence</dt><dd>{{ primary_episode.confidence_label }} {{ primary_episode.confidence_score }}</dd>
+        <dt>Age</dt><dd>{{ primary_episode.state_age_sessions }} sessions</dd>
+        <dt>Opened</dt><dd>{{ primary_episode.opened_on }}</dd>
+      </dl>
+      <div class="actions section-gap"><a class="button-link secondary" href="/setup-lifecycle/episodes/{{ primary_episode.id }}">Open episode</a></div>
+    {% else %}
+      <div class="empty-state"><strong>No active primary episode.</strong></div>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Metric Comparison</h2>
+    {% if latest_snapshot %}
+      <dl class="compact-dl">
+        <dt>Setup score</dt><dd>{{ latest_snapshot.setup_score or "N/A" }}{% if previous_snapshot %}<span class="muted-line">Previous {{ previous_snapshot.setup_score or "N/A" }}</span>{% endif %}</dd>
+        <dt>Distance</dt><dd>{{ latest_snapshot.distance_to_pivot_pct or "N/A" }}{% if previous_snapshot %}<span class="muted-line">Previous {{ previous_snapshot.distance_to_pivot_pct or "N/A" }}</span>{% endif %}</dd>
+        <dt>Classification</dt><dd>{{ latest_snapshot.technical_classification or "N/A" }}</dd>
+        <dt>Warnings</dt><dd>{{ latest_snapshot.warning_flags|join(", ") if latest_snapshot.warning_flags else "None" }}</dd>
+      </dl>
+    {% else %}
+      <div class="empty-state"><strong>No metrics available.</strong></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>State Ribbon</h2></div></div>
+  <div class="state-ribbon section-gap">
+    {% for state in ["CANDIDATE", "READY", "TRIGGERED", "CONFIRMED", "EXTENDED", "FAILED", "EXPIRED"] %}
+      <span class="badge badge-{{ state_tones.get(state, "muted") }} {{ 'state-ribbon-current' if primary_episode and primary_episode.current_state == state else '' }}">{{ state }}</span>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Secondary Active Episodes</h2></div></div>
+  {% if secondary_episodes %}
+    <div class="summary-strip section-gap">
+      {% for episode in secondary_episodes %}
+        <span class="summary-item"><strong>{{ episode.setup_family }}</strong>{{ episode.current_state }}<a href="/setup-lifecycle/episodes/{{ episode.id }}">Open</a></span>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state section-gap"><strong>No secondary active episodes.</strong></div>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Timeline</h2></div></div>
+  {% if timeline %}
+    <ol class="setup-timeline section-gap">
+      {% for item in timeline %}
+        <li>
+          <strong>{{ item.date }} - {{ item.kind }}</strong>
+          <span class="badge badge-muted">{{ item.state or "N/A" }}</span>
+          <p>{{ item.title or "Untitled" }}{% if item.detail %}: {{ item.detail }}{% endif %}</p>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <div class="empty-state section-gap"><strong>No timeline items yet.</strong></div>
+  {% endif %}
+</section>
+{% endblock %}

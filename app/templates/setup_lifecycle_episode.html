@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Setup Episode {{ episode.id }}{% endblock %}
+
+{% block content %}
+<a class="back-link" href="/setup-lifecycle/ticker/{{ episode.ticker }}">Back to {{ episode.ticker }}</a>
+<section class="panel setup-lifecycle-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>{{ episode.ticker }} {{ episode.setup_family }} Episode</h1>
+      <p>Immutable lifecycle events, signal changes, snapshots, and terminal evidence for this setup family episode.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/api/setup-lifecycle/episodes/{{ episode.id }}/export.csv">CSV</a>
+      <a class="button-link secondary" href="/api/setup-lifecycle/episodes/{{ episode.id }}/export.json">JSON</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-{{ state_tones.get(episode.current_state, "muted") }}">{{ episode.current_state }}</span>
+    <span>{{ episode.status }}</span>
+    <span>Opened {{ episode.opened_on }}</span>
+    {% if episode.closed_on %}<span>Closed {{ episode.closed_on }}</span>{% endif %}
+    {% if episode.terminal_reason_code %}<span class="badge badge-warning">Terminal {{ episode.terminal_reason_code }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Lifecycle Events</h2></div></div>
+  {% if lifecycle_events %}
+    <div class="table-wrap section-gap">
+      <table class="setup-lifecycle-table">
+        <caption>Lifecycle events for episode {{ episode.id }}.</caption>
+        <thead>
+          <tr><th scope="col">Date</th><th scope="col">Transition</th><th scope="col">Phase</th><th scope="col">Confidence</th><th scope="col">Version</th><th scope="col">Reasons</th></tr>
+        </thead>
+        <tbody>
+          {% for event in lifecycle_events %}
+            <tr>
+              <td>{{ event.effective_date }}</td>
+              <td>{{ event.from_state or "New" }} to {{ event.to_state }}</td>
+              <td>{{ event.from_phase or "" }} to {{ event.to_phase }}</td>
+              <td>{{ event.confidence_label }} {{ event.confidence_score }}</td>
+              <td>{% if event.is_current_version %}<span class="badge badge-success">Current</span>{% else %}<span class="badge badge-warning">Superseded</span>{% endif %}</td>
+              <td>{{ event.reason_codes|join(", ") if event.reason_codes else "None" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state section-gap"><strong>No lifecycle events.</strong></div>
+  {% endif %}
+</section>
+
+<section class="grid section-gap winner-two-col">
+  <div>
+    <h2>Snapshots</h2>
+    {% if snapshots %}
+      <div class="table-wrap">
+        <table>
+          <caption>Snapshots associated with this episode.</caption>
+          <thead><tr><th scope="col">Date</th><th scope="col">Origin</th><th scope="col">Canonical</th><th scope="col">Score</th><th scope="col">Warnings</th></tr></thead>
+          <tbody>
+            {% for snapshot in snapshots %}
+              <tr>
+                <td>{{ snapshot.data_as_of_date }}</td>
+                <td>{{ snapshot.origin_type }}</td>
+                <td>{{ "Yes" if snapshot.is_canonical else "No" }}</td>
+                <td>{{ snapshot.setup_score or "" }}</td>
+                <td>{{ snapshot.warning_flags|join(", ") if snapshot.warning_flags else "None" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><strong>No snapshots linked.</strong></div>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Signal Changes</h2>
+    {% if signal_changes %}
+      <div class="table-wrap">
+        <table>
+          <caption>Material signal changes in this episode.</caption>
+          <thead><tr><th scope="col">Date</th><th scope="col">Signal</th><th scope="col">Direction</th><th scope="col">Severity</th></tr></thead>
+          <tbody>
+            {% for change in signal_changes %}
+              <tr><td>{{ change.effective_date }}</td><td>{{ change.signal_key }}</td><td>{{ change.direction }}</td><td>{{ change.severity }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><strong>No material signal changes.</strong></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

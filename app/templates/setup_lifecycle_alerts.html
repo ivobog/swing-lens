@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Alert Center{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/setup_lifecycle.js') }}" defer></script>
+
+<section class="panel setup-lifecycle-hero" data-slse-page>
+  <div class="panel-header run-header">
+    <div>
+      <h1>Alert Center</h1>
+      <p>Lifecycle alerts for research review. Acknowledge or dismiss alerts without changing source evidence.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/setup-lifecycle">Market Changes</a>
+      <a class="button-link secondary" href="/api/setup-lifecycle/alerts/export.csv">CSV</a>
+      <a class="button-link secondary" href="/api/setup-lifecycle/alerts/export.json">JSON</a>
+    </div>
+  </div>
+</section>
+
+<section class="metric-grid section-gap setup-lifecycle-metrics" aria-label="Alert summary">
+  <div class="metric"><span>Unread</span><strong>{{ summary.unread }}</strong></div>
+  <div class="metric"><span>Acknowledged</span><strong>{{ summary.acknowledged }}</strong></div>
+  <div class="metric"><span>Dismissed</span><strong>{{ summary.dismissed }}</strong></div>
+  <div class="metric"><span>Actionable</span><strong>{{ summary.actionable }}</strong></div>
+  <div class="metric"><span>Risk</span><strong>{{ summary.risk }}</strong></div>
+</section>
+
+<section class="panel section-gap">
+  <form class="setup-lifecycle-filter-grid" method="get">
+    <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
+    <label><span>Status</span>
+      <select name="status">
+        <option value="">Any</option>
+        {% for option in ["UNREAD", "ACKNOWLEDGED", "DISMISSED"] %}
+          <option value="{{ option }}" {{ "selected" if filters.status == option else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Severity</span>
+      <select name="severity">
+        <option value="">Any</option>
+        {% for option in ["ACTIONABLE", "RISK", "WARNING", "INFO"] %}
+          <option value="{{ option }}" {{ "selected" if filters.severity == option else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="actions setup-lifecycle-filter-actions">
+      <button type="submit">Apply</button>
+      <a class="button-link secondary" href="/setup-lifecycle/alerts?status=UNREAD">Unread</a>
+      <a class="button-link secondary" href="/setup-lifecycle/alerts?severity=ACTIONABLE">Actionable</a>
+      <a class="button-link secondary" href="/setup-lifecycle/alerts?severity=RISK">Risk</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Alerts</h2></div></div>
+  {% if alerts %}
+    <div class="table-wrap section-gap">
+      <table class="setup-lifecycle-table">
+        <caption>Setup lifecycle alerts matching the selected filters.</caption>
+        <thead><tr><th scope="col">Ticker</th><th scope="col">Date</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Reasons</th><th scope="col">Actions</th></tr></thead>
+        <tbody>
+          {% for alert in alerts %}
+            <tr id="alert-{{ alert.id }}" data-slse-alert-row>
+              <td><a href="/setup-lifecycle/ticker/{{ alert.ticker }}">{{ alert.ticker }}</a></td>
+              <td>{{ alert.effective_date }}</td>
+              <td><span class="badge badge-{{ severity_tones.get(alert.severity, "muted") }}">{{ alert.severity }}</span></td>
+              <td><span class="badge badge-muted" data-slse-alert-status>{{ alert.status }}</span></td>
+              <td>{{ alert.reason_codes|join(", ") if alert.reason_codes else "None" }}</td>
+              <td>
+                <div class="row-actions">
+                  <button class="icon-button" type="button" data-slse-alert-action="/api/setup-lifecycle/alerts/{{ alert.id }}/acknowledge">Acknowledge</button>
+                  <button class="icon-button" type="button" data-slse-alert-action="/api/setup-lifecycle/alerts/{{ alert.id }}/dismiss">Dismiss</button>
+                  {% if alert.lifecycle_event_id %}<a href="/api/setup-lifecycle/episodes/{{ alert.lifecycle_event_id }}">Source</a>{% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination.next_url %}<div class="pagination-actions"><a class="button-link secondary" href="{{ pagination.next_url }}">Next page</a></div>{% endif %}
+  {% else %}
+    <div class="empty-state section-gap"><strong>No alerts match this view.</strong></div>
+  {% endif %}
+</section>
+{% endblock %}

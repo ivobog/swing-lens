@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date
 from typing import Annotated, Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import status as http_status
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,33 +33,160 @@ from app.services.setup_lifecycle.replay_service import (
     SetupLifecycleReplayRequest,
     SetupLifecycleReplayService,
 )
+from app.templates import templates
 
 router = APIRouter(tags=["setup-lifecycle"])
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-@router.get("/setup-lifecycle")
-def setup_lifecycle_page(db: DbSession) -> dict[str, Any]:
-    return setup_lifecycle_changes(db=db)
+@router.get("/setup-lifecycle", response_class=HTMLResponse)
+def setup_lifecycle_page(
+    request: Request,
+    db: DbSession,
+    quick_filter: str = "",
+    ticker: str | None = None,
+    sector: str | None = None,
+    setup_family: str | None = None,
+    lifecycle_state: str | None = None,
+    transition: str | None = None,
+    actionability: str | None = None,
+    confidence_min: int | None = None,
+    sort: str = "latest_event_time",
+    direction: str = "desc",
+    limit: int = 50,
+    cursor: str | None = None,
+) -> HTMLResponse:
+    filter_values = _quick_filter_values(quick_filter)
+    payload = setup_lifecycle_changes(
+        db=db,
+        ticker=ticker,
+        sector=sector,
+        setup_family=setup_family,
+        lifecycle_state=filter_values.get("lifecycle_state", lifecycle_state),
+        transition=filter_values.get("transition", transition),
+        actionability=filter_values.get("actionability", actionability),
+        confidence_min=filter_values.get("confidence_min", confidence_min),
+        warning_flag=filter_values.get("warning_flag"),
+        sort=filter_values.get("sort", sort),
+        direction=direction,
+        limit=limit,
+        cursor=cursor,
+    )
+    diagnostics = setup_lifecycle_diagnostics(db=db)
+    return templates.TemplateResponse(
+        request,
+        "setup_lifecycle.html",
+        _changes_template_context(
+            payload=payload,
+            diagnostics=diagnostics,
+            filters={
+                "quick_filter": quick_filter,
+                "ticker": ticker or "",
+                "sector": sector or "",
+                "setup_family": setup_family or "",
+                "lifecycle_state": filter_values.get("lifecycle_state", lifecycle_state) or "",
+                "transition": filter_values.get("transition", transition) or "",
+                "actionability": filter_values.get("actionability", actionability) or "",
+                "confidence_min": filter_values.get("confidence_min", confidence_min),
+                "sort": filter_values.get("sort", sort),
+                "direction": direction,
+                "limit": limit,
+                "cursor": cursor or "",
+            },
+        ),
+    )
 
 
-@router.get("/setup-lifecycle/ticker/{ticker}")
-def setup_lifecycle_ticker_page(ticker: str, db: DbSession) -> dict[str, Any]:
-    return setup_lifecycle_ticker_timeline(ticker=ticker, db=db)
+@router.get("/setup-lifecycle/ticker/{ticker}", response_class=HTMLResponse)
+def setup_lifecycle_ticker_page(
+    request: Request,
+    ticker: str,
+    db: DbSession,
+    timeframe: str = "1d",
+    limit: int = 100,
+) -> HTMLResponse:
+    payload = setup_lifecycle_ticker_timeline(
+        ticker=ticker,
+        db=db,
+        timeframe=timeframe,
+        limit=limit,
+    )
+    return templates.TemplateResponse(
+        request,
+        "setup_lifecycle_ticker.html",
+        _ticker_template_context(payload),
+    )
 
 
-@router.get("/setup-lifecycle/episodes/{episode_id}")
-def setup_lifecycle_episode_page(episode_id: int, db: DbSession) -> dict[str, Any]:
-    return setup_lifecycle_episode(episode_id=episode_id, db=db)
+@router.get("/setup-lifecycle/episodes/{episode_id}", response_class=HTMLResponse)
+def setup_lifecycle_episode_page(
+    request: Request,
+    episode_id: int,
+    db: DbSession,
+) -> HTMLResponse:
+    payload = setup_lifecycle_episode(episode_id=episode_id, db=db)
+    return templates.TemplateResponse(
+        request,
+        "setup_lifecycle_episode.html",
+        _episode_template_context(payload),
+    )
 
 
-@router.get("/setup-lifecycle/alerts")
-def setup_lifecycle_alerts_page(db: DbSession) -> dict[str, Any]:
-    return setup_lifecycle_alerts(db=db)
+@router.get("/setup-lifecycle/alerts", response_class=HTMLResponse)
+def setup_lifecycle_alerts_page(
+    request: Request,
+    db: DbSession,
+    ticker: str | None = None,
+    status: str | None = None,
+    severity: str | None = None,
+    sort: str = "latest_event_time",
+    direction: str = "desc",
+    limit: int = 50,
+    cursor: str | None = None,
+) -> HTMLResponse:
+    payload = setup_lifecycle_alerts(
+        db=db,
+        ticker=ticker,
+        status=status,
+        severity=severity,
+        sort=sort,
+        direction=direction,
+        limit=limit,
+        cursor=cursor,
+    )
+    return templates.TemplateResponse(
+        request,
+        "setup_lifecycle_alerts.html",
+        _alerts_template_context(
+            payload=payload,
+            filters={
+                "ticker": ticker or "",
+                "status": status or "",
+                "severity": severity or "",
+                "sort": sort,
+                "direction": direction,
+                "limit": limit,
+                "cursor": cursor or "",
+            },
+        ),
+    )
 
 
-@router.get("/runs/{run_id}/setup-lifecycle")
-def run_setup_lifecycle(run_id: int, db: DbSession) -> dict[str, Any]:
+@router.get("/setup-lifecycle/operations", response_class=HTMLResponse)
+def setup_lifecycle_operations_page(request: Request, db: DbSession) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "setup_lifecycle_operations.html",
+        {
+            "active_nav": "setup-lifecycle",
+            "operations": setup_lifecycle_operations(db=db),
+            "diagnostics": setup_lifecycle_diagnostics(db=db),
+        },
+    )
+
+
+@router.get("/runs/{run_id}/setup-lifecycle", response_class=HTMLResponse)
+def run_setup_lifecycle(run_id: int, request: Request, db: DbSession) -> HTMLResponse:
     _require_run(db, run_id)
     filters = SetupLifecycleFilters(run_id=run_id)
     payload = SetupLifecycleQueryService().changes(
@@ -65,7 +194,29 @@ def run_setup_lifecycle(run_id: int, db: DbSession) -> dict[str, Any]:
         SetupLifecycleListQuery(filters=filters),
     )
     payload["run_id"] = run_id
-    return payload
+    return templates.TemplateResponse(
+        request,
+        "setup_lifecycle.html",
+        _changes_template_context(
+            payload=payload,
+            diagnostics=setup_lifecycle_diagnostics(db=db),
+            filters={
+                "run_id": run_id,
+                "quick_filter": "",
+                "ticker": "",
+                "sector": "",
+                "setup_family": "",
+                "lifecycle_state": "",
+                "transition": "",
+                "actionability": "",
+                "confidence_min": None,
+                "sort": "latest_event_time",
+                "direction": "desc",
+                "limit": 50,
+                "cursor": "",
+            },
+        ),
+    )
 
 
 @router.get("/setup-lifecycle/export.csv")
@@ -422,6 +573,228 @@ def _query_or_http(factory):
             status_code=exc.status_code,
             detail={"code": exc.code, "message": exc.message},
         ) from exc
+
+
+def _changes_template_context(
+    *,
+    payload: dict[str, Any],
+    diagnostics: dict[str, Any],
+    filters: dict[str, Any],
+) -> dict[str, Any]:
+    items = list(payload.get("items", []))
+    dates = sorted(
+        {item.get("effective_date") for item in items if item.get("effective_date")},
+        reverse=True,
+    )
+    transition_counts = Counter(item.get("to_state") or item.get("event_type") for item in items)
+    return {
+        "active_nav": "setup-lifecycle",
+        "payload": payload,
+        "items": items,
+        "filters": filters,
+        "diagnostics": diagnostics,
+        "summary": {
+            "selected_date": dates[0] if dates else diagnostics.get("latest_canonical_date"),
+            "comparison_date": dates[1] if len(dates) > 1 else None,
+            "missing_session_gap": diagnostics.get("stale_lease_count", 0),
+            "total": payload.get("total", 0),
+            "newly_ready": transition_counts.get("READY", 0),
+            "newly_triggered": transition_counts.get("TRIGGERED", 0),
+            "failed": transition_counts.get("FAILED", 0),
+            "extended": transition_counts.get("EXTENDED", 0),
+            "low_confidence_share": diagnostics.get("low_confidence_share", 0),
+        },
+        "quick_filters": _quick_filters(filters.get("quick_filter", "")),
+        "state_tones": _STATE_TONES,
+        "actionability_tones": _ACTIONABILITY_TONES,
+        "confidence_tones": _CONFIDENCE_TONES,
+        "pagination": _pagination(payload, filters, "/setup-lifecycle"),
+    }
+
+
+def _ticker_template_context(payload: dict[str, Any]) -> dict[str, Any]:
+    episodes = list(payload.get("episodes", []))
+    active = [episode for episode in episodes if episode.get("status") == "ACTIVE"]
+    primary = next((episode for episode in active if episode.get("is_primary")), None)
+    if primary is None and active:
+        primary = sorted(active, key=lambda item: item.get("primary_rank") or 999)[0]
+    snapshots = list(payload.get("snapshots", []))
+    return {
+        "active_nav": "setup-lifecycle",
+        "payload": payload,
+        "primary_episode": primary,
+        "secondary_episodes": [episode for episode in active if episode is not primary],
+        "latest_snapshot": snapshots[0] if snapshots else None,
+        "previous_snapshot": snapshots[1] if len(snapshots) > 1 else None,
+        "timeline": _ticker_timeline_items(payload),
+        "state_tones": _STATE_TONES,
+        "actionability_tones": _ACTIONABILITY_TONES,
+        "confidence_tones": _CONFIDENCE_TONES,
+    }
+
+
+def _episode_template_context(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "active_nav": "setup-lifecycle",
+        "payload": payload,
+        "episode": payload.get("episode") or {},
+        "snapshots": payload.get("snapshots") or [],
+        "lifecycle_events": payload.get("lifecycle_events") or [],
+        "signal_changes": payload.get("signal_changes") or [],
+        "state_tones": _STATE_TONES,
+        "actionability_tones": _ACTIONABILITY_TONES,
+        "confidence_tones": _CONFIDENCE_TONES,
+    }
+
+
+def _alerts_template_context(
+    *,
+    payload: dict[str, Any],
+    filters: dict[str, Any],
+) -> dict[str, Any]:
+    items = list(payload.get("items", []))
+    status_counts = Counter(item.get("status") for item in items)
+    severity_counts = Counter(item.get("severity") for item in items)
+    return {
+        "active_nav": "setup-lifecycle-alerts",
+        "payload": payload,
+        "alerts": items,
+        "filters": filters,
+        "summary": {
+            "unread": status_counts.get("UNREAD", 0),
+            "acknowledged": status_counts.get("ACKNOWLEDGED", 0),
+            "dismissed": status_counts.get("DISMISSED", 0),
+            "actionable": severity_counts.get("ACTIONABLE", 0),
+            "risk": severity_counts.get("RISK", 0),
+        },
+        "severity_tones": _SEVERITY_TONES,
+        "pagination": _pagination(payload, filters, "/setup-lifecycle/alerts"),
+    }
+
+
+def _quick_filters(active: str) -> list[dict[str, str | bool]]:
+    definitions = {
+        "newly-ready": {"label": "Newly Ready", "lifecycle_state": "READY"},
+        "newly-triggered": {"label": "Newly Triggered", "lifecycle_state": "TRIGGERED"},
+        "improving-fast": {"label": "Improving Fast", "sort": "velocity"},
+        "failed-today": {"label": "Failed Today", "lifecycle_state": "FAILED"},
+        "extended": {"label": "Extended", "lifecycle_state": "EXTENDED"},
+        "gate-blocked": {"label": "Gate Blocked", "actionability": "BLOCKED"},
+        "low-confidence": {"label": "Low Confidence", "confidence_min": 0},
+        "no-material-change": {"label": "No Material Change", "transition": "NO_MATERIAL_CHANGE"},
+    }
+    return [
+        {
+            "key": key,
+            "label": str(value["label"]),
+            "href": "/setup-lifecycle?" + urlencode({"quick_filter": key}),
+            "active": key == active,
+        }
+        for key, value in definitions.items()
+    ]
+
+
+def _quick_filter_values(key: str) -> dict[str, Any]:
+    if key == "newly-ready":
+        return {"lifecycle_state": "READY"}
+    if key == "newly-triggered":
+        return {"lifecycle_state": "TRIGGERED"}
+    if key == "improving-fast":
+        return {"sort": "velocity"}
+    if key == "failed-today":
+        return {"lifecycle_state": "FAILED"}
+    if key == "extended":
+        return {"lifecycle_state": "EXTENDED"}
+    if key == "gate-blocked":
+        return {"actionability": "BLOCKED"}
+    if key == "low-confidence":
+        return {"confidence_min": 0}
+    if key == "no-material-change":
+        return {"transition": "NO_MATERIAL_CHANGE"}
+    return {}
+
+
+def _pagination(
+    payload: dict[str, Any],
+    filters: dict[str, Any],
+    base_path: str,
+) -> dict[str, str | None]:
+    query = {
+        key: value
+        for key, value in filters.items()
+        if value not in (None, "", False) and key != "cursor"
+    }
+    next_cursor = payload.get("next_cursor")
+    next_url = None
+    if next_cursor:
+        next_url = f"{base_path}?{urlencode({**query, 'cursor': next_cursor})}"
+    return {"next_url": next_url}
+
+
+def _ticker_timeline_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for event in payload.get("lifecycle_events") or []:
+        rows.append(
+            {
+                "kind": "Lifecycle",
+                "date": event.get("effective_date"),
+                "title": event.get("event_type"),
+                "state": event.get("to_state"),
+                "detail": event.get("to_phase"),
+                "payload": event,
+            }
+        )
+    for change in payload.get("signal_changes") or []:
+        rows.append(
+            {
+                "kind": "Signal",
+                "date": change.get("effective_date"),
+                "title": change.get("signal_key"),
+                "state": change.get("direction"),
+                "detail": change.get("threshold_name"),
+                "payload": change,
+            }
+        )
+    for alert in payload.get("alerts") or []:
+        rows.append(
+            {
+                "kind": "Alert",
+                "date": alert.get("effective_date"),
+                "title": alert.get("severity"),
+                "state": alert.get("status"),
+                "detail": ", ".join(alert.get("reason_codes") or []),
+                "payload": alert,
+            }
+        )
+    return sorted(rows, key=lambda item: item.get("date") or "", reverse=True)
+
+
+_STATE_TONES = {
+    "READY": "success",
+    "TRIGGERED": "success",
+    "CONFIRMED": "success",
+    "EXTENDED": "warning",
+    "FAILED": "danger",
+    "EXPIRED": "muted",
+}
+_ACTIONABILITY_TONES = {
+    "ACTIONABLE": "success",
+    "WATCH_ONLY": "muted",
+    "BLOCKED": "danger",
+    "REDUCED": "warning",
+}
+_CONFIDENCE_TONES = {
+    "HIGH": "success",
+    "NORMAL": "muted",
+    "LOW": "warning",
+    "INSUFFICIENT": "danger",
+}
+_SEVERITY_TONES = {
+    "ACTIONABLE": "success",
+    "RISK": "danger",
+    "INFO": "muted",
+    "WARNING": "warning",
+}
 
 
 def _require_run(db: Session, run_id: int) -> None:

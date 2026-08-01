@@ -27,6 +27,13 @@
   "operations_url": "/winner-probability/operations",
   "prediction_by_ticker": {}
 }) %}
+{% set setup_lifecycle_context = setup_lifecycle_context|default({
+  "change_count": 0,
+  "latest_status": none,
+  "active_episode_count": 0,
+  "run_url": "/runs/" ~ run.id ~ "/setup-lifecycle",
+  "operations_url": "/setup-lifecycle/operations"
+}) %}
 {% set run_summary = run_summary|default({
   "row_count": run.row_count or 0,
   "combined_count": 0,
@@ -98,6 +105,7 @@
         <button class="secondary" type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
       </form>
       <a class="button-link secondary" href="/runs/{{ run.id }}/sector-rotation">Sector rotation</a>
+      <a class="button-link secondary" href="{{ setup_lifecycle_context.run_url }}">Market changes</a>
       <a class="button-link secondary" href="{{ winner_probability_context.run_url }}">Winner evidence</a>
       <a class="button-link secondary" href="/runs">All runs</a>
     </div>
@@ -112,6 +120,25 @@
     <span>Uploaded {{ run.uploaded_at }}</span>
     {% if run.processed_at %}<span>Processed {{ run.processed_at }}</span>{% endif %}
     {% if run.notes %}<span>{{ run.notes }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header">
+    <div>
+      <h2>Setup Lifecycle</h2>
+      <p>Lifecycle state changes and alerts for this run. Evidence remains research-oriented and source-preserving.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="{{ setup_lifecycle_context.run_url }}">Open changes</a>
+      <a class="button-link secondary" href="/setup-lifecycle/alerts">Alerts</a>
+      <a class="button-link secondary" href="{{ setup_lifecycle_context.operations_url }}">Operations</a>
+    </div>
+  </div>
+  <div class="summary-strip">
+    <span class="summary-item"><strong>{{ setup_lifecycle_context.change_count }}</strong> changes</span>
+    <span class="summary-item"><strong>{{ setup_lifecycle_context.active_episode_count }}</strong> active episodes</span>
+    <span class="summary-item">{{ setup_lifecycle_context.latest_status or "No evaluation yet" }}</span>
   </div>
 </section>
 

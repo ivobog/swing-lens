@@ -348,6 +348,13 @@ def snapshot_payload(snapshot: SetupSignalSnapshot) -> dict[str, Any]:
     return {
         "id": snapshot.id,
         "run_id": snapshot.run_id,
+        "raw_row_id": snapshot.raw_row_id,
+        "fundamental_score_id": snapshot.fundamental_score_id,
+        "technical_score_id": snapshot.technical_score_id,
+        "combined_result_id": snapshot.combined_result_id,
+        "ranking_result_id": snapshot.ranking_result_id,
+        "market_regime_snapshot_id": snapshot.market_regime_snapshot_id,
+        "sector_rotation_snapshot_id": snapshot.sector_rotation_snapshot_id,
         "ticker": snapshot.ticker,
         "company_name": snapshot.company_name,
         "sector": snapshot.sector,
@@ -639,6 +646,14 @@ def _source_links(snapshots: list[SetupSignalSnapshot]) -> dict[str, str | None]
         "source_run": f"/runs/{snapshot.run_id}" if snapshot.run_id else None,
         "technical_score_card": f"/runs/{snapshot.run_id}#ticker-{snapshot.ticker}"
         if snapshot.run_id
+        else None,
+        "market_regime": f"/runs/{snapshot.run_id}/market-regime"
+        if snapshot.run_id and snapshot.market_regime_snapshot_id
+        else "/market-regime"
+        if snapshot.market_regime_snapshot_id
+        else None,
+        "sector_rotation": f"/runs/{snapshot.run_id}/sector-rotation"
+        if snapshot.run_id and snapshot.sector_rotation_snapshot_id
         else None,
         "owpe": f"/winner-probability/tickers/{snapshot.ticker}",
     }
