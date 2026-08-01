@@ -4,6 +4,7 @@ import pytest
 
 from app.models.tables import SetupLifecycleEvaluationRun
 from app.services.setup_lifecycle.canonicalization import CanonicalizationResult
+from app.services.setup_lifecycle.change_detector import SignalChangeDetectionResult
 from app.services.setup_lifecycle.config import load_setup_lifecycle_config
 from app.services.setup_lifecycle.enums import EvaluationStatus
 from app.services.setup_lifecycle.evaluation_service import (
@@ -36,6 +37,7 @@ def test_evaluation_service_captures_canonicalizes_and_finalizes_counts() -> Non
                 groups_evaluated=1,
             )
         ),
+        change_detector=FakeChangeDetector(SignalChangeDetectionResult(created_events=4)),
         config=load_setup_lifecycle_config(),
     )
 
@@ -45,12 +47,13 @@ def test_evaluation_service_captures_canonicalizes_and_finalizes_counts() -> Non
     assert result.snapshots_captured == 2
     assert result.canonical_snapshots == 1
     assert result.canonical_changed == 1
+    assert result.change_events == 4
     assert result.low_confidence == 1
     assert result.active_episodes == 3
     assert repository.completed[-1].canonical_count == 1
     assert repository.completed[-1].source_snapshot_min_id == 10
     assert repository.completed[-1].source_snapshot_max_id == 11
-    assert repository.heartbeats == ["capture", "canonicalize", "finalize"]
+    assert repository.heartbeats == ["capture", "canonicalize", "change_detection", "finalize"]
 
 
 def test_evaluation_service_marks_partial_when_capture_has_ticker_failures() -> None:
@@ -69,6 +72,7 @@ def test_evaluation_service_marks_partial_when_capture_has_ticker_failures() -> 
             )
         ),
         canonicalizer=FakeCanonicalizer(CanonicalizationResult(selected_snapshot_ids=(10,))),
+        change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
         config=load_setup_lifecycle_config(),
     )
 
@@ -86,6 +90,7 @@ def test_evaluation_service_cancellation_finalizes_run_as_cancelled() -> None:
         repository=repository,
         capture_service=FakeCaptureService(SnapshotCaptureResult(evaluation_run_id=1, status="X")),
         canonicalizer=FakeCanonicalizer(CanonicalizationResult()),
+        change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
         config=load_setup_lifecycle_config(),
     )
     checks = iter([True])
@@ -150,4 +155,18 @@ class FakeCanonicalizer:
         self.result = result
 
     def canonicalize_run(self, _db, *, run_id, evaluation_run_id=None) -> CanonicalizationResult:
+        return self.result
+
+
+class FakeChangeDetector:
+    def __init__(self, result: SignalChangeDetectionResult) -> None:
+        self.result = result
+
+    def detect_and_persist(
+        self,
+        _db,
+        *,
+        evaluation_run_id,
+        snapshot_ids,
+    ) -> SignalChangeDetectionResult:
         return self.result

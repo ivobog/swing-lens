@@ -282,6 +282,52 @@ class SetupLifecycleRepository:
             ).limit(1)
         )
 
+    def previous_canonical_snapshot(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        timeframe: str,
+        before_date: date,
+    ) -> SetupSignalSnapshot | None:
+        return db.scalar(
+            select(SetupSignalSnapshot)
+            .where(SetupSignalSnapshot.ticker == self.normalize_ticker(ticker))
+            .where(SetupSignalSnapshot.timeframe == timeframe)
+            .where(SetupSignalSnapshot.data_as_of_date < before_date)
+            .where(SetupSignalSnapshot.is_canonical.is_(True))
+            .order_by(
+                SetupSignalSnapshot.data_as_of_date.desc(),
+                SetupSignalSnapshot.id.desc(),
+            )
+            .limit(1)
+        )
+
+    def canonical_snapshot_history(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        timeframe: str,
+        before_date: date,
+        limit: int = 10,
+    ) -> list[SetupSignalSnapshot]:
+        safe_limit = max(1, min(int(limit), 50))
+        return list(
+            db.scalars(
+                select(SetupSignalSnapshot)
+                .where(SetupSignalSnapshot.ticker == self.normalize_ticker(ticker))
+                .where(SetupSignalSnapshot.timeframe == timeframe)
+                .where(SetupSignalSnapshot.data_as_of_date < before_date)
+                .where(SetupSignalSnapshot.is_canonical.is_(True))
+                .order_by(
+                    SetupSignalSnapshot.data_as_of_date.desc(),
+                    SetupSignalSnapshot.id.desc(),
+                )
+                .limit(safe_limit)
+            )
+        )
+
     def get_snapshots_by_ids(
         self,
         db: Session,
@@ -452,14 +498,21 @@ class SetupLifecycleRepository:
         db: Session,
         event: SignalChangeEvent,
     ) -> SignalChangeEvent:
-        existing = db.scalar(
-            select(SignalChangeEvent)
-            .where(SignalChangeEvent.source_event_key == event.source_event_key)
-            .limit(1)
-        )
+        existing = self.get_signal_change_event(db, event.source_event_key)
         if existing is not None:
             return existing
         return self.add(db, event)
+
+    def get_signal_change_event(
+        self,
+        db: Session,
+        source_event_key: str,
+    ) -> SignalChangeEvent | None:
+        return db.scalar(
+            select(SignalChangeEvent)
+            .where(SignalChangeEvent.source_event_key == source_event_key)
+            .limit(1)
+        )
 
     def upsert_alert_rule(
         self,

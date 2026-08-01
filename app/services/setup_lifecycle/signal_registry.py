@@ -16,6 +16,8 @@ SUPPORTED_SIGNAL_DIRECTIONS = frozenset(
         "false_is_better",
         "classification_order",
         "quality_order",
+        "risk_increase",
+        "risk_decrease",
         "neutral",
     }
 )
@@ -59,8 +61,14 @@ class SignalDefinition:
             if old_number is None or new_number is None:
                 return None
             delta = new_number - old_number
-            if self.direction in {"lower_is_better", "lower_is_better_until_trigger"}:
+            if self.direction in {
+                "lower_is_better",
+                "lower_is_better_until_trigger",
+                "risk_decrease",
+            }:
                 return -delta
+            if self.direction == "risk_increase":
+                return delta
             return delta
         if self.value_type is SignalValueType.BOOLEAN:
             return _boolean_delta(old_value, new_value, self.direction)

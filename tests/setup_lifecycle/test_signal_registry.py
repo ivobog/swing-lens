@@ -51,6 +51,34 @@ def test_normalized_delta_honors_signal_direction() -> None:
     assert registry.require("liquidity").normalized_delta(False, True) == -1.0
     assert registry.require("close_trigger_cross").normalized_delta(False, True) == 1.0
 
+    risk_increase = SignalDefinitionRegistry.from_config(
+        {
+            "risk_score": {
+                "source": "risk_score",
+                "type": "float",
+                "category": "RISK",
+                "direction": "risk_increase",
+            },
+            "close_trigger_cross": {
+                "source": "close_above_trigger",
+                "type": "boolean",
+                "category": "SETUP",
+                "direction": "true_is_better",
+                "trigger_authority": "close",
+            },
+            "intraday_high_trigger_cross_diagnostic": {
+                "source": "high_above_trigger",
+                "type": "boolean",
+                "category": "SETUP",
+                "direction": "true_is_better",
+                "trigger_authority": "diagnostic_high",
+                "diagnostic_only": True,
+            },
+        }
+    )
+
+    assert risk_increase.require("risk_score").normalized_delta(2.0, 4.0) == 2.0
+
 
 def test_unknown_signal_lookup_fails_with_clear_error() -> None:
     registry = load_setup_lifecycle_config().signal_registry

@@ -8,6 +8,10 @@ from app.services.setup_lifecycle.canonicalization import (
     CanonicalizationResult,
     SetupLifecycleCanonicalizer,
 )
+from app.services.setup_lifecycle.change_detector import (
+    SetupLifecycleChangeDetector,
+    SignalChangeDetectionResult,
+)
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.enums import EvaluationStatus
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
@@ -68,6 +72,7 @@ class SetupLifecycleEvaluationService:
         repository: SetupLifecycleRepository | None = None,
         capture_service: SetupLifecycleSnapshotCaptureService | None = None,
         canonicalizer: SetupLifecycleCanonicalizer | None = None,
+        change_detector: SetupLifecycleChangeDetector | None = None,
         config: SetupLifecycleConfig | None = None,
     ) -> None:
         self.config = config or load_setup_lifecycle_config()
@@ -77,6 +82,10 @@ class SetupLifecycleEvaluationService:
             config=self.config,
         )
         self.canonicalizer = canonicalizer or SetupLifecycleCanonicalizer(
+            repository=self.repository,
+            config=self.config,
+        )
+        self.change_detector = change_detector or SetupLifecycleChangeDetector(
             repository=self.repository,
             config=self.config,
         )
@@ -118,6 +127,12 @@ class SetupLifecycleEvaluationService:
                 run_id=run_id,
                 evaluation_run_id=evaluation_run.id,
             )
+            self._checkpoint(db, evaluation_run.id, "change_detection", should_cancel)
+            changes = self.change_detector.detect_and_persist(
+                db,
+                evaluation_run_id=evaluation_run.id,
+                snapshot_ids=canonical.selected_snapshot_ids,
+            )
             self._checkpoint(db, evaluation_run.id, "finalize", should_cancel)
         except SetupLifecycleEvaluationCancelled:
             self.repository.complete_evaluation_run(
@@ -139,7 +154,7 @@ class SetupLifecycleEvaluationService:
             )
             raise
 
-        result = self._result(db, evaluation_run.id, capture, canonical)
+        result = self._result(db, evaluation_run.id, capture, canonical, changes)
         self.repository.complete_evaluation_run(
             db,
             evaluation_run,
@@ -179,6 +194,7 @@ class SetupLifecycleEvaluationService:
         evaluation_run_id: int,
         capture: SnapshotCaptureResult,
         canonical: CanonicalizationResult,
+        changes: SignalChangeDetectionResult,
     ) -> SetupLifecycleEvaluationResult:
         failed = capture.failed
         status = EvaluationStatus.PARTIAL.value if failed else EvaluationStatus.COMPLETED.value
@@ -188,7 +204,7 @@ class SetupLifecycleEvaluationService:
             snapshots_captured=capture.captured,
             canonical_snapshots=canonical.selected_count,
             canonical_changed=canonical.changed_count,
-            change_events=0,
+            change_events=changes.created_events,
             lifecycle_transitions=0,
             alerts=0,
             active_episodes=self.repository.count_active_episodes(
