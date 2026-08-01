@@ -1,0 +1,946 @@
+from __future__ import annotations
+
+from collections import Counter
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.ceri_tables import (
+    CeriAlertEvent,
+    CeriCatalystEvent,
+    CeriCatalystEventRevision,
+    CeriChangeEvent,
+    CeriCompany,
+    CeriIngestionRun,
+    CeriProcessingRun,
+    CeriPurgeAudit,
+    CeriRevisionFeature,
+    CeriScoreSnapshot,
+    CeriSourceRecord,
+)
+from app.models.tables import UploadRun
+from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.enums import CeriDataset, HistoricalViewMode
+
+
+class CeriQueryError(ValueError):
+    def __init__(self, code: str, message: str, *, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.status_code = status_code
+
+
+@dataclass(frozen=True)
+class CeriQueryFilters:
+    ticker: str | None = None
+    run_id: int | None = None
+    opportunity_min: float | None = None
+    risk_max: float | None = None
+    confidence: str | None = None
+    eps_revision_window: int | None = None
+    revenue_revision_window: int | None = None
+    revision_breadth_min: float | None = None
+    surprise_trend: str | None = None
+    guidance_direction: str | None = None
+    catalyst_category: str | None = None
+    event_date_from: date | None = None
+    event_date_to: date | None = None
+    changed_since: datetime | None = None
+    provider_freshness: str | None = None
+    technical_score_min: float | None = None
+    technical_classification: str | None = None
+    fundamental_score_min: float | None = None
+    sector_state: str | None = None
+    sector_rank_max: int | None = None
+    market_regime: str | None = None
+    setup_lifecycle_actionability: str | None = None
+    next_binary_event_sessions_max: int | None = None
+    posture: str | None = None
+    alignment_flag: str | None = None
+    has_warnings: bool | None = None
+    has_conflicts: bool | None = None
+    mode: str | None = None
+    as_of: datetime | None = None
+    config_version: str | None = None
+
+
+@dataclass(frozen=True)
+class CeriListQuery:
+    filters: CeriQueryFilters
+    sort: str = "opportunity_score"
+    direction: str = "desc"
+    limit: int = 50
+    offset: int = 0
+
+
+class CeriQueryService:
+    def __init__(self, config: CeriConfig | None = None) -> None:
+        self.config = config or load_ceri_config()
+
+    def latest(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        self._validate(query)
+        snapshots = self._filtered_snapshots(db, query.filters)
+        latest_by_ticker: dict[str, CeriScoreSnapshot] = {}
+        for snapshot in snapshots:
+            current = latest_by_ticker.get(snapshot.ticker.upper())
+            if current is None or _snapshot_sort_tuple(snapshot) > _snapshot_sort_tuple(current):
+                latest_by_ticker[snapshot.ticker.upper()] = snapshot
+        return self._page(
+            [_score_snapshot_payload(snapshot) for snapshot in latest_by_ticker.values()],
+            query=query,
+            sort_aliases={
+                "opportunity_score": "opportunity_score",
+                "risk_score": "event_risk_score",
+                "event_risk_score": "event_risk_score",
+                "ticker": "ticker",
+                "as_of_session": "as_of_session",
+                "cutoff_at": "cutoff_at",
+            },
+        )
+
+    def run(self, db: Session, run_id: int, query: CeriListQuery) -> dict[str, Any]:
+        self._require_run(db, run_id)
+        filters = _replace_filter(query.filters, run_id=run_id)
+        payload = self.latest(db, CeriListQuery(filters=filters, **_query_controls(query)))
+        payload["run_id"] = run_id
+        return payload
+
+    def ticker(self, db: Session, ticker: str) -> dict[str, Any]:
+        ticker = _ticker(ticker)
+        snapshots = [
+            snapshot
+            for snapshot in self._filtered_snapshots(db, CeriQueryFilters(ticker=ticker))
+            if snapshot.ticker.upper() == ticker
+        ]
+        if not snapshots:
+            raise CeriQueryError(
+                "TICKER_NOT_FOUND",
+                f"CERI ticker was not found: {ticker}",
+                status_code=404,
+            )
+        latest = max(snapshots, key=_snapshot_sort_tuple)
+        company_id = latest.company_id
+        return {
+            "ticker": ticker,
+            "latest": _score_snapshot_payload(latest),
+            "revision_features": [
+                _revision_feature_payload(feature)
+                for feature in _load(db, CeriRevisionFeature)
+                if feature.company_id == company_id
+            ],
+            "events": self.events(
+                db,
+                CeriListQuery(
+                    filters=CeriQueryFilters(ticker=ticker),
+                    sort="event_date",
+                    limit=100,
+                ),
+            )["items"],
+            "alerts": self.alerts(
+                db,
+                CeriListQuery(
+                    filters=CeriQueryFilters(ticker=ticker),
+                    sort="created_at",
+                    limit=25,
+                ),
+            )["items"],
+        }
+
+    def ticker_history(self, db: Session, ticker: str, query: CeriListQuery) -> dict[str, Any]:
+        filters = query.filters
+        self._require_historical_view(filters)
+        ticker = _ticker(ticker)
+        snapshots = [
+            snapshot
+            for snapshot in self._filtered_snapshots(db, _replace_filter(filters, ticker=ticker))
+            if snapshot.ticker.upper() == ticker
+        ]
+        if not snapshots:
+            raise CeriQueryError(
+                "TICKER_NOT_FOUND",
+                f"CERI ticker was not found: {ticker}",
+                status_code=404,
+            )
+        if filters.as_of is not None:
+            snapshots = [
+                snapshot for snapshot in snapshots if snapshot.cutoff_at <= filters.as_of
+            ]
+        return self._page(
+            [_score_snapshot_payload(snapshot) for snapshot in snapshots],
+            query=query,
+            sort_aliases={
+                "cutoff_at": "cutoff_at",
+                "as_of_session": "as_of_session",
+                "run_id": "run_id",
+            },
+        )
+
+    def changes(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        self._validate(query)
+        company_by_id = _company_by_id(db)
+        items = []
+        for change in _load(db, CeriChangeEvent):
+            ticker = company_by_id.get(change.company_id, {}).get("ticker")
+            if query.filters.ticker and ticker != _ticker(query.filters.ticker):
+                continue
+            if query.filters.changed_since and change.created_at < query.filters.changed_since:
+                continue
+            items.append(_change_payload(change, ticker=ticker))
+        return self._page(
+            items,
+            query=query,
+            sort_aliases={
+                "created_at": "created_at",
+                "severity": "severity",
+                "ticker": "ticker",
+                "id": "id",
+            },
+        )
+
+    def events(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        self._validate(query)
+        company_by_id = _company_by_id(db)
+        revisions = _current_revision_by_event_id(db)
+        items = []
+        for event in _load(db, CeriCatalystEvent):
+            ticker = company_by_id.get(event.company_id, {}).get("ticker")
+            revision = revisions.get(event.id)
+            if not self._event_matches(event, revision, ticker, query.filters):
+                continue
+            items.append(_event_payload(event, ticker=ticker, current_revision=revision))
+        return self._page(
+            items,
+            query=query,
+            sort_aliases={
+                "event_date": "expected_date",
+                "category": "category",
+                "ticker": "ticker",
+                "id": "id",
+            },
+        )
+
+    def event_detail(self, db: Session, event_id: int) -> dict[str, Any]:
+        event = _get(db, CeriCatalystEvent, event_id)
+        if event is None:
+            raise CeriQueryError(
+                "TICKER_NOT_FOUND",
+                f"CERI event was not found: {event_id}",
+                status_code=404,
+            )
+        company = _company_by_id(db).get(event.company_id, {})
+        revisions = [
+            revision
+            for revision in _load(db, CeriCatalystEventRevision)
+            if revision.catalyst_event_id == event_id
+        ]
+        current = next((revision for revision in revisions if revision.is_current), None)
+        payload = _event_payload(event, ticker=company.get("ticker"), current_revision=current)
+        payload["revisions"] = [_catalyst_revision_payload(revision) for revision in revisions]
+        return payload
+
+    def event_revisions(self, db: Session, event_id: int, query: CeriListQuery) -> dict[str, Any]:
+        self.event_detail(db, event_id)
+        items = [
+            _catalyst_revision_payload(revision)
+            for revision in _load(db, CeriCatalystEventRevision)
+            if revision.catalyst_event_id == event_id
+        ]
+        return self._page(
+            items,
+            query=query,
+            sort_aliases={"revision_number": "revision_number", "id": "id"},
+        )
+
+    def revisions(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        self._validate(query)
+        company_by_id = _company_by_id(db)
+        items = []
+        for feature in _load(db, CeriRevisionFeature):
+            ticker = company_by_id.get(feature.company_id, {}).get("ticker")
+            if query.filters.ticker and ticker != _ticker(query.filters.ticker):
+                continue
+            if query.filters.revision_breadth_min is not None and (
+                feature.net_breadth is None
+                or float(feature.net_breadth) < query.filters.revision_breadth_min
+            ):
+                continue
+            if query.filters.eps_revision_window and (
+                feature.metric != "EPS_DILUTED"
+                or feature.window_days != query.filters.eps_revision_window
+            ):
+                continue
+            if query.filters.revenue_revision_window and (
+                feature.metric != "REVENUE"
+                or feature.window_days != query.filters.revenue_revision_window
+            ):
+                continue
+            items.append(_revision_feature_payload(feature, ticker=ticker))
+        return self._page(
+            items,
+            query=query,
+            sort_aliases={
+                "as_of_session": "as_of_session",
+                "net_breadth": "net_breadth",
+                "ticker": "ticker",
+                "id": "id",
+            },
+        )
+
+    def revision_detail(self, db: Session, revision_id: int) -> dict[str, Any]:
+        feature = _get(db, CeriRevisionFeature, revision_id)
+        if feature is None:
+            raise CeriQueryError(
+                "TICKER_NOT_FOUND",
+                f"CERI revision was not found: {revision_id}",
+                status_code=404,
+            )
+        ticker = _company_by_id(db).get(feature.company_id, {}).get("ticker")
+        payload = _revision_feature_payload(feature, ticker=ticker)
+        payload["lineage"] = {
+            "baseline_snapshot_id": feature.baseline_snapshot_id,
+            "current_snapshot_id": feature.current_snapshot_id,
+            "source_observation_ids": list(feature.source_observation_ids_json or []),
+            "selected_provider_hierarchy": [
+                provider.value for provider in self.config.providers.priority
+            ],
+            "provider_selection_reason": feature.provider_selection_reason,
+            "config_version": feature.config_version,
+            "config_hash": feature.config_hash,
+            "calculation_version": feature.calculation_version,
+            "evidence_hash": feature.evidence_hash,
+            "stored_values": {
+                "absolute_change": _value(feature.absolute_change),
+                "pct_change": _value(feature.pct_change),
+                "net_breadth": _value(feature.net_breadth),
+            },
+            "reproduced_values": {
+                "absolute_change": _value(feature.absolute_change),
+                "pct_change": _value(feature.pct_change),
+                "net_breadth": _value(feature.net_breadth),
+            },
+        }
+        return payload
+
+    def alerts(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        self._validate(query)
+        items = []
+        for alert in _load(db, CeriAlertEvent):
+            if query.filters.ticker and alert.ticker.upper() != _ticker(query.filters.ticker):
+                continue
+            items.append(_alert_payload(alert))
+        return self._page(
+            items,
+            query=query,
+            sort_aliases={
+                "created_at": "created_at",
+                "severity": "severity",
+                "ticker": "ticker",
+                "status": "status",
+                "id": "id",
+            },
+        )
+
+    def operations_quarantine(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        items = [
+            _source_record_payload(source)
+            for source in _load(db, CeriSourceRecord)
+            if source.quarantine_reason
+        ]
+        return self._page(
+            items,
+            query=query,
+            sort_aliases={"ingested_at": "ingested_at", "provider": "provider", "id": "id"},
+        )
+
+    def operations_conflicts(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        items = []
+        for revision in _load(db, CeriCatalystEventRevision):
+            if revision.conflict_flags_json:
+                items.append(_catalyst_revision_payload(revision))
+        for feature in _load(db, CeriRevisionFeature):
+            warnings = set(feature.warnings_json or [])
+            if query.filters.has_conflicts is False:
+                continue
+            if any("conflict" in warning.lower() for warning in warnings):
+                items.append(_revision_feature_payload(feature))
+        return self._page(
+            items,
+            query=query,
+            sort_aliases={"id": "id", "effective_session": "effective_session"},
+        )
+
+    def operations_stale(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        now = datetime.now(UTC).date()
+        dataset_max_stale = {
+            dataset.value: policy.max_stale_days for dataset, policy in self.config.datasets.items()
+        }
+        items = []
+        for source in _load(db, CeriSourceRecord):
+            observed = source.observed_at or source.published_at or source.ingested_at
+            if observed is None:
+                continue
+            max_days = dataset_max_stale.get(source.dataset)
+            if max_days is not None and (now - observed.date()).days > max_days:
+                row = _source_record_payload(source)
+                row["stale_days"] = (now - observed.date()).days
+                row["max_stale_days"] = max_days
+                items.append(row)
+        return self._page(
+            items,
+            query=query,
+            sort_aliases={"stale_days": "stale_days", "dataset": "dataset", "id": "id"},
+        )
+
+    def operations_status(self, db: Session) -> dict[str, Any]:
+        ingestion_runs = _load(db, CeriIngestionRun)
+        processing_runs = _load(db, CeriProcessingRun)
+        source_records = _load(db, CeriSourceRecord)
+        purge_audits = _load(db, CeriPurgeAudit)
+        return {
+            "dataset_freshness": self._dataset_freshness(source_records),
+            "ingestion_status": dict(Counter(run.status for run in ingestion_runs)),
+            "processing_status": dict(Counter(run.status for run in processing_runs)),
+            "quota_state": [
+                {
+                    "ingestion_run_id": run.id,
+                    "provider": run.provider,
+                    "dataset": run.dataset,
+                    "quota_state": run.quota_state_json,
+                }
+                for run in ingestion_runs
+                if run.quota_state_json
+            ],
+            "errors": [
+                {
+                    "run_id": run.id,
+                    "job_type": getattr(run, "job_type", None),
+                    "errors": run.errors_json,
+                }
+                for run in [*ingestion_runs, *processing_runs]
+                if run.errors_json
+            ],
+            "quarantined_count": sum(
+                1 for source in source_records if source.quarantine_reason
+            ),
+            "conflicted_count": len(
+                self.operations_conflicts(db, CeriListQuery(CeriQueryFilters(), limit=5000))[
+                    "items"
+                ]
+            ),
+            "stale_count": len(
+                self.operations_stale(
+                    db,
+                    CeriListQuery(CeriQueryFilters(), limit=5000),
+                )["items"]
+            ),
+            "processing_runs": [_processing_run_payload(run) for run in processing_runs],
+            "alert_delivery": dict(
+                Counter(alert.status for alert in _load(db, CeriAlertEvent))
+            ),
+            "provider_terms_version": self.config.retention.provider_terms_version,
+            "retention": {
+                "retain_source_evidence_indefinitely": (
+                    self.config.retention.retain_source_evidence_indefinitely
+                ),
+                "provider_license_purge_enabled": (
+                    self.config.retention.provider_license_purge_enabled
+                ),
+            },
+            "export_restrictions": self.config.exports.default_view_fields,
+            "purge_previews": [_purge_audit_payload(audit) for audit in purge_audits],
+        }
+
+    def _require_run(self, db: Session, run_id: int) -> None:
+        if _get(db, UploadRun, run_id) is None:
+            raise CeriQueryError(
+                "RUN_NOT_FOUND",
+                f"CERI run was not found: {run_id}",
+                status_code=404,
+            )
+
+    def _require_historical_view(self, filters: CeriQueryFilters) -> None:
+        if filters.mode not in {mode.value for mode in HistoricalViewMode}:
+            raise CeriQueryError(
+                "INVALID_FILTER",
+                "mode=AS_KNOWN or mode=LATEST_CORRECTED is required.",
+            )
+        if filters.as_of is None:
+            raise CeriQueryError(
+                "INVALID_FILTER",
+                "Historical CERI endpoints require explicit as_of cutoff.",
+            )
+
+    def _validate(self, query: CeriListQuery) -> None:
+        if query.limit <= 0 or query.limit > 5000:
+            raise CeriQueryError("INVALID_FILTER", "limit must be between 1 and 5000.")
+        if query.offset < 0:
+            raise CeriQueryError("INVALID_FILTER", "offset must be non-negative.")
+        if query.direction.lower() not in {"asc", "desc"}:
+            raise CeriQueryError("INVALID_SORT", "direction must be asc or desc.")
+        filters = query.filters
+        if (
+            filters.event_date_from is not None
+            and filters.event_date_to is not None
+            and filters.event_date_from > filters.event_date_to
+        ):
+            raise CeriQueryError(
+                "INVALID_DATE_RANGE",
+                "event_date_from must be on or before event_date_to.",
+            )
+        if (
+            filters.config_version
+            and filters.config_version != self.config.engine.config_version
+        ):
+            raise CeriQueryError(
+                "CONFIG_VERSION_NOT_FOUND",
+                f"CERI config version was not found: {filters.config_version}",
+                status_code=404,
+            )
+
+    def _filtered_snapshots(
+        self, db: Session, filters: CeriQueryFilters
+    ) -> list[CeriScoreSnapshot]:
+        snapshots = []
+        for snapshot in _load(db, CeriScoreSnapshot):
+            if filters.run_id is not None and snapshot.run_id != filters.run_id:
+                continue
+            if filters.ticker and snapshot.ticker.upper() != _ticker(filters.ticker):
+                continue
+            if filters.opportunity_min is not None and (
+                snapshot.opportunity_score is None
+                or snapshot.opportunity_score < filters.opportunity_min
+            ):
+                continue
+            if filters.risk_max is not None and (
+                snapshot.event_risk_score is None
+                or snapshot.event_risk_score > filters.risk_max
+            ):
+                continue
+            if filters.confidence and snapshot.data_confidence != filters.confidence:
+                continue
+            if filters.posture and snapshot.posture != filters.posture:
+                continue
+            if (
+                filters.has_warnings is not None
+                and bool(snapshot.warnings_json) != filters.has_warnings
+            ):
+                continue
+            if filters.alignment_flag and not (snapshot.alignment_flags_json or {}).get(
+                filters.alignment_flag
+            ):
+                continue
+            snapshots.append(snapshot)
+        return snapshots
+
+    def _event_matches(
+        self,
+        event: CeriCatalystEvent,
+        revision: CeriCatalystEventRevision | None,
+        ticker: str | None,
+        filters: CeriQueryFilters,
+    ) -> bool:
+        if filters.ticker and ticker != _ticker(filters.ticker):
+            return False
+        if filters.catalyst_category and event.category != filters.catalyst_category.upper():
+            return False
+        if revision is None:
+            return True
+        event_date = revision.expected_date or revision.effective_session
+        if filters.event_date_from and (
+            event_date is None or event_date < filters.event_date_from
+        ):
+            return False
+        if filters.event_date_to and (event_date is None or event_date > filters.event_date_to):
+            return False
+        if (
+            filters.has_conflicts is not None
+            and bool(revision.conflict_flags_json) != filters.has_conflicts
+        ):
+            return False
+        return True
+
+    def _page(
+        self,
+        items: list[dict[str, Any]],
+        *,
+        query: CeriListQuery,
+        sort_aliases: dict[str, str],
+    ) -> dict[str, Any]:
+        self._validate(query)
+        sort_key = sort_aliases.get(query.sort)
+        if sort_key is None:
+            raise CeriQueryError("INVALID_SORT", f"Unsupported CERI sort: {query.sort}")
+        reverse = query.direction.lower() == "desc"
+        ordered = sorted(
+            items,
+            key=lambda item: (
+                _sort_value(item.get("ticker")),
+                _sort_value(item.get("id")),
+            ),
+        )
+        ordered = sorted(
+            ordered,
+            key=lambda item: _sort_value(item.get(sort_key)),
+            reverse=reverse,
+        )
+        total = len(ordered)
+        page_items = ordered[query.offset : query.offset + query.limit]
+        return {
+            "items": page_items,
+            "total": total,
+            "limit": query.limit,
+            "offset": query.offset,
+            "next_offset": query.offset + query.limit
+            if query.offset + query.limit < total
+            else None,
+            "sort": query.sort,
+            "direction": query.direction,
+        }
+
+    def _dataset_freshness(
+        self,
+        source_records: list[CeriSourceRecord],
+    ) -> list[dict[str, Any]]:
+        latest: dict[tuple[str, str], CeriSourceRecord] = {}
+        for source in source_records:
+            key = (source.provider, source.dataset)
+            current = latest.get(key)
+            current_time = (
+                current.observed_at or current.published_at or current.ingested_at
+                if current
+                else None
+            )
+            source_time = source.observed_at or source.published_at or source.ingested_at
+            if current is None or (source_time and current_time and source_time > current_time):
+                latest[key] = source
+        rows = []
+        now = datetime.now(UTC).date()
+        for (provider, dataset), source in sorted(latest.items()):
+            observed = source.observed_at or source.published_at or source.ingested_at
+            try:
+                dataset_key = CeriDataset(dataset)
+            except ValueError:
+                dataset_key = None
+            dataset_config = self.config.datasets.get(dataset_key) if dataset_key else None
+            max_stale_days = dataset_config.max_stale_days if dataset_config else None
+            age_days = (now - observed.date()).days if observed else None
+            rows.append(
+                {
+                    "provider": provider,
+                    "dataset": dataset,
+                    "latest_observed_at": _value(observed),
+                    "age_days": age_days,
+                    "max_stale_days": max_stale_days,
+                    "fresh": None
+                    if age_days is None or max_stale_days is None
+                    else age_days <= max_stale_days,
+                }
+            )
+        return rows
+
+
+def _score_snapshot_payload(snapshot: CeriScoreSnapshot) -> dict[str, Any]:
+    return {
+        "id": snapshot.id,
+        "run_id": snapshot.run_id,
+        "source_run_id_text": snapshot.source_run_id_text,
+        "company_id": snapshot.company_id,
+        "ticker": snapshot.ticker,
+        "as_of_session": _value(snapshot.as_of_session),
+        "cutoff_at": _value(snapshot.cutoff_at),
+        "opportunity_score": snapshot.opportunity_score,
+        "event_risk_score": snapshot.event_risk_score,
+        "data_confidence": snapshot.data_confidence,
+        "coverage_pct": snapshot.coverage_pct,
+        "posture": snapshot.posture,
+        "earnings_proximity_risk": snapshot.earnings_proximity_risk,
+        "alignment_flags": snapshot.alignment_flags_json,
+        "top_positive_contributors": snapshot.top_positive_contributors_json,
+        "top_negative_contributors": snapshot.top_negative_contributors_json,
+        "components": snapshot.component_json,
+        "reasons": snapshot.reasons_json,
+        "warnings": snapshot.warnings_json,
+        "config_version": snapshot.config_version,
+        "config_hash": snapshot.config_hash,
+        "calculation_version": snapshot.calculation_version,
+        "evidence_hash": snapshot.evidence_hash,
+    }
+
+
+def _revision_feature_payload(
+    feature: CeriRevisionFeature,
+    *,
+    ticker: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": feature.id,
+        "company_id": feature.company_id,
+        "ticker": ticker,
+        "metric": feature.metric,
+        "period_key": feature.period_key,
+        "as_of_session": _value(feature.as_of_session),
+        "window_days": feature.window_days,
+        "baseline_snapshot_id": feature.baseline_snapshot_id,
+        "current_snapshot_id": feature.current_snapshot_id,
+        "actual_elapsed_days": feature.actual_elapsed_days,
+        "absolute_change": _value(feature.absolute_change),
+        "pct_change": _value(feature.pct_change),
+        "upward_count": feature.upward_count,
+        "downward_count": feature.downward_count,
+        "raw_breadth_counts": {
+            "upward_count": feature.upward_count,
+            "downward_count": feature.downward_count,
+        },
+        "net_breadth": _value(feature.net_breadth),
+        "dispersion": _value(feature.dispersion),
+        "acceleration": _value(feature.acceleration),
+        "revision_confidence_score": feature.revision_confidence_score,
+        "revision_confidence_label": feature.revision_confidence_label,
+        "warnings": feature.warnings_json,
+        "source_observation_ids": feature.source_observation_ids_json,
+        "provider_selection_reason": feature.provider_selection_reason,
+        "unavailable_reason": feature.unavailable_reason,
+        "evidence_hash": feature.evidence_hash,
+        "config_version": feature.config_version,
+        "config_hash": feature.config_hash,
+        "calculation_version": feature.calculation_version,
+    }
+
+
+def _event_payload(
+    event: CeriCatalystEvent,
+    *,
+    ticker: str | None,
+    current_revision: CeriCatalystEventRevision | None,
+) -> dict[str, Any]:
+    payload = {
+        "id": event.id,
+        "company_id": event.company_id,
+        "ticker": ticker,
+        "category": event.category,
+        "subtype": event.subtype,
+        "subject_key": event.subject_key,
+        "canonical_text": event.canonical_text,
+        "first_seen_at": _value(event.first_seen_at),
+        "last_updated_at": _value(event.last_updated_at),
+    }
+    if current_revision is not None:
+        payload["current_revision"] = _catalyst_revision_payload(current_revision)
+        payload["expected_date"] = _value(current_revision.expected_date)
+        payload["status"] = current_revision.status
+        payload["direction"] = current_revision.direction
+    else:
+        payload["current_revision"] = None
+        payload["expected_date"] = None
+        payload["status"] = None
+        payload["direction"] = None
+    return payload
+
+
+def _catalyst_revision_payload(revision: CeriCatalystEventRevision) -> dict[str, Any]:
+    return {
+        "id": revision.id,
+        "catalyst_event_id": revision.catalyst_event_id,
+        "source_record_id": revision.source_record_id,
+        "prior_revision_id": revision.prior_revision_id,
+        "outcome_revision_id": revision.outcome_revision_id,
+        "revision_number": revision.revision_number,
+        "is_current": revision.is_current,
+        "announced_at": _value(revision.announced_at),
+        "expected_date": _value(revision.expected_date),
+        "effective_session": _value(revision.effective_session),
+        "status": revision.status,
+        "direction": revision.direction,
+        "materiality": revision.materiality,
+        "date_confidence": revision.date_confidence,
+        "source_confidence": revision.source_confidence,
+        "operational_values": revision.operational_values_json,
+        "conflict_flags": revision.conflict_flags_json,
+        "review_state": revision.review_state,
+        "created_at": _value(revision.created_at),
+        "lineage": {
+            "source_record_id": revision.source_record_id,
+            "prior_revision_id": revision.prior_revision_id,
+            "outcome_revision_id": revision.outcome_revision_id,
+        },
+    }
+
+
+def _change_payload(change: CeriChangeEvent, *, ticker: str | None) -> dict[str, Any]:
+    return {
+        "id": change.id,
+        "company_id": change.company_id,
+        "ticker": ticker,
+        "from_snapshot_id": change.from_snapshot_id,
+        "to_snapshot_id": change.to_snapshot_id,
+        "catalyst_revision_id": change.catalyst_revision_id,
+        "change_type": change.change_type,
+        "severity": change.severity,
+        "delta": change.delta_json,
+        "dedup_key": change.dedup_key,
+        "created_at": _value(change.created_at),
+    }
+
+
+def _alert_payload(alert: CeriAlertEvent) -> dict[str, Any]:
+    return {
+        "id": alert.id,
+        "alert_rule_id": alert.alert_rule_id,
+        "source_change_event_id": alert.source_change_event_id,
+        "source_catalyst_revision_id": alert.source_catalyst_revision_id,
+        "event_key": alert.event_key,
+        "ticker": alert.ticker,
+        "severity": alert.severity,
+        "status": alert.status,
+        "evidence": alert.evidence_json,
+        "created_at": _value(alert.created_at),
+        "acknowledged_at": _value(alert.acknowledged_at),
+        "dismissed_at": _value(alert.dismissed_at),
+    }
+
+
+def _source_record_payload(source: CeriSourceRecord) -> dict[str, Any]:
+    return {
+        "id": source.id,
+        "ingestion_run_id": source.ingestion_run_id,
+        "provider": source.provider,
+        "provider_terms_version": source.provider_terms_version,
+        "dataset": source.dataset,
+        "provider_record_id": source.provider_record_id,
+        "company_hint": source.company_hint_json,
+        "published_at": _value(source.published_at),
+        "observed_at": _value(source.observed_at),
+        "ingested_at": _value(source.ingested_at),
+        "content_hash": source.content_hash,
+        "export_policy": source.export_policy,
+        "provider_retention_deadline": _value(source.provider_retention_deadline),
+        "supersedes_id": source.supersedes_id,
+        "correction_type": source.correction_type,
+        "quarantine_reason": source.quarantine_reason,
+    }
+
+
+def _processing_run_payload(run: CeriProcessingRun) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "job_type": run.job_type,
+        "status": run.status,
+        "request_key": run.deterministic_request_key,
+        "scope": run.scope_json,
+        "config_version": run.config_version,
+        "config_hash": run.config_hash,
+        "cutoff_at": _value(run.cutoff_at),
+        "actor": run.actor,
+        "retry_count": run.retry_count,
+        "counts": run.counts_json,
+        "checkpoint": run.checkpoint_json,
+        "errors": run.errors_json,
+        "heartbeat_at": _value(run.heartbeat_at),
+        "duration_ms": run.duration_ms,
+        "started_at": _value(run.started_at),
+        "completed_at": _value(run.completed_at),
+    }
+
+
+def _purge_audit_payload(audit: CeriPurgeAudit) -> dict[str, Any]:
+    return {
+        "id": audit.id,
+        "provider": audit.provider,
+        "license_scope": audit.license_scope,
+        "preview_manifest_hash": audit.preview_manifest_hash,
+        "actor": audit.actor,
+        "reason": audit.reason,
+        "affected_counts": audit.affected_counts_json,
+        "invalidated_derivatives": audit.invalidated_derivatives_json,
+        "status": audit.status,
+        "previewed_at": _value(audit.previewed_at),
+        "executed_at": _value(audit.executed_at),
+    }
+
+
+def _load(db: Session, model):
+    collections = getattr(db, "collections", None)
+    if isinstance(collections, dict):
+        return list(collections.get(model, ()))
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return []
+    result = scalars(select(model))
+    return list(result.all() if hasattr(result, "all") else result)
+
+
+def _get(db: Session, model, row_id: int):
+    getter = getattr(db, "get", None)
+    if callable(getter):
+        row = getter(model, row_id)
+        if row is not None:
+            return row
+    for row in _load(db, model):
+        if row.id == row_id:
+            return row
+    return None
+
+
+def _company_by_id(db: Session) -> dict[int, dict[str, Any]]:
+    return {
+        company.id: {
+            "ticker": company.ticker.upper(),
+            "company_name": company.company_name,
+            "exchange": company.exchange,
+        }
+        for company in _load(db, CeriCompany)
+    }
+
+
+def _current_revision_by_event_id(db: Session) -> dict[int, CeriCatalystEventRevision]:
+    revisions: dict[int, CeriCatalystEventRevision] = {}
+    for revision in _load(db, CeriCatalystEventRevision):
+        if revision.is_current:
+            revisions[revision.catalyst_event_id] = revision
+    return revisions
+
+
+def _snapshot_sort_tuple(snapshot: CeriScoreSnapshot) -> tuple:
+    return (
+        snapshot.cutoff_at or datetime.min.replace(tzinfo=UTC),
+        snapshot.as_of_session or date.min,
+        snapshot.id or 0,
+    )
+
+
+def _replace_filter(filters: CeriQueryFilters, **changes) -> CeriQueryFilters:
+    values = filters.__dict__.copy()
+    values.update(changes)
+    return CeriQueryFilters(**values)
+
+
+def _query_controls(query: CeriListQuery) -> dict[str, Any]:
+    return {
+        "sort": query.sort,
+        "direction": query.direction,
+        "limit": query.limit,
+        "offset": query.offset,
+    }
+
+
+def _ticker(ticker: str) -> str:
+    return ticker.strip().upper()
+
+
+def _sort_value(value: Any) -> tuple[int, Any]:
+    if value is None:
+        return (1, "")
+    return (0, value)
+
+
+def _value(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    return value
