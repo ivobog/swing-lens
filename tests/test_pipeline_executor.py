@@ -8,6 +8,7 @@ from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.pipeline_executor import (
     PipelineCancelled,
     PipelineExecutionDependencies,
+    _capture_ceri_snapshot,
     execute_full_pipeline,
 )
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
@@ -232,6 +233,14 @@ def test_execute_full_pipeline_marks_partial_for_ceri_capture_failures() -> None
     assert result.ceri_quarantined == 2
     assert result.ceri_conflicted == 1
     assert result.ceri_stale == 3
+
+
+def test_default_ceri_capture_hook_returns_skip_when_no_run_rows() -> None:
+    db = PipelineExecutorFakeDb(tickers=[])
+
+    result = _capture_ceri_snapshot(db, run_id=7)
+
+    assert result.as_dict()["skipped"] == 1
 
 
 def test_execute_full_pipeline_uses_default_setup_lifecycle_hooks_when_enabled(

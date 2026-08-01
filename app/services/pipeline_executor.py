@@ -612,9 +612,9 @@ def _winner_probability_capture_enabled(dependencies: PipelineExecutionDependenc
 
 
 def _capture_ceri_snapshot(db: Session, run_id: int):
-    raise RuntimeError(
-        "CERI run capture is enabled, but the CERI snapshot service is not implemented yet."
-    )
+    from app.services.ceri.capture_service import CeriRunCaptureService
+
+    return CeriRunCaptureService().capture_run(db, run_id)
 
 
 def _capture_winner_predictions(db: Session, run_id: int):
