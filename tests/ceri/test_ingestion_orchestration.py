@@ -111,7 +111,7 @@ def test_normalize_job_persists_processing_run_lineage() -> None:
     processing_runs = [row for row in db.added if isinstance(row, CeriProcessingRun)]
     assert len(processing_runs) == 1
     assert processing_runs[0].deterministic_request_key == "normalize-1"
-    assert processing_runs[0].checkpoint_json == {"phase": "phase_3_placeholder"}
+    assert processing_runs[0].checkpoint_json == {"phase": "phase_4_normalization_started"}
     assert result["job_type"] == CERI_NORMALIZE
 
 

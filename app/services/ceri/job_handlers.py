@@ -14,6 +14,7 @@ from app.services.background_job_service import JobStatus, enqueue_job, is_cance
 from app.services.background_worker import CancelRequested
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
+from app.services.ceri.normalization_service import CeriNormalizationService
 from app.services.ceri.orchestration import (
     CeriIngestionCancelled,
     CeriIngestionRequest,
@@ -82,7 +83,12 @@ def execute_provider_ingest_job(
     return {"job_type": CERI_PROVIDER_INGEST, **values}
 
 
-def execute_normalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
+def execute_normalize_job(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    normalization_service: CeriNormalizationService | None = None,
+) -> dict[str, Any]:
     payload = job.payload_json or {}
     request_key = str(payload.get("request_key") or f"ceri:normalize:{job.id}")
     existing = _maybe_scalar(
@@ -103,26 +109,24 @@ def execute_normalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     started_at = _utcnow()
     processing_run = CeriProcessingRun(
         job_type=CERI_NORMALIZE,
-        status="COMPLETED",
+        status="RUNNING",
         deterministic_request_key=request_key,
         scope_json=payload.get("scope") or {},
         config_version=payload.get("config_version"),
         config_hash=payload.get("config_hash"),
         actor=payload.get("actor"),
-        read_count=0,
-        normalized_count=0,
-        checkpoint_json={"phase": "phase_3_placeholder"},
+        checkpoint_json={"phase": "phase_4_normalization_started"},
         started_at=started_at,
-        completed_at=_utcnow(),
     )
     db.add(processing_run)
     db.flush()
-    return {
-        "job_type": CERI_NORMALIZE,
-        "processing_run_id": processing_run.id,
-        "status": processing_run.status,
-        "normalized": 0,
-    }
+    normalization_service = normalization_service or CeriNormalizationService()
+    result = normalization_service.normalize(
+        db,
+        processing_run=processing_run,
+        ingestion_run_id=_optional_int(payload.get("ingestion_run_id")),
+    )
+    return {"job_type": CERI_NORMALIZE, **result.as_dict()}
 
 
 def _ingestion_service_from_payload(
@@ -214,6 +218,12 @@ def _required_text(payload: dict[str, Any], key: str) -> str:
     if not value:
         raise ValueError(f"{CERI_PROVIDER_INGEST} job payload is missing {key}.")
     return str(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    return int(value)
 
 
 def _maybe_scalar(db: Session, statement):

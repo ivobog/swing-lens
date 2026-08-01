@@ -150,6 +150,7 @@ class NormalizedCatalystRecord:
     company_id: int
     category: CatalystCategory
     subtype: str
+    subject_key: str
     status: CatalystStatus
     direction: CatalystDirection
     materiality: float
@@ -158,6 +159,8 @@ class NormalizedCatalystRecord:
     announced_at: datetime | None = None
     expected_date: date | None = None
     effective_session: date | None = None
+    canonical_text: str | None = None
+    conflict_flags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
