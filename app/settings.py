@@ -69,6 +69,15 @@ class Settings(BaseSettings):
     setup_lifecycle_purge_enabled: bool = False
     setup_lifecycle_purge_requires_preview: bool = True
     setup_lifecycle_replay_promotion_requires_confirmation: bool = True
+    ceri_enabled: bool = False
+    ceri_provider_ingest_enabled: bool = False
+    ceri_run_capture_enabled: bool = False
+    ceri_ui_enabled: bool = False
+    ceri_alerts_enabled: bool = False
+    ceri_admin_enabled: bool = False
+    ceri_backfill_enabled: bool = False
+    ceri_config_path: Path = Field(default=Path("config/ceri.yaml"))
+    ceri_taxonomy_path: Path = Field(default=Path("config/ceri_catalyst_taxonomy.yaml"))
     runs_default_page_size: int = 25
     history_default_page_size: int = 50
     history_max_page_size: int = 200

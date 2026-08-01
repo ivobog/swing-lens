@@ -2,6 +2,7 @@ import pytest
 
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
 from app.services.background_job_service import JobStatus
+from app.services.ceri.constants import CERI_PIPELINE_STEPS
 from app.services.pipeline_service import (
     FULL_PIPELINE_JOB_TYPE,
     PIPELINE_STEP_NAMES,
@@ -53,6 +54,29 @@ def test_pipeline_step_names_insert_setup_lifecycle_only_when_enabled() -> None:
     assert enabled_steps[sector_index + 1 : winner_index] == SLSE_PIPELINE_STEPS
 
 
+def test_pipeline_step_names_insert_ceri_before_setup_lifecycle_and_winner() -> None:
+    ceri_steps = pipeline_step_names(
+        ceri_run_capture_enabled=True,
+        setup_lifecycle_pipeline_step_enabled=False,
+    )
+
+    sector_index = ceri_steps.index("SECTOR_ROTATION_SNAPSHOT")
+    winner_index = ceri_steps.index("CAPTURING_WINNER_PREDICTIONS")
+    assert ceri_steps[sector_index + 1 : winner_index] == CERI_PIPELINE_STEPS
+
+    combined_steps = pipeline_step_names(
+        ceri_run_capture_enabled=True,
+        setup_lifecycle_pipeline_step_enabled=True,
+    )
+
+    sector_index = combined_steps.index("SECTOR_ROTATION_SNAPSHOT")
+    winner_index = combined_steps.index("CAPTURING_WINNER_PREDICTIONS")
+    assert combined_steps[sector_index + 1 : winner_index] == (
+        *CERI_PIPELINE_STEPS,
+        *SLSE_PIPELINE_STEPS,
+    )
+
+
 def test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled() -> None:
     upload_run = UploadRun(id=7, filename="sample.csv", status="COMPLETED")
     db = FakeDb(upload_runs={7: upload_run})
@@ -68,6 +92,27 @@ def test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled() -> None:
         pipeline_step_names(setup_lifecycle_pipeline_step_enabled=True)
     )
     assert [step.step_order for step in steps] == list(range(1, 11))
+
+
+def test_start_pipeline_can_create_ceri_and_setup_lifecycle_steps_when_enabled() -> None:
+    upload_run = UploadRun(id=7, filename="sample.csv", status="COMPLETED")
+    db = FakeDb(upload_runs={7: upload_run})
+
+    pipeline = start_pipeline(
+        db,
+        upload_run_id=7,
+        ceri_run_capture_enabled=True,
+        setup_lifecycle_pipeline_step_enabled=True,
+    )
+
+    steps = db.pipeline_steps_for(pipeline.id)
+    assert [step.step_name for step in steps] == list(
+        pipeline_step_names(
+            ceri_run_capture_enabled=True,
+            setup_lifecycle_pipeline_step_enabled=True,
+        )
+    )
+    assert [step.step_order for step in steps] == list(range(1, 12))
 
 
 def test_start_pipeline_raises_for_missing_upload_run() -> None:
