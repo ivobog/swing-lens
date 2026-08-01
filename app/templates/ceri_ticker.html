@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}CERI {{ payload.ticker if payload else "Ticker" }}{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/ceri.js') }}" defer></script>
+
+{% set latest = payload.latest if payload else none %}
+<section class="panel ceri-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>{{ payload.ticker if payload else "CERI Ticker" }}</h1>
+      <p>Point-in-time catalyst, revision, confidence, and provenance detail. Structured evidence suggests what to inspect next.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/ceri">Dashboard</a>
+      <a class="button-link secondary" href="/ceri/changes?ticker={{ payload.ticker if payload else '' }}">Changes</a>
+      <a class="button-link secondary" href="/ceri/export.csv?ticker={{ payload.ticker if payload else '' }}">CSV</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    {% if latest %}
+      <span>Cutoff {{ latest.cutoff_at }}</span>
+      <span>Config {{ latest.config_version }}</span>
+      <span>Evidence {{ latest.evidence_hash }}</span>
+    {% elif ui_error %}
+      <span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>
+    {% endif %}
+  </div>
+</section>
+
+{% if latest %}
+  <section class="metric-grid section-gap ceri-metrics" aria-label="Ticker CERI summary">
+    <div class="metric"><span>Opportunity</span><strong>{{ "%.2f"|format(latest.opportunity_score) if latest.opportunity_score is number else "N/A" }}</strong></div>
+    <div class="metric"><span>Event Risk</span><strong>{{ "%.2f"|format(latest.event_risk_score) if latest.event_risk_score is number else "N/A" }}</strong></div>
+    <div class="metric"><span>Confidence</span><strong>{{ latest.data_confidence }}</strong></div>
+    <div class="metric"><span>Coverage</span><strong>{{ "%.0f"|format(latest.coverage_pct or 0) }}%</strong></div>
+    <div class="metric"><span>Posture</span><strong>{{ latest.posture }}</strong></div>
+    <div class="metric"><span>Earnings Risk</span><strong>{{ "%.2f"|format(latest.earnings_proximity_risk) if latest.earnings_proximity_risk is number else "N/A" }}</strong></div>
+  </section>
+
+  <section class="split-grid section-gap">
+    <div class="panel">
+      <div class="panel-header compact-header"><div><h2>Score Components</h2></div></div>
+      <div class="component-list section-gap">
+        {% for key, value in (latest.components or {}).items() %}
+          <div class="component-row"><span>{{ key|replace("_", " ")|title }}</span><strong>{{ value }}</strong></div>
+        {% else %}
+          <p>No component values are available.</p>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header compact-header"><div><h2>Top Contributors</h2></div></div>
+      <div class="contributor-grid section-gap">
+        <div>
+          <h3>Positive</h3>
+          {% for row in (latest.top_positive_contributors or [])[:3] %}
+            <div class="evidence-row"><strong>{{ row.label or row.name or "Contributor" }}</strong><span>{{ row.value or row.score or "" }}</span></div>
+          {% else %}<p>No positive contributors recorded.</p>{% endfor %}
+        </div>
+        <div>
+          <h3>Negative</h3>
+          {% for row in (latest.top_negative_contributors or [])[:3] %}
+            <div class="evidence-row"><strong>{{ row.label or row.name or "Contributor" }}</strong><span>{{ row.value or row.score or "" }}</span></div>
+          {% else %}<p>No negative contributors recorded.</p>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel section-gap">
+    <div class="panel-header compact-header"><div><h2>Estimate Revisions</h2></div></div>
+    {% if payload.revision_features %}
+      <div class="table-wrap section-gap">
+        <table>
+          <caption>Revision features by metric, fiscal period, and lookback window.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Metric</th>
+              <th scope="col">Period</th>
+              <th scope="col">Window</th>
+              <th scope="col">Change</th>
+              <th scope="col">Breadth</th>
+              <th scope="col">Analysts</th>
+              <th scope="col">Dispersion</th>
+              <th scope="col">Confidence</th>
+              <th scope="col">Source IDs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in payload.revision_features %}
+              <tr>
+                <td>{{ row.metric }}</td>
+                <td>{{ row.period_key }}</td>
+                <td>{{ row.window_days }} days<span class="muted-line">elapsed {{ row.actual_elapsed_days or "N/A" }}</span></td>
+                <td>{{ row.pct_change if row.pct_change is not none else "N/A" }}</td>
+                <td>{{ row.net_breadth if row.net_breadth is not none else "N/A" }}<span class="muted-line">Up {{ row.raw_breadth_counts.upward_count or 0 }} / Down {{ row.raw_breadth_counts.downward_count or 0 }}</span></td>
+                <td>{{ (row.raw_breadth_counts.upward_count or 0) + (row.raw_breadth_counts.downward_count or 0) }}</td>
+                <td>{{ row.dispersion if row.dispersion is not none else "N/A" }}</td>
+                <td>{{ row.revision_confidence_label or "Unavailable" }}</td>
+                <td><code>{{ row.source_observation_ids|tojson }}</code></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state section-gap"><strong>No revision history is available for this ticker.</strong></div>
+    {% endif %}
+  </section>
+
+  <section class="panel section-gap">
+    <div class="panel-header compact-header"><div><h2>Catalyst Timeline</h2></div></div>
+    {% if payload.events %}
+      <div class="timeline-list section-gap">
+        {% for event in payload.events %}
+          <article class="timeline-item">
+            <h3>{{ event.category }} - {{ event.status or "Status unavailable" }}</h3>
+            <p>{{ event.canonical_text or event.subject_key }}</p>
+            <div class="run-meta">
+              <span>Expected {{ event.expected_date or "N/A" }}</span>
+              <span>Direction {{ event.direction or "N/A" }}</span>
+              {% if event.current_revision %}
+                <span>Revision {{ event.current_revision.revision_number }}</span>
+                <span>Source {{ event.current_revision.source_record_id or "N/A" }}</span>
+                <span>Review {{ event.current_revision.review_state or "Unreviewed" }}</span>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state section-gap"><strong>No catalyst timeline is available.</strong></div>
+    {% endif %}
+  </section>
+{% else %}
+  <div class="empty-state section-gap"><strong>No ticker detail could be loaded.</strong></div>
+{% endif %}
+{% endblock %}

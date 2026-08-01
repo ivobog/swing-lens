@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}CERI Dashboard{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/ceri.js') }}" defer></script>
+
+<section class="panel ceri-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>CERI Dashboard{% if run_id %} for Run {{ run_id }}{% endif %}</h1>
+      <p>Catalyst and estimate revision intelligence. Structured evidence suggests setups to inspect; it does not guarantee outcomes or place orders.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/ceri/changes">Changes</a>
+      <a class="button-link secondary" href="/ceri/operations">Operations</a>
+      <a class="button-link secondary" href="/ceri/export.csv{% if run_id %}?run_id={{ run_id }}{% endif %}">CSV</a>
+      <a class="button-link secondary" href="/ceri/export.json{% if run_id %}?run_id={{ run_id }}{% endif %}">JSON</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-muted">Research only</span>
+    <span>{{ page.total or 0 }} candidates</span>
+    {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="metric-grid section-gap ceri-metrics" aria-label="CERI summary">
+  <div class="metric"><span>High Opp / Low Risk</span><strong>{{ summary.high_opportunity_low_risk }}</strong></div>
+  <div class="metric"><span>Revision Leaders</span><strong>{{ summary.upward_revision_leaders }}</strong></div>
+  <div class="metric"><span>Guidance Raises</span><strong>{{ summary.guidance_raises }}</strong></div>
+  <div class="metric"><span>Binary Risks</span><strong>{{ summary.binary_risks }}</strong></div>
+  <div class="metric"><span>Stale / Conflicted</span><strong>{{ summary.stale_count }} / {{ summary.conflicted_count }}</strong></div>
+  <div class="metric"><span>Meaningful Changes</span><strong>{{ summary.meaningful_changes }}</strong></div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Filters</h2></div></div>
+  <form class="ceri-filter-grid section-gap" method="get">
+    <label><span>Min opportunity</span><input name="opportunity_min" type="number" step="0.1" value="{{ filters.opportunity_min if filters.opportunity_min is not none else '' }}"></label>
+    <label><span>Max risk</span><input name="risk_max" type="number" step="0.1" value="{{ filters.risk_max if filters.risk_max is not none else '' }}"></label>
+    <label><span>Confidence</span><input name="confidence" value="{{ filters.confidence }}"></label>
+    <label><span>Catalyst category</span><input name="catalyst_category" value="{{ filters.catalyst_category }}"></label>
+    <label><span>Posture</span><input name="posture" value="{{ filters.posture }}"></label>
+    <label><span>Sort</span>
+      <select name="sort">
+        {% for option in ["opportunity_score", "event_risk_score", "ticker", "as_of_session", "cutoff_at"] %}
+          <option value="{{ option }}" {{ "selected" if filters.sort == option else "" }}>{{ option|replace("_", " ")|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Direction</span>
+      <select name="direction">
+        <option value="desc" {{ "selected" if filters.direction == "desc" else "" }}>High to low</option>
+        <option value="asc" {{ "selected" if filters.direction == "asc" else "" }}>Low to high</option>
+      </select>
+    </label>
+    <label class="toggle-row"><input name="has_warnings" type="checkbox" value="true" {{ "checked" if filters.has_warnings else "" }}><span>Warnings only</span></label>
+    <div class="actions ceri-filter-actions">
+      <button type="submit">Apply</button>
+      <a class="button-link secondary" href="{{ '/runs/' ~ run_id ~ '/ceri' if run_id else '/ceri' }}">Clear</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Candidates</h2></div></div>
+  {% if items %}
+    <div class="table-wrap section-gap">
+      <table class="ceri-table">
+        <caption>CERI candidates matching the selected filters.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Ticker</th>
+            <th scope="col">Opportunity</th>
+            <th scope="col">Risk</th>
+            <th scope="col">Confidence</th>
+            <th scope="col">Posture</th>
+            <th scope="col">Revision Evidence</th>
+            <th scope="col">Guidance / Event</th>
+            <th scope="col">Source Freshness</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+            {% set components = item.components or {} %}
+            <tr>
+              <td><a href="/ceri/ticker/{{ item.ticker }}">{{ item.ticker }}</a><small>Run {{ item.run_id or "N/A" }}</small></td>
+              <td>{{ "%.2f"|format(item.opportunity_score) if item.opportunity_score is number else "Unavailable" }}</td>
+              <td>{{ "%.2f"|format(item.event_risk_score) if item.event_risk_score is number else "Unavailable" }}</td>
+              <td><span class="badge badge-{{ 'success' if item.data_confidence == 'High' else 'warning' if item.data_confidence in ['Low', 'Insufficient'] else 'muted' }}">{{ item.data_confidence }}</span></td>
+              <td>{{ item.posture }}</td>
+              <td>
+                <span>EPS {{ components.eps_revision_30d if components.eps_revision_30d is defined else "N/A" }}</span>
+                <span class="muted-line">Breadth {{ components.revision_breadth if components.revision_breadth is defined else "N/A" }}</span>
+              </td>
+              <td>
+                <span>{{ components.guidance_direction if components.guidance_direction is defined else "No guidance signal" }}</span>
+                <span class="muted-line">{{ components.next_event if components.next_event is defined else "No dated binary event" }}</span>
+              </td>
+              <td>
+                <span>{{ item.as_of_session }}</span>
+                {% if item.warnings %}<span class="badge badge-warning">Warnings present</span>{% else %}<span class="badge badge-success">No warnings</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state section-gap">
+      <strong>No CERI candidates match this view.</strong>
+      <p>Try broader filters or capture CERI snapshots after estimate and catalyst data is available.</p>
+    </div>
+  {% endif %}
+</section>
+
+<section class="split-grid section-gap">
+  <div class="panel">
+    <div class="panel-header compact-header"><div><h2>Change Feed</h2></div></div>
+    {% for group in changes %}
+      <section class="ceri-change-group">
+        <h3>{{ group.label }}</h3>
+        {% for change in group["items"][:4] %}
+          <div class="evidence-row">
+            <strong>{{ change.ticker or "Unknown" }} {{ change.change_type }}</strong>
+            <span>{{ change.severity }} - {{ change.created_at }}</span>
+          </div>
+        {% else %}
+          <p>No recent items.</p>
+        {% endfor %}
+      </section>
+    {% endfor %}
+  </div>
+  <div class="panel">
+    <div class="panel-header compact-header"><div><h2>Provider Freshness</h2></div></div>
+    {% if provider_freshness %}
+      <div class="table-wrap section-gap">
+        <table>
+          <thead><tr><th scope="col">Provider</th><th scope="col">Dataset</th><th scope="col">Age</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+            {% for row in provider_freshness %}
+              <tr>
+                <td>{{ row.provider }}</td>
+                <td>{{ row.dataset }}</td>
+                <td>{{ row.age_days if row.age_days is not none else "N/A" }} days</td>
+                <td>{{ "Fresh" if row.fresh else "Stale or unavailable" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state section-gap"><strong>No provider freshness records yet.</strong></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

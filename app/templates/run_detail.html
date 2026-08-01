@@ -34,6 +34,17 @@
   "run_url": "/runs/" ~ run.id ~ "/setup-lifecycle",
   "operations_url": "/setup-lifecycle/operations"
 }) %}
+{% set ceri_context = ceri_context|default({
+  "snapshot_count": 0,
+  "low_confidence_count": 0,
+  "warning_count": 0,
+  "high_opportunity_low_risk_count": 0,
+  "latest_status": none,
+  "run_url": "/runs/" ~ run.id ~ "/ceri",
+  "dashboard_url": "/ceri",
+  "operations_url": "/ceri/operations"
+}) %}
+{% set ceri_ui_enabled = request is defined and request.app is defined and request.app.state.settings.ceri_ui_enabled %}
 {% set run_summary = run_summary|default({
   "row_count": run.row_count or 0,
   "combined_count": 0,
@@ -106,6 +117,7 @@
       </form>
       <a class="button-link secondary" href="/runs/{{ run.id }}/sector-rotation">Sector rotation</a>
       <a class="button-link secondary" href="{{ setup_lifecycle_context.run_url }}">Market changes</a>
+      <a class="button-link secondary" href="{{ ceri_context.run_url }}">CERI</a>
       <a class="button-link secondary" href="{{ winner_probability_context.run_url }}">Winner evidence</a>
       <a class="button-link secondary" href="/runs">All runs</a>
     </div>
@@ -122,6 +134,29 @@
     {% if run.notes %}<span>{{ run.notes }}</span>{% endif %}
   </div>
 </section>
+
+{% if ceri_context.snapshot_count or ceri_ui_enabled %}
+  <section class="panel section-gap">
+    <div class="panel-header compact-header">
+      <div>
+        <h2>CERI Evidence</h2>
+        <p>Catalyst and estimate revision intelligence for this run. Structured evidence suggests opportunities and risks; it does not place orders.</p>
+      </div>
+      <div class="actions">
+        <a class="button-link secondary" href="{{ ceri_context.run_url }}">Open CERI</a>
+        <a class="button-link secondary" href="/ceri/changes">Changes</a>
+        <a class="button-link secondary" href="{{ ceri_context.operations_url }}">Operations</a>
+      </div>
+    </div>
+    <div class="summary-strip">
+      <span class="summary-item"><strong>{{ ceri_context.snapshot_count }}</strong> snapshots</span>
+      <span class="summary-item"><strong>{{ ceri_context.high_opportunity_low_risk_count }}</strong> high opportunity / low risk</span>
+      <span class="summary-item"><strong>{{ ceri_context.low_confidence_count }}</strong> low-confidence</span>
+      <span class="summary-item"><strong>{{ ceri_context.warning_count }}</strong> warning flags</span>
+      <span class="summary-item">{{ ceri_context.latest_status or "No CERI capture yet" }}</span>
+    </div>
+  </section>
+{% endif %}
 
 <section class="panel section-gap">
   <div class="panel-header compact-header">

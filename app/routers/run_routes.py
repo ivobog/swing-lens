@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
+from app.models.ceri_tables import CeriScoreSnapshot
 from app.models.tables import (
     BackgroundJob,
     CombinedResult,
@@ -253,6 +254,7 @@ def run_detail_page(
     sector_rotation_context = _latest_sector_rotation_context(db, run.id)
     winner_probability_context = _winner_probability_context(db, run.id)
     setup_lifecycle_context = _setup_lifecycle_context(db, run.id)
+    ceri_context = _ceri_context(db, run.id)
     return templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -274,6 +276,7 @@ def run_detail_page(
             "sector_rotation_context": sector_rotation_context,
             "winner_probability_context": winner_probability_context,
             "setup_lifecycle_context": setup_lifecycle_context,
+            "ceri_context": ceri_context,
             "run_summary": _run_summary(run, rows, combined_results),
             "workflow_steps": _workflow_steps(
                 run=run,
@@ -1237,6 +1240,35 @@ def _setup_lifecycle_context(db: Session, run_id: int) -> dict[str, object]:
         "active_episode_count": active_episode_count,
         "run_url": f"/runs/{run_id}/setup-lifecycle",
         "operations_url": "/setup-lifecycle/operations",
+    }
+
+
+def _ceri_context(db: Session, run_id: int) -> dict[str, object]:
+    snapshots = list(
+        db.scalars(
+            select(CeriScoreSnapshot)
+            .where(CeriScoreSnapshot.run_id == run_id)
+            .order_by(CeriScoreSnapshot.ticker.asc())
+        )
+    )
+    low_confidence_count = sum(
+        snapshot.data_confidence in {"Low", "Insufficient"} for snapshot in snapshots
+    )
+    warning_count = sum(bool(snapshot.warnings_json) for snapshot in snapshots)
+    high_opportunity_low_risk_count = sum(
+        (snapshot.opportunity_score or 0) >= 7
+        and (snapshot.event_risk_score or 10) <= 3
+        for snapshot in snapshots
+    )
+    return {
+        "snapshot_count": len(snapshots),
+        "low_confidence_count": low_confidence_count,
+        "warning_count": warning_count,
+        "high_opportunity_low_risk_count": high_opportunity_low_risk_count,
+        "latest_status": "Captured" if snapshots else None,
+        "run_url": f"/runs/{run_id}/ceri",
+        "dashboard_url": "/ceri",
+        "operations_url": "/ceri/operations",
     }
 
 

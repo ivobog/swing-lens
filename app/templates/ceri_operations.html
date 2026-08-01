@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}CERI Operations{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/ceri.js') }}" defer></script>
+
+<section class="panel ceri-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>CERI Operations</h1>
+      <p>Provider health, freshness, quarantine, conflict, stale data, processing checkpoints, retention, export policy, and preview-first purge controls.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/ceri">Dashboard</a>
+      <a class="button-link secondary" href="/ceri/changes">Changes</a>
+      <a class="button-link secondary" href="/api/ceri/operations/status">JSON</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span class="badge badge-muted">Provider terms {{ operations.provider_terms_version or "N/A" }}</span>
+    <span>{{ "Admin enabled" if admin_enabled else "Admin disabled" }}</span>
+    <span>Quarantined {{ operations.quarantined_count }}</span>
+    <span>Conflicted {{ operations.conflicted_count }}</span>
+    <span>Stale {{ operations.stale_count }}</span>
+  </div>
+</section>
+
+{% if admin_enabled %}
+  <section class="panel section-gap">
+    <div class="panel-header compact-header"><div><h2>Local Admin Controls</h2></div></div>
+    <div class="admin-grid section-gap">
+      <form data-ceri-json-form method="post" action="/api/ceri/backfills">
+        <h3>Backfill</h3>
+        <label><span>Ticker</span><input name="ticker" placeholder="Optional"></label>
+        <label><span>Dataset</span><input name="dataset" value="estimates"></label>
+        <input type="hidden" name="provider" value="manual">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Queue backfill</button>
+        <output data-ceri-form-output></output>
+      </form>
+      <form data-ceri-json-form method="post" action="/api/ceri/reprocess">
+        <h3>Reprocess</h3>
+        <label><span>Job type</span><input name="job_type" value="CERI_CHANGE_DETECTION"></label>
+        <label><span>Run ID</span><input name="run_id" type="number" placeholder="Optional"></label>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Queue reprocess</button>
+        <output data-ceri-form-output></output>
+      </form>
+      <form data-ceri-json-form method="post" action="/api/ceri/purge/preview">
+        <h3>Purge Preview</h3>
+        <label><span>Provider</span><input name="provider" value="manual"></label>
+        <label><span>License scope</span><input name="license_scope" value="estimates"></label>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Preview purge</button>
+        <output data-ceri-form-output></output>
+      </form>
+    </div>
+  </section>
+{% endif %}
+
+<section class="split-grid section-gap">
+  <div class="panel">
+    <div class="panel-header compact-header"><div><h2>Provider Health</h2></div></div>
+    <div class="table-wrap section-gap">
+      <table>
+        <caption>CERI provider availability, capabilities, datasets, and quota status.</caption>
+        <thead><tr><th scope="col">Provider</th><th scope="col">Health</th><th scope="col">Quota</th><th scope="col">Capabilities</th><th scope="col">Message</th></tr></thead>
+        <tbody>
+          {% for row in provider_health %}
+            <tr>
+              <td>{{ row.provider }}</td>
+              <td>{{ "Healthy" if row.healthy else "Unavailable" }}</td>
+              <td>{{ row.quota_status or "N/A" }}</td>
+              <td>{{ row.capabilities|join(", ") if row.capabilities else "No capabilities available" }}</td>
+              <td>{{ row.message or "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header compact-header"><div><h2>Freshness and Quota</h2></div></div>
+    <div class="table-wrap section-gap">
+      <table>
+        <caption>Dataset freshness by provider.</caption>
+        <thead><tr><th scope="col">Provider</th><th scope="col">Dataset</th><th scope="col">Age</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          {% for row in operations.dataset_freshness %}
+            <tr>
+              <td>{{ row.provider }}</td>
+              <td>{{ row.dataset }}</td>
+              <td>{{ row.age_days if row.age_days is not none else "N/A" }} days</td>
+              <td>{{ "Fresh" if row.fresh else "Stale or unavailable" }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4">No freshness records yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <h3>Quota State</h3>
+    <pre>{{ operations.quota_state|tojson(indent=2) }}</pre>
+  </div>
+
+</section>
+
+<section class="split-grid section-gap">
+  <div class="panel">
+    <div class="panel-header compact-header"><div><h2>Retention and Export Policy</h2></div></div>
+    <dl class="compact-dl section-gap">
+      <dt>Terms version</dt><dd>{{ operations.provider_terms_version or "N/A" }}</dd>
+      <dt>Retain evidence</dt><dd>{{ operations.retention.retain_source_evidence_indefinitely }}</dd>
+      <dt>License purge</dt><dd>{{ operations.retention.provider_license_purge_enabled }}</dd>
+      <dt>Export fields</dt><dd><code>{{ operations.export_restrictions|tojson }}</code></dd>
+    </dl>
+    <h3>Purge Previews</h3>
+    {% for audit in operations.purge_previews %}
+      <div class="evidence-row">
+        <strong>{{ audit.provider }} - {{ audit.status }}</strong>
+        <span>{{ audit.license_scope }} - {{ audit.preview_manifest_hash }}</span>
+      </div>
+    {% else %}
+      <p>No purge previews have been recorded.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Processing Runs</h2></div></div>
+  {% if operations.processing_runs %}
+    <div class="table-wrap section-gap">
+      <table>
+        <caption>CERI processing and backfill checkpoints.</caption>
+        <thead><tr><th scope="col">ID</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Counts</th><th scope="col">Checkpoint</th><th scope="col">Retry</th><th scope="col">Duration</th></tr></thead>
+        <tbody>
+          {% for run in operations.processing_runs %}
+            <tr>
+              <td>{{ run.id }}</td>
+              <td>{{ run.job_type }}</td>
+              <td><span class="status-pill status-{{ run.status|lower|replace('_', '-') }}">{{ run.status }}</span></td>
+              <td><code>{{ run.counts|tojson }}</code></td>
+              <td><code>{{ run.checkpoint|tojson }}</code></td>
+              <td>{{ run.retry_count }}</td>
+              <td>{{ run.duration_ms or "N/A" }} ms</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state section-gap"><strong>No CERI processing runs yet.</strong></div>
+  {% endif %}
+</section>
+
+<section class="split-grid section-gap">
+  <div class="panel">
+    <div class="panel-header compact-header"><div><h2>Quarantine</h2></div></div>
+    {% for row in quarantined %}
+      <div class="evidence-row"><strong>{{ row.provider }} {{ row.dataset }}</strong><span>{{ row.quarantine_reason }} - {{ row.provider_record_id }}</span></div>
+    {% else %}<p>No quarantined records.</p>{% endfor %}
+  </div>
+  <div class="panel">
+    <div class="panel-header compact-header"><div><h2>Conflicts and Stale Records</h2></div></div>
+    {% for row in conflicts %}
+      <div class="evidence-row"><strong>Conflict {{ row.id }}</strong><span>{{ row.conflict_flags|tojson if row.conflict_flags is defined else row.warnings|tojson }}</span></div>
+    {% else %}<p>No conflicted records.</p>{% endfor %}
+    {% for row in stale %}
+      <div class="evidence-row"><strong>Stale {{ row.provider }} {{ row.dataset }}</strong><span>{{ row.stale_days }} days old - max {{ row.max_stale_days }}</span></div>
+    {% else %}<p>No stale records.</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

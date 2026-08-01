@@ -1,10 +1,15 @@
 {% set active_nav = active_nav|default("") %}
+{% set app_settings = request.app.state.settings if request is defined and request.app is defined else none %}
 <nav class="nav" aria-label="Primary navigation">
   <a href="/" class="{{ 'active' if active_nav == 'dashboard' else '' }}" {{ 'aria-current=page' if active_nav == 'dashboard' else '' }}>Dashboard</a>
   <a href="/runs" class="{{ 'active' if active_nav == 'runs' else '' }}" {{ 'aria-current=page' if active_nav == 'runs' else '' }}>Runs</a>
   <a href="/market-regime" class="{{ 'active' if active_nav == 'market-regime' else '' }}" {{ 'aria-current=page' if active_nav == 'market-regime' else '' }}>Market Regime</a>
   <a href="/setup-lifecycle" class="{{ 'active' if active_nav == 'setup-lifecycle' else '' }}" {{ 'aria-current=page' if active_nav == 'setup-lifecycle' else '' }}>Market Changes</a>
   <a href="/setup-lifecycle/alerts" class="{{ 'active' if active_nav == 'setup-lifecycle-alerts' else '' }}" {{ 'aria-current=page' if active_nav == 'setup-lifecycle-alerts' else '' }}>Alerts</a>
+  {% if app_settings and app_settings.ceri_ui_enabled %}
+    <a href="/ceri" class="{{ 'active' if active_nav == 'ceri' else '' }}" {{ 'aria-current=page' if active_nav == 'ceri' else '' }}>CERI</a>
+    <a href="/ceri/operations" class="{{ 'active' if active_nav == 'ceri-operations' else '' }}" {{ 'aria-current=page' if active_nav == 'ceri-operations' else '' }}>CERI Ops</a>
+  {% endif %}
   <a href="/history" class="{{ 'active' if active_nav == 'history' else '' }}" {{ 'aria-current=page' if active_nav == 'history' else '' }}>History</a>
   <a href="/winner-probability/operations" class="{{ 'active' if active_nav == 'winner-probability' else '' }}" {{ 'aria-current=page' if active_nav == 'winner-probability' else '' }}>Winner Evidence</a>
   <a href="/ib" class="{{ 'active' if active_nav == 'ib' else '' }}" {{ 'aria-current=page' if active_nav == 'ib' else '' }}>IB Gateway</a>

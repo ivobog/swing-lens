@@ -294,6 +294,136 @@ dd {
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
+.ceri-hero p {
+  max-width: 760px;
+}
+
+.ceri-metrics {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.ceri-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.ceri-filter-grid label,
+.admin-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ceri-filter-grid input,
+.ceri-filter-grid select,
+.admin-grid input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}
+
+.ceri-filter-actions {
+  align-self: end;
+}
+
+.split-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.ceri-table td small,
+.muted-line {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ceri-change-group {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.ceri-change-group:first-of-type {
+  border-top: 0;
+}
+
+.ceri-change-group h3,
+.component-list h3,
+.contributor-grid h3,
+.timeline-item h3,
+.admin-grid h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.evidence-row,
+.component-row,
+.timeline-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.evidence-row:last-child,
+.component-row:last-child,
+.timeline-item:last-child {
+  border-bottom: 0;
+}
+
+.evidence-row span,
+.evidence-row small,
+.component-row span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.component-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.contributor-grid,
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.contributor-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-grid form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.admin-grid output {
+  min-height: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .quick-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1492,7 +1622,12 @@ td a {
   .compact-winner-filter,
   .setup-lifecycle-filter-grid,
   .setup-lifecycle-metrics,
-  .winner-two-col {
+  .winner-two-col,
+  .ceri-filter-grid,
+  .ceri-metrics,
+  .split-grid,
+  .contributor-grid,
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1539,8 +1674,19 @@ td a {
 
   .winner-filter-grid,
   .compact-winner-filter,
-  .setup-lifecycle-filter-grid {
+  .setup-lifecycle-filter-grid,
+  .ceri-filter-grid,
+  .admin-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ceri-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .split-grid,
+  .contributor-grid {
+    grid-template-columns: 1fr;
   }
 
   .ib-layout,
