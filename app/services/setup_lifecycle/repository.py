@@ -446,6 +446,87 @@ class SetupLifecycleRepository:
             statement = statement.where(SetupLifecycleEpisode.config_hash == config_hash)
         return int(db.scalar(statement) or 0)
 
+    def active_episode_for_update(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        timeframe: str,
+        setup_family: str,
+        lock: bool = True,
+    ) -> SetupLifecycleEpisode | None:
+        statement = (
+            select(SetupLifecycleEpisode)
+            .where(SetupLifecycleEpisode.ticker == self.normalize_ticker(ticker))
+            .where(SetupLifecycleEpisode.timeframe == timeframe)
+            .where(SetupLifecycleEpisode.setup_family == setup_family)
+            .where(SetupLifecycleEpisode.status == "ACTIVE")
+            .order_by(SetupLifecycleEpisode.id.desc())
+            .limit(1)
+        )
+        if lock:
+            statement = statement.with_for_update()
+        return db.scalar(statement)
+
+    def latest_closed_episode(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        timeframe: str,
+        setup_family: str,
+    ) -> SetupLifecycleEpisode | None:
+        return db.scalar(
+            select(SetupLifecycleEpisode)
+            .where(SetupLifecycleEpisode.ticker == self.normalize_ticker(ticker))
+            .where(SetupLifecycleEpisode.timeframe == timeframe)
+            .where(SetupLifecycleEpisode.setup_family == setup_family)
+            .where(SetupLifecycleEpisode.status == "CLOSED")
+            .order_by(
+                SetupLifecycleEpisode.closed_on.desc().nullslast(),
+                SetupLifecycleEpisode.id.desc(),
+            )
+            .limit(1)
+        )
+
+    def active_episodes_for_ticker(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        timeframe: str,
+    ) -> list[SetupLifecycleEpisode]:
+        return list(
+            db.scalars(
+                select(SetupLifecycleEpisode)
+                .where(SetupLifecycleEpisode.ticker == self.normalize_ticker(ticker))
+                .where(SetupLifecycleEpisode.timeframe == timeframe)
+                .where(SetupLifecycleEpisode.status == "ACTIVE")
+                .order_by(SetupLifecycleEpisode.id)
+            )
+        )
+
+    def supersede_prior_current_events(
+        self,
+        db: Session,
+        event: SetupLifecycleEvent,
+    ) -> None:
+        if event.id is None:
+            db.flush()
+        db.execute(
+            update(SetupLifecycleEvent)
+            .where(SetupLifecycleEvent.id != event.id)
+            .where(SetupLifecycleEvent.is_current_version.is_(True))
+            .where(SetupLifecycleEvent.episode_id == event.episode_id)
+            .where(SetupLifecycleEvent.effective_date == event.effective_date)
+            .where(SetupLifecycleEvent.event_type == event.event_type)
+            .values(
+                is_current_version=False,
+                superseded_by_event_id=event.id,
+            )
+        )
+        db.flush()
+
     def latest_authoritative_evaluation_version(
         self,
         db: Session,

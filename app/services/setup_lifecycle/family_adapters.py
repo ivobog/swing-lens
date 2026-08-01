@@ -30,6 +30,7 @@ def evaluate_family_candidates(
 ) -> tuple[FamilyEvidence, ...]:
     from app.services.setup_lifecycle.breakout_adapter import BreakoutAdapter
     from app.services.setup_lifecycle.continuation_adapter import ContinuationAdapter
+    from app.services.setup_lifecycle.generic_adapter import GenericAdapter
     from app.services.setup_lifecycle.pullback_adapter import PullbackAdapter
     from app.services.setup_lifecycle.vcp_adapter import VcpAdapter
 
@@ -61,7 +62,11 @@ def evaluate_family_candidates(
             sorted(candidates, key=lambda item: _family_sort_key(item, config), reverse=True)
         )
 
-    generic = generic_family_evidence(snapshot, config=config)
+    generic = GenericAdapter(config).evaluate(
+        snapshot,
+        previous_state=previous_state,
+        state_age_sessions=state_age_sessions,
+    )
     return (generic,) if generic.trackable else ()
 
 
@@ -81,28 +86,9 @@ def generic_family_evidence(
     *,
     config: SetupLifecycleConfig | None = None,
 ) -> FamilyEvidence:
-    config = config or load_setup_lifecycle_config()
-    policy = config.families.policies[SetupFamily.GENERIC]
-    score = _number(signal_value(snapshot, "technical_score")) or _number(
-        signal_value(snapshot, "setup_score")
-    ) or 0.0
-    trackable = policy.enabled and score >= policy.tracking_score_min
-    ready = score >= policy.ready_score_min
-    phase = "READY" if ready else "IMPROVING" if trackable else "CANDIDATE"
-    return FamilyEvidence(
-        setup_family=SetupFamily.GENERIC,
-        phase_code=phase,
-        evidence_score=score,
-        confidence_score=_confidence_from_score(score),
-        trackable=trackable,
-        ready=ready,
-        triggered=bool(signal_value(snapshot, "close_trigger_cross")) if ready else False,
-        confirmed=False,
-        extended=False,
-        hard_failure=False,
-        reason_codes=("GENERIC_FALLBACK",),
-        evidence={"technical_score": score},
-    )
+    from app.services.setup_lifecycle.generic_adapter import GenericAdapter
+
+    return GenericAdapter(config).evaluate(snapshot)
 
 
 def signal_value(snapshot: NormalizedSnapshot, key: str, default: Any = None) -> Any:

@@ -14,6 +14,7 @@ from app.services.setup_lifecycle.change_detector import (
 )
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.enums import EvaluationStatus
+from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeService
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.snapshot_builder import (
     SetupLifecycleSnapshotCaptureService,
@@ -73,6 +74,7 @@ class SetupLifecycleEvaluationService:
         capture_service: SetupLifecycleSnapshotCaptureService | None = None,
         canonicalizer: SetupLifecycleCanonicalizer | None = None,
         change_detector: SetupLifecycleChangeDetector | None = None,
+        episode_service: SetupLifecycleEpisodeService | None = None,
         config: SetupLifecycleConfig | None = None,
     ) -> None:
         self.config = config or load_setup_lifecycle_config()
@@ -86,6 +88,10 @@ class SetupLifecycleEvaluationService:
             config=self.config,
         )
         self.change_detector = change_detector or SetupLifecycleChangeDetector(
+            repository=self.repository,
+            config=self.config,
+        )
+        self.episode_service = episode_service or SetupLifecycleEpisodeService(
             repository=self.repository,
             config=self.config,
         )
@@ -133,6 +139,12 @@ class SetupLifecycleEvaluationService:
                 evaluation_run_id=evaluation_run.id,
                 snapshot_ids=canonical.selected_snapshot_ids,
             )
+            self._checkpoint(db, evaluation_run.id, "lifecycle", should_cancel)
+            lifecycle_transitions = self._evaluate_lifecycle_episodes(
+                db,
+                evaluation_run_id=evaluation_run.id,
+                snapshot_ids=canonical.selected_snapshot_ids,
+            )
             self._checkpoint(db, evaluation_run.id, "finalize", should_cancel)
         except SetupLifecycleEvaluationCancelled:
             self.repository.complete_evaluation_run(
@@ -154,7 +166,14 @@ class SetupLifecycleEvaluationService:
             )
             raise
 
-        result = self._result(db, evaluation_run.id, capture, canonical, changes)
+        result = self._result(
+            db,
+            evaluation_run.id,
+            capture,
+            canonical,
+            changes,
+            lifecycle_transitions=lifecycle_transitions,
+        )
         self.repository.complete_evaluation_run(
             db,
             evaluation_run,
@@ -195,6 +214,8 @@ class SetupLifecycleEvaluationService:
         capture: SnapshotCaptureResult,
         canonical: CanonicalizationResult,
         changes: SignalChangeDetectionResult,
+        *,
+        lifecycle_transitions: int,
     ) -> SetupLifecycleEvaluationResult:
         failed = capture.failed
         status = EvaluationStatus.PARTIAL.value if failed else EvaluationStatus.COMPLETED.value
@@ -205,7 +226,7 @@ class SetupLifecycleEvaluationService:
             canonical_snapshots=canonical.selected_count,
             canonical_changed=canonical.changed_count,
             change_events=changes.created_events,
-            lifecycle_transitions=0,
+            lifecycle_transitions=lifecycle_transitions,
             alerts=0,
             active_episodes=self.repository.count_active_episodes(
                 db,
@@ -221,6 +242,24 @@ class SetupLifecycleEvaluationService:
 
     def _evaluation_version(self, run_id: int) -> str:
         return f"{self.config.engine.version}:run:{run_id}:config:{self.config.config_hash[:12]}"
+
+    def _evaluate_lifecycle_episodes(
+        self,
+        db,
+        *,
+        evaluation_run_id: int,
+        snapshot_ids: tuple[int, ...],
+    ) -> int:
+        transitions = 0
+        for snapshot in self.repository.get_snapshots_by_ids(db, snapshot_ids):
+            result = self.episode_service.apply_snapshot(
+                db,
+                snapshot,
+                evaluation_run_id=evaluation_run_id,
+            )
+            if result.lifecycle_event is not None and not result.opened:
+                transitions += 1
+        return transitions
 
 
 def evaluate_setup_lifecycles_for_run(

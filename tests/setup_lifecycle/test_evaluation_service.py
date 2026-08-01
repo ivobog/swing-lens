@@ -38,6 +38,7 @@ def test_evaluation_service_captures_canonicalizes_and_finalizes_counts() -> Non
             )
         ),
         change_detector=FakeChangeDetector(SignalChangeDetectionResult(created_events=4)),
+        episode_service=FakeEpisodeService(transitions=1),
         config=load_setup_lifecycle_config(),
     )
 
@@ -48,12 +49,19 @@ def test_evaluation_service_captures_canonicalizes_and_finalizes_counts() -> Non
     assert result.canonical_snapshots == 1
     assert result.canonical_changed == 1
     assert result.change_events == 4
+    assert result.lifecycle_transitions == 1
     assert result.low_confidence == 1
     assert result.active_episodes == 3
     assert repository.completed[-1].canonical_count == 1
     assert repository.completed[-1].source_snapshot_min_id == 10
     assert repository.completed[-1].source_snapshot_max_id == 11
-    assert repository.heartbeats == ["capture", "canonicalize", "change_detection", "finalize"]
+    assert repository.heartbeats == [
+        "capture",
+        "canonicalize",
+        "change_detection",
+        "lifecycle",
+        "finalize",
+    ]
 
 
 def test_evaluation_service_marks_partial_when_capture_has_ticker_failures() -> None:
@@ -73,6 +81,7 @@ def test_evaluation_service_marks_partial_when_capture_has_ticker_failures() -> 
         ),
         canonicalizer=FakeCanonicalizer(CanonicalizationResult(selected_snapshot_ids=(10,))),
         change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
+        episode_service=FakeEpisodeService(),
         config=load_setup_lifecycle_config(),
     )
 
@@ -91,6 +100,7 @@ def test_evaluation_service_cancellation_finalizes_run_as_cancelled() -> None:
         capture_service=FakeCaptureService(SnapshotCaptureResult(evaluation_run_id=1, status="X")),
         canonicalizer=FakeCanonicalizer(CanonicalizationResult()),
         change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
+        episode_service=FakeEpisodeService(),
         config=load_setup_lifecycle_config(),
     )
     checks = iter([True])
@@ -141,6 +151,9 @@ class FakeEvaluationRepository:
     def count_active_episodes(self, _db, *, config_hash=None):
         return 3
 
+    def get_snapshots_by_ids(self, _db, snapshot_ids):
+        return [object() for _snapshot_id in snapshot_ids]
+
 
 class FakeCaptureService:
     def __init__(self, result: SnapshotCaptureResult) -> None:
@@ -170,3 +183,21 @@ class FakeChangeDetector:
         snapshot_ids,
     ) -> SignalChangeDetectionResult:
         return self.result
+
+
+class FakeEpisodeService:
+    def __init__(self, transitions: int = 0) -> None:
+        self.transitions = transitions
+        self.calls = 0
+
+    def apply_snapshot(self, _db, _snapshot, *, evaluation_run_id=None):
+        self.calls += 1
+        has_transition = self.calls <= self.transitions
+        return type(
+            "EpisodeResult",
+            (),
+            {
+                "lifecycle_event": object() if has_transition else None,
+                "opened": False,
+            },
+        )()
