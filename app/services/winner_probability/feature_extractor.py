@@ -137,6 +137,7 @@ class WinnerFeatureExtractor:
             run_context=run_context,
             prediction_as_of=prediction_as_of,
             planned_entry=planned_entry,
+            setup_lifecycle_features=getattr(ticker_context, "setup_lifecycle_features", None),
         )
         feature_hash = _stable_hash(feature_json)
         return ExtractedPredictionFeatures(
@@ -184,8 +185,9 @@ def _canonical_feature_json(
     run_context: RunCaptureContext,
     prediction_as_of: date,
     planned_entry: date | None,
+    setup_lifecycle_features: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    features = {
         "calculation_version": config.engine.calculation_version,
         "config_hash": config.config_hash,
         "feature_schema_version": config.feature_schema.version,
@@ -230,6 +232,15 @@ def _canonical_feature_json(
         "raw_sector": _normalize(getattr(raw_row, "sector", None)),
         "canonical_sector": _normalize(getattr(raw_row, "sector_canonical", None)),
     }
+    if setup_lifecycle_features:
+        features.update(
+            {
+                key: _normalize(value)
+                for key, value in setup_lifecycle_features.items()
+                if key.startswith("setup_lifecycle_")
+            }
+        )
+    return features
 
 
 def _prediction_as_of_date(

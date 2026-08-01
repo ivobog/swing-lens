@@ -3,7 +3,12 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
+from app.models.tables import (
+    SetupLifecycleEpisode,
+    SetupLifecycleEvaluationRun,
+    SetupLifecycleEvent,
+    SetupSignalSnapshot,
+)
 from app.services.setup_lifecycle.replay_service import (
     SetupLifecycleReplayRequest,
     SetupLifecycleReplayService,
@@ -48,11 +53,64 @@ def test_persisted_replay_creates_new_evaluation_version() -> None:
     assert repository.completed[0].read_count == 1
 
 
-class FakeReplayDb:
-    def __init__(self, snapshots: list[SetupSignalSnapshot]) -> None:
-        self.snapshots = snapshots
+def test_replay_comparison_is_deterministic() -> None:
+    service = SetupLifecycleReplayService(repository=FakeReplayRepository())
+    db = FakeReplayDb(
+        [_snapshot()],
+        events=[_event(to_state="READY")],
+        primary_episode=SetupLifecycleEpisode(
+            id=77,
+            ticker="MSFT",
+            timeframe="1d",
+            setup_family="PULLBACK",
+            status="ACTIVE",
+            opened_on=date(2026, 8, 1),
+            current_as_of_date=date(2026, 8, 1),
+            last_observed_on=date(2026, 8, 1),
+            missing_observation_sessions=0,
+            current_state="READY",
+            current_phase="PULLBACK_READY",
+            state_entered_on=date(2026, 8, 1),
+            state_age_sessions=0,
+            current_actionability="WATCH_ONLY",
+            confidence_score=80,
+            confidence_label="NORMAL",
+            engine_version="slse-1.0.0",
+            config_version="v1",
+            config_hash="hash",
+            is_primary=True,
+        ),
+    )
 
-    def scalars(self, _statement):
+    first = service.replay(db, SetupLifecycleReplayRequest(ticker="MSFT"))
+    second = service.replay(db, SetupLifecycleReplayRequest(ticker="MSFT"))
+
+    assert first["comparison"] == second["comparison"]
+    assert first["comparison"]["changed_state_dates"][0]["current_state"] == "READY"
+    assert first["comparison"]["changed_primary_episode"]["current_family"] == "PULLBACK"
+
+
+class FakeReplayDb:
+    def __init__(
+        self,
+        snapshots: list[SetupSignalSnapshot],
+        *,
+        events: list[SetupLifecycleEvent] | None = None,
+        primary_episode: SetupLifecycleEpisode | None = None,
+    ) -> None:
+        self.snapshots = snapshots
+        self.events = events or []
+        self.primary_episode = primary_episode
+
+    def scalar(self, _statement):
+        return self.primary_episode
+
+    def scalars(self, statement):
+        text = str(statement)
+        if "setup_lifecycle_events" in text:
+            return self.events
+        if "signal_alert_events" in text:
+            return []
         return self.snapshots
 
 
@@ -116,4 +174,27 @@ def _snapshot() -> SetupSignalSnapshot:
             "market_regime": {"value": "RISK_ON"},
         },
         source_lineage_json={"source": "test"},
+    )
+
+
+def _event(*, to_state: str) -> SetupLifecycleEvent:
+    return SetupLifecycleEvent(
+        id=20,
+        episode_id=12,
+        ticker="MSFT",
+        timeframe="1d",
+        setup_family="BREAKOUT",
+        effective_date=date(2026, 8, 1),
+        event_type="STATE_TRANSITION",
+        to_state=to_state,
+        to_phase=f"BREAKOUT_{to_state}",
+        actionability_after="WATCH_ONLY",
+        confidence_score=70,
+        confidence_label="NORMAL",
+        severity="INFO",
+        source_event_key="event-key",
+        is_current_version=True,
+        engine_version="slse-1.0.0",
+        config_version="v1",
+        config_hash="hash",
     )
