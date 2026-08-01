@@ -299,6 +299,7 @@ class CeriEarningsActual(Base):
     consensus_snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("ceri_estimate_snapshots.id", ondelete="SET NULL")
     )
+    consensus_selection_reason: Mapped[str | None] = mapped_column(Text)
     surprise_absolute: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     surprise_pct: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     quality_warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)

@@ -16,6 +16,7 @@ from app.models.ceri_tables import (
     CeriChangeEvent,
     CeriCompany,
     CeriCompanyAlias,
+    CeriEarningsActual,
     CeriEstimateSnapshot,
     CeriIngestionRun,
     CeriProcessingRun,
@@ -202,6 +203,13 @@ def test_revision_features_preserve_phase_5_lineage_fields() -> None:
     assert isinstance(table.c.source_observation_ids_json.type, JSONB)
 
 
+def test_earnings_actuals_preserve_consensus_selection_reason() -> None:
+    table = CeriEarningsActual.__table__
+
+    assert "consensus_snapshot_id" in table.c
+    assert "consensus_selection_reason" in table.c
+
+
 def test_upload_run_fk_retains_ceri_score_snapshot_on_run_deletion() -> None:
     run_fk = next(
         fk
@@ -328,3 +336,13 @@ def test_ceri_revision_feature_lineage_migration_follows_ingestion_audit_head() 
     assert 'down_revision: str | None = "0019_add_ceri_ingestion_audit_fields"' in migration
     assert "source_observation_ids_json" in migration
     assert "evidence_hash" in migration
+
+
+def test_ceri_earnings_consensus_reason_migration_follows_revision_feature_head() -> None:
+    migration = Path(
+        "alembic/versions/20260801_0021_add_ceri_earnings_consensus_reason.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0021_add_ceri_earnings_consensus_reason"' in migration
+    assert 'down_revision: str | None = "0020_add_ceri_revision_feature_lineage"' in migration
+    assert "consensus_selection_reason" in migration
