@@ -91,7 +91,7 @@ def test_upload_fetch_plan_execution_cockpit_and_export_flow(tmp_path, monkeypat
     monkeypatch.setattr(
         executor,
         "cache_bars",
-        lambda db, bars: BarUpsertSummary(inserted=1),
+        lambda db, bars, **kwargs: BarUpsertSummary(inserted=1),
     )
 
     fetch_run = execute_fetch_plan(

@@ -7,7 +7,7 @@ from decimal import Decimal
 from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
 
-from app.models.tables import PriceBar
+from app.models.tables import PriceBar, PriceBarRevision
 from app.services.ib_api import IB
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
@@ -118,7 +118,13 @@ def ensure_daily_bars(
     return summary
 
 
-def cache_bars(db: Session, bars: list[HistoricalBar]) -> BarUpsertSummary:
+def cache_bars(
+    db: Session,
+    bars: list[HistoricalBar],
+    *,
+    fetch_run_id: int | None = None,
+    fetch_item_id: int | None = None,
+) -> BarUpsertSummary:
     if not bars:
         return BarUpsertSummary()
 
@@ -147,6 +153,20 @@ def cache_bars(db: Session, bars: list[HistoricalBar]) -> BarUpsertSummary:
             unchanged += 1
             continue
 
+        revision_number = (current.revision_count or 0) + 1
+        db.add(
+            _to_price_bar_revision(
+                current,
+                bar,
+                revision_number=revision_number,
+                previous_data_hash=current_hash,
+                new_data_hash=new_hash,
+                observed_at=now,
+                fetch_run_id=fetch_run_id,
+                fetch_item_id=fetch_item_id,
+            )
+        )
+
         current.open = _decimal_or_none(bar.open)
         current.high = _decimal_or_none(bar.high)
         current.low = _decimal_or_none(bar.low)
@@ -156,7 +176,7 @@ def cache_bars(db: Session, bars: list[HistoricalBar]) -> BarUpsertSummary:
         current.adjustment_type = bar.adjustment_type
         current.last_seen_at = now
         current.revised_at = now
-        current.revision_count = (current.revision_count or 0) + 1
+        current.revision_count = revision_number
         current.data_hash = new_hash
         updated += 1
         revised += 1
@@ -271,6 +291,68 @@ def _to_price_bar(bar: HistoricalBar, data_hash: str, now: datetime) -> PriceBar
         revision_count=0,
         data_hash=data_hash,
     )
+
+
+def _to_price_bar_revision(
+    current: PriceBar,
+    bar: HistoricalBar,
+    *,
+    revision_number: int,
+    previous_data_hash: str,
+    new_data_hash: str,
+    observed_at: datetime,
+    fetch_run_id: int | None,
+    fetch_item_id: int | None,
+) -> PriceBarRevision:
+    return PriceBarRevision(
+        price_bar_id=current.id,
+        ticker=current.ticker.upper(),
+        bar_date=current.bar_date,
+        timeframe=current.timeframe,
+        what_to_show=current.what_to_show,
+        revision_number=revision_number,
+        previous_data_hash=previous_data_hash,
+        new_data_hash=new_data_hash,
+        previous_values_json=_price_bar_values(current),
+        new_values_json=_historical_bar_values(bar),
+        source=bar.source,
+        adjustment_type=bar.adjustment_type,
+        fetch_run_id=fetch_run_id,
+        fetch_item_id=fetch_item_id,
+        observed_at=observed_at,
+    )
+
+
+def _price_bar_values(row: PriceBar) -> dict[str, str | None]:
+    return {
+        "open": _json_decimal(row.open),
+        "high": _json_decimal(row.high),
+        "low": _json_decimal(row.low),
+        "close": _json_decimal(row.close),
+        "volume": _json_decimal(row.volume),
+        "source": row.source,
+        "what_to_show": row.what_to_show,
+        "adjustment_type": row.adjustment_type,
+    }
+
+
+def _historical_bar_values(bar: HistoricalBar) -> dict[str, str | None]:
+    return {
+        "open": _json_decimal(bar.open),
+        "high": _json_decimal(bar.high),
+        "low": _json_decimal(bar.low),
+        "close": _json_decimal(bar.close),
+        "volume": _json_decimal(bar.volume),
+        "source": bar.source,
+        "what_to_show": bar.what_to_show,
+        "adjustment_type": bar.adjustment_type,
+    }
+
+
+def _json_decimal(value: object) -> str | None:
+    if value is None:
+        return None
+    return format(Decimal(str(value)).normalize(), "f")
 
 
 def bar_data_hash(bar: HistoricalBar) -> str:

@@ -19,6 +19,7 @@ class SourceRecordWriteResult:
     source_record: CeriSourceRecord
     inserted: bool
     deduplicated: bool
+    corrected: bool
     quarantined: bool
 
 
@@ -106,7 +107,38 @@ class CeriSourceRecordService:
                 source_record=existing,
                 inserted=False,
                 deduplicated=True,
+                corrected=False,
                 quarantined=bool(existing.quarantine_reason),
+            )
+
+        prior_provider_record = _maybe_scalar(
+            db,
+            select(CeriSourceRecord)
+            .where(CeriSourceRecord.provider == record.provider)
+            .where(CeriSourceRecord.dataset == record.dataset.value)
+            .where(CeriSourceRecord.provider_record_id == record.provider_record_id)
+            .order_by(CeriSourceRecord.ingested_at.desc(), CeriSourceRecord.id.desc())
+            .limit(1),
+        )
+        if prior_provider_record is not None and prior_provider_record.content_hash == content_hash:
+            ceri_metrics.increment(
+                "ceri_ingestion_deduplicated_total",
+                provider=record.provider,
+                dataset=record.dataset.value,
+            )
+            ceri_log_event(
+                "source_record_deduplicated",
+                ingestion_run_id=ingestion_run_id,
+                provider=record.provider,
+                dataset=record.dataset.value,
+                source_record_id=prior_provider_record.id,
+            )
+            return SourceRecordWriteResult(
+                source_record=prior_provider_record,
+                inserted=False,
+                deduplicated=True,
+                corrected=False,
+                quarantined=bool(prior_provider_record.quarantine_reason),
             )
 
         quarantine_reason = _quarantine_reason(record)
@@ -128,6 +160,8 @@ class CeriSourceRecordService:
             content_hash=content_hash,
             idempotency_key=idempotency_key,
             export_policy=record.export_policy,
+            supersedes_id=getattr(prior_provider_record, "id", None),
+            correction_type="CORRECTION" if prior_provider_record is not None else None,
             quarantine_reason=quarantine_reason,
         )
         db.add(source)
@@ -147,22 +181,29 @@ class CeriSourceRecordService:
                 quarantine_reason=quarantine_reason,
             )
         else:
-            ceri_metrics.increment(
-                "ceri_ingestion_inserted_total",
-                provider=record.provider,
-                dataset=record.dataset.value,
+            metric = (
+                "ceri_ingestion_corrected_total"
+                if prior_provider_record is not None
+                else "ceri_ingestion_inserted_total"
             )
+            ceri_metrics.increment(metric, provider=record.provider, dataset=record.dataset.value)
             ceri_log_event(
-                "source_record_inserted",
+                (
+                    "source_record_corrected"
+                    if prior_provider_record is not None
+                    else "source_record_inserted"
+                ),
                 ingestion_run_id=ingestion_run_id,
                 provider=record.provider,
                 dataset=record.dataset.value,
                 source_record_id=source.id,
+                supersedes_id=getattr(prior_provider_record, "id", None),
             )
         return SourceRecordWriteResult(
             source_record=source,
             inserted=True,
             deduplicated=False,
+            corrected=prior_provider_record is not None and quarantine_reason is None,
             quarantined=bool(quarantine_reason),
         )
 
@@ -230,6 +271,7 @@ class CeriSourceRecordService:
                 "fetched": fetched_count,
                 "inserted": inserted_count,
                 "deduplicated": deduplicated_count,
+                "corrected": corrected_count,
                 "quarantined": quarantined_count,
                 "failed": failed_count,
             },

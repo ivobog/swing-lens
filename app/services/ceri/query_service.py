@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -170,7 +172,7 @@ class CeriQueryService:
             snapshots = [
                 snapshot for snapshot in snapshots if snapshot.cutoff_at <= filters.as_of
             ]
-        return self._page(
+        payload = self._page(
             [_score_snapshot_payload(snapshot) for snapshot in snapshots],
             query=query,
             sort_aliases={
@@ -179,6 +181,18 @@ class CeriQueryService:
                 "run_id": "run_id",
             },
         )
+        payload["mode"] = HistoricalViewMode.STORED_SNAPSHOT.value
+        payload["as_of"] = filters.as_of.isoformat()
+        payload["source_correction_policy"] = "stored_score_snapshots_only"
+        payload["evidence_hash"] = _stable_hash(
+            {
+                "ticker": ticker,
+                "mode": HistoricalViewMode.STORED_SNAPSHOT.value,
+                "as_of": filters.as_of.isoformat(),
+                "snapshot_ids": [item["id"] for item in payload["items"]],
+            }
+        )
+        return payload
 
     def changes(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
@@ -464,10 +478,13 @@ class CeriQueryService:
             )
 
     def _require_historical_view(self, filters: CeriQueryFilters) -> None:
-        if filters.mode not in {mode.value for mode in HistoricalViewMode}:
+        if filters.mode != HistoricalViewMode.STORED_SNAPSHOT.value:
             raise CeriQueryError(
                 "INVALID_FILTER",
-                "mode=AS_KNOWN or mode=LATEST_CORRECTED is required.",
+                (
+                    "mode=STORED_SNAPSHOT is required for public CERI score history. "
+                    "AS_KNOWN and LATEST_CORRECTED reconstruction are not exposed by this endpoint."
+                ),
             )
         if filters.as_of is None:
             raise CeriQueryError(
@@ -872,6 +889,11 @@ def _load(db: Session, model):
         return []
     result = scalars(select(model))
     return list(result.all() if hasattr(result, "all") else result)
+
+
+def _stable_hash(payload: dict[str, Any]) -> str:
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _get(db: Session, model, row_id: int):

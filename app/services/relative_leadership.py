@@ -101,13 +101,17 @@ def rank_technical_universe(
 def _aligned_close(stock_df: pd.DataFrame, benchmark_df: pd.DataFrame) -> pd.DataFrame:
     stock = stock_df.loc[:, ["date", "close"]].copy()
     benchmark = benchmark_df.loc[:, ["date", "close"]].copy()
-    stock["date"] = pd.to_datetime(stock["date"])
-    benchmark["date"] = pd.to_datetime(benchmark["date"])
+    stock["date"] = _market_session_dates(stock["date"])
+    benchmark["date"] = _market_session_dates(benchmark["date"])
     return stock.merge(
         benchmark,
         on="date",
         suffixes=("_stock", "_benchmark"),
     ).sort_values("date")
+
+
+def _market_session_dates(values: pd.Series) -> pd.Series:
+    return pd.to_datetime(values, errors="coerce", utc=True).dt.tz_convert(None).dt.normalize()
 
 
 def _rolling_beta(

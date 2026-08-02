@@ -85,6 +85,17 @@ def test_source_record_preserves_provider_lineage_and_restrictions() -> None:
     constraint_names = {constraint.name for constraint in table.constraints}
     assert "uq_ceri_source_records_provider_record" in constraint_names
     assert "uq_ceri_source_records_idempotency" in constraint_names
+    provider_record_constraint = next(
+        constraint
+        for constraint in table.constraints
+        if constraint.name == "uq_ceri_source_records_provider_record"
+    )
+    assert [column.name for column in provider_record_constraint.columns] == [
+        "provider",
+        "dataset",
+        "provider_record_id",
+        "content_hash",
+    ]
 
 
 def test_ingestion_runs_preserve_audit_counts_and_checkpoints() -> None:
@@ -349,3 +360,14 @@ def test_ceri_earnings_consensus_reason_migration_follows_revision_feature_head(
     assert 'down_revision: str | None = "0020_add_ceri_revision_feature_lineage"' in migration
     assert "consensus_selection_reason" in migration
     assert "_add_column_if_missing" in migration
+
+
+def test_price_bar_revisions_ceri_corrections_migration_follows_current_head() -> None:
+    migration = Path(
+        "alembic/versions/20260802_0022_add_price_bar_revisions_and_ceri_corrections.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0022_price_bar_revisions_ceri_corrections"' in migration
+    assert 'down_revision: str | None = "0021_add_ceri_earnings_consensus_reason"' in migration
+    assert "price_bar_revisions" in migration
+    assert '["provider", "dataset", "provider_record_id", "content_hash"]' in migration

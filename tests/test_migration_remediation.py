@@ -14,7 +14,7 @@ from psycopg import sql
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_VERSIONS = REPO_ROOT / "alembic" / "versions"
-EXPECTED_HEAD = "0021_add_ceri_earnings_consensus_reason"
+EXPECTED_HEAD = "0023_immutable_snapshot_evidence"
 DEFAULT_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 LIVE_MODEL_IMPORT_RE = re.compile(r"^\s*(?:from|import)\s+app\.models(?:\.|\s)", re.MULTILINE)
 

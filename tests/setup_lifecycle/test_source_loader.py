@@ -16,6 +16,8 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.setup_lifecycle.source_loader import (
+    SetupLifecycleSourceLoader,
+    _run_context_cutoff_date,
     build_run_source_context,
     latest_completed_bar,
 )
@@ -64,6 +66,46 @@ def test_latest_completed_bar_prefers_latest_trade_bar() -> None:
     trades = _bar("MSFT", date(2026, 8, 1), close=101, what_to_show="TRADES")
 
     assert latest_completed_bar((older, adjusted, trades)) is trades
+
+
+def test_run_context_cutoff_uses_earliest_ticker_source_date() -> None:
+    older = _raw_row("MSFT")
+    newer = _raw_row("AAPL")
+
+    cutoff = _run_context_cutoff_date(
+        upload_run=_upload_run(),
+        raw_rows=(older, newer),
+        technical_scores=(),
+        price_bars=(
+            _bar("MSFT", date(2026, 7, 29), close=101),
+            _bar("AAPL", date(2026, 8, 1), close=102),
+        ),
+    )
+
+    assert cutoff == date(2026, 7, 29)
+
+
+def test_source_loader_market_and_sector_context_queries_are_asof_bounded() -> None:
+    loader = SetupLifecycleSourceLoader()
+    db = StatementRecordingDb()
+
+    assert loader._latest_market_snapshot(db, run_id=7, cutoff=date(2026, 8, 1)) is None
+    assert loader._latest_sector_snapshot(db, run_id=7, cutoff=date(2026, 8, 1)) is None
+
+    rendered = "\n".join(str(statement) for statement in db.statements)
+    assert "market_regime_snapshots.as_of_date <= :as_of_date_1" in rendered
+    assert "sector_rotation_snapshots.as_of_date <= :as_of_date_1" in rendered
+    assert "market_regime_snapshots.run_id IS NULL" in rendered
+    assert "sector_rotation_snapshots.run_id IS NULL" in rendered
+
+
+class StatementRecordingDb:
+    def __init__(self) -> None:
+        self.statements = []
+
+    def scalar(self, statement):
+        self.statements.append(statement)
+        return None
 
 
 def _upload_run() -> UploadRun:

@@ -208,6 +208,7 @@ class CeriSourceRecord(Base):
             "provider",
             "dataset",
             "provider_record_id",
+            "content_hash",
             name="uq_ceri_source_records_provider_record",
         ),
         UniqueConstraint("idempotency_key", name="uq_ceri_source_records_idempotency"),

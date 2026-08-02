@@ -99,7 +99,10 @@ def test_build_snapshot_empty_run_returns_warning_and_empty_summary() -> None:
         "ticker_count": 0,
         "leading_sector_ticker_count": None,
     }
-    assert dto.warnings == ["empty_sector_rotation_universe"]
+    assert dto.warnings == [
+        "missing_asof_market_regime_context",
+        "empty_sector_rotation_universe",
+    ]
     assert repository.saved[0].rows == []
 
 
@@ -144,12 +147,16 @@ def test_build_snapshot_uses_previous_rows_for_rank_and_score_changes() -> None:
     assert dto.summary["fastest_improving_sector"] == "Technology"
 
 
-def test_build_snapshot_uses_global_market_snapshot_when_run_snapshot_missing() -> None:
+def test_build_snapshot_uses_asof_global_market_snapshot_when_run_snapshot_missing() -> None:
     service = _service(
         universe_rows=[_metrics("Technology", score=8.0)],
         market_repository=FakeMarketRepository(
             run_snapshot=None,
-            latest_snapshot=_market_snapshot(risk_state="Red", risk_off=True),
+            global_snapshot=_market_snapshot(
+                as_of_date=date(2026, 7, 28),
+                risk_state="Red",
+                risk_off=True,
+            ),
         ),
     )
 
@@ -164,6 +171,38 @@ def test_build_snapshot_uses_global_market_snapshot_when_run_snapshot_missing() 
     assert dto.debug["market_regime"]["risk_state"] == "Red"
     assert dto.rows[0].permission == "watch_only"
     assert "market_risk_off" in dto.rows[0].warnings
+
+
+def test_build_snapshot_does_not_attach_future_global_market_snapshot() -> None:
+    service = _service(
+        universe_rows=[_metrics("Technology", score=8.0)],
+        market_repository=FakeMarketRepository(
+            run_snapshot=None,
+            global_snapshot=None,
+            latest_snapshot=_market_snapshot(
+                as_of_date=date(2026, 7, 29),
+                risk_state="Red",
+                risk_off=True,
+            ),
+        ),
+    )
+
+    dto = service.build_sector_rotation_snapshot(
+        object(),
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        persist=False,
+        config=load_sector_rotation_config(),
+    )
+
+    assert dto.market_regime_snapshot_id is None
+    assert dto.debug["market_regime"] == {
+        "available": False,
+        "missing_reason": "missing_asof_market_regime_context",
+    }
+    assert "missing_asof_market_regime_context" in dto.warnings
+    assert dto.rows[0].permission == "reduced_size"
+    assert "market_risk_off" not in dto.rows[0].warnings
 
 
 def test_build_snapshot_uses_etf_metrics_when_enabled() -> None:
@@ -279,9 +318,14 @@ def _metrics(
     )
 
 
-def _market_snapshot(risk_state: str = "Green", risk_off: bool = False):
+def _market_snapshot(
+    as_of_date: date = date(2026, 7, 28),
+    risk_state: str = "Green",
+    risk_off: bool = False,
+):
     return SimpleNamespace(
         id=3,
+        as_of_date=as_of_date,
         regime="Bull trend",
         risk_state=risk_state,
         risk_off=risk_off,
@@ -341,8 +385,14 @@ class FakeSectorRepository:
 
 
 class FakeMarketRepository:
-    def __init__(self, run_snapshot=None, latest_snapshot=None) -> None:
+    def __init__(
+        self,
+        run_snapshot=None,
+        global_snapshot=None,
+        latest_snapshot=None,
+    ) -> None:
         self.run_snapshot = run_snapshot
+        self.global_snapshot = global_snapshot
         self.latest_snapshot = latest_snapshot
 
     def latest_for_run(self, *_args, **_kwargs):
@@ -350,3 +400,13 @@ class FakeMarketRepository:
 
     def latest(self, *_args, **_kwargs):
         return self.latest_snapshot
+
+    def latest_for_run_as_of_or_before(self, _db, _run_id, as_of_date):
+        if self.run_snapshot is None or self.run_snapshot.as_of_date > as_of_date:
+            return None
+        return self.run_snapshot
+
+    def latest_global_as_of_or_before(self, _db, as_of_date):
+        if self.global_snapshot is None or self.global_snapshot.as_of_date > as_of_date:
+            return None
+        return self.global_snapshot

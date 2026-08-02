@@ -103,6 +103,7 @@ class DateConfidence(StrEnum):
 class HistoricalViewMode(StrEnum):
     AS_KNOWN = "AS_KNOWN"
     LATEST_CORRECTED = "LATEST_CORRECTED"
+    STORED_SNAPSHOT = "STORED_SNAPSHOT"
 
 
 class CeriProcessingStatus(StrEnum):

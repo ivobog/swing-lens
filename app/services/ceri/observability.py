@@ -27,6 +27,7 @@ STRUCTURED_EVENT_NAMES = frozenset(
         "ingestion_started",
         "ingestion_completed",
         "source_record_inserted",
+        "source_record_corrected",
         "source_record_deduplicated",
         "source_record_quarantined",
         "normalization_failed",

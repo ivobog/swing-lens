@@ -287,6 +287,12 @@ Rollback concerns:
 
 - Guard rollout may block existing local workflows; use explicit exemptions with comments/tests.
 
+Implementation note: `app/security.py` now centralizes unsafe-route classification, local-admin
+host checks, generated header-only CSRF tokens, TrustedHost middleware setup, and public-bind/debug
+settings validation. All current state-changing routes are classified by the route inventory test.
+CERI admin routes reject static/query-string CSRF tokens and setup lifecycle persisted replay now
+requires confirmation, reason, and requester.
+
 #### PR 2.2 - No-Order Boundary Gate
 
 Source finding IDs: PH1-003, PH15-006.
@@ -312,6 +318,10 @@ Acceptance tests:
 Rollback concerns:
 
 - Static terms can be noisy; keep allowlist narrow and documented.
+
+Implementation note: `tests/test_no_order_boundary.py` now enforces a first-party app static scan
+for concrete broker-order APIs/classes and fake-IB runtime assertions that connection and fetch
+paths use `readonly=True` and do not invoke order-capable methods.
 
 ### Batch 3: Temporal Correctness and No-Look-Ahead
 
@@ -342,6 +352,13 @@ Rollback concerns:
 
 - Scoring movement is likely; gate behind explicit model/version decision.
 
+Implementation note: scoring-facing `pivot_high`/`pivot_low` now expose only values shifted to the
+right-bar confirmation date, while `pivot_high_at_pivot_bar` and `pivot_low_at_pivot_bar` preserve
+chart annotation context. Relative-strength joins normalize stock, benchmark, and sector dates to
+session dates, return explicit missing-overlap and insufficient-history flags instead of crashing or
+calling empty alignments sufficient, and readiness propagates those flags as low confidence. Golden
+fixtures were not updated.
+
 #### PR 3.2 - As-Of Market/Sector Context Selection
 
 Source finding IDs: PH10-001, PH11-002, PH11-005.
@@ -370,6 +387,14 @@ Rollback concerns:
 
 - Historical recalculations may become lower confidence; document expected output changes.
 
+Implementation note: sector rotation now selects a run-specific market snapshot or global market
+snapshot only when `market.as_of_date <= sector.as_of_date`; otherwise it omits the market context
+and records `missing_asof_market_regime_context`. Setup lifecycle source loading now computes a
+conservative run context cutoff from ticker source dates and bounds shared market/sector context to
+`as_of_date <= cutoff`, leaving missing context explicit instead of attaching future snapshots.
+Generated lifecycle invariant coverage was added for terminal-state locks and state-age expiry
+boundaries; replay determinism remains covered.
+
 #### PR 3.3 - Winner and CERI Cutoff Audit Integration
 
 Source finding IDs: PH12-004, PH13-002.
@@ -396,6 +421,14 @@ Acceptance tests:
 Rollback concerns:
 
 - Public API semantics may change; version response metadata.
+
+Implementation note: winner prediction capture now invokes the feature-schema availability validator
+for every configured core feature and persists per-feature cutoff audit metadata plus a stable audit
+hash in prediction lineage. Required future-dated sources still fail capture, while future optional
+market/sector context is omitted, warned, and captured as missing. Public CERI ticker score history
+now uses the honest `STORED_SNAPSHOT` mode with mode/cutoff/correction-policy/evidence-hash
+metadata; `AS_KNOWN` and `LATEST_CORRECTED` remain low-level estimate PIT modes and are rejected by
+the stored score-history endpoint until score reconstruction is implemented.
 
 ### Batch 4: Immutable Evidence and Correction Lineage
 
@@ -425,6 +458,13 @@ Rollback concerns:
 
 - New tables/data are evidence-bearing; take backup before migration.
 
+Implementation status:
+
+- In progress in PR 4.1: adds `price_bar_revisions` append-only audit rows,
+  captures IB fetch-run/item lineage for revised bars, relaxes CERI provider-record
+  uniqueness to permit corrected records, and populates source-record supersession
+  and corrected-count audit fields.
+
 #### PR 4.2 - Immutable Market/Sector/Setup/Combined Evidence
 
 Source finding IDs: PH9-003, PH10-002, PH11-001.
@@ -450,6 +490,13 @@ Acceptance tests:
 Rollback concerns:
 
 - Schema changes affect historical views; require backup and migration test.
+
+Implementation status:
+
+- In progress in PR 4.2: adds reconstructable combined-result debug evidence, explicit
+  current-revision metadata for market and sector snapshots, idempotent same-evidence
+  writes, new revisions for changed snapshot evidence, and source-hash identity for
+  setup signal snapshots.
 
 ### Batch 5: Background-Job Idempotency and Concurrency
 

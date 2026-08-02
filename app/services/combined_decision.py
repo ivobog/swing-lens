@@ -1,3 +1,5 @@
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -47,6 +49,7 @@ EARNINGS_DATE_RAW_KEYS = {
     "earnings_date",
     "next_earnings_date",
 }
+COMBINED_DECISION_CALCULATION_VERSION = "combined-decision-1.0.0"
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,7 @@ class CombinedDecision:
     has_fundamental: bool
     has_technical: bool
     sort_bucket: int
+    debug_evidence: dict[str, Any]
 
 
 def refresh_combined_results(db: Session, run_id: int) -> list[CombinedResult]:
@@ -128,35 +132,55 @@ def combine_row_decision(
         fundamental_weight=float(weights["fundamental_score"]),
         dual_weight=float(weights["dual_score"]),
     )
+    weighted_score_before_penalties = final_score
+    penalty_breakdown: dict[str, float] = {}
     notes: list[str] = []
 
     if fundamental_score is None:
-        final_score -= float(penalties["missing_data"])
+        penalty = float(penalties["missing_data"])
+        final_score -= penalty
+        penalty_breakdown["missing_fundamental"] = penalty
         notes.append("fundamental missing")
     if dual_score is None:
-        final_score -= float(penalties["missing_data"])
+        penalty = float(penalties["missing_data"])
+        final_score -= penalty
+        penalty_breakdown["missing_technical"] = penalty
         notes.append("technical missing")
 
     if technical_classification in DANGER_CLASSIFICATIONS:
-        final_score -= float(penalties["danger_classification"])
+        penalty = float(penalties["danger_classification"])
+        final_score -= penalty
+        penalty_breakdown["danger_classification"] = penalty
         notes.append(technical_classification.lower())
     elif technical_classification == "Overheated momentum":
-        final_score -= float(penalties["overheated_momentum"])
+        penalty = float(penalties["overheated_momentum"])
+        final_score -= penalty
+        penalty_breakdown["overheated_momentum"] = penalty
         notes.append("overheated")
 
     if fundamental_label == "Value trap risk":
-        final_score -= float(penalties["value_trap_risk"])
+        penalty = float(penalties["value_trap_risk"])
+        final_score -= penalty
+        penalty_breakdown["value_trap_risk"] = penalty
         notes.append("value trap")
     elif fundamental_label == "Growth trap risk":
-        final_score -= float(penalties["growth_trap_risk"])
+        penalty = float(penalties["growth_trap_risk"])
+        final_score -= penalty
+        penalty_breakdown["growth_trap_risk"] = penalty
         notes.append("growth trap")
 
     if technical and _liquidity_warning(technical.debug_json):
-        final_score -= float(penalties["liquidity_warning"])
+        penalty = float(penalties["liquidity_warning"])
+        final_score -= penalty
+        penalty_breakdown["liquidity_warning"] = penalty
         notes.append("liquidity warning")
 
     earnings_risk = _calculate_row_earnings_risk(row, config, today)
     final_score -= earnings_risk.penalty
+    if earnings_risk.penalty:
+        penalty_breakdown[f"earnings_{earnings_risk.risk_level or 'unknown'}"] = (
+            earnings_risk.penalty
+        )
     if earnings_risk.warning_flags:
         notes.append(earnings_risk.message)
 
@@ -209,7 +233,28 @@ def combine_row_decision(
         has_fundamental=warnings.has_fundamental,
         has_technical=warnings.has_technical,
         sort_bucket=warnings.sort_bucket,
+        debug_evidence=_combined_debug_evidence(
+            row=row,
+            fundamental=fundamental,
+            technical=technical,
+            config=config,
+            weighted_score_before_penalties=weighted_score_before_penalties,
+            penalty_breakdown=penalty_breakdown,
+            earnings_risk=earnings_risk,
+            final_score=final_score,
+            decision=decision,
+            position_size=position_size,
+            warning_flags=warning_flags,
+            sort_bucket=warnings.sort_bucket,
+        ),
     )
+
+
+def reconstruct_combined_score_from_debug(debug_json: dict[str, Any]) -> float:
+    score = float(debug_json["weighted_score_before_penalties"])
+    penalties = debug_json.get("penalty_breakdown") or {}
+    score -= sum(float(value) for value in penalties.values())
+    return _clamp(score)
 
 
 def _weighted_available_score(
@@ -304,6 +349,9 @@ def _to_model(
         has_technical=decision.has_technical,
         has_warning=decision.has_warning,
         sort_bucket=decision.sort_bucket,
+        calculation_version=COMBINED_DECISION_CALCULATION_VERSION,
+        config_hash=decision.debug_evidence["config_hash"],
+        debug_json=decision.debug_evidence,
     )
 
 
@@ -343,6 +391,62 @@ def _load_scoring_config(path: Path = Path("config/scoring_weights.yaml")) -> di
         return yaml.safe_load(handle) or {}
 
 
+def _combined_debug_evidence(
+    *,
+    row: RawCompanyRow,
+    fundamental: FundamentalScore | None,
+    technical: TechnicalScore | None,
+    config: dict[str, Any],
+    weighted_score_before_penalties: float,
+    penalty_breakdown: dict[str, float],
+    earnings_risk: EarningsRiskResult,
+    final_score: float,
+    decision: str,
+    position_size: str,
+    warning_flags: list[str],
+    sort_bucket: int,
+) -> dict[str, Any]:
+    return {
+        "calculation_version": COMBINED_DECISION_CALCULATION_VERSION,
+        "config_hash": _stable_hash(config),
+        "config_snapshot": config,
+        "source_ids": {
+            "raw_row_id": getattr(row, "id", None),
+            "fundamental_score_id": getattr(fundamental, "id", None),
+            "technical_score_id": getattr(technical, "id", None),
+        },
+        "input_scores": {
+            "fundamental_score": _float_or_none(
+                fundamental.fundamental_score if fundamental else None
+            ),
+            "dual_score": _float_or_none(technical.dual_score if technical else None),
+            "technical_classification": technical.classification if technical else None,
+            "fundamental_label": fundamental.fundamental_label if fundamental else None,
+        },
+        "weights": dict(config.get("combined_score") or {}),
+        "label_thresholds": dict(config.get("labels") or {}),
+        "weighted_score_before_penalties": round(weighted_score_before_penalties, 6),
+        "penalty_breakdown": {key: round(value, 6) for key, value in penalty_breakdown.items()},
+        "earnings": {
+            "upcoming_earnings_date": (
+                earnings_risk.upcoming_earnings_date.isoformat()
+                if earnings_risk.upcoming_earnings_date
+                else None
+            ),
+            "days_until_earnings": earnings_risk.days_until_earnings,
+            "risk_level": earnings_risk.risk_level,
+            "warning_flags": list(earnings_risk.warning_flags),
+            "decision_blocked": earnings_risk.decision_blocked,
+            "penalty": earnings_risk.penalty,
+        },
+        "final_score": final_score,
+        "combined_decision": decision,
+        "position_size_hint": position_size,
+        "warning_flags": list(warning_flags),
+        "sort_bucket": sort_bucket,
+    }
+
+
 def _calculate_row_earnings_risk(
     row: RawCompanyRow,
     config: dict[str, Any],
@@ -379,6 +483,11 @@ def _merge_warning_flags(existing: list[str], extra: tuple[str, ...]) -> list[st
             flags.append(flag)
             seen.add(flag)
     return flags
+
+
+def _stable_hash(payload: Any) -> str:
+    data = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 def _liquidity_warning(debug_json: dict[str, Any] | None) -> bool:

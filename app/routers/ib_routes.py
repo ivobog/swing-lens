@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.ib_connection import check_ib_connection, create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
@@ -74,6 +75,7 @@ def ib_status() -> dict[str, object]:
 
 
 @router.post("/test")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="tests local read-only IB Gateway connectivity")
 def test_ib_connection() -> dict[str, object]:
     status = check_ib_connection()
     return {
@@ -86,6 +88,7 @@ def test_ib_connection() -> dict[str, object]:
 
 
 @router.post("/resolve/{ticker}")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="updates local IB contract cache")
 def resolve_ticker(ticker: str, db: DbSession, force_refresh: bool = False) -> dict[str, object]:
     ib = create_ib_client()
     settings = get_settings()
@@ -121,6 +124,7 @@ def resolve_ticker(ticker: str, db: DbSession, force_refresh: bool = False) -> d
 
 
 @router.post("/fetch")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="fetches read-only historical IB bars")
 def fetch_bars(
     db: DbSession,
     tickers: Annotated[str, Query(description="Comma-separated ticker list")],

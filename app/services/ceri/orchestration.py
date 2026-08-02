@@ -107,6 +107,7 @@ class CeriIngestionService:
                     )
                     inserted += int(write.inserted)
                     deduplicated += int(write.deduplicated)
+                    corrected += int(write.corrected)
                     quarantined += int(write.quarantined)
                 except Exception as exc:
                     failed += 1

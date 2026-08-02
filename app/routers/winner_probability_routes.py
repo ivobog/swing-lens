@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.tables import UploadRun
+from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
 from app.services.background_job_service import enqueue_job
 from app.services.winner_probability.api_service import (
     WinnerProbabilityApiError,
@@ -43,8 +44,6 @@ from app.templates import templates
 
 router = APIRouter(tags=["winner-probability"])
 DbSession = Annotated[Session, Depends(get_db)]
-
-LOCAL_ADMIN_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 
 
 @router.get("/runs/{run_id}/winner-probability", response_class=HTMLResponse)
@@ -525,6 +524,11 @@ def winner_probability_model_drift(id: int, db: DbSession) -> dict:
 
 
 @router.post("/api/winner-probability/runs/{run_id}/capture")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues winner-probability snapshot capture",
+    local_admin_required=True,
+)
 def queue_winner_prediction_capture(
     request: Request,
     run_id: int,
@@ -552,6 +556,11 @@ def queue_winner_prediction_capture(
 
 
 @router.post("/api/winner-probability/outcomes/process")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues winner-probability outcome maturation",
+    local_admin_required=True,
+)
 def queue_winner_outcome_maturation(
     request: Request,
     db: DbSession,
@@ -579,6 +588,11 @@ def queue_winner_outcome_maturation(
 
 
 @router.post("/api/winner-probability/cohorts/refresh")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues winner-probability cohort rebuild",
+    local_admin_required=True,
+)
 def queue_winner_cohort_refresh(
     request: Request,
     db: DbSession,
@@ -609,6 +623,11 @@ def queue_winner_cohort_refresh(
 
 
 @router.post("/api/winner-probability/models/{id}/retire")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="retires a winner-probability model",
+    local_admin_required=True,
+)
 def retire_winner_probability_model(
     request: Request,
     id: int,
@@ -635,11 +654,12 @@ def retire_winner_probability_model(
 
 def _require_local_admin(request: Request) -> None:
     settings = getattr(request.app.state, "settings", None)
-    if settings is None or not settings.winner_probability_admin_enabled:
-        raise HTTPException(status_code=404, detail="Winner probability admin is disabled.")
-    host = request.client.host if request.client is not None else None
-    if host not in LOCAL_ADMIN_HOSTS:
-        raise HTTPException(status_code=403, detail="Winner probability admin is local only.")
+    require_local_admin(
+        request,
+        enabled=bool(settings and settings.winner_probability_admin_enabled),
+        disabled_message="Winner probability admin is disabled.",
+        local_only_message="Winner probability admin is local only.",
+    )
 
 
 def _require_run(db: Session, run_id: int) -> None:

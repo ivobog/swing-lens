@@ -204,7 +204,12 @@ def _execute_plan_item(
                 duration=duration,
                 bar_size=plan_item.bar_size,
             )
-            upsert = cache_bars(db, bars)
+            upsert = cache_bars(
+                db,
+                bars,
+                fetch_run_id=fetch_item.fetch_run_id or getattr(fetch_item.fetch_run, "id", None),
+                fetch_item_id=fetch_item.id,
+            )
             fetch_item.fetched = len(bars)
             fetch_item.inserted = upsert.inserted
             fetch_item.updated = upsert.updated

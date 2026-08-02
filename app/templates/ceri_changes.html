@@ -99,8 +99,8 @@
                 <td>
                   {% if admin_enabled %}
                     <div class="row-actions">
-                      <button class="secondary" type="button" data-ceri-alert-action="/api/ceri/alerts/{{ alert.id }}/acknowledge">Acknowledge</button>
-                      <button class="secondary" type="button" data-ceri-alert-action="/api/ceri/alerts/{{ alert.id }}/dismiss">Dismiss</button>
+                      <button class="secondary" type="button" data-ceri-csrf-token="{{ csrf_token }}" data-ceri-alert-action="/api/ceri/alerts/{{ alert.id }}/acknowledge">Acknowledge</button>
+                      <button class="secondary" type="button" data-ceri-csrf-token="{{ csrf_token }}" data-ceri-alert-action="/api/ceri/alerts/{{ alert.id }}/dismiss">Dismiss</button>
                     </div>
                   {% else %}
                     <span>Admin disabled</span>

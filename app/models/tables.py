@@ -202,6 +202,55 @@ class PriceBar(Base):
     )
 
 
+class PriceBarRevision(Base):
+    __tablename__ = "price_bar_revisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    price_bar_id: Mapped[int] = mapped_column(
+        ForeignKey("price_bars.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    bar_date: Mapped[date] = mapped_column(Date, nullable=False)
+    timeframe: Mapped[str] = mapped_column(Text, nullable=False)
+    what_to_show: Mapped[str] = mapped_column(Text, nullable=False)
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    previous_data_hash: Mapped[str | None] = mapped_column(Text)
+    new_data_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    previous_values_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    new_values_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    source: Mapped[str | None] = mapped_column(Text)
+    adjustment_type: Mapped[str | None] = mapped_column(Text)
+    fetch_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ib_fetch_runs.id", ondelete="SET NULL")
+    )
+    fetch_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ib_fetch_items.id", ondelete="SET NULL")
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "price_bar_id",
+            "revision_number",
+            name="uq_price_bar_revisions_price_bar_revision",
+        ),
+        Index(
+            "idx_price_bar_revisions_natural_key",
+            "ticker",
+            "bar_date",
+            "timeframe",
+            "what_to_show",
+        ),
+        Index("idx_price_bar_revisions_observed_at", "observed_at"),
+    )
+
+
 class FundamentalScore(Base):
     __tablename__ = "fundamental_scores"
 
@@ -370,6 +419,14 @@ class CombinedResult(Base):
         server_default="false",
     )
     sort_bucket: Mapped[int | None]
+    calculation_version: Mapped[str | None] = mapped_column(Text)
+    config_hash: Mapped[str | None] = mapped_column(Text)
+    debug_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -625,6 +682,18 @@ class MarketRegimeSnapshot(Base):
         default=dict,
         server_default="{}",
     )
+    evidence_hash: Mapped[str] = mapped_column(Text, nullable=False, server_default="legacy")
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    is_current_revision: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    superseded_by_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_regime_snapshots.id", ondelete="SET NULL")
+    )
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -643,12 +712,19 @@ class MarketRegimeSnapshot(Base):
             "as_of_date",
             "calculation_version",
             "config_version",
+            "revision",
             name="uq_market_regime_snapshots_run_date_version",
         ),
         Index("idx_market_regime_snapshots_as_of_date", "as_of_date"),
         Index("idx_market_regime_snapshots_run_id", "run_id"),
         Index("idx_market_regime_snapshots_regime", "regime"),
         Index("idx_market_regime_snapshots_risk_state", "risk_state"),
+        Index("idx_market_regime_snapshots_evidence_hash", "evidence_hash"),
+        Index(
+            "idx_market_regime_snapshots_current_revision",
+            "is_current_revision",
+            "as_of_date",
+        ),
     )
 
 
@@ -702,6 +778,18 @@ class SectorRotationSnapshot(Base):
         default=dict,
         server_default="{}",
     )
+    evidence_hash: Mapped[str] = mapped_column(Text, nullable=False, server_default="legacy")
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    is_current_revision: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    superseded_by_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sector_rotation_snapshots.id", ondelete="SET NULL")
+    )
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -726,10 +814,17 @@ class SectorRotationSnapshot(Base):
             "calculation_version",
             "config_hash",
             "mode",
+            "revision",
             name="uq_sector_rotation_snapshots_run_date_version_mode",
         ),
         Index("idx_sector_rotation_snapshot_run_date", "run_id", "as_of_date"),
         Index("idx_sector_rotation_snapshot_date", "as_of_date"),
+        Index("idx_sector_rotation_snapshot_evidence_hash", "evidence_hash"),
+        Index(
+            "idx_sector_rotation_snapshot_current_revision",
+            "is_current_revision",
+            "as_of_date",
+        ),
     )
 
 
@@ -2333,8 +2428,10 @@ class SetupSignalSnapshot(Base):
             "run_id",
             "ticker",
             "timeframe",
+            "data_as_of_date",
             "engine_version",
             "config_hash",
+            "source_data_hash",
             name="uq_setup_signal_snapshots_run_identity",
         ),
         Index("idx_setup_signal_snapshots_run_ticker", "run_id", "ticker"),

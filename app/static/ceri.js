@@ -14,7 +14,7 @@ function bindCeriAlertActions() {
           method: "POST",
           headers: {
             Accept: "application/json",
-            "x-csrf-token": "ceri-local-admin",
+            "x-csrf-token": button.dataset.ceriCsrfToken || "",
           },
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -44,7 +44,7 @@ function bindCeriJsonForms() {
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
-            "x-csrf-token": body.csrf_token || "ceri-local-admin",
+            "x-csrf-token": form.dataset.ceriCsrfToken || "",
           },
           body: JSON.stringify(body),
         });
@@ -67,6 +67,7 @@ function formBody(form) {
   const body = {};
   formData.forEach((value, key) => {
     if (value === "") return;
+    if (key === "csrf_token") return;
     body[key] = value;
   });
   return body;

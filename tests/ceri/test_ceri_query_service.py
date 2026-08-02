@@ -57,7 +57,7 @@ def test_latest_filters_sorts_pages_and_preserves_nulls() -> None:
     assert aapl["event_risk_score"] is None
 
 
-def test_ticker_history_requires_mode_and_as_of_cutoff() -> None:
+def test_ticker_history_requires_stored_snapshot_mode_and_as_of_cutoff() -> None:
     service = CeriQueryService()
     db = FakeDb({CeriScoreSnapshot: [_snapshot(1, "MSFT")]})
 
@@ -66,16 +66,32 @@ def test_ticker_history_requires_mode_and_as_of_cutoff() -> None:
 
     assert exc.value.code == "INVALID_FILTER"
 
+    with pytest.raises(CeriQueryError, match="STORED_SNAPSHOT"):
+        service.ticker_history(
+            db,
+            "MSFT",
+            CeriListQuery(
+                filters=CeriQueryFilters(mode="AS_KNOWN", as_of=NOW + timedelta(hours=1)),
+                sort="cutoff_at",
+            ),
+        )
+
     payload = service.ticker_history(
         db,
         "MSFT",
         CeriListQuery(
-            filters=CeriQueryFilters(mode="AS_KNOWN", as_of=NOW + timedelta(hours=1)),
+            filters=CeriQueryFilters(
+                mode="STORED_SNAPSHOT",
+                as_of=NOW + timedelta(hours=1),
+            ),
             sort="cutoff_at",
         ),
     )
 
     assert payload["total"] == 1
+    assert payload["mode"] == "STORED_SNAPSHOT"
+    assert payload["source_correction_policy"] == "stored_score_snapshots_only"
+    assert payload["evidence_hash"]
 
 
 def test_revision_detail_exposes_lineage_and_raw_breadth_counts() -> None:

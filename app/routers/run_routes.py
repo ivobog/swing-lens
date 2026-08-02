@@ -25,6 +25,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
 )
+from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.chart_data_service import build_ticker_chart_payload
 from app.services.cockpit_sorting import cockpit_sort_key
@@ -383,6 +384,7 @@ def list_ranking_profiles(run_id: int, db: DbSession) -> list[dict[str, object]]
 
 
 @router.post("/runs/{run_id}/rankings/refresh", response_model=None)
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="refreshes persisted ranking profiles")
 def refresh_all_ranking_profiles_action(
     run_id: int,
     db: DbSession,
@@ -418,6 +420,7 @@ def refresh_all_ranking_profiles_action(
 
 
 @router.post("/runs/{run_id}/rankings/{profile_name}/refresh")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="refreshes one persisted ranking profile")
 def refresh_ranking_profile_action(
     run_id: int,
     profile_name: str,
@@ -541,6 +544,7 @@ def run_mapping_page(run_id: int, request: Request, db: DbSession) -> HTMLRespon
 
 
 @router.post("/runs/{run_id}/combined-results")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="refreshes persisted combined results")
 def refresh_combined_results_action(run_id: int, db: DbSession) -> RedirectResponse:
     run_exists = db.scalar(select(UploadRun.id).where(UploadRun.id == run_id))
     if not run_exists:
@@ -558,6 +562,7 @@ def refresh_combined_results_action(run_id: int, db: DbSession) -> RedirectRespo
 
 
 @router.post("/runs/{run_id}/fundamentals/recalculate")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="recalculates persisted fundamental scores")
 def recalculate_fundamentals_action(run_id: int, db: DbSession) -> RedirectResponse:
     _require_run(db, run_id)
     scores = recalculate_run_fundamentals(db, run_id)
@@ -576,6 +581,7 @@ def recalculate_fundamentals_action(run_id: int, db: DbSession) -> RedirectRespo
 
 
 @router.post("/runs/{run_id}/technicals/refresh")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="refreshes persisted technical scores")
 def refresh_technicals_action(run_id: int, db: DbSession) -> RedirectResponse:
     _require_run(db, run_id)
     scores = score_run_technicals(db, run_id)
@@ -594,6 +600,7 @@ def refresh_technicals_action(run_id: int, db: DbSession) -> RedirectResponse:
 
 
 @router.post("/runs/{run_id}/pipeline")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="starts a local run pipeline")
 def run_full_pipeline_action(run_id: int, db: DbSession) -> RedirectResponse:
     settings = get_settings()
     if settings.use_durable_pipeline:
@@ -696,6 +703,7 @@ def run_pipeline_status(run_id: int, pipeline_id: int, db: DbSession) -> dict[st
 
 
 @router.post("/runs/{run_id}/pipeline/{pipeline_id}/cancel")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="requests cancellation of a local pipeline")
 def cancel_run_pipeline_action(
     run_id: int,
     pipeline_id: int,
@@ -718,6 +726,7 @@ def cancel_run_pipeline_action(
 
 
 @router.post("/runs/{run_id}/ib/test")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="tests local read-only IB Gateway connectivity")
 def test_run_ib_connection_action(run_id: int, db: DbSession) -> RedirectResponse:
     run_exists = db.scalar(select(UploadRun.id).where(UploadRun.id == run_id))
     if not run_exists:
@@ -796,6 +805,7 @@ def preview_run_ib_fetch_plan(
 
 
 @router.post("/runs/{run_id}/ib/fetch")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="queues read-only historical IB bar fetch")
 def fetch_run_ib_bars_action(
     run_id: int,
     db: DbSession,
@@ -926,6 +936,7 @@ def export_failed_fetch_items(run_id: int, fetch_run_id: int, db: DbSession) -> 
 
 
 @router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/cancel")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="requests cancellation of an IB fetch")
 def cancel_run_ib_fetch_action(
     run_id: int,
     fetch_run_id: int,
@@ -952,6 +963,7 @@ def cancel_run_ib_fetch_action(
 
 
 @router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/retry-failed")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="queues retry for failed IB fetch items")
 def retry_failed_run_ib_fetch_action(
     run_id: int,
     fetch_run_id: int,
@@ -961,6 +973,7 @@ def retry_failed_run_ib_fetch_action(
 
 
 @router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/resume")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="resumes a local IB fetch")
 def resume_run_ib_fetch_action(
     run_id: int,
     fetch_run_id: int,

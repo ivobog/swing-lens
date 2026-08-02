@@ -22,6 +22,12 @@ from app.models.ceri_tables import (
     CeriPurgeAudit,
 )
 from app.models.tables import BackgroundJob
+from app.security import (
+    ROUTE_CLASS_LOCAL_ADMIN,
+    local_admin_csrf_token,
+    require_local_admin,
+    unsafe_route,
+)
 from app.services.background_job_service import (
     TERMINAL_JOB_STATUSES,
     enqueue_job,
@@ -51,8 +57,6 @@ from app.templates import templates
 
 router = APIRouter(tags=["ceri"])
 DbSession = Annotated[Session, Depends(get_db)]
-LOCAL_ADMIN_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
-CERI_CSRF_TOKENS = {"ceri-local-admin", "local-admin"}
 
 
 @router.get("/ceri", response_class=HTMLResponse)
@@ -223,6 +227,7 @@ def ceri_changes_page(
             },
             "ui_error": changes_error or alerts_error,
             "admin_enabled": _admin_enabled(request),
+            "csrf_token": local_admin_csrf_token(request) if _admin_enabled(request) else "",
         },
     )
 
@@ -259,7 +264,7 @@ def ceri_operations_page(request: Request, db: DbSession) -> HTMLResponse:
             "conflicts": conflicts.get("items", []),
             "stale": stale.get("items", []),
             "admin_enabled": _admin_enabled(request),
-            "csrf_token": "ceri-local-admin",
+            "csrf_token": local_admin_csrf_token(request) if _admin_enabled(request) else "",
         },
     )
 
@@ -592,6 +597,12 @@ def export_ceri_json(
 
 
 @router.post("/api/ceri/ingestion-runs")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues licensed/provider CERI ingestion",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def create_ceri_ingestion_run(
     request: Request,
     db: DbSession,
@@ -614,6 +625,12 @@ def create_ceri_ingestion_run(
 
 
 @router.post("/api/ceri/recalculate")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues CERI recalculation or feature rebuild",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def recalculate_ceri(
     request: Request,
     db: DbSession,
@@ -628,6 +645,12 @@ def recalculate_ceri(
 
 
 @router.post("/api/ceri/events/{event_id}/review")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="persists manual CERI review state",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def review_ceri_event(
     event_id: int,
     request: Request,
@@ -676,6 +699,12 @@ def review_ceri_event(
 
 
 @router.post("/api/ceri/jobs/{job_id}/cancel")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="requests cancellation of a CERI background job",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def cancel_ceri_job(job_id: int, request: Request, db: DbSession) -> dict[str, Any]:
     _require_local_admin(request)
     try:
@@ -691,6 +720,12 @@ def cancel_ceri_job(job_id: int, request: Request, db: DbSession) -> dict[str, A
 
 
 @router.post("/api/ceri/backfills")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues CERI backfill",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def create_ceri_backfill(
     request: Request,
     db: DbSession,
@@ -718,6 +753,12 @@ def create_ceri_backfill(
 
 
 @router.post("/api/ceri/reprocess")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues CERI reprocessing",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def reprocess_ceri(
     request: Request,
     db: DbSession,
@@ -743,6 +784,12 @@ def reprocess_ceri(
 
 
 @router.post("/api/ceri/alerts/{alert_id}/acknowledge")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="mutates CERI alert acknowledgement state",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def acknowledge_ceri_alert(alert_id: int, request: Request, db: DbSession) -> dict[str, Any]:
     _require_local_admin(request)
     alert = db.get(CeriAlertEvent, alert_id)
@@ -756,6 +803,12 @@ def acknowledge_ceri_alert(alert_id: int, request: Request, db: DbSession) -> di
 
 
 @router.post("/api/ceri/alerts/{alert_id}/dismiss")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="mutates CERI alert dismissal state",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def dismiss_ceri_alert(alert_id: int, request: Request, db: DbSession) -> dict[str, Any]:
     _require_local_admin(request)
     alert = db.get(CeriAlertEvent, alert_id)
@@ -769,6 +822,12 @@ def dismiss_ceri_alert(alert_id: int, request: Request, db: DbSession) -> dict[s
 
 
 @router.post("/api/ceri/purge/preview")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues CERI licensed-data purge preview",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def preview_ceri_purge(
     request: Request,
     db: DbSession,
@@ -791,6 +850,12 @@ def preview_ceri_purge(
 
 
 @router.post("/api/ceri/purge/execute")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues CERI licensed-data purge execution",
+    csrf_required=True,
+    local_admin_required=True,
+)
 def execute_ceri_purge(
     request: Request,
     db: DbSession,
@@ -948,26 +1013,15 @@ def _admin_enabled(request: Request) -> bool:
 
 def _require_local_admin(request: Request) -> None:
     settings = getattr(request.app.state, "settings", None)
-    if settings is None or not settings.ceri_admin_enabled:
-        raise _structured_http_error(
-            "ADMIN_FORBIDDEN",
-            "CERI admin is disabled.",
-            status_code=404,
-        )
-    host = request.client.host if request.client is not None else None
-    if host not in LOCAL_ADMIN_HOSTS:
-        raise _structured_http_error(
-            "ADMIN_FORBIDDEN",
-            "CERI admin is local only.",
-            status_code=403,
-        )
-    token = request.headers.get("x-csrf-token") or request.query_params.get("csrf_token")
-    if token not in CERI_CSRF_TOKENS:
-        raise _structured_http_error(
-            "ADMIN_FORBIDDEN",
-            "CERI admin CSRF token is required.",
-            status_code=403,
-        )
+    require_local_admin(
+        request,
+        enabled=bool(settings and settings.ceri_admin_enabled),
+        disabled_message="CERI admin is disabled.",
+        local_only_message="CERI admin is local only.",
+        csrf_message="CERI admin CSRF token is required.",
+        structured_code="ADMIN_FORBIDDEN",
+        csrf_required=True,
+    )
 
 
 def _enqueue_job_once(

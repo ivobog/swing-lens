@@ -33,6 +33,31 @@ def test_calculate_beta_adjusted_rs_returns_empty_when_missing_data() -> None:
     assert result == {}
 
 
+def test_calculate_beta_adjusted_rs_returns_empty_for_non_overlapping_dates() -> None:
+    stock = _price_frame(multiplier=1.01, rows=150)
+    benchmark = _price_frame(multiplier=1.005, rows=150)
+    benchmark["date"] = benchmark["date"] + pd.Timedelta(days=365)
+
+    result = calculate_beta_adjusted_rs(stock, benchmark, {"beta_lookbacks": [63]})
+
+    assert result == {}
+
+
+def test_calculate_beta_adjusted_rs_normalizes_timezone_dates() -> None:
+    stock = _price_frame(multiplier=1.01, rows=150)
+    benchmark = _price_frame(multiplier=1.005, rows=150)
+    stock["date"] = stock["date"].dt.tz_localize("UTC")
+
+    result = calculate_beta_adjusted_rs(
+        stock,
+        benchmark,
+        {"beta_lookbacks": [63]},
+    )
+
+    assert result["rolling_beta_63"] is not None
+    assert result["residual_momentum_score"] is not None
+
+
 def test_rank_technical_universe_assigns_percentiles_and_tags() -> None:
     rows = [
         {
