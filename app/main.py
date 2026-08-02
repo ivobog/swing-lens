@@ -1,10 +1,12 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from copy import copy
 from threading import Event, Thread
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.routing import BaseRoute
 
 from app.routers import (
     ceri_provider_routes,
@@ -24,6 +26,32 @@ from app.settings import Settings, get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+class SwingLensFastAPI(FastAPI):
+    @property
+    def routes(self) -> list[BaseRoute]:
+        return _introspection_routes(self.router.routes)
+
+
+def _introspection_routes(routes: list[BaseRoute]) -> list[BaseRoute]:
+    flat_routes: list[BaseRoute] = []
+    for route in routes:
+        effective_contexts = getattr(route, "effective_route_contexts", None)
+        if not callable(effective_contexts):
+            flat_routes.append(route)
+            continue
+        for context in effective_contexts():
+            original_route = context.original_route
+            if context.starlette_route is not None:
+                flat_routes.append(context.starlette_route)
+            elif getattr(original_route, "path", None) == context.path:
+                flat_routes.append(original_route)
+            else:
+                route_copy = copy(original_route)
+                route_copy.path = context.path
+                flat_routes.append(route_copy)
+    return flat_routes
 
 
 @asynccontextmanager
@@ -64,7 +92,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(app_settings: Settings | None = None) -> FastAPI:
     app_settings = app_settings or settings
-    app = FastAPI(
+    app = SwingLensFastAPI(
         title=app_settings.app_name,
         debug=app_settings.debug,
         version="0.1.0",
