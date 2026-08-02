@@ -6,9 +6,11 @@ from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
+from app.services.redaction import redact_sensitive, redacted_token_metadata
 
 ERROR_MESSAGE_MAX_LENGTH = 500
 RETRY_DELAYS_SECONDS = (60, 180, 600)
@@ -31,6 +33,9 @@ class JobStatus:
     STALE = "STALE"
 
 
+ACTIVE_JOB_STATUSES = (JobStatus.QUEUED, JobStatus.RUNNING)
+
+
 def enqueue_job(
     db: Session,
     job_type: str,
@@ -39,19 +44,72 @@ def enqueue_job(
     priority: int = 100,
     max_retries: int = 3,
     run_after: datetime | None = None,
+    request_key: str | None = None,
+    coalesce: bool = True,
 ) -> BackgroundJob:
+    if request_key and coalesce:
+        existing = active_job_for_request_key(db, job_type, request_key)
+        if existing is not None:
+            existing._coalesced = True
+            return existing
+
     job = BackgroundJob(
         job_type=job_type,
         related_run_id=related_run_id,
+        request_key=request_key,
         status=JobStatus.QUEUED,
         priority=priority,
         payload_json=payload,
         max_retries=max_retries,
         run_after=run_after or _utcnow(),
     )
-    db.add(job)
-    db.flush()
+    try:
+        begin_nested = getattr(db, "begin_nested", None)
+        if request_key and coalesce and callable(begin_nested):
+            with begin_nested():
+                db.add(job)
+                db.flush()
+        else:
+            db.add(job)
+            db.flush()
+    except IntegrityError:
+        existing = active_job_for_request_key(db, job_type, request_key)
+        if existing is None:
+            raise
+        existing._coalesced = True
+        return existing
     return job
+
+
+def active_job_for_request_key(
+    db: Session,
+    job_type: str,
+    request_key: str | None,
+) -> BackgroundJob | None:
+    if not request_key:
+        return None
+
+    local_job = _active_job_from_local_store(db, job_type, request_key)
+    if local_job is not None:
+        return local_job
+
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return None
+
+    result = scalars(
+        select(BackgroundJob)
+        .where(BackgroundJob.job_type == job_type)
+        .where(BackgroundJob.request_key == request_key)
+        .where(BackgroundJob.status.in_(ACTIVE_JOB_STATUSES))
+        .order_by(BackgroundJob.created_at.asc(), BackgroundJob.id.asc())
+        .limit(1)
+    )
+    rows = result.all() if hasattr(result, "all") else list(result)
+    for row in rows:
+        if isinstance(row, BackgroundJob):
+            return row
+    return None
 
 
 def claim_next_job(
@@ -262,7 +320,7 @@ def _finish_job(
     expected_token = _expected_execution_token(job, execution_token)
     values = {
         "status": status,
-        "result_json": result,
+        "result_json": redact_sensitive(result),
         "error_message": None,
         "locked_at": None,
         "heartbeat_at": None,
@@ -337,6 +395,26 @@ def _record_local_lease_loss(job: BackgroundJob, execution_token: str | None) ->
     )
 
 
+def _active_job_from_local_store(
+    db: Session,
+    job_type: str,
+    request_key: str,
+) -> BackgroundJob | None:
+    for attr_name in ("background_jobs", "jobs", "stale_jobs"):
+        rows = getattr(db, attr_name, None)
+        if rows is None:
+            continue
+        candidates = rows.values() if isinstance(rows, dict) else rows
+        for row in candidates:
+            if not isinstance(row, BackgroundJob):
+                continue
+            if row.job_type != job_type or row.request_key != request_key:
+                continue
+            if row.status in ACTIVE_JOB_STATUSES:
+                return row
+    return None
+
+
 def _with_lease_event(
     metadata: dict[str, Any] | None,
     *,
@@ -352,7 +430,7 @@ def _with_lease_event(
             "event_type": event_type,
             "occurred_at": occurred_at.isoformat(),
             "worker_id": worker_id,
-            "execution_token": execution_token,
+            **redacted_token_metadata(execution_token),
         }
     )
     updated["lease_events"] = events[-LEASE_EVENT_MAX_COUNT:]
@@ -360,7 +438,7 @@ def _with_lease_event(
 
 
 def _safe_error(error: str | Exception) -> str:
-    return str(error).replace("\n", " ").strip()[:ERROR_MESSAGE_MAX_LENGTH]
+    return str(redact_sensitive(str(error))).replace("\n", " ").strip()[:ERROR_MESSAGE_MAX_LENGTH]
 
 
 def _utcnow() -> datetime:

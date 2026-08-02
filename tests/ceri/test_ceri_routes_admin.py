@@ -81,6 +81,32 @@ def test_backfill_route_enqueues_when_no_active_match() -> None:
     assert db.commits == 1
 
 
+def test_job_status_redacts_payload_result_and_error_surfaces() -> None:
+    job = BackgroundJob(
+        id=12,
+        job_type=CERI_PROVIDER_INGEST,
+        status="FAILED",
+        payload_json={
+            "ticker": "MSFT",
+            "confirmation_token": "confirm-secret",
+            "source_path": r"C:\Users\Ivica\Downloads\vendor.csv",
+        },
+        result_json={"authorization": "Bearer result-secret"},
+        error_message="SELECT * FROM ceri_source_records WHERE token = 'secret'",
+    )
+    db = FakeDb(jobs=[job])
+
+    payload = ceri_routes.ceri_job_status(job_id=12, db=db)  # type: ignore[arg-type]
+
+    assert payload["payload"]["ticker"] == "MSFT"
+    assert payload["payload"]["confirmation_token"] == "<restricted:confirmation_token>"
+    assert payload["payload"]["source_path"] == "<restricted:path>"
+    assert payload["result"]["authorization"] == "<restricted:authorization>"
+    assert payload["error_message"] == "<restricted:sql>"
+    assert "confirm-secret" not in str(payload)
+    assert "result-secret" not in str(payload)
+
+
 def test_alert_state_routes_do_not_mutate_change_events() -> None:
     alert = CeriAlertEvent(
         id=5,

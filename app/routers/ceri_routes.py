@@ -29,7 +29,6 @@ from app.security import (
     unsafe_route,
 )
 from app.services.background_job_service import (
-    TERMINAL_JOB_STATUSES,
     enqueue_job,
     request_job_cancel,
 )
@@ -53,6 +52,7 @@ from app.services.ceri.query_service import (
     CeriQueryFilters,
     CeriQueryService,
 )
+from app.services.redaction import redact_sensitive
 from app.templates import templates
 
 router = APIRouter(tags=["ceri"])
@@ -552,9 +552,9 @@ def ceri_job_status(job_id: int, db: DbSession) -> dict[str, Any]:
         "job_type": job.job_type,
         "status": job.status,
         "requested_cancel": bool(job.requested_cancel),
-        "payload": job.payload_json,
-        "result": job.result_json,
-        "error_message": job.error_message,
+        "payload": redact_sensitive(job.payload_json),
+        "result": redact_sensitive(job.result_json),
+        "error_message": redact_sensitive(job.error_message),
     }
 
 
@@ -1035,24 +1035,13 @@ def _enqueue_job_once(
         payload.get("request_key") or _stable_request_key({"job_type": job_type, **payload})
     )
     payload["request_key"] = request_key
-    existing = _existing_job_for_request(db, job_type, request_key)
-    if existing is not None:
-        existing._coalesced = True
-        return existing
-    return enqueue_job(db, job_type, payload, related_run_id=related_run_id)
-
-
-def _existing_job_for_request(
-    db: Session,
-    job_type: str,
-    request_key: str,
-) -> BackgroundJob | None:
-    for job in _load_jobs(db):
-        if job.job_type != job_type or job.status in TERMINAL_JOB_STATUSES:
-            continue
-        if (job.payload_json or {}).get("request_key") == request_key:
-            return job
-    return None
+    return enqueue_job(
+        db,
+        job_type,
+        payload,
+        related_run_id=related_run_id,
+        request_key=request_key,
+    )
 
 
 def _active_processing_run(db: Session, job_type: str, request_key: str) -> bool:
@@ -1069,14 +1058,6 @@ def _active_manual_review(db: Session, target_type: str, target_id: int) -> Ceri
         .where(CeriManualReview.target_id == target_id)
         .where(CeriManualReview.is_current.is_(True))
     )
-
-
-def _load_jobs(db: Session) -> list[BackgroundJob]:
-    scalars = getattr(db, "scalars", None)
-    if not callable(scalars):
-        return []
-    result = scalars(select(BackgroundJob))
-    return list(result.all() if hasattr(result, "all") else result)
 
 
 def _load_processing_runs(db: Session) -> list[CeriProcessingRun]:

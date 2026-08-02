@@ -1217,6 +1217,7 @@ class BackgroundJob(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     job_type: Mapped[str] = mapped_column(Text, nullable=False)
     related_run_id: Mapped[int | None] = mapped_column(BigInteger)
+    request_key: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[int] = mapped_column(
         Integer,
@@ -1287,6 +1288,16 @@ class BackgroundJob(Base):
         Index("idx_background_jobs_locked_at", "locked_at"),
         Index("idx_background_jobs_lease_expires_at", "lease_expires_at"),
         Index("idx_background_jobs_execution_token", "execution_token"),
+        Index("idx_background_jobs_request_key", "request_key"),
+        Index(
+            "uq_background_jobs_active_request_key",
+            "job_type",
+            "request_key",
+            unique=True,
+            postgresql_where=text(
+                "request_key IS NOT NULL AND status IN ('QUEUED', 'RUNNING')"
+            ),
+        ),
     )
 
 

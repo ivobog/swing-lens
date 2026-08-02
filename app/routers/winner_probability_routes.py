@@ -542,6 +542,7 @@ def queue_winner_prediction_capture(
             job_type=WINNER_PREDICTION_CAPTURE,
             payload={"run_id": run_id},
             related_run_id=run_id,
+            request_key=f"winner:prediction-capture:run:{run_id}",
         )
         db.commit()
     except Exception:
@@ -574,6 +575,7 @@ def queue_winner_outcome_maturation(
             db,
             job_type=WINNER_OUTCOME_MATURATION,
             payload={"limit": limit},
+            request_key=f"winner:outcome-maturation:limit:{limit}",
         )
         db.commit()
     except Exception:
@@ -609,6 +611,7 @@ def queue_winner_cohort_refresh(
             db,
             job_type=WINNER_COHORT_REFRESH,
             payload=payload,
+            request_key=f"winner:cohort-refresh:{outcome_definition_id or 'all'}",
         )
         db.commit()
     except Exception:

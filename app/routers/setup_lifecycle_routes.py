@@ -414,6 +414,7 @@ def evaluate_setup_lifecycle_run(
             SETUP_LIFECYCLE_EVALUATE_RUN,
             {"run_id": payload_run_id, "requester": "api"},
             related_run_id=payload_run_id,
+            request_key=f"setup-lifecycle:evaluate-run:{payload_run_id}",
         )
         db.commit()
         return JSONResponse(

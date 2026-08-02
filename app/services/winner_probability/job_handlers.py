@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.tables import BackgroundJob, WinnerPredictionSnapshot, WinnerProcessingRun
 from app.services.background_job_service import JobStatus, is_cancel_requested
 from app.services.background_worker import CancelRequested
+from app.services.redaction import redact_sensitive, redacted_token_metadata
 from app.services.winner_probability.backfill import (
     BackfillRequest,
     WinnerBackfillCancelled,
@@ -318,7 +319,7 @@ def _start_processing_run(
         checkpoint_json={},
         metadata_json={
             "background_job_type": job.job_type,
-            "execution_token": job.execution_token,
+            **redacted_token_metadata(job.execution_token),
             "lease_owner": job.lease_owner,
         },
     )
@@ -409,7 +410,7 @@ def _coerce_int(value: Any, key: str) -> int:
 def _safe_error(error: str | None) -> str | None:
     if error is None:
         return None
-    return error.replace("\n", " ").strip()[:500]
+    return str(redact_sensitive(error)).replace("\n", " ").strip()[:500]
 
 
 def _utcnow() -> datetime:

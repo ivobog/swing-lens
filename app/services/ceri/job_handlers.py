@@ -443,6 +443,7 @@ def _enqueue_normalize_job(
         related_run_id=source_job.related_run_id,
         priority=(source_job.priority or 100) + 10,
         max_retries=source_job.max_retries or 3,
+        request_key=request_key,
     )
     return job.id
 
