@@ -90,6 +90,11 @@ class UploadRun(Base):
         back_populates="run",
     )
 
+    __table_args__ = (
+        Index("idx_upload_runs_uploaded_at_desc", "uploaded_at"),
+        Index("idx_upload_runs_status", "status"),
+    )
+
 
 class RawCompanyRow(Base):
     __tablename__ = "raw_company_rows"
@@ -378,6 +383,11 @@ class CombinedResult(Base):
         Index("idx_combined_results_run_id", "run_id"),
         Index("idx_combined_results_run_rank", "run_id", "final_rank"),
         Index("idx_combined_results_earnings_risk", "earnings_risk_level"),
+        Index("idx_combined_results_ticker", "ticker"),
+        Index("idx_combined_results_decision", "combined_decision"),
+        Index("idx_combined_results_score", "final_score"),
+        Index("idx_combined_results_warning", "has_warning"),
+        Index("idx_combined_results_complete", "is_complete"),
     )
 
 

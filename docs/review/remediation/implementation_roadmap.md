@@ -144,6 +144,10 @@ Recommended decision rule:
 - If any external database must be upgraded in place, choose Strategy 2 and require an upgrade
   fixture before editing migrations.
 
+Selected decision: Strategy 1, clean/squashed pre-release migration baseline. The repository is
+treating the late CERI migrations as pre-release cleanup scope; clean installs and local recovery are
+the priority over preserving upgrades from externally deployed intermediate databases.
+
 ## Pull Request Roadmap
 
 ### Batch 1: Clean Migrations and Migration CI

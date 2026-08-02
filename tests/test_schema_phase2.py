@@ -4,6 +4,7 @@ from pathlib import Path
 
 from app.db import Base
 from app.models.tables import (
+    CombinedResult,
     FundamentalScore,
     IBFetchItem,
     IBFetchRun,
@@ -30,6 +31,23 @@ def test_combined_result_model_includes_warning_persistence_columns() -> None:
         "sort_bucket",
     ]:
         assert column_name in table.c
+
+
+def test_history_pagination_indexes_are_reflected_in_metadata() -> None:
+    upload_indexes = {index.name for index in UploadRun.__table__.indexes}
+    combined_indexes = {index.name for index in CombinedResult.__table__.indexes}
+
+    assert {
+        "idx_upload_runs_uploaded_at_desc",
+        "idx_upload_runs_status",
+    }.issubset(upload_indexes)
+    assert {
+        "idx_combined_results_ticker",
+        "idx_combined_results_decision",
+        "idx_combined_results_score",
+        "idx_combined_results_warning",
+        "idx_combined_results_complete",
+    }.issubset(combined_indexes)
 
 
 def test_earnings_risk_gate_model_includes_persistence_columns() -> None:
