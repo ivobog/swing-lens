@@ -312,7 +312,7 @@ def test_ceri_migration_follows_current_head_and_lists_tables() -> None:
 
     assert 'revision: str = "0018_add_ceri_tables"' in migration
     assert 'down_revision: str | None = "0017_create_setup_lifecycle_tables"' in migration
-    assert "CERI_TABLES" in migration
+    assert "CERI_TABLE_NAMES" in migration
 
 
 def test_ceri_ingestion_audit_migration_follows_ceri_schema_head() -> None:

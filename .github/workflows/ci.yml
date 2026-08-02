@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+
+jobs:
+  lint-test-migrations:
+    name: Lint, Test, and Migration Gates
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Lint
+        run: uv run ruff check app tests
+
+      - name: Alembic head graph
+        run: uv run alembic heads
+
+      - name: Upgrade CI database
+        run: uv run alembic upgrade head
+
+      - name: Verify current Alembic revision
+        run: uv run alembic current
+
+      - name: Check SQLAlchemy metadata drift
+        run: uv run alembic check
+
+      - name: Clean PostgreSQL migration harness
+        run: uv run pytest tests/test_migration_remediation.py -q
+
+      - name: Tests
+        run: uv run pytest -q
