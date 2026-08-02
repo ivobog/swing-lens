@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     debug: bool = True
+    allow_public_bind: bool = False
     use_durable_pipeline: bool = True
 
     database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
@@ -93,6 +94,15 @@ class Settings(BaseSettings):
     def ensure_local_dirs(self) -> None:
         for directory in (self.upload_dir, self.export_dir, self.cache_dir):
             directory.mkdir(parents=True, exist_ok=True)
+
+    @model_validator(mode="after")
+    def validate_local_runtime_boundary(self) -> "Settings":
+        public_bind_hosts = {"0.0.0.0", "::", ""}
+        if self.app_host in public_bind_hosts and self.debug:
+            raise ValueError("debug mode is not allowed on a public bind host")
+        if self.app_host in public_bind_hosts and not self.allow_public_bind:
+            raise ValueError("public bind requires ALLOW_PUBLIC_BIND=true")
+        return self
 
 
 @lru_cache

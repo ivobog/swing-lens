@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
 from app.models.tables import UploadRun
+from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.ohlcv_coverage_service import summarize_run_ohlcv_coverage
 from app.services.upload_service import UploadProcessingError, create_upload_run
 from app.settings import get_settings
@@ -50,6 +51,7 @@ def upload_page(request: Request, db: DbSession) -> HTMLResponse:
 
 
 @router.post("/uploads", response_class=HTMLResponse)
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="creates an upload run from a local CSV file")
 def upload_csv(
     request: Request,
     file: CsvUpload,

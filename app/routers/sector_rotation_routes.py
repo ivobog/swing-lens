@@ -16,6 +16,7 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.sector_rotation_export_service import (
     export_sector_rotation_csv,
@@ -108,6 +109,7 @@ def api_sector_rotation_snapshot(snapshot_id: int, db: DbSession) -> dict:
 
 
 @router.post("/api/runs/{run_id}/sector-rotation/recalculate")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="recalculates persisted sector rotation snapshot")
 def recalculate_run_sector_rotation_api(run_id: int, db: DbSession) -> dict:
     _require_run(db, run_id)
     try:

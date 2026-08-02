@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.tables import MarketRegimeSnapshot, UploadRun
+from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.market_regime_command_center import MarketRegimeCommandCenterService
 from app.services.market_regime_export_service import (
     export_snapshot_csv,
@@ -120,6 +121,7 @@ def run_market_regime_api(run_id: int, db: DbSession) -> dict:
 
 
 @router.post("/api/market-regime/run/{run_id}/recalculate")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="recalculates persisted market regime snapshot")
 def recalculate_run_market_regime_api(run_id: int, db: DbSession) -> dict:
     _require_run(db, run_id)
     try:

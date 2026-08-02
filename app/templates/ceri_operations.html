@@ -30,28 +30,25 @@
   <section class="panel section-gap">
     <div class="panel-header compact-header"><div><h2>Local Admin Controls</h2></div></div>
     <div class="admin-grid section-gap">
-      <form data-ceri-json-form method="post" action="/api/ceri/backfills">
+      <form data-ceri-json-form data-ceri-csrf-token="{{ csrf_token }}" method="post" action="/api/ceri/backfills">
         <h3>Backfill</h3>
         <label><span>Ticker</span><input name="ticker" placeholder="Optional"></label>
         <label><span>Dataset</span><input name="dataset" value="estimates"></label>
         <input type="hidden" name="provider" value="manual">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Queue backfill</button>
         <output data-ceri-form-output></output>
       </form>
-      <form data-ceri-json-form method="post" action="/api/ceri/reprocess">
+      <form data-ceri-json-form data-ceri-csrf-token="{{ csrf_token }}" method="post" action="/api/ceri/reprocess">
         <h3>Reprocess</h3>
         <label><span>Job type</span><input name="job_type" value="CERI_CHANGE_DETECTION"></label>
         <label><span>Run ID</span><input name="run_id" type="number" placeholder="Optional"></label>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Queue reprocess</button>
         <output data-ceri-form-output></output>
       </form>
-      <form data-ceri-json-form method="post" action="/api/ceri/purge/preview">
+      <form data-ceri-json-form data-ceri-csrf-token="{{ csrf_token }}" method="post" action="/api/ceri/purge/preview">
         <h3>Purge Preview</h3>
         <label><span>Provider</span><input name="provider" value="manual"></label>
         <label><span>License scope</span><input name="license_scope" value="estimates"></label>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Preview purge</button>
         <output data-ceri-form-output></output>
       </form>

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.tables import UploadRun
+from app.security import ROUTE_CLASS_LOCAL_ADMIN, ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.background_job_service import enqueue_job
 from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
@@ -37,6 +38,7 @@ from app.templates import templates
 
 router = APIRouter(tags=["setup-lifecycle"])
 DbSession = Annotated[Session, Depends(get_db)]
+REPLAY_CONFIRMATION_PHRASE = "PERSIST_SETUP_LIFECYCLE_REPLAY"
 
 
 @router.get("/setup-lifecycle", response_class=HTMLResponse)
@@ -355,6 +357,10 @@ def setup_lifecycle_alerts(
 
 
 @router.post("/api/setup-lifecycle/alerts/{alert_id}/acknowledge")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="mutates setup lifecycle alert acknowledgement state",
+)
 def acknowledge_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str, Any]:
     alert = SetupLifecycleAlertService().acknowledge_alert(db, alert_id)
     if alert is None:
@@ -367,6 +373,10 @@ def acknowledge_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str,
 
 
 @router.post("/api/setup-lifecycle/alerts/{alert_id}/dismiss")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="mutates setup lifecycle alert dismissal state",
+)
 def dismiss_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str, Any]:
     alert = SetupLifecycleAlertService().dismiss_alert(db, alert_id)
     if alert is None:
@@ -381,6 +391,10 @@ def dismiss_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str, Any
 @router.post("/api/setup-lifecycle/run/{run_id}/evaluate")
 @router.post("/api/setup-lifecycle/evaluate")
 @router.post("/api/setup-lifecycle/evaluate-run")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="queues or runs setup lifecycle evaluation",
+)
 def evaluate_setup_lifecycle_run(
     db: DbSession,
     request: Request,
@@ -417,13 +431,28 @@ def evaluate_setup_lifecycle_run(
 
 
 @router.post("/api/setup-lifecycle/replay")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="can persist setup lifecycle replay output",
+    local_admin_required=True,
+)
 def replay_setup_lifecycle(
+    request: Request,
     db: DbSession,
     ticker: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
     persist: bool = False,
+    confirmation: str | None = None,
+    reason: str | None = None,
+    requester: str | None = None,
 ) -> dict[str, Any]:
+    if persist:
+        _require_persisted_replay_confirmation(
+            confirmation=confirmation,
+            reason=reason,
+            requester=requester,
+        )
     result = SetupLifecycleReplayService().replay(
         db,
         SetupLifecycleReplayRequest(
@@ -431,12 +460,36 @@ def replay_setup_lifecycle(
             date_from=date_from,
             date_to=date_to,
             persist=persist,
-            requester="api",
+            requester=requester or (request.client.host if request.client else "api"),
         ),
     )
     if persist:
         db.commit()
     return result
+
+
+def _require_persisted_replay_confirmation(
+    *,
+    confirmation: str | None,
+    reason: str | None,
+    requester: str | None,
+) -> None:
+    if confirmation != REPLAY_CONFIRMATION_PHRASE:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_CONFIGURATION",
+                "message": f"Persisted replay requires confirmation={REPLAY_CONFIRMATION_PHRASE}.",
+            },
+        )
+    if not reason or not requester:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_CONFIGURATION",
+                "message": "Persisted replay requires reason and requester.",
+            },
+        )
 
 
 @router.get("/api/setup-lifecycle/evaluations/{evaluation_id}")

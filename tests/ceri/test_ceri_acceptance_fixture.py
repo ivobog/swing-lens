@@ -159,9 +159,11 @@ def _audit() -> CeriPurgeAudit:
 
 
 def _admin_request(*, csrf: bool):
+    csrf_token = "secure-test-token"
     return SimpleNamespace(
         app=SimpleNamespace(
             state=SimpleNamespace(
+                local_admin_csrf_token=csrf_token,
                 settings=Settings(
                     _env_file=None,
                     job_worker_enabled=False,
@@ -170,7 +172,7 @@ def _admin_request(*, csrf: bool):
             )
         ),
         client=SimpleNamespace(host="testclient"),
-        headers={"x-csrf-token": "ceri-local-admin"} if csrf else {},
+        headers={"x-csrf-token": csrf_token} if csrf else {},
         query_params={},
     )
 

@@ -178,12 +178,20 @@ class FakeScalarResult:
 
 
 def _admin_request(*, csrf: bool = True):
+    csrf_token = "secure-test-token"
     return SimpleNamespace(
         app=SimpleNamespace(
-            state=SimpleNamespace(Settings=Settings, ceri_admin_enabled=True),
+            state=SimpleNamespace(
+                local_admin_csrf_token=csrf_token,
+                settings=Settings(
+                    _env_file=None,
+                    job_worker_enabled=False,
+                    ceri_admin_enabled=True,
+                ),
+            ),
         ),
         client=SimpleNamespace(host="testclient"),
-        headers={"x-csrf-token": "ceri-local-admin"} if csrf else {},
+        headers={"x-csrf-token": csrf_token} if csrf else {},
         query_params={},
     )
 

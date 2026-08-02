@@ -287,6 +287,12 @@ Rollback concerns:
 
 - Guard rollout may block existing local workflows; use explicit exemptions with comments/tests.
 
+Implementation note: `app/security.py` now centralizes unsafe-route classification, local-admin
+host checks, generated header-only CSRF tokens, TrustedHost middleware setup, and public-bind/debug
+settings validation. All current state-changing routes are classified by the route inventory test.
+CERI admin routes reject static/query-string CSRF tokens and setup lifecycle persisted replay now
+requires confirmation, reason, and requester.
+
 #### PR 2.2 - No-Order Boundary Gate
 
 Source finding IDs: PH1-003, PH15-006.
@@ -312,6 +318,10 @@ Acceptance tests:
 Rollback concerns:
 
 - Static terms can be noisy; keep allowlist narrow and documented.
+
+Implementation note: `tests/test_no_order_boundary.py` now enforces a first-party app static scan
+for concrete broker-order APIs/classes and fake-IB runtime assertions that connection and fetch
+paths use `readonly=True` and do not invoke order-capable methods.
 
 ### Batch 3: Temporal Correctness and No-Look-Ahead
 
