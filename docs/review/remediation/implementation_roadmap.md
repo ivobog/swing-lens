@@ -144,6 +144,10 @@ Recommended decision rule:
 - If any external database must be upgraded in place, choose Strategy 2 and require an upgrade
   fixture before editing migrations.
 
+Selected decision: Strategy 1, clean/squashed pre-release migration baseline. The repository is
+treating the late CERI migrations as pre-release cleanup scope; clean installs and local recovery are
+the priority over preserving upgrades from externally deployed intermediate databases.
+
 ## Pull Request Roadmap
 
 ### Batch 1: Clean Migrations and Migration CI
@@ -179,6 +183,10 @@ Rollback concerns:
 
 - Test-only additions can be reverted safely; no schema change yet.
 
+Implementation note: `tests/test_migration_remediation.py` now contains the disposable PostgreSQL
+clean-upgrade harness and the static live-model import scanner. The clean migration harness passes
+after the CERI baseline repair.
+
 #### PR 1.2 - Repair Clean Migration Chain
 
 Source finding IDs: PH2-001, PH4-001, PH4-002, Phase21 clean migration.
@@ -212,6 +220,10 @@ Rollback concerns:
 - Migration-history edits are hard to roll back after external use. Require backup and explicit
   release note before merge.
 
+Implementation note: revisions `0016`, `0017`, and `0018` now use frozen table/index DDL instead of
+importing live ORM table objects. The static migration import scanner enforces zero `app.models`
+imports under `alembic/versions`.
+
 #### PR 1.3 - Metadata Alignment and Migration CI
 
 Source finding IDs: PH4-003, PH0-001, PH18, PH20-003.
@@ -239,6 +251,10 @@ Acceptance tests:
 Rollback concerns:
 
 - Index metadata additions are low risk but autogenerate behavior changes; inspect generated diffs.
+
+Implementation note: metadata/index drift is clean under `uv run alembic check`, and
+`.github/workflows/ci.yml` now enforces locked dependency sync, lint, Alembic head/current/check,
+the disposable clean PostgreSQL migration harness, and the full test suite against PostgreSQL.
 
 ### Batch 2: Centralized State-Changing Route Security
 

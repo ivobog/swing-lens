@@ -312,7 +312,7 @@ def test_ceri_migration_follows_current_head_and_lists_tables() -> None:
 
     assert 'revision: str = "0018_add_ceri_tables"' in migration
     assert 'down_revision: str | None = "0017_create_setup_lifecycle_tables"' in migration
-    assert "CERI_TABLES" in migration
+    assert "CERI_TABLE_NAMES" in migration
 
 
 def test_ceri_ingestion_audit_migration_follows_ceri_schema_head() -> None:
@@ -325,6 +325,7 @@ def test_ceri_ingestion_audit_migration_follows_ceri_schema_head() -> None:
     assert "retry_count" in migration
     assert "checkpoint_json" in migration
     assert "duration_ms" in migration
+    assert "_add_column_if_missing" in migration
 
 
 def test_ceri_revision_feature_lineage_migration_follows_ingestion_audit_head() -> None:
@@ -336,6 +337,7 @@ def test_ceri_revision_feature_lineage_migration_follows_ingestion_audit_head() 
     assert 'down_revision: str | None = "0019_add_ceri_ingestion_audit_fields"' in migration
     assert "source_observation_ids_json" in migration
     assert "evidence_hash" in migration
+    assert "_add_column_if_missing" in migration
 
 
 def test_ceri_earnings_consensus_reason_migration_follows_revision_feature_head() -> None:
@@ -346,3 +348,4 @@ def test_ceri_earnings_consensus_reason_migration_follows_revision_feature_head(
     assert 'revision: str = "0021_add_ceri_earnings_consensus_reason"' in migration
     assert 'down_revision: str | None = "0020_add_ceri_revision_feature_lineage"' in migration
     assert "consensus_selection_reason" in migration
+    assert "_add_column_if_missing" in migration

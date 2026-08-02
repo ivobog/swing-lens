@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.services.ceri.constants import (
     CERI_ADMIN_CSRF_REQUIRED,
     CERI_API_ERROR_CODES,
@@ -42,14 +44,14 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.job_worker_id == "local-worker-1"
     assert settings.winner_probability_enabled is False
     assert settings.winner_probability_capture_in_pipeline is False
-    assert str(settings.winner_probability_config_path) == "config\\winner_probability.yaml"
+    assert settings.winner_probability_config_path == Path("config/winner_probability.yaml")
     assert settings.winner_probability_admin_enabled is False
     assert settings.setup_lifecycle_enabled is False
     assert settings.setup_lifecycle_pipeline_step_enabled is False
     assert settings.setup_lifecycle_alerts_enabled is False
     assert settings.setup_lifecycle_replay_enabled is False
     assert settings.setup_lifecycle_reconstruction_enabled is False
-    assert str(settings.setup_lifecycle_config_path) == "config\\setup_lifecycle.yaml"
+    assert settings.setup_lifecycle_config_path == Path("config/setup_lifecycle.yaml")
     assert settings.setup_lifecycle_capture_evaluation_target_seconds == 60
     assert settings.setup_lifecycle_api_p95_target_ms == 500
     assert settings.setup_lifecycle_retain_indefinitely is True
@@ -63,8 +65,8 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.ceri_alerts_enabled is False
     assert settings.ceri_admin_enabled is False
     assert settings.ceri_backfill_enabled is False
-    assert str(settings.ceri_config_path) == "config\\ceri.yaml"
-    assert str(settings.ceri_taxonomy_path) == "config\\ceri_catalyst_taxonomy.yaml"
+    assert settings.ceri_config_path == Path("config/ceri.yaml")
+    assert settings.ceri_taxonomy_path == Path("config/ceri_catalyst_taxonomy.yaml")
     assert settings.runs_default_page_size == 25
     assert settings.history_default_page_size == 50
     assert settings.history_max_page_size == 200
@@ -114,14 +116,14 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     assert settings.job_worker_id == "test-worker"
     assert settings.winner_probability_enabled is True
     assert settings.winner_probability_capture_in_pipeline is True
-    assert str(settings.winner_probability_config_path) == "config\\test_winner.yaml"
+    assert settings.winner_probability_config_path == Path("config/test_winner.yaml")
     assert settings.winner_probability_admin_enabled is True
     assert settings.setup_lifecycle_enabled is True
     assert settings.setup_lifecycle_pipeline_step_enabled is True
     assert settings.setup_lifecycle_alerts_enabled is True
     assert settings.setup_lifecycle_replay_enabled is True
     assert settings.setup_lifecycle_reconstruction_enabled is True
-    assert str(settings.setup_lifecycle_config_path) == "config\\test_setup_lifecycle.yaml"
+    assert settings.setup_lifecycle_config_path == Path("config/test_setup_lifecycle.yaml")
     assert settings.setup_lifecycle_capture_evaluation_target_seconds == 45
     assert settings.setup_lifecycle_api_p95_target_ms == 350
     assert settings.setup_lifecycle_retain_indefinitely is False
@@ -135,8 +137,8 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     assert settings.ceri_alerts_enabled is True
     assert settings.ceri_admin_enabled is True
     assert settings.ceri_backfill_enabled is True
-    assert str(settings.ceri_config_path) == "config\\test_ceri.yaml"
-    assert str(settings.ceri_taxonomy_path) == "config\\test_ceri_taxonomy.yaml"
+    assert settings.ceri_config_path == Path("config/test_ceri.yaml")
+    assert settings.ceri_taxonomy_path == Path("config/test_ceri_taxonomy.yaml")
     assert settings.runs_default_page_size == 10
     assert settings.history_default_page_size == 20
     assert settings.history_max_page_size == 75
