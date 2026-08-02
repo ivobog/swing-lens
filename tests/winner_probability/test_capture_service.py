@@ -32,6 +32,11 @@ def test_completed_run_creates_snapshot_pending_outcomes_and_decision_estimate()
     assert prediction.ticker == "MSFT"
     assert prediction.feature_json["combined_score"] == "8.5"
     assert len(prediction.feature_vector_hash) == 64
+    assert prediction.lineage_json["feature_cutoff_audit_hash"]
+    assert prediction.lineage_json["feature_cutoff_audit"]["combined_score"] == {
+        "status": "available",
+        "source_available_at": "2026-07-31T15:00:00+00:00",
+    }
     assert repository.estimates[0].insufficient_reasons_json == ["no_eligible_cohort"]
 
 
@@ -104,9 +109,34 @@ def test_future_next_open_entry_is_not_a_capture_exclusion() -> None:
     assert prediction.exclusion_reason is None
 
 
-def test_future_dated_source_context_fails_without_snapshot() -> None:
+def test_future_dated_optional_context_is_nulled_and_warned_without_snapshot() -> None:
     config = load_winner_probability_config()
     repository = FakeWinnerRepository(build_run_context(as_of_date=datetime(2026, 8, 3).date()))
+    service = _capture_service(repository)
+
+    result = service.capture_run(
+        object(),
+        run_id=7,
+        config=config,
+        captured_at=datetime(2026, 7, 31, 21, 30, tzinfo=UTC),
+    )
+
+    assert result.inserted == 1
+    prediction = repository.predictions[0]
+    assert prediction.market_regime is None
+    assert prediction.sector_state is None
+    assert "future_market_regime_snapshot_omitted" in prediction.warning_flags_json
+    assert "future_sector_rotation_context_omitted" in prediction.warning_flags_json
+    assert prediction.lineage_json["feature_cutoff_audit"]["market_regime"][
+        "status"
+    ] == "missing"
+
+
+def test_future_dated_required_feature_source_fails_capture() -> None:
+    config = load_winner_probability_config()
+    context = build_run_context()
+    context.tickers[0].combined_result.created_at = datetime(2026, 8, 1, 0, 0, tzinfo=UTC)
+    repository = FakeWinnerRepository(context)
     service = _capture_service(repository)
 
     result = service.capture_run(

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import date
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -69,15 +70,6 @@ class SetupLifecycleSourceLoader:
             )
         )
         tickers = tuple(row.ticker.upper() for row in raw_rows if row.ticker)
-        market_snapshot = self._latest_market_snapshot(db, run_id)
-        sector_snapshot = self._latest_sector_snapshot(db, run_id)
-        sector_rows = tuple(
-            db.scalars(
-                select(SectorRotationRow).where(
-                    SectorRotationRow.snapshot_id == sector_snapshot.id
-                )
-            )
-        ) if sector_snapshot is not None else ()
         price_bars = tuple(
             db.scalars(
                 select(PriceBar)
@@ -87,6 +79,24 @@ class SetupLifecycleSourceLoader:
                 .order_by(PriceBar.ticker, PriceBar.bar_date)
             )
         ) if tickers else ()
+        technical_scores = tuple(
+            db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id))
+        )
+        context_cutoff = _run_context_cutoff_date(
+            upload_run=upload_run,
+            raw_rows=raw_rows,
+            technical_scores=technical_scores,
+            price_bars=price_bars,
+        )
+        market_snapshot = self._latest_market_snapshot(db, run_id, context_cutoff)
+        sector_snapshot = self._latest_sector_snapshot(db, run_id, context_cutoff)
+        sector_rows = tuple(
+            db.scalars(
+                select(SectorRotationRow).where(
+                    SectorRotationRow.snapshot_id == sector_snapshot.id
+                )
+            )
+        ) if sector_snapshot is not None else ()
 
         return build_run_source_context(
             upload_run=upload_run,
@@ -94,9 +104,7 @@ class SetupLifecycleSourceLoader:
             fundamental_scores=tuple(
                 db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id))
             ),
-            technical_scores=tuple(
-                db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id))
-            ),
+            technical_scores=technical_scores,
             combined_results=tuple(
                 db.scalars(select(CombinedResult).where(CombinedResult.run_id == run_id))
             ),
@@ -113,18 +121,26 @@ class SetupLifecycleSourceLoader:
         self,
         db: Session,
         run_id: int,
+        cutoff: date,
     ) -> MarketRegimeSnapshot | None:
-        return db.scalar(
-            select(MarketRegimeSnapshot)
-            .where(
-                or_(
-                    MarketRegimeSnapshot.run_id == run_id,
-                    MarketRegimeSnapshot.run_id.is_(None),
-                )
-            )
+        run_snapshot = db.scalar(
+            _latest_context_statement(MarketRegimeSnapshot, cutoff)
+            .where(MarketRegimeSnapshot.run_id == run_id)
             .order_by(
-                MarketRegimeSnapshot.run_id.desc().nullslast(),
                 MarketRegimeSnapshot.as_of_date.desc(),
+                MarketRegimeSnapshot.created_at.desc(),
+                MarketRegimeSnapshot.id.desc(),
+            )
+            .limit(1)
+        )
+        if run_snapshot is not None:
+            return run_snapshot
+        return db.scalar(
+            _latest_context_statement(MarketRegimeSnapshot, cutoff)
+            .where(MarketRegimeSnapshot.run_id.is_(None))
+            .order_by(
+                MarketRegimeSnapshot.as_of_date.desc(),
+                MarketRegimeSnapshot.created_at.desc(),
                 MarketRegimeSnapshot.id.desc(),
             )
             .limit(1)
@@ -134,18 +150,26 @@ class SetupLifecycleSourceLoader:
         self,
         db: Session,
         run_id: int,
+        cutoff: date,
     ) -> SectorRotationSnapshot | None:
-        return db.scalar(
-            select(SectorRotationSnapshot)
-            .where(
-                or_(
-                    SectorRotationSnapshot.run_id == run_id,
-                    SectorRotationSnapshot.run_id.is_(None),
-                )
-            )
+        run_snapshot = db.scalar(
+            _latest_context_statement(SectorRotationSnapshot, cutoff)
+            .where(SectorRotationSnapshot.run_id == run_id)
             .order_by(
-                SectorRotationSnapshot.run_id.desc().nullslast(),
                 SectorRotationSnapshot.as_of_date.desc(),
+                SectorRotationSnapshot.created_at.desc(),
+                SectorRotationSnapshot.id.desc(),
+            )
+            .limit(1)
+        )
+        if run_snapshot is not None:
+            return run_snapshot
+        return db.scalar(
+            _latest_context_statement(SectorRotationSnapshot, cutoff)
+            .where(SectorRotationSnapshot.run_id.is_(None))
+            .order_by(
+                SectorRotationSnapshot.as_of_date.desc(),
+                SectorRotationSnapshot.created_at.desc(),
                 SectorRotationSnapshot.id.desc(),
             )
             .limit(1)
@@ -218,6 +242,51 @@ def latest_completed_bar(price_bars: tuple[PriceBar, ...]) -> PriceBar | None:
             row.id or 0,
         ),
     )
+
+
+def _latest_context_statement(model, cutoff: date):
+    return select(model).where(model.as_of_date <= cutoff)
+
+
+def _run_context_cutoff_date(
+    *,
+    upload_run: UploadRun,
+    raw_rows: tuple[RawCompanyRow, ...],
+    technical_scores: tuple[TechnicalScore, ...],
+    price_bars: tuple[PriceBar, ...],
+) -> date:
+    ticker_cutoffs = [
+        cutoff
+        for row in raw_rows
+        if row.ticker and (cutoff := _ticker_context_cutoff_date(row, technical_scores, price_bars))
+        is not None
+    ]
+    if ticker_cutoffs:
+        return min(ticker_cutoffs)
+    timestamp = upload_run.processed_at or upload_run.uploaded_at
+    if timestamp is not None:
+        return timestamp.date()
+    return date.today()
+
+
+def _ticker_context_cutoff_date(
+    raw_row: RawCompanyRow,
+    technical_scores: tuple[TechnicalScore, ...],
+    price_bars: tuple[PriceBar, ...],
+) -> date | None:
+    ticker = normalize_ticker(raw_row.ticker)
+    latest_bar = latest_completed_bar(
+        tuple(row for row in price_bars if normalize_ticker(row.ticker) == ticker)
+    )
+    if latest_bar is not None:
+        return latest_bar.bar_date
+    technical = next(
+        (row for row in technical_scores if normalize_ticker(row.ticker) == ticker),
+        None,
+    )
+    if technical is not None and technical.created_at is not None:
+        return technical.created_at.date()
+    return None
 
 
 def normalize_ticker(ticker: str) -> str:

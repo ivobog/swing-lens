@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from lifecycle_helpers import snapshot
 
+from app.services.setup_lifecycle.config import load_setup_lifecycle_config
 from app.services.setup_lifecycle.enums import (
     Actionability,
     DataQualityLabel,
     LifecycleState,
+    SetupFamily,
 )
 from app.services.setup_lifecycle.lifecycle_engine import evaluate_lifecycle
 
@@ -151,3 +153,54 @@ def test_terminal_states_never_reopen() -> None:
 
     assert decision.proposed_state is LifecycleState.FAILED
     assert decision.reason_codes == ("TERMINAL_STATE_LOCKED",)
+
+
+def test_generated_transition_invariants_cover_terminal_and_state_age_boundaries() -> None:
+    bullish_snapshots = (
+        snapshot(
+            setup_score=9.0,
+            classification="Breakout Base",
+            distance_to_pivot_pct=0.5,
+            close_trigger_cross=True,
+        ),
+        snapshot(
+            setup_score=8.0,
+            classification="Pullback Uptrend",
+            support_distance_atr=0.8,
+            reversal_ready=True,
+        ),
+        snapshot(
+            setup_score=7.8,
+            classification="VCP",
+            contraction_count=2,
+            volume_percentile_252=30,
+        ),
+    )
+
+    for terminal_state in (LifecycleState.FAILED, LifecycleState.EXPIRED):
+        for candidate in bullish_snapshots:
+            decision = evaluate_lifecycle(
+                candidate,
+                previous_state=terminal_state,
+                previous_phase=terminal_state.value,
+            )
+            assert decision.proposed_state is terminal_state
+            assert decision.reason_codes == ("TERMINAL_STATE_LOCKED",)
+
+    max_age = load_setup_lifecycle_config().families.policies[
+        SetupFamily.BREAKOUT
+    ].max_age_sessions
+    for age in range(0, max_age):
+        decision = evaluate_lifecycle(
+            snapshot(setup_score=6.0, classification="Breakout Base"),
+            previous_state=LifecycleState.DEVELOPING,
+            state_age_sessions=age,
+        )
+        assert decision.proposed_state is LifecycleState.DEVELOPING
+
+    expired = evaluate_lifecycle(
+        snapshot(setup_score=6.0, classification="Breakout Base"),
+        previous_state=LifecycleState.DEVELOPING,
+        state_age_sessions=max_age,
+    )
+    assert expired.proposed_state is LifecycleState.EXPIRED

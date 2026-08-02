@@ -14,6 +14,10 @@ from app.models.tables import (
 )
 from app.services.us_market_calendar import next_us_trading_day
 from app.services.winner_probability.config import WinnerProbabilityConfig
+from app.services.winner_probability.feature_schema import (
+    FeatureSchemaError,
+    FeatureSchemaRegistry,
+)
 from app.services.winner_probability.repository import RunCaptureContext, TickerCaptureContext
 
 
@@ -57,6 +61,15 @@ class WinnerFeatureExtractor:
         market = run_context.market_regime_snapshot
         sector_row = ticker_context.sector_row
         sector_snapshot = run_context.sector_rotation_snapshot
+        warnings: list[str] = []
+
+        if _source_after_cutoff(market, captured_at):
+            warnings.append("future_market_regime_snapshot_omitted")
+            market = None
+        if _source_after_cutoff(sector_snapshot, captured_at):
+            warnings.append("future_sector_rotation_context_omitted")
+            sector_snapshot = None
+            sector_row = None
 
         prediction_as_of = _prediction_as_of_date(
             market_date=getattr(market, "as_of_date", None),
@@ -87,7 +100,6 @@ class WinnerFeatureExtractor:
             sector_snapshot,
         )
 
-        warnings: list[str] = []
         exclusion_reason = None
         eligibility = PredictionEligibility.ELIGIBLE
         if technical is None:
@@ -139,6 +151,19 @@ class WinnerFeatureExtractor:
             planned_entry=planned_entry,
             setup_lifecycle_features=getattr(ticker_context, "setup_lifecycle_features", None),
         )
+        feature_cutoff_audit = _feature_cutoff_audit(
+            config=config,
+            feature_json=feature_json,
+            prediction_cutoff_at=captured_at,
+            run_context=run_context,
+            raw_row=raw_row,
+            fundamental=fundamental,
+            technical=technical,
+            combined=combined,
+            ranking=ranking,
+            market=market,
+            sector_snapshot=sector_snapshot,
+        )
         feature_hash = _stable_hash(feature_json)
         return ExtractedPredictionFeatures(
             ticker=ticker,
@@ -166,6 +191,8 @@ class WinnerFeatureExtractor:
             lineage_json={
                 "capture_phase": "phase_3",
                 "point_in_time_validated": True,
+                "feature_cutoff_audit": feature_cutoff_audit,
+                "feature_cutoff_audit_hash": _stable_hash(feature_cutoff_audit),
                 "entry_horizon_convention": config.horizon.counting_convention,
             },
         )
@@ -274,6 +301,128 @@ def _source_cutoff_at(captured_at: datetime, *rows) -> datetime:
     return max(values) if values else captured_at
 
 
+def _feature_cutoff_audit(
+    *,
+    config: WinnerProbabilityConfig,
+    feature_json: dict[str, Any],
+    prediction_cutoff_at: datetime,
+    run_context: RunCaptureContext,
+    raw_row,
+    fundamental,
+    technical,
+    combined,
+    ranking,
+    market,
+    sector_snapshot,
+) -> dict[str, Any]:
+    registry = FeatureSchemaRegistry(config.feature_schema.version)
+    audit: dict[str, Any] = {}
+    for feature_name in config.feature_schema.core_features:
+        available_at = _feature_source_available_at(
+            feature_name,
+            prediction_cutoff_at,
+            run_context=run_context,
+            raw_row=raw_row,
+            fundamental=fundamental,
+            technical=technical,
+            combined=combined,
+            ranking=ranking,
+            market=market,
+            sector_snapshot=sector_snapshot,
+        )
+        value = feature_json.get(feature_name)
+        if value is None:
+            audit[feature_name] = {
+                "status": "missing",
+                "source_available_at": _normalize(available_at),
+            }
+            continue
+        if available_at is None:
+            raise WinnerFeatureExtractionError(
+                f"{feature_name} source availability is unavailable"
+            )
+        try:
+            registry.validate_source_available_at(
+                feature_name,
+                source_available_at=available_at,
+                prediction_cutoff_at=prediction_cutoff_at,
+            )
+        except FeatureSchemaError as exc:
+            raise WinnerFeatureExtractionError(str(exc)) from exc
+        audit[feature_name] = {
+            "status": "available",
+            "source_available_at": _normalize(available_at),
+        }
+    return audit
+
+
+def _feature_source_available_at(
+    feature_name: str,
+    fallback: datetime,
+    *,
+    run_context: RunCaptureContext,
+    raw_row,
+    fundamental,
+    technical,
+    combined,
+    ranking,
+    market,
+    sector_snapshot,
+) -> datetime | date | None:
+    if feature_name in {"universe_provenance", "screener_provenance"}:
+        return _row_available_at(run_context.upload_run) or fallback
+    if feature_name == "ticker":
+        return _row_available_at(raw_row) or _row_available_at(run_context.upload_run)
+    if feature_name in {"setup_family", "combined_score", "reward_risk", "earnings_risk"}:
+        return _row_available_at(combined)
+    if feature_name == "ranking_profile":
+        return _row_available_at(ranking)
+    if feature_name in {"fundamental_score", "fundamental_coverage"}:
+        return _row_available_at(fundamental)
+    if feature_name in {"technical_score", "trigger_state", "technical_data_quality"}:
+        return _row_available_at(technical)
+    if feature_name in {"market_regime", "market_regime_family", "market_risk_state"}:
+        return _row_available_at(market)
+    if feature_name in {"sector_state", "sector_rank", "sector_leadership_bucket"}:
+        return _row_available_at(sector_snapshot)
+    if feature_name in {"dual_score_band", "score_band"}:
+        return _latest_available_at(
+            _row_available_at(fundamental),
+            _row_available_at(technical),
+            _row_available_at(combined),
+        )
+    return fallback
+
+
+def _row_available_at(row) -> datetime | date | None:
+    if row is None:
+        return None
+    datetimes = [
+        value
+        for value in (
+            getattr(row, "created_at", None),
+            getattr(row, "updated_at", None),
+            getattr(row, "uploaded_at", None),
+            getattr(row, "processed_at", None),
+        )
+        if isinstance(value, datetime)
+    ]
+    if datetimes:
+        return max(datetimes)
+    as_of = getattr(row, "as_of_date", None)
+    if isinstance(as_of, date):
+        return as_of
+    return None
+
+
+def _latest_available_at(*values: datetime | date | None) -> datetime | date | None:
+    comparable = [value for value in values if value is not None]
+    if not comparable:
+        return None
+    datetimes = [value for value in comparable if isinstance(value, datetime)]
+    return max(datetimes) if datetimes else max(comparable)
+
+
 def _validate_point_in_time_sources(captured_at: datetime, *rows) -> None:
     capture_day = captured_at.date()
     for row in rows:
@@ -287,6 +436,19 @@ def _validate_point_in_time_sources(captured_at: datetime, *rows) -> None:
             value = getattr(row, field_name, None)
             if isinstance(value, datetime) and _datetime_after(value, captured_at):
                 raise WinnerFeatureExtractionError(f"{row_name}.{field_name} is after capture time")
+
+
+def _source_after_cutoff(row, cutoff: datetime) -> bool:
+    if row is None:
+        return False
+    as_of = getattr(row, "as_of_date", None)
+    if isinstance(as_of, date) and as_of > cutoff.date():
+        return True
+    for field_name in ("created_at", "updated_at", "uploaded_at", "processed_at"):
+        value = getattr(row, field_name, None)
+        if isinstance(value, datetime) and _datetime_after(value, cutoff):
+            return True
+    return False
 
 
 def _datetime_after(value: datetime, cutoff: datetime) -> bool:

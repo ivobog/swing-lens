@@ -34,6 +34,10 @@ class TechnicalDataReadiness:
             "missing_price_data": not self.has_price_data,
             "missing_volume_data": "missing_volume_data" in self.missing_reasons,
             "missing_benchmark_data": "missing_benchmark_data" in self.missing_reasons,
+            "missing_benchmark_overlap": "missing_benchmark_overlap"
+            in self.missing_reasons,
+            "insufficient_rs_history": "insufficient_rs_history"
+            in self.missing_reasons,
             "missing_market_data": "missing_market_data" in self.missing_reasons,
             "missing_htf_data": "missing_htf_data" in self.missing_reasons,
         }
@@ -68,6 +72,9 @@ def build_data_readiness(
         missing_reasons.append("insufficient_history")
     if _requires_benchmark(params) and not has_benchmark_data:
         missing_reasons.append("missing_benchmark_data")
+        missing_reasons.extend(
+            _relative_strength_missing_reasons(relative_strength_features)
+        )
     if _requires_market(params) and not has_market_data:
         missing_reasons.append("missing_market_data")
     if _requires_htf(params) and not has_htf_data:
@@ -124,7 +131,24 @@ def _requires_htf(params: dict[str, Any]) -> bool:
 def _has_benchmark_features(features: dict[str, Any] | None) -> bool:
     if not features:
         return False
+    if bool(features.get("missing_benchmark_overlap")):
+        return False
+    if bool(features.get("insufficient_rs_history")):
+        return False
     return features.get("benchmark_rs_line") is not None
+
+
+def _relative_strength_missing_reasons(
+    features: dict[str, Any] | None,
+) -> list[str]:
+    if not features:
+        return []
+    reasons = []
+    if bool(features.get("missing_benchmark_overlap")):
+        reasons.append("missing_benchmark_overlap")
+    if bool(features.get("insufficient_rs_history")):
+        reasons.append("insufficient_rs_history")
+    return reasons
 
 
 def _has_htf_features(features: dict[str, Any] | None) -> bool:

@@ -8,11 +8,13 @@ from app.models.tables import PriceBar
 from app.services import price_bar_repository
 from app.services.price_bar_repository import load_price_bars_frame
 from app.services.technical_indicators import (
+    _calculate_feature_frame,
     _higher_last_pivot,
     calculate_htf_trend_features,
     calculate_relative_strength_features,
     calculate_technical_features,
     ema,
+    load_pine_defaults,
     prepare_ohlcv_frame,
     resample_weekly_ohlcv,
     roc_pct,
@@ -149,6 +151,35 @@ def test_higher_last_pivot_tracks_previous_confirmed_pivot() -> None:
     assert higher.tolist() == [False, False, False, False, True, True, True]
 
 
+def test_score_pivot_features_are_shifted_to_confirmation_bar() -> None:
+    params = load_pine_defaults()
+    params["trend"] = {
+        **params["trend"],
+        "pivotLeftBars": 2,
+        "pivotRightBars": 2,
+    }
+    frame = pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=10),
+            "open": [1.0, 2.0, 4.0, 2.0, 1.0, 3.0, 6.0, 4.0, 2.0, 1.0],
+            "high": [1.5, 2.5, 5.0, 2.5, 1.5, 3.5, 7.0, 4.5, 2.5, 1.5],
+            "low": [0.5, 1.5, 3.5, 1.5, 0.5, 2.5, 5.5, 3.5, 1.5, 0.5],
+            "close": [1.2, 2.2, 4.5, 2.2, 1.2, 3.2, 6.5, 4.2, 2.2, 1.2],
+            "volume": [1000] * 10,
+        }
+    )
+
+    features = _calculate_feature_frame(prepare_ohlcv_frame(frame), params)
+
+    assert features["pivot_high_at_pivot_bar"].iloc[2] == 5.0
+    assert pd.isna(features["pivot_high"].iloc[2])
+    assert features["pivot_high"].iloc[4] == 5.0
+    assert pd.isna(features["pivot_high"].iloc[6])
+    assert features["pivot_high"].iloc[8] == 7.0
+    assert bool(features["higher_high"].iloc[6]) is False
+    assert bool(features["higher_high"].iloc[8]) is True
+
+
 def test_calculate_technical_features_marks_insufficient_history() -> None:
     result = calculate_technical_features(_synthetic_ohlcv(rows=40), ticker="SHORT")
 
@@ -171,6 +202,39 @@ def test_relative_strength_features_compare_stock_to_benchmark() -> None:
     assert features["benchmark_rs_line"] is not None
     assert features["benchmark_rs_sma"] is not None
     assert "benchmark_rs_new_high" in features
+    assert features["missing_benchmark_overlap"] is False
+    assert features["insufficient_rs_history"] is False
+
+
+def test_relative_strength_features_mark_empty_benchmark_overlap_missing() -> None:
+    stock = _synthetic_ohlcv(rows=180)
+    benchmark = _synthetic_ohlcv(rows=180)
+    benchmark["date"] = benchmark["date"] + pd.Timedelta(days=365)
+
+    features = calculate_relative_strength_features(stock, benchmark)
+
+    assert features["benchmark_rs_line"] is None
+    assert features["benchmark_rs_sma"] is None
+    assert features["benchmark_rs_new_high"] is None
+    assert features["missing_benchmark_overlap"] is True
+    assert features["insufficient_rs_history"] is True
+
+
+def test_relative_strength_features_normalize_timezone_dates() -> None:
+    stock = _synthetic_ohlcv(rows=180)
+    benchmark = _synthetic_ohlcv(rows=180).assign(
+        close=lambda frame: frame["close"] * 0.9,
+        high=lambda frame: frame["high"] * 0.9,
+        low=lambda frame: frame["low"] * 0.9,
+        open=lambda frame: frame["open"] * 0.9,
+    )
+    stock["date"] = pd.to_datetime(stock["date"]).dt.tz_localize("UTC")
+
+    features = calculate_relative_strength_features(stock, benchmark)
+
+    assert features["benchmark_rs_line"] is not None
+    assert features["timezone_mismatch"] is True
+    assert features["missing_benchmark_overlap"] is False
 
 
 def test_relative_strength_features_compare_stock_to_sector() -> None:

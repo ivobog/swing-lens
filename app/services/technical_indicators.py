@@ -99,12 +99,74 @@ def calculate_relative_strength_features(
     market_rs = params["market_rs"]
     stock = prepare_ohlcv_frame(stock_df)
     benchmark = prepare_ohlcv_frame(benchmark_df)
-    aligned = stock[["date", "close"]].merge(
-        benchmark[["date", "close"]],
-        on="date",
-        suffixes=("_stock", "_benchmark"),
+    benchmark_timezone_mismatch = _timezone_mismatch(stock["date"], benchmark["date"])
+    aligned = _aligned_close_by_session_date(
+        stock,
+        benchmark,
+        peer_label="benchmark",
     )
-    aligned["rs_line"] = aligned["close_stock"] / aligned["close_benchmark"]
+    if aligned.empty:
+        latest = _missing_relative_strength_features(
+            prefix="benchmark",
+            missing_overlap_key="missing_benchmark_overlap",
+            insufficient_history_key="insufficient_rs_history",
+            timezone_mismatch=benchmark_timezone_mismatch,
+        )
+    else:
+        latest = _relative_strength_features_for_aligned(
+            aligned,
+            market_rs,
+            prefix="benchmark",
+            peer_close_column="close_benchmark",
+            missing_overlap_key="missing_benchmark_overlap",
+            insufficient_history_key="insufficient_rs_history",
+            timezone_mismatch=benchmark_timezone_mismatch,
+        )
+
+    if sector_df is not None and not sector_df.empty:
+        sector = prepare_ohlcv_frame(sector_df)
+        sector_timezone_mismatch = _timezone_mismatch(stock["date"], sector["date"])
+        sector_aligned = _aligned_close_by_session_date(
+            stock,
+            sector,
+            peer_label="sector",
+        )
+        if sector_aligned.empty:
+            latest.update(
+                _missing_relative_strength_features(
+                    prefix="sector",
+                    missing_overlap_key="missing_sector_overlap",
+                    insufficient_history_key="insufficient_sector_rs_history",
+                    timezone_mismatch=sector_timezone_mismatch,
+                )
+            )
+        else:
+            latest.update(
+                _relative_strength_features_for_aligned(
+                    sector_aligned,
+                    market_rs,
+                    prefix="sector",
+                    peer_close_column="close_sector",
+                    missing_overlap_key="missing_sector_overlap",
+                    insufficient_history_key="insufficient_sector_rs_history",
+                    timezone_mismatch=sector_timezone_mismatch,
+                )
+            )
+
+    return latest
+
+
+def _relative_strength_features_for_aligned(
+    aligned: pd.DataFrame,
+    market_rs: dict[str, Any],
+    prefix: str,
+    peer_close_column: str,
+    missing_overlap_key: str,
+    insufficient_history_key: str,
+    timezone_mismatch: bool,
+) -> dict[str, Any]:
+    aligned = aligned.copy()
+    aligned["rs_line"] = aligned["close_stock"] / aligned[peer_close_column]
     aligned["rs_sma"] = sma(aligned["rs_line"], market_rs["rsSmaLen"])
     aligned["rs_roc21"] = roc_pct(aligned["rs_line"], market_rs["rocShortLen"])
     aligned["rs_roc63"] = roc_pct(aligned["rs_line"], market_rs["rocMediumLen"])
@@ -113,48 +175,89 @@ def calculate_relative_strength_features(
         market_rs["rsNewHighLookback"],
         min_periods=market_rs["rsNewHighLookback"],
     ).max()
-
     latest = {
-        f"benchmark_{key}": value
+        f"{prefix}_{key}": value
         for key, value in _latest_features(aligned).items()
-        if key not in {"close_stock", "close_benchmark"}
+        if key not in {"close_stock", peer_close_column}
     }
-
-    if sector_df is not None and not sector_df.empty:
-        sector = prepare_ohlcv_frame(sector_df)
-        sector_aligned = stock[["date", "close"]].merge(
-            sector[["date", "close"]],
-            on="date",
-            suffixes=("_stock", "_sector"),
-        )
-        sector_aligned["rs_line"] = sector_aligned["close_stock"] / sector_aligned[
-            "close_sector"
-        ]
-        sector_aligned["rs_sma"] = sma(sector_aligned["rs_line"], market_rs["rsSmaLen"])
-        sector_aligned["rs_roc21"] = roc_pct(sector_aligned["rs_line"], market_rs["rocShortLen"])
-        sector_aligned["rs_roc63"] = roc_pct(
-            sector_aligned["rs_line"],
-            market_rs["rocMediumLen"],
-        )
-        sector_aligned["rs_roc126"] = roc_pct(
-            sector_aligned["rs_line"],
-            market_rs["rocLongLen"],
-        )
-        sector_aligned["rs_new_high"] = sector_aligned["rs_line"] >= sector_aligned[
-            "rs_line"
-        ].rolling(
-            market_rs["rsNewHighLookback"],
-            min_periods=market_rs["rsNewHighLookback"],
-        ).max()
-        latest.update(
-            {
-                f"sector_{key}": value
-                for key, value in _latest_features(sector_aligned).items()
-                if key not in {"close_stock", "close_sector"}
-            }
-        )
-
+    latest[missing_overlap_key] = False
+    latest[insufficient_history_key] = _insufficient_relative_strength_history(
+        aligned,
+        market_rs,
+    )
+    if timezone_mismatch:
+        latest["timezone_mismatch"] = True
     return latest
+
+
+def _missing_relative_strength_features(
+    prefix: str,
+    missing_overlap_key: str,
+    insufficient_history_key: str,
+    timezone_mismatch: bool,
+) -> dict[str, Any]:
+    features: dict[str, Any] = {
+        f"{prefix}_{key}": None
+        for key in (
+            "rs_line",
+            "rs_sma",
+            "rs_roc21",
+            "rs_roc63",
+            "rs_roc126",
+            "rs_new_high",
+        )
+    }
+    features[missing_overlap_key] = True
+    features[insufficient_history_key] = True
+    if timezone_mismatch:
+        features["timezone_mismatch"] = True
+    return features
+
+
+def _aligned_close_by_session_date(
+    stock: pd.DataFrame,
+    peer: pd.DataFrame,
+    peer_label: str,
+) -> pd.DataFrame:
+    stock_close = stock.loc[:, ["date", "close"]].copy()
+    peer_close = peer.loc[:, ["date", "close"]].copy()
+    stock_close["date"] = _market_session_dates(stock_close["date"])
+    peer_close["date"] = _market_session_dates(peer_close["date"])
+    stock_close = stock_close.dropna(subset=["date", "close"])
+    peer_close = peer_close.dropna(subset=["date", "close"])
+    return stock_close.merge(
+        peer_close,
+        on="date",
+        suffixes=("_stock", f"_{peer_label}"),
+    ).sort_values("date")
+
+
+def _market_session_dates(values: pd.Series) -> pd.Series:
+    return pd.to_datetime(values, errors="coerce", utc=True).dt.tz_convert(None).dt.normalize()
+
+
+def _timezone_mismatch(left: pd.Series, right: pd.Series) -> bool:
+    return _contains_timezone(left) != _contains_timezone(right)
+
+
+def _contains_timezone(values: pd.Series) -> bool:
+    for value in values.dropna():
+        timestamp = pd.Timestamp(value)
+        if timestamp.tzinfo is not None:
+            return True
+    return False
+
+
+def _insufficient_relative_strength_history(
+    aligned: pd.DataFrame,
+    market_rs: dict[str, Any],
+) -> bool:
+    required = max(
+        int(market_rs["rsSmaLen"]),
+        int(market_rs["rocLongLen"]) + 1,
+        int(market_rs["rsNewHighLookback"]),
+    )
+    return len(aligned) < required
 
 
 def calculate_htf_trend_features(
@@ -380,8 +483,19 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     features["above_close_10_high"] = close > features["close_10_high"]
     features["above_close_20_high"] = close > features["close_20_high"]
 
-    features["pivot_high"] = pivot_high(high, trend["pivotLeftBars"], trend["pivotRightBars"])
-    features["pivot_low"] = pivot_low(low, trend["pivotLeftBars"], trend["pivotRightBars"])
+    pivot_right = trend["pivotRightBars"]
+    features["pivot_high_at_pivot_bar"] = pivot_high(
+        high,
+        trend["pivotLeftBars"],
+        pivot_right,
+    )
+    features["pivot_low_at_pivot_bar"] = pivot_low(
+        low,
+        trend["pivotLeftBars"],
+        pivot_right,
+    )
+    features["pivot_high"] = features["pivot_high_at_pivot_bar"].shift(pivot_right)
+    features["pivot_low"] = features["pivot_low_at_pivot_bar"].shift(pivot_right)
     features["higher_high"] = _higher_last_pivot(features["pivot_high"])
     features["higher_low"] = _higher_last_pivot(features["pivot_low"])
 

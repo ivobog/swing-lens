@@ -50,6 +50,31 @@ def test_data_readiness_is_high_when_required_context_is_present() -> None:
     assert readiness.missing_reasons == []
 
 
+def test_data_readiness_marks_missing_relative_strength_overlap_low_confidence() -> None:
+    features = calculate_technical_features(_synthetic_ohlcv(), ticker="TEST")
+
+    readiness = build_data_readiness(
+        feature_result=features,
+        htf_features={"htf_sma_slow": 90.0},
+        relative_strength_features={
+            "benchmark_rs_line": None,
+            "missing_benchmark_overlap": True,
+            "insufficient_rs_history": True,
+        },
+        market_features={"close": 100.0},
+        params=load_pine_defaults(),
+    )
+
+    assert readiness.confidence == "low"
+    assert readiness.missing_reasons == [
+        "missing_benchmark_data",
+        "missing_benchmark_overlap",
+        "insufficient_rs_history",
+    ]
+    assert readiness.missing_flags()["missing_benchmark_overlap"] is True
+    assert readiness.missing_flags()["insufficient_rs_history"] is True
+
+
 def test_score_result_carries_missing_context_without_failing_base_score() -> None:
     features = calculate_technical_features(_synthetic_ohlcv(), ticker="TEST")
 

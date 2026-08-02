@@ -130,6 +130,41 @@ class SectorRotationRepository:
             .limit(1)
         )
 
+    def latest_for_run_as_of_or_before(
+        self,
+        db: Session,
+        run_id: int,
+        as_of_date: date,
+    ) -> SectorRotationSnapshot | None:
+        return db.scalar(
+            select(SectorRotationSnapshot)
+            .where(SectorRotationSnapshot.run_id == run_id)
+            .where(SectorRotationSnapshot.as_of_date <= as_of_date)
+            .order_by(
+                SectorRotationSnapshot.as_of_date.desc(),
+                SectorRotationSnapshot.created_at.desc(),
+                SectorRotationSnapshot.id.desc(),
+            )
+            .limit(1)
+        )
+
+    def latest_global_as_of_or_before(
+        self,
+        db: Session,
+        as_of_date: date,
+    ) -> SectorRotationSnapshot | None:
+        return db.scalar(
+            select(SectorRotationSnapshot)
+            .where(SectorRotationSnapshot.run_id.is_(None))
+            .where(SectorRotationSnapshot.as_of_date <= as_of_date)
+            .order_by(
+                SectorRotationSnapshot.as_of_date.desc(),
+                SectorRotationSnapshot.created_at.desc(),
+                SectorRotationSnapshot.id.desc(),
+            )
+            .limit(1)
+        )
+
     def get_previous_snapshot(
         self,
         db: Session,

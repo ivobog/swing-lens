@@ -82,6 +82,41 @@ class MarketRegimeRepository:
             .limit(1)
         )
 
+    def latest_for_run_as_of_or_before(
+        self,
+        db: Session,
+        run_id: int,
+        as_of_date: date,
+    ) -> MarketRegimeSnapshot | None:
+        return db.scalar(
+            select(MarketRegimeSnapshot)
+            .where(MarketRegimeSnapshot.run_id == run_id)
+            .where(MarketRegimeSnapshot.as_of_date <= as_of_date)
+            .order_by(
+                MarketRegimeSnapshot.as_of_date.desc(),
+                MarketRegimeSnapshot.created_at.desc(),
+                MarketRegimeSnapshot.id.desc(),
+            )
+            .limit(1)
+        )
+
+    def latest_global_as_of_or_before(
+        self,
+        db: Session,
+        as_of_date: date,
+    ) -> MarketRegimeSnapshot | None:
+        return db.scalar(
+            select(MarketRegimeSnapshot)
+            .where(MarketRegimeSnapshot.run_id.is_(None))
+            .where(MarketRegimeSnapshot.as_of_date <= as_of_date)
+            .order_by(
+                MarketRegimeSnapshot.as_of_date.desc(),
+                MarketRegimeSnapshot.created_at.desc(),
+                MarketRegimeSnapshot.id.desc(),
+            )
+            .limit(1)
+        )
+
     def history(self, db: Session, limit: int = 30) -> list[MarketRegimeSnapshot]:
         safe_limit = max(1, min(int(limit), 500))
         return list(

@@ -102,7 +102,12 @@ def build_sector_rotation_snapshot(
     repository = repository or SectorRotationRepository()
     market_repository = market_repository or MarketRegimeRepository()
 
-    market_snapshot = _latest_market_snapshot(market_repository, db, run_id)
+    market_snapshot = _latest_market_snapshot(
+        market_repository,
+        db,
+        run_id,
+        as_of_date,
+    )
     universe_rows = (
         universe_service.build(
             db=db,
@@ -137,6 +142,8 @@ def build_sector_rotation_snapshot(
     decisions = _rank_decisions(decisions)
     summary = _summary(decisions, universe_rows)
     warnings = _snapshot_warnings(universe_rows, decisions)
+    if market_snapshot is None:
+        warnings = _append_unique(warnings, "missing_asof_market_regime_context")
     if not universe_rows:
         warnings = _append_unique(warnings, "empty_sector_rotation_universe")
 
@@ -373,12 +380,17 @@ def _latest_market_snapshot(
     market_repository: MarketRegimeRepository,
     db: Session,
     run_id: int | None,
+    as_of_date: date,
 ) -> MarketRegimeSnapshot | None:
     if run_id is not None:
-        snapshot = market_repository.latest_for_run(db, run_id)
+        snapshot = market_repository.latest_for_run_as_of_or_before(
+            db,
+            run_id,
+            as_of_date,
+        )
         if snapshot is not None:
             return snapshot
-    return market_repository.latest(db)
+    return market_repository.latest_global_as_of_or_before(db, as_of_date)
 
 
 def _resolve_as_of_date(db: Session, run_id: int | None) -> date:
@@ -403,10 +415,11 @@ def _resolve_as_of_date(db: Session, run_id: int | None) -> date:
 
 def _market_debug(snapshot: MarketRegimeSnapshot | None) -> dict[str, Any]:
     if snapshot is None:
-        return {"available": False}
+        return {"available": False, "missing_reason": "missing_asof_market_regime_context"}
     return {
         "available": True,
         "id": snapshot.id,
+        "as_of_date": snapshot.as_of_date.isoformat(),
         "regime": snapshot.regime,
         "risk_state": snapshot.risk_state,
         "risk_off": snapshot.risk_off,

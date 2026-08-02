@@ -352,6 +352,13 @@ Rollback concerns:
 
 - Scoring movement is likely; gate behind explicit model/version decision.
 
+Implementation note: scoring-facing `pivot_high`/`pivot_low` now expose only values shifted to the
+right-bar confirmation date, while `pivot_high_at_pivot_bar` and `pivot_low_at_pivot_bar` preserve
+chart annotation context. Relative-strength joins normalize stock, benchmark, and sector dates to
+session dates, return explicit missing-overlap and insufficient-history flags instead of crashing or
+calling empty alignments sufficient, and readiness propagates those flags as low confidence. Golden
+fixtures were not updated.
+
 #### PR 3.2 - As-Of Market/Sector Context Selection
 
 Source finding IDs: PH10-001, PH11-002, PH11-005.
@@ -380,6 +387,14 @@ Rollback concerns:
 
 - Historical recalculations may become lower confidence; document expected output changes.
 
+Implementation note: sector rotation now selects a run-specific market snapshot or global market
+snapshot only when `market.as_of_date <= sector.as_of_date`; otherwise it omits the market context
+and records `missing_asof_market_regime_context`. Setup lifecycle source loading now computes a
+conservative run context cutoff from ticker source dates and bounds shared market/sector context to
+`as_of_date <= cutoff`, leaving missing context explicit instead of attaching future snapshots.
+Generated lifecycle invariant coverage was added for terminal-state locks and state-age expiry
+boundaries; replay determinism remains covered.
+
 #### PR 3.3 - Winner and CERI Cutoff Audit Integration
 
 Source finding IDs: PH12-004, PH13-002.
@@ -406,6 +421,14 @@ Acceptance tests:
 Rollback concerns:
 
 - Public API semantics may change; version response metadata.
+
+Implementation note: winner prediction capture now invokes the feature-schema availability validator
+for every configured core feature and persists per-feature cutoff audit metadata plus a stable audit
+hash in prediction lineage. Required future-dated sources still fail capture, while future optional
+market/sector context is omitted, warned, and captured as missing. Public CERI ticker score history
+now uses the honest `STORED_SNAPSHOT` mode with mode/cutoff/correction-policy/evidence-hash
+metadata; `AS_KNOWN` and `LATEST_CORRECTED` remain low-level estimate PIT modes and are rejected by
+the stored score-history endpoint until score reconstruction is implemented.
 
 ### Batch 4: Immutable Evidence and Correction Lineage
 
