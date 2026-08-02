@@ -1,0 +1,129 @@
+version: 2026-07-31
+categories:
+  - id: EARNINGS
+    label: Earnings
+    examples:
+      - report_date
+      - preliminary_results
+      - restatement
+      - earnings_call
+    binary_risk: true
+  - id: GUIDANCE
+    label: Guidance
+    examples:
+      - raised
+      - lowered
+      - initiated
+      - maintained
+      - narrowed
+      - widened
+      - withdrawn
+    binary_risk: false
+  - id: PRODUCT
+    label: Product
+    examples:
+      - launch
+      - approval
+      - recall
+      - milestone
+      - discontinuation
+    binary_risk: false
+  - id: CONTRACT
+    label: Contract
+    examples:
+      - award
+      - renewal
+      - expansion
+      - loss
+      - cancellation
+    binary_risk: false
+  - id: REGULATORY
+    label: Regulatory
+    examples:
+      - submission
+      - approval
+      - rejection
+      - review_date
+      - investigation
+    binary_risk: true
+  - id: LEGAL
+    label: Legal
+    examples:
+      - ruling
+      - settlement
+      - lawsuit
+      - injunction
+      - appeal
+    binary_risk: true
+  - id: CAPITAL_ALLOCATION
+    label: Capital allocation
+    examples:
+      - buyback
+      - dividend_change
+      - special_dividend
+      - capex_program
+    binary_risk: false
+  - id: FINANCING
+    label: Financing
+    examples:
+      - debt_issue
+      - refinance
+      - equity_offering
+      - covenant_event
+      - credit_action
+    binary_risk: true
+  - id: INSIDER
+    label: Insider
+    examples:
+      - open_market_purchase
+      - open_market_sale
+      - ownership_change
+      - 10b5_1_disclosure
+    binary_risk: false
+  - id: INDEX
+    label: Index
+    examples:
+      - addition
+      - deletion
+      - rebalance
+      - eligibility_change
+    binary_risk: false
+  - id: ANALYST_ACTION
+    label: Analyst action
+    examples:
+      - upgrade
+      - downgrade
+      - initiation
+      - target_revision
+      - estimate_revision_cluster
+    binary_risk: false
+  - id: CORPORATE_ACTION
+    label: Corporate action
+    examples:
+      - merger
+      - acquisition
+      - spin_off
+      - restructuring
+      - bankruptcy
+      - strategic_review
+    binary_risk: true
+
+status_transitions:
+  SCHEDULED:
+    - ANNOUNCED
+    - DELAYED
+    - CANCELLED
+    - OUTCOME_KNOWN
+  ANNOUNCED:
+    - COMPLETED
+    - DELAYED
+    - CANCELLED
+    - OUTCOME_KNOWN
+  COMPLETED:
+    - OUTCOME_KNOWN
+  DELAYED:
+    - SCHEDULED
+    - ANNOUNCED
+    - CANCELLED
+  CANCELLED: []
+  OUTCOME_KNOWN: []

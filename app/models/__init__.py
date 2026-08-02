@@ -1,5 +1,25 @@
 """Database models and schema DTOs."""
 
+from app.models.ceri_tables import (
+    CeriAlertEvent,
+    CeriAlertRule,
+    CeriCatalystEvent,
+    CeriCatalystEventRevision,
+    CeriCatalystSource,
+    CeriChangeEvent,
+    CeriCompany,
+    CeriCompanyAlias,
+    CeriEarningsActual,
+    CeriEstimateSnapshot,
+    CeriGuidanceEvent,
+    CeriIngestionRun,
+    CeriManualReview,
+    CeriProcessingRun,
+    CeriPurgeAudit,
+    CeriRevisionFeature,
+    CeriScoreSnapshot,
+    CeriSourceRecord,
+)
 from app.models.tables import (
     CombinedResult,
     EngineParameters,
@@ -23,6 +43,24 @@ from app.models.tables import (
 )
 
 __all__ = [
+    "CeriAlertEvent",
+    "CeriAlertRule",
+    "CeriCatalystEvent",
+    "CeriCatalystEventRevision",
+    "CeriCatalystSource",
+    "CeriChangeEvent",
+    "CeriCompany",
+    "CeriCompanyAlias",
+    "CeriEarningsActual",
+    "CeriEstimateSnapshot",
+    "CeriGuidanceEvent",
+    "CeriIngestionRun",
+    "CeriManualReview",
+    "CeriProcessingRun",
+    "CeriPurgeAudit",
+    "CeriRevisionFeature",
+    "CeriScoreSnapshot",
+    "CeriSourceRecord",
     "CombinedResult",
     "EngineParameters",
     "FundamentalScore",

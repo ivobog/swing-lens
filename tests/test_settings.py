@@ -1,3 +1,20 @@
+from app.services.ceri.constants import (
+    CERI_ADMIN_CSRF_REQUIRED,
+    CERI_API_ERROR_CODES,
+    CERI_DAILY_CUTOFF_TIMEZONE,
+    CERI_EFFECTIVE_SESSION_POLICY,
+    CERI_JOB_CHECKPOINTS_REQUIRED,
+    CERI_JOB_EXECUTION_FENCING_REQUIRED,
+    CERI_JOB_HEARTBEATS_REQUIRED,
+    CERI_JOB_REQUEST_KEYS_REQUIRED,
+    CERI_LICENSED_PURGE_REQUIRES_AUDIT,
+    CERI_LICENSED_PURGE_REQUIRES_CONFIRMATION,
+    CERI_LICENSED_PURGE_REQUIRES_PREVIEW,
+    CERI_LOCAL_ADMIN_REQUIRED,
+    CERI_ORDER_PLACEMENT_ALLOWED,
+    CERI_RUN_DELETION_POLICY,
+    CERI_SOURCE_CONFLICT_POLICY,
+)
 from app.services.setup_lifecycle.constants import (
     SLSE_ADMIN_EVALUATION_MODES,
     SLSE_ADMIN_EVALUATION_SCOPES,
@@ -17,6 +34,7 @@ from app.settings import Settings
 def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     settings = Settings(_env_file=None)
 
+    assert settings.app_host == "127.0.0.1"
     assert settings.use_durable_pipeline is True
     assert settings.job_worker_enabled is True
     assert settings.job_poll_interval_seconds == 2.0
@@ -38,6 +56,15 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.setup_lifecycle_purge_enabled is False
     assert settings.setup_lifecycle_purge_requires_preview is True
     assert settings.setup_lifecycle_replay_promotion_requires_confirmation is True
+    assert settings.ceri_enabled is False
+    assert settings.ceri_provider_ingest_enabled is False
+    assert settings.ceri_run_capture_enabled is False
+    assert settings.ceri_ui_enabled is False
+    assert settings.ceri_alerts_enabled is False
+    assert settings.ceri_admin_enabled is False
+    assert settings.ceri_backfill_enabled is False
+    assert str(settings.ceri_config_path) == "config\\ceri.yaml"
+    assert str(settings.ceri_taxonomy_path) == "config\\ceri_catalyst_taxonomy.yaml"
     assert settings.runs_default_page_size == 25
     assert settings.history_default_page_size == 50
     assert settings.history_max_page_size == 200
@@ -65,6 +92,15 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     monkeypatch.setenv("SETUP_LIFECYCLE_PURGE_ENABLED", "true")
     monkeypatch.setenv("SETUP_LIFECYCLE_PURGE_REQUIRES_PREVIEW", "false")
     monkeypatch.setenv("SETUP_LIFECYCLE_REPLAY_PROMOTION_REQUIRES_CONFIRMATION", "false")
+    monkeypatch.setenv("CERI_ENABLED", "true")
+    monkeypatch.setenv("CERI_PROVIDER_INGEST_ENABLED", "true")
+    monkeypatch.setenv("CERI_RUN_CAPTURE_ENABLED", "true")
+    monkeypatch.setenv("CERI_UI_ENABLED", "true")
+    monkeypatch.setenv("CERI_ALERTS_ENABLED", "true")
+    monkeypatch.setenv("CERI_ADMIN_ENABLED", "true")
+    monkeypatch.setenv("CERI_BACKFILL_ENABLED", "true")
+    monkeypatch.setenv("CERI_CONFIG_PATH", "config/test_ceri.yaml")
+    monkeypatch.setenv("CERI_TAXONOMY_PATH", "config/test_ceri_taxonomy.yaml")
     monkeypatch.setenv("RUNS_DEFAULT_PAGE_SIZE", "10")
     monkeypatch.setenv("HISTORY_DEFAULT_PAGE_SIZE", "20")
     monkeypatch.setenv("HISTORY_MAX_PAGE_SIZE", "75")
@@ -92,6 +128,15 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     assert settings.setup_lifecycle_purge_enabled is True
     assert settings.setup_lifecycle_purge_requires_preview is False
     assert settings.setup_lifecycle_replay_promotion_requires_confirmation is False
+    assert settings.ceri_enabled is True
+    assert settings.ceri_provider_ingest_enabled is True
+    assert settings.ceri_run_capture_enabled is True
+    assert settings.ceri_ui_enabled is True
+    assert settings.ceri_alerts_enabled is True
+    assert settings.ceri_admin_enabled is True
+    assert settings.ceri_backfill_enabled is True
+    assert str(settings.ceri_config_path) == "config\\test_ceri.yaml"
+    assert str(settings.ceri_taxonomy_path) == "config\\test_ceri_taxonomy.yaml"
     assert settings.runs_default_page_size == 10
     assert settings.history_default_page_size == 20
     assert settings.history_max_page_size == 75
@@ -132,3 +177,38 @@ def test_setup_lifecycle_phase_0_guard_rails_are_stable_constants() -> None:
         "replay",
         "repair",
     )
+
+
+def test_ceri_phase_0_guard_rails_are_stable_constants() -> None:
+    assert CERI_DAILY_CUTOFF_TIMEZONE == "America/New_York"
+    assert CERI_EFFECTIVE_SESSION_POLICY == "AFTER_HOURS_NEXT_COMPLETED_US_SESSION"
+    assert CERI_SOURCE_CONFLICT_POLICY == "PROVIDER_PRIORITY_PRESERVE_ALL_OBSERVATIONS"
+    assert CERI_RUN_DELETION_POLICY == "SET_NULL_RETAIN_IMMUTABLE_EVIDENCE"
+    assert CERI_LOCAL_ADMIN_REQUIRED is True
+    assert CERI_ADMIN_CSRF_REQUIRED is True
+    assert CERI_ORDER_PLACEMENT_ALLOWED is False
+    assert CERI_JOB_REQUEST_KEYS_REQUIRED is True
+    assert CERI_JOB_EXECUTION_FENCING_REQUIRED is True
+    assert CERI_JOB_HEARTBEATS_REQUIRED is True
+    assert CERI_JOB_CHECKPOINTS_REQUIRED is True
+    assert CERI_LICENSED_PURGE_REQUIRES_PREVIEW is True
+    assert CERI_LICENSED_PURGE_REQUIRES_CONFIRMATION is True
+    assert CERI_LICENSED_PURGE_REQUIRES_AUDIT is True
+    assert {
+        "INVALID_FILTER",
+        "INVALID_DATE_RANGE",
+        "INVALID_CONFIGURATION",
+        "TICKER_NOT_FOUND",
+        "RUN_NOT_FOUND",
+        "PROVIDER_CAPABILITY_UNAVAILABLE",
+        "CONFIG_VERSION_NOT_FOUND",
+        "REVIEW_CONFLICT",
+        "BACKFILL_ALREADY_ACTIVE",
+        "LICENSE_RESTRICTED",
+        "PURGE_CONFIRMATION_REQUIRED",
+        "ADMIN_FORBIDDEN",
+        "DUPLICATE_ACTIVE_BACKFILL",
+        "LICENSE_RESTRICTED_FIELD",
+        "PURGE_CONFLICT",
+        "UNAUTHORIZED_LOCAL_ADMIN",
+    } <= CERI_API_ERROR_CODES

@@ -1,0 +1,127 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from app.models.ceri_tables import (
+    CeriCatalystEvent,
+    CeriCatalystSource,
+    CeriCompany,
+    CeriEstimateSnapshot,
+    CeriProcessingRun,
+    CeriSourceRecord,
+)
+from app.services.ceri.identity_resolver import CeriIdentityResolver
+from app.services.ceri.normalization_service import CeriNormalizationService
+
+
+def test_normalization_service_persists_estimate_and_processing_lineage() -> None:
+    db = FakeDb()
+    processing_run = CeriProcessingRun(
+        id=5,
+        job_type="CERI_NORMALIZE",
+        status="RUNNING",
+        deterministic_request_key="normalize-1",
+        started_at=datetime(2026, 8, 1),
+    )
+    source = CeriSourceRecord(
+        id=7,
+        provider="manual",
+        dataset="estimates",
+        provider_record_id="est-1",
+        company_hint_json={"ticker": "MSFT", "exchange": "NASDAQ"},
+        raw_json={
+            "ticker": "MSFT",
+            "exchange": "NASDAQ",
+            "metric": "EPS_DILUTED",
+            "period_type": "ANNUAL",
+            "fiscal_year": 2026,
+            "consensus": "14.25",
+            "currency": "USD",
+            "published_at": "2026-08-03T12:00:00-04:00",
+        },
+        published_at=datetime.fromisoformat("2026-08-03T12:00:00-04:00"),
+        content_hash="hash",
+        idempotency_key="key",
+    )
+    service = CeriNormalizationService(
+        identity_resolver=CeriIdentityResolver(
+            companies=[CeriCompany(id=42, ticker="MSFT", exchange="NASDAQ")]
+        )
+    )
+
+    result = service.normalize(db, processing_run=processing_run, source_records=[source])
+
+    estimates = [row for row in db.added if isinstance(row, CeriEstimateSnapshot)]
+    assert result.status == "COMPLETED"
+    assert result.read == 1
+    assert result.normalized == 1
+    assert estimates[0].company_id == 42
+    assert estimates[0].consensus is not None
+    assert processing_run.checkpoint_json["last_source_record_id"] == 7
+
+
+def test_normalization_service_reuses_existing_catalyst_event_for_duplicate_source() -> None:
+    existing = CeriCatalystEvent(
+        id=99,
+        company_id=42,
+        category="CONTRACT",
+        subtype="award",
+        subject_key="mega-contract",
+    )
+    db = FakeDb(scalar_queue=[existing])
+    processing_run = CeriProcessingRun(
+        id=6,
+        job_type="CERI_NORMALIZE",
+        status="RUNNING",
+        deterministic_request_key="normalize-2",
+    )
+    source = CeriSourceRecord(
+        id=8,
+        provider="manual",
+        dataset="catalysts",
+        provider_record_id="cat-1",
+        company_hint_json={"ticker": "MSFT"},
+        raw_json={
+            "ticker": "MSFT",
+            "category": "CONTRACT",
+            "subtype": "award",
+            "subject": "Mega contract",
+            "source_date": "2026-08-03",
+        },
+        content_hash="hash",
+        idempotency_key="key-2",
+    )
+    service = CeriNormalizationService(
+        identity_resolver=CeriIdentityResolver(companies=[CeriCompany(id=42, ticker="MSFT")])
+    )
+
+    result = service.normalize(db, processing_run=processing_run, source_records=[source])
+
+    assert result.normalized == 1
+    assert not any(isinstance(row, CeriCatalystEvent) for row in db.added)
+    sources = [row for row in db.added if isinstance(row, CeriCatalystSource)]
+    assert len(sources) == 1
+    assert sources[0].catalyst_event_id == 99
+
+
+class FakeDb:
+    def __init__(self, scalar_queue=None) -> None:
+        self.scalar_queue = list(scalar_queue or [])
+        self.added = []
+        self.flushes = 0
+        self.next_id = 1
+
+    def scalar(self, _statement):
+        if self.scalar_queue:
+            return self.scalar_queue.pop(0)
+        return None
+
+    def add(self, row) -> None:
+        self.added.append(row)
+
+    def flush(self) -> None:
+        self.flushes += 1
+        for row in self.added:
+            if getattr(row, "id", None) is None:
+                row.id = self.next_id
+                self.next_id += 1

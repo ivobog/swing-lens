@@ -1,0 +1,201 @@
+engine:
+  enabled: false
+  calculation_version: ceri-1.0.0
+  config_version: 2026-07-31
+  timezone: America/New_York
+  daily_cutoff_time: "16:15"
+  effective_session_policy: AFTER_HOURS_NEXT_COMPLETED_US_SESSION
+
+providers:
+  priority:
+    - manual
+    - primary
+  default_source_policy: provider_priority
+  conflict_resolution: preserve_all_observations
+  terms_version_required: true
+  retention_metadata_required: true
+  capabilities:
+    manual:
+      - health
+      - identity
+      - estimates
+      - earnings
+      - guidance
+      - catalysts
+    primary:
+      - health
+      - identity
+      - estimates
+      - earnings
+      - guidance
+      - catalysts
+
+datasets:
+  estimates:
+    enabled: true
+    max_stale_days: 7
+    export_policy: exportable
+  catalysts:
+    enabled: true
+    max_stale_days: 2
+    export_policy: exportable
+  earnings:
+    enabled: true
+    max_stale_days: 30
+    export_policy: exportable
+  guidance:
+    enabled: true
+    max_stale_days: 14
+    export_policy: exportable
+
+metrics:
+  required:
+    - EPS_DILUTED
+    - REVENUE
+  optional:
+    - EBITDA
+    - MARGIN
+    - FCF
+  period_types:
+    - CURRENT_QUARTER
+    - NEXT_QUARTER
+    - CURRENT_FISCAL_YEAR
+    - NEXT_FISCAL_YEAR
+
+revision:
+  windows_days:
+    - 7
+    - 30
+    - 90
+  near_zero_threshold: 0.01
+  minimum_analyst_count: 3
+  minimum_component_coverage_pct: 60
+  baseline_tolerance_days: 3
+
+missing_values:
+  preserve_nulls: true
+  provider_zero_distinct_from_missing: true
+  forbid_zero_fill_defaults: true
+
+currency_conversion:
+  enabled: true
+  require_verified_basis: true
+  allowed_sources:
+    - provider_reported
+    - ecb_reference
+    - manual_verified
+
+opportunity_weights:
+  revision_magnitude: 0.25
+  revision_breadth: 0.15
+  revision_acceleration: 0.10
+  surprise_trend: 0.15
+  guidance: 0.15
+  catalysts: 0.15
+  price_response: 0.05
+
+event_risk:
+  earnings_block_trading_days: 2
+  earnings_high_risk_trading_days: 5
+  unknown_date_penalty: 1.0
+  regulatory_binary_base: 4.0
+  legal_binary_base: 3.0
+  financing_gap_base: 2.5
+  corporate_action_base: 3.0
+
+confidence:
+  high_min: 8.0
+  normal_min: 6.0
+  low_min: 3.5
+  weights:
+    source_quality: 0.25
+    freshness: 0.20
+    estimate_coverage: 0.20
+    analyst_sample: 0.15
+    timestamp_quality: 0.10
+    conflict_free_score: 0.10
+
+change_thresholds:
+  score_delta: 1.0
+  revision_pct_points: 2.0
+  risk_escalation_delta: 2.0
+
+taxonomy:
+  enabled_categories:
+    - EARNINGS
+    - GUIDANCE
+    - PRODUCT
+    - CONTRACT
+    - REGULATORY
+    - LEGAL
+    - CAPITAL_ALLOCATION
+    - FINANCING
+    - INSIDER
+    - INDEX
+    - ANALYST_ACTION
+    - CORPORATE_ACTION
+
+backfill:
+  company_batch_size: 100
+  session_batch_size: 30
+  max_concurrent_jobs: 1
+  checkpoint_policy: provider_page_and_company_session_range
+
+alerts:
+  enabled: false
+  default_cooldown_sessions: 5
+  acknowledgement_required: false
+  dedup_scope: event_revision
+  rules:
+    OPPORTUNITY_UPGRADED:
+      enabled: true
+      severity: NOTABLE
+      source_change_type: OPPORTUNITY_UPGRADED
+      cooldown_sessions: 5
+    NEW_BINARY_EVENT:
+      enabled: true
+      severity: RISK
+      source_change_type: NEW_BINARY_EVENT
+      cooldown_sessions: 1
+    DATA_STALE:
+      enabled: true
+      severity: RISK
+      source_change_type: DATA_STALE
+      cooldown_sessions: 5
+
+posture:
+  labels:
+    - Positive
+    - Improving
+    - Mixed
+    - Deteriorating
+    - Binary Risk
+    - Unrated
+  alignment_flags:
+    - fundamentals
+    - technicals
+    - sector
+    - regime
+    - lifecycle
+    - earnings_clearance
+
+exports:
+  default_view_fields:
+    ticker: exportable
+    opportunity_score: exportable
+    event_risk_score: exportable
+    data_confidence: exportable
+    warnings: exportable
+    evidence_hash: exportable
+    source_url: restricted
+    raw_payload: restricted
+  purge_policy:
+    licensed_data_requires_preview: true
+    confirmation_required: true
+    audit_required: true
+
+retention:
+  run_deletion_policy: SET_NULL_RETAIN_IMMUTABLE_EVIDENCE
+  retain_source_evidence_indefinitely: true
+  provider_license_purge_enabled: false
+  provider_terms_version: manual-fixture-1.0

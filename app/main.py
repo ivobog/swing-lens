@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.routers import (
+    ceri_provider_routes,
+    ceri_routes,
     gui_routes,
     health_routes,
     ib_routes,
@@ -79,6 +81,8 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     app.include_router(ib_routes.router)
     app.include_router(winner_probability_routes.router)
     app.include_router(setup_lifecycle_routes.router)
+    app.include_router(ceri_routes.router)
+    app.include_router(ceri_provider_routes.router)
     return app
 
 

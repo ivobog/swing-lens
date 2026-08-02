@@ -1,0 +1,156 @@
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.ceri_tables import CeriAlertEvent, CeriAlertRule, CeriChangeEvent
+from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.enums import CeriChangeType
+
+
+@dataclass(frozen=True)
+class AlertRebuildResult:
+    alerts: int
+    duplicates: int
+    skipped: int
+
+    def as_dict(self) -> dict[str, int]:
+        return {"alerts": self.alerts, "duplicates": self.duplicates, "skipped": self.skipped}
+
+
+class CeriAlertService:
+    def __init__(
+        self,
+        *,
+        config: CeriConfig | None = None,
+        alerts_enabled: bool | None = None,
+    ) -> None:
+        self.config = config or load_ceri_config()
+        self.alerts_enabled = (
+            self.config.alerts.enabled if alerts_enabled is None else alerts_enabled
+        )
+
+    def rebuild_alerts(
+        self,
+        db: Session,
+        *,
+        changes: list[CeriChangeEvent],
+        ticker_by_company: dict[int, str] | None = None,
+    ) -> AlertRebuildResult:
+        alerts = duplicates = skipped = 0
+        if not self.alerts_enabled:
+            return AlertRebuildResult(alerts=0, duplicates=0, skipped=len(changes))
+        ticker_by_company = ticker_by_company or {}
+        for change in changes:
+            event = self.persist_alert_for_change(
+                db,
+                change=change,
+                ticker=ticker_by_company.get(change.company_id, "UNKNOWN"),
+            )
+            if event is None:
+                duplicates += 1
+            else:
+                alerts += 1
+        return AlertRebuildResult(alerts=alerts, duplicates=duplicates, skipped=skipped)
+
+    def persist_alert_for_change(
+        self,
+        db: Session,
+        *,
+        change: CeriChangeEvent,
+        ticker: str,
+    ) -> CeriAlertEvent | None:
+        rule = self._rule_for_change(db, change)
+        if rule is None:
+            return None
+        event_key = alert_event_key(
+            rule_id=rule.rule_id,
+            change_dedup_key=change.dedup_key,
+            catalyst_revision_id=change.catalyst_revision_id,
+        )
+        existing = _maybe_scalar(
+            db,
+            select(CeriAlertEvent).where(CeriAlertEvent.event_key == event_key),
+        )
+        if existing is not None:
+            return None
+        event = CeriAlertEvent(
+            alert_rule_id=rule.id,
+            source_change_event_id=change.id,
+            source_catalyst_revision_id=change.catalyst_revision_id,
+            event_key=event_key,
+            ticker=ticker.upper(),
+            severity=rule.severity,
+            status="UNREAD",
+            evidence_json={
+                "change_type": change.change_type,
+                "dedup_key": change.dedup_key,
+                "delta": change.delta_json,
+                "cooldown_scope": self.config.alerts.dedup_scope,
+            },
+        )
+        db.add(event)
+        db.flush()
+        return event
+
+    def acknowledge(self, db: Session, alert: CeriAlertEvent) -> CeriAlertEvent:
+        alert.status = "ACKNOWLEDGED"
+        db.flush()
+        return alert
+
+    def dismiss(self, db: Session, alert: CeriAlertEvent) -> CeriAlertEvent:
+        alert.status = "DISMISSED"
+        db.flush()
+        return alert
+
+    def _rule_for_change(
+        self,
+        db: Session,
+        change: CeriChangeEvent,
+    ) -> CeriAlertRule | None:
+        try:
+            change_type = CeriChangeType(change.change_type)
+        except ValueError:
+            return None
+        rule_config = self.config.alerts.rules.get(change_type)
+        if rule_config is None or not rule_config.enabled:
+            return None
+        existing = _maybe_scalar(
+            db,
+            select(CeriAlertRule).where(CeriAlertRule.rule_id == change_type.value),
+        )
+        if existing is not None:
+            return existing
+        rule = CeriAlertRule(
+            rule_id=change_type.value,
+            enabled=True,
+            severity=rule_config.severity,
+            thresholds_json={},
+            scope_json={},
+            cooldown_sessions=rule_config.cooldown_sessions,
+            config_version=self.config.engine.config_version,
+            source_event_types_json=[change_type.value],
+        )
+        db.add(rule)
+        db.flush()
+        return rule
+
+
+def alert_event_key(
+    *,
+    rule_id: str,
+    change_dedup_key: str,
+    catalyst_revision_id: int | None,
+) -> str:
+    encoded = f"{rule_id}:{change_dedup_key}:{catalyst_revision_id or ''}"
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _maybe_scalar(db: Session, statement):
+    scalar = getattr(db, "scalar", None)
+    if callable(scalar):
+        return scalar(statement)
+    return None

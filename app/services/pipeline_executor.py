@@ -18,6 +18,7 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
+from app.services.ceri.constants import CERI_PIPELINE_CAPTURE_STEP
 from app.services.combined_decision import refresh_combined_results
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
@@ -80,6 +81,15 @@ class PipelineExecutionResult:
     sector_rotation_leading_sector: str | None
     sector_rotation_weakest_sector: str | None
     sector_rotation_warning_count: int
+    ceri_score_snapshots: int
+    ceri_change_events: int
+    ceri_alerts: int
+    ceri_unrated: int
+    ceri_quarantined: int
+    ceri_conflicted: int
+    ceri_stale: int
+    ceri_failed: int
+    ceri_capture_skipped: int
     setup_lifecycle_snapshots_captured: int
     setup_lifecycle_canonical_snapshots: int
     setup_lifecycle_change_events: int
@@ -114,6 +124,8 @@ class PipelineExecutionDependencies:
     build_sector_rotation_snapshot: Callable[[Session, int], SectorRotationSnapshotDto] = (
         build_sector_rotation_snapshot_for_run
     )
+    capture_ceri_snapshot: Callable[[Session, int], Any] | None = None
+    ceri_run_capture_enabled: bool | None = None
     capture_setup_signals: Callable[[Session, int], Any] | None = None
     evaluate_setup_lifecycles: Callable[[Session, int], Any] | None = None
     setup_lifecycle_pipeline_step_enabled: bool | None = None
@@ -205,6 +217,13 @@ def execute_full_pipeline(
             result["sector_rotation_leading_sector"] = sector_snapshot.summary.get("leading_sector")
             result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get("weakest_sector")
             result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
+
+        if _ceri_run_capture_enabled(dependencies):
+            _raise_if_cancelled(should_cancel)
+            with _pipeline_step(db, pipeline, CERI_PIPELINE_CAPTURE_STEP):
+                capture = dependencies.capture_ceri_snapshot or _capture_ceri_snapshot
+                ceri_result = capture(db, upload_run.id)
+                _apply_ceri_capture_result(result, ceri_result)
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
@@ -385,6 +404,7 @@ def _pipeline_status_for_step(step_name: str) -> str:
         PipelineStatus.MARKET_REGIME_SNAPSHOT,
         PipelineStatus.COMBINING_RESULTS,
         PipelineStatus.SECTOR_ROTATION_SNAPSHOT,
+        PipelineStatus.CERI_CAPTURE_SNAPSHOT,
         PipelineStatus.CAPTURING_SETUP_SIGNALS,
         PipelineStatus.EVALUATING_SETUP_LIFECYCLES,
         PipelineStatus.CAPTURING_WINNER_PREDICTIONS,
@@ -419,6 +439,7 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
         or result["technical_error_count"]
         or result["fetch_failed"]
         or result["market_regime_low_confidence"]
+        or result["ceri_failed"]
         or result["setup_lifecycle_failed"]
         or result["winner_prediction_failed"]
     ):
@@ -463,6 +484,15 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
         "sector_rotation_leading_sector": None,
         "sector_rotation_weakest_sector": None,
         "sector_rotation_warning_count": 0,
+        "ceri_score_snapshots": 0,
+        "ceri_change_events": 0,
+        "ceri_alerts": 0,
+        "ceri_unrated": 0,
+        "ceri_quarantined": 0,
+        "ceri_conflicted": 0,
+        "ceri_stale": 0,
+        "ceri_failed": 0,
+        "ceri_capture_skipped": 0,
         "setup_lifecycle_snapshots_captured": 0,
         "setup_lifecycle_canonical_snapshots": 0,
         "setup_lifecycle_change_events": 0,
@@ -513,6 +543,15 @@ def _to_execution_result(
         sector_rotation_leading_sector=result["sector_rotation_leading_sector"],
         sector_rotation_weakest_sector=result["sector_rotation_weakest_sector"],
         sector_rotation_warning_count=result["sector_rotation_warning_count"],
+        ceri_score_snapshots=result["ceri_score_snapshots"],
+        ceri_change_events=result["ceri_change_events"],
+        ceri_alerts=result["ceri_alerts"],
+        ceri_unrated=result["ceri_unrated"],
+        ceri_quarantined=result["ceri_quarantined"],
+        ceri_conflicted=result["ceri_conflicted"],
+        ceri_stale=result["ceri_stale"],
+        ceri_failed=result["ceri_failed"],
+        ceri_capture_skipped=result["ceri_capture_skipped"],
         setup_lifecycle_snapshots_captured=result["setup_lifecycle_snapshots_captured"],
         setup_lifecycle_canonical_snapshots=result["setup_lifecycle_canonical_snapshots"],
         setup_lifecycle_change_events=result["setup_lifecycle_change_events"],
@@ -560,10 +599,22 @@ def _setup_lifecycle_pipeline_step_enabled(dependencies: PipelineExecutionDepend
     return get_settings().setup_lifecycle_pipeline_step_enabled
 
 
+def _ceri_run_capture_enabled(dependencies: PipelineExecutionDependencies) -> bool:
+    if dependencies.ceri_run_capture_enabled is not None:
+        return dependencies.ceri_run_capture_enabled
+    return get_settings().ceri_run_capture_enabled
+
+
 def _winner_probability_capture_enabled(dependencies: PipelineExecutionDependencies) -> bool:
     if dependencies.winner_probability_capture_enabled is not None:
         return dependencies.winner_probability_capture_enabled
     return get_settings().winner_probability_capture_in_pipeline
+
+
+def _capture_ceri_snapshot(db: Session, run_id: int):
+    from app.services.ceri.capture_service import CeriRunCaptureService
+
+    return CeriRunCaptureService().capture_run(db, run_id)
 
 
 def _capture_winner_predictions(db: Session, run_id: int):
@@ -586,6 +637,21 @@ def _evaluate_setup_lifecycles(db: Session, run_id: int):
     )
 
     return SetupLifecycleEvaluationService().evaluate_run(db, run_id)
+
+
+def _apply_ceri_capture_result(result: dict[str, Any], ceri_result: Any) -> None:
+    values = ceri_result.as_dict() if hasattr(ceri_result, "as_dict") else dict(ceri_result)
+    result["ceri_score_snapshots"] = int(
+        values.get("score_snapshots", values.get("snapshots_captured", 0))
+    )
+    result["ceri_change_events"] = int(values.get("change_events", values.get("changes", 0)))
+    result["ceri_alerts"] = int(values.get("alerts", 0))
+    result["ceri_unrated"] = int(values.get("unrated", 0))
+    result["ceri_quarantined"] = int(values.get("quarantined", 0))
+    result["ceri_conflicted"] = int(values.get("conflicted", 0))
+    result["ceri_stale"] = int(values.get("stale", 0))
+    result["ceri_failed"] = int(values.get("failed", 0))
+    result["ceri_capture_skipped"] = int(values.get("skipped", 0))
 
 
 def _apply_winner_capture_result(result: dict[str, Any], capture_result: Any) -> None:

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import PipelineRun, PipelineStep, UploadRun
 from app.services.background_job_service import enqueue_job, request_job_cancel
+from app.services.ceri.constants import CERI_PIPELINE_STEPS
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 from app.settings import get_settings
 
@@ -42,6 +43,7 @@ class PipelineStatus:
     MARKET_REGIME_SNAPSHOT = "MARKET_REGIME_SNAPSHOT"
     COMBINING_RESULTS = "COMBINING_RESULTS"
     SECTOR_ROTATION_SNAPSHOT = "SECTOR_ROTATION_SNAPSHOT"
+    CERI_CAPTURE_SNAPSHOT = "CERI_CAPTURE_SNAPSHOT"
     CAPTURING_SETUP_SIGNALS = "CAPTURING_SETUP_SIGNALS"
     EVALUATING_SETUP_LIFECYCLES = "EVALUATING_SETUP_LIFECYCLES"
     CAPTURING_WINNER_PREDICTIONS = "CAPTURING_WINNER_PREDICTIONS"
@@ -92,13 +94,17 @@ def start_pipeline(
     db: Session,
     upload_run_id: int,
     requested_by: str | None = None,
+    ceri_run_capture_enabled: bool | None = None,
     setup_lifecycle_pipeline_step_enabled: bool | None = None,
 ) -> PipelineRun:
     upload_run = db.get(UploadRun, upload_run_id)
     if upload_run is None:
         raise ValueError(f"Upload run {upload_run_id} was not found.")
 
-    step_names = pipeline_step_names(setup_lifecycle_pipeline_step_enabled)
+    step_names = pipeline_step_names(
+        ceri_run_capture_enabled=ceri_run_capture_enabled,
+        setup_lifecycle_pipeline_step_enabled=setup_lifecycle_pipeline_step_enabled,
+    )
     pipeline = PipelineRun(
         upload_run_id=upload_run_id,
         status=PipelineStatus.PENDING,
@@ -135,18 +141,29 @@ def start_pipeline(
 
 
 def pipeline_step_names(
+    ceri_run_capture_enabled: bool | None = None,
     setup_lifecycle_pipeline_step_enabled: bool | None = None,
 ) -> tuple[str, ...]:
-    enabled = (
+    ceri_enabled = (
+        get_settings().ceri_run_capture_enabled
+        if ceri_run_capture_enabled is None
+        else ceri_run_capture_enabled
+    )
+    setup_enabled = (
         get_settings().setup_lifecycle_pipeline_step_enabled
         if setup_lifecycle_pipeline_step_enabled is None
         else setup_lifecycle_pipeline_step_enabled
     )
-    if not enabled:
+    if not ceri_enabled and not setup_enabled:
         return PIPELINE_STEP_NAMES
+    optional_steps: tuple[str, ...] = ()
+    if ceri_enabled:
+        optional_steps = (*optional_steps, *CERI_PIPELINE_STEPS)
+    if setup_enabled:
+        optional_steps = (*optional_steps, *SLSE_PIPELINE_STEPS)
     return (
         *PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH,
-        *SLSE_PIPELINE_STEPS,
+        *optional_steps,
         "CAPTURING_WINNER_PREDICTIONS",
     )
 

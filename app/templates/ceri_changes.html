@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}CERI Changes{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', path='/ceri.js') }}" defer></script>
+
+<section class="panel ceri-hero">
+  <div class="panel-header run-header">
+    <div>
+      <h1>CERI Changes and Alerts</h1>
+      <p>Daily revision, guidance, catalyst, opportunity, and risk changes. Alert actions update only alert state, not source evidence.</p>
+    </div>
+    <div class="actions">
+      <a class="button-link secondary" href="/ceri">Dashboard</a>
+      <a class="button-link secondary" href="/ceri/operations">Operations</a>
+    </div>
+  </div>
+  <div class="run-meta">
+    <span>{{ page.total or 0 }} changes</span>
+    <span>{{ alerts|length }} alerts visible</span>
+    {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Filters</h2></div></div>
+  <form class="ceri-filter-grid section-gap" method="get">
+    <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
+    <label><span>Alert status</span>
+      <select name="status">
+        <option value="" {{ "selected" if not filters.status else "" }}>Any</option>
+        {% for option in ["UNREAD", "ACKNOWLEDGED", "DISMISSED"] %}
+          <option value="{{ option }}" {{ "selected" if filters.status == option else "" }}>{{ option|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Sort</span>
+      <select name="sort">
+        {% for option in ["created_at", "severity", "ticker", "id"] %}
+          <option value="{{ option }}" {{ "selected" if filters.sort == option else "" }}>{{ option|replace("_", " ")|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Direction</span>
+      <select name="direction">
+        <option value="desc" {{ "selected" if filters.direction == "desc" else "" }}>Newest first</option>
+        <option value="asc" {{ "selected" if filters.direction == "asc" else "" }}>Oldest first</option>
+      </select>
+    </label>
+    <div class="actions ceri-filter-actions">
+      <button type="submit">Apply</button>
+      <a class="button-link secondary" href="/ceri/changes">Clear</a>
+    </div>
+  </form>
+</section>
+
+<section class="split-grid section-gap">
+  <div class="panel">
+    <div class="panel-header compact-header"><div><h2>Change Groups</h2></div></div>
+    {% for group in change_groups %}
+      <section class="ceri-change-group">
+        <h3>{{ group.label }}</h3>
+        {% for change in group["items"] %}
+          <article class="evidence-row">
+            <strong>{{ change.ticker or "Unknown" }} - {{ change.change_type }}</strong>
+            <span>{{ change.severity }} - {{ change.created_at }}</span>
+            <small>From {{ change.from_snapshot_id or "N/A" }} to {{ change.to_snapshot_id or "N/A" }} - Catalyst revision {{ change.catalyst_revision_id or "N/A" }}</small>
+          </article>
+        {% else %}
+          <p>No changes in this group.</p>
+        {% endfor %}
+      </section>
+    {% endfor %}
+  </div>
+
+  <div class="panel" data-ceri-alerts>
+    <div class="panel-header compact-header"><div><h2>Alerts</h2></div></div>
+    {% if alerts %}
+      <div class="table-wrap section-gap">
+        <table>
+          <caption>CERI alert delivery and dedup state.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Ticker</th>
+              <th scope="col">Severity</th>
+              <th scope="col">Status</th>
+              <th scope="col">Evidence</th>
+              <th scope="col">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for alert in alerts %}
+              <tr data-ceri-alert-row>
+                <td>{{ alert.ticker }}</td>
+                <td>{{ alert.severity }}</td>
+                <td><span data-ceri-alert-status>{{ alert.status }}</span></td>
+                <td><code>{{ alert.evidence|tojson }}</code></td>
+                <td>
+                  {% if admin_enabled %}
+                    <div class="row-actions">
+                      <button class="secondary" type="button" data-ceri-alert-action="/api/ceri/alerts/{{ alert.id }}/acknowledge">Acknowledge</button>
+                      <button class="secondary" type="button" data-ceri-alert-action="/api/ceri/alerts/{{ alert.id }}/dismiss">Dismiss</button>
+                    </div>
+                  {% else %}
+                    <span>Admin disabled</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state section-gap">
+        <strong>No alerts match this view.</strong>
+        <p>Alert rows will appear after change detection emits rules that pass cooldown and severity thresholds.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
