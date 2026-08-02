@@ -168,8 +168,10 @@ class FakeRepository:
             run_id=dto.run_id,
             ticker=dto.ticker,
             timeframe=dto.timeframe,
+            data_as_of_date=dto.data_as_of_date,
             engine_version=dto.engine_version,
             config_hash=dto.config_hash,
+            source_data_hash=dto.source_data_hash,
         )
         if key not in self.snapshots_by_key:
             self.snapshots_by_key[key] = SimpleNamespace(id=self.next_id, dto=dto)

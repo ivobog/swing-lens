@@ -67,7 +67,12 @@ def test_ib_fetch_executor_uses_read_only_session_and_no_order_api(monkeypatch) 
     monkeypatch.setattr(
         executor,
         "cache_bars",
-        lambda db, bars: BarUpsertSummary(inserted=1, updated=0, revised=0, unchanged=0),
+        lambda db, bars, **kwargs: BarUpsertSummary(
+            inserted=1,
+            updated=0,
+            revised=0,
+            unchanged=0,
+        ),
     )
 
     fetch_run = execute_fetch_plan(

@@ -24,11 +24,44 @@ def test_repository_snapshot_identity_key_normalizes_ticker() -> None:
         run_id=7,
         ticker=" msft ",
         timeframe="1d",
+        data_as_of_date=date(2026, 8, 1),
         engine_version="slse-1.0.0",
         config_hash="config-hash",
+        source_data_hash="source-hash",
     )
 
-    assert key == (7, "MSFT", "1d", "slse-1.0.0", "config-hash")
+    assert key == (
+        7,
+        "MSFT",
+        "1d",
+        "2026-08-01",
+        "slse-1.0.0",
+        "config-hash",
+        "source-hash",
+    )
+
+
+def test_repository_snapshot_identity_key_distinguishes_revised_source_data() -> None:
+    original = SetupLifecycleRepository.snapshot_identity_key(
+        run_id=7,
+        ticker="MSFT",
+        timeframe="1d",
+        data_as_of_date=date(2026, 8, 1),
+        engine_version="slse-1.0.0",
+        config_hash="config-hash",
+        source_data_hash="source-a",
+    )
+    revised = SetupLifecycleRepository.snapshot_identity_key(
+        run_id=7,
+        ticker="MSFT",
+        timeframe="1d",
+        data_as_of_date=date(2026, 8, 1),
+        engine_version="slse-1.0.0",
+        config_hash="config-hash",
+        source_data_hash="source-b",
+    )
+
+    assert original != revised
 
 
 def test_repository_event_keys_are_stable_and_distinct_by_payload() -> None:

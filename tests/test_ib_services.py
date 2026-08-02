@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.tables import IBContract, PriceBar
+from app.models.tables import IBContract, PriceBar, PriceBarRevision
 from app.routers import ib_routes
 from app.services.bar_cache_service import _normalize_symbols, cache_bars
 from app.services.ib_api import Contract
@@ -182,18 +182,54 @@ def test_cache_bars_updates_last_seen_for_unchanged_bars() -> None:
     assert existing.revision_count == 0
     assert existing.revised_at is None
     assert existing.close == Decimal("11")
+    assert db.added == []
 
 
 def test_cache_bars_revises_changed_existing_bars() -> None:
     existing = _price_bar("MSFT", close=10, volume=1000)
     db = FakeDb(existing=[existing])
 
-    summary = cache_bars(db, [_historical_bar("MSFT", close=11, volume=1000)])
+    summary = cache_bars(
+        db,
+        [_historical_bar("MSFT", close=11, volume=1000)],
+        fetch_run_id=23,
+        fetch_item_id=29,
+    )
 
     assert summary.inserted == 0
     assert summary.updated == 1
     assert summary.revised == 1
     assert summary.unchanged == 0
+    assert len(db.added) == 1
+    revision = db.added[0]
+    assert isinstance(revision, PriceBarRevision)
+    assert revision.price_bar_id == existing.id
+    assert revision.revision_number == 1
+    assert revision.previous_values_json == {
+        "open": "10",
+        "high": "12",
+        "low": "9",
+        "close": "10",
+        "volume": "1000",
+        "source": "IB",
+        "what_to_show": "TRADES",
+        "adjustment_type": None,
+    }
+    assert revision.new_values_json == {
+        "open": "10",
+        "high": "12",
+        "low": "9",
+        "close": "11",
+        "volume": "1000",
+        "source": "IB",
+        "what_to_show": "TRADES",
+        "adjustment_type": None,
+    }
+    assert revision.previous_data_hash
+    assert revision.new_data_hash == existing.data_hash
+    assert revision.new_data_hash != revision.previous_data_hash
+    assert revision.fetch_run_id == 23
+    assert revision.fetch_item_id == 29
     assert existing.close == Decimal("11")
     assert existing.revision_count == 1
     assert existing.revised_at is not None
@@ -342,6 +378,7 @@ def _historical_bar(ticker: str, close: float, volume: float) -> HistoricalBar:
 def _price_bar(ticker: str, close: float, volume: float) -> PriceBar:
     seen_at = datetime(2026, 7, 1, tzinfo=UTC)
     return PriceBar(
+        id=17,
         ticker=ticker,
         bar_date=date(2026, 7, 1),
         timeframe="1 day",

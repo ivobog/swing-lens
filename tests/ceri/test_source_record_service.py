@@ -80,7 +80,70 @@ def test_source_record_service_deduplicates_existing_idempotency_key() -> None:
 
     assert result.inserted is False
     assert result.deduplicated is True
+    assert result.corrected is False
     assert result.source_record is existing
+
+
+def test_source_record_service_deduplicates_same_provider_record_content() -> None:
+    payload = {"provider_terms_version": "manual-fixture-1.0", "ticker": "MSFT"}
+    existing = CeriSourceRecord(
+        id=3,
+        provider="manual",
+        dataset="estimates",
+        provider_record_id="est-1",
+        content_hash=source_record_content_hash(payload),
+        idempotency_key="legacy-key",
+    )
+    db = FakeDb(scalar_queue=[None, existing])
+    service = CeriSourceRecordService()
+
+    result = service.store_source_record(
+        db,
+        ingestion_run_id=None,
+        record=_record("est-1", payload=payload),
+        raw_payload_allowed=True,
+    )
+
+    assert result.inserted is False
+    assert result.deduplicated is True
+    assert result.corrected is False
+    assert result.source_record is existing
+    assert db.added == []
+
+
+def test_source_record_service_creates_correction_for_changed_provider_record() -> None:
+    prior_payload = {"provider_terms_version": "manual-fixture-1.0", "ticker": "MSFT", "eps": 1}
+    corrected_payload = {
+        "provider_terms_version": "manual-fixture-1.0",
+        "ticker": "MSFT",
+        "eps": 2,
+    }
+    existing = CeriSourceRecord(
+        id=3,
+        provider="manual",
+        dataset="estimates",
+        provider_record_id="est-1",
+        content_hash=source_record_content_hash(prior_payload),
+        idempotency_key="legacy-key",
+        ingested_at=datetime(2026, 8, 1, 20, 15, tzinfo=UTC),
+    )
+    db = FakeDb(scalar_queue=[None, existing])
+    service = CeriSourceRecordService()
+
+    result = service.store_source_record(
+        db,
+        ingestion_run_id=11,
+        record=_record("est-1", payload=corrected_payload),
+        raw_payload_allowed=True,
+    )
+
+    assert result.inserted is True
+    assert result.deduplicated is False
+    assert result.corrected is True
+    assert result.source_record.supersedes_id == existing.id
+    assert result.source_record.correction_type == "CORRECTION"
+    assert result.source_record.content_hash != existing.content_hash
+    assert result.source_record.raw_json == corrected_payload
 
 
 def test_source_record_service_quarantines_malformed_records() -> None:
@@ -98,6 +161,7 @@ def test_source_record_service_quarantines_malformed_records() -> None:
     )
 
     assert result.quarantined is True
+    assert result.corrected is False
     assert result.source_record.quarantine_reason == "missing_provider_record_id"
     assert result.source_record.raw_json is None
 

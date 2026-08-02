@@ -3,7 +3,11 @@ from decimal import Decimal
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
 from app.services.cockpit_sorting import cockpit_sort_key
-from app.services.combined_decision import _to_model, combine_row_decision
+from app.services.combined_decision import (
+    _to_model,
+    combine_row_decision,
+    reconstruct_combined_score_from_debug,
+)
 
 TODAY = date(2026, 7, 7)
 
@@ -230,6 +234,25 @@ def test_combined_decision_model_persists_earnings_risk_fields() -> None:
     assert model.days_until_earnings == 4
     assert model.earnings_risk_level == "high"
     assert model.earnings_warning_flags_json == ["earnings_high_risk"]
+
+
+def test_combined_decision_model_persists_reconstructable_debug_evidence() -> None:
+    decision = combine_row_decision(
+        _row("AAPL", earnings_date=date(2026, 7, 11), raw_earnings="2026-07-11"),
+        _fundamental("AAPL", "Clean compounder", "9.0"),
+        _technical("AAPL", "Prime clean pullback", "9.0", risk_score="2.5"),
+        config=_config_with_earnings_gate(),
+        today=TODAY,
+    )
+
+    model = _to_model(run_id=7, final_rank=1, decision=decision)
+
+    assert model.calculation_version == "combined-decision-1.0.0"
+    assert len(model.config_hash) == 64
+    assert model.debug_json["config_hash"] == model.config_hash
+    assert model.debug_json["weighted_score_before_penalties"] == 9.0
+    assert model.debug_json["penalty_breakdown"] == {"earnings_high": 2.0}
+    assert reconstruct_combined_score_from_debug(model.debug_json) == float(model.final_score)
 
 
 def _row(

@@ -9,6 +9,7 @@ from app.models.tables import (
     IBFetchItem,
     IBFetchRun,
     MarketRegimeSnapshot,
+    PriceBarRevision,
     RankingResult,
     RawCompanyRow,
     SectorRotationRow,
@@ -29,6 +30,9 @@ def test_combined_result_model_includes_warning_persistence_columns() -> None:
         "has_technical",
         "has_warning",
         "sort_bucket",
+        "calculation_version",
+        "config_hash",
+        "debug_json",
     ]:
         assert column_name in table.c
 
@@ -154,6 +158,11 @@ def test_market_regime_snapshot_model_includes_persistence_columns() -> None:
         "reasons_json",
         "warnings_json",
         "debug_json",
+        "evidence_hash",
+        "revision",
+        "is_current_revision",
+        "superseded_by_snapshot_id",
+        "superseded_at",
         "created_at",
         "updated_at",
     ]:
@@ -171,6 +180,8 @@ def test_market_regime_snapshot_model_defines_constraints_and_indexes() -> None:
         "idx_market_regime_snapshots_run_id",
         "idx_market_regime_snapshots_regime",
         "idx_market_regime_snapshots_risk_state",
+        "idx_market_regime_snapshots_evidence_hash",
+        "idx_market_regime_snapshots_current_revision",
     }.issubset(index_names)
 
 
@@ -199,6 +210,11 @@ def test_sector_rotation_snapshot_model_includes_persistence_columns() -> None:
         "summary_json",
         "warning_flags_json",
         "debug_json",
+        "evidence_hash",
+        "revision",
+        "is_current_revision",
+        "superseded_by_snapshot_id",
+        "superseded_at",
         "created_at",
         "updated_at",
     ]:
@@ -271,6 +287,8 @@ def test_sector_rotation_models_define_constraints_and_indexes() -> None:
     assert {
         "idx_sector_rotation_snapshot_run_date",
         "idx_sector_rotation_snapshot_date",
+        "idx_sector_rotation_snapshot_evidence_hash",
+        "idx_sector_rotation_snapshot_current_revision",
     }.issubset(snapshot_indexes)
     assert "uq_sector_rotation_rows_snapshot_sector_slug" in row_constraints
     assert {
@@ -463,6 +481,38 @@ def test_price_bar_model_includes_revision_metadata_columns() -> None:
         assert column_name in table.c
 
 
+def test_price_bar_revision_model_preserves_prior_values_and_lineage() -> None:
+    table = PriceBarRevision.__table__
+
+    for column_name in [
+        "price_bar_id",
+        "ticker",
+        "bar_date",
+        "timeframe",
+        "what_to_show",
+        "revision_number",
+        "previous_data_hash",
+        "new_data_hash",
+        "previous_values_json",
+        "new_values_json",
+        "source",
+        "adjustment_type",
+        "fetch_run_id",
+        "fetch_item_id",
+        "observed_at",
+        "created_at",
+    ]:
+        assert column_name in table.c
+
+    constraint_names = {constraint.name for constraint in table.constraints}
+    index_names = {index.name for index in table.indexes}
+    assert "uq_price_bar_revisions_price_bar_revision" in constraint_names
+    assert {
+        "idx_price_bar_revisions_natural_key",
+        "idx_price_bar_revisions_observed_at",
+    }.issubset(index_names)
+
+
 def test_fundamental_score_model_includes_v2_persistence_columns() -> None:
     table = Base.metadata.tables["fundamental_scores"]
 
@@ -614,6 +664,20 @@ def test_sector_rotation_tables_migration_follows_current_head() -> None:
 
     assert 'revision: str = "0013_add_sector_rotation_tables"' in migration
     assert 'down_revision: str | None = "0012_add_market_regime_snapshots"' in migration
+
+
+def test_immutable_snapshot_evidence_migration_follows_price_revision_head() -> None:
+    migration = Path(
+        "alembic/versions/20260802_0023_add_immutable_snapshot_evidence.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0023_immutable_snapshot_evidence"' in migration
+    assert (
+        'down_revision: str | None = "0022_price_bar_revisions_ceri_corrections"'
+        in migration
+    )
+    assert "idx_market_regime_snapshots_current_revision" in migration
+    assert "uq_setup_signal_snapshots_run_identity" in migration
 
 
 def test_combined_decision_to_model_persists_phase2_fields() -> None:

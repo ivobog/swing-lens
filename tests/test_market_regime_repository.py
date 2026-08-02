@@ -26,7 +26,7 @@ def test_upsert_snapshot_adds_new_snapshot(monkeypatch) -> None:
     assert snapshot.input_symbols_json == {"primary_market": "SPY", "risk_proxy": "QQQ"}
 
 
-def test_upsert_snapshot_updates_existing_snapshot(monkeypatch) -> None:
+def test_upsert_snapshot_returns_existing_matching_evidence_without_mutation(monkeypatch) -> None:
     db = FakeDb()
     repo = MarketRegimeRepository()
     existing = MarketRegimeSnapshot(
@@ -53,11 +53,49 @@ def test_upsert_snapshot_updates_existing_snapshot(monkeypatch) -> None:
 
     assert snapshot is existing
     assert db.added == []
-    assert db.flush_count == 1
+    assert db.flush_count == 0
+    assert snapshot.regime == "Choppy"
+    assert snapshot.risk_state == "Yellow"
+    assert snapshot.score == 5.0
+    assert snapshot.action_summary == "Old summary"
+
+
+def test_upsert_snapshot_creates_revision_for_changed_evidence() -> None:
+    existing = MarketRegimeSnapshot(
+        id=55,
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        calculation_version="mrcc-1.0.0",
+        config_version="2026-07-28",
+        evidence_hash="old-hash",
+        revision=1,
+        is_current_revision=True,
+        regime="Choppy",
+        risk_state="Yellow",
+        score=5.0,
+        risk_off=False,
+        gate_ok=True,
+        confidence="normal",
+        action_summary="Old summary",
+        position_size_multiplier=0.5,
+    )
+    db = FakeDb(scalar_results=[None, existing])
+
+    snapshot = MarketRegimeRepository().upsert_snapshot(
+        db,
+        _snapshot_write(regime="Bull trend", risk_state="Green", score=9.0),
+        run_id=7,
+    )
+
+    assert snapshot is not existing
+    assert db.added == [snapshot]
+    assert snapshot.revision == 2
+    assert snapshot.is_current_revision is True
+    assert snapshot.evidence_hash != existing.evidence_hash
     assert snapshot.regime == "Bull trend"
-    assert snapshot.risk_state == "Green"
-    assert snapshot.score == 9.0
-    assert snapshot.action_summary == "Prefer quality pullbacks."
+    assert existing.is_current_revision is False
+    assert existing.superseded_by_snapshot_id == snapshot.id
+    assert existing.superseded_at is not None
 
 
 def test_delete_for_run_executes_delete_and_flushes() -> None:
@@ -150,23 +188,31 @@ def _snapshot_write(
 
 
 class FakeDb:
-    def __init__(self, scalar_result=None, scalars_result=None) -> None:
+    def __init__(self, scalar_result=None, scalars_result=None, scalar_results=None) -> None:
         self.scalar_result = scalar_result
         self.scalars_result = scalars_result or []
+        self.scalar_results = list(scalar_results or [])
         self.scalar_statements = []
         self.scalars_statements = []
         self.executed = []
         self.added = []
         self.flush_count = 0
+        self.next_id = 101
 
     def add(self, model) -> None:
         self.added.append(model)
 
     def flush(self) -> None:
+        for model in self.added:
+            if isinstance(model, MarketRegimeSnapshot) and model.id is None:
+                model.id = self.next_id
+                self.next_id += 1
         self.flush_count += 1
 
     def scalar(self, statement):
         self.scalar_statements.append(statement)
+        if self.scalar_results:
+            return self.scalar_results.pop(0)
         return self.scalar_result
 
     def scalars(self, statement):

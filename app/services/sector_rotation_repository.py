@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import date
+import hashlib
+import json
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import SectorRotationRow, SectorRotationSnapshot
@@ -87,23 +89,25 @@ class SectorRotationRepository:
         db: Session,
         dto: SectorRotationSnapshotWrite,
     ) -> SectorRotationSnapshot:
-        snapshot = self._matching_snapshot(db, dto)
-        if snapshot is None:
-            snapshot = SectorRotationSnapshot(
-                run_id=dto.run_id,
-                as_of_date=dto.as_of_date,
-                calculation_version=dto.calculation_version,
-                config_hash=dto.config_hash,
-                mode=dto.mode,
-            )
-            db.add(snapshot)
-            db.flush()
-        else:
-            db.execute(
-                delete(SectorRotationRow).where(
-                    SectorRotationRow.snapshot_id == snapshot.id
-                )
-            )
+        evidence_hash = self.snapshot_evidence_hash(dto)
+        snapshot = self._matching_snapshot(db, dto, evidence_hash)
+        if snapshot is not None:
+            return snapshot
+
+        previous = self._latest_logical_snapshot(db, dto)
+        revision = (previous.revision if previous is not None else 0) + 1
+        snapshot = SectorRotationSnapshot(
+            run_id=dto.run_id,
+            as_of_date=dto.as_of_date,
+            calculation_version=dto.calculation_version,
+            config_hash=dto.config_hash,
+            mode=dto.mode,
+            evidence_hash=evidence_hash,
+            revision=revision,
+            is_current_revision=True,
+        )
+        db.add(snapshot)
+        db.flush()
 
         self._apply_snapshot_fields(snapshot, dto)
         db.flush()
@@ -112,6 +116,8 @@ class SectorRotationRepository:
         if rows:
             db.add_all(rows)
         db.flush()
+        if previous is not None:
+            self._supersede_previous_revision(db, previous, snapshot)
         return snapshot
 
     def latest_for_run(
@@ -122,6 +128,7 @@ class SectorRotationRepository:
         return db.scalar(
             select(SectorRotationSnapshot)
             .where(SectorRotationSnapshot.run_id == run_id)
+            .where(SectorRotationSnapshot.is_current_revision.is_(True))
             .order_by(
                 SectorRotationSnapshot.as_of_date.desc(),
                 SectorRotationSnapshot.created_at.desc(),
@@ -140,6 +147,7 @@ class SectorRotationRepository:
             select(SectorRotationSnapshot)
             .where(SectorRotationSnapshot.run_id == run_id)
             .where(SectorRotationSnapshot.as_of_date <= as_of_date)
+            .where(SectorRotationSnapshot.is_current_revision.is_(True))
             .order_by(
                 SectorRotationSnapshot.as_of_date.desc(),
                 SectorRotationSnapshot.created_at.desc(),
@@ -157,6 +165,7 @@ class SectorRotationRepository:
             select(SectorRotationSnapshot)
             .where(SectorRotationSnapshot.run_id.is_(None))
             .where(SectorRotationSnapshot.as_of_date <= as_of_date)
+            .where(SectorRotationSnapshot.is_current_revision.is_(True))
             .order_by(
                 SectorRotationSnapshot.as_of_date.desc(),
                 SectorRotationSnapshot.created_at.desc(),
@@ -241,7 +250,28 @@ class SectorRotationRepository:
         self,
         db: Session,
         dto: SectorRotationSnapshotWrite,
+        evidence_hash: str,
     ) -> SectorRotationSnapshot | None:
+        statement = self._logical_snapshot_statement(dto).where(
+            SectorRotationSnapshot.evidence_hash == evidence_hash
+        )
+        return db.scalar(statement.limit(1))
+
+    def _latest_logical_snapshot(
+        self,
+        db: Session,
+        dto: SectorRotationSnapshotWrite,
+    ) -> SectorRotationSnapshot | None:
+        return db.scalar(
+            self._logical_snapshot_statement(dto)
+            .order_by(
+                SectorRotationSnapshot.revision.desc(),
+                SectorRotationSnapshot.id.desc(),
+            )
+            .limit(1)
+        )
+
+    def _logical_snapshot_statement(self, dto: SectorRotationSnapshotWrite):
         statement = (
             select(SectorRotationSnapshot)
             .where(SectorRotationSnapshot.as_of_date == dto.as_of_date)
@@ -256,7 +286,19 @@ class SectorRotationRepository:
             statement = statement.where(SectorRotationSnapshot.config_hash.is_(None))
         else:
             statement = statement.where(SectorRotationSnapshot.config_hash == dto.config_hash)
-        return db.scalar(statement.limit(1))
+        return statement
+
+    def _supersede_previous_revision(
+        self,
+        db: Session,
+        previous: SectorRotationSnapshot,
+        current: SectorRotationSnapshot,
+    ) -> None:
+        now = datetime.now(UTC)
+        previous.is_current_revision = False
+        previous.superseded_by_snapshot_id = current.id
+        previous.superseded_at = now
+        db.flush()
 
     def _apply_snapshot_fields(
         self,
@@ -280,6 +322,13 @@ class SectorRotationRepository:
         snapshot.summary_json = dict(dto.summary)
         snapshot.warning_flags_json = list(dto.warning_flags)
         snapshot.debug_json = dict(dto.debug)
+        snapshot.evidence_hash = self.snapshot_evidence_hash(dto)
+
+    @staticmethod
+    def snapshot_evidence_hash(dto: SectorRotationSnapshotWrite) -> str:
+        payload = asdict(dto)
+        data = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 def _to_row_model(

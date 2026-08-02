@@ -131,6 +131,20 @@ def test_setup_lifecycle_unique_constraints_and_partial_indexes_are_defined() ->
     }
 
     assert "uq_setup_signal_snapshots_run_identity" in snapshot_constraints
+    run_identity_constraint = next(
+        constraint
+        for constraint in SetupSignalSnapshot.__table__.constraints
+        if constraint.name == "uq_setup_signal_snapshots_run_identity"
+    )
+    assert [column.name for column in run_identity_constraint.columns] == [
+        "run_id",
+        "ticker",
+        "timeframe",
+        "data_as_of_date",
+        "engine_version",
+        "config_hash",
+        "source_data_hash",
+    ]
     assert "uq_setup_signal_snapshots_canonical_day" in snapshot_indexes
     assert snapshot_indexes["uq_setup_signal_snapshots_canonical_day"].unique
     assert (

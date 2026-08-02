@@ -26,7 +26,7 @@ def test_save_snapshot_adds_snapshot_and_rows(monkeypatch) -> None:
     assert snapshot.warning_flags_json == ["missing_etf_confirmation"]
 
 
-def test_save_snapshot_replaces_existing_rows(monkeypatch) -> None:
+def test_save_snapshot_returns_existing_matching_evidence_without_mutation(monkeypatch) -> None:
     db = FakeDb()
     repo = SectorRotationRepository()
     existing = SectorRotationSnapshot(
@@ -48,10 +48,42 @@ def test_save_snapshot_replaces_existing_rows(monkeypatch) -> None:
 
     assert snapshot is existing
     assert db.added == []
-    assert db.executed
-    assert "sector_rotation_rows" in str(db.executed[0])
-    assert db.added_all[0][0].snapshot_id == 55
+    assert db.executed == []
+    assert db.added_all == []
+    assert snapshot.leading_sector is None
+
+
+def test_save_snapshot_creates_revision_for_changed_evidence() -> None:
+    existing = SectorRotationSnapshot(
+        id=55,
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        calculation_version="sector-rotation-1.0.0",
+        config_hash="hash-a",
+        mode="universe_only",
+        evidence_hash="old-hash",
+        revision=1,
+        is_current_revision=True,
+        sector_count=1,
+        ticker_count=10,
+    )
+    db = FakeDb(scalar_results=[None, existing])
+
+    snapshot = SectorRotationRepository().save_snapshot(
+        db,
+        _snapshot_write(leading_sector="Healthcare", rows=[_row_write("Healthcare")]),
+    )
+
+    assert snapshot is not existing
+    assert db.added == [snapshot]
+    assert db.added_all[0][0].snapshot_id == snapshot.id
+    assert snapshot.revision == 2
+    assert snapshot.is_current_revision is True
+    assert snapshot.evidence_hash != existing.evidence_hash
     assert snapshot.leading_sector == "Healthcare"
+    assert existing.is_current_revision is False
+    assert existing.superseded_by_snapshot_id == snapshot.id
+    assert existing.superseded_at is not None
 
 
 def test_latest_previous_history_and_row_queries_return_results() -> None:

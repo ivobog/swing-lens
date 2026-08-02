@@ -22,11 +22,13 @@ def test_execute_fetch_plan_skips_and_fetches_items(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
-    monkeypatch.setattr(
-        executor,
-        "cache_bars",
-        lambda db, bars: BarUpsertSummary(inserted=1, updated=0, revised=0, unchanged=0),
-    )
+    cache_calls = []
+
+    def fake_cache_bars(db, bars, **kwargs):
+        cache_calls.append(kwargs)
+        return BarUpsertSummary(inserted=1, updated=0, revised=0, unchanged=0)
+
+    monkeypatch.setattr(executor, "cache_bars", fake_cache_bars)
 
     fetch_run = execute_fetch_plan(
         db=db,
@@ -59,6 +61,7 @@ def test_execute_fetch_plan_skips_and_fetches_items(monkeypatch) -> None:
     assert db.commits >= 2
     assert limiter.waits == 1
     assert ib.connected is False
+    assert cache_calls == [{"fetch_run_id": fetch_run.id, "fetch_item_id": 3}]
 
 
 def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
@@ -85,7 +88,12 @@ def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
     monkeypatch.setattr(
         executor,
         "cache_bars",
-        lambda db, bars: BarUpsertSummary(inserted=0, updated=0, revised=0, unchanged=1),
+        lambda db, bars, **kwargs: BarUpsertSummary(
+            inserted=0,
+            updated=0,
+            revised=0,
+            unchanged=1,
+        ),
     )
 
     fetch_run = execute_fetch_plan(
@@ -167,11 +175,13 @@ def test_execute_fetch_plan_can_cancel_before_next_item(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
-    monkeypatch.setattr(
-        executor,
-        "cache_bars",
-        lambda db, bars: BarUpsertSummary(inserted=1, updated=0, revised=0, unchanged=0),
-    )
+    cache_calls = []
+
+    def fake_cache_bars(db, bars, **kwargs):
+        cache_calls.append(kwargs)
+        return BarUpsertSummary(inserted=1, updated=0, revised=0, unchanged=0)
+
+    monkeypatch.setattr(executor, "cache_bars", fake_cache_bars)
     calls = {"count": 0}
 
     def should_cancel() -> bool:
@@ -234,6 +244,7 @@ class FakeDb:
         self.added = []
         self.flushes = 0
         self.commits = 0
+        self.next_id = 1
 
     def add(self, row) -> None:
         self.added.append(row)
@@ -242,6 +253,10 @@ class FakeDb:
 
     def flush(self) -> None:
         self.flushes += 1
+        for row in self.added:
+            if getattr(row, "id", None) is None:
+                row.id = self.next_id
+                self.next_id += 1
 
     def commit(self) -> None:
         self.commits += 1

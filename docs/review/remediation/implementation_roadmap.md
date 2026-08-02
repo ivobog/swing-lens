@@ -458,6 +458,13 @@ Rollback concerns:
 
 - New tables/data are evidence-bearing; take backup before migration.
 
+Implementation status:
+
+- In progress in PR 4.1: adds `price_bar_revisions` append-only audit rows,
+  captures IB fetch-run/item lineage for revised bars, relaxes CERI provider-record
+  uniqueness to permit corrected records, and populates source-record supersession
+  and corrected-count audit fields.
+
 #### PR 4.2 - Immutable Market/Sector/Setup/Combined Evidence
 
 Source finding IDs: PH9-003, PH10-002, PH11-001.
@@ -483,6 +490,13 @@ Acceptance tests:
 Rollback concerns:
 
 - Schema changes affect historical views; require backup and migration test.
+
+Implementation status:
+
+- In progress in PR 4.2: adds reconstructable combined-result debug evidence, explicit
+  current-revision metadata for market and sector snapshots, idempotent same-evidence
+  writes, new revisions for changed snapshot evidence, and source-hash identity for
+  setup signal snapshots.
 
 ### Batch 5: Background-Job Idempotency and Concurrency
 

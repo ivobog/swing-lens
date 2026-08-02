@@ -62,6 +62,33 @@ def test_duplicate_ingestion_request_returns_existing_completed_run() -> None:
     assert result.inserted == 1
 
 
+def test_manual_ingestion_counts_corrected_provider_records() -> None:
+    existing = CeriSourceRecord(
+        id=12,
+        provider="manual",
+        dataset="estimates",
+        provider_record_id="est-1",
+        content_hash="old-content",
+        idempotency_key="legacy-key",
+    )
+    db = FakeDb(scalar_queue=[None, None, existing])
+    service = _ingestion_service(
+        [{"provider_record_id": "est-1", "ticker": "MSFT", "eps": 2}]
+    )
+
+    result = service.ingest(
+        db,
+        CeriIngestionRequest(provider="manual", dataset=CeriDataset.ESTIMATES, ticker="MSFT"),
+    )
+
+    source_records = [row for row in db.added if isinstance(row, CeriSourceRecord)]
+    assert result.status == "COMPLETED"
+    assert result.inserted == 1
+    assert result.corrected == 1
+    assert len(source_records) == 1
+    assert source_records[0].supersedes_id == existing.id
+
+
 def test_ceri_job_handlers_are_registered_with_default_worker() -> None:
     handlers = default_job_handlers()
 
