@@ -1,0 +1,2 @@
+/.gitattributes text eol=lf
+app/static/vendor/lightweight-charts.standalone.production.js text eol=lf
