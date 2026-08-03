@@ -444,14 +444,15 @@ class CeriQueryService:
                 1 for source in source_records if source.quarantine_reason
             ),
             "conflicted_count": len(
-                self.operations_conflicts(db, CeriListQuery(CeriQueryFilters(), limit=5000))[
-                    "items"
-                ]
+                self.operations_conflicts(
+                    db,
+                    CeriListQuery(CeriQueryFilters(), sort="id", limit=5000),
+                )["items"]
             ),
             "stale_count": len(
                 self.operations_stale(
                     db,
-                    CeriListQuery(CeriQueryFilters(), limit=5000),
+                    CeriListQuery(CeriQueryFilters(), sort="stale_days", limit=5000),
                 )["items"]
             ),
             "processing_runs": [_processing_run_payload(run) for run in processing_runs],
