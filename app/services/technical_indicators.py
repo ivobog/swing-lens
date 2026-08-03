@@ -306,10 +306,12 @@ def prepare_ohlcv_frame(
 ) -> pd.DataFrame:
     _validate_columns(price_df)
     prepared = _normalize_frame(price_df)
+    _validate_bar_quality(prepared, frame_name="price")
 
     if trades_df is not None and not trades_df.empty:
         _validate_columns(trades_df)
         trades = _normalize_frame(trades_df)
+        _validate_bar_quality(trades, frame_name="trades")
         prepared = prepared.drop(columns=["volume"]).merge(
             trades[["date", "volume"]],
             on="date",
@@ -770,6 +772,7 @@ def _missing_data(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
         "required_rows": required,
         "insufficient_history": len(df) < required,
         "missing_columns": [column for column in REQUIRED_COLUMNS if column not in df.columns],
+        "bar_quality": _bar_quality_summary(df),
     }
 
 
@@ -787,6 +790,39 @@ def _normalize_frame(df: pd.DataFrame) -> pd.DataFrame:
     normalized = normalized.dropna(subset=["date", "open", "high", "low", "close"])
     normalized["volume"] = normalized["volume"].fillna(0)
     return normalized
+
+
+def _validate_bar_quality(df: pd.DataFrame, *, frame_name: str) -> None:
+    duplicated_dates = df.loc[df["date"].duplicated(), "date"].dt.strftime("%Y-%m-%d")
+    if not duplicated_dates.empty:
+        sample = ", ".join(duplicated_dates.head(5).tolist())
+        raise ValueError(f"{frame_name} OHLCV frame has duplicate bar dates: {sample}")
+
+    invalid_ohlc = (
+        (df["high"] < df[["open", "close", "low"]].max(axis=1))
+        | (df["low"] > df[["open", "close", "high"]].min(axis=1))
+    )
+    if invalid_ohlc.any():
+        sample = ", ".join(df.loc[invalid_ohlc, "date"].dt.strftime("%Y-%m-%d").head(5).tolist())
+        raise ValueError(f"{frame_name} OHLCV frame has invalid OHLC ranges: {sample}")
+
+    negative_volume = df["volume"] < 0
+    if negative_volume.any():
+        sample = ", ".join(
+            df.loc[negative_volume, "date"].dt.strftime("%Y-%m-%d").head(5).tolist()
+        )
+        raise ValueError(f"{frame_name} OHLCV frame has negative volume: {sample}")
+
+
+def _bar_quality_summary(df: pd.DataFrame) -> dict[str, Any]:
+    sorted_dates = pd.to_datetime(df["date"]).sort_values()
+    gaps = sorted_dates.diff().dt.days.dropna()
+    max_gap = int(gaps.max()) if not gaps.empty else 0
+    return {
+        "duplicate_date_count": int(df["date"].duplicated().sum()),
+        "max_calendar_gap_days": max_gap,
+        "has_calendar_gap": max_gap > 5,
+    }
 
 
 def _to_python_value(value: Any) -> Any:

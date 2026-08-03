@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import csv
 import json
 from datetime import date, datetime
-from io import StringIO
 from typing import Any
 
 from app.models.tables import SectorRotationRow, SectorRotationSnapshot
+from app.services.csv_export import write_csv
 from app.services.sector_rotation_dtos import (
     SectorRotationDecision,
     SectorRotationSnapshotDto,
@@ -34,6 +33,7 @@ SECTOR_ROTATION_CSV_HEADERS = [
     "warnings",
     "reasons",
 ]
+SECTOR_ROTATION_SCHEMA_ID = "swinglens.sector-rotation.v1"
 
 
 def snapshot_to_payload(
@@ -78,16 +78,12 @@ def export_sector_rotation_csv(
     rows: list[SectorRotationRow] | None = None,
 ) -> str:
     contexts = _row_contexts(snapshot, rows)
-    buffer = StringIO()
-    writer = csv.DictWriter(
-        buffer,
-        fieldnames=SECTOR_ROTATION_CSV_HEADERS,
-        lineterminator="\n",
+    return write_csv(
+        SECTOR_ROTATION_CSV_HEADERS,
+        [_csv_row(context) for context in contexts],
+        schema_id=SECTOR_ROTATION_SCHEMA_ID,
+        metadata={"guidance_type": "research_context", "execution_instruction": False},
     )
-    writer.writeheader()
-    for context in contexts:
-        writer.writerow(_csv_row(context))
-    return buffer.getvalue()
 
 
 def export_sector_rotation_markdown(

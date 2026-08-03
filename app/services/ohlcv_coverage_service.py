@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import IBContract, PriceBar, RawCompanyRow
 from app.services.technical_indicators import load_pine_defaults
-from app.services.us_market_calendar import is_latest_daily_bar_current
+from app.services.us_market_calendar import is_daily_bar_fresh
 from app.settings import Settings, get_settings
 
 
@@ -154,9 +154,9 @@ def _coverage_item(
     has_volume = trades_bars > 0
     sufficient_history = price_bars >= required_rows
     latest_price_date = adjusted.latest_date or trades.latest_date
-    _ = stale_after_days
-    latest_bar_current = is_latest_daily_bar_current(
+    latest_bar_current = is_daily_bar_fresh(
         latest_price_date,
+        stale_after_days,
         now=_coverage_now(today),
     )
 
@@ -174,7 +174,7 @@ def _coverage_item(
         reason = "TRADES bars are missing, so volume coverage is unavailable."
     elif not latest_bar_current:
         status = OhlcvCoverageStatus.STALE
-        reason = "Latest cached price bar is older than the latest completed US trading day."
+        reason = f"Latest cached price bar is older than {stale_after_days} day(s)."
     else:
         status = OhlcvCoverageStatus.READY
         reason = "Adjusted price and trades volume coverage are ready."
@@ -252,7 +252,7 @@ def _failed_contract_tickers(db: Session, tickers: list[str]) -> set[str]:
     rows = db.scalars(
         select(IBContract.ticker).where(
             IBContract.ticker.in_(tickers),
-            IBContract.resolution_status == "FAILED",
+            IBContract.resolution_status.in_(("FAILED", "AMBIGUOUS")),
         )
     ).all()
     return {ticker.upper() for ticker in rows}

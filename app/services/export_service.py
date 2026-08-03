@@ -1,7 +1,5 @@
-import csv
 import json
 from collections.abc import Iterable
-from io import StringIO
 from typing import Any
 
 from app.models.tables import (
@@ -14,6 +12,7 @@ from app.models.tables import (
 )
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import ColumnMappingSummary
+from app.services.csv_export import write_csv
 from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary
 from app.services.technical_display_fields import (
@@ -238,6 +237,17 @@ MAPPING_HEADERS = [
     "sample_value",
 ]
 
+EXPORT_SCHEMA_IDS = {
+    "combined": "swinglens.combined.v1",
+    "fundamentals": "swinglens.fundamentals.v1",
+    "technicals": "swinglens.technicals.v1",
+    "raw": "swinglens.raw-upload-rows.v1",
+    "ib-fetch-plan": "swinglens.ib-fetch-plan.v1",
+    "ib-fetch-results": "swinglens.ib-fetch-results.v1",
+    "coverage": "swinglens.ohlcv-coverage.v1",
+    "mapping": "swinglens.column-mapping.v1",
+}
+
 
 def export_run_csv(
     run: UploadRun,
@@ -260,6 +270,8 @@ def export_run_csv(
                 )
                 for result in _sorted_combined(run.combined_results)
             ],
+            schema_id=EXPORT_SCHEMA_IDS["combined"],
+            metadata={"guidance_type": "research_hint", "execution_instruction": False},
         )
     if export_type == "fundamentals":
         rows = [
@@ -269,16 +281,19 @@ def export_run_csv(
         return _write_csv(
             FUNDAMENTAL_HEADERS,
             rows,
+            schema_id=EXPORT_SCHEMA_IDS["fundamentals"],
         )
     if export_type == "technicals":
         return _write_csv(
             TECHNICAL_HEADERS,
             [_technical_row(run.id, score) for score in _sorted_by_ticker(run.technical_scores)],
+            schema_id=EXPORT_SCHEMA_IDS["technicals"],
         )
     if export_type == "raw":
         return _write_csv(
             RAW_HEADERS,
             [_raw_row(run.id, row) for row in _sorted_raw(run.raw_company_rows)],
+            schema_id=EXPORT_SCHEMA_IDS["raw"],
         )
     raise ValueError(f"Unknown export type: {export_type}")
 
@@ -287,24 +302,38 @@ def export_fetch_plan_csv(plan: FetchPlan) -> str:
     return _write_csv(
         FETCH_PLAN_HEADERS,
         [_fetch_plan_row(plan.run_id, item) for item in plan.items],
+        schema_id=EXPORT_SCHEMA_IDS["ib-fetch-plan"],
     )
 
 
 def export_fetch_results_csv(fetch_run: IBFetchRun | None) -> str:
     if not fetch_run:
-        return _write_csv(FETCH_RESULTS_HEADERS, [])
+        return _write_csv(
+            FETCH_RESULTS_HEADERS,
+            [],
+            schema_id=EXPORT_SCHEMA_IDS["ib-fetch-results"],
+        )
     return _write_csv(
         FETCH_RESULTS_HEADERS,
         [_fetch_result_row(fetch_run, item) for item in _sorted_fetch_items(fetch_run.items)],
+        schema_id=EXPORT_SCHEMA_IDS["ib-fetch-results"],
     )
 
 
 def export_coverage_csv(coverage: OhlcvCoverageSummary) -> str:
-    return _write_csv(COVERAGE_HEADERS, [_coverage_row(item) for item in coverage.items])
+    return _write_csv(
+        COVERAGE_HEADERS,
+        [_coverage_row(item) for item in coverage.items],
+        schema_id=EXPORT_SCHEMA_IDS["coverage"],
+    )
 
 
 def export_mapping_csv(summary: ColumnMappingSummary) -> str:
-    return _write_csv(MAPPING_HEADERS, [_mapping_row(item) for item in summary.items])
+    return _write_csv(
+        MAPPING_HEADERS,
+        [_mapping_row(item) for item in summary.items],
+        schema_id=EXPORT_SCHEMA_IDS["mapping"],
+    )
 
 
 def export_filename(run: UploadRun, export_type: str) -> str:
@@ -316,13 +345,14 @@ def export_filename(run: UploadRun, export_type: str) -> str:
     return f"swinglens_run_{run.id}_{prefix}_{export_type}.csv"
 
 
-def _write_csv(headers: list[str], rows: Iterable[dict[str, Any]]) -> str:
-    buffer = StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=headers, lineterminator="\n")
-    writer.writeheader()
-    for row in rows:
-        writer.writerow({key: _csv_value(row.get(key)) for key in headers})
-    return buffer.getvalue()
+def _write_csv(
+    headers: list[str],
+    rows: Iterable[dict[str, Any]],
+    *,
+    schema_id: str,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    return write_csv(headers, rows, schema_id=schema_id, metadata=metadata)
 
 
 def _combined_row(
@@ -564,12 +594,6 @@ def _sorted_by_ticker(rows: list[Any]) -> list[Any]:
 
 def _sorted_fetch_items(rows: list[Any]) -> list[Any]:
     return sorted(rows, key=lambda row: (row.ticker, row.what_to_show))
-
-
-def _csv_value(value: Any) -> Any:
-    if value is None:
-        return ""
-    return value
 
 
 def _flags_text(flags_json: dict[str, Any] | None) -> str:

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import csv
-import io
 import json
 from dataclasses import dataclass
 from datetime import date
@@ -19,6 +17,9 @@ from app.models.ceri_tables import (
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.export_policy import CeriExportPolicyRegistry
+from app.services.csv_export import write_csv
+
+CERI_EXPORT_SCHEMA_ID = "swinglens.ceri.export.v1"
 
 
 @dataclass(frozen=True)
@@ -31,12 +32,8 @@ class CeriExportResult:
 
     def to_csv(self) -> str:
         if not self.rows:
-            return ""
-        buffer = io.StringIO()
-        writer = csv.DictWriter(buffer, fieldnames=list(self.rows[0]))
-        writer.writeheader()
-        writer.writerows(self.rows)
-        return buffer.getvalue()
+            return write_csv([], [], schema_id=CERI_EXPORT_SCHEMA_ID)
+        return write_csv(list(self.rows[0]), self.rows, schema_id=CERI_EXPORT_SCHEMA_ID)
 
 
 class CeriExportService:

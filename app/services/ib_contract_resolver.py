@@ -63,6 +63,8 @@ def resolve_us_stock_contract(
         qualified = ib.qualifyContracts(requested)
         if not qualified:
             return _mark_failed(db, row, "IB returned no matching US stock contract.")
+        if len(qualified) > 1:
+            return _mark_ambiguous(db, row, qualified)
 
         contract = qualified[0]
         row.ib_conid = contract.conId
@@ -88,6 +90,7 @@ def resolve_us_stock_contract(
 
 
 def _mark_failed(db: Session, row: IBContract, message: str) -> ContractResolution:
+    _clear_contract_identity(row)
     row.resolution_status = "FAILED"
     row.error_message = message
     row.last_resolved_at = datetime.now(UTC)
@@ -99,3 +102,60 @@ def _mark_failed(db: Session, row: IBContract, message: str) -> ContractResoluti
         cache_row=row,
         error_message=message,
     )
+
+
+def _mark_ambiguous(
+    db: Session,
+    row: IBContract,
+    candidates: list[Contract],
+) -> ContractResolution:
+    _clear_contract_identity(row)
+    message = (
+        "IB returned multiple qualified contracts for this ticker; "
+        f"manual instrument selection is required. Candidates: {_candidate_summary(candidates)}"
+    )
+    row.resolution_status = "AMBIGUOUS"
+    row.error_message = message
+    row.last_resolved_at = datetime.now(UTC)
+    db.flush()
+    return ContractResolution(
+        ticker=row.ticker,
+        status="AMBIGUOUS",
+        contract=None,
+        cache_row=row,
+        error_message=message,
+    )
+
+
+def _clear_contract_identity(row: IBContract) -> None:
+    row.ib_conid = None
+    row.symbol = None
+    row.exchange = None
+    row.primary_exchange = None
+    row.currency = None
+    row.sec_type = None
+    row.local_symbol = None
+    row.trading_class = None
+
+
+def _candidate_summary(candidates: list[Contract]) -> str:
+    parts = []
+    for candidate in candidates[:5]:
+        parts.append(
+            "|".join(
+                str(value or "")
+                for value in (
+                    candidate.conId,
+                    candidate.symbol,
+                    candidate.secType,
+                    candidate.exchange,
+                    candidate.primaryExchange,
+                    candidate.currency,
+                    candidate.localSymbol,
+                    candidate.tradingClass,
+                )
+            )
+        )
+    if len(candidates) > 5:
+        parts.append(f"... +{len(candidates) - 5} more")
+    return "; ".join(parts)

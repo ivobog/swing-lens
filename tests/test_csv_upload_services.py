@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.services.column_mapper import map_csv_rows
-from app.services.csv_loader import load_csv_rows
+from app.services.csv_loader import CsvLoadError, load_csv_rows
 from app.services.validation_service import CsvValidationError, validate_mapped_rows
 
 
@@ -33,6 +33,61 @@ def test_validation_rejects_rows_without_tickers() -> None:
 
     with pytest.raises(CsvValidationError, match="ticker column"):
         validate_mapped_rows(mapped)
+
+
+def test_validation_rejects_duplicate_tickers_before_scoring() -> None:
+    mapped = map_csv_rows(
+        [
+            {"Symbol": "msft", "Description": "Microsoft A"},
+            {"Symbol": "MSFT", "Description": "Microsoft B"},
+        ]
+    )
+
+    with pytest.raises(CsvValidationError, match="duplicate ticker 'MSFT'"):
+        validate_mapped_rows(mapped)
+
+
+def test_loader_rejects_duplicate_normalized_headers(tmp_path: Path) -> None:
+    csv_path = tmp_path / "duplicate_headers.csv"
+    csv_path.write_text(
+        "Symbol, symbol ,Description\nMSFT,AAPL,Microsoft\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CsvLoadError, match="duplicate column"):
+        load_csv_rows(csv_path)
+
+
+def test_loader_rejects_over_wide_rows(tmp_path: Path) -> None:
+    csv_path = tmp_path / "over_wide.csv"
+    csv_path.write_text("Symbol,Description\nMSFT,Microsoft,extra\n", encoding="utf-8")
+
+    with pytest.raises(CsvLoadError, match="row 2 has 3 fields; expected 2"):
+        load_csv_rows(csv_path)
+
+
+def test_loader_rejects_under_wide_rows(tmp_path: Path) -> None:
+    csv_path = tmp_path / "under_wide.csv"
+    csv_path.write_text("Symbol,Description,Sector\nMSFT,Microsoft\n", encoding="utf-8")
+
+    with pytest.raises(CsvLoadError, match="row 2 has 2 fields; expected 3"):
+        load_csv_rows(csv_path)
+
+
+def test_loader_rejects_semicolon_delimited_header(tmp_path: Path) -> None:
+    csv_path = tmp_path / "semicolon.csv"
+    csv_path.write_text("Symbol;Description\nMSFT;Microsoft\n", encoding="utf-8")
+
+    with pytest.raises(CsvLoadError, match="Only comma-delimited"):
+        load_csv_rows(csv_path)
+
+
+def test_loader_rejects_blank_data_rows(tmp_path: Path) -> None:
+    csv_path = tmp_path / "blank_row.csv"
+    csv_path.write_text("Symbol,Description\nMSFT,Microsoft\n,\n", encoding="utf-8")
+
+    with pytest.raises(CsvLoadError, match="row 3 is blank"):
+        load_csv_rows(csv_path)
 
 
 def test_duplicate_like_columns_are_mapped_separately() -> None:

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import csv
 import json
-from io import StringIO
 from typing import Any
 
 from sqlalchemy import or_, select
 
 from app.models.tables import SetupLifecycleEvent, SignalAlertEvent
+from app.services.csv_export import write_csv
 
 CHANGE_COLUMNS = (
     "id",
@@ -43,6 +42,11 @@ ALERT_COLUMNS = (
     "severity",
     "source_event_key",
 )
+SETUP_LIFECYCLE_SCHEMA_IDS = {
+    CHANGE_COLUMNS: "swinglens.setup-lifecycle.changes.v1",
+    EPISODE_COLUMNS: "swinglens.setup-lifecycle.episodes.v1",
+    ALERT_COLUMNS: "swinglens.setup-lifecycle.alerts.v1",
+}
 
 
 def export_changes_csv(payload: dict[str, Any]) -> str:
@@ -128,12 +132,12 @@ def setup_lifecycle_point_in_time_features(
 
 
 def _csv(rows: list[dict[str, Any]], columns: tuple[str, ...]) -> str:
-    buffer = StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=columns, extrasaction="ignore")
-    writer.writeheader()
-    for row in rows:
-        writer.writerow({column: _cell(row.get(column)) for column in columns})
-    return buffer.getvalue()
+    return write_csv(
+        columns,
+        ({column: _cell(row.get(column)) for column in columns} for row in rows),
+        schema_id=SETUP_LIFECYCLE_SCHEMA_IDS[columns],
+        metadata={"guidance_type": "research_context", "execution_instruction": False},
+    )
 
 
 def _cell(value: Any) -> Any:

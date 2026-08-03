@@ -1,11 +1,10 @@
-import csv
 from collections.abc import Iterable
-from io import StringIO
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.models.tables import RankingResult
+from app.services.csv_export import write_csv
 from app.services.ranking_profile_service import (
     get_all_ranking_results,
     get_ranking_results,
@@ -32,6 +31,7 @@ RANKING_RESULT_HEADERS = [
     "days_until_earnings",
     "earnings_risk",
 ]
+RANKING_RESULT_SCHEMA_ID = "swinglens.ranking-results.v1"
 
 
 def export_ranking_profile_csv(
@@ -75,18 +75,12 @@ def _ranking_result_row(result: RankingResult) -> dict[str, Any]:
 
 
 def _write_csv(headers: list[str], rows: Iterable[dict[str, Any]]) -> str:
-    buffer = StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=headers, lineterminator="\n")
-    writer.writeheader()
-    for row in rows:
-        writer.writerow({key: _csv_value(row.get(key)) for key in headers})
-    return buffer.getvalue()
-
-
-def _csv_value(value: Any) -> Any:
-    if value is None:
-        return ""
-    return value
+    return write_csv(
+        headers,
+        rows,
+        schema_id=RANKING_RESULT_SCHEMA_ID,
+        metadata={"guidance_type": "research_hint", "execution_instruction": False},
+    )
 
 
 def _list_text(values: Any) -> str:

@@ -15,7 +15,7 @@ from app.services.ib_rate_limiter import (
     IbHistoricalRateLimiter,
     rate_limit_config_from_settings,
 )
-from app.services.us_market_calendar import is_latest_daily_bar_current
+from app.services.us_market_calendar import is_daily_bar_fresh
 from app.settings import Settings, get_settings
 
 NON_FETCH_ACTIONS = {
@@ -260,8 +260,7 @@ def _execution_action(
 
 
 def _latest_date_current(latest: date | None, stale_after_days: int) -> bool:
-    _ = stale_after_days
-    return is_latest_daily_bar_current(latest)
+    return is_daily_bar_fresh(latest, stale_after_days)
 
 
 def _mark_skipped(fetch_item: IBFetchItem, reason: str) -> None:

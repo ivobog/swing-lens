@@ -58,7 +58,7 @@ def test_prepare_ohlcv_uses_trade_volume_when_available() -> None:
     assert prepared["volume"].tolist() == [100, 200, 300]
 
 
-def test_preferred_ohlcv_uses_trades_prices_for_tradingview_parity(monkeypatch) -> None:
+def test_preferred_ohlcv_uses_adjusted_prices_and_trades_volume(monkeypatch) -> None:
     adjusted = _synthetic_ohlcv(rows=3).assign(close=[10.0, 10.0, 10.0])
     trades = _synthetic_ohlcv(rows=3).assign(close=[11.0, 12.0, 13.0])
 
@@ -73,7 +73,7 @@ def test_preferred_ohlcv_uses_trades_prices_for_tradingview_parity(monkeypatch) 
 
     price, volume = price_bar_repository.load_preferred_ohlcv_frames(object(), "MSFT")
 
-    assert price["close"].tolist() == [11.0, 12.0, 13.0]
+    assert price["close"].tolist() == [10.0, 10.0, 10.0]
     assert volume is not None
     assert volume["close"].tolist() == [11.0, 12.0, 13.0]
 
@@ -186,6 +186,38 @@ def test_calculate_technical_features_marks_insufficient_history() -> None:
     assert result.insufficient_data is True
     assert result.missing_data["required_rows"] == 252
     assert result.latest["sma200"] is None
+
+
+def test_prepare_ohlcv_rejects_duplicate_bar_dates() -> None:
+    frame = _synthetic_ohlcv(rows=3)
+    frame.loc[1, "date"] = frame.loc[0, "date"]
+
+    with pytest.raises(ValueError, match="duplicate bar dates"):
+        prepare_ohlcv_frame(frame)
+
+
+def test_prepare_ohlcv_rejects_invalid_ranges_and_negative_volume() -> None:
+    invalid_range = _synthetic_ohlcv(rows=3)
+    invalid_range.loc[1, "high"] = invalid_range.loc[1, "low"] - 1
+
+    with pytest.raises(ValueError, match="invalid OHLC ranges"):
+        prepare_ohlcv_frame(invalid_range)
+
+    negative_volume = _synthetic_ohlcv(rows=3)
+    negative_volume.loc[1, "volume"] = -1
+
+    with pytest.raises(ValueError, match="negative volume"):
+        prepare_ohlcv_frame(negative_volume)
+
+
+def test_calculate_technical_features_reports_large_calendar_gaps() -> None:
+    frame = _synthetic_ohlcv(rows=320)
+    frame.loc[10:, "date"] = frame.loc[10:, "date"] + timedelta(days=10)
+
+    result = calculate_technical_features(frame, ticker="GAP")
+
+    assert result.missing_data["bar_quality"]["has_calendar_gap"] is True
+    assert result.missing_data["bar_quality"]["max_calendar_gap_days"] == 11
 
 
 def test_relative_strength_features_compare_stock_to_benchmark() -> None:
