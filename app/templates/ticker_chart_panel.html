@@ -70,7 +70,7 @@
       <dd>{{ "%.2f"|format(combined.final_score) if combined and combined.final_score is not none else "N/A" }}</dd>
       <dt>Decision</dt>
       <dd>{{ combined.combined_decision if combined else "N/A" }}</dd>
-      <dt>Position Size</dt>
+      <dt>Research Size Hint</dt>
       <dd>{{ combined.position_size_hint if combined else "N/A" }}</dd>
       {% if technical %}
         <dt>Stop</dt>

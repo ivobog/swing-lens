@@ -278,6 +278,7 @@ High-quality quant
 Mixed but interesting
 Value trap risk
 Growth trap risk
+Quality risk
 Low priority
 ```
 
@@ -822,7 +823,7 @@ Allowed final decision labels:
 ```text
 Strong candidate
 Candidate
-Watch
+Watchlist
 Wait for pullback
 Breakout candidate
 High risk / reduced size

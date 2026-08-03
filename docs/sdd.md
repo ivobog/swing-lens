@@ -877,6 +877,7 @@ High-quality quant
 Mixed but interesting
 Value trap risk
 Growth trap risk
+Quality risk
 Low priority
 ```
 
@@ -1308,6 +1309,7 @@ Danger classification penalty
 Overheated classification penalty
 Value trap risk penalty
 Growth trap risk penalty
+Quality risk penalty
 Missing data penalty
 Liquidity warning penalty
 ```

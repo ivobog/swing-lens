@@ -1,5 +1,12 @@
 from app.services.column_mapper import MappedCsvRow
-from app.services.fundamental_ranker_v2 import score_row_v2, score_rows_v2
+from app.services.fundamental_ranker_v2 import (
+    FundamentalsConfigError,
+    fundamentals_v2_config_hash,
+    load_fundamentals_v2_config,
+    parse_fundamentals_v2_config,
+    score_row_v2,
+    score_rows_v2,
+)
 from app.services.fundamental_warning_service import (
     ASSET_GROWTH_WITHOUT_RETURNS,
     HIGH_ACCRUAL_RISK,
@@ -15,7 +22,8 @@ def test_score_row_v2_returns_debug_contract_and_is_deterministic() -> None:
     second = score_rows_v2([row])[0]
 
     assert first == second
-    assert first.debug["model_version"] == "fundamentals_v2.0"
+    assert first.debug["model_version"] == "fundamentals_v2.1"
+    assert len(first.debug["config_hash"]) == 64
     assert set(first.debug["component_scores"]) == {
         "growth_quality_score",
         "profitability_quality_score",
@@ -85,6 +93,108 @@ def test_score_row_v2_degrades_gracefully_for_sparse_older_csv() -> None:
     assert 0 <= score.fundamental_score <= 10
     assert SPARSE_FUNDAMENTAL_DATA in score.warning_flags
     assert score.debug["coverage"]["missing_core_fields"]
+
+
+def test_quarterly_growth_fields_affect_growth_score_under_v2_1_contract() -> None:
+    weak = _quality_values()
+    weak["revenue_growth_quarterly_yoy"] = "-10"
+    weak["eps_growth_quarterly_yoy"] = "-10"
+    strong = _quality_values()
+    strong["revenue_growth_quarterly_yoy"] = "25"
+    strong["eps_growth_quarterly_yoy"] = "25"
+
+    weak_score = score_row_v2(_row("WEAK", weak))
+    strong_score = score_row_v2(_row("STRONG", strong))
+
+    assert strong_score.growth_quality_score > weak_score.growth_quality_score
+    assert strong_score.fundamental_score > weak_score.fundamental_score
+
+
+def test_quality_risk_label_is_reachable_and_hash_lineage_is_recorded() -> None:
+    values = _quality_values()
+    values.update(
+        {
+            "sloan_ratio_ttm": "25",
+            "net_income_ttm": "100000000",
+            "fcf_ttm": "80000000",
+        }
+    )
+
+    score = score_row_v2(_row("QUALRISK", values))
+
+    assert HIGH_ACCRUAL_RISK in score.warning_flags
+    assert score.fundamental_label == "Quality risk"
+    assert score.debug["config_hash"] == load_fundamentals_v2_config().config_hash
+
+
+def test_fundamentals_config_rejects_unknown_component_field() -> None:
+    config = load_fundamentals_v2_config().data
+    mutated = {
+        **config,
+        "components": {
+            **config["components"],
+            "growth_quality_score": {
+                "fields": [
+                    *config["components"]["growth_quality_score"]["fields"],
+                    "not_a_formula_field",
+                ],
+            },
+        },
+    }
+
+    try:
+        parse_fundamentals_v2_config(mutated)
+    except FundamentalsConfigError as exc:
+        assert "not_a_formula_field" in str(exc)
+    else:
+        raise AssertionError("Expected FundamentalsConfigError")
+
+
+def test_fundamentals_config_rejects_bad_weight_sum_and_threshold_order() -> None:
+    config = load_fundamentals_v2_config().data
+    bad_weights = {
+        **config,
+        "weights": {
+            **config["weights"],
+            "growth_quality_score": 0.25,
+        },
+    }
+    bad_thresholds = {
+        **config,
+        "thresholds": {
+            **config["thresholds"],
+            "sloan_ratio_good_max": 30,
+        },
+    }
+
+    try:
+        parse_fundamentals_v2_config(bad_weights)
+    except FundamentalsConfigError as exc:
+        assert "sum to 1.0" in str(exc)
+    else:
+        raise AssertionError("Expected FundamentalsConfigError")
+
+    try:
+        parse_fundamentals_v2_config(bad_thresholds)
+    except FundamentalsConfigError as exc:
+        assert "strictly increasing" in str(exc)
+    else:
+        raise AssertionError("Expected FundamentalsConfigError")
+
+
+def test_fundamentals_config_hash_is_stable_for_semantic_key_order() -> None:
+    config = load_fundamentals_v2_config().data
+    reordered = {
+        "components": config["components"],
+        "coverage_only_fields": config["coverage_only_fields"],
+        "field_priorities": config["field_priorities"],
+        "missing_data": config["missing_data"],
+        "model_version": config["model_version"],
+        "thresholds": config["thresholds"],
+        "weights": dict(reversed(list(config["weights"].items()))),
+    }
+
+    assert fundamentals_v2_config_hash(config) == fundamentals_v2_config_hash(reordered)
 
 
 def _row(ticker: str, values: dict[str, str]) -> MappedCsvRow:

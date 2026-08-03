@@ -32,6 +32,10 @@ SECTOR_ROTATION_CSV_HEADERS = [
     "confidence",
     "warnings",
     "reasons",
+    "universe_scope",
+    "etf_confirmation_mode",
+    "guidance_type",
+    "research_size_multiplier",
 ]
 SECTOR_ROTATION_SCHEMA_ID = "swinglens.sector-rotation.v1"
 
@@ -54,6 +58,9 @@ def snapshot_to_payload(
             "config_version": snapshot.config_version,
             "config_hash": snapshot.config_hash,
             "mode": snapshot.mode,
+            "universe_scope": _universe_scope(),
+            "scope_label": _scope_label(),
+            "etf_confirmation_mode": _etf_confirmation_mode(snapshot.mode),
             "default_ranking_profile": snapshot.default_ranking_profile,
             "benchmark_ticker": snapshot.benchmark_ticker,
             "summary": snapshot.summary_json,
@@ -62,7 +69,10 @@ def snapshot_to_payload(
             "created_at": _json_value(snapshot.created_at),
             "updated_at": _json_value(snapshot.updated_at),
         },
-        "rows": [_row_payload(_orm_row_context(row)) for row in _sorted_orm_rows(rows)],
+        "rows": [
+            _row_payload(_with_scope(_orm_row_context(row), snapshot.mode))
+            for row in _sorted_orm_rows(rows)
+        ],
     }
 
 
@@ -94,9 +104,11 @@ def export_sector_rotation_markdown(
     snapshot_payload = payload["snapshot"]
     row_payloads = payload["rows"]
     lines = [
-        f"# Sector Rotation Brief - {snapshot_payload['as_of_date']}",
+        f"# Candidate-Universe Sector Rotation Brief - {snapshot_payload['as_of_date']}",
         "",
         f"- Mode: {snapshot_payload['mode']}",
+        f"- Scope: {snapshot_payload['scope_label']}",
+        f"- ETF confirmation: {_etf_confirmation_text(snapshot_payload['mode'])}",
         f"- Run: {snapshot_payload['run_id'] or 'N/A'}",
         f"- Leading sector: {snapshot_payload['summary'].get('leading_sector') or 'N/A'}",
         f"- Weakest sector: {snapshot_payload['summary'].get('weakest_sector') or 'N/A'}",
@@ -123,7 +135,7 @@ def export_sector_rotation_markdown(
         lines.extend(f"- `{warning}`" for warning in warnings)
 
     if snapshot_payload["mode"] == "universe_only":
-        lines.extend(["", "_ETF confirmation was not used for this universe-only snapshot._"])
+        lines.extend(["", "_ETF confirmation was not used for this candidate-universe snapshot._"])
     return "\n".join(lines) + "\n"
 
 
@@ -140,6 +152,9 @@ def _dto_to_payload(snapshot: SectorRotationSnapshotDto) -> dict[str, Any]:
             "config_version": snapshot.config_version,
             "config_hash": snapshot.config_hash,
             "mode": snapshot.mode,
+            "universe_scope": _universe_scope(),
+            "scope_label": _scope_label(),
+            "etf_confirmation_mode": _etf_confirmation_mode(snapshot.mode),
             "default_ranking_profile": snapshot.default_ranking_profile,
             "benchmark_ticker": snapshot.benchmark_ticker,
             "summary": snapshot.summary,
@@ -150,10 +165,13 @@ def _dto_to_payload(snapshot: SectorRotationSnapshotDto) -> dict[str, Any]:
         },
         "rows": [
             _row_payload(
-                _dto_row_context(
-                    decision,
-                    universe_by_slug.get(decision.sector_slug),
-                    etf_by_slug.get(decision.sector_slug),
+                _with_scope(
+                    _dto_row_context(
+                        decision,
+                        universe_by_slug.get(decision.sector_slug),
+                        etf_by_slug.get(decision.sector_slug),
+                    ),
+                    snapshot.mode,
                 )
             )
             for decision in _sorted_decisions(snapshot.rows)
@@ -169,15 +187,21 @@ def _row_contexts(
         universe_by_slug = {row.sector_slug: row for row in snapshot.universe_rows}
         etf_by_slug = {row.sector_slug: row for row in snapshot.etf_rows}
         return [
-            _dto_row_context(
-                decision,
-                universe_by_slug.get(decision.sector_slug),
-                etf_by_slug.get(decision.sector_slug),
+            _with_scope(
+                _dto_row_context(
+                    decision,
+                    universe_by_slug.get(decision.sector_slug),
+                    etf_by_slug.get(decision.sector_slug),
+                ),
+                snapshot.mode,
             )
             for decision in _sorted_decisions(snapshot.rows)
         ]
     rows = rows if rows is not None else list(getattr(snapshot, "rows", []) or [])
-    return [_orm_row_context(row) for row in _sorted_orm_rows(rows)]
+    return [
+        _with_scope(_orm_row_context(row), snapshot.mode)
+        for row in _sorted_orm_rows(rows)
+    ]
 
 
 def _dto_row_context(
@@ -302,6 +326,9 @@ def _row_payload(context: dict[str, Any]) -> dict[str, Any]:
         "reasons": context["reasons"],
         "warnings": context["warnings"],
         "debug": context["debug"],
+        "universe_scope": context["universe_scope"],
+        "etf_confirmation_mode": context["etf_confirmation_mode"],
+        "guidance_type": context["guidance_type"],
     }
 
 
@@ -326,7 +353,40 @@ def _csv_row(context: dict[str, Any]) -> dict[str, Any]:
         "confidence": context["confidence"],
         "warnings": _list_text(context["warnings"]),
         "reasons": _list_text(context["reasons"]),
+        "universe_scope": context["universe_scope"],
+        "etf_confirmation_mode": context["etf_confirmation_mode"],
+        "guidance_type": context["guidance_type"],
+        "research_size_multiplier": context["position_size_multiplier"],
     }
+
+
+def _with_scope(context: dict[str, Any], mode: str) -> dict[str, Any]:
+    return {
+        **context,
+        "universe_scope": _universe_scope(),
+        "etf_confirmation_mode": _etf_confirmation_mode(mode),
+        "guidance_type": "research_context",
+    }
+
+
+def _universe_scope() -> str:
+    return "candidate_universe"
+
+
+def _scope_label() -> str:
+    return "Candidate universe from the uploaded run, not full-market breadth"
+
+
+def _etf_confirmation_mode(mode: str) -> str:
+    if mode == "universe_only":
+        return "not_used"
+    return "optional"
+
+
+def _etf_confirmation_text(mode: str) -> str:
+    if mode == "universe_only":
+        return "Not used; this is a universe-only candidate snapshot"
+    return "Optional confirmation overlay; universe scores remain candidate-universe metrics"
 
 
 def _etf_metrics_payload(etf: Any | None) -> dict[str, Any]:

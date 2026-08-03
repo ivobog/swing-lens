@@ -529,6 +529,7 @@ High-quality quant
 Mixed but interesting
 Value trap risk
 Growth trap risk
+Quality risk
 Low priority
 ```
 
@@ -753,7 +754,7 @@ then Final Decision = Avoid / danger
 ```text
 Strong candidate
 Candidate
-Watch
+Watchlist
 Wait for pullback
 Breakout candidate
 High risk / reduced size

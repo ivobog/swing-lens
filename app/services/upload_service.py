@@ -85,9 +85,14 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         run.row_count = len(raw_rows)
         run.processed_at = datetime.now(UTC)
         run.status = RunStatus.COMPLETED.value
+        model_version = (
+            fundamental_scores[0].scoring_model_version
+            if fundamental_scores
+            else "fundamentals_v2"
+        )
         run.notes = (
             "CSV uploaded, raw rows stored, and fundamental scores calculated "
-            "with fundamentals_v2.0."
+            f"with {model_version}."
         )
         db.commit()
         committed = True
@@ -155,7 +160,7 @@ def _fundamental_score_from_v2(
         shareholder_quality_score=to_decimal(score.shareholder_quality_score),
         liquidity_risk_score=to_decimal(score.liquidity_risk_score),
         data_coverage_score=to_decimal(score.data_coverage_score),
-        scoring_model_version=score.debug.get("model_version", "fundamentals_v2.0"),
+        scoring_model_version=score.debug.get("model_version", "fundamentals_v2.1"),
         v2_warning_flags_json={"flags": score.warning_flags},
         missing_data_penalty=to_decimal(score.missing_data_penalty),
         fundamental_score=to_decimal(score.fundamental_score),

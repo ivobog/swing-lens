@@ -104,9 +104,9 @@
   ],
   "expected": {
     "top_ticker": "MSFT",
-    "fundamental_score": "7.7477",
+    "fundamental_score": "7.7563",
     "fundamental_label": "Clean compounder",
-    "final_score": "7.7592",
+    "final_score": "7.764",
     "combined_decision": "Candidate",
     "position_size_hint": "Half starter",
     "warning_flags": [

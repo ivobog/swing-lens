@@ -17,6 +17,7 @@ penalties:
   overheated_momentum: 1.5
   value_trap_risk: 2.0
   growth_trap_risk: 1.5
+  quality_risk: 1.5
   missing_data: 1.0
   liquidity_warning: 1.0
 

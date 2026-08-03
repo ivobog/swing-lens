@@ -51,6 +51,8 @@ def test_run_page_renders_required_evidence_fields(monkeypatch) -> None:
     assert "67%" in html
     assert "55-78%" in html
     assert "High" in html
+    assert "cohort-baseline" in html
+    assert "cohort_baseline" in html
     assert "120" in html
     assert "2.1" in html
     assert "3.7 / -1.2" in html
@@ -115,6 +117,8 @@ def test_ticker_evidence_page_separates_label_entry_model_and_estimate_views(
     assert "SIGNAL_CLOSE_DIAGNOSTIC" not in html
     assert "Decision-Time Estimate" in html
     assert "Latest Re-score" in html
+    assert "cohort-baseline" in html
+    assert "cohort_baseline" in html
     assert "Audit JSON" in html
     assert "Matches" in html
 
@@ -319,6 +323,11 @@ def _run_payload() -> dict[str, object]:
                     "upper_bound": 0.78,
                     "interval_width": 0.23,
                     "evidence_grade": "High",
+                    "model_key": "cohort-baseline",
+                    "model_status": "BASELINE",
+                    "model_version_label": "cohort-baseline",
+                    "calibration_status": "cohort_baseline",
+                    "calibration_calculated_at": None,
                     "sample_n": 120,
                     "effective_n": 118.0,
                     "median_return_pct": 2.1,
@@ -348,6 +357,11 @@ def _prediction_payload() -> dict[str, object]:
         "lower_bound": 0.55,
         "upper_bound": 0.78,
         "evidence_grade": "High",
+        "model_key": "cohort-baseline",
+        "model_status": "BASELINE",
+        "model_version_label": "cohort-baseline",
+        "calibration_status": "cohort_baseline",
+        "calibration_calculated_at": None,
         "sample_n": 120,
         "effective_n": 118.0,
         "median_return_pct": 2.1,

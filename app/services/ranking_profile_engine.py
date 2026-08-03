@@ -205,7 +205,7 @@ def decision_from_score(score: float, profile: RankingProfileConfig) -> str:
     if score >= thresholds.candidate_min_score:
         return "Candidate"
     if score >= thresholds.watch_min_score:
-        return "Watch"
+        return "Watchlist"
     return "Avoid"
 
 
@@ -230,7 +230,7 @@ def _position_size_hint(decision: str, technical: TechnicalScore | None) -> str:
         return "Avoid"
     if decision in {"Low confidence", "Speculative watch"}:
         return "Small probe"
-    if decision == "Watch":
+    if decision in {"Watch", "Watchlist"}:
         return "Small probe"
     risk_score = _float_or_none(technical.risk_score if technical else None)
     if (

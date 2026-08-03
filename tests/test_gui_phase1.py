@@ -26,7 +26,7 @@ def test_scoring_page_renders_fundamentals_v2_metadata() -> None:
 
     assert response.status_code == 200
     assert "<h1>Scoring</h1>" in response.text
-    assert "fundamentals_v2.0" in response.text
+    assert "fundamentals_v2.1" in response.text
     assert "Growth Quality Score" in response.text
 
 

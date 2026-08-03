@@ -12,8 +12,19 @@ DECISION_ORDER = {
     "Low confidence": 2,
     "Speculative watch": 2,
     "Watch": 3,
+    "Watchlist": 3,
     "Candidate": 4,
     "Strong candidate": 5,
+}
+FUNDAMENTAL_RISK_LABEL_CAPS = {
+    "Value trap risk": "Avoid",
+    "Growth trap risk": "Candidate",
+    "Quality risk": "Candidate",
+}
+FUNDAMENTAL_RISK_WARNING_FLAGS = {
+    "Value trap risk": "value_trap_risk",
+    "Growth trap risk": "growth_trap_risk",
+    "Quality risk": "quality_risk",
 }
 
 
@@ -72,7 +83,7 @@ def apply_profile_gates(
         fundamental_score = _fundamental_score(fundamental)
         min_score = float(floor.get("min_score", 0.0))
         if fundamental_score is not None and fundamental_score < min_score:
-            max_decision = str(floor.get("max_decision", "Watch"))
+            max_decision = str(floor.get("max_decision", "Watchlist"))
             final_decision = _cap_decision(final_decision, max_decision)
             gates["fundamental_floor"] = {
                 "passed": False,
@@ -84,8 +95,20 @@ def apply_profile_gates(
         else:
             gates["fundamental_floor"] = {"passed": True, "min_score": min_score}
 
+    if fundamental is not None:
+        fundamental_label = fundamental.fundamental_label
+        max_decision = FUNDAMENTAL_RISK_LABEL_CAPS.get(str(fundamental_label))
+        if max_decision is not None:
+            final_decision = _cap_decision(final_decision, max_decision)
+            gates["fundamental_risk_label"] = {
+                "label": fundamental_label,
+                "max_decision": max_decision,
+            }
+            notes.append(f"{str(fundamental_label).lower()} cap")
+            warning_flags.append(FUNDAMENTAL_RISK_WARNING_FLAGS[str(fundamental_label)])
+
     if profile.gates.get("liquidity_caps_candidate") is True and _liquidity_warning(technical):
-        final_decision = _cap_decision(final_decision, "Watch")
+        final_decision = _cap_decision(final_decision, "Watchlist")
         gates["liquidity_cap"] = True
         notes.append("liquidity cap")
         warning_flags.append("liquidity_warning")

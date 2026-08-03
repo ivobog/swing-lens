@@ -110,6 +110,8 @@
             <th>Probability</th>
             <th>Interval</th>
             <th>Grade</th>
+            <th>Model</th>
+            <th>Calibration</th>
             <th>n</th>
             <th>Return</th>
             <th>MFE / MAE</th>
@@ -141,6 +143,8 @@
                 {% endif %}
               </td>
               <td><span class="badge badge-{{ 'warning' if estimate and estimate.evidence_grade == 'Insufficient' else 'success' if estimate and estimate.evidence_grade == 'High' else 'muted' }}">{{ estimate.evidence_grade if estimate else "Missing" }}</span></td>
+              <td>{{ estimate.model_version_label if estimate else "" }}<small>{{ estimate.model_status if estimate else "" }}</small></td>
+              <td>{{ estimate.calibration_status if estimate else "" }}<small>{{ estimate.calibration_calculated_at if estimate and estimate.calibration_calculated_at else "" }}</small></td>
               <td>{{ estimate.sample_n if estimate else "" }}<small>eff {{ "%.0f"|format(estimate.effective_n) if estimate and estimate.effective_n is not none else "" }}</small></td>
               <td>{{ "%.1f"|format(estimate.median_return_pct) if estimate and estimate.median_return_pct is not none else "" }}</td>
               <td>{{ "%.1f"|format(estimate.median_mfe_pct) if estimate and estimate.median_mfe_pct is not none else "" }} / {{ "%.1f"|format(estimate.median_mae_pct) if estimate and estimate.median_mae_pct is not none else "" }}</td>

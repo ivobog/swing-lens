@@ -503,7 +503,7 @@ def test_run_detail_template_renders_market_context_near_rankings(monkeypatch) -
     assert "Choppy" in html
     assert "Yellow risk" in html
     assert "50%" in html
-    assert "starter size" in html
+    assert "research size context" in html
     assert "Early Rocket" in html
     assert "Blocked" in html
     assert 'href="/runs/1/market-regime"' in html

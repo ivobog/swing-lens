@@ -17,6 +17,8 @@
       {% endif %}
     </dd>
     <dt>Grade</dt><dd>{{ estimate.evidence_grade }}</dd>
+    <dt>Model</dt><dd>{{ estimate.model_version_label or estimate.source_version or "Unknown" }}{% if estimate.model_status %} / {{ estimate.model_status }}{% endif %}</dd>
+    <dt>Calibration</dt><dd>{{ estimate.calibration_status or "unknown" }}{% if estimate.calibration_calculated_at %} {{ estimate.calibration_calculated_at }}{% endif %}</dd>
     <dt>Raw n</dt><dd>{{ estimate.sample_n or 0 }}</dd>
     <dt>Effective n</dt><dd>{{ "%.0f"|format(estimate.effective_n) if estimate.effective_n is not none else "" }}</dd>
     <dt>Median Return</dt><dd>{{ "%.1f"|format(estimate.median_return_pct) if estimate.median_return_pct is not none else "" }}</dd>

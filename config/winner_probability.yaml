@@ -133,6 +133,16 @@ drift:
     psi: 0.20
     min_sample: 40
 
+model_governance:
+  approved_algorithms:
+    - cohort
+    - regularized_logistic_regression
+  promotion_gates:
+    min_log_loss_improvement: 0.0
+    min_brier_improvement: 0.0
+    require_calibration_bins: true
+    require_fresh_drift_metrics: true
+
 retention:
   permanent:
     - prediction_snapshots

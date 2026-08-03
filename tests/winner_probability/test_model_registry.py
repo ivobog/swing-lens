@@ -6,6 +6,7 @@ import pytest
 
 from app.models.tables import (
     ModelStatus,
+    WinnerCalibrationBin,
     WinnerDriftMetric,
     WinnerModelLifecycleEvent,
     WinnerModelVersion,
@@ -46,6 +47,30 @@ def test_register_model_starts_in_shadow_and_records_lifecycle_event() -> None:
     assert db.rows[WinnerModelLifecycleEvent][0].new_status == ModelStatus.SHADOW
 
 
+def test_register_model_rejects_unapproved_algorithm() -> None:
+    db = RegistryFakeDb()
+
+    with pytest.raises(ModelRegistryError) as exc:
+        ModelRegistry().register_model(
+            db,
+            model_key="candidate-1",
+            algorithm="neural_net",
+            outcome_definition_id=1,
+            entry_model="NEXT_OPEN",
+            training_cutoff_at=_cutoff(),
+            artifact_hash="hash",
+            artifact_format="json",
+            artifact_schema_version="winner-model-artifact-v1",
+            feature_schema_version="owpe-features-1.0.0",
+            calculation_version="owpe-calc-1.0.0",
+            config_hash="config",
+            actor="local",
+            reason="registered",
+        )
+
+    assert exc.value.code == "MODEL_ALGORITHM_NOT_APPROVED"
+
+
 def test_promotion_fails_closed_when_sample_calibration_or_drift_gate_fails() -> None:
     db = RegistryFakeDb()
     model = _model(status=ModelStatus.SHADOW)
@@ -84,6 +109,8 @@ def test_promotion_activates_candidate_and_retires_previous_active_model() -> No
     candidate = _model(id=2, status=ModelStatus.SHADOW, key="candidate")
     db.add(active)
     db.add(candidate)
+    db.add(_calibration_bin(model_id=candidate.id))
+    db.add(_drift(model_id=candidate.id))
 
     promoted = ModelRegistry().promote_model(
         db,
@@ -95,8 +122,52 @@ def test_promotion_activates_candidate_and_retires_previous_active_model() -> No
     assert promoted.status == ModelStatus.ACTIVE
     assert active.status == ModelStatus.RETIRED
     events = db.rows[WinnerModelLifecycleEvent]
-    assert any(event.event_type == "PROMOTED" for event in events)
+    promoted_event = next(event for event in events if event.event_type == "PROMOTED")
+    assert promoted_event.metadata_json["gate_report"]["allowed"] is True
+    assert len(promoted_event.metadata_json["gate_report_hash"]) == 64
     assert any(event.replacement_model_version_id == candidate.id for event in events)
+
+
+def test_unapproved_registered_algorithm_cannot_promote_even_with_passing_metrics() -> None:
+    db = RegistryFakeDb()
+    model = _model(status=ModelStatus.SHADOW, algorithm="neural_net")
+    db.add(model)
+    db.add(_calibration_bin(model_id=model.id))
+    db.add(_drift(model_id=model.id))
+
+    gates = ModelRegistry().evaluate_promotion(db, model=model)
+
+    assert not gates.allowed
+    assert "algorithm_not_approved" in gates.reasons
+
+
+def test_missing_gate_report_metrics_block_promotion() -> None:
+    db = RegistryFakeDb()
+    model = _model(status=ModelStatus.SHADOW)
+    model.metrics_json = {"sample_n": 80, "ece": 0.02, "coverage": 0.9}
+    db.add(model)
+
+    gates = ModelRegistry().evaluate_promotion(db, model=model)
+
+    assert not gates.allowed
+    assert "quantitative_metrics_missing" in gates.reasons
+    assert "calibration_bins_missing" in gates.reasons
+    assert "drift_metrics_missing" in gates.reasons
+    assert gates.report["checks"]["required_quantitative_metrics"]["missing"]
+    assert len(gates.report_hash) == 64
+
+
+def test_stale_drift_metrics_block_promotion() -> None:
+    db = RegistryFakeDb()
+    model = _model(status=ModelStatus.SHADOW)
+    db.add(model)
+    db.add(_calibration_bin(model_id=model.id))
+    db.add(_drift(model_id=model.id, calculated_at=datetime(2026, 7, 30, tzinfo=UTC)))
+
+    gates = ModelRegistry().evaluate_promotion(db, model=model)
+
+    assert not gates.allowed
+    assert "drift_metrics_stale" in gates.reasons
 
 
 def test_retirement_is_auditable_and_blocks_only_active_model_without_fallback() -> None:
@@ -166,6 +237,7 @@ class RegistryFakeDb:
             WinnerModelVersion: [],
             WinnerModelLifecycleEvent: [],
             WinnerDriftMetric: [],
+            WinnerCalibrationBin: [],
         }
         self.flushes = 0
         self._next_id = 1
@@ -211,6 +283,10 @@ class RegistryFakeDb:
 
     def scalars(self, statement):
         text = str(statement)
+        if "winner_calibration_bins" in text:
+            return iter(self.rows[WinnerCalibrationBin])
+        if "winner_drift_metrics" in text:
+            return iter(self.rows[WinnerDriftMetric])
         if "winner_model_versions" in text:
             active_rows = [
                 row
@@ -226,12 +302,13 @@ def _model(
     id: int = 1,
     key: str = "model",
     status: str,
+    algorithm: str = "regularized_logistic_regression",
 ) -> WinnerModelVersion:
     config = load_winner_probability_config()
     return WinnerModelVersion(
         id=id,
         model_key=key,
-        algorithm="cohort",
+        algorithm=algorithm,
         status=status,
         outcome_definition_id=1,
         entry_model="NEXT_OPEN",
@@ -239,13 +316,61 @@ def _model(
         calculation_version=config.engine.calculation_version,
         config_hash=config.config_hash,
         training_cutoff_at=_cutoff(),
-        metrics_json={"sample_n": 80, "ece": 0.02, "coverage": 0.9},
+        metrics_json={
+            "sample_n": 80,
+            "ece": 0.02,
+            "coverage": 0.9,
+            "model_log_loss": 0.48,
+            "model_brier_score": 0.18,
+            "global_baseline_log_loss": 0.52,
+            "global_baseline_brier_score": 0.22,
+            "cohort_baseline_log_loss": 0.50,
+            "cohort_baseline_brier_score": 0.20,
+            "fold_count": 3,
+            "independent_episode_count": 80,
+        },
         preprocessing_json={"feature_order": ["setup_family", "ranking_profile"]},
         calibration_json={"method": "isotonic", "version": "1"},
         artifact_schema_version="winner-model-artifact-v1",
         artifact_format="json",
         artifact_hash="hash",
         dependency_versions_json={"python": "3.12"},
+    )
+
+
+def _calibration_bin(*, model_id: int) -> WinnerCalibrationBin:
+    return WinnerCalibrationBin(
+        id=100 + model_id,
+        model_version_id=model_id,
+        outcome_definition_id=1,
+        estimate_kind="DECISION_TIME",
+        bin_floor=0.5,
+        bin_ceiling=0.6,
+        sample_n=50,
+        calculated_at=datetime(2026, 8, 1, tzinfo=UTC),
+        segment_json={},
+    )
+
+
+def _drift(
+    *,
+    model_id: int,
+    calculated_at: datetime | None = None,
+) -> WinnerDriftMetric:
+    return WinnerDriftMetric(
+        id=200 + model_id,
+        model_version_id=model_id,
+        outcome_definition_id=1,
+        as_of_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        metric_name="ece_delta",
+        threshold_value=0.04,
+        metric_value=0.01,
+        breached=False,
+        sample_n=50,
+        comparison_window="short",
+        segment_json={},
+        sufficient_sample=True,
+        calculated_at=calculated_at or datetime(2026, 8, 1, tzinfo=UTC),
     )
 
 
