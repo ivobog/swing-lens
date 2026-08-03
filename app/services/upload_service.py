@@ -209,6 +209,7 @@ def _save_upload(upload_file: UploadFile, upload_dir: Path, filename: str) -> Pa
 
 
 def _safe_filename(filename: str) -> str:
+    filename = filename.replace("\\", "/")
     keep = []
     for char in Path(filename).name:
         keep.append(char if char.isalnum() or char in (" ", ".", "-", "_") else "_")
