@@ -234,6 +234,7 @@ def test_cohort_refresh_admin_endpoint_queues_job() -> None:
         "job_type": WINNER_COHORT_REFRESH,
         "status": JobStatus.QUEUED,
         "payload": {"outcome_definition_id": "T2_5_S2_0_H5_NEXT_OPEN"},
+        "coalesced": False,
     }
     assert db.jobs[0].job_type == WINNER_COHORT_REFRESH
     assert db.commits == 1

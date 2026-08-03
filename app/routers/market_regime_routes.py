@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.tables import MarketRegimeSnapshot, UploadRun
+from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.market_regime_command_center import MarketRegimeCommandCenterService
 from app.services.market_regime_export_service import (
@@ -227,18 +228,18 @@ def _require_run(db: Session, run_id: int) -> None:
 
 
 def _json_export_response(content: str, filename: str) -> Response:
-    return Response(
+    return attachment_response(
         content,
         media_type="application/json",
-        headers={"content-disposition": f'attachment; filename="{filename}"'},
+        filename=filename,
     )
 
 
 def _csv_export_response(content: str, filename: str) -> Response:
-    return Response(
+    return attachment_response(
         content,
         media_type="text/csv",
-        headers={"content-disposition": f'attachment; filename="{filename}"'},
+        filename=filename,
     )
 
 

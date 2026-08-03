@@ -58,7 +58,11 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         db.flush()
 
         try:
-            csv_rows = load_csv_rows(file_path)
+            csv_rows = load_csv_rows(
+                file_path,
+                max_rows=getattr(settings, "max_csv_rows", None),
+                max_columns=getattr(settings, "max_csv_columns", None),
+            )
             mapped_rows = map_csv_rows(csv_rows)
             validate_mapped_rows(mapped_rows)
         except (CsvLoadError, CsvValidationError) as exc:

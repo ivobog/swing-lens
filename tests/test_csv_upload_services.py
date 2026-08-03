@@ -90,6 +90,25 @@ def test_loader_rejects_blank_data_rows(tmp_path: Path) -> None:
         load_csv_rows(csv_path)
 
 
+def test_loader_rejects_csv_over_row_limit(tmp_path: Path) -> None:
+    csv_path = tmp_path / "too_many_rows.csv"
+    csv_path.write_text(
+        "Symbol,Description\nMSFT,Microsoft\nAAPL,Apple\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CsvLoadError, match="configured limit is 1"):
+        load_csv_rows(csv_path, max_rows=1)
+
+
+def test_loader_rejects_csv_over_column_limit(tmp_path: Path) -> None:
+    csv_path = tmp_path / "too_many_columns.csv"
+    csv_path.write_text("Symbol,Description,Sector\nMSFT,Microsoft,Technology\n", encoding="utf-8")
+
+    with pytest.raises(CsvLoadError, match="configured limit is 2"):
+        load_csv_rows(csv_path, max_columns=2)
+
+
 def test_duplicate_like_columns_are_mapped_separately() -> None:
     mapped = map_csv_rows(
         [

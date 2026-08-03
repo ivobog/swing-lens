@@ -32,6 +32,7 @@ def test_capture_admin_endpoint_queues_prediction_capture_job() -> None:
         "job_type": WINNER_PREDICTION_CAPTURE,
         "status": JobStatus.QUEUED,
         "run_id": 7,
+        "coalesced": False,
     }
     assert db.jobs[0].job_type == WINNER_PREDICTION_CAPTURE
     assert db.jobs[0].payload_json == {"run_id": 7}
@@ -86,6 +87,7 @@ def test_outcome_process_admin_endpoint_queues_maturation_job() -> None:
         "job_type": WINNER_OUTCOME_MATURATION,
         "status": JobStatus.QUEUED,
         "limit": 25,
+        "coalesced": False,
     }
     assert db.jobs[0].job_type == WINNER_OUTCOME_MATURATION
     assert db.jobs[0].payload_json == {"limit": 25}

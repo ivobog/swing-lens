@@ -15,6 +15,8 @@ function bindSetupLifecycleDetailButtons() {
       button.textContent = isHidden ? "Collapse" : "Expand";
       if (!isHidden || !content || content.dataset.loaded === "true") return;
 
+      content.setAttribute("role", "status");
+      content.setAttribute("aria-live", "polite");
       content.innerHTML = "<h3>Episode</h3><p>Loading evidence...</p>";
       try {
         const response = await fetch(button.dataset.slseDetailUrl, {
@@ -25,7 +27,8 @@ function bindSetupLifecycleDetailButtons() {
         content.innerHTML = renderEpisodeDetail(payload);
         content.dataset.loaded = "true";
       } catch (_error) {
-        content.innerHTML = "<h3>Episode</h3><p>Episode evidence could not be loaded.</p>";
+        content.setAttribute("role", "alert");
+        content.innerHTML = "<h3>Episode</h3><p>Episode evidence could not be loaded. Use the Episode link or try Expand again.</p>";
       }
     });
   });
@@ -44,9 +47,16 @@ function bindSetupLifecycleAlertActions() {
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = await response.json();
-        if (status) status.textContent = payload.status;
+        if (status) {
+          status.setAttribute("role", "status");
+          status.setAttribute("aria-live", "polite");
+          status.textContent = payload.status;
+        }
       } catch (_error) {
-        if (status) status.textContent = "Update failed";
+        if (status) {
+          status.setAttribute("role", "alert");
+          status.textContent = "Update failed. Try the action again.";
+        }
       } finally {
         button.disabled = false;
       }

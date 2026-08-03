@@ -1,6 +1,18 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+
+def test_base_layout_has_skip_link_and_focus_styles() -> None:
+    response = TestClient(app).get("/help")
+
+    css = Path("app/static/app.css").read_text(encoding="utf-8")
+    assert response.status_code == 200
+    assert 'class="skip-link" href="#main-content"' in response.text
+    assert 'id="main-content"' in response.text
+    assert ":focus-visible" in css
 
 
 def test_ib_gateway_page_is_html_and_not_status_json() -> None:

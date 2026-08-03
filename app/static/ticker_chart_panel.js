@@ -35,6 +35,8 @@
         return;
       }
 
+      updateChartSummary(payload);
+      updateFallbackTable(payload);
       renderChart(container, empty, payload);
     } catch (_error) {
       showEmpty(empty, "Chart could not be loaded.");
@@ -196,5 +198,49 @@
   function showEmpty(empty, message) {
     empty.textContent = message;
     empty.hidden = false;
+    const summary = document.querySelector("[data-chart-summary]");
+    if (summary) summary.textContent = message;
+  }
+
+  function updateChartSummary(payload) {
+    const summary = document.querySelector("[data-chart-summary]");
+    if (!summary) return;
+    const bars = payload.bars || [];
+    if (!bars.length) return;
+    const first = bars[0];
+    const latest = bars[bars.length - 1];
+    const trend = Number(latest.close) >= Number(first.close) ? "up" : "down";
+    const levels = payload.levels || {};
+    summary.textContent = [
+      `${bars.length} daily bars from ${first.time} to ${latest.time}.`,
+      `Latest close ${formatNumber(latest.close)}, ${trend} from ${formatNumber(first.close)}.`,
+      `Research stop ${formatNumber(levels.stop) || "not set"} and target ${formatNumber(levels.target) || "not set"}.`,
+    ].join(" ");
+  }
+
+  function updateFallbackTable(payload) {
+    const body = document.querySelector("[data-chart-fallback-body]");
+    if (!body) return;
+    const bars = payload.bars || [];
+    if (!bars.length) return;
+    const rows = [["First", bars[0]], ["Latest", bars[bars.length - 1]]];
+    body.replaceChildren(
+      ...rows.map(([label, bar]) => {
+        const row = document.createElement("tr");
+        [label, bar.time, bar.open, bar.high, bar.low, bar.close, bar.volume].forEach((value) => {
+          const cell = document.createElement("td");
+          cell.textContent = formatNumber(value);
+          row.append(cell);
+        });
+        return row;
+      }),
+    );
+  }
+
+  function formatNumber(value) {
+    if (value === undefined || value === null || value === "") return "";
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return String(value);
+    return numeric.toLocaleString(undefined, { maximumFractionDigits: 2 });
   }
 })();

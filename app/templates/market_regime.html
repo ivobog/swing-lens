@@ -42,6 +42,17 @@
     <span>As of {{ snapshot.as_of_date }}</span>
     {% if snapshot.run_id %}<span>Run {{ snapshot.run_id }}</span>{% endif %}
   </div>
+  {% set disclaimer_context = "market gates, profile permissions, and research size context" %}
+  {% include "partials/_research_disclaimer.html" %}
+  {% set provenance = {
+    "mode": "decision_time",
+    "source_cutoff": snapshot.as_of_date,
+    "freshness": snapshot.confidence,
+    "correction_state": "as_known",
+    "config_version": snapshot.config_version,
+    "confidence": snapshot.confidence
+  } %}
+  {% include "partials/_evidence_provenance.html" %}
 </section>
 
 <section class="metric-grid section-gap market-regime-metrics" aria-label="Market regime summary">
@@ -186,10 +197,11 @@
     <h2>Ranking Profile Alignment</h2>
     <div class="table-wrap">
       <table>
+        <caption>Ranking profile alignment for the current market regime.</caption>
         <thead>
           <tr>
-            <th>Profile</th>
-            <th>Status</th>
+            <th scope="col">Profile</th>
+            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -269,16 +281,17 @@
   {% if snapshot.sector_leadership %}
     <div class="table-wrap">
       <table>
+        <caption>Sector leadership inputs used by the market regime snapshot.</caption>
         <thead>
           <tr>
-            <th>Sector</th>
-            <th>Leadership</th>
-            <th>Tickers</th>
-            <th>Technical</th>
-            <th>Fundamental</th>
-            <th>Top 25</th>
-            <th>Setups</th>
-            <th>Danger</th>
+            <th scope="col">Sector</th>
+            <th scope="col">Leadership</th>
+            <th scope="col">Tickers</th>
+            <th scope="col">Technical</th>
+            <th scope="col">Fundamental</th>
+            <th scope="col">Top 25</th>
+            <th scope="col">Setups</th>
+            <th scope="col">Danger</th>
           </tr>
         </thead>
         <tbody>
@@ -310,13 +323,14 @@
   </div>
   <div class="table-wrap">
     <table>
+      <caption>Recent market regime snapshots.</caption>
       <thead>
         <tr>
-          <th>As Of</th>
-          <th>Regime</th>
-          <th>Risk</th>
-          <th>Score</th>
-          <th>Confidence</th>
+          <th scope="col">As Of</th>
+          <th scope="col">Regime</th>
+          <th scope="col">Risk</th>
+          <th scope="col">Score</th>
+          <th scope="col">Confidence</th>
         </tr>
       </thead>
       <tbody>

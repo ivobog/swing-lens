@@ -23,7 +23,11 @@ def test_current_view_export_filters_run_and_ticker_with_audit_fields() -> None:
     assert len(result.rows) == 1
     assert result.rows[0]["ticker"] == "MSFT"
     assert result.rows[0]["evidence_hash"] == "evidence-MSFT"
-    assert "opportunity_score" in result.to_csv()
+    csv_text = result.to_csv()
+    assert "opportunity_score" in csv_text
+    assert "guidance_type" in csv_text
+    assert "research_evidence" in csv_text
+    assert "execution_instruction" in csv_text
 
 
 def test_full_evidence_export_omits_restricted_provider_fields() -> None:

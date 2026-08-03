@@ -23,6 +23,17 @@
     <span>{{ page.total or 0 }} candidates</span>
     {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
   </div>
+  {% set disclaimer_context = "CERI opportunity, event risk, posture, and catalyst evidence" %}
+  {% include "partials/_research_disclaimer.html" %}
+  {% set provenance = {
+    "mode": "latest_corrected",
+    "source_cutoff": "row-level cutoff",
+    "freshness": "provider freshness shown below",
+    "correction_state": "corrected or conflicted when flagged",
+    "config_version": "CERI policy",
+    "confidence": "data confidence"
+  } %}
+  {% include "partials/_evidence_provenance.html" %}
 </section>
 
 <section class="metric-grid section-gap ceri-metrics" aria-label="CERI summary">

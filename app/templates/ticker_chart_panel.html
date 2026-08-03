@@ -33,12 +33,22 @@
         <strong>Decision</strong> {{ combined.combined_decision or "Unclassified" }}
       </span>
       <span class="summary-item">
-        <strong>Position</strong> {{ combined.position_size_hint or "N/A" }}
+        <strong>Research Size Hint</strong> {{ combined.position_size_hint or "N/A" }}
       </span>
     {% else %}
       <span class="summary-item"><strong>Decision</strong> No combined result</span>
     {% endif %}
   </div>
+  {% set disclaimer_context = "ticker decisions, chart levels, and research size hints" %}
+  {% include "partials/_research_disclaimer.html" %}
+  {% set provenance = {
+    "mode": "decision_time",
+    "source_cutoff": run.processed_at or run.uploaded_at,
+    "freshness": "cached_ohlcv",
+    "correction_state": "as_known",
+    "confidence": technical.technical_confidence if technical and technical.technical_confidence is defined else "row_level"
+  } %}
+  {% include "partials/_evidence_provenance.html" %}
 </section>
 
 <section class="chart-panel-grid section-gap">
@@ -49,11 +59,42 @@
         <p>Cached daily OHLCV bars, volume, moving averages, and risk levels.</p>
       </div>
     </div>
-    <div id="ticker-chart" class="ticker-chart" role="img" aria-label="{{ ticker }} price chart">
+    <div class="chart-legend" aria-label="Chart legend">
+      <span><strong>Up candle</strong> close at or above open</span>
+      <span><strong>Down candle</strong> close below open</span>
+      <span><strong>SMA 20 / 50 / 200</strong> moving average overlays</span>
+      <span><strong>Stop / Target</strong> research risk levels</span>
+    </div>
+    <p id="ticker-chart-summary" class="chart-summary" data-chart-summary>
+      Chart summary will update after cached OHLCV bars load.
+    </p>
+    <div id="ticker-chart" class="ticker-chart" role="img" aria-label="{{ ticker }} price chart" aria-describedby="ticker-chart-summary">
       <div id="ticker-chart-empty" class="chart-empty" hidden>
         Chart data has not loaded yet.
       </div>
     </div>
+    <details class="chart-fallback">
+      <summary>Chart data summary</summary>
+      <div class="table-wrap">
+        <table data-chart-fallback-table>
+          <caption>First and latest cached OHLCV bars for {{ ticker }}.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Point</th>
+              <th scope="col">Date</th>
+              <th scope="col">Open</th>
+              <th scope="col">High</th>
+              <th scope="col">Low</th>
+              <th scope="col">Close</th>
+              <th scope="col">Volume</th>
+            </tr>
+          </thead>
+          <tbody data-chart-fallback-body>
+            <tr><td colspan="7">Chart data has not loaded yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
     <noscript>
       <p class="chart-empty">Chart rendering requires JavaScript. Scoring values are shown below.</p>
     </noscript>

@@ -34,11 +34,13 @@
   <section class="panel section-gap">
     <div class="panel-header compact-header"><div><h2>Local Admin</h2></div></div>
     <div class="actions">
-      <form method="post" action="/api/winner-probability/outcomes/process" data-loading-form>
+      <form method="post" action="/api/winner-probability/outcomes/process" data-winner-json-form>
         <button type="submit" data-loading-label="Queueing...">Process due outcomes</button>
+        <output data-winner-form-output></output>
       </form>
-      <form method="post" action="/api/winner-probability/cohorts/refresh" data-loading-form>
+      <form method="post" action="/api/winner-probability/cohorts/refresh" data-winner-json-form>
         <button class="secondary" type="submit" data-loading-label="Queueing...">Refresh cohorts</button>
+        <output data-winner-form-output></output>
       </form>
     </div>
   </section>
@@ -49,16 +51,17 @@
   {% if status.recent_processing_runs %}
     <div class="table-wrap">
       <table>
+        <caption>Recent winner probability processing runs and errors.</caption>
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Run</th>
-            <th>Started</th>
-            <th>Completed</th>
-            <th>Counts</th>
-            <th>Error</th>
+            <th scope="col">ID</th>
+            <th scope="col">Type</th>
+            <th scope="col">Status</th>
+            <th scope="col">Run</th>
+            <th scope="col">Started</th>
+            <th scope="col">Completed</th>
+            <th scope="col">Counts</th>
+            <th scope="col">Error</th>
           </tr>
         </thead>
         <tbody>

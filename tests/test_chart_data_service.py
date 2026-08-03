@@ -70,6 +70,8 @@ def test_build_ticker_chart_payload_maps_bars_volume_sma_and_levels(monkeypatch)
         "entry_reference": 12.5,
     }
     assert payload["markers"] == []
+    assert payload["bar_limit"] >= 3
+    assert payload["truncated"] is False
     assert payload["message"] is None
 
 
@@ -93,8 +95,46 @@ def test_build_ticker_chart_payload_returns_empty_state_when_no_price_bars(
         "overlays": {"sma20": [], "sma50": [], "sma200": []},
         "levels": {},
         "markers": [],
+        "bar_limit": 1000,
+        "truncated": False,
         "message": EMPTY_CHART_MESSAGE,
     }
+
+
+def test_build_ticker_chart_payload_caps_bars_to_recent_window(monkeypatch) -> None:
+    frame = pd.DataFrame(
+        [
+            _bar(
+                date(2026, 1, 1) + timedelta(days=index),
+                float(index + 1),
+                float(index + 2),
+                float(index),
+                float(index + 1),
+                1_000 + index,
+            )
+            for index in range(5)
+        ]
+    )
+    monkeypatch.setattr(
+        chart_data_service,
+        "load_preferred_ohlcv_frames",
+        lambda db, ticker: (frame, frame),
+    )
+
+    payload = build_ticker_chart_payload(_FakeDb(), 7, "msft", max_bars=3)
+
+    assert payload["bar_limit"] == 3
+    assert payload["truncated"] is True
+    assert [bar["time"] for bar in payload["bars"]] == [
+        "2026-01-03",
+        "2026-01-04",
+        "2026-01-05",
+    ]
+    assert [item["time"] for item in payload["volume"]] == [
+        "2026-01-03",
+        "2026-01-04",
+        "2026-01-05",
+    ]
 
 
 def test_build_ticker_chart_payload_populates_all_sma_overlays(monkeypatch) -> None:

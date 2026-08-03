@@ -27,6 +27,17 @@
     {% endif %}
     {% if snapshot.benchmark_ticker %}<span>Benchmark {{ snapshot.benchmark_ticker }}</span>{% endif %}
   </div>
+  {% set disclaimer_context = "sector permissions, gates, and research size multipliers" %}
+  {% include "partials/_research_disclaimer.html" %}
+  {% set provenance = {
+    "mode": snapshot.mode,
+    "source_cutoff": snapshot.as_of_date,
+    "freshness": "run_snapshot",
+    "correction_state": "as_known",
+    "config_version": snapshot.config_version if snapshot.config_version is defined else none,
+    "confidence": "sector_level"
+  } %}
+  {% include "partials/_evidence_provenance.html" %}
 </section>
 
 <section class="metric-grid section-gap sector-rotation-metrics" aria-label="Sector rotation summary">
@@ -47,21 +58,22 @@
   {% if rows %}
     <div class="table-wrap">
       <table class="sector-rotation-table">
+        <caption>Sector leadership, permissions, and confidence for this run.</caption>
         <thead>
           <tr>
-            <th>Rank</th>
-            <th>Sector</th>
-            <th>State</th>
-            <th>Permission</th>
-            <th>Final</th>
-            <th>Universe</th>
-            <th>ETF</th>
-            <th>Tickers</th>
-            <th>Top 25</th>
-            <th>Buyable</th>
-            <th>Danger</th>
-            <th>Confidence</th>
-            <th>Change</th>
+            <th scope="col">Rank</th>
+            <th scope="col">Sector</th>
+            <th scope="col">State</th>
+            <th scope="col">Permission</th>
+            <th scope="col">Final</th>
+            <th scope="col">Universe</th>
+            <th scope="col">ETF</th>
+            <th scope="col">Tickers</th>
+            <th scope="col">Top 25</th>
+            <th scope="col">Buyable</th>
+            <th scope="col">Danger</th>
+            <th scope="col">Confidence</th>
+            <th scope="col">Change</th>
           </tr>
         </thead>
         <tbody>

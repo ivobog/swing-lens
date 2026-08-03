@@ -204,6 +204,9 @@ def test_operations_page_exposes_overdue_pending_and_failed_jobs(monkeypatch) ->
     assert "market data incomplete" in html
     assert "Process due outcomes" in html
     assert "Refresh cohorts" in html
+    assert 'data-winner-json-form' in html
+    assert 'data-winner-form-output' in html
+    assert "<caption>Recent winner probability processing runs and errors.</caption>" in html
 
 
 def test_model_health_page_renders_calibration_and_drift(monkeypatch) -> None:

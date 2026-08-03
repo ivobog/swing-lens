@@ -129,7 +129,11 @@ def test_ticker_chart_panel_template_smoke_renders_chart_hooks(monkeypatch) -> N
     assert 'class="panel chart-panel"' in html
     assert 'data-chart-url="/api/runs/7/tickers/MSFT/chart-data"' in html
     assert 'id="ticker-chart"' in html
+    assert "data-chart-summary" in html
+    assert "data-chart-fallback-table" in html
     assert 'id="ticker-chart-empty"' in html
+    assert "Research only." in html
+    assert "Evidence Decision Time" in html
     assert "ticker_chart_panel.js" in html
     assert "vendor/lightweight-charts.standalone.production.js" in html
     assert "Combined Decision" in html
@@ -182,6 +186,8 @@ def test_ticker_chart_panel_static_renderer_exists() -> None:
     assert "LineSeries" in script
     assert "createPriceLine" in script
     assert "No chart data available." in script
+    assert "updateChartSummary" in script
+    assert "updateFallbackTable" in script
 
 
 def test_ticker_chart_panel_vendor_asset_is_pinned() -> None:
@@ -206,6 +212,7 @@ def test_ticker_chart_panel_css_hooks_exist() -> None:
 
     assert ".chart-panel-grid" in css
     assert ".ticker-chart" in css
+    assert ".chart-legend" in css
     assert ".chart-empty" in css
     assert ".score-grid" in css
     assert ".score-item" in css
@@ -213,6 +220,33 @@ def test_ticker_chart_panel_css_hooks_exist() -> None:
     assert ".score-value.neutral" in css
     assert ".score-value.bad" in css
     assert ".clickable-row:hover" in css
+
+
+def test_ticker_chart_panel_escapes_hostile_context(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+
+    html = templates.get_template("ticker_chart_panel.html").render(
+        active_nav="runs",
+        run=SimpleNamespace(id=7, uploaded_at="2026-08-02", processed_at=None),
+        ticker="MSFT",
+        company_name='<img src=x onerror="alert(1)">',
+        sector="<script>alert(1)</script>",
+        combined=CombinedResult(
+            run_id=7,
+            ticker="MSFT",
+            combined_decision="<script>alert(1)</script>",
+            position_size_hint="<svg onload=alert(1)>",
+        ),
+        technical=None,
+        chart_data_url="/api/runs/7/tickers/MSFT/chart-data",
+        back_url="/runs/7",
+        score_cards=[],
+    )
+
+    assert "<script>alert(1)</script>" not in html
+    assert '<img src=x onerror="alert(1)">' not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&lt;svg onload=alert(1)&gt;" in html
 
 
 def _run() -> UploadRun:

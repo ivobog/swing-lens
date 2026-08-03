@@ -52,10 +52,16 @@ EXPLORER_SCHEMA_ID = "swinglens.winner-probability.outcome-explorer.v1"
 
 def export_run_evidence_csv(payload: dict[str, Any]) -> str:
     rows = [_run_export_row(row) for row in payload.get("items", [])]
-    return _write_csv(RUN_EVIDENCE_CSV_HEADERS, rows, schema_id=RUN_EVIDENCE_SCHEMA_ID)
+    return _write_csv(
+        RUN_EVIDENCE_CSV_HEADERS,
+        rows,
+        schema_id=RUN_EVIDENCE_SCHEMA_ID,
+        metadata=_run_evidence_metadata(payload),
+    )
 
 
 def export_run_evidence_json(payload: dict[str, Any]) -> str:
+    payload = {**payload, "export_metadata": _run_evidence_metadata(payload)}
     return json.dumps(payload, indent=2, sort_keys=True, default=str)
 
 
@@ -121,5 +127,25 @@ def _run_export_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _write_csv(headers: list[str], rows: list[dict[str, Any]], *, schema_id: str) -> str:
-    return write_csv(headers, rows, schema_id=schema_id)
+def _write_csv(
+    headers: list[str],
+    rows: list[dict[str, Any]],
+    *,
+    schema_id: str,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    return write_csv(headers, rows, schema_id=schema_id, metadata=metadata)
+
+
+def _run_evidence_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    outcome = payload.get("outcome_definition") or {}
+    return {
+        "guidance_type": "research_probability",
+        "execution_instruction": False,
+        "evidence_mode": payload.get("estimate_view") or "DECISION_TIME",
+        "source_cutoff": "row_level_training_cutoff",
+        "freshness": "row_level_calibration_status",
+        "correction_state": "as_known",
+        "model_version": "row_level_model_version",
+        "outcome_definition": outcome.get("definition_id"),
+    }
