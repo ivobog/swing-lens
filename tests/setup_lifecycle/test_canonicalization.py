@@ -59,6 +59,10 @@ def test_canonicalizer_promotes_exactly_one_snapshot_and_audits_changes() -> Non
     assert previous.superseded_by_snapshot_id == 2
     assert repository.events[0].event_type == "CANONICAL_REVISION"
     assert repository.events[0].source_event_key
+    assert repository.events[0].evidence_json["canonical_score"][2] == 1.0
+    assert isinstance(repository.events[0].evidence_json["canonical_score"][4], str)
+    assert selected.canonical_decision_json["score"][2] == 1.0
+    assert isinstance(selected.canonical_decision_json["score"][4], str)
 
 
 def test_canonicalizer_does_not_emit_audit_when_choice_is_unchanged() -> None:

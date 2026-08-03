@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -108,7 +108,7 @@ class SetupLifecycleCanonicalizer:
                     "previous_snapshot_id": previous.id if previous is not None else None,
                     "selected_snapshot_id": selected.id,
                     "precedence": list(self.config.canonicalization.precedence),
-                    "score": list(_canonical_sort_key(selected)),
+                    "score": _json_value(list(_canonical_sort_key(selected))),
                 },
             )
 
@@ -165,7 +165,7 @@ class SetupLifecycleCanonicalizer:
             evidence_json={
                 "previous_snapshot_id": previous.id if previous is not None else None,
                 "selected_snapshot_id": selected.id,
-                "canonical_score": list(_canonical_sort_key(selected)),
+                "canonical_score": _json_value(list(_canonical_sort_key(selected))),
             },
             warning_flags_json=[],
         )
@@ -228,3 +228,15 @@ def _coverage(snapshot: SetupSignalSnapshot) -> Decimal:
 
 def _context_complete(snapshot: SetupSignalSnapshot) -> bool:
     return bool(snapshot.market_regime_snapshot_id and snapshot.sector_rotation_snapshot_id)
+
+
+def _json_value(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_value(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_json_value(item) for item in value]
+    return value
