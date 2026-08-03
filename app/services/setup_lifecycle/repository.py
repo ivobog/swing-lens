@@ -20,6 +20,10 @@ from app.models.tables import (
     SignalAlertRule,
     SignalChangeEvent,
 )
+from app.services.setup_lifecycle.config import (
+    SetupLifecycleConfig,
+    load_setup_lifecycle_config,
+)
 
 
 @dataclass(frozen=True)
@@ -65,6 +69,9 @@ class PurgePreview:
 
 
 class SetupLifecycleRepository:
+    def __init__(self, config: SetupLifecycleConfig | None = None) -> None:
+        self.config = config or load_setup_lifecycle_config()
+
     def create_evaluation_run(
         self,
         db: Session,
@@ -770,6 +777,16 @@ class SetupLifecycleRepository:
         return PurgePreview(scope=scope, token=token, counts=counts)
 
     def execute_purge(self, db: Session, preview: PurgePreview, token: str) -> dict[str, int]:
+        if not self.config.retention.purge_enabled:
+            raise ValueError("setup lifecycle purge is disabled by retention policy")
+        return self._execute_purge_unchecked(db, preview, token)
+
+    def _execute_purge_unchecked(
+        self,
+        db: Session,
+        preview: PurgePreview,
+        token: str,
+    ) -> dict[str, int]:
         if token != preview.token:
             raise ValueError("purge preview token does not match")
         deleted: dict[str, int] = {}

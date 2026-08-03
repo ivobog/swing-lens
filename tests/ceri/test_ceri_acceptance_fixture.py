@@ -6,14 +6,18 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.ceri_tables import (
+    CeriAlertEvent,
+    CeriChangeEvent,
     CeriEstimateSnapshot,
     CeriPurgeAudit,
     CeriRevisionFeature,
     CeriScoreSnapshot,
     CeriSourceRecord,
 )
+from app.models.tables import BackgroundJob
 from app.routers import ceri_routes
 from app.services.ceri.export_policy import CeriExportPolicyRegistry, redact_sensitive
+from app.services.ceri.export_service import CeriExportService
 from app.services.ceri.purge_service import (
     CeriPurgeError,
     CeriPurgeExecuteRequest,
@@ -21,6 +25,7 @@ from app.services.ceri.purge_service import (
     CeriPurgeService,
     confirmation_token_for_preview,
 )
+from app.services.ceri.query_service import CeriListQuery, CeriQueryFilters, CeriQueryService
 from app.settings import Settings
 
 
@@ -59,13 +64,17 @@ def test_redaction_blocks_auth_tokens_sql_details_and_nested_secrets() -> None:
     assert "secret" not in str(redacted)
 
 
-def test_purge_preview_and_execute_are_audited_without_deleting_sources() -> None:
+def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -> None:
     source = CeriSourceRecord(
         id=10,
         provider="primary",
         provider_terms_version="primary-terms-2026",
         dataset="estimates",
         provider_record_id="est-1",
+        raw_json={"ticker": "MSFT", "provider_secret": "secret"},
+        restricted_normalized_json={"ticker": "MSFT"},
+        source_url="https://vendor.example/est-1",
+        source_reference="vendor-row-1",
         content_hash="hash",
         idempotency_key="idem",
         export_policy="restricted",
@@ -73,12 +82,31 @@ def test_purge_preview_and_execute_are_audited_without_deleting_sources() -> Non
     estimate = CeriEstimateSnapshot(id=20, source_record_id=10, company_id=42)
     revision = CeriRevisionFeature(id=30, company_id=42, source_observation_ids_json=[10])
     score = CeriScoreSnapshot(id=40, company_id=42, ticker="MSFT")
+    change = CeriChangeEvent(
+        id=50,
+        company_id=42,
+        from_snapshot_id=None,
+        to_snapshot_id=40,
+        change_type="SCORE_INCREASE",
+        severity="INFO",
+        dedup_key="change-1",
+    )
+    alert = CeriAlertEvent(
+        id=60,
+        source_change_event_id=50,
+        event_key="alert-1",
+        ticker="MSFT",
+        severity="INFO",
+        status="UNREAD",
+    )
     db = FakeDb(
         {
             CeriSourceRecord: [source],
             CeriEstimateSnapshot: [estimate],
             CeriRevisionFeature: [revision],
             CeriScoreSnapshot: [score],
+            CeriChangeEvent: [change],
+            CeriAlertEvent: [alert],
         }
     )
     service = CeriPurgeService()
@@ -109,8 +137,37 @@ def test_purge_preview_and_execute_are_audited_without_deleting_sources() -> Non
     assert preview.affected_counts_json["estimate_snapshots"] == 1
     assert preview.invalidated_derivatives_json["revision_features"] == 1
     assert preview.invalidated_derivatives_json["score_snapshots"] == 1
+    assert preview.invalidated_derivatives_json["change_events"] == 1
+    assert preview.invalidated_derivatives_json["alert_events"] == 1
     assert executed.status == "EXECUTED"
+    assert executed.invalidated_derivatives_json["requires_rebuild"] is True
+    assert executed.invalidated_derivatives_json["rebuild_job_ids"]
     assert source in db.collections[CeriSourceRecord]
+    assert source.raw_json is None
+    assert source.source_url is None
+    assert source.source_reference is None
+    assert source.export_policy == "purged"
+    assert source.quarantine_reason.startswith("provider_license_purge:")
+    assert "provider_license_purge_invalidated" in estimate.quality_flags_json
+    assert "provider_license_purge_invalidated" in revision.warnings_json
+    assert revision.unavailable_reason.startswith("provider_license_purge:")
+    assert "provider_license_purge_invalidated" in score.warnings_json
+    assert score.data_confidence == "Invalidated"
+    assert score.posture == "Invalidated"
+    assert change.severity == "INVALIDATED"
+    assert change.delta_json["purge_invalidation"]["purged"] is True
+    assert alert.status == "INVALIDATED"
+    assert alert.evidence_json["purge_invalidation"]["purged"] is True
+    assert db.collections[BackgroundJob][0].job_type == "CERI_REBUILD_FEATURES"
+
+    evidence_export = CeriExportService().full_evidence(db)
+    source_row = next(row for row in evidence_export.rows if row["source_record_id"] == 10)
+    assert source_row["purged"] is True
+    assert source_row["permitted_fields"] is None
+    score_export = CeriExportService().current_view(db)
+    assert score_export.rows[0]["invalidated_by_purge"] is True
+    query_payload = CeriQueryService().latest(db, CeriListQuery(CeriQueryFilters()))
+    assert query_payload["items"][0]["invalidated_by_purge"] is True
     assert db.deleted == []
 
 
