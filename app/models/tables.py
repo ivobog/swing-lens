@@ -1475,7 +1475,9 @@ class WinnerPredictionSnapshot(Base):
         nullable=False,
     )
     raw_row_id: Mapped[int | None] = mapped_column(ForeignKey("raw_company_rows.id"))
-    combined_result_id: Mapped[int | None] = mapped_column(ForeignKey("combined_results.id"))
+    combined_result_id: Mapped[int | None] = mapped_column(
+        ForeignKey("combined_results.id", ondelete="SET NULL")
+    )
     ranking_result_id: Mapped[int | None] = mapped_column(ForeignKey("ranking_results.id"))
     market_regime_snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("market_regime_snapshots.id")

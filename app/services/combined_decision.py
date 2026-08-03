@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -15,6 +15,7 @@ from app.models.tables import (
     FundamentalScore,
     RawCompanyRow,
     TechnicalScore,
+    WinnerPredictionSnapshot,
 )
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.confidence_service import build_combined_warning_flags
@@ -107,6 +108,12 @@ def refresh_combined_results(db: Session, run_id: int) -> list[CombinedResult]:
     ]
     decisions = sorted(decisions, key=cockpit_sort_key)
 
+    db.execute(
+        update(WinnerPredictionSnapshot)
+        .where(WinnerPredictionSnapshot.run_id == run_id)
+        .where(WinnerPredictionSnapshot.combined_result_id.is_not(None))
+        .values(combined_result_id=None)
+    )
     db.execute(delete(CombinedResult).where(CombinedResult.run_id == run_id))
     results = [
         _to_model(run_id=run_id, final_rank=index, decision=decision)

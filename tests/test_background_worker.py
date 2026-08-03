@@ -2,7 +2,7 @@ import pytest
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
-from app.services.background_worker import CancelRequested, execute_job
+from app.services.background_worker import CancelRequested, execute_job, run_worker_once
 
 
 def test_execute_job_dispatches_to_registered_handler() -> None:
@@ -73,3 +73,67 @@ def test_execute_job_rejects_unsupported_job_type() -> None:
 
     with pytest.raises(ValueError, match="Unsupported job type: UNKNOWN"):
         execute_job(db=object(), job=job, handlers={})
+
+
+def test_worker_rolls_back_failed_transaction_before_marking_job_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = BackgroundJob(
+        id=1,
+        job_type="TEST_JOB",
+        status=JobStatus.RUNNING,
+        execution_token="token",
+    )
+    db = FakeWorkerDb()
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: job,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_job",
+        lambda *_args, **_kwargs: calls.append("heartbeat"),
+    )
+
+    def mark_failed(_db, _job, _exc, *, execution_token):
+        assert _db.rollback_count == 1
+        assert execution_token == "token"
+        calls.append("marked_failed")
+
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_job_failed_or_retry",
+        mark_failed,
+    )
+
+    ran = run_worker_once(
+        worker_id="worker-a",
+        stale_after_seconds=60,
+        session_factory=lambda: db,
+        handlers={"TEST_JOB": lambda *_args: (_ for _ in ()).throw(RuntimeError("boom"))},
+    )
+
+    assert ran is True
+    assert calls == ["heartbeat", "marked_failed"]
+    assert db.commit_count == 3
+    assert db.closed is True
+
+
+class FakeWorkerDb:
+    def __init__(self) -> None:
+        self.commit_count = 0
+        self.rollback_count = 0
+        self.closed = False
+
+    def commit(self) -> None:
+        self.commit_count += 1
+
+    def rollback(self) -> None:
+        self.rollback_count += 1
+
+    def close(self) -> None:
+        self.closed = True

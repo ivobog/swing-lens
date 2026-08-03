@@ -107,6 +107,7 @@ def run_worker_once(
             logger.warning("job.lease_lost", extra={"job_id": job.id, "job_type": job.job_type})
             return True
         except Exception as exc:
+            db.rollback()
             mark_job_failed_or_retry(db, job, exc, execution_token=execution_token)
             logger.exception("job.failed", extra={"job_id": job.id, "job_type": job.job_type})
         db.commit()

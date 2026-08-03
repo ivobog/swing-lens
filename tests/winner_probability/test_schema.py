@@ -109,6 +109,8 @@ def test_prediction_snapshot_constraints_and_indexes_are_defined() -> None:
     )
     assert active_index.unique
     assert active_index.dialect_options["postgresql"]["where"] is not None
+    combined_result_fk = next(iter(table.c.combined_result_id.foreign_keys))
+    assert combined_result_fk.ondelete == "SET NULL"
 
 
 def test_outcome_tables_define_pending_and_revision_identities() -> None:
