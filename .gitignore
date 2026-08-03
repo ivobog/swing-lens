@@ -13,6 +13,7 @@ data/cache/*
 !data/uploads/.gitkeep
 !data/exports/.gitkeep
 !data/cache/.gitkeep
+backups/
 
 *.log
 uvicorn.*.log

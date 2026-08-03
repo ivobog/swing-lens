@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
+from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 
 ERROR_MESSAGE_MAX_LENGTH = 500
@@ -51,6 +52,7 @@ def enqueue_job(
         existing = active_job_for_request_key(db, job_type, request_key)
         if existing is not None:
             existing._coalesced = True
+            operational_metrics.increment("swinglens_jobs_coalesced_total", job_type=job_type)
             return existing
 
     job = BackgroundJob(
@@ -77,7 +79,9 @@ def enqueue_job(
         if existing is None:
             raise
         existing._coalesced = True
+        operational_metrics.increment("swinglens_jobs_coalesced_total", job_type=job_type)
         return existing
+    operational_metrics.increment("swinglens_jobs_enqueued_total", job_type=job_type)
     return job
 
 
@@ -214,6 +218,16 @@ def mark_job_failed_or_retry(
         values["completed_at"] = now
 
     _apply_running_job_update(db, job, expected_token, values)
+    metric_name = (
+        "swinglens_jobs_retry_total"
+        if values["status"] == JobStatus.QUEUED
+        else "swinglens_jobs_failed_total"
+    )
+    operational_metrics.increment(
+        metric_name,
+        job_type=job.job_type,
+        status=str(values["status"]),
+    )
 
 
 def request_job_cancel(db: Session, job_id: int) -> BackgroundJob:
@@ -338,6 +352,11 @@ def _finish_job(
         expected_token,
         values,
         allowed_current_statuses={JobStatus.RUNNING, JobStatus.PARTIAL},
+    )
+    operational_metrics.increment(
+        "swinglens_jobs_finished_total",
+        job_type=job.job_type,
+        status=status,
     )
 
 

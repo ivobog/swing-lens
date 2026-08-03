@@ -1,9 +1,9 @@
-from fastapi import APIRouter
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from fastapi import APIRouter, Response
 
 from app.db import engine
 from app.models.schemas import HealthResponse, ReadinessResponse
+from app.services.operational_metrics import operational_metrics
+from app.services.readiness_service import ReadinessService
 from app.settings import get_settings
 
 router = APIRouter(tags=["health"])
@@ -24,35 +24,23 @@ def health() -> HealthResponse:
 @router.get("/ready", response_model=ReadinessResponse)
 def ready() -> ReadinessResponse:
     settings = get_settings()
-    checks = {
-        "database": "not checked",
-        "local_dirs": "not checked",
-    }
-
-    database_ok = True
-    try:
-        with engine.connect() as connection:
-            connection.execute(text("select 1"))
-        checks["database"] = "ok"
-    except SQLAlchemyError as exc:
-        database_ok = False
-        checks["database"] = str(exc)
-
-    local_dirs_ok = True
-    for directory in (settings.upload_dir, settings.export_dir, settings.cache_dir):
-        try:
-            directory.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            local_dirs_ok = False
-            checks["local_dirs"] = f"{directory}: {exc}"
-            break
-    if local_dirs_ok:
-        checks["local_dirs"] = "ok"
+    report = ReadinessService(engine=engine, settings=settings).report()
 
     return ReadinessResponse(
         app=settings.app_name,
-        status="ok" if database_ok and local_dirs_ok else "degraded",
-        database_ok=database_ok,
-        local_dirs_ok=local_dirs_ok,
-        checks=checks,
+        status=report.status,
+        database_ok=report.database_ok,
+        local_dirs_ok=report.local_dirs_ok,
+        migrations_ok=report.checks["migrations"].ok,
+        worker_ok=report.checks["worker"].ok,
+        jobs_ok=report.checks["jobs"].ok,
+        checks=report.response_checks(),
+    )
+
+
+@router.get("/metrics")
+def metrics() -> Response:
+    return Response(
+        content=operational_metrics.as_prometheus(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
     )

@@ -53,6 +53,12 @@ Create a local `.env` from `.env.example` and adjust PostgreSQL or IB Gateway se
 Copy-Item .env.example .env
 ```
 
+Start the local PostgreSQL database on the same host port used by `.env.example`:
+
+```powershell
+docker compose up -d postgres
+```
+
 Run the app:
 
 ```powershell
@@ -112,6 +118,19 @@ To review the SQL without applying it:
 
 ```powershell
 alembic upgrade head --sql
+```
+
+Backup and restore validation are documented in `docs/operations/backup_restore.md`.
+Readiness, metrics, and incident response are documented in `docs/operations/observability.md`
+and `docs/operations/incidents.md`.
+Before destructive migrations or purge/lifecycle work, create a PostgreSQL backup and validate a
+restore into a clean database:
+
+```powershell
+.\scripts\ops\backup_postgres.ps1 -BackupDir backups
+.\scripts\ops\restore_postgres.ps1 `
+  -BackupPath backups\swinglens_YYYYMMDD_HHMMSS.dump `
+  -ValidationReport backups\restore_validation_YYYYMMDD_HHMMSS.json
 ```
 
 ## Configuration Files

@@ -4,6 +4,8 @@ from collections.abc import Iterable
 from io import StringIO
 from typing import Any
 
+from app.services.operational_metrics import operational_metrics
+
 CSV_METADATA_HEADERS = ["export_schema_id", "export_schema_version"]
 FORMULA_PREFIXES = ("=", "+", "-", "@")
 
@@ -16,6 +18,7 @@ def write_csv(
     schema_version: str = "1",
     metadata: dict[str, Any] | None = None,
 ) -> str:
+    row_count = 0
     fieldnames = list(headers)
     row_metadata = dict(metadata or {})
     if schema_id:
@@ -32,13 +35,24 @@ def write_csv(
     writer = csv.DictWriter(buffer, fieldnames=fieldnames, lineterminator="\n")
     writer.writeheader()
     for row in rows:
+        row_count += 1
         writer.writerow(
             {
                 key: sanitize_csv_cell(row_metadata.get(key, row.get(key)))
                 for key in fieldnames
             }
         )
-    return buffer.getvalue()
+    output = buffer.getvalue()
+    operational_metrics.increment(
+        "swinglens_exports_generated_total",
+        schema_id=schema_id or "unspecified",
+    )
+    operational_metrics.increment(
+        "swinglens_export_rows_total",
+        row_count,
+        schema_id=schema_id or "unspecified",
+    )
+    return output
 
 
 def sanitize_csv_cell(value: Any) -> Any:

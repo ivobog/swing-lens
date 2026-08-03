@@ -13,6 +13,7 @@ from app.services.background_job_service import (
     request_job_cancel,
 )
 from app.services.ceri.constants import CERI_PIPELINE_STEPS
+from app.services.operational_metrics import operational_metrics
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 from app.settings import get_settings
 
@@ -114,6 +115,10 @@ def start_pipeline(
     existing_pipeline = _pipeline_for_job(db, existing_job)
     if existing_pipeline is not None:
         existing_pipeline._coalesced = True
+        operational_metrics.increment(
+            "swinglens_pipelines_coalesced_total",
+            status=existing_pipeline.status,
+        )
         return existing_pipeline
 
     pipeline = PipelineRun(
@@ -156,10 +161,18 @@ def start_pipeline(
             _cancel_pending_steps(db, pipeline.id)
             existing_pipeline._coalesced = True
             db.flush()
+            operational_metrics.increment(
+                "swinglens_pipelines_coalesced_total",
+                status=existing_pipeline.status,
+            )
             return existing_pipeline
 
     pipeline.result_json = {"background_job_id": job.id}
     db.flush()
+    operational_metrics.increment(
+        "swinglens_pipelines_started_total",
+        step_count=len(step_names),
+    )
     return pipeline
 
 
@@ -243,6 +256,10 @@ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
         pipeline.message = "Pipeline cancellation requested."
 
     db.flush()
+    operational_metrics.increment(
+        "swinglens_pipelines_cancel_requested_total",
+        status=pipeline.status,
+    )
     return pipeline
 
 
