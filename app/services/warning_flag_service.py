@@ -39,6 +39,8 @@ def _fundamental_warning_flags(fundamental: FundamentalScore) -> set[str]:
         flags.add("value_trap_risk")
     if fundamental.fundamental_label == "Growth trap risk":
         flags.add("growth_trap_risk")
+    if fundamental.fundamental_label == "Quality risk":
+        flags.add("quality_risk")
 
     for trap_flag in [
         *_trap_flags(fundamental.trap_flags_json),

@@ -35,13 +35,27 @@
   </div>
 
   {% if pipeline.message or pipeline.error_message %}
-    <div class="alert section-gap" data-pipeline-message>{{ pipeline.error_message or pipeline.message }}</div>
+    <div class="alert section-gap" data-pipeline-message role="{{ 'alert' if pipeline.error_message else 'status' }}" aria-live="polite">{{ pipeline.error_message or pipeline.message }}</div>
   {% else %}
-    <div class="alert section-gap" data-pipeline-message hidden></div>
+    <div class="alert section-gap" data-pipeline-message role="status" aria-live="polite" hidden></div>
+  {% endif %}
+  {% if duplicate_action %}
+    <div class="alert section-gap" role="status" aria-live="polite">
+      Already running: this request was coalesced into Pipeline {{ pipeline.pipeline_run_id }}.
+    </div>
   {% endif %}
 
   <div class="progress-block">
-    <div class="progress-bar" aria-label="Pipeline progress">
+    <div
+      class="progress-bar"
+      role="progressbar"
+      aria-label="Pipeline progress"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="{{ '%.0f'|format(pipeline.percentage) }}"
+      aria-valuetext="{{ pipeline.completed_steps }} of {{ pipeline.total_steps }} pipeline steps complete"
+      data-pipeline-bar
+    >
       <div class="progress-fill" data-pipeline-fill style="width: {{ pipeline.percentage }}%"></div>
     </div>
     <strong data-pipeline-percentage>{{ "%.1f"|format(pipeline.percentage) }}%</strong>
@@ -69,6 +83,14 @@
       <strong data-pipeline-cancel-metric>{{ "Requested" if pipeline.job_cancel_requested else "No" }}</strong>
     </div>
   </div>
+  <div class="actions section-gap">
+    <span class="async-status" data-pipeline-live role="status" aria-live="polite">
+      {{ pipeline.status }}: {{ pipeline.completed_steps }} of {{ pipeline.total_steps }} steps complete.
+    </span>
+    <span class="async-status badge badge-warning" data-pipeline-reconnect role="status" aria-live="polite" hidden>
+      Connection interrupted; retrying in 5s.
+    </span>
+  </div>
 </section>
 
 <section class="panel section-gap">
@@ -84,15 +106,16 @@
 
   <div class="table-wrap">
     <table data-pipeline-steps-table>
+      <caption>Pipeline steps and durable job status.</caption>
       <thead>
         <tr>
-          <th>Order</th>
-          <th>Step</th>
-          <th>Status</th>
-          <th>Started</th>
-          <th>Finished</th>
-          <th>Message</th>
-          <th>Error</th>
+          <th scope="col">Order</th>
+          <th scope="col">Step</th>
+          <th scope="col">Status</th>
+          <th scope="col">Started</th>
+          <th scope="col">Finished</th>
+          <th scope="col">Message</th>
+          <th scope="col">Error</th>
         </tr>
       </thead>
       <tbody>

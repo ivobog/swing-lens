@@ -1,4 +1,4 @@
-model_version: fundamentals_v2.0
+model_version: fundamentals_v2.1
 
 weights:
   growth_quality_score: 0.13
@@ -105,6 +105,14 @@ field_priorities:
     - number_of_shareholders_annual
     - analyst_rating
 
+coverage_only_fields:
+  - market_cap
+  - capex_per_share_ttm
+  - capex_growth_quarterly_yoy
+  - total_assets_estimate_annual
+  - ebit_per_share_ttm
+  - number_of_shareholders_annual
+
 components:
   growth_quality_score:
     fields:
@@ -142,7 +150,6 @@ components:
       - ev_fcf
       - operating_cash_flow_per_share_ttm
       - capex_ttm
-      - capex_per_share_ttm
       - capex_growth_ttm_yoy
   earnings_quality_score:
     fields:
@@ -150,8 +157,6 @@ components:
       - net_income_ttm
       - fcf_ttm
       - operating_cash_flow_per_share_ttm
-      - capex_ttm
-      - net_income_growth_ttm_yoy
   capital_efficiency_score:
     fields:
       - roic_ttm

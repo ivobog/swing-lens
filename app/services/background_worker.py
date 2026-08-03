@@ -157,10 +157,13 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
     if pipeline_run_id is None:
         raise ValueError("FULL_PIPELINE job payload is missing pipeline_run_id.")
 
-    def should_cancel() -> bool:
+    def lease_guard() -> None:
         heartbeat = getattr(job, "_heartbeat", None)
         if callable(heartbeat):
             heartbeat()
+
+    def should_cancel() -> bool:
+        lease_guard()
         return is_cancel_requested(db, job.id)
 
     try:
@@ -168,6 +171,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
             db=db,
             pipeline_run_id=int(pipeline_run_id),
             should_cancel=should_cancel,
+            lease_guard=lease_guard,
         )
     except PipelineCancelled as exc:
         raise CancelRequested(str(exc)) from exc

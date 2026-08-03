@@ -31,7 +31,7 @@
   <div class="metric"><span>Universe Score</span><strong>{{ "%.2f"|format(row.universe_leadership_score) if row.universe_leadership_score is number else "" }}</strong></div>
   <div class="metric"><span>Tickers</span><strong>{{ row.ticker_count or 0 }}</strong></div>
   <div class="metric"><span>Top 25</span><strong>{{ row.top_25_count or 0 }}</strong><small>{{ "%.0f"|format(row.top_25_share * 100) ~ "%" if row.top_25_share is number else "" }}</small></div>
-  <div class="metric"><span>Position Size</span><strong>{{ "%.0f"|format(row.position_size_multiplier * 100) ~ "%" if row.position_size_multiplier is number else "" }}</strong></div>
+  <div class="metric"><span>Research Size Context</span><strong>{{ "%.0f"|format(row.position_size_multiplier * 100) ~ "%" if row.position_size_multiplier is number else "" }}</strong></div>
   <div class="metric"><span>Confidence</span><strong>{{ row.confidence }}</strong></div>
 </section>
 

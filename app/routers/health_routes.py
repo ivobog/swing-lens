@@ -1,12 +1,18 @@
-from fastapi import APIRouter
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from typing import Annotated
 
-from app.db import engine
+from fastapi import APIRouter, Depends, Request, Response
+from sqlalchemy.orm import Session
+
+from app.db import engine, get_db
 from app.models.schemas import HealthResponse, ReadinessResponse
+from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
+from app.services.cleanup_service import execute_cleanup, preview_cleanup
+from app.services.operational_metrics import operational_metrics
+from app.services.readiness_service import ReadinessService
 from app.settings import get_settings
 
 router = APIRouter(tags=["health"])
+DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -24,35 +30,50 @@ def health() -> HealthResponse:
 @router.get("/ready", response_model=ReadinessResponse)
 def ready() -> ReadinessResponse:
     settings = get_settings()
-    checks = {
-        "database": "not checked",
-        "local_dirs": "not checked",
-    }
-
-    database_ok = True
-    try:
-        with engine.connect() as connection:
-            connection.execute(text("select 1"))
-        checks["database"] = "ok"
-    except SQLAlchemyError as exc:
-        database_ok = False
-        checks["database"] = str(exc)
-
-    local_dirs_ok = True
-    for directory in (settings.upload_dir, settings.export_dir, settings.cache_dir):
-        try:
-            directory.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            local_dirs_ok = False
-            checks["local_dirs"] = f"{directory}: {exc}"
-            break
-    if local_dirs_ok:
-        checks["local_dirs"] = "ok"
+    report = ReadinessService(engine=engine, settings=settings).report()
 
     return ReadinessResponse(
         app=settings.app_name,
-        status="ok" if database_ok and local_dirs_ok else "degraded",
-        database_ok=database_ok,
-        local_dirs_ok=local_dirs_ok,
-        checks=checks,
+        status=report.status,
+        database_ok=report.database_ok,
+        local_dirs_ok=report.local_dirs_ok,
+        migrations_ok=report.checks["migrations"].ok,
+        worker_ok=report.checks["worker"].ok,
+        jobs_ok=report.checks["jobs"].ok,
+        checks=report.response_checks(),
     )
+
+
+@router.get("/metrics")
+def metrics() -> Response:
+    return Response(
+        content=operational_metrics.as_prometheus(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+@router.get("/ops/cleanup/preview")
+def cleanup_preview(db: DbSession) -> dict:
+    return preview_cleanup(db, get_settings())
+
+
+@router.post("/ops/cleanup/execute")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="deletes rebuildable local artifacts and old terminal background jobs",
+    local_admin_required=True,
+)
+def cleanup_execute(request: Request, db: DbSession) -> dict:
+    require_local_admin(
+        request,
+        enabled=True,
+        disabled_message="Cleanup execution is disabled.",
+        local_only_message="Cleanup execution is local only.",
+    )
+    try:
+        report = execute_cleanup(db, get_settings())
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return report

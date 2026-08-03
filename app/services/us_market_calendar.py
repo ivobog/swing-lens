@@ -26,6 +26,19 @@ def is_latest_daily_bar_current(
     return latest >= latest_completed_us_trading_day(now)
 
 
+def is_daily_bar_fresh(
+    latest: date | None,
+    stale_after_days: int,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    if latest is None:
+        return False
+    completed = latest_completed_us_trading_day(now)
+    allowed_age = max(0, stale_after_days)
+    return latest >= completed - timedelta(days=allowed_age)
+
+
 def next_us_trading_day(day: date) -> date:
     candidate = day + timedelta(days=1)
     while not _is_us_trading_day(candidate):

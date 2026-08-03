@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import csv
 import json
-from io import StringIO
 from typing import Any
+
+from app.services.csv_export import write_csv
 
 RUN_EVIDENCE_CSV_HEADERS = [
     "ticker",
@@ -14,6 +14,11 @@ RUN_EVIDENCE_CSV_HEADERS = [
     "outcome_definition",
     "estimate_kind",
     "source_version",
+    "model_key",
+    "model_status",
+    "model_version_label",
+    "calibration_status",
+    "calibration_calculated_at",
     "training_cutoff_at",
     "point_probability",
     "lower_bound",
@@ -31,6 +36,7 @@ RUN_EVIDENCE_CSV_HEADERS = [
     "config_hash",
     "feature_schema_version",
 ]
+RUN_EVIDENCE_SCHEMA_ID = "swinglens.winner-probability.run-evidence.v1"
 
 EXPLORER_CSV_HEADERS = [
     "segment",
@@ -41,14 +47,21 @@ EXPLORER_CSV_HEADERS = [
     "mean_lower_bound",
     "evidence_grade_counts",
 ]
+EXPLORER_SCHEMA_ID = "swinglens.winner-probability.outcome-explorer.v1"
 
 
 def export_run_evidence_csv(payload: dict[str, Any]) -> str:
     rows = [_run_export_row(row) for row in payload.get("items", [])]
-    return _write_csv(RUN_EVIDENCE_CSV_HEADERS, rows)
+    return _write_csv(
+        RUN_EVIDENCE_CSV_HEADERS,
+        rows,
+        schema_id=RUN_EVIDENCE_SCHEMA_ID,
+        metadata=_run_evidence_metadata(payload),
+    )
 
 
 def export_run_evidence_json(payload: dict[str, Any]) -> str:
+    payload = {**payload, "export_metadata": _run_evidence_metadata(payload)}
     return json.dumps(payload, indent=2, sort_keys=True, default=str)
 
 
@@ -69,7 +82,7 @@ def export_outcome_explorer_csv(payload: dict[str, Any]) -> str:
         }
         for row in payload.get("segments", [])
     ]
-    return _write_csv(EXPLORER_CSV_HEADERS, rows)
+    return _write_csv(EXPLORER_CSV_HEADERS, rows, schema_id=EXPLORER_SCHEMA_ID)
 
 
 def export_reproduction_manifest_json(payload: dict[str, Any]) -> str:
@@ -89,6 +102,11 @@ def _run_export_row(row: dict[str, Any]) -> dict[str, Any]:
         "outcome_definition": outcome.get("definition_id"),
         "estimate_kind": estimate.get("estimate_kind"),
         "source_version": estimate.get("source_version"),
+        "model_key": estimate.get("model_key"),
+        "model_status": estimate.get("model_status"),
+        "model_version_label": estimate.get("model_version_label"),
+        "calibration_status": estimate.get("calibration_status"),
+        "calibration_calculated_at": estimate.get("calibration_calculated_at"),
         "training_cutoff_at": estimate.get("training_cutoff_at"),
         "point_probability": estimate.get("point_probability"),
         "lower_bound": estimate.get("lower_bound"),
@@ -109,10 +127,25 @@ def _run_export_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _write_csv(headers: list[str], rows: list[dict[str, Any]]) -> str:
-    buffer = StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=headers, lineterminator="\n")
-    writer.writeheader()
-    for row in rows:
-        writer.writerow({key: "" if row.get(key) is None else row.get(key) for key in headers})
-    return buffer.getvalue()
+def _write_csv(
+    headers: list[str],
+    rows: list[dict[str, Any]],
+    *,
+    schema_id: str,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    return write_csv(headers, rows, schema_id=schema_id, metadata=metadata)
+
+
+def _run_evidence_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    outcome = payload.get("outcome_definition") or {}
+    return {
+        "guidance_type": "research_probability",
+        "execution_instruction": False,
+        "evidence_mode": payload.get("estimate_view") or "DECISION_TIME",
+        "source_cutoff": "row_level_training_cutoff",
+        "freshness": "row_level_calibration_status",
+        "correction_state": "as_known",
+        "model_version": "row_level_model_version",
+        "outcome_definition": outcome.get("definition_id"),
+    }

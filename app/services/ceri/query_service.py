@@ -28,6 +28,8 @@ from app.models.tables import UploadRun
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import CeriDataset, HistoricalViewMode
 
+PURGE_INVALIDATION_FLAG = "provider_license_purge_invalidated"
+
 
 class CeriQueryError(ValueError):
     def __init__(self, code: str, message: str, *, status_code: int = 400) -> None:
@@ -686,6 +688,10 @@ def _score_snapshot_payload(snapshot: CeriScoreSnapshot) -> dict[str, Any]:
         "config_hash": snapshot.config_hash,
         "calculation_version": snapshot.calculation_version,
         "evidence_hash": snapshot.evidence_hash,
+        "invalidated_by_purge": _is_invalidated(snapshot.warnings_json),
+        "purge_invalidation": (snapshot.alignment_flags_json or {}).get(
+            "purge_invalidation"
+        ),
     }
 
 
@@ -726,6 +732,7 @@ def _revision_feature_payload(
         "config_version": feature.config_version,
         "config_hash": feature.config_hash,
         "calculation_version": feature.calculation_version,
+        "invalidated_by_purge": _is_invalidated(feature.warnings_json),
     }
 
 
@@ -780,6 +787,7 @@ def _catalyst_revision_payload(revision: CeriCatalystEventRevision) -> dict[str,
         "conflict_flags": revision.conflict_flags_json,
         "review_state": revision.review_state,
         "created_at": _value(revision.created_at),
+        "invalidated_by_purge": _is_invalidated(revision.conflict_flags_json),
         "lineage": {
             "source_record_id": revision.source_record_id,
             "prior_revision_id": revision.prior_revision_id,
@@ -801,6 +809,7 @@ def _change_payload(change: CeriChangeEvent, *, ticker: str | None) -> dict[str,
         "delta": change.delta_json,
         "dedup_key": change.dedup_key,
         "created_at": _value(change.created_at),
+        "invalidated_by_purge": _has_purge_marker(change.delta_json),
     }
 
 
@@ -818,6 +827,8 @@ def _alert_payload(alert: CeriAlertEvent) -> dict[str, Any]:
         "created_at": _value(alert.created_at),
         "acknowledged_at": _value(alert.acknowledged_at),
         "dismissed_at": _value(alert.dismissed_at),
+        "invalidated_by_purge": _has_purge_marker(alert.evidence_json)
+        or alert.status == "INVALIDATED",
     }
 
 
@@ -839,6 +850,10 @@ def _source_record_payload(source: CeriSourceRecord) -> dict[str, Any]:
         "supersedes_id": source.supersedes_id,
         "correction_type": source.correction_type,
         "quarantine_reason": source.quarantine_reason,
+        "purged": _is_purged_source(source),
+        "purge_invalidation": source.restricted_normalized_json
+        if _is_purged_source(source)
+        else None,
     }
 
 
@@ -878,6 +893,21 @@ def _purge_audit_payload(audit: CeriPurgeAudit) -> dict[str, Any]:
         "previewed_at": _value(audit.previewed_at),
         "executed_at": _value(audit.executed_at),
     }
+
+
+def _is_invalidated(flags: list[str] | None) -> bool:
+    return PURGE_INVALIDATION_FLAG in set(flags or [])
+
+
+def _has_purge_marker(value: dict[str, Any] | None) -> bool:
+    marker = (value or {}).get("purge_invalidation")
+    return bool(isinstance(marker, dict) and marker.get("purged"))
+
+
+def _is_purged_source(source: CeriSourceRecord) -> bool:
+    return source.export_policy == "purged" or (
+        source.quarantine_reason or ""
+    ).startswith("provider_license_purge")
 
 
 def _load(db: Session, model):

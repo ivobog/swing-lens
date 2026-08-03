@@ -221,7 +221,7 @@ function sortCockpitRows(table, rows, button) {
   table.querySelectorAll("[data-sort-key]").forEach((sortButton) => {
     sortButton.classList.remove("sorted-asc", "sorted-desc");
     sortButton.removeAttribute("data-sort-direction");
-    sortButton.closest("th").removeAttribute("aria-sort");
+    sortButton.closest("th").setAttribute("aria-sort", "none");
   });
   button.dataset.sortDirection = direction;
   button.classList.add(direction === "asc" ? "sorted-asc" : "sorted-desc");
@@ -396,16 +396,21 @@ function bindFetchProgressPolling() {
   const terminalStatuses = new Set((root.dataset.terminalStatuses || "").split(","));
   if (!statusUrl) return;
 
+  let failureCount = 0;
   const poll = async () => {
     try {
       const response = await fetch(statusUrl, { headers: { Accept: "application/json" } });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
+      failureCount = 0;
+      setReconnectState(root, "[data-progress-reconnect]", false);
       updateFetchProgress(root, data);
       if (!terminalStatuses.has(data.status)) {
         window.setTimeout(poll, 3000);
       }
     } catch (_error) {
+      failureCount += 1;
+      if (failureCount >= 2) setReconnectState(root, "[data-progress-reconnect]", true);
       window.setTimeout(poll, 5000);
     }
   };
@@ -439,7 +444,21 @@ function updateFetchProgress(root, data) {
   }
 
   const fill = root.querySelector("[data-progress-fill]");
-  if (fill) fill.style.width = `${Math.min(Number(data.percentage || 0), 100)}%`;
+  const percentage = Math.min(Number(data.percentage || 0), 100);
+  if (fill) fill.style.width = `${percentage}%`;
+  const bar = root.querySelector("[data-progress-bar]");
+  if (bar) {
+    bar.setAttribute("aria-valuenow", String(Math.round(percentage)));
+    bar.setAttribute(
+      "aria-valuetext",
+      `${data.completed_items || 0} of ${data.total_items || 0} fetch items complete`,
+    );
+  }
+  setText(
+    root,
+    "[data-progress-live]",
+    `${data.status}: ${data.completed_items || 0} of ${data.total_items || 0} items complete.`,
+  );
 
   updateFetchItemRows(data.items || []);
 }
@@ -469,16 +488,21 @@ function bindPipelineProgressPolling() {
   const terminalStatuses = new Set((root.dataset.terminalStatuses || "").split(","));
   if (!statusUrl) return;
 
+  let failureCount = 0;
   const poll = async () => {
     try {
       const response = await fetch(statusUrl, { headers: { Accept: "application/json" } });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
+      failureCount = 0;
+      setReconnectState(root, "[data-pipeline-reconnect]", false);
       updatePipelineProgress(root, data);
       if (!terminalStatuses.has(data.status)) {
         window.setTimeout(poll, 3000);
       }
     } catch (_error) {
+      failureCount += 1;
+      if (failureCount >= 2) setReconnectState(root, "[data-pipeline-reconnect]", true);
       window.setTimeout(poll, 5000);
     }
   };
@@ -513,7 +537,21 @@ function updatePipelineProgress(root, data) {
   }
 
   const fill = root.querySelector("[data-pipeline-fill]");
-  if (fill) fill.style.width = `${Math.min(Number(data.percentage || 0), 100)}%`;
+  const percentage = Math.min(Number(data.percentage || 0), 100);
+  if (fill) fill.style.width = `${percentage}%`;
+  const bar = root.querySelector("[data-pipeline-bar]");
+  if (bar) {
+    bar.setAttribute("aria-valuenow", String(Math.round(percentage)));
+    bar.setAttribute(
+      "aria-valuetext",
+      `${data.completed_steps || 0} of ${data.total_steps || 0} pipeline steps complete`,
+    );
+  }
+  setText(
+    root,
+    "[data-pipeline-live]",
+    `${data.status}: ${data.completed_steps || 0} of ${data.total_steps || 0} steps complete.`,
+  );
 
   updatePipelineStepRows(data.steps || []);
 }
@@ -546,10 +584,82 @@ function cssEscape(value) {
   return String(value).replace(/"/g, '\\"');
 }
 
+function setReconnectState(root, selector, visible) {
+  const element = root.querySelector(selector);
+  if (element) element.hidden = !visible;
+}
+
 function bindConfirmActions() {
+  const panel = buildConfirmPanel();
+  let pendingForm = null;
+
   document.querySelectorAll("[data-confirm]").forEach((element) => {
     element.addEventListener("submit", (event) => {
-      if (!window.confirm(element.dataset.confirm)) event.preventDefault();
+      if (element.dataset.confirmed === "true") {
+        delete element.dataset.confirmed;
+        return;
+      }
+      event.preventDefault();
+      pendingForm = element;
+      showConfirmPanel(panel, element);
     });
   });
+
+  panel.querySelector("[data-confirm-cancel]").addEventListener("click", () => {
+    pendingForm = null;
+    hideConfirmPanel(panel);
+  });
+  panel.querySelector("[data-confirm-continue]").addEventListener("click", () => {
+    if (!pendingForm) return;
+    pendingForm.dataset.confirmed = "true";
+    hideConfirmPanel(panel);
+    pendingForm.requestSubmit();
+    pendingForm = null;
+  });
+  panel.addEventListener("click", (event) => {
+    if (event.target === panel) {
+      pendingForm = null;
+      hideConfirmPanel(panel);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !panel.hidden) {
+      pendingForm = null;
+      hideConfirmPanel(panel);
+    }
+  });
+}
+
+function buildConfirmPanel() {
+  let panel = document.querySelector("[data-confirm-panel]");
+  if (panel) return panel;
+  panel = document.createElement("div");
+  panel.className = "confirm-panel";
+  panel.hidden = true;
+  panel.setAttribute("data-confirm-panel", "");
+  panel.innerHTML = `
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+      <h2 id="confirm-title">Confirm Action</h2>
+      <p id="confirm-message" data-confirm-message></p>
+      <p class="muted-inline">If matching work is already queued or running, SwingLens will reuse the active job where that workflow supports coalescing.</p>
+      <div class="actions">
+        <button class="secondary" type="button" data-confirm-cancel>Cancel</button>
+        <button type="button" data-confirm-continue>Continue</button>
+      </div>
+    </div>
+  `;
+  document.body.append(panel);
+  return panel;
+}
+
+function showConfirmPanel(panel, form) {
+  const message = panel.querySelector("[data-confirm-message]");
+  if (message) message.textContent = form.dataset.confirm || "Continue with this action?";
+  panel.hidden = false;
+  const continueButton = panel.querySelector("[data-confirm-continue]");
+  if (continueButton) continueButton.focus();
+}
+
+function hideConfirmPanel(panel) {
+  panel.hidden = true;
 }

@@ -24,6 +24,17 @@
     <span>{{ outcome.horizon_sessions or 5 }} sessions, entry day is session 1</span>
     <span>{{ payload.estimate_view or filters.estimate_view }}</span>
   </div>
+  {% set disclaimer_context = "winner probabilities, intervals, and model evidence" %}
+  {% include "partials/_research_disclaimer.html" %}
+  {% set provenance = {
+    "mode": payload.estimate_view or filters.estimate_view,
+    "source_cutoff": outcome.training_cutoff_at if outcome.training_cutoff_at is defined else "row-level",
+    "freshness": "model_calibrated",
+    "correction_state": "as_known",
+    "model_version": "row-level",
+    "confidence": "evidence_grade"
+  } %}
+  {% include "partials/_evidence_provenance.html" %}
 </section>
 
 <section class="metric-grid section-gap winner-probability-metrics" aria-label="Winner evidence summary">
@@ -104,18 +115,21 @@
   {% if payload["items"] %}
     <div class="table-wrap">
       <table class="winner-table">
+        <caption>Winner probability evidence for the selected run and estimate view.</caption>
         <thead>
           <tr>
-            <th>Ticker</th>
-            <th>Probability</th>
-            <th>Interval</th>
-            <th>Grade</th>
-            <th>n</th>
-            <th>Return</th>
-            <th>MFE / MAE</th>
-            <th>Target First</th>
-            <th>Training Cutoff</th>
-            <th>Evidence</th>
+            <th scope="col">Ticker</th>
+            <th scope="col">Probability</th>
+            <th scope="col">Interval</th>
+            <th scope="col">Grade</th>
+            <th scope="col">Model</th>
+            <th scope="col">Calibration</th>
+            <th scope="col">n</th>
+            <th scope="col">Return</th>
+            <th scope="col">MFE / MAE</th>
+            <th scope="col">Target First</th>
+            <th scope="col">Training Cutoff</th>
+            <th scope="col">Evidence</th>
           </tr>
         </thead>
         <tbody>
@@ -141,6 +155,8 @@
                 {% endif %}
               </td>
               <td><span class="badge badge-{{ 'warning' if estimate and estimate.evidence_grade == 'Insufficient' else 'success' if estimate and estimate.evidence_grade == 'High' else 'muted' }}">{{ estimate.evidence_grade if estimate else "Missing" }}</span></td>
+              <td>{{ estimate.model_version_label if estimate else "" }}<small>{{ estimate.model_status if estimate else "" }}</small></td>
+              <td>{{ estimate.calibration_status if estimate else "" }}<small>{{ estimate.calibration_calculated_at if estimate and estimate.calibration_calculated_at else "" }}</small></td>
               <td>{{ estimate.sample_n if estimate else "" }}<small>eff {{ "%.0f"|format(estimate.effective_n) if estimate and estimate.effective_n is not none else "" }}</small></td>
               <td>{{ "%.1f"|format(estimate.median_return_pct) if estimate and estimate.median_return_pct is not none else "" }}</td>
               <td>{{ "%.1f"|format(estimate.median_mfe_pct) if estimate and estimate.median_mfe_pct is not none else "" }} / {{ "%.1f"|format(estimate.median_mae_pct) if estimate and estimate.median_mae_pct is not none else "" }}</td>

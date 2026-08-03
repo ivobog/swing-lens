@@ -35,11 +35,35 @@ def test_enqueue_job_persists_payload_and_defaults() -> None:
     assert job in db.added
     assert job.job_type == "FULL_PIPELINE"
     assert job.related_run_id == 7
+    assert job.request_key is None
     assert job.status == JobStatus.QUEUED
     assert job.priority == 10
     assert job.payload_json == {"pipeline_run_id": 42}
     assert job.max_retries == 5
     assert db.flushes == 1
+
+
+def test_enqueue_job_coalesces_matching_active_request_key() -> None:
+    existing = BackgroundJob(
+        id=3,
+        job_type="FULL_PIPELINE",
+        request_key="full-pipeline:run:7",
+        status=JobStatus.QUEUED,
+        payload_json={"pipeline_run_id": 1},
+    )
+    db = FakeDb(jobs=[existing])
+
+    job = enqueue_job(
+        db,
+        job_type="FULL_PIPELINE",
+        payload={"pipeline_run_id": 2},
+        request_key="full-pipeline:run:7",
+    )
+
+    assert job is existing
+    assert job.__dict__.get("_coalesced") is True
+    assert db.added == []
+    assert db.flushes == 0
 
 
 def test_claim_next_job_marks_job_running() -> None:
@@ -57,7 +81,11 @@ def test_claim_next_job_marks_job_running() -> None:
     assert job.heartbeat_at == job.locked_at
     assert job.lease_expires_at is not None
     assert job.started_at is not None
-    assert job.operational_metadata_json["lease_events"][-1]["event_type"] == "CLAIMED"
+    lease_event = job.operational_metadata_json["lease_events"][-1]
+    assert lease_event["event_type"] == "CLAIMED"
+    assert "execution_token" not in lease_event
+    assert lease_event["execution_token_hash"]
+    assert lease_event["execution_token_suffix"] == job.execution_token[-6:]
     assert db.flushes == 1
 
 
@@ -85,6 +113,22 @@ def test_mark_job_completed_clears_lock_and_stores_result() -> None:
     assert job.lease_expires_at is None
     assert job.completed_at is not None
     assert db.flushes == 1
+
+
+def test_mark_job_completed_redacts_sensitive_result_fields() -> None:
+    job = _running_job()
+    db = FakeDb(existing=job)
+
+    mark_job_completed(
+        db,
+        job,
+        {"authorization": "Bearer secret-token", "path": r"C:\Users\Ivica\Downloads\a.csv"},
+        execution_token=job.execution_token,
+    )
+
+    assert job.result_json["authorization"] == "<restricted:authorization>"
+    assert job.result_json["path"] == "<restricted:path>"
+    assert "secret-token" not in str(job.result_json)
 
 
 def test_mark_job_partial_finishes_with_partial_status() -> None:
@@ -155,6 +199,22 @@ def test_failed_job_error_message_is_sanitized_and_truncated() -> None:
     assert len(job.error_message) == 500
 
 
+def test_failed_job_error_message_redacts_sensitive_details() -> None:
+    job = _running_job(max_retries=0)
+    db = FakeDb(existing=job)
+
+    mark_job_failed_or_retry(
+        db,
+        job,
+        r"Bearer secret-token from C:\Users\Ivica\Downloads\vendor.csv",
+        execution_token=job.execution_token,
+    )
+
+    assert "secret-token" not in job.error_message
+    assert r"C:\Users\Ivica" not in job.error_message
+    assert "<restricted:path>" in job.error_message
+
+
 def test_request_job_cancel_cancels_queued_job_immediately() -> None:
     job = BackgroundJob(id=9, job_type="FULL_PIPELINE", status=JobStatus.QUEUED)
     db = FakeDb(existing=job)
@@ -206,7 +266,10 @@ def test_recover_stale_jobs_requeues_jobs_with_retries_remaining() -> None:
     assert stale.heartbeat_at is None
     assert stale.lease_expires_at is None
     assert stale.error_message == "Recovered after stale worker lock."
-    assert stale.operational_metadata_json["lease_events"][-1]["event_type"] == "RECOVERED"
+    lease_event = stale.operational_metadata_json["lease_events"][-1]
+    assert lease_event["event_type"] == "RECOVERED"
+    assert "execution_token" not in lease_event
+    assert lease_event["execution_token_hash"]
     assert db.flushes == 1
 
 
@@ -278,6 +341,9 @@ def test_old_worker_cannot_commit_after_lease_is_replaced() -> None:
         mark_job_completed(db, job, {"ok": True}, execution_token=old_token)
 
     assert job.status == JobStatus.RUNNING
+    lease_event = job.operational_metadata_json["lease_events"][-1]
+    assert "execution_token" not in lease_event
+    assert lease_event["execution_token_suffix"] == old_token[-6:]
 
 
 def test_duplicate_workers_cannot_both_mark_job_complete() -> None:
@@ -338,15 +404,19 @@ class FakeDb:
         existing: BackgroundJob | None = None,
         scalar_result=None,
         stale_jobs: list[BackgroundJob] | None = None,
+        jobs: list[BackgroundJob] | None = None,
     ) -> None:
         self.added = []
         self.existing = existing
         self.scalar_result = scalar_result
         self.stale_jobs = stale_jobs or []
+        self.jobs = jobs or []
         self.flushes = 0
 
     def add(self, row) -> None:
         self.added.append(row)
+        if isinstance(row, BackgroundJob):
+            self.jobs.append(row)
 
     def flush(self) -> None:
         self.flushes += 1

@@ -2,6 +2,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from app.services.us_market_calendar import (
+    is_daily_bar_fresh,
     is_latest_daily_bar_current,
     latest_completed_us_trading_day,
     next_us_trading_day,
@@ -24,6 +25,15 @@ def test_latest_completed_day_before_us_close_uses_prior_session() -> None:
 
     assert latest_completed_us_trading_day(now) == date(2026, 7, 6)
     assert is_latest_daily_bar_current(date(2026, 7, 6), now=now) is True
+
+
+def test_daily_bar_fresh_honors_stale_after_days() -> None:
+    now = datetime(2026, 7, 6, 10, 0, tzinfo=NY)
+
+    assert is_daily_bar_fresh(date(2026, 6, 30), 3, now=now) is True
+    assert is_daily_bar_fresh(date(2026, 6, 28), 3, now=now) is False
+    assert is_daily_bar_fresh(date(2026, 7, 1), 0, now=now) is False
+    assert is_daily_bar_fresh(date(2026, 7, 2), 0, now=now) is True
 
 
 def test_latest_completed_day_skips_weekends_and_observed_holidays() -> None:

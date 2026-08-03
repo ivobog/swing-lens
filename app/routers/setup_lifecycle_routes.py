@@ -13,8 +13,14 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.tables import UploadRun
+from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.background_job_service import enqueue_job
+from app.services.resource_limits import (
+    ResourceLimitExceeded,
+    enforce_row_limit,
+    limit_error_payload,
+)
 from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.export_service import (
@@ -34,6 +40,7 @@ from app.services.setup_lifecycle.replay_service import (
     SetupLifecycleReplayRequest,
     SetupLifecycleReplayService,
 )
+from app.settings import get_settings
 from app.templates import templates
 
 router = APIRouter(tags=["setup-lifecycle"])
@@ -224,20 +231,22 @@ def run_setup_lifecycle(run_id: int, request: Request, db: DbSession) -> HTMLRes
 @router.get("/setup-lifecycle/export.csv")
 def export_setup_lifecycle_csv(db: DbSession) -> Response:
     payload = setup_lifecycle_changes(db=db, limit=500)
-    return Response(
+    _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
+    return attachment_response(
         export_changes_csv(payload),
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="setup_lifecycle_changes.csv"'},
+        filename="setup_lifecycle_changes.csv",
     )
 
 
 @router.get("/setup-lifecycle/export.json")
 def export_setup_lifecycle_json(db: DbSession) -> Response:
     payload = setup_lifecycle_changes(db=db, limit=500)
-    return Response(
+    _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
+    return attachment_response(
         export_json(payload),
         media_type="application/json",
-        headers={"Content-Disposition": 'attachment; filename="setup_lifecycle_changes.json"'},
+        filename="setup_lifecycle_changes.json",
     )
 
 
@@ -414,6 +423,7 @@ def evaluate_setup_lifecycle_run(
             SETUP_LIFECYCLE_EVALUATE_RUN,
             {"run_id": payload_run_id, "requester": "api"},
             related_run_id=payload_run_id,
+            request_key=f"setup-lifecycle:evaluate-run:{payload_run_id}",
         )
         db.commit()
         return JSONResponse(
@@ -515,47 +525,73 @@ def setup_lifecycle_diagnostics(db: DbSession) -> dict[str, Any]:
 @router.get("/api/setup-lifecycle/changes/export.csv")
 def export_setup_lifecycle_changes_csv(db: DbSession) -> Response:
     payload = setup_lifecycle_changes(db=db, limit=500)
-    return Response(export_changes_csv(payload), media_type="text/csv")
+    _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
+    return attachment_response(
+        export_changes_csv(payload),
+        media_type="text/csv",
+        filename="setup_lifecycle_changes.csv",
+    )
 
 
 @router.get("/api/setup-lifecycle/changes/export.json")
 def export_setup_lifecycle_changes_json(db: DbSession) -> Response:
     payload = setup_lifecycle_changes(db=db, limit=500)
-    return Response(export_json(payload), media_type="application/json")
+    _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
+    return attachment_response(
+        export_json(payload),
+        media_type="application/json",
+        filename="setup_lifecycle_changes.json",
+    )
 
 
 @router.get("/api/setup-lifecycle/alerts/export.csv")
 def export_setup_lifecycle_alerts_csv(db: DbSession) -> Response:
     payload = setup_lifecycle_alerts(db=db, limit=500)
-    return Response(export_alerts_csv(payload), media_type="text/csv")
+    _enforce_export_payload_rows(payload, resource="setup lifecycle alerts")
+    return attachment_response(
+        export_alerts_csv(payload),
+        media_type="text/csv",
+        filename="setup_lifecycle_alerts.csv",
+    )
 
 
 @router.get("/api/setup-lifecycle/alerts/export.json")
 def export_setup_lifecycle_alerts_json(db: DbSession) -> Response:
     payload = setup_lifecycle_alerts(db=db, limit=500)
-    return Response(export_json(payload), media_type="application/json")
+    _enforce_export_payload_rows(payload, resource="setup lifecycle alerts")
+    return attachment_response(
+        export_json(payload),
+        media_type="application/json",
+        filename="setup_lifecycle_alerts.json",
+    )
 
 
 @router.get("/api/setup-lifecycle/episodes/{episode_id}/export.csv")
 def export_setup_lifecycle_episode_csv(episode_id: int, db: DbSession) -> Response:
     payload = setup_lifecycle_episode(episode_id=episode_id, db=db)
-    return Response(
+    return attachment_response(
         export_episodes_csv({"items": [payload["episode"]]}),
         media_type="text/csv",
+        filename=f"setup_lifecycle_episode_{episode_id}.csv",
     )
 
 
 @router.get("/api/setup-lifecycle/episodes/{episode_id}/export.json")
 def export_setup_lifecycle_episode_json(episode_id: int, db: DbSession) -> Response:
     payload = setup_lifecycle_episode(episode_id=episode_id, db=db)
-    return Response(export_json(payload), media_type="application/json")
+    return attachment_response(
+        export_json(payload),
+        media_type="application/json",
+        filename=f"setup_lifecycle_episode_{episode_id}.json",
+    )
 
 
 @router.get("/api/setup-lifecycle/operations/export.json")
 def export_setup_lifecycle_operations_json(db: DbSession) -> Response:
-    return Response(
+    return attachment_response(
         export_json(setup_lifecycle_operations(db=db)),
         media_type="application/json",
+        filename="setup_lifecycle_operations.json",
     )
 
 
@@ -625,6 +661,26 @@ def _query_or_http(factory):
         raise HTTPException(
             status_code=exc.status_code,
             detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
+
+def _enforce_export_payload_rows(payload: dict[str, Any], *, resource: str) -> None:
+    settings = get_settings()
+    row_count = len(payload.get("items") or [])
+    try:
+        enforce_row_limit(
+            row_count,
+            settings.max_export_rows,
+            resource=resource,
+            code="EXPORT_ROW_LIMIT_EXCEEDED",
+        )
+    except ResourceLimitExceeded as exc:
+        raise HTTPException(
+            status_code=413,
+            detail=limit_error_payload(
+                exc,
+                hint="Narrow filters or lower the page/export size before retrying.",
+            ),
         ) from exc
 
 

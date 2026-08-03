@@ -36,6 +36,8 @@ def test_valid_default_winner_probability_yaml_loads() -> None:
         SAME_BAR_CONSERVATIVE_STOP_FIRST
     )
     assert config.cohort.prior_strength == 20
+    assert "regularized_logistic_regression" in config.model_governance.approved_algorithms
+    assert config.model_governance.promotion_gates["require_fresh_drift_metrics"] is True
     assert config.evidence_membership.persistence == "ROWS"
     assert len(config.config_hash) == 64
 
@@ -49,6 +51,7 @@ def test_config_hash_is_stable_for_semantically_identical_input() -> None:
         "api": data["api"],
         "retention": data["retention"],
         "drift": data["drift"],
+        "model_governance": data["model_governance"],
         "cold_start": data["cold_start"],
         "evidence_membership": data["evidence_membership"],
         "evidence_grades": data["evidence_grades"],
@@ -135,6 +138,16 @@ def test_drift_configuration_rejects_invalid_thresholds(tmp_path: Path) -> None:
     )
 
     with pytest.raises(WinnerProbabilityConfigError, match="drift.thresholds.brier"):
+        load_winner_probability_config(path)
+
+
+def test_model_governance_rejects_empty_algorithm_allowlist(tmp_path: Path) -> None:
+    path = _config_with_mutation(
+        tmp_path,
+        lambda config: config["model_governance"].update({"approved_algorithms": []}),
+    )
+
+    with pytest.raises(WinnerProbabilityConfigError, match="approved_algorithms"):
         load_winner_probability_config(path)
 
 

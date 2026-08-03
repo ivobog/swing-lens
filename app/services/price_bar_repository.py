@@ -46,7 +46,7 @@ def load_preferred_ohlcv_frames(
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     adjusted = load_price_bars_frame(db, ticker, "ADJUSTED_LAST", timeframe)
     trades = load_price_bars_frame(db, ticker, "TRADES", timeframe)
-    price = trades if not trades.empty else adjusted
+    price = adjusted if not adjusted.empty else trades
     volume = trades if not trades.empty else None
     return price, volume
 
@@ -83,21 +83,21 @@ def load_preferred_price_bar_rows(
     end_date: date,
     timeframe: str = "1 day",
 ) -> list[PriceBar]:
-    trades = load_price_bar_rows(
-        db,
-        ticker,
-        start_date=start_date,
-        end_date=end_date,
-        what_to_show="TRADES",
-        timeframe=timeframe,
-    )
-    if trades:
-        return trades
-    return load_price_bar_rows(
+    adjusted = load_price_bar_rows(
         db,
         ticker,
         start_date=start_date,
         end_date=end_date,
         what_to_show="ADJUSTED_LAST",
+        timeframe=timeframe,
+    )
+    if adjusted:
+        return adjusted
+    return load_price_bar_rows(
+        db,
+        ticker,
+        start_date=start_date,
+        end_date=end_date,
+        what_to_show="TRADES",
         timeframe=timeframe,
     )

@@ -67,7 +67,7 @@ def test_fundamentals_v2_config_is_normalized_and_mapped() -> None:
     aliases = yaml.safe_load(Path("config/column_aliases.yaml").read_text(encoding="utf-8"))
     config = yaml.safe_load(Path("config/fundamentals_v2.yaml").read_text(encoding="utf-8"))
 
-    assert config["model_version"] == "fundamentals_v2.0"
+    assert config["model_version"] == "fundamentals_v2.1"
     assert sum(config["weights"].values()) == 1.0
 
     configured_fields = {
@@ -83,6 +83,8 @@ def test_fundamentals_v2_config_is_normalized_and_mapped() -> None:
 
     assert configured_fields.issubset(aliases)
     assert priority_fields.issubset(aliases)
+    assert set(config["coverage_only_fields"]).issubset(priority_fields)
+    assert not set(config["coverage_only_fields"]) & configured_fields
 
 
 def test_technical_scoring_v4_config_has_required_sections() -> None:

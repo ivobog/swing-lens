@@ -10,7 +10,7 @@ from app.routers import ib_routes
 from app.services.bar_cache_service import _normalize_symbols, cache_bars
 from app.services.ib_api import Contract
 from app.services.ib_connection import check_ib_connection
-from app.services.ib_contract_resolver import cached_contract_to_ib
+from app.services.ib_contract_resolver import cached_contract_to_ib, resolve_us_stock_contract
 from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars
 from app.settings import Settings
 
@@ -150,6 +150,56 @@ def test_cached_contract_to_ib_rebuilds_resolved_contract() -> None:
     assert contract.symbol == "MSFT"
     assert contract.secType == "STK"
     assert contract.currency == "USD"
+
+
+def test_cached_contract_to_ib_ignores_ambiguous_contract() -> None:
+    row = IBContract(
+        ticker="ABC",
+        ib_conid=123,
+        resolution_status="AMBIGUOUS",
+    )
+
+    assert cached_contract_to_ib(row) is None
+
+
+def test_resolve_us_stock_contract_marks_multiple_qualified_contracts_ambiguous() -> None:
+    class AmbiguousIB:
+        def qualifyContracts(self, _contract):
+            return [
+                Contract(
+                    conId=1,
+                    symbol="ABC",
+                    secType="STK",
+                    exchange="SMART",
+                    primaryExchange="NYSE",
+                    currency="USD",
+                    localSymbol="ABC",
+                    tradingClass="ABC",
+                ),
+                Contract(
+                    conId=2,
+                    symbol="ABC",
+                    secType="STK",
+                    exchange="SMART",
+                    primaryExchange="NASDAQ",
+                    currency="USD",
+                    localSymbol="ABC",
+                    tradingClass="ABC",
+                ),
+            ]
+
+    db = FakeContractDb()
+
+    resolution = resolve_us_stock_contract(db, "abc", AmbiguousIB())
+
+    assert resolution.status == "AMBIGUOUS"
+    assert resolution.contract is None
+    assert resolution.cache_row.resolution_status == "AMBIGUOUS"
+    assert resolution.cache_row.ib_conid is None
+    assert "manual instrument selection" in (resolution.error_message or "")
+    assert "NYSE" in (resolution.error_message or "")
+    assert "NASDAQ" in (resolution.error_message or "")
+    assert db.flushed is True
 
 
 def test_cache_bars_inserts_new_bars_with_revision_metadata() -> None:
@@ -349,6 +399,23 @@ class FakeDb:
 
     def add(self, row) -> None:
         self.added.append(row)
+
+
+class FakeContractDb:
+    def __init__(self, existing: IBContract | None = None) -> None:
+        self.existing = existing
+        self.added = []
+        self.flushed = False
+
+    def scalar(self, _statement):
+        return self.existing
+
+    def add(self, row) -> None:
+        self.added.append(row)
+        self.existing = row
+
+    def flush(self) -> None:
+        self.flushed = True
 
 
 class FakeScalarResult:

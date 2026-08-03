@@ -38,7 +38,7 @@ def test_recalculate_run_fundamentals_replaces_scores_from_stored_raw_rows() -> 
     assert len(scores) == 1
     assert isinstance(db.added[0], FundamentalScore)
     assert db.added[0].ticker == "MSFT"
-    assert db.added[0].scoring_model_version == "fundamentals_v2.0"
+    assert db.added[0].scoring_model_version == "fundamentals_v2.1"
 
 
 def test_refresh_combined_route_rebuilds_combined_only(monkeypatch) -> None:

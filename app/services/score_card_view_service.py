@@ -177,7 +177,7 @@ def _combined_card(
             _item("Final Rank", _value(combined, "final_rank")),
             _score_item("Final Score", _value(combined, "final_score")),
             _text_item("Decision", _value(combined, "combined_decision")),
-            _item("Position Size", _value(combined, "position_size_hint")),
+            _item("Research Size Hint", _value(combined, "position_size_hint")),
             _text_item("Fundamental Label", _value(combined, "fundamental_label")),
             _text_item("Technical Class", _value(combined, "technical_classification")),
             _boolean_item("Complete", _value(combined, "is_complete")),

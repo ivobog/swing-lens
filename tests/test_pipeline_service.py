@@ -39,9 +39,48 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     job = jobs[0]
     assert job.job_type == FULL_PIPELINE_JOB_TYPE
     assert job.related_run_id == 7
+    assert job.request_key == (
+        "full-pipeline:run:7:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
+        "FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,"
+        "COMBINING_RESULTS,SECTOR_ROTATION_SNAPSHOT,CAPTURING_WINNER_PREDICTIONS"
+    )
     assert job.status == JobStatus.QUEUED
     assert job.payload_json == {"pipeline_run_id": pipeline.id}
     assert pipeline.result_json == {"background_job_id": job.id}
+
+
+def test_start_pipeline_coalesces_matching_active_pipeline_request() -> None:
+    upload_run = UploadRun(id=7, filename="sample.csv", status="COMPLETED")
+    existing_pipeline = PipelineRun(
+        id=3,
+        upload_run_id=7,
+        status=PipelineStatus.PENDING,
+        current_step="VALIDATING_RUN",
+        result_json={"background_job_id": 10},
+    )
+    existing_job = BackgroundJob(
+        id=10,
+        job_type=FULL_PIPELINE_JOB_TYPE,
+        request_key=(
+            "full-pipeline:run:7:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
+            "FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,"
+            "COMBINING_RESULTS,SECTOR_ROTATION_SNAPSHOT,CAPTURING_WINNER_PREDICTIONS"
+        ),
+        status=JobStatus.QUEUED,
+        payload_json={"pipeline_run_id": 3},
+    )
+    db = FakeDb(
+        upload_runs={7: upload_run},
+        pipeline_runs={3: existing_pipeline},
+        background_jobs={10: existing_job},
+    )
+
+    pipeline = start_pipeline(db, upload_run_id=7, requested_by="local-user")
+
+    assert pipeline is existing_pipeline
+    assert pipeline.__dict__.get("_coalesced") is True
+    assert len(db.pipeline_runs) == 1
+    assert len(db.background_jobs) == 1
 
 
 def test_pipeline_step_names_insert_setup_lifecycle_only_when_enabled() -> None:

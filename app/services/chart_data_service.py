@@ -8,22 +8,34 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import TechnicalScore
 from app.services.price_bar_repository import load_preferred_ohlcv_frames
+from app.settings import get_settings
 
 EMPTY_CHART_MESSAGE = "No cached chart data. Fetch IB bars first."
 
 
-def build_ticker_chart_payload(db: Session, run_id: int, ticker: str) -> dict[str, Any]:
+def build_ticker_chart_payload(
+    db: Session,
+    run_id: int,
+    ticker: str,
+    *,
+    max_bars: int | None = None,
+) -> dict[str, Any]:
     normalized_ticker = ticker.upper()
     price_frame, volume_frame = load_preferred_ohlcv_frames(db, normalized_ticker)
+    bar_limit = max_bars or get_settings().chart_max_bars
 
     if price_frame.empty:
         return _empty_payload(normalized_ticker)
 
-    bars = _bars_from_frame(price_frame)
+    bars, bars_truncated = _bars_from_frame(price_frame, max_bars=bar_limit)
     if not bars:
         return _empty_payload(normalized_ticker)
 
-    volume = _volume_from_frame(volume_frame) if volume_frame is not None else []
+    volume = (
+        _volume_from_frame(volume_frame, max_bars=bar_limit)
+        if volume_frame is not None
+        else []
+    )
     latest_close = bars[-1]["close"]
     technical = db.scalar(
         select(TechnicalScore).where(
@@ -44,6 +56,8 @@ def build_ticker_chart_payload(db: Session, run_id: int, ticker: str) -> dict[st
         },
         "levels": _levels_from_technical(technical, latest_close),
         "markers": [],
+        "bar_limit": bar_limit,
+        "truncated": bars_truncated,
         "message": None,
     }
 
@@ -83,13 +97,21 @@ def _empty_payload(ticker: str) -> dict[str, Any]:
         "overlays": {"sma20": [], "sma50": [], "sma200": []},
         "levels": {},
         "markers": [],
+        "bar_limit": get_settings().chart_max_bars,
+        "truncated": False,
         "message": EMPTY_CHART_MESSAGE,
     }
 
 
-def _bars_from_frame(frame: pd.DataFrame) -> list[dict[str, Any]]:
+def _bars_from_frame(
+    frame: pd.DataFrame,
+    *,
+    max_bars: int,
+) -> tuple[list[dict[str, Any]], bool]:
     bars: list[dict[str, Any]] = []
-    for row in frame.sort_values("date").to_dict("records"):
+    sorted_frame = frame.sort_values("date")
+    truncated = len(sorted_frame) > max_bars
+    for row in sorted_frame.tail(max_bars).to_dict("records"):
         open_value = _field_float(row, "open")
         high = _field_float(row, "high")
         low = _field_float(row, "low")
@@ -106,12 +128,12 @@ def _bars_from_frame(frame: pd.DataFrame) -> list[dict[str, Any]]:
                 "close": close,
             }
         )
-    return bars
+    return bars, truncated
 
 
-def _volume_from_frame(frame: pd.DataFrame) -> list[dict[str, Any]]:
+def _volume_from_frame(frame: pd.DataFrame, *, max_bars: int) -> list[dict[str, Any]]:
     volume: list[dict[str, Any]] = []
-    for row in frame.sort_values("date").to_dict("records"):
+    for row in frame.sort_values("date").tail(max_bars).to_dict("records"):
         time = row.get("date")
         if time is None:
             continue

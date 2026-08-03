@@ -27,8 +27,13 @@ def test_snapshot_to_payload_includes_snapshot_rows_components_and_debug() -> No
 
     assert payload["snapshot"]["as_of_date"] == "2026-07-28"
     assert payload["snapshot"]["mode"] == "universe_only"
+    assert payload["snapshot"]["universe_scope"] == "candidate_universe"
+    assert payload["snapshot"]["etf_confirmation_mode"] == "not_used"
     assert payload["snapshot"]["summary"] == {"leading_sector": "Technology"}
     assert [row["sector"] for row in payload["rows"]] == ["Technology", "Utilities"]
+    assert payload["rows"][0]["universe_scope"] == "candidate_universe"
+    assert payload["rows"][0]["etf_confirmation_mode"] == "not_used"
+    assert payload["rows"][0]["guidance_type"] == "research_context"
     assert payload["rows"][0]["component_scores"] == {"risk_control": 9.0}
     assert payload["rows"][0]["etf_metrics"]["proxy_ticker"] == "XLK"
     assert payload["rows"][0]["reasons"] == ["top_candidate_overrepresentation"]
@@ -51,12 +56,19 @@ def test_export_sector_rotation_csv_has_stable_headers_and_rank_order() -> None:
     assert rows[0]["top_25_share"] == "0.4286"
     assert rows[0]["warnings"] == "missing_etf_confirmation"
     assert rows[0]["reasons"] == "top_candidate_overrepresentation"
+    assert rows[0]["universe_scope"] == "candidate_universe"
+    assert rows[0]["etf_confirmation_mode"] == "not_used"
+    assert rows[0]["guidance_type"] == "research_context"
+    assert rows[0]["research_size_multiplier"] == "1.0"
 
 
 def test_export_sector_rotation_json_returns_stable_json() -> None:
     payload = json.loads(export_sector_rotation_json(_snapshot(), [_row("Technology", rank=1)]))
 
     assert payload["snapshot"]["run_id"] == 7
+    assert payload["snapshot"]["scope_label"] == (
+        "Candidate universe from the uploaded run, not full-market breadth"
+    )
     assert payload["rows"][0]["sector_slug"] == "technology"
     assert payload["rows"][0]["warning_distribution"] == {"liquidity_warning": 1}
     assert payload["rows"][0]["etf_metrics"]["metrics"]["above_sma50"] is True
@@ -65,7 +77,9 @@ def test_export_sector_rotation_json_returns_stable_json() -> None:
 def test_export_sector_rotation_markdown_omits_fake_etf_details_for_universe_only() -> None:
     markdown = export_sector_rotation_markdown(_snapshot(), [_row("Technology", rank=1)])
 
-    assert "# Sector Rotation Brief - 2026-07-28" in markdown
+    assert "# Candidate-Universe Sector Rotation Brief - 2026-07-28" in markdown
+    assert "Scope: Candidate universe from the uploaded run, not full-market breadth" in markdown
+    assert "ETF confirmation: Not used; this is a universe-only candidate snapshot" in markdown
     assert "| 1 | Technology | Leading | full_allowed | 8.10 | high |" in markdown
     assert "ETF confirmation was not used" in markdown
     assert "XLK confirmed" not in markdown
@@ -79,9 +93,10 @@ def test_export_functions_accept_in_memory_snapshot_dto() -> None:
     markdown = export_sector_rotation_markdown(dto)
 
     assert payload["snapshot"]["id"] is None
+    assert payload["snapshot"]["universe_scope"] == "candidate_universe"
     assert payload["rows"][0]["sector"] == "Technology"
     assert "Technology" in csv_text
-    assert "Sector Rotation Brief" in markdown
+    assert "Candidate-Universe Sector Rotation Brief" in markdown
 
 
 def _snapshot() -> SectorRotationSnapshot:

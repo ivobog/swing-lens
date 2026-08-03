@@ -4,6 +4,7 @@ import pytest
 
 import app.services.pipeline_executor as pipeline_executor
 from app.models.tables import CombinedResult, IBFetchRun, PipelineRun, PipelineStep, UploadRun
+from app.services.background_job_service import JobLeaseLost
 from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.pipeline_executor import (
     PipelineCancelled,
@@ -410,6 +411,58 @@ def test_execute_full_pipeline_fails_when_run_has_no_tickers() -> None:
     assert db.steps[0].status == PipelineStepStatus.FAILED
 
 
+def test_execute_full_pipeline_does_not_commit_step_completion_after_lease_loss() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    calls = []
+    dependencies = _dependencies(
+        calls,
+        plan=_plan(estimated_request_count=0),
+        combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ],
+    )
+    guard_calls = {"count": 0}
+
+    def lease_guard() -> None:
+        guard_calls["count"] += 1
+        if guard_calls["count"] == 5:
+            raise JobLeaseLost("lease lost")
+
+    with pytest.raises(JobLeaseLost, match="lease lost"):
+        execute_full_pipeline(
+            db,
+            pipeline_run_id=3,
+            dependencies=dependencies,
+            lease_guard=lease_guard,
+        )
+
+    assert calls == ["fundamentals"]
+    assert db.commits == 4
+    assert db.commit_snapshots[-1]["steps"]["SCORING_FUNDAMENTALS"] == PipelineStepStatus.RUNNING
+    assert not any(
+        snapshot["steps"]["SCORING_FUNDAMENTALS"] == PipelineStepStatus.COMPLETED
+        for snapshot in db.commit_snapshots
+    )
+
+
+def test_execute_full_pipeline_records_replay_attempt_for_previously_completed_step() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    db.steps[0].status = PipelineStepStatus.COMPLETED
+    calls = []
+    dependencies = _dependencies(
+        calls,
+        plan=_plan(estimated_request_count=0),
+        combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ],
+    )
+
+    execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert db.steps[0].retry_count == 1
+    assert db.steps[0].message == "Replaying step attempt 2."
+
+
 def _dependencies(
     calls: list[str],
     plan: FetchPlan | None = None,
@@ -607,6 +660,7 @@ class PipelineExecutorFakeDb:
         ]
         self.flushes = 0
         self.commits = 0
+        self.commit_snapshots: list[dict[str, object]] = []
         self._step_index = 0
 
     def get(self, model, row_id):
@@ -634,3 +688,9 @@ class PipelineExecutorFakeDb:
 
     def commit(self) -> None:
         self.commits += 1
+        self.commit_snapshots.append(
+            {
+                "pipeline_status": self.pipeline.status,
+                "steps": {step.step_name: step.status for step in self.steps},
+            }
+        )

@@ -14,6 +14,7 @@ from app.models.tables import (
     SignalChangeEvent,
 )
 from app.services.setup_lifecycle.repository import (
+    PurgePreview,
     PurgeScope,
     SetupLifecycleRepository,
 )
@@ -192,6 +193,18 @@ def test_purge_preview_is_stable_for_the_same_scope_and_counts() -> None:
         "snapshots": 11,
         "evaluation_runs": 13,
     }
+
+
+def test_repository_purge_execution_is_blocked_by_default_retention_policy() -> None:
+    repository = SetupLifecycleRepository()
+    preview = PurgePreview(scope=PurgeScope(ticker="MSFT"), token="token", counts={})
+
+    try:
+        repository.execute_purge(db=object(), preview=preview, token="token")  # type: ignore[arg-type]
+    except ValueError as exc:
+        assert "disabled by retention policy" in str(exc)
+    else:
+        raise AssertionError("setup lifecycle purge execution should be policy-gated")
 
 
 class CountingRepository(SetupLifecycleRepository):

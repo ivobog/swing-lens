@@ -47,6 +47,10 @@ def test_export_changes_csv_uses_stable_columns() -> None:
             "actionability_after": "ACTIONABLE",
             "confidence_score": "91",
             "severity": "ACTIONABLE",
+            "export_schema_id": "swinglens.setup-lifecycle.changes.v1",
+            "export_schema_version": "1",
+            "guidance_type": "research_context",
+            "execution_instruction": "False",
         }
     ]
 

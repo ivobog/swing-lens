@@ -129,6 +129,8 @@
         <dt>Effective n</dt><dd>{{ "%.0f"|format(selected.effective_n) if selected.effective_n is not none else "" }}</dd>
         <dt>Cohort</dt><dd>{{ selected.metadata.cohort_level or "None" }} / {{ selected.metadata.cohort_key or "No eligible cohort" }}</dd>
         <dt>Source</dt><dd>{{ selected.source }} {{ selected.source_version }}</dd>
+        <dt>Model</dt><dd>{{ selected.model_version_label or "Unknown" }} / {{ selected.model_status or "Unknown" }}</dd>
+        <dt>Calibration</dt><dd>{{ selected.calibration_status or "unknown" }}{% if selected.calibration_calculated_at %} {{ selected.calibration_calculated_at }}{% endif %}</dd>
       </dl>
     {% else %}
       <div class="empty-state"><strong>No selected estimate.</strong></div>

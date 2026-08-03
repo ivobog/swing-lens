@@ -66,8 +66,12 @@ def test_shadow_candidate_report_compares_model_against_baselines() -> None:
     assert report.metrics["sample_n"] == 12
     assert report.metrics["fold_count"] == len(report.fold_plan)
     assert "model_log_loss" in report.metrics
+    assert "model_brier_score" in report.metrics
     assert "global_baseline_log_loss" in report.metrics
+    assert "global_baseline_brier_score" in report.metrics
     assert "cohort_baseline_log_loss" in report.metrics
+    assert "cohort_baseline_brier_score" in report.metrics
+    assert report.metrics["independent_episode_count"] == 12
     assert report.artifact_payload["preprocessing"]["feature_order"] == [
         "combined_score",
         "setup_family",

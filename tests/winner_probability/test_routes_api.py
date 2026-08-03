@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -9,10 +10,20 @@ from fastapi.testclient import TestClient
 
 from app.db import get_db
 from app.main import create_app
-from app.models.tables import BackgroundJob
+from app.models.tables import (
+    BackgroundJob,
+    EstimateSource,
+    ModelStatus,
+    WinnerCalibrationBin,
+    WinnerModelVersion,
+    WinnerProbabilityEstimate,
+)
 from app.routers import winner_probability_routes
 from app.services.background_job_service import JobStatus
-from app.services.winner_probability.api_service import WinnerProbabilityApiError
+from app.services.winner_probability.api_service import (
+    WinnerProbabilityApiError,
+    _estimate_payload,
+)
 from app.services.winner_probability.job_handlers import WINNER_COHORT_REFRESH
 from app.settings import Settings
 
@@ -134,6 +145,56 @@ def test_reproduction_endpoint_returns_comparison_payload(monkeypatch) -> None:
     }
 
 
+def test_estimate_api_payload_includes_model_and_calibration_state() -> None:
+    db = EstimatePayloadFakeDb()
+    model = WinnerModelVersion(
+        id=9,
+        model_key="logistic-v1",
+        algorithm="regularized_logistic_regression",
+        status=ModelStatus.ACTIVE,
+        outcome_definition_id=1,
+        entry_model="NEXT_OPEN",
+        feature_schema_version="owpe-features-1.0.0",
+        calculation_version="owpe-calc-1.0.0",
+        config_hash="config",
+        training_cutoff_at=datetime(2026, 7, 31, 21, 0, tzinfo=UTC),
+        artifact_schema_version="winner-model-artifact-v1",
+        artifact_format="json",
+        artifact_hash="hash",
+    )
+    db.models[model.id] = model
+    db.calibration_bins.append(
+        WinnerCalibrationBin(
+            id=1,
+            model_version_id=model.id,
+            outcome_definition_id=1,
+            estimate_kind="DECISION_TIME",
+            bin_floor=0.5,
+            bin_ceiling=0.6,
+            sample_n=80,
+            calculated_at=datetime(2026, 8, 1, tzinfo=UTC),
+            segment_json={},
+        )
+    )
+
+    payload = _estimate_payload(db, _estimate(model_version_id=model.id))
+
+    assert payload["model_key"] == "logistic-v1"
+    assert payload["model_status"] == ModelStatus.ACTIVE
+    assert payload["model_version_label"] == "logistic-v1#9"
+    assert payload["calibration_status"] == "calibrated"
+    assert payload["calibration_calculated_at"] == "2026-08-01T00:00:00+00:00"
+
+
+def test_estimate_api_payload_labels_cohort_baseline_without_model() -> None:
+    payload = _estimate_payload(None, _estimate(model_version_id=None))
+
+    assert payload["model_key"] == "cohort-baseline"
+    assert payload["model_status"] == "BASELINE"
+    assert payload["model_version_label"] == "cohort_baseline_v1"
+    assert payload["calibration_status"] == "cohort_baseline"
+
+
 def test_run_export_route_returns_csv_attachment(monkeypatch) -> None:
     monkeypatch.setattr(
         winner_probability_routes,
@@ -173,6 +234,7 @@ def test_cohort_refresh_admin_endpoint_queues_job() -> None:
         "job_type": WINNER_COHORT_REFRESH,
         "status": JobStatus.QUEUED,
         "payload": {"outcome_definition_id": "T2_5_S2_0_H5_NEXT_OPEN"},
+        "coalesced": False,
     }
     assert db.jobs[0].job_type == WINNER_COHORT_REFRESH
     assert db.commits == 1
@@ -230,6 +292,20 @@ class RouteFakeDb:
         return 7 if self.run_exists else None
 
 
+class EstimatePayloadFakeDb:
+    def __init__(self) -> None:
+        self.models: dict[int, WinnerModelVersion] = {}
+        self.calibration_bins: list[WinnerCalibrationBin] = []
+
+    def get(self, model_type, id):
+        if model_type is WinnerModelVersion:
+            return self.models.get(id)
+        return None
+
+    def scalars(self, _statement):
+        return iter(self.calibration_bins)
+
+
 class AdminRouteFakeDb:
     def __init__(self, *, run_exists: bool) -> None:
         self.run_exists = run_exists
@@ -257,3 +333,28 @@ class AdminRouteFakeDb:
 
     def rollback(self) -> None:
         self.rollbacks += 1
+
+
+def _estimate(*, model_version_id: int | None) -> WinnerProbabilityEstimate:
+    return WinnerProbabilityEstimate(
+        id=11,
+        prediction_id=101,
+        outcome_definition_id=1,
+        estimate_kind="DECISION_TIME",
+        source=EstimateSource.COHORT,
+        source_version="cohort_baseline_v1",
+        model_version_id=model_version_id,
+        training_cutoff_at=datetime(2026, 7, 31, 21, 0, tzinfo=UTC),
+        point_probability=Decimal("0.612345"),
+        lower_bound=Decimal("0.500000"),
+        upper_bound=Decimal("0.700000"),
+        interval_width=Decimal("0.200000"),
+        sample_n=80,
+        effective_n=Decimal("78.0"),
+        evidence_grade="High",
+        insufficient_reasons_json=[],
+        config_hash="config",
+        feature_schema_version="owpe-features-1.0.0",
+        evidence_manifest_hash="manifest-hash",
+        metadata_json={},
+    )

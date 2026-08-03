@@ -16,6 +16,7 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.sector_rotation_export_service import (
@@ -479,8 +480,8 @@ def _require_run(db: Session, run_id: int) -> None:
 
 
 def _attachment_response(content: str, media_type: str, filename: str) -> Response:
-    return Response(
+    return attachment_response(
         content,
         media_type=media_type,
-        headers={"content-disposition": f'attachment; filename="{filename}"'},
+        filename=filename,
     )

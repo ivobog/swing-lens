@@ -105,6 +105,28 @@ def test_coverage_item_classifies_missing_volume_stale_and_contract_failed() -> 
     assert contract_failed.status == OhlcvCoverageStatus.CONTRACT_FAILED
 
 
+def test_coverage_item_honors_stale_after_days_grace() -> None:
+    within_grace = _coverage_item(
+        "MSFT",
+        {
+            ("MSFT", "ADJUSTED_LAST"): BarSeriesCoverage(
+                count=252,
+                latest_date=date(2026, 6, 30),
+            ),
+            ("MSFT", "TRADES"): BarSeriesCoverage(
+                count=252,
+                latest_date=date(2026, 6, 30),
+            ),
+        },
+        required_rows=252,
+        stale_after_days=3,
+        today=date(2026, 7, 3),
+    )
+
+    assert within_grace.status == OhlcvCoverageStatus.READY
+    assert within_grace.latest_bar_current is True
+
+
 def test_summary_uses_real_current_time_when_today_is_not_forced(monkeypatch) -> None:
     captured_today_values = []
 

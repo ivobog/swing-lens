@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import csv
 import json
 from datetime import date, datetime
-from io import StringIO
 from typing import Any
 
 from app.models.tables import MarketRegimeSnapshot
+from app.services.csv_export import write_csv
 
 MARKET_REGIME_CSV_HEADERS = [
     "as_of_date",
@@ -20,6 +19,7 @@ MARKET_REGIME_CSV_HEADERS = [
     "preferred_profiles",
     "warnings",
 ]
+MARKET_REGIME_SCHEMA_ID = "swinglens.market-regime.v1"
 
 
 def snapshot_to_payload(snapshot: MarketRegimeSnapshot) -> dict[str, Any]:
@@ -66,16 +66,17 @@ def export_snapshot_json(snapshot: MarketRegimeSnapshot) -> str:
 
 
 def export_snapshot_csv(snapshot: MarketRegimeSnapshot) -> str:
-    buffer = StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=MARKET_REGIME_CSV_HEADERS, lineterminator="\n")
-    writer.writeheader()
-    writer.writerow(_snapshot_csv_row(snapshot))
-    return buffer.getvalue()
+    return write_csv(
+        MARKET_REGIME_CSV_HEADERS,
+        [_snapshot_csv_row(snapshot)],
+        schema_id=MARKET_REGIME_SCHEMA_ID,
+        metadata={"guidance_type": "research_context", "execution_instruction": False},
+    )
 
 
 def _snapshot_csv_row(snapshot: MarketRegimeSnapshot) -> dict[str, Any]:
     return {
-        "as_of_date": _csv_value(snapshot.as_of_date),
+        "as_of_date": _json_value(snapshot.as_of_date),
         "regime": snapshot.regime,
         "risk_state": snapshot.risk_state,
         "score": snapshot.score,
@@ -91,12 +92,6 @@ def _snapshot_csv_row(snapshot: MarketRegimeSnapshot) -> dict[str, Any]:
 def _json_value(value: Any) -> Any:
     if isinstance(value, date | datetime):
         return value.isoformat()
-    return value
-
-
-def _csv_value(value: Any) -> Any:
-    if value is None:
-        return ""
     return value
 
 

@@ -261,7 +261,9 @@ def _fit_and_score_fold(
         "model_log_loss": _log_loss(y_test, predictions),
         "model_brier_score": _brier_score(y_test, predictions),
         "global_baseline_log_loss": _baseline_log_loss(y_test, global_baseline),
+        "global_baseline_brier_score": _baseline_brier_score(y_test, global_baseline),
         "cohort_baseline_log_loss": _baseline_log_loss(y_test, cohort_baseline),
+        "cohort_baseline_brier_score": _baseline_brier_score(y_test, cohort_baseline),
     }
 
 
@@ -368,8 +370,17 @@ def _aggregate_metrics(
         "model_brier_score": _mean_metric(fold_metrics, "model_brier_score"),
         "global_baseline_probability": global_baseline,
         "global_baseline_log_loss": _mean_metric(fold_metrics, "global_baseline_log_loss"),
+        "global_baseline_brier_score": _mean_metric(
+            fold_metrics,
+            "global_baseline_brier_score",
+        ),
         "cohort_baseline_probability": cohort_baseline,
         "cohort_baseline_log_loss": _mean_metric(fold_metrics, "cohort_baseline_log_loss"),
+        "cohort_baseline_brier_score": _mean_metric(
+            fold_metrics,
+            "cohort_baseline_brier_score",
+        ),
+        "independent_episode_count": len(_episode_groups(examples)),
     }
 
 
@@ -437,6 +448,10 @@ def _brier_score(y: np.ndarray, predictions: np.ndarray) -> float:
 
 def _baseline_log_loss(y: np.ndarray, probability: float) -> float:
     return _log_loss(y, np.full(len(y), probability, dtype=float))
+
+
+def _baseline_brier_score(y: np.ndarray, probability: float) -> float:
+    return _brier_score(y, np.full(len(y), probability, dtype=float))
 
 
 def _mean_metric(rows: list[dict[str, Any]], key: str) -> float | None:

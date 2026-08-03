@@ -1,0 +1,12 @@
+{% set provenance = provenance|default({}) %}
+<div class="evidence-provenance" aria-label="Evidence provenance">
+  <span class="badge badge-muted">Evidence {{ provenance.mode|default("decision-time", true)|replace("_", " ")|title }}</span>
+  <span>Source cutoff {{ provenance.source_cutoff|default("N/A", true) }}</span>
+  <span>Freshness {{ provenance.freshness|default("unknown", true)|replace("_", " ")|title }}</span>
+  <span>Correction {{ provenance.correction_state|default("as-known", true)|replace("_", " ")|title }}</span>
+  {% if provenance.model_version %}<span>Model {{ provenance.model_version }}</span>{% endif %}
+  {% if provenance.config_version %}<span>Config {{ provenance.config_version }}</span>{% endif %}
+  {% if provenance.confidence %}<span>Confidence {{ provenance.confidence }}</span>{% endif %}
+  {% if provenance.reconstructed %}<span class="badge badge-warning">Reconstructed</span>{% endif %}
+  {% if provenance.simulated %}<span class="badge badge-warning">Simulated</span>{% endif %}
+</div>

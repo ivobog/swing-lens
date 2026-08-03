@@ -12,7 +12,7 @@ from app.services.ohlcv_coverage_service import (
     OhlcvCoverageSummary,
     summarize_ohlcv_coverage,
 )
-from app.services.us_market_calendar import is_latest_daily_bar_current
+from app.services.us_market_calendar import is_daily_bar_fresh
 from app.settings import Settings, get_settings
 
 
@@ -221,6 +221,12 @@ def _plan_action(
             None,
             "IB contract resolution previously failed.",
         )
+    if contract_status == "AMBIGUOUS":
+        return (
+            FetchAction.FAILED,
+            None,
+            "IB contract resolution is ambiguous and requires manual instrument selection.",
+        )
 
     if contract_status != "RESOLVED":
         return (
@@ -313,8 +319,7 @@ def _latest_date_for_type(item: OhlcvCoverageItem, what_to_show: str) -> date | 
 
 
 def _latest_date_current(latest: date | None, stale_after_days: int) -> bool:
-    _ = stale_after_days
-    return is_latest_daily_bar_current(latest)
+    return is_daily_bar_fresh(latest, stale_after_days)
 
 
 def _plan_warnings(coverage: OhlcvCoverageSummary, items: list[FetchPlanItem]) -> list[str]:

@@ -175,6 +175,13 @@
     <span class="summary-item"><strong>{{ setup_lifecycle_context.active_episode_count }}</strong> active episodes</span>
     <span class="summary-item">{{ setup_lifecycle_context.latest_status or "No evaluation yet" }}</span>
   </div>
+  {% if latest_pipeline and latest_pipeline.status in ["PENDING", "RUNNING", "CANCELLING"] %}
+    <div class="alert section-gap" role="status">
+      Pipeline {{ latest_pipeline.pipeline_run_id }} is already {{ latest_pipeline.status|lower }} for this run.
+      Duplicate full-pipeline starts will open the active job instead of queueing another copy.
+      <a href="/runs/{{ run.id }}/pipeline/{{ latest_pipeline.pipeline_run_id }}">Open progress</a>
+    </div>
+  {% endif %}
 </section>
 
 {% if latest_pipeline %}
@@ -360,7 +367,7 @@
       </span>
       <span class="summary-item">
         <strong>{{ "%.0f"|format(market_regime_context.position_size_multiplier * 100) }}%</strong>
-        starter size
+        research size context
         <small>{{ market_regime_context.confidence }} confidence</small>
       </span>
       <span class="summary-item">
@@ -580,20 +587,21 @@
           <summary>Latest Fetch rows</summary>
           <div class="table-wrap">
             <table>
+              <caption>Latest IB fetch rows for this run.</caption>
               <thead>
                 <tr>
-                  <th>Ticker</th>
-                  <th>Data</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                  <th>Duration</th>
-                  <th>Fetched</th>
-                  <th>Inserted</th>
-                  <th>Updated</th>
-                  <th>Revised</th>
-                  <th>Unchanged</th>
-                  <th>Attempts</th>
-                  <th>Error</th>
+                  <th scope="col">Ticker</th>
+                  <th scope="col">Data</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Action</th>
+                  <th scope="col">Duration</th>
+                  <th scope="col">Fetched</th>
+                  <th scope="col">Inserted</th>
+                  <th scope="col">Updated</th>
+                  <th scope="col">Revised</th>
+                  <th scope="col">Unchanged</th>
+                  <th scope="col">Attempts</th>
+                  <th scope="col">Error</th>
                 </tr>
               </thead>
               <tbody>
@@ -630,17 +638,18 @@
       <summary>OHLCV coverage by ticker</summary>
       <div class="table-wrap">
         <table>
+          <caption>OHLCV coverage by ticker for this run.</caption>
           <thead>
             <tr>
-              <th>Ticker</th>
-              <th>Status</th>
-              <th>Adjusted bars</th>
-              <th>Trades bars</th>
-              <th>Latest adjusted</th>
-              <th>Latest trades</th>
-              <th>Price</th>
-              <th>Volume</th>
-              <th>Reason</th>
+              <th scope="col">Ticker</th>
+              <th scope="col">Status</th>
+              <th scope="col">Adjusted bars</th>
+              <th scope="col">Trades bars</th>
+              <th scope="col">Latest adjusted</th>
+              <th scope="col">Latest trades</th>
+              <th scope="col">Price</th>
+              <th scope="col">Volume</th>
+              <th scope="col">Reason</th>
             </tr>
           </thead>
           <tbody>
@@ -672,9 +681,20 @@
   <div class="panel-header">
     <div>
       <h2>Decision Cockpit</h2>
-      <p>Complete rows are ranked ahead of incomplete rows. Position size is an advisory research hint.</p>
+      <p>Complete rows are ranked ahead of incomplete rows.</p>
     </div>
   </div>
+  {% set disclaimer_context = "combined decisions, gates, and research size hints" %}
+  {% include "partials/_research_disclaimer.html" %}
+  {% set provenance = {
+    "mode": "decision_time",
+    "source_cutoff": run.processed_at or run.uploaded_at,
+    "freshness": "run_snapshot",
+    "correction_state": "as_known",
+    "config_version": combined_results[0].model_version if combined_results and combined_results[0].model_version is defined else none,
+    "confidence": "row_level"
+  } %}
+  {% include "partials/_evidence_provenance.html" %}
 
   {% if decision_counts %}
     <div class="summary-strip">
@@ -763,18 +783,19 @@
 
     <div class="table-wrap">
       <table class="cockpit-table" data-cockpit-table>
+        <caption>Combined decision cockpit ranked by completeness, score, warnings, and gates.</caption>
         <thead>
           <tr>
-            <th><button class="sort-button" type="button" data-sort-key="rank" data-sort-type="number">Rank</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="ticker" data-sort-type="text">Ticker</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="sector" data-sort-type="text">Sector</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="final-score" data-sort-type="number">Final</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="decision" data-sort-type="text">Decision</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="warning-count" data-sort-type="number">Warnings</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="days-until-earnings" data-sort-type="number">Earning Days</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="fundamental-score" data-sort-type="number">Fundamental</button></th>
-            <th><button class="sort-button" type="button" data-sort-key="technical-score" data-sort-type="number">Technical</button></th>
-            <th>Actions</th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="rank" data-sort-type="number">Rank</button></th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="ticker" data-sort-type="text">Ticker</button></th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="sector" data-sort-type="text">Sector</button></th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="final-score" data-sort-type="number">Final</button></th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="decision" data-sort-type="text">Decision</button></th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="warning-count" data-sort-type="number">Warnings</button></th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="days-until-earnings" data-sort-type="number">Earning Days</button></th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="fundamental-score" data-sort-type="number">Fundamental</button></th>
+            <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort-key="technical-score" data-sort-type="number">Technical</button></th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>

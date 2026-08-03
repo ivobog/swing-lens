@@ -67,7 +67,9 @@ def test_capture_job_persists_processing_run_and_counts() -> None:
     assert processing_run.config_hash
     assert processing_run.counts_json["inserted"] == 2
     assert processing_run.completed_at is not None
-    assert processing_run.metadata_json["execution_token"] == "token-1"
+    assert "execution_token" not in processing_run.metadata_json
+    assert processing_run.metadata_json["execution_token_hash"]
+    assert processing_run.metadata_json["execution_token_suffix"] == "oken-1"
 
 
 def test_capture_job_marks_partial_when_ticker_failures_are_reported() -> None:

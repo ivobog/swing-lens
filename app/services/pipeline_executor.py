@@ -17,6 +17,7 @@ from app.models.tables import (
     RawCompanyRow,
     UploadRun,
 )
+from app.services.background_job_service import JobLeaseLost
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.ceri.constants import CERI_PIPELINE_CAPTURE_STEP
 from app.services.combined_decision import refresh_combined_results
@@ -29,6 +30,7 @@ from app.services.pipeline_service import (
     PipelineStatus,
     PipelineStepStatus,
 )
+from app.services.redaction import redact_sensitive
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 from app.services.sector_rotation_service import SectorRotationService
 from app.services.setup_lifecycle.constants import (
@@ -137,6 +139,7 @@ def execute_full_pipeline(
     db: Session,
     pipeline_run_id: int,
     should_cancel: Callable[[], bool] | None = None,
+    lease_guard: Callable[[], None] | None = None,
     dependencies: PipelineExecutionDependencies | None = None,
 ) -> PipelineExecutionResult:
     dependencies = dependencies or PipelineExecutionDependencies()
@@ -146,22 +149,22 @@ def execute_full_pipeline(
 
     result = _empty_result(pipeline, upload_run)
     try:
-        _mark_pipeline_running(db, pipeline)
+        _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
         _raise_if_cancelled(should_cancel)
 
-        with _pipeline_step(db, pipeline, "VALIDATING_RUN"):
+        with _pipeline_step(db, pipeline, "VALIDATING_RUN", lease_guard=lease_guard):
             tickers = _tickers_for_run(db, upload_run.id)
             if not tickers:
                 raise ValueError("No uploaded tickers are available for this run.")
             result["uploaded_rows"] = upload_run.row_count or len(tickers)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "SCORING_FUNDAMENTALS"):
+        with _pipeline_step(db, pipeline, "SCORING_FUNDAMENTALS", lease_guard=lease_guard):
             fundamental_scores = dependencies.recalculate_fundamentals(db, upload_run.id)
             result["fundamental_scores"] = len(fundamental_scores)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "FETCHING_MARKET_DATA"):
+        with _pipeline_step(db, pipeline, "FETCHING_MARKET_DATA", lease_guard=lease_guard):
             plan = dependencies.build_fetch_plan(
                 db=db,
                 tickers=tickers,
@@ -185,13 +188,13 @@ def execute_full_pipeline(
                 result["ib_skipped_count"] = plan.estimated_skips
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "SCORING_TECHNICALS"):
+        with _pipeline_step(db, pipeline, "SCORING_TECHNICALS", lease_guard=lease_guard):
             technical_scores = dependencies.score_technicals(db, upload_run.id)
             result["technical_scores"] = len(technical_scores)
             result["technical_error_count"] = _technical_error_count(technical_scores)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "MARKET_REGIME_SNAPSHOT"):
+        with _pipeline_step(db, pipeline, "MARKET_REGIME_SNAPSHOT", lease_guard=lease_guard):
             snapshot = dependencies.build_market_regime_snapshot(db, upload_run.id)
             result["market_regime_snapshots"] = 1
             result["market_regime"] = snapshot.regime
@@ -201,14 +204,14 @@ def execute_full_pipeline(
             result["market_regime_low_confidence"] = int(snapshot.confidence == "low")
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "COMBINING_RESULTS"):
+        with _pipeline_step(db, pipeline, "COMBINING_RESULTS", lease_guard=lease_guard):
             combined_results = dependencies.refresh_combined(db, upload_run.id)
             result["combined_results"] = len(combined_results)
             result["incomplete_rows"] = sum(not row.is_complete for row in combined_results)
             result["warning_rows"] = sum(row.has_warning for row in combined_results)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "SECTOR_ROTATION_SNAPSHOT"):
+        with _pipeline_step(db, pipeline, "SECTOR_ROTATION_SNAPSHOT", lease_guard=lease_guard):
             sector_snapshot = dependencies.build_sector_rotation_snapshot(db, upload_run.id)
             result["sector_rotation_snapshots"] = 1
             result["sector_rotation_sector_count"] = int(
@@ -220,20 +223,30 @@ def execute_full_pipeline(
 
         if _ceri_run_capture_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
-            with _pipeline_step(db, pipeline, CERI_PIPELINE_CAPTURE_STEP):
+            with _pipeline_step(db, pipeline, CERI_PIPELINE_CAPTURE_STEP, lease_guard=lease_guard):
                 capture = dependencies.capture_ceri_snapshot or _capture_ceri_snapshot
                 ceri_result = capture(db, upload_run.id)
                 _apply_ceri_capture_result(result, ceri_result)
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
-            with _pipeline_step(db, pipeline, SLSE_PIPELINE_CAPTURE_STEP):
+            with _pipeline_step(
+                db,
+                pipeline,
+                SLSE_PIPELINE_CAPTURE_STEP,
+                lease_guard=lease_guard,
+            ):
                 capture = dependencies.capture_setup_signals or _capture_setup_signals
                 capture_result = capture(db, upload_run.id)
                 _apply_setup_lifecycle_capture_result(result, capture_result)
 
             _raise_if_cancelled(should_cancel)
-            with _pipeline_step(db, pipeline, SLSE_PIPELINE_EVALUATION_STEP):
+            with _pipeline_step(
+                db,
+                pipeline,
+                SLSE_PIPELINE_EVALUATION_STEP,
+                lease_guard=lease_guard,
+            ):
                 evaluate = dependencies.evaluate_setup_lifecycles or _evaluate_setup_lifecycles
                 evaluation_result = evaluate(
                     db,
@@ -242,7 +255,12 @@ def execute_full_pipeline(
                 _apply_setup_lifecycle_evaluation_result(result, evaluation_result)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "CAPTURING_WINNER_PREDICTIONS"):
+        with _pipeline_step(
+            db,
+            pipeline,
+            "CAPTURING_WINNER_PREDICTIONS",
+            lease_guard=lease_guard,
+        ):
             if _winner_probability_capture_enabled(dependencies):
                 capture = dependencies.capture_winner_predictions or _capture_winner_predictions
                 capture_result = capture(db, upload_run.id)
@@ -251,43 +269,63 @@ def execute_full_pipeline(
                 result["winner_prediction_capture_skipped"] = 1
 
         final_status = _final_pipeline_status(result)
-        _mark_pipeline_finished(db, pipeline, final_status, result)
+        _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
+    except JobLeaseLost:
+        raise
     except PipelineCancelled:
-        _mark_pipeline_cancelled(db, pipeline)
+        _mark_pipeline_cancelled(db, pipeline, lease_guard=lease_guard)
         raise
     except Exception as exc:
-        _mark_pipeline_failed(db, pipeline, exc)
+        _mark_pipeline_failed(db, pipeline, exc, lease_guard=lease_guard)
         raise
 
 
 @contextmanager
-def _pipeline_step(db: Session, pipeline: PipelineRun, step_name: str):
+def _pipeline_step(
+    db: Session,
+    pipeline: PipelineRun,
+    step_name: str,
+    *,
+    lease_guard: Callable[[], None] | None = None,
+):
     step = _require_step(db, pipeline.id, step_name)
+    if step.status in {
+        PipelineStepStatus.RUNNING,
+        PipelineStepStatus.COMPLETED,
+        PipelineStepStatus.FAILED,
+        PipelineStepStatus.CANCELLED,
+    }:
+        step.retry_count = (step.retry_count or 0) + 1
+        step.message = f"Replaying step attempt {step.retry_count + 1}."
+    else:
+        step.message = None
     pipeline.current_step = step_name
     pipeline.status = _pipeline_status_for_step(step_name)
     step.status = PipelineStepStatus.RUNNING
     step.started_at = step.started_at or _utcnow()
     step.error_message = None
-    _save_progress(db)
+    _save_progress(db, lease_guard=lease_guard)
     try:
         yield step
+    except JobLeaseLost:
+        raise
     except PipelineCancelled:
         step.status = PipelineStepStatus.CANCELLED
         step.completed_at = _utcnow()
         step.error_message = "Pipeline cancellation requested."
-        _save_progress(db)
+        _save_progress(db, lease_guard=lease_guard)
         raise
     except Exception as exc:
         step.status = PipelineStepStatus.FAILED
         step.completed_at = _utcnow()
         step.error_message = _safe_message(str(exc))
-        _save_progress(db)
+        _save_progress(db, lease_guard=lease_guard)
         raise
     else:
         step.status = PipelineStepStatus.COMPLETED
         step.completed_at = _utcnow()
-        _save_progress(db)
+        _save_progress(db, lease_guard=lease_guard)
 
 
 def _require_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
@@ -331,13 +369,18 @@ def _tickers_for_run(db: Session, upload_run_id: int) -> list[str]:
     return tickers
 
 
-def _mark_pipeline_running(db: Session, pipeline: PipelineRun) -> None:
+def _mark_pipeline_running(
+    db: Session,
+    pipeline: PipelineRun,
+    *,
+    lease_guard: Callable[[], None] | None = None,
+) -> None:
     pipeline.status = PipelineStatus.RUNNING
     pipeline.started_at = pipeline.started_at or _utcnow()
     pipeline.completed_at = None
     pipeline.error_message = None
     pipeline.message = "Full pipeline is running."
-    _save_progress(db)
+    _save_progress(db, lease_guard=lease_guard)
 
 
 def _mark_pipeline_finished(
@@ -345,6 +388,8 @@ def _mark_pipeline_finished(
     pipeline: PipelineRun,
     status: str,
     result: dict[str, Any],
+    *,
+    lease_guard: Callable[[], None] | None = None,
 ) -> None:
     pipeline.status = status
     pipeline.current_step = None
@@ -355,24 +400,35 @@ def _mark_pipeline_finished(
     }
     pipeline.message = _completion_message(status, result)
     pipeline.error_message = None
-    _save_progress(db)
+    _save_progress(db, lease_guard=lease_guard)
 
 
-def _mark_pipeline_cancelled(db: Session, pipeline: PipelineRun) -> None:
+def _mark_pipeline_cancelled(
+    db: Session,
+    pipeline: PipelineRun,
+    *,
+    lease_guard: Callable[[], None] | None = None,
+) -> None:
     pipeline.status = PipelineStatus.CANCELLED
     pipeline.completed_at = _utcnow()
     pipeline.message = "Pipeline was cancelled."
     pipeline.error_message = None
     _cancel_unfinished_steps(db, pipeline.id)
-    _save_progress(db)
+    _save_progress(db, lease_guard=lease_guard)
 
 
-def _mark_pipeline_failed(db: Session, pipeline: PipelineRun, exc: Exception) -> None:
+def _mark_pipeline_failed(
+    db: Session,
+    pipeline: PipelineRun,
+    exc: Exception,
+    *,
+    lease_guard: Callable[[], None] | None = None,
+) -> None:
     pipeline.status = PipelineStatus.FAILED
     pipeline.completed_at = _utcnow()
     pipeline.message = "Pipeline failed."
     pipeline.error_message = _safe_message(str(exc))
-    _save_progress(db)
+    _save_progress(db, lease_guard=lease_guard)
 
 
 def _cancel_unfinished_steps(db: Session, pipeline_run_id: int) -> None:
@@ -384,7 +440,9 @@ def _cancel_unfinished_steps(db: Session, pipeline_run_id: int) -> None:
             step.completed_at = _utcnow()
 
 
-def _save_progress(db: Session) -> None:
+def _save_progress(db: Session, *, lease_guard: Callable[[], None] | None = None) -> None:
+    if lease_guard is not None:
+        lease_guard()
     db.flush()
     commit = getattr(db, "commit", None)
     if callable(commit):
@@ -590,7 +648,7 @@ def _public_result(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _safe_message(message: str) -> str:
-    return message.replace("\n", " ").strip()[:500]
+    return str(redact_sensitive(message)).replace("\n", " ").strip()[:500]
 
 
 def _setup_lifecycle_pipeline_step_enabled(dependencies: PipelineExecutionDependencies) -> bool:

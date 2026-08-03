@@ -5,6 +5,7 @@ from app.services.ib_fetch_plan_service import (
     FetchPlan,
     FetchPlanItem,
     _build_plan_item,
+    _latest_date_current,
     _plan_action,
     fetch_plan_to_dict,
 )
@@ -46,6 +47,24 @@ def test_plan_action_marks_failed_contracts() -> None:
     assert action == FetchAction.FAILED
     assert duration is None
     assert "failed" in reason.lower()
+
+
+def test_plan_action_marks_ambiguous_contracts_failed_until_selection() -> None:
+    action, duration, reason = _plan_action(
+        ticker="ABC",
+        contract_status="AMBIGUOUS",
+        what_to_show="TRADES",
+        current_bar_count=0,
+        required_bars=252,
+        latest_current=False,
+        force_refresh=False,
+        force_full_backfill=False,
+        settings=Settings(),
+    )
+
+    assert action == FetchAction.FAILED
+    assert duration is None
+    assert "ambiguous" in reason.lower()
 
 
 def test_plan_action_selects_backfill_top_up_skip_and_forced_refresh() -> None:
@@ -183,3 +202,16 @@ def test_fetch_plan_to_dict_serializes_actions() -> None:
     payload = fetch_plan_to_dict(plan)
 
     assert payload["items"][0]["action"] == "SKIP"
+
+
+def test_latest_date_current_honors_stale_after_days(monkeypatch) -> None:
+    import app.services.us_market_calendar as calendar
+
+    monkeypatch.setattr(
+        calendar,
+        "latest_completed_us_trading_day",
+        lambda now=None: date(2026, 7, 3),
+    )
+
+    assert _latest_date_current(date(2026, 6, 30), stale_after_days=3) is True
+    assert _latest_date_current(date(2026, 6, 29), stale_after_days=3) is False

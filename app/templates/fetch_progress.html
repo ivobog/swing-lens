@@ -30,13 +30,22 @@
   </div>
 
   {% if progress.message %}
-    <div class="alert section-gap" data-progress-message>{{ progress.message }}</div>
+    <div class="alert section-gap" data-progress-message role="status" aria-live="polite">{{ progress.message }}</div>
   {% else %}
-    <div class="alert section-gap" data-progress-message hidden></div>
+    <div class="alert section-gap" data-progress-message role="status" aria-live="polite" hidden></div>
   {% endif %}
 
   <div class="progress-block">
-    <div class="progress-bar" aria-label="Fetch progress">
+    <div
+      class="progress-bar"
+      role="progressbar"
+      aria-label="Fetch progress"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="{{ '%.0f'|format(progress.percentage) }}"
+      aria-valuetext="{{ progress.completed_items }} of {{ progress.total_items }} fetch items complete"
+      data-progress-bar
+    >
       <div class="progress-fill" data-progress-fill style="width: {{ progress.percentage }}%"></div>
     </div>
     <strong data-progress-percentage>{{ "%.1f"|format(progress.percentage) }}%</strong>
@@ -98,6 +107,12 @@
     {% if not is_terminal %}
       <span class="badge badge-warning">Auto-refreshing</span>
     {% endif %}
+    <span class="async-status" data-progress-live role="status" aria-live="polite">
+      {{ progress.status }}: {{ progress.completed_items }} of {{ progress.total_items }} items complete.
+    </span>
+    <span class="async-status badge badge-warning" data-progress-reconnect role="status" aria-live="polite" hidden>
+      Connection interrupted; retrying in 5s.
+    </span>
   </div>
 </section>
 
@@ -112,19 +127,20 @@
   {% if progress["items"] %}
     <div class="table-wrap">
       <table data-fetch-items-table>
+        <caption>IB fetch items by ticker and data type.</caption>
         <thead>
           <tr>
-            <th>Ticker</th>
-            <th>Data</th>
-            <th>Status</th>
-            <th>Action</th>
-            <th>Fetched</th>
-            <th>Inserted</th>
-            <th>Updated</th>
-            <th>Revised</th>
-            <th>Unchanged</th>
-            <th>Attempts</th>
-            <th>Error</th>
+            <th scope="col">Ticker</th>
+            <th scope="col">Data</th>
+            <th scope="col">Status</th>
+            <th scope="col">Action</th>
+            <th scope="col">Fetched</th>
+            <th scope="col">Inserted</th>
+            <th scope="col">Updated</th>
+            <th scope="col">Revised</th>
+            <th scope="col">Unchanged</th>
+            <th scope="col">Attempts</th>
+            <th scope="col">Error</th>
           </tr>
         </thead>
         <tbody>

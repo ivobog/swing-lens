@@ -30,6 +30,7 @@ profiles:
       missing_data: 1.0
       value_trap_risk: 1.5
       growth_trap_risk: 1.5
+      quality_risk: 1.5
     gates:
       earnings_block: true
       danger_blocks_candidate: true
@@ -63,6 +64,7 @@ profiles:
       overheated_momentum: 1.5
       value_trap_risk: 2.0
       growth_trap_risk: 2.0
+      quality_risk: 2.0
       missing_data: 1.0
     gates:
       earnings_block: true
@@ -94,6 +96,7 @@ profiles:
       climax_risk: 3.0
       heavy_distribution: 2.5
       extreme_dilution: 2.0
+      quality_risk: 1.2
       missing_data: 0.8
     gates:
       earnings_block: true
@@ -126,6 +129,7 @@ profiles:
     penalties:
       value_trap_risk: 2.0
       growth_trap_risk: 2.0
+      quality_risk: 2.0
       danger_classification: 3.0
       missing_data: 1.2
     gates:
@@ -134,7 +138,7 @@ profiles:
       fundamental_floor:
         enabled: true
         min_score: 5.5
-        max_decision: "Watch"
+        max_decision: "Watchlist"
 
   defensive_quality:
     enabled: true
@@ -163,6 +167,7 @@ profiles:
       liquidity_warning: 2.0
       value_trap_risk: 2.5
       growth_trap_risk: 2.0
+      quality_risk: 2.0
       earnings_high_risk: 2.5
       missing_data: 1.5
     gates:

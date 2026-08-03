@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import (
     EstimateKind,
+    EstimateSource,
     WinnerCalibrationBin,
     WinnerDriftMetric,
     WinnerEstimateEvidenceMember,
@@ -133,6 +134,7 @@ class WinnerProbabilityApiService:
             "prediction": _prediction_payload(prediction),
             "outcome_definition": _outcome_definition_payload(outcome_definition),
             "decision_time_estimate": _estimate_payload(
+                db,
                 self._estimate_by_kind(
                     db,
                     prediction_id=prediction.id,
@@ -142,6 +144,7 @@ class WinnerProbabilityApiService:
                 )
             ),
             "latest_rescore": _estimate_payload(
+                db,
                 self._estimate_by_kind(
                     db,
                     prediction_id=prediction.id,
@@ -150,7 +153,7 @@ class WinnerProbabilityApiService:
                     query=query,
                 )
             ),
-            "selected_estimate": _estimate_payload(estimate),
+            "selected_estimate": _estimate_payload(db, estimate),
             "forward_outcomes": [
                 _forward_outcome_payload(row)
                 for row in self._forward_outcomes(db, prediction.id, query=query)
@@ -349,7 +352,7 @@ class WinnerProbabilityApiService:
         )
         return {
             "prediction": _prediction_payload(prediction),
-            "estimate": _estimate_payload(estimate),
+            "estimate": _estimate_payload(db, estimate),
             "outcome_definition": _outcome_definition_payload(outcome_definition),
             "schema_version": prediction.feature_schema_version,
             "config_hash": prediction.config_hash,
@@ -660,9 +663,14 @@ def _prediction_payload(row: WinnerPredictionSnapshot) -> dict[str, Any]:
     }
 
 
-def _estimate_payload(row: WinnerProbabilityEstimate | None) -> dict[str, Any] | None:
+def _estimate_payload(
+    db: Session | None,
+    row: WinnerProbabilityEstimate | None,
+) -> dict[str, Any] | None:
     if row is None:
         return None
+    model = _estimate_model(db, row)
+    calibration = _estimate_calibration(db, row, model)
     return {
         "id": row.id,
         "prediction_id": row.prediction_id,
@@ -672,6 +680,11 @@ def _estimate_payload(row: WinnerProbabilityEstimate | None) -> dict[str, Any] |
         "source_version": row.source_version,
         "cohort_definition_id": row.cohort_definition_id,
         "model_version_id": row.model_version_id,
+        "model_key": _model_key(row, model),
+        "model_status": _model_status(row, model),
+        "model_version_label": _model_version_label(row, model),
+        "calibration_status": calibration["status"],
+        "calibration_calculated_at": _iso(calibration["calculated_at"]),
         "training_cutoff_at": _iso(row.training_cutoff_at),
         "created_at": _iso(row.created_at),
         "point_probability": _number(row.point_probability),
@@ -791,6 +804,8 @@ def _model_payload(row: WinnerModelVersion) -> dict[str, Any]:
         "training_window_start": _iso(row.training_window_start),
         "training_cutoff_at": _iso(row.training_cutoff_at),
         "metrics": row.metrics_json or {},
+        "calibration": row.calibration_json or {},
+        "preprocessing": row.preprocessing_json or {},
         "artifact_format": row.artifact_format,
         "artifact_hash": row.artifact_hash,
         "artifact_size_bytes": row.artifact_size_bytes,
@@ -798,6 +813,86 @@ def _model_payload(row: WinnerModelVersion) -> dict[str, Any]:
         "activated_at": _iso(row.activated_at),
         "retired_at": _iso(row.retired_at),
     }
+
+
+def _estimate_model(
+    db: Session | None,
+    estimate: WinnerProbabilityEstimate,
+) -> WinnerModelVersion | None:
+    if estimate.model_version_id is None:
+        return None
+    if getattr(estimate, "model_version", None) is not None:
+        return estimate.model_version
+    if db is None:
+        return None
+    return db.get(WinnerModelVersion, estimate.model_version_id)
+
+
+def _estimate_calibration(
+    db: Session | None,
+    estimate: WinnerProbabilityEstimate,
+    model: WinnerModelVersion | None,
+) -> dict[str, Any]:
+    if estimate.point_probability is None:
+        return {"status": "insufficient", "calculated_at": None}
+    if estimate.source == EstimateSource.COHORT and model is None:
+        return {"status": "cohort_baseline", "calculated_at": None}
+    if model is not None and model.status != "ACTIVE":
+        return {"status": "shadow_only", "calculated_at": None}
+    latest = _latest_calibration_at(db, estimate.model_version_id)
+    if latest is None:
+        return {"status": "missing", "calculated_at": None}
+    if latest < estimate.training_cutoff_at:
+        return {"status": "stale", "calculated_at": latest}
+    return {"status": "calibrated", "calculated_at": latest}
+
+
+def _latest_calibration_at(
+    db: Session | None,
+    model_version_id: int | None,
+) -> datetime | None:
+    if db is None or model_version_id is None:
+        return None
+    rows = list(
+        db.scalars(
+            select(WinnerCalibrationBin)
+            .where(WinnerCalibrationBin.model_version_id == model_version_id)
+            .order_by(WinnerCalibrationBin.calculated_at.desc())
+            .limit(1)
+        )
+    )
+    return rows[0].calculated_at if rows else None
+
+
+def _model_key(
+    estimate: WinnerProbabilityEstimate,
+    model: WinnerModelVersion | None,
+) -> str:
+    if model is not None:
+        return model.model_key
+    if estimate.source == EstimateSource.COHORT:
+        return "cohort-baseline"
+    return str(estimate.source).casefold()
+
+
+def _model_status(
+    estimate: WinnerProbabilityEstimate,
+    model: WinnerModelVersion | None,
+) -> str:
+    if model is not None:
+        return model.status
+    if estimate.source == EstimateSource.COHORT:
+        return "BASELINE"
+    return str(estimate.source)
+
+
+def _model_version_label(
+    estimate: WinnerProbabilityEstimate,
+    model: WinnerModelVersion | None,
+) -> str:
+    if model is not None:
+        return f"{model.model_key}#{model.id}"
+    return estimate.source_version
 
 
 def _calibration_bin_payload(row: WinnerCalibrationBin) -> dict[str, Any]:

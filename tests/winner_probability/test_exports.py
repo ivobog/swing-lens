@@ -32,6 +32,11 @@ def test_run_evidence_export_includes_phase_7_audit_headers() -> None:
                     "estimate": {
                         "estimate_kind": "DECISION_TIME",
                         "source_version": "cohort_baseline_v1",
+                        "model_key": "cohort-baseline",
+                        "model_status": "BASELINE",
+                        "model_version_label": "cohort-baseline",
+                        "calibration_status": "cohort_baseline",
+                        "calibration_calculated_at": None,
                         "training_cutoff_at": "2026-07-31T21:00:00+00:00",
                         "point_probability": 0.61,
                         "lower_bound": 0.52,
@@ -60,7 +65,13 @@ def test_run_evidence_export_includes_phase_7_audit_headers() -> None:
     assert rows[0]["estimate_kind"] == "DECISION_TIME"
     assert rows[0]["entry_model"] == "NEXT_OPEN"
     assert rows[0]["horizon_sessions"] == "5"
+    assert rows[0]["model_key"] == "cohort-baseline"
+    assert rows[0]["model_status"] == "BASELINE"
+    assert rows[0]["calibration_status"] == "cohort_baseline"
     assert rows[0]["evidence_manifest_hash"] == "manifest-hash"
+    assert rows[0]["guidance_type"] == "research_probability"
+    assert rows[0]["execution_instruction"] == "False"
+    assert rows[0]["evidence_mode"] == "DECISION_TIME"
 
 
 def test_run_evidence_json_export_is_stable_and_sorted() -> None:
@@ -68,6 +79,8 @@ def test_run_evidence_json_export_is_stable_and_sorted() -> None:
 
     assert '"items": []' in json_text
     assert '"run_id": 7' in json_text
+    assert '"execution_instruction": false' in json_text
+    assert '"guidance_type": "research_probability"' in json_text
 
 
 def test_outcome_explorer_export_flattens_segment_rows() -> None:

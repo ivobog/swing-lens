@@ -1,0 +1,25 @@
+# Replace these placeholders with real GitHub users or teams before enabling branch protection.
+* @maintainer-lead
+
+/alembic/ @persistence-owner
+/app/models/ @persistence-owner
+/app/routers/ @app-maintainer
+/app/templates/ @ux-accessibility-owner
+/app/static/ @ux-accessibility-owner
+/app/services/upload* @data-ingestion-owner
+/app/services/ib* @provider-integration-owner
+/app/services/background* @operations-owner
+/app/services/pipeline* @operations-owner
+/app/services/fundamental* @quant-scoring-owner
+/app/services/technical* @quant-scoring-owner
+/app/services/combined* @quant-scoring-owner
+/app/services/ranking* @quant-scoring-owner
+/app/services/market_regime* @market-context-owner
+/app/services/sector_rotation* @market-context-owner
+/app/services/setup_lifecycle/ @lifecycle-owner
+/app/services/winner_probability/ @model-governance-owner
+/app/services/ceri/ @provider-governance-owner
+/config/ @maintainer-lead @quant-scoring-owner
+/docs/ @docs-owner
+/scripts/ @operations-owner
+/tests/ @maintainer-lead

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -5,6 +6,7 @@ from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
 from app.services.ranking_profile_config import RankingProfileConfig, get_ranking_profile
 from app.services.ranking_profile_engine import (
     calculate_profile_score,
+    decision_from_score,
     rank_profile,
     rank_single_row,
 )
@@ -112,7 +114,7 @@ def test_clean_compounder_ranks_fundamental_pullback_above_early_breakout() -> N
     )
 
     assert [decision.ticker for decision in decisions] == ["COMP", "ROKT"]
-    assert decisions[1].decision_label == "Watch"
+    assert decisions[1].decision_label == "Watchlist"
     assert "fundamental_floor_failed" in decisions[1].warning_flags
 
 
@@ -191,6 +193,95 @@ def test_defensive_quality_caps_danger_classification_to_avoid() -> None:
     assert decision.sort_bucket == 3
     assert "danger_classification" in decision.warning_flags
     assert decision.gates["danger_gate"] is True
+
+
+def test_profile_penalties_apply_quality_risk_label() -> None:
+    decision = rank_single_row(
+        profile=_profile("momentum_swing"),
+        row=_row("QUAL"),
+        fundamental=_fundamental("QUAL", 9.0, label="Quality risk"),
+        technical=_technical("QUAL", trend=9.0, momentum=9.0, setup=9.0, risk=1.0, rs=9.0),
+        config=_config(),
+        today=TODAY,
+    )
+
+    assert decision.profile_score == 6.8854
+    assert decision.decision_label == "Candidate"
+    assert decision.penalties["quality_risk"] == 1.5
+    assert "quality_risk" in decision.warning_flags
+
+
+def test_missing_data_policy_penalty_controls_missing_data_penalty() -> None:
+    profile = _profile("momentum_swing")
+    profile = replace(
+        profile,
+        missing_data_policy=replace(profile.missing_data_policy, penalty=2.25),
+        penalties={**profile.penalties, "missing_data": 0.0},
+    )
+
+    decision = rank_single_row(
+        profile=profile,
+        row=_row("MISS"),
+        fundamental=_fundamental("MISS", 8.0),
+        technical=None,
+        config=_config(),
+        today=TODAY,
+    )
+
+    assert decision.profile_score == 5.75
+    assert decision.penalties["missing_data"] == 2.25
+    assert decision.decision_label == "Low confidence"
+    assert "missing_technical" in decision.warning_flags
+
+
+def test_growth_trap_risk_caps_profile_decision_to_candidate() -> None:
+    decision = rank_single_row(
+        profile=_profile("early_rocket"),
+        row=_row("GROW"),
+        fundamental=_fundamental("GROW", 10.0, label="Growth trap risk"),
+        technical=_technical(
+            "GROW",
+            trend=10.0,
+            momentum=10.0,
+            setup=10.0,
+            risk=1.0,
+            rs=10.0,
+            classification="Trend repair",
+            breakout=10.0,
+            vcp=10.0,
+            box_tightness=10.0,
+            derived={
+                "rs_roc_short": 4.0,
+                "rs_roc_medium": 3.0,
+                "rs_new_high": True,
+                "bullish_volume_bar": True,
+                "breakout_volume_confirmed": True,
+                "green_beats_red": True,
+            },
+        ),
+        config=_config(),
+        today=TODAY,
+    )
+
+    assert decision.profile_score >= 8.2
+    assert decision.decision_label == "Candidate"
+    assert decision.position_size_hint == "Half starter"
+    assert decision.gates["fundamental_risk_label"] == {
+        "label": "Growth trap risk",
+        "max_decision": "Candidate",
+    }
+    assert "growth_trap_risk" in decision.warning_flags
+
+
+def test_profile_decision_threshold_boundaries_use_watchlist_label() -> None:
+    profile = _profile("momentum_swing")
+
+    assert decision_from_score(8.0, profile) == "Strong candidate"
+    assert decision_from_score(7.9999, profile) == "Candidate"
+    assert decision_from_score(6.8, profile) == "Candidate"
+    assert decision_from_score(6.7999, profile) == "Watchlist"
+    assert decision_from_score(5.5, profile) == "Watchlist"
+    assert decision_from_score(5.4999, profile) == "Avoid"
 
 
 def test_earnings_block_overrides_high_score() -> None:

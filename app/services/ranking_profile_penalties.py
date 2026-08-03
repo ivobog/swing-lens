@@ -28,22 +28,20 @@ def calculate_profile_penalties(
     warning_flags: list[str] = []
 
     if fundamental is None or fundamental.fundamental_score is None:
-        _add_penalty(
+        _add_missing_data_penalty(
             profile,
             penalties,
             notes,
             warning_flags,
-            "missing_data",
             "fundamental missing",
             "missing_fundamental",
         )
     if technical is None or technical.dual_score is None:
-        _add_penalty(
+        _add_missing_data_penalty(
             profile,
             penalties,
             notes,
             warning_flags,
-            "missing_data",
             "technical missing",
             "missing_technical",
         )
@@ -191,6 +189,16 @@ def _add_fundamental_penalties(
             "growth trap",
             "growth_trap",
         )
+    if fundamental.fundamental_label == "Quality risk":
+        _add_penalty(
+            profile,
+            penalties,
+            notes,
+            warning_flags,
+            "quality_risk",
+            "quality risk",
+            "quality_risk",
+        )
 
     flags = _fundamental_flags(fundamental)
     if "share_dilution" in flags:
@@ -259,6 +267,22 @@ def _add_penalty(
     if value <= 0:
         return
     penalties[key] = max(penalties.get(key, 0.0), value)
+    notes.append(note)
+    warning_flags.append(warning_flag)
+
+
+def _add_missing_data_penalty(
+    profile: RankingProfileConfig,
+    penalties: dict[str, float],
+    notes: list[str],
+    warning_flags: list[str],
+    note: str,
+    warning_flag: str,
+) -> None:
+    value = float(profile.missing_data_policy.penalty)
+    if value <= 0:
+        return
+    penalties["missing_data"] = max(penalties.get("missing_data", 0.0), value)
     notes.append(note)
     warning_flags.append(warning_flag)
 

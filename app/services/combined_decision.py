@@ -40,6 +40,16 @@ BUYABLE_CLASSIFICATIONS = {
     "Tight base breakout",
     "RS leader pullback",
 }
+DECISION_ORDER = {
+    "Avoid": 1,
+    "Watchlist": 2,
+    "Candidate": 3,
+    "Strong candidate": 4,
+}
+FUNDAMENTAL_RISK_LABEL_CAPS = {
+    "Growth trap risk": "Candidate",
+    "Quality risk": "Candidate",
+}
 EARNINGS_DATE_RAW_KEYS = {
     "upcoming earnings date",
     "earnings date",
@@ -168,6 +178,11 @@ def combine_row_decision(
         final_score -= penalty
         penalty_breakdown["growth_trap_risk"] = penalty
         notes.append("growth trap")
+    elif fundamental_label == "Quality risk":
+        penalty = float(penalties["quality_risk"])
+        final_score -= penalty
+        penalty_breakdown["quality_risk"] = penalty
+        notes.append("quality risk")
 
     if technical and _liquidity_warning(technical.debug_json):
         penalty = float(penalties["liquidity_warning"])
@@ -288,13 +303,23 @@ def _decision_label(
         return "Avoid"
     if fundamental_label == "Value trap risk":
         return "Avoid"
+    decision = "Avoid"
     if final_score >= float(labels["strong_candidate_min_score"]):
-        return "Strong candidate"
-    if final_score >= float(labels["candidate_min_score"]):
-        return "Candidate"
-    if final_score >= float(labels["watch_min_score"]):
-        return "Watchlist"
-    return "Avoid"
+        decision = "Strong candidate"
+    elif final_score >= float(labels["candidate_min_score"]):
+        decision = "Candidate"
+    elif final_score >= float(labels["watch_min_score"]):
+        decision = "Watchlist"
+    return _cap_decision_for_fundamental_label(decision, fundamental_label)
+
+
+def _cap_decision_for_fundamental_label(decision: str, fundamental_label: str | None) -> str:
+    max_decision = FUNDAMENTAL_RISK_LABEL_CAPS.get(str(fundamental_label))
+    if max_decision is None:
+        return decision
+    if DECISION_ORDER.get(decision, 0) <= DECISION_ORDER[max_decision]:
+        return decision
+    return max_decision
 
 
 def _position_size_hint(

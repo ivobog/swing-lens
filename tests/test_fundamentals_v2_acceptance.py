@@ -20,9 +20,10 @@ def test_fundamentals_v2_acceptance_flow_from_csv_mapping_to_exports() -> None:
     score = score_row_v2(mapped)
     stored_score = _fundamental_score_from_v2(run_id=7, score=score)
 
-    assert score.debug["model_version"] == "fundamentals_v2.0"
+    assert score.debug["model_version"] == "fundamentals_v2.1"
+    assert len(score.debug["config_hash"]) == 64
     assert score.data_coverage_score >= 9
-    assert stored_score.scoring_model_version == "fundamentals_v2.0"
+    assert stored_score.scoring_model_version == "fundamentals_v2.1"
     assert stored_score.earnings_quality_score is not None
     assert stored_score.v2_warning_flags_json == {"flags": score.warning_flags}
 
@@ -31,7 +32,7 @@ def test_fundamentals_v2_acceptance_flow_from_csv_mapping_to_exports() -> None:
     combined_csv = export_run_csv(run, "combined")
 
     assert "model_version,growth_quality_score" in fundamentals_csv
-    assert "fundamentals_v2.0" in fundamentals_csv
+    assert "fundamentals_v2.1" in fundamentals_csv
     assert "earnings_quality_score" in fundamentals_csv
     assert "fundamental_model_version" in combined_csv
     assert "fundamental_data_coverage_score" in combined_csv

@@ -10,8 +10,14 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.tables import UploadRun
+from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
 from app.services.background_job_service import enqueue_job
+from app.services.resource_limits import (
+    ResourceLimitExceeded,
+    enforce_row_limit,
+    limit_error_payload,
+)
 from app.services.winner_probability.api_service import (
     WinnerProbabilityApiError,
     WinnerProbabilityApiService,
@@ -40,6 +46,7 @@ from app.services.winner_probability.outcome_explorer_service import (
     OutcomeExplorerService,
 )
 from app.services.winner_probability.reproduction_service import ReproductionService
+from app.settings import get_settings
 from app.templates import templates
 
 router = APIRouter(tags=["winner-probability"])
@@ -340,12 +347,11 @@ def export_winner_probability_run_csv(
     estimate_view: str = "DECISION_TIME",
 ) -> Response:
     payload = winner_probability_run(run_id=run_id, db=db, estimate_view=estimate_view)
-    return Response(
-        content=export_run_evidence_csv(payload),
+    _enforce_export_rows(len(payload.get("items", [])), resource="winner probability evidence")
+    return attachment_response(
+        export_run_evidence_csv(payload),
         media_type="text/csv",
-        headers={
-            "Content-Disposition": f'attachment; filename="swinglens_run_{run_id}_owpe.csv"'
-        },
+        filename=f"swinglens_run_{run_id}_owpe.csv",
     )
 
 
@@ -356,12 +362,11 @@ def export_winner_probability_run_json(
     estimate_view: str = "DECISION_TIME",
 ) -> Response:
     payload = winner_probability_run(run_id=run_id, db=db, estimate_view=estimate_view)
-    return Response(
-        content=export_run_evidence_json(payload),
+    _enforce_export_rows(len(payload.get("items", [])), resource="winner probability evidence")
+    return attachment_response(
+        export_run_evidence_json(payload),
         media_type="application/json",
-        headers={
-            "Content-Disposition": f'attachment; filename="swinglens_run_{run_id}_owpe.json"'
-        },
+        filename=f"swinglens_run_{run_id}_owpe.json",
     )
 
 
@@ -454,15 +459,10 @@ def export_winner_probability_reproduction_json(
     db: DbSession,
 ) -> Response:
     payload = winner_probability_estimate_reproduction(estimate_id=estimate_id, db=db)
-    return Response(
-        content=export_reproduction_manifest_json(payload),
+    return attachment_response(
+        export_reproduction_manifest_json(payload),
         media_type="application/json",
-        headers={
-            "Content-Disposition": (
-                'attachment; filename='
-                f'"winner_probability_estimate_{estimate_id}_reproduction.json"'
-            )
-        },
+        filename=f"winner_probability_estimate_{estimate_id}_reproduction.json",
     )
 
 
@@ -496,10 +496,11 @@ def export_winner_probability_outcome_explorer_csv(
         segment_by=segment_by,
         min_sample=min_sample,
     )
-    return Response(
-        content=export_outcome_explorer_csv(payload),
+    _enforce_export_rows(len(payload.get("segments", [])), resource="winner outcome explorer")
+    return attachment_response(
+        export_outcome_explorer_csv(payload),
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="winner_probability_explorer.csv"'},
+        filename="winner_probability_explorer.csv",
     )
 
 
@@ -542,6 +543,7 @@ def queue_winner_prediction_capture(
             job_type=WINNER_PREDICTION_CAPTURE,
             payload={"run_id": run_id},
             related_run_id=run_id,
+            request_key=f"winner:prediction-capture:run:{run_id}",
         )
         db.commit()
     except Exception:
@@ -552,6 +554,7 @@ def queue_winner_prediction_capture(
         "job_type": job.job_type,
         "status": job.status,
         "run_id": run_id,
+        "coalesced": bool(getattr(job, "_coalesced", False)),
     }
 
 
@@ -574,6 +577,7 @@ def queue_winner_outcome_maturation(
             db,
             job_type=WINNER_OUTCOME_MATURATION,
             payload={"limit": limit},
+            request_key=f"winner:outcome-maturation:limit:{limit}",
         )
         db.commit()
     except Exception:
@@ -584,6 +588,7 @@ def queue_winner_outcome_maturation(
         "job_type": job.job_type,
         "status": job.status,
         "limit": limit,
+        "coalesced": bool(getattr(job, "_coalesced", False)),
     }
 
 
@@ -609,6 +614,7 @@ def queue_winner_cohort_refresh(
             db,
             job_type=WINNER_COHORT_REFRESH,
             payload=payload,
+            request_key=f"winner:cohort-refresh:{outcome_definition_id or 'all'}",
         )
         db.commit()
     except Exception:
@@ -619,6 +625,7 @@ def queue_winner_cohort_refresh(
         "job_type": job.job_type,
         "status": job.status,
         "payload": payload,
+        "coalesced": bool(getattr(job, "_coalesced", False)),
     }
 
 
@@ -756,6 +763,25 @@ def _call_api(callback):
         raise _structured_http_error(exc.code, str(exc), status_code=exc.status_code) from exc
     except ValueError as exc:
         raise _structured_http_error("INVALID_REQUEST", str(exc), status_code=422) from exc
+
+
+def _enforce_export_rows(row_count: int, *, resource: str) -> None:
+    settings = get_settings()
+    try:
+        enforce_row_limit(
+            row_count,
+            settings.max_export_rows,
+            resource=resource,
+            code="EXPORT_ROW_LIMIT_EXCEEDED",
+        )
+    except ResourceLimitExceeded as exc:
+        raise HTTPException(
+            status_code=413,
+            detail=limit_error_payload(
+                exc,
+                hint="Narrow filters or lower the page/export size before retrying.",
+            ),
+        ) from exc
 
 
 def _structured_http_error(code: str, message: str, *, status_code: int) -> HTTPException:

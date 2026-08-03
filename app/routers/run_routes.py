@@ -25,6 +25,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
 )
+from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.chart_data_service import build_ticker_chart_payload
@@ -79,6 +80,11 @@ from app.services.ranking_profile_service import (
 from app.services.ranking_result_export import (
     export_all_ranking_profiles_csv,
     export_ranking_profile_csv,
+)
+from app.services.resource_limits import (
+    ResourceLimitExceeded,
+    enforce_row_limit,
+    limit_error_payload,
 )
 from app.services.score_card_view_service import build_score_cards
 from app.services.sector_rotation_repository import SectorRotationRepository
@@ -370,11 +376,8 @@ def export_run_results(run_id: int, export_type: str, db: DbSession) -> Response
     else:
         coverage = summarize_run_ohlcv_coverage(db, run_id) if export_type == "combined" else None
         content = export_run_csv(run, export_type, coverage=coverage)
-    return Response(
-        content=content,
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    _enforce_export_rows(_csv_data_row_count(content), resource=filename)
+    return attachment_response(content, media_type="text/csv", filename=filename)
 
 
 @router.get("/runs/{run_id}/rankings/profiles")
@@ -447,14 +450,12 @@ def refresh_ranking_profile_action(
 def export_all_ranking_results(run_id: int, db: DbSession) -> Response:
     _require_run(db, run_id)
     content = export_all_ranking_profiles_csv(db, run_id)
-    return Response(
-        content=content,
+    filename = f"swinglens_run_{run_id}_ranking_profiles.csv"
+    _enforce_export_rows(_csv_data_row_count(content), resource=filename)
+    return attachment_response(
+        content,
         media_type="text/csv",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="swinglens_run_{run_id}_ranking_profiles.csv"'
-            )
-        },
+        filename=filename,
     )
 
 
@@ -470,14 +471,12 @@ def export_ranking_profile_results(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     content = export_ranking_profile_csv(db, run_id, profile.name)
-    return Response(
-        content=content,
+    filename = f"swinglens_run_{run_id}_{profile.name}_rankings.csv"
+    _enforce_export_rows(_csv_data_row_count(content), resource=filename)
+    return attachment_response(
+        content,
         media_type="text/csv",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="swinglens_run_{run_id}_{profile.name}_rankings.csv"'
-            )
-        },
+        filename=filename,
     )
 
 
@@ -607,8 +606,9 @@ def run_full_pipeline_action(run_id: int, db: DbSession) -> RedirectResponse:
         try:
             pipeline = start_pipeline(db, run_id)
             db.commit()
+            query = "?duplicate_action=coalesced" if getattr(pipeline, "_coalesced", False) else ""
             return RedirectResponse(
-                url=f"/runs/{run_id}/pipeline/{pipeline.id}",
+                url=f"/runs/{run_id}/pipeline/{pipeline.id}{query}",
                 status_code=303,
             )
         except ValueError as exc:
@@ -690,6 +690,7 @@ def run_pipeline_progress_page(
             "active_nav": "runs",
             "run": run,
             "pipeline": _pipeline_status_payload(db, status),
+            "duplicate_action": request.query_params.get("duplicate_action") == "coalesced",
             "terminal_statuses": sorted(PIPELINE_TERMINAL_STATUSES),
             "status_url": f"/runs/{run_id}/pipeline/{pipeline_id}/status",
         },
@@ -924,15 +925,10 @@ def export_failed_fetch_items(run_id: int, fetch_run_id: int, db: DbSession) -> 
                     ]
                 )
             )
-    return Response(
-        content="\n".join(lines) + "\n",
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="run-{run_id}-fetch-{fetch_run_id}-failed.csv"'
-            ),
-        },
-    )
+    filename = f"run-{run_id}-fetch-{fetch_run_id}-failed.csv"
+    content = "\n".join(lines) + "\n"
+    _enforce_export_rows(_csv_data_row_count(content), resource=filename)
+    return attachment_response(content, media_type="text/csv", filename=filename)
 
 
 @router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/cancel")
@@ -1838,6 +1834,30 @@ def _load_run(db: Session, run_id: int) -> UploadRun | None:
 def _csv_cell(value: object) -> str:
     text = str(value).replace('"', '""')
     return f'"{text}"' if any(char in text for char in [",", '"', "\n"]) else text
+
+
+def _csv_data_row_count(content: str) -> int:
+    lines = [line for line in content.splitlines() if line.strip()]
+    return max(len(lines) - 1, 0)
+
+
+def _enforce_export_rows(row_count: int, *, resource: str) -> None:
+    settings = get_settings()
+    try:
+        enforce_row_limit(
+            row_count,
+            settings.max_export_rows,
+            resource=resource,
+            code="EXPORT_ROW_LIMIT_EXCEEDED",
+        )
+    except ResourceLimitExceeded as exc:
+        raise HTTPException(
+            status_code=413,
+            detail=limit_error_payload(
+                exc,
+                hint="Narrow filters or lower the page/export size before retrying.",
+            ),
+        ) from exc
 
 
 def _require_run(db: Session, run_id: int) -> None:

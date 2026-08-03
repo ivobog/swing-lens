@@ -6,9 +6,14 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tables import PipelineRun, PipelineStep, UploadRun
-from app.services.background_job_service import enqueue_job, request_job_cancel
+from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
+from app.services.background_job_service import (
+    active_job_for_request_key,
+    enqueue_job,
+    request_job_cancel,
+)
 from app.services.ceri.constants import CERI_PIPELINE_STEPS
+from app.services.operational_metrics import operational_metrics
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 from app.settings import get_settings
 
@@ -105,6 +110,17 @@ def start_pipeline(
         ceri_run_capture_enabled=ceri_run_capture_enabled,
         setup_lifecycle_pipeline_step_enabled=setup_lifecycle_pipeline_step_enabled,
     )
+    request_key = _pipeline_request_key(upload_run_id, step_names)
+    existing_job = active_job_for_request_key(db, FULL_PIPELINE_JOB_TYPE, request_key)
+    existing_pipeline = _pipeline_for_job(db, existing_job)
+    if existing_pipeline is not None:
+        existing_pipeline._coalesced = True
+        operational_metrics.increment(
+            "swinglens_pipelines_coalesced_total",
+            status=existing_pipeline.status,
+        )
+        return existing_pipeline
+
     pipeline = PipelineRun(
         upload_run_id=upload_run_id,
         status=PipelineStatus.PENDING,
@@ -134,9 +150,29 @@ def start_pipeline(
         related_run_id=upload_run_id,
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
+        request_key=request_key,
     )
+    if getattr(job, "_coalesced", False):
+        existing_pipeline = _pipeline_for_job(db, job)
+        if existing_pipeline is not None:
+            pipeline.status = PipelineStatus.CANCELLED
+            pipeline.completed_at = _utcnow()
+            pipeline.message = "Duplicate pipeline request coalesced into an active run."
+            _cancel_pending_steps(db, pipeline.id)
+            existing_pipeline._coalesced = True
+            db.flush()
+            operational_metrics.increment(
+                "swinglens_pipelines_coalesced_total",
+                status=existing_pipeline.status,
+            )
+            return existing_pipeline
+
     pipeline.result_json = {"background_job_id": job.id}
     db.flush()
+    operational_metrics.increment(
+        "swinglens_pipelines_started_total",
+        step_count=len(step_names),
+    )
     return pipeline
 
 
@@ -220,6 +256,10 @@ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
         pipeline.message = "Pipeline cancellation requested."
 
     db.flush()
+    operational_metrics.increment(
+        "swinglens_pipelines_cancel_requested_total",
+        status=pipeline.status,
+    )
     return pipeline
 
 
@@ -244,6 +284,22 @@ def _background_job_id(pipeline: PipelineRun) -> int | None:
     result = pipeline.result_json or {}
     value = result.get("background_job_id")
     return int(value) if value is not None else None
+
+
+def _pipeline_request_key(upload_run_id: int, step_names: tuple[str, ...]) -> str:
+    return f"full-pipeline:run:{upload_run_id}:steps:{','.join(step_names)}"
+
+
+def _pipeline_for_job(db: Session, job: BackgroundJob | None) -> PipelineRun | None:
+    if job is None:
+        return None
+    pipeline_id = (job.payload_json or {}).get("pipeline_run_id")
+    if pipeline_id is None:
+        return None
+    try:
+        return db.get(PipelineRun, int(pipeline_id))
+    except (TypeError, ValueError):
+        return None
 
 
 def _utcnow() -> datetime:

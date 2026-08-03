@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.combined_decision import (
@@ -64,6 +66,90 @@ def test_combined_decision_treats_v4_buyable_as_full_starter() -> None:
 
     assert decision.combined_decision == "Strong candidate"
     assert decision.position_size_hint == "Full starter"
+
+
+def test_combined_decision_penalizes_quality_risk_label() -> None:
+    decision = combine_row_decision(
+        _row("QUAL"),
+        _fundamental("QUAL", "Quality risk", "8.8"),
+        _technical("QUAL", "Prime clean pullback", "8.6", risk_score="2.5"),
+        config=_config(),
+    )
+
+    assert decision.final_score == 7.21
+    assert decision.combined_decision == "Candidate"
+    assert decision.position_size_hint == "Half starter"
+    assert "quality risk" in decision.notes
+    assert "quality_risk" in decision.warning_flags
+
+
+def test_growth_trap_risk_caps_strong_combined_decision_to_candidate() -> None:
+    decision = combine_row_decision(
+        _row("GROW"),
+        _fundamental("GROW", "Growth trap risk", "10.0"),
+        _technical("GROW", "Prime clean pullback", "10.0", risk_score="2.5"),
+        config=_config(),
+    )
+
+    assert decision.final_score == 8.5
+    assert decision.combined_decision == "Candidate"
+    assert decision.position_size_hint == "Half starter"
+    assert "growth trap" in decision.notes
+    assert "growth_trap_risk" in decision.warning_flags
+
+
+def test_quality_risk_caps_strong_combined_decision_to_candidate() -> None:
+    decision = combine_row_decision(
+        _row("QUAL"),
+        _fundamental("QUAL", "Quality risk", "10.0"),
+        _technical("QUAL", "Prime clean pullback", "10.0", risk_score="2.5"),
+        config=_config(),
+    )
+
+    assert decision.final_score == 8.5
+    assert decision.combined_decision == "Candidate"
+    assert decision.position_size_hint == "Half starter"
+
+
+@pytest.mark.parametrize(
+    ("score", "expected_decision"),
+    [
+        ("8.0", "Strong candidate"),
+        ("7.9999", "Candidate"),
+        ("6.8", "Candidate"),
+        ("6.7999", "Watchlist"),
+        ("5.5", "Watchlist"),
+        ("5.4999", "Avoid"),
+    ],
+)
+def test_combined_decision_threshold_boundaries(score: str, expected_decision: str) -> None:
+    decision = combine_row_decision(
+        _row("BDRY"),
+        _fundamental("BDRY", "Clean compounder", score),
+        _technical("BDRY", "Prime clean pullback", score, risk_score="2.5"),
+        config=_config(),
+    )
+
+    assert decision.final_score == float(score)
+    assert decision.combined_decision == expected_decision
+
+
+def test_combined_position_size_risk_boundary_is_inclusive() -> None:
+    full = combine_row_decision(
+        _row("FULL"),
+        _fundamental("FULL", "Clean compounder", "8.0"),
+        _technical("FULL", "Prime clean pullback", "8.0", risk_score="3.5"),
+        config=_config(),
+    )
+    half = combine_row_decision(
+        _row("HALF"),
+        _fundamental("HALF", "Clean compounder", "8.0"),
+        _technical("HALF", "Prime clean pullback", "8.0", risk_score="3.5001"),
+        config=_config(),
+    )
+
+    assert full.position_size_hint == "Full starter"
+    assert half.position_size_hint == "Half starter"
 
 
 def test_combined_decision_carries_v4_warning_flags_to_cockpit_payload() -> None:
@@ -314,6 +400,7 @@ def _config() -> dict:
             "overheated_momentum": 1.5,
             "value_trap_risk": 2.0,
             "growth_trap_risk": 1.5,
+            "quality_risk": 1.5,
             "missing_data": 1.0,
             "liquidity_warning": 1.0,
         },

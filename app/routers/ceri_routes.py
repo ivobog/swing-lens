@@ -22,6 +22,7 @@ from app.models.ceri_tables import (
     CeriPurgeAudit,
 )
 from app.models.tables import BackgroundJob
+from app.routers.export_responses import attachment_response
 from app.security import (
     ROUTE_CLASS_LOCAL_ADMIN,
     local_admin_csrf_token,
@@ -29,7 +30,6 @@ from app.security import (
     unsafe_route,
 )
 from app.services.background_job_service import (
-    TERMINAL_JOB_STATUSES,
     enqueue_job,
     request_job_cancel,
 )
@@ -53,6 +53,13 @@ from app.services.ceri.query_service import (
     CeriQueryFilters,
     CeriQueryService,
 )
+from app.services.redaction import redact_sensitive
+from app.services.resource_limits import (
+    ResourceLimitExceeded,
+    enforce_row_limit,
+    limit_error_payload,
+)
+from app.settings import get_settings
 from app.templates import templates
 
 router = APIRouter(tags=["ceri"])
@@ -552,9 +559,9 @@ def ceri_job_status(job_id: int, db: DbSession) -> dict[str, Any]:
         "job_type": job.job_type,
         "status": job.status,
         "requested_cancel": bool(job.requested_cancel),
-        "payload": job.payload_json,
-        "result": job.result_json,
-        "error_message": job.error_message,
+        "payload": redact_sensitive(job.payload_json),
+        "result": redact_sensitive(job.result_json),
+        "error_message": redact_sensitive(job.error_message),
     }
 
 
@@ -570,10 +577,12 @@ def export_ceri_csv(
         tickers=[ticker] if ticker else None,
         output_format="csv",
     )
-    return Response(
-        result.to_csv(),
+    content = result.to_csv()
+    _enforce_export_rows(_export_result_row_count(result, content), resource="CERI export")
+    return attachment_response(
+        content,
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="ceri_export.csv"'},
+        filename="ceri_export.csv",
     )
 
 
@@ -589,10 +598,12 @@ def export_ceri_json(
         tickers=[ticker] if ticker else None,
         output_format="json",
     )
-    return Response(
-        result.to_json(),
+    content = result.to_json()
+    _enforce_export_rows(_export_result_row_count(result, content), resource="CERI export")
+    return attachment_response(
+        content,
         media_type="application/json",
-        headers={"Content-Disposition": 'attachment; filename="ceri_export.json"'},
+        filename="ceri_export.json",
     )
 
 
@@ -1035,24 +1046,13 @@ def _enqueue_job_once(
         payload.get("request_key") or _stable_request_key({"job_type": job_type, **payload})
     )
     payload["request_key"] = request_key
-    existing = _existing_job_for_request(db, job_type, request_key)
-    if existing is not None:
-        existing._coalesced = True
-        return existing
-    return enqueue_job(db, job_type, payload, related_run_id=related_run_id)
-
-
-def _existing_job_for_request(
-    db: Session,
-    job_type: str,
-    request_key: str,
-) -> BackgroundJob | None:
-    for job in _load_jobs(db):
-        if job.job_type != job_type or job.status in TERMINAL_JOB_STATUSES:
-            continue
-        if (job.payload_json or {}).get("request_key") == request_key:
-            return job
-    return None
+    return enqueue_job(
+        db,
+        job_type,
+        payload,
+        related_run_id=related_run_id,
+        request_key=request_key,
+    )
 
 
 def _active_processing_run(db: Session, job_type: str, request_key: str) -> bool:
@@ -1069,14 +1069,6 @@ def _active_manual_review(db: Session, target_type: str, target_id: int) -> Ceri
         .where(CeriManualReview.target_id == target_id)
         .where(CeriManualReview.is_current.is_(True))
     )
-
-
-def _load_jobs(db: Session) -> list[BackgroundJob]:
-    scalars = getattr(db, "scalars", None)
-    if not callable(scalars):
-        return []
-    result = scalars(select(BackgroundJob))
-    return list(result.all() if hasattr(result, "all") else result)
 
 
 def _load_processing_runs(db: Session) -> list[CeriProcessingRun]:
@@ -1103,6 +1095,37 @@ def _job_response(job: BackgroundJob, *, coalesced: bool = False) -> JSONRespons
         },
         status_code=http_status.HTTP_202_ACCEPTED,
     )
+
+
+def _enforce_export_rows(row_count: int, *, resource: str) -> None:
+    settings = get_settings()
+    try:
+        enforce_row_limit(
+            row_count,
+            settings.max_export_rows,
+            resource=resource,
+            code="EXPORT_ROW_LIMIT_EXCEEDED",
+        )
+    except ResourceLimitExceeded as exc:
+        raise HTTPException(
+            status_code=413,
+            detail=limit_error_payload(
+                exc,
+                hint="Narrow filters or lower the page/export size before retrying.",
+            ),
+        ) from exc
+
+
+def _export_result_row_count(result: Any, content: str) -> int:
+    rows = getattr(result, "rows", None)
+    if rows is not None:
+        return len(rows)
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        lines = [line for line in content.splitlines() if line.strip()]
+        return max(len(lines) - 1, 0)
+    return len(parsed) if isinstance(parsed, list) else 1
 
 
 def _structured_http_error(code: str, message: str, *, status_code: int) -> HTTPException:

@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     export_dir: Path = Field(default=Path("data/exports"))
     cache_dir: Path = Field(default=Path("data/cache"))
     max_upload_size_mb: int = 20
+    max_csv_rows: int = 5000
+    max_csv_columns: int = 250
+    max_export_rows: int = 10000
+    max_export_size_mb: int = 100
+    chart_max_bars: int = 1000
+    cleanup_export_retention_days: int = 30
+    cleanup_cache_retention_days: int = 30
+    cleanup_orphan_upload_grace_days: int = 7
+    cleanup_job_retention_days: int = 90
 
     ib_host: str = "127.0.0.1"
     ib_port: int = 4002
@@ -102,6 +111,21 @@ class Settings(BaseSettings):
             raise ValueError("debug mode is not allowed on a public bind host")
         if self.app_host in public_bind_hosts and not self.allow_public_bind:
             raise ValueError("public bind requires ALLOW_PUBLIC_BIND=true")
+        positive_fields = {
+            "max_upload_size_mb": self.max_upload_size_mb,
+            "max_csv_rows": self.max_csv_rows,
+            "max_csv_columns": self.max_csv_columns,
+            "max_export_rows": self.max_export_rows,
+            "max_export_size_mb": self.max_export_size_mb,
+            "chart_max_bars": self.chart_max_bars,
+            "cleanup_export_retention_days": self.cleanup_export_retention_days,
+            "cleanup_cache_retention_days": self.cleanup_cache_retention_days,
+            "cleanup_orphan_upload_grace_days": self.cleanup_orphan_upload_grace_days,
+            "cleanup_job_retention_days": self.cleanup_job_retention_days,
+        }
+        for field_name, value in positive_fields.items():
+            if value < 1:
+                raise ValueError(f"{field_name} must be positive")
         return self
 
 

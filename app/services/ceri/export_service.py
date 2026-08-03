@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import csv
-import io
 import json
 from dataclasses import dataclass
 from datetime import date
@@ -19,24 +17,36 @@ from app.models.ceri_tables import (
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.export_policy import CeriExportPolicyRegistry
+from app.services.csv_export import write_csv
+
+CERI_EXPORT_SCHEMA_ID = "swinglens.ceri.export.v1"
+PURGE_INVALIDATION_FLAG = "provider_license_purge_invalidated"
 
 
 @dataclass(frozen=True)
 class CeriExportResult:
     rows: list[dict[str, Any]]
     format: str
+    metadata: dict[str, Any] | None = None
 
     def to_json(self) -> str:
         return json.dumps(self.rows, sort_keys=True, default=str)
 
     def to_csv(self) -> str:
+        metadata = self.metadata or {}
         if not self.rows:
-            return ""
-        buffer = io.StringIO()
-        writer = csv.DictWriter(buffer, fieldnames=list(self.rows[0]))
-        writer.writeheader()
-        writer.writerows(self.rows)
-        return buffer.getvalue()
+            return write_csv(
+                [],
+                [],
+                schema_id=CERI_EXPORT_SCHEMA_ID,
+                metadata=metadata,
+            )
+        return write_csv(
+            list(self.rows[0]),
+            self.rows,
+            schema_id=CERI_EXPORT_SCHEMA_ID,
+            metadata=metadata,
+        )
 
 
 class CeriExportService:
@@ -73,10 +83,18 @@ class CeriExportService:
                         "posture": snapshot.posture,
                         "warnings": snapshot.warnings_json,
                         "evidence_hash": snapshot.evidence_hash,
+                        "invalidated_by_purge": _is_invalidated(snapshot.warnings_json),
+                        "purge_invalidation": (snapshot.alignment_flags_json or {}).get(
+                            "purge_invalidation"
+                        ),
                     }
                 )
             )
-        return CeriExportResult(rows=rows, format=output_format)
+        return CeriExportResult(
+            rows=rows,
+            format=output_format,
+            metadata=_current_view_metadata(),
+        )
 
     def full_evidence(
         self,
@@ -104,16 +122,29 @@ class CeriExportService:
                 "content_hash": source.content_hash,
                 "export_policy": source.export_policy,
                 "quarantine_reason": source.quarantine_reason,
+                "purged": _is_purged_source(source),
+                "purge_invalidation": (source.restricted_normalized_json or {}).get(
+                    "purge_invalidation"
+                )
+                or source.restricted_normalized_json
+                if _is_purged_source(source)
+                else None,
                 "source_url": self.policy.mask("source_url"),
                 "raw_payload": self.policy.mask("raw_payload"),
-                "permitted_fields": source.restricted_normalized_json
+                "permitted_fields": None
+                if _is_purged_source(source)
+                else source.restricted_normalized_json
                 or self.policy.permitted_payload(source.raw_json),
             }
             rows.append(self.policy.export_row(row))
         rows.extend(_revision_rows(db, company_id, as_of_session))
         rows.extend(_guidance_rows(db, company_id, as_of_session))
         rows.extend(_catalyst_rows(db, as_of_session))
-        return CeriExportResult(rows=rows, format=output_format)
+        return CeriExportResult(
+            rows=rows,
+            format=output_format,
+            metadata=_full_evidence_metadata(),
+        )
 
 
 def _revision_rows(
@@ -138,6 +169,8 @@ def _revision_rows(
                 "current_snapshot_id": feature.current_snapshot_id,
                 "source_observation_ids": feature.source_observation_ids_json,
                 "evidence_hash": feature.evidence_hash,
+                "invalidated_by_purge": _is_invalidated(feature.warnings_json),
+                "unavailable_reason": feature.unavailable_reason,
             }
         )
     return rows
@@ -162,6 +195,7 @@ def _guidance_rows(
                 "action": guidance.action,
                 "metric": guidance.metric,
                 "effective_session": guidance.effective_session,
+                "invalidated_by_purge": _is_invalidated(guidance.quality_warnings_json),
             }
         )
     return rows
@@ -182,9 +216,45 @@ def _catalyst_rows(db: Session, as_of_session: date | None) -> list[dict[str, An
                 "direction": revision.direction,
                 "effective_session": revision.effective_session,
                 "conflict_flags": revision.conflict_flags_json,
+                "invalidated_by_purge": _is_invalidated(revision.conflict_flags_json),
             }
         )
     return rows
+
+
+def _is_invalidated(flags: list[str] | None) -> bool:
+    return PURGE_INVALIDATION_FLAG in set(flags or [])
+
+
+def _current_view_metadata() -> dict[str, Any]:
+    return {
+        "guidance_type": "research_evidence",
+        "execution_instruction": False,
+        "evidence_mode": "latest_corrected",
+        "source_cutoff": "row_level_cutoff_at",
+        "freshness": "row_level_as_of_session",
+        "correction_state": "row_level_warning_flags",
+        "model_version": "ceri_policy",
+    }
+
+
+def _full_evidence_metadata() -> dict[str, Any]:
+    return {
+        "guidance_type": "source_evidence",
+        "execution_instruction": False,
+        "evidence_mode": "restricted_full_evidence",
+        "source_cutoff": "row_level_observed_or_effective_at",
+        "freshness": "row_level_dataset_policy",
+        "correction_state": "revision_or_quarantine_state",
+        "model_version": "not_applicable",
+    }
+
+
+def _is_purged_source(source: CeriSourceRecord) -> bool:
+    return source.export_policy == "purged" or (
+        source.quarantine_reason or ""
+    ).startswith("provider_license_purge")
+
 
 def _load(db: Session, model):
     scalars = getattr(db, "scalars", None)

@@ -102,7 +102,7 @@ def _scoring_model() -> dict[str, Any]:
     fundamentals = _load_yaml(Path("config/fundamentals_v2.yaml"))
     combined = _load_yaml(Path("config/scoring_weights.yaml"))
     return {
-        "model_version": fundamentals.get("model_version", "fundamentals_v2.0"),
+        "model_version": fundamentals.get("model_version", "fundamentals_v2.1"),
         "weights": fundamentals.get("weights", {}),
         "components": fundamentals.get("components", {}),
         "field_priorities": fundamentals.get("field_priorities", {}),

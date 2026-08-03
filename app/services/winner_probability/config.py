@@ -51,6 +51,7 @@ REQUIRED_SECTIONS = (
     "evidence_membership",
     "cold_start",
     "drift",
+    "model_governance",
     "retention",
     "api",
     "feature_schema",
@@ -150,6 +151,12 @@ class DriftConfig:
 
 
 @dataclass(frozen=True)
+class ModelGovernanceConfig:
+    approved_algorithms: tuple[str, ...]
+    promotion_gates: dict[str, float | bool]
+
+
+@dataclass(frozen=True)
 class RetentionConfig:
     permanent: tuple[str, ...]
     rebuildable: tuple[str, ...]
@@ -185,6 +192,7 @@ class WinnerProbabilityConfig:
     evidence_membership: EvidenceMembershipConfig
     cold_start: dict[str, bool | int]
     drift: DriftConfig
+    model_governance: ModelGovernanceConfig
     retention: RetentionConfig
     api: ApiConfig
     feature_schema: FeatureSchemaConfig
@@ -229,6 +237,7 @@ def load_winner_probability_config(
         ),
         cold_start=_parse_cold_start(_mapping(raw, "cold_start")),
         drift=_parse_drift(_mapping(raw, "drift")),
+        model_governance=_parse_model_governance(_mapping(raw, "model_governance")),
         retention=_parse_retention(_mapping(raw, "retention")),
         api=_parse_api(_mapping(raw, "api")),
         feature_schema=_parse_feature_schema(_mapping(raw, "feature_schema"), registry),
@@ -563,6 +572,48 @@ def _parse_drift(raw: dict[str, Any]) -> DriftConfig:
         raise WinnerProbabilityConfigError("drift.thresholds.min_sample must be positive")
     thresholds["min_sample"] = min_sample
     return DriftConfig(windows_sessions=windows, thresholds=thresholds)
+
+
+def _parse_model_governance(raw: dict[str, Any]) -> ModelGovernanceConfig:
+    approved_algorithms = tuple(
+        _text_list(raw.get("approved_algorithms"), "model_governance.approved_algorithms")
+    )
+    if not approved_algorithms:
+        raise WinnerProbabilityConfigError(
+            "model_governance.approved_algorithms must not be empty"
+        )
+    if len(set(approved_algorithms)) != len(approved_algorithms):
+        raise WinnerProbabilityConfigError(
+            "model_governance.approved_algorithms contains duplicates"
+        )
+    gates = _mapping(raw, "promotion_gates")
+    min_log_loss_improvement = _ratio(
+        gates.get("min_log_loss_improvement"),
+        "model_governance.promotion_gates.min_log_loss_improvement",
+    )
+    min_brier_improvement = _ratio(
+        gates.get("min_brier_improvement"),
+        "model_governance.promotion_gates.min_brier_improvement",
+    )
+    require_calibration_bins = gates.get("require_calibration_bins")
+    require_fresh_drift_metrics = gates.get("require_fresh_drift_metrics")
+    if not isinstance(require_calibration_bins, bool):
+        raise WinnerProbabilityConfigError(
+            "model_governance.promotion_gates.require_calibration_bins must be boolean"
+        )
+    if not isinstance(require_fresh_drift_metrics, bool):
+        raise WinnerProbabilityConfigError(
+            "model_governance.promotion_gates.require_fresh_drift_metrics must be boolean"
+        )
+    return ModelGovernanceConfig(
+        approved_algorithms=approved_algorithms,
+        promotion_gates={
+            "min_log_loss_improvement": min_log_loss_improvement,
+            "min_brier_improvement": min_brier_improvement,
+            "require_calibration_bins": require_calibration_bins,
+            "require_fresh_drift_metrics": require_fresh_drift_metrics,
+        },
+    )
 
 
 def _parse_retention(raw: dict[str, Any]) -> RetentionConfig:

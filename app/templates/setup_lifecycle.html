@@ -29,6 +29,17 @@
     {% endif %}
     {% if filters.run_id %}<span>Run {{ filters.run_id }}</span>{% endif %}
   </div>
+  {% set disclaimer_context = "setup lifecycle state, actionability, alerts, and evidence changes" %}
+  {% include "partials/_research_disclaimer.html" %}
+  {% set provenance = {
+    "mode": "decision_time",
+    "source_cutoff": summary.selected_date or "N/A",
+    "freshness": "stale_system_warning" if diagnostics.stale_system_warning else "current",
+    "correction_state": "canonical",
+    "config_version": "setup lifecycle",
+    "confidence": "row_level"
+  } %}
+  {% include "partials/_evidence_provenance.html" %}
 </section>
 
 <section class="metric-grid section-gap setup-lifecycle-metrics" aria-label="Market change summary">

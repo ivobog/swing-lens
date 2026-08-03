@@ -19,9 +19,16 @@ function bindCeriAlertActions() {
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = await response.json();
-        if (status) status.textContent = payload.status;
+        if (status) {
+          status.setAttribute("role", "status");
+          status.setAttribute("aria-live", "polite");
+          status.textContent = payload.status;
+        }
       } catch (_error) {
-        if (status) status.textContent = "Update failed";
+        if (status) {
+          status.setAttribute("role", "alert");
+          status.textContent = "Update failed. Try the action again.";
+        }
       } finally {
         button.disabled = false;
       }
@@ -36,7 +43,11 @@ function bindCeriJsonForms() {
       const output = form.querySelector("[data-ceri-form-output]");
       const button = form.querySelector("button[type='submit']");
       if (button) button.disabled = true;
-      if (output) output.textContent = "Queueing...";
+      if (output) {
+        output.setAttribute("role", "status");
+        output.setAttribute("aria-live", "polite");
+        output.textContent = "Queueing...";
+      }
       try {
         const body = formBody(form);
         const response = await fetch(form.action, {
@@ -51,10 +62,15 @@ function bindCeriJsonForms() {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail?.message || `HTTP ${response.status}`);
         if (output) {
-          output.textContent = `Queued ${payload.job_type || "job"} ${payload.job_id || ""}`;
+          output.textContent = payload.coalesced
+            ? `Already running ${payload.job_type || "job"} ${payload.job_id || ""}; opened the active job.`
+            : `Queued ${payload.job_type || "job"} ${payload.job_id || ""}`;
         }
       } catch (error) {
-        if (output) output.textContent = error.message || "Request failed";
+        if (output) {
+          output.setAttribute("role", "alert");
+          output.textContent = `${error.message || "Request failed"}. Check required fields and try again.`;
+        }
       } finally {
         if (button) button.disabled = false;
       }

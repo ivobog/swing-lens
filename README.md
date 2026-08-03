@@ -21,6 +21,8 @@ This repository currently contains the MVP application:
 - Market regime command center
 - Sector rotation dashboard
 - Setup Lifecycle and Signal-Change Engine
+- Outcome-Calibrated Winner Probability Engine
+- Catalyst and Estimate-Revision Intelligence
 - CSV exports and run history
 
 ## Runtime Targets
@@ -53,10 +55,16 @@ Create a local `.env` from `.env.example` and adjust PostgreSQL or IB Gateway se
 Copy-Item .env.example .env
 ```
 
+Start the local PostgreSQL database on the same host port used by `.env.example`:
+
+```powershell
+docker compose up -d postgres
+```
+
 Run the app:
 
 ```powershell
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Open:
@@ -105,13 +113,26 @@ definition and `uv.lock` together.
 SwingLens uses Alembic for PostgreSQL schema migrations. After installing the project dependencies in the virtual environment, apply the schema with:
 
 ```powershell
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
 To review the SQL without applying it:
 
 ```powershell
-alembic upgrade head --sql
+uv run alembic upgrade head --sql
+```
+
+Backup and restore validation are documented in `docs/operations/backup_restore.md`.
+Readiness, metrics, and incident response are documented in `docs/operations/observability.md`
+and `docs/operations/incidents.md`.
+Before destructive migrations or purge/lifecycle work, create a PostgreSQL backup and validate a
+restore into a clean database:
+
+```powershell
+.\scripts\ops\backup_postgres.ps1 -BackupDir backups
+.\scripts\ops\restore_postgres.ps1 `
+  -BackupPath backups\swinglens_YYYYMMDD_HHMMSS.dump `
+  -ValidationReport backups\restore_validation_YYYYMMDD_HHMMSS.json
 ```
 
 ## Configuration Files
@@ -127,6 +148,10 @@ SwingLens keeps MVP scoring and mapping defaults in `config/`:
   confirmation weights, rotation-state thresholds, and advisory permission mappings.
 - `setup_lifecycle.yaml` stores setup lifecycle state semantics, setup-family thresholds,
   signal-change definitions, alert rules, replay policy, retention policy, and API targets.
+- `winner_probability.yaml` stores OWPE feature, outcome, model, calibration, drift, and retention
+  policy.
+- `ceri.yaml` and `ceri_catalyst_taxonomy.yaml` store CERI provider, scoring, alert, redaction,
+  taxonomy, and retention policy.
 
 Uploaded CSV rows are still preserved exactly as raw JSON in PostgreSQL.
 
@@ -139,6 +164,24 @@ Sector Rotation Dashboard operation is documented in
 Setup Lifecycle and Signal-Change Engine operation is documented in
 `docs/setup_lifecycle_signal_change_engine.md`, with release notes in
 `docs/release_notes_setup_lifecycle_signal_change_engine.md`.
+
+Fundamental scoring, technical/Pine parity, combined decisions/ranking profiles, winner
+probability, CERI, and route/export contracts are documented in:
+
+- `docs/fundamental_scoring.md`
+- `docs/technical_scoring_pine_parity.md`
+- `docs/combined_decisions_ranking_profiles.md`
+- `docs/winner_probability_engine.md`
+- `docs/ceri.md`
+- `docs/routes_exports.md`
+
+Maintainer setup, glossary, versioning, governance checklists, and ADRs are documented in:
+
+- `docs/operations/maintainer_handbook.md`
+- `docs/glossary.md`
+- `docs/versioning.md`
+- `docs/governance/`
+- `docs/adr/`
 
 ## Interactive Brokers
 
@@ -190,7 +233,16 @@ Every run exposes CSV exports:
 /api/setup-lifecycle/episodes/{episode_id}/export.csv
 /api/setup-lifecycle/episodes/{episode_id}/export.json
 /api/setup-lifecycle/operations/export.json
+/api/winner-probability/run/{run_id}/export.csv
+/api/winner-probability/run/{run_id}/export.json
+/api/winner-probability/outcomes/explorer/export.csv
+/api/winner-probability/estimates/{estimate_id}/reproduction/export.json
+/ceri/export.csv
+/ceri/export.json
 ```
+
+The generated route/export inventory lives in `docs/routes_exports.md`. XLSX export is deferred
+until a separate workbook implementation and test plan exists.
 
 ## Technical Indicators
 
@@ -204,10 +256,11 @@ and weekly higher-timeframe trend features.
 Before a trading-research session:
 
 ```powershell
-alembic upgrade head
-ruff check app tests
-pytest -q
-pytest tests/test_golden_pipeline.py -q
+uv run alembic upgrade head
+uv run ruff check app tests scripts
+uv run python scripts/docs/check_route_inventory.py
+uv run pytest -q
+uv run pytest tests/test_golden_pipeline.py -q
 ```
 
 Then confirm:
