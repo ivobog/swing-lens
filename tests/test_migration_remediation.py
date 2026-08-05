@@ -11,6 +11,8 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from psycopg import sql
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
@@ -27,7 +29,6 @@ from app.services.background_job_service import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_VERSIONS = REPO_ROOT / "alembic" / "versions"
-EXPECTED_HEAD = "0024_background_job_request_keys"
 DEFAULT_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 LIVE_MODEL_IMPORT_RE = re.compile(r"^\s*(?:from|import)\s+app\.models(?:\.|\s)", re.MULTILINE)
 
@@ -79,6 +80,11 @@ def find_live_model_imports() -> list[MigrationImportViolation]:
     return violations
 
 
+def _alembic_heads() -> tuple[str, ...]:
+    config = Config(str(REPO_ROOT / "alembic.ini"))
+    return tuple(ScriptDirectory.from_config(config).get_heads())
+
+
 def test_clean_postgresql_database_can_upgrade_to_alembic_head() -> None:
     clean_db_name = f"swinglens_pytest_migration_{uuid.uuid4().hex[:12]}"
     with _connect_admin_or_skip() as conn:
@@ -91,7 +97,7 @@ def test_clean_postgresql_database_can_upgrade_to_alembic_head() -> None:
 
             current = _run_alembic(database_url, "current")
             assert current.returncode == 0, current.stdout + current.stderr
-            assert EXPECTED_HEAD in current.stdout
+            assert any(head in current.stdout for head in _alembic_heads())
         finally:
             conn.execute(
                 sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
