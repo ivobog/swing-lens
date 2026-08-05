@@ -1,0 +1,27 @@
+{
+  "fixture_schema_version": "run-78-pipeline-baseline-v1",
+  "fixture_status": "metadata-only",
+  "description": "Frozen workload metadata for the Phase 1 sequential baseline harness.",
+  "upload_run_id": 78,
+  "pipeline_run_id": 70,
+  "ticker_count": 454,
+  "expected_step_count": 11,
+  "baseline_total_ms": 1862445,
+  "baseline_steps_ms": {
+    "Fetching Market Data": 717821,
+    "Scoring Technicals": 513689,
+    "Capturing Setup Signals": 283865,
+    "Evaluating Setup Lifecycles": 281705,
+    "Capturing Winner Predictions": 36253,
+    "Market Regime Snapshot": 21405,
+    "All other work and step gaps": 7707
+  },
+  "required_repetitions": {
+    "warmup_iterations": 1,
+    "measured_iterations": 5
+  },
+  "notes": [
+    "The harness records actual outputs when run against the PostgreSQL fixture.",
+    "Generated parity output must normalize timestamps and surrogate IDs before comparison."
+  ]
+}

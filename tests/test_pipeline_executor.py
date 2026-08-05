@@ -63,6 +63,9 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
     assert db.pipeline.result_json["sector_rotation_sector_count"] == 2
     assert db.pipeline.result_json["sector_rotation_leading_sector"] == "Technology"
     assert db.pipeline.result_json["sector_rotation_warning_count"] == 0
+    assert db.pipeline.result_json["performance"]["phase"] == 1
+    assert "SCORING_TECHNICALS" in db.pipeline.result_json["performance"]["step_durations_ms"]
+    assert result.performance["phase"] == 1
     assert {step.status for step in db.steps} == {PipelineStepStatus.COMPLETED}
 
 

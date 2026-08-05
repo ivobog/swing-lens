@@ -199,6 +199,7 @@ def test_get_pipeline_status_returns_status_dto() -> None:
     assert status.status == PipelineStatus.PENDING
     assert status.current_step == "VALIDATING_RUN"
     assert status.background_job_id == 10
+    assert status.result_json == {"background_job_id": 10}
     assert [step.step_name for step in status.steps] == [
         "VALIDATING_RUN",
         "SCORING_FUNDAMENTALS",
