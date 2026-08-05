@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     ib_daily_bar_stale_after_days: int = 3
     ib_revision_audit_enabled: bool = True
 
+    technical_pure_boundary_enabled: bool = False
+    technical_pure_boundary_shadow_compare_enabled: bool = False
+    technical_process_pool_enabled: bool = False
+    technical_worker_processes: int = 4
+    technical_max_in_flight: int = 8
+
     job_worker_enabled: bool = True
     job_poll_interval_seconds: float = 2.0
     job_stale_after_seconds: int = 900
@@ -129,6 +135,10 @@ class Settings(BaseSettings):
         for field_name, value in positive_fields.items():
             if value < 1:
                 raise ValueError(f"{field_name} must be positive")
+        if not 1 <= self.technical_worker_processes <= 8:
+            raise ValueError("technical_worker_processes must be between 1 and 8")
+        if self.technical_max_in_flight < 1:
+            raise ValueError("technical_max_in_flight must be positive")
         return self
 
 

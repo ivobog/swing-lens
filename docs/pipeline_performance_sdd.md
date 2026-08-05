@@ -495,6 +495,8 @@ Proposed settings:
 | --- | ---: | --- |
 | `SETUP_LATEST_BAR_PROJECTION_ENABLED` | `false` during rollout, then `true` | Enables IMP-01. |
 | `SETUP_CAPTURE_HANDOFF_ENABLED` | `false` during rollout, then `true` | Prevents duplicate full-pipeline capture. |
+| `TECHNICAL_PURE_BOUNDARY_ENABLED` | `false` during rollout | Enables the database-free sequential technical boundary. |
+| `TECHNICAL_PURE_BOUNDARY_SHADOW_COMPARE_ENABLED` | `false` during rollout | Compares pure technical results with the legacy path and falls back on drift. |
 | `TECHNICAL_PROCESS_POOL_ENABLED` | `false` during rollout, then `true` | Enables process workers. |
 | `TECHNICAL_WORKER_PROCESSES` | `4` | Maximum technical worker processes. |
 | `TECHNICAL_MAX_IN_FLIGHT` | `8` | Bounds queued work and memory. |
