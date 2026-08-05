@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     winner_probability_admin_enabled: bool = False
     setup_lifecycle_enabled: bool = False
     setup_lifecycle_pipeline_step_enabled: bool = False
+    setup_latest_bar_projection_enabled: bool = False
+    setup_latest_bar_projection_shadow_compare_enabled: bool = False
+    setup_capture_handoff_enabled: bool = False
     setup_lifecycle_alerts_enabled: bool = False
     setup_lifecycle_replay_enabled: bool = False
     setup_lifecycle_reconstruction_enabled: bool = False

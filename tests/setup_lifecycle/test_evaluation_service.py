@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from app.models.tables import SetupLifecycleEvaluationRun
@@ -97,6 +99,40 @@ def test_evaluation_service_marks_partial_when_capture_has_ticker_failures() -> 
     assert repository.completed[-1].error_summary_json == {"BAD": "source failed"}
 
 
+def test_evaluation_service_reuses_valid_capture_handoff_without_recapturing() -> None:
+    repository = FakeEvaluationRepository()
+    config = load_setup_lifecycle_config()
+    repository.snapshots = [
+        SimpleNamespace(
+            run_id=7,
+            config_hash=config.config_hash,
+            engine_version=config.engine.version,
+            evaluation_run_id=44,
+        )
+    ]
+    capture_service = FakeCaptureService(
+        SnapshotCaptureResult(
+            evaluation_run_id=44,
+            status=EvaluationStatus.COMPLETED.value,
+            captured=1,
+            snapshot_ids=(10,),
+        )
+    )
+    service = SetupLifecycleEvaluationService(
+        repository=repository,
+        capture_service=capture_service,
+        canonicalizer=FakeCanonicalizer(CanonicalizationResult(selected_snapshot_ids=(10,))),
+        change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
+        episode_service=FakeEpisodeService(),
+        alert_service=FakeAlertService(),
+        config=config,
+    )
+
+    service.evaluate_run(db=object(), run_id=7, capture_result=capture_service.result)
+
+    assert capture_service.calls == 0
+
+
 def test_evaluation_service_cancellation_finalizes_run_as_cancelled() -> None:
     repository = FakeEvaluationRepository()
     service = SetupLifecycleEvaluationService(
@@ -122,6 +158,7 @@ class FakeEvaluationRepository:
         self.created = []
         self.completed: list[SetupLifecycleEvaluationRun] = []
         self.heartbeats: list[str] = []
+        self.snapshots = None
 
     def create_evaluation_run(self, _db, **kwargs):
         run = SetupLifecycleEvaluationRun(id=1, **kwargs)
@@ -157,6 +194,8 @@ class FakeEvaluationRepository:
         return 3
 
     def get_snapshots_by_ids(self, _db, snapshot_ids):
+        if self.snapshots is not None:
+            return self.snapshots
         return [object() for _snapshot_id in snapshot_ids]
 
     def get_signal_change_events_by_ids(self, _db, event_ids):
@@ -166,8 +205,10 @@ class FakeEvaluationRepository:
 class FakeCaptureService:
     def __init__(self, result: SnapshotCaptureResult) -> None:
         self.result = result
+        self.calls = 0
 
     def capture_snapshots_for_run(self, _db, _run_id, **_kwargs) -> SnapshotCaptureResult:
+        self.calls += 1
         return self.result
 
 

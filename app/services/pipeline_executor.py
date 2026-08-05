@@ -4,6 +4,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from inspect import Parameter, signature
 from typing import Any
 
 from sqlalchemy import select
@@ -134,6 +135,7 @@ class PipelineExecutionDependencies:
     capture_setup_signals: Callable[[Session, int], Any] | None = None
     evaluate_setup_lifecycles: Callable[[Session, int], Any] | None = None
     setup_lifecycle_pipeline_step_enabled: bool | None = None
+    setup_capture_handoff_enabled: bool | None = None
     capture_winner_predictions: Callable[[Session, int], Any] | None = None
     winner_probability_capture_enabled: bool | None = None
 
@@ -271,7 +273,11 @@ def execute_full_pipeline(
             ):
                 capture = dependencies.capture_setup_signals or _capture_setup_signals
                 capture_result = capture(db, upload_run.id)
-                _apply_setup_lifecycle_capture_result(result, capture_result)
+                _apply_setup_lifecycle_capture_result(
+                    result,
+                    capture_result,
+                    performance=performance,
+                )
 
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
@@ -282,9 +288,13 @@ def execute_full_pipeline(
                 performance=performance,
             ):
                 evaluate = dependencies.evaluate_setup_lifecycles or _evaluate_setup_lifecycles
-                evaluation_result = evaluate(
+                evaluation_result = _invoke_setup_evaluation(
+                    evaluate,
                     db,
                     upload_run.id,
+                    capture_result=capture_result
+                    if _setup_capture_handoff_enabled(dependencies)
+                    else None,
                 )
                 _apply_setup_lifecycle_evaluation_result(result, evaluation_result)
 
@@ -736,6 +746,12 @@ def _setup_lifecycle_pipeline_step_enabled(dependencies: PipelineExecutionDepend
     return get_settings().setup_lifecycle_pipeline_step_enabled
 
 
+def _setup_capture_handoff_enabled(dependencies: PipelineExecutionDependencies) -> bool:
+    if dependencies.setup_capture_handoff_enabled is not None:
+        return dependencies.setup_capture_handoff_enabled
+    return get_settings().setup_capture_handoff_enabled
+
+
 def _ceri_run_capture_enabled(dependencies: PipelineExecutionDependencies) -> bool:
     if dependencies.ceri_run_capture_enabled is not None:
         return dependencies.ceri_run_capture_enabled
@@ -768,12 +784,40 @@ def _capture_setup_signals(db: Session, run_id: int):
     return SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(db, run_id)
 
 
-def _evaluate_setup_lifecycles(db: Session, run_id: int):
+def _evaluate_setup_lifecycles(
+    db: Session,
+    run_id: int,
+    *,
+    capture_result: Any | None = None,
+):
     from app.services.setup_lifecycle.evaluation_service import (
         SetupLifecycleEvaluationService,
     )
 
-    return SetupLifecycleEvaluationService().evaluate_run(db, run_id)
+    return SetupLifecycleEvaluationService().evaluate_run(
+        db,
+        run_id,
+        capture_result=capture_result,
+    )
+
+
+def _invoke_setup_evaluation(
+    evaluate: Callable[..., Any],
+    db: Session,
+    run_id: int,
+    *,
+    capture_result: Any | None,
+) -> Any:
+    if capture_result is None:
+        return evaluate(db, run_id)
+    parameters = signature(evaluate).parameters.values()
+    accepts_capture_result = any(
+        parameter.name == "capture_result" or parameter.kind == Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+    if accepts_capture_result:
+        return evaluate(db, run_id, capture_result=capture_result)
+    return evaluate(db, run_id)
 
 
 def _apply_ceri_capture_result(result: dict[str, Any], ceri_result: Any) -> None:
@@ -805,7 +849,12 @@ def _apply_winner_capture_result(result: dict[str, Any], capture_result: Any) ->
     )
 
 
-def _apply_setup_lifecycle_capture_result(result: dict[str, Any], capture_result: Any) -> None:
+def _apply_setup_lifecycle_capture_result(
+    result: dict[str, Any],
+    capture_result: Any,
+    *,
+    performance: PipelinePerformanceTracker | None = None,
+) -> None:
     values = (
         capture_result.as_dict()
         if hasattr(capture_result, "as_dict")
@@ -819,6 +868,9 @@ def _apply_setup_lifecycle_capture_result(result: dict[str, Any], capture_result
     )
     result["setup_lifecycle_low_confidence"] += int(values.get("low_confidence", 0))
     result["setup_lifecycle_failed"] += int(values.get("failed", 0))
+    if performance is not None:
+        for name, value in (values.get("performance") or {}).items():
+            performance.set_metric(name, value)
 
 
 def _apply_setup_lifecycle_evaluation_result(

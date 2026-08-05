@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from inspect import Parameter, signature
 from typing import Any
 
 from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
@@ -109,8 +110,11 @@ class SetupLifecycleEvaluationService:
         *,
         requester: str | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        capture_result: SnapshotCaptureResult | None = None,
+        snapshot_ids: tuple[int, ...] | None = None,
     ) -> SetupLifecycleEvaluationResult:
         should_cancel = should_cancel or (lambda: False)
+        handoff_snapshot_ids = _handoff_snapshot_ids(capture_result, snapshot_ids)
         evaluation_run = self.repository.create_evaluation_run(
             db,
             mode="LIVE",
@@ -126,18 +130,34 @@ class SetupLifecycleEvaluationService:
 
         try:
             self._checkpoint(db, evaluation_run.id, "capture", should_cancel)
-            capture = self.capture_service.capture_snapshots_for_run(
-                db,
-                run_id,
-                evaluation_run=evaluation_run,
-                requester=requester,
-                finalize_evaluation_run=False,
-            )
+            if handoff_snapshot_ids is None:
+                capture = self.capture_service.capture_snapshots_for_run(
+                    db,
+                    run_id,
+                    evaluation_run=evaluation_run,
+                    requester=requester,
+                    finalize_evaluation_run=False,
+                )
+            else:
+                self._validate_capture_handoff(
+                    db,
+                    run_id=run_id,
+                    capture_result=capture_result,
+                    snapshot_ids=handoff_snapshot_ids,
+                )
+                capture = capture_result or SnapshotCaptureResult(
+                    evaluation_run_id=None,
+                    status=EvaluationStatus.COMPLETED.value,
+                    captured=len(handoff_snapshot_ids),
+                    snapshot_ids=handoff_snapshot_ids,
+                )
             self._checkpoint(db, evaluation_run.id, "canonicalize", should_cancel)
-            canonical = self.canonicalizer.canonicalize_run(
+            canonical = _canonicalize_run(
+                self.canonicalizer,
                 db,
                 run_id=run_id,
                 evaluation_run_id=evaluation_run.id,
+                snapshot_ids=handoff_snapshot_ids,
             )
             self._checkpoint(db, evaluation_run.id, "change_detection", should_cancel)
             changes = self.change_detector.detect_and_persist(
@@ -208,6 +228,37 @@ class SetupLifecycleEvaluationService:
             source_snapshot_max_id=max(capture.snapshot_ids) if capture.snapshot_ids else None,
         )
         return result
+
+    def _validate_capture_handoff(
+        self,
+        db,
+        *,
+        run_id: int,
+        capture_result: SnapshotCaptureResult | None,
+        snapshot_ids: tuple[int, ...],
+    ) -> None:
+        if len(snapshot_ids) != len(set(snapshot_ids)):
+            raise ValueError("Setup capture handoff contains duplicate snapshot IDs.")
+        if capture_result is not None and capture_result.captured not in {0, len(snapshot_ids)}:
+            raise ValueError("Setup capture handoff count does not match snapshot IDs.")
+        snapshots = self.repository.get_snapshots_by_ids(db, snapshot_ids)
+        if len(snapshots) != len(snapshot_ids):
+            raise ValueError("Setup capture handoff contains missing snapshot IDs.")
+        expected_evaluation_run_id = (
+            capture_result.evaluation_run_id if capture_result is not None else None
+        )
+        for snapshot in snapshots:
+            if snapshot.run_id != run_id:
+                raise ValueError("Setup capture handoff contains a snapshot from another run.")
+            if snapshot.config_hash != self.config.config_hash:
+                raise ValueError("Setup capture handoff config hash does not match evaluator.")
+            if snapshot.engine_version != self.config.engine.version:
+                raise ValueError("Setup capture handoff engine version does not match evaluator.")
+            if (
+                expected_evaluation_run_id is not None
+                and snapshot.evaluation_run_id != expected_evaluation_run_id
+            ):
+                raise ValueError("Setup capture handoff snapshot ownership is inconsistent.")
 
     def _checkpoint(
         self,
@@ -286,5 +337,46 @@ class SetupLifecycleEvaluationService:
 def evaluate_setup_lifecycles_for_run(
     db,
     run_id: int,
+    *,
+    capture_result: SnapshotCaptureResult | None = None,
+    snapshot_ids: tuple[int, ...] | None = None,
 ) -> SetupLifecycleEvaluationResult:
-    return SetupLifecycleEvaluationService().evaluate_run(db, run_id)
+    return SetupLifecycleEvaluationService().evaluate_run(
+        db,
+        run_id,
+        capture_result=capture_result,
+        snapshot_ids=snapshot_ids,
+    )
+
+
+def _handoff_snapshot_ids(
+    capture_result: SnapshotCaptureResult | None,
+    snapshot_ids: tuple[int, ...] | None,
+) -> tuple[int, ...] | None:
+    capture_ids = tuple(capture_result.snapshot_ids) if capture_result is not None else None
+    explicit_ids = tuple(snapshot_ids) if snapshot_ids is not None else None
+    if capture_ids is not None and explicit_ids is not None and capture_ids != explicit_ids:
+        raise ValueError("Setup capture handoff snapshot IDs disagree.")
+    return explicit_ids if explicit_ids is not None else capture_ids
+
+
+def _canonicalize_run(
+    canonicalizer,
+    db,
+    *,
+    run_id: int,
+    evaluation_run_id: int,
+    snapshot_ids: tuple[int, ...] | None,
+) -> CanonicalizationResult:
+    parameters = signature(canonicalizer.canonicalize_run).parameters.values()
+    accepts_snapshot_ids = any(
+        parameter.name == "snapshot_ids" or parameter.kind == Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+    kwargs: dict[str, Any] = {
+        "run_id": run_id,
+        "evaluation_run_id": evaluation_run_id,
+    }
+    if snapshot_ids is not None and accepts_snapshot_ids:
+        kwargs["snapshot_ids"] = snapshot_ids
+    return canonicalizer.canonicalize_run(db, **kwargs)

@@ -57,6 +57,7 @@ class SnapshotCaptureResult:
     snapshot_ids: tuple[int, ...] = ()
     warnings_by_ticker: dict[str, tuple[str, ...]] = field(default_factory=dict)
     errors_by_ticker: dict[str, str] = field(default_factory=dict)
+    performance: dict[str, float] = field(default_factory=dict)
 
     def counts(self) -> dict[str, int]:
         return {
@@ -82,6 +83,7 @@ class SnapshotCaptureResult:
             "alerts": self.alerted,
             "low_confidence": self.low_confidence,
             "failed": self.failed,
+            "performance": dict(self.performance),
             **self.counts(),
         }
 
@@ -575,6 +577,7 @@ class SetupLifecycleSnapshotCaptureService:
             snapshot_ids=tuple(snapshot_ids),
             warnings_by_ticker=warnings_by_ticker,
             errors_by_ticker=errors_by_ticker,
+            performance=dict(getattr(self.loader, "last_metrics", {})),
         )
         if finalize_evaluation_run:
             self.repository.complete_evaluation_run(

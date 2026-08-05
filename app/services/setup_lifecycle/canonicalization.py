@@ -54,12 +54,16 @@ class SetupLifecycleCanonicalizer:
         *,
         run_id: int,
         evaluation_run_id: int | None = None,
+        snapshot_ids: tuple[int, ...] | None = None,
     ) -> CanonicalizationResult:
-        affected = self.repository.load_snapshots_for_run(
-            db,
-            run_id=run_id,
-            config_hash=self.config.config_hash,
-        )
+        if snapshot_ids is None:
+            affected = self.repository.load_snapshots_for_run(
+                db,
+                run_id=run_id,
+                config_hash=self.config.config_hash,
+            )
+        else:
+            affected = self.repository.get_snapshots_by_ids(db, snapshot_ids)
         candidates = self.repository.load_canonicalization_candidates(
             db,
             affected,

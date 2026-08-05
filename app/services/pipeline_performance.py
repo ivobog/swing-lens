@@ -21,6 +21,7 @@ class PipelinePerformanceTracker:
     started_at: float = field(init=False)
     step_started_at: dict[str, float] = field(default_factory=dict, init=False)
     step_durations_ms: dict[str, float] = field(default_factory=dict, init=False)
+    component_metrics: dict[str, float | int | None] = field(default_factory=dict, init=False)
     fallbacks: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -35,7 +36,16 @@ class PipelinePerformanceTracker:
             return None
         duration_ms = _round_ms((self.clock() - started_at) * 1000)
         self.step_durations_ms[step_name] = duration_ms
+        component_name = {
+            "CAPTURING_SETUP_SIGNALS": "setup_capture_ms",
+            "EVALUATING_SETUP_LIFECYCLES": "setup_evaluation_ms",
+        }.get(step_name)
+        if component_name is not None:
+            self.component_metrics[component_name] = duration_ms
         return duration_ms
+
+    def set_metric(self, name: str, value: float | int | None) -> None:
+        self.component_metrics[name] = value
 
     def add_fallback(self, component: str) -> None:
         if component not in self.fallbacks:
@@ -47,10 +57,10 @@ class PipelinePerformanceTracker:
             "phase": PERFORMANCE_PHASE,
             "pipeline_wall_ms": _round_ms((self.clock() - self.started_at) * 1000),
             "step_durations_ms": dict(sorted(self.step_durations_ms.items())),
-            "setup_latest_bar_query_ms": None,
-            "setup_context_build_ms": None,
-            "setup_capture_ms": None,
-            "setup_evaluation_ms": None,
+            "setup_latest_bar_query_ms": self.component_metrics.get("setup_latest_bar_query_ms"),
+            "setup_context_build_ms": self.component_metrics.get("setup_context_build_ms"),
+            "setup_capture_ms": self.component_metrics.get("setup_capture_ms"),
+            "setup_evaluation_ms": self.component_metrics.get("setup_evaluation_ms"),
             "technical_input_load_ms": None,
             "technical_worker_span_ms": None,
             "technical_cache_hits": 0,

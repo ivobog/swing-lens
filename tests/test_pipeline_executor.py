@@ -147,6 +147,26 @@ def test_execute_full_pipeline_runs_setup_lifecycle_steps_when_enabled() -> None
     assert result.setup_lifecycle_evaluation_skipped == 0
 
 
+def test_execute_full_pipeline_passes_setup_capture_handoff_when_enabled() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"], setup_lifecycle_enabled=True)
+    calls = []
+    dependencies = _dependencies(
+        calls,
+        plan=_plan(estimated_request_count=0),
+        combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ],
+        setup_lifecycle_enabled=True,
+        setup_capture_handoff_enabled=True,
+        setup_capture_result={"snapshots_captured": 1},
+        setup_evaluation_result={"canonical_snapshots": 1},
+    )
+
+    execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert "setup_evaluate_handoff" in calls
+
+
 def test_execute_full_pipeline_runs_ceri_before_setup_lifecycle_when_enabled() -> None:
     db = PipelineExecutorFakeDb(
         tickers=["MSFT"],
@@ -477,6 +497,7 @@ def _dependencies(
     ceri_enabled: bool | None = None,
     ceri_capture_result: dict[str, int] | None = None,
     setup_lifecycle_enabled: bool | None = None,
+    setup_capture_handoff_enabled: bool | None = None,
     setup_capture_result: dict[str, int] | None = None,
     setup_evaluation_result: dict[str, int] | None = None,
     winner_capture_enabled: bool | None = None,
@@ -539,8 +560,10 @@ def _dependencies(
         calls.append("setup_capture")
         return setup_capture_result or {}
 
-    def setup_evaluate(_db, _run_id):
+    def setup_evaluate(_db, _run_id, *, capture_result=None):
         calls.append("setup_evaluate")
+        if capture_result is not None:
+            calls.append("setup_evaluate_handoff")
         return setup_evaluation_result or {}
 
     def winner_capture(_db, _run_id):
@@ -566,6 +589,7 @@ def _dependencies(
         if setup_evaluation_result is not None
         else None,
         setup_lifecycle_pipeline_step_enabled=setup_lifecycle_enabled,
+        setup_capture_handoff_enabled=setup_capture_handoff_enabled,
         capture_winner_predictions=winner_capture,
         winner_probability_capture_enabled=winner_capture_enabled,
     )

@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+from sqlalchemy.dialects import postgresql
+
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
@@ -17,8 +19,10 @@ from app.models.tables import (
 )
 from app.services.setup_lifecycle.source_loader import (
     SetupLifecycleSourceLoader,
+    _latest_price_bars_statement,
     _run_context_cutoff_date,
     build_run_source_context,
+    compare_latest_bar_selection,
     latest_completed_bar,
 )
 
@@ -66,6 +70,28 @@ def test_latest_completed_bar_prefers_latest_trade_bar() -> None:
     trades = _bar("MSFT", date(2026, 8, 1), close=101, what_to_show="TRADES")
 
     assert latest_completed_bar((older, adjusted, trades)) is trades
+
+
+def test_latest_price_bar_projection_query_is_one_row_per_ticker() -> None:
+    statement = _latest_price_bars_statement(("MSFT", "AAPL"))
+    rendered = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "DISTINCT ON (price_bars.ticker)" in rendered
+    assert "price_bars.close IS NOT NULL" in rendered
+    assert "price_bars.bar_date DESC" in rendered
+    assert "CASE WHEN (price_bars.what_to_show =" in rendered
+
+
+def test_latest_bar_projection_shadow_comparison_detects_lineage_drift() -> None:
+    legacy = (_bar("MSFT", date(2026, 8, 1), close=101),)
+    projected = (_bar("MSFT", date(2026, 8, 1), close=102),)
+
+    mismatches = compare_latest_bar_selection(legacy, projected)
+
+    assert mismatches == (
+        "MSFT: legacy=(1002, datetime.date(2026, 8, 1), 'TRADES'), "
+        "projected=(1003, datetime.date(2026, 8, 1), 'TRADES')",
+    )
 
 
 def test_run_context_cutoff_uses_earliest_ticker_source_date() -> None:
