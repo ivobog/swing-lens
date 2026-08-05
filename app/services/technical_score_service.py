@@ -1,3 +1,6 @@
+import json
+from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import asdict, replace
 from decimal import Decimal
 from typing import Any
@@ -7,9 +10,23 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import RawCompanyRow, TechnicalScore
-from app.services.pine_replica_engine import PineReplicaScore, score_from_feature_result
+from app.services.ib_fetch_executor import TickerReadyEvent
+from app.services.operational_metrics import operational_metrics
+from app.services.pine_replica_engine import (
+    ENGINE_VERSION,
+    PineReplicaScore,
+    score_from_feature_result,
+)
 from app.services.price_bar_repository import load_preferred_ohlcv_frames
+from app.services.price_series_version_service import load_series_versions
 from app.services.relative_leadership import calculate_beta_adjusted_rs, rank_technical_universe
+from app.services.technical_artifact_cache import (
+    LocalArtifactKey,
+    build_local_artifact_key,
+    config_hash,
+    get_local_artifact,
+    upsert_local_artifact,
+)
 from app.services.technical_explainability import add_leadership_to_explainability
 from app.services.technical_indicators import (
     calculate_htf_trend_features,
@@ -22,6 +39,13 @@ from app.services.technical_score_v4 import (
     technical_score_v4_from_base_score,
 )
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
+from app.services.technical_work import (
+    TechnicalWorkItem,
+    TechnicalWorkResult,
+    build_technical_work_item,
+    execute_technical_work_item,
+)
+from app.settings import Settings, get_settings
 
 
 class TechnicalScoringError(ValueError):
@@ -42,33 +66,86 @@ def score_run_technicals(
     sector_price = _sector_benchmark_price(db, pine_params)
     qqq_market_features = _optional_market_features(db, "QQQ", v4_params)
 
-    score_results: list[PineReplicaScore | TechnicalScore] = []
-    for ticker in symbols:
-        try:
-            score = _score_ticker(
-                db=db,
-                ticker=ticker,
-                benchmark_price=benchmark_price,
-                sector_price=sector_price,
-                market_features=market_features,
-                qqq_market_features=qqq_market_features,
-                v4_params=v4_params,
-            )
-            score_results.append(score)
-        except Exception as exc:
-            score_results.append(
-                unavailable_technical_score(
-                    run_id,
-                    ticker,
-                    str(exc),
-                    v4_params=v4_params,
-                )
-            )
+    settings = get_settings()
+    indicator_config_hash = config_hash(pine_params)
+    scoring_config_hash = config_hash(v4_params)
+    artifact_cache_active = (
+        settings.technical_artifact_cache_enabled
+        or settings.technical_artifact_cache_write_enabled
+        or settings.technical_artifact_cache_shadow_read_enabled
+    )
+    if settings.technical_process_pool_enabled:
+        score_results = _score_tickers_process_pool(
+            db=db,
+            symbols=symbols,
+            benchmark_price=benchmark_price,
+            sector_price=sector_price,
+            market_features=market_features,
+            qqq_market_features=qqq_market_features,
+            pine_params=pine_params,
+            v4_params=v4_params,
+            settings=settings,
+            run_id=run_id,
+            indicator_config_hash=indicator_config_hash,
+            scoring_config_hash=scoring_config_hash,
+        )
+    elif (
+        settings.technical_pure_boundary_enabled
+        or settings.technical_pure_boundary_shadow_compare_enabled
+        or artifact_cache_active
+    ):
+        score_results = _score_tickers_pure_sequential(
+            db=db,
+            symbols=symbols,
+            benchmark_price=benchmark_price,
+            sector_price=sector_price,
+            market_features=market_features,
+            qqq_market_features=qqq_market_features,
+            pine_params=pine_params,
+            v4_params=v4_params,
+            shadow_compare=settings.technical_pure_boundary_shadow_compare_enabled,
+            run_id=run_id,
+            settings=settings,
+            indicator_config_hash=indicator_config_hash,
+            scoring_config_hash=scoring_config_hash,
+        )
+    else:
+        score_results = _score_tickers_legacy(
+            db=db,
+            symbols=symbols,
+            benchmark_price=benchmark_price,
+            sector_price=sector_price,
+            market_features=market_features,
+            qqq_market_features=qqq_market_features,
+            v4_params=v4_params,
+            run_id=run_id,
+        )
 
-    scored = [
-        result
+    return finalize_technical_scores(
+        db,
+        run_id,
+        score_results,
+        symbols=symbols,
+        v4_params=v4_params,
+    )
+
+
+def finalize_technical_scores(
+    db: Session,
+    run_id: int,
+    score_results: list[PineReplicaScore | TechnicalScore],
+    *,
+    symbols: list[str] | None = None,
+    v4_params: dict[str, Any] | None = None,
+) -> list[TechnicalScore]:
+    v4_params = v4_params or load_technical_scoring_v4_config()
+    symbols = symbols or [
+        result.ticker.upper()
         for result in score_results
-        if isinstance(result, PineReplicaScore)
+        if isinstance(result, (PineReplicaScore, TechnicalScore))
+    ]
+    scored = [
+        result for result in score_results if isinstance(result, PineReplicaScore)
     ]
     leadership = rank_technical_universe(
         [_leadership_rank_input(score) for score in scored],
@@ -86,7 +163,6 @@ def score_run_technicals(
         else result
         for result in score_results
     ]
-
     if symbols:
         db.execute(
             delete(TechnicalScore).where(
@@ -97,6 +173,619 @@ def score_run_technicals(
     db.add_all(scores)
     db.flush()
     return scores
+
+
+class TechnicalScoringOverlapCoordinator:
+    """Submit committed ticker inputs while the serialized IB loop continues."""
+
+    def __init__(
+        self,
+        db: Session,
+        *,
+        run_id: int,
+        tickers: list[str],
+        settings: Settings | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+        lease_guard: Callable[[], None] | None = None,
+    ) -> None:
+        self.db = db
+        self.run_id = run_id
+        self.symbols = _normalize_tickers(tickers)
+        self.settings = settings or get_settings()
+        self.should_cancel = should_cancel or (lambda: False)
+        self.lease_guard = lease_guard or (lambda: None)
+        self.pine_params = load_pine_defaults()
+        self.v4_params = load_technical_scoring_v4_config()
+        self.indicator_config_hash = config_hash(self.pine_params)
+        self.scoring_config_hash = config_hash(self.v4_params)
+        self._ready: set[str] = set()
+        self._pending: set[str] = set()
+        self._results: dict[str, PineReplicaScore | TechnicalScore] = {}
+        self._futures: dict[Any, str] = {}
+        self._closed = False
+        self._refresh_run_level_inputs()
+        self._executor = ProcessPoolExecutor(
+            max_workers=_technical_worker_count(self.settings)
+        )
+
+    def on_ticker_ready(self, event: TickerReadyEvent) -> None:
+        if self._closed:
+            return
+        self._ready.add(event.ticker.upper())
+        self._pending.add(event.ticker.upper())
+        if event.ticker.upper() in {"SPY", "QQQ"}:
+            self._refresh_run_level_inputs()
+        self._submit_ready()
+
+    def finalize(self) -> list[TechnicalScore]:
+        try:
+            self._ready.update(self.symbols)
+            self._pending.update(self.symbols)
+            self._refresh_run_level_inputs()
+            self._submit_ready()
+            while self._futures:
+                self._drain_one()
+            for ticker in self.symbols:
+                if ticker not in self._results:
+                    self._results[ticker] = unavailable_technical_score(
+                        self.run_id,
+                        ticker,
+                        "Ticker was not submitted for technical overlap.",
+                        v4_params=self.v4_params,
+                    )
+            ordered = [self._results[ticker] for ticker in self.symbols]
+            return finalize_technical_scores(
+                self.db,
+                self.run_id,
+                ordered,
+                symbols=self.symbols,
+                v4_params=self.v4_params,
+            )
+        finally:
+            self._closed = True
+            self._executor.shutdown(wait=True, cancel_futures=True)
+
+    def abort(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        for future in self._futures:
+            future.cancel()
+        self._futures.clear()
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _submit_ready(self) -> None:
+        if self._closed or not self._benchmark_price_available:
+            return
+        for ticker in sorted(self._pending):
+            if ticker not in self.symbols or ticker in self._results:
+                continue
+            while len(self._futures) >= self._in_flight_limit:
+                self._drain_one()
+            self.lease_guard()
+            if self.should_cancel():
+                return
+            price, trades = load_preferred_ohlcv_frames(self.db, ticker)
+            artifact_key, cached_artifact = _artifact_cache_context(
+                db=self.db,
+                ticker=ticker,
+                settings=self.settings,
+                indicator_config_hash=self.indicator_config_hash,
+                scoring_config_hash=self.scoring_config_hash,
+            )
+            item = _build_work_item(
+                ticker=ticker,
+                price=price,
+                trades=trades,
+                benchmark_price=self._benchmark_price,
+                sector_price=self._sector_price,
+                market_features=self._market_features,
+                qqq_market_features=self._qqq_market_features,
+                pine_params=self.pine_params,
+                v4_params=self.v4_params,
+                artifact_key=artifact_key,
+                cached_local_artifact=(
+                    cached_artifact
+                    if self.settings.technical_artifact_cache_enabled
+                    else None
+                ),
+            )
+            future = self._executor.submit(execute_technical_work_item, item)
+            self._futures[future] = ticker
+        self._pending.difference_update(self.symbols)
+
+    def _drain_one(self) -> None:
+        completed, _ = wait(self._futures, return_when=FIRST_COMPLETED)
+        for future in completed:
+            ticker = self._futures.pop(future)
+            try:
+                work_result = future.result()
+                self._results[ticker] = _score_from_work_result(work_result)
+                _persist_local_artifact(
+                    self.db,
+                    work_result,
+                    LocalArtifactKey(**work_result.artifact_key)
+                    if work_result.artifact_key
+                    else None,
+                    enabled=(
+                        self.settings.technical_artifact_cache_enabled
+                        or self.settings.technical_artifact_cache_write_enabled
+                    ),
+                )
+            except Exception as exc:
+                self._results[ticker] = unavailable_technical_score(
+                    self.run_id,
+                    ticker,
+                    str(exc),
+                    v4_params=self.v4_params,
+                )
+            self.lease_guard()
+            if self.should_cancel():
+                for outstanding in self._futures:
+                    outstanding.cancel()
+                self._futures.clear()
+                return
+
+    def _refresh_run_level_inputs(self) -> None:
+        self._benchmark_price = _load_price_frame(self.db, "SPY")
+        self._market_features = _market_features(self._benchmark_price, "SPY")
+        self._sector_price = _sector_benchmark_price(self.db, self.pine_params)
+        self._qqq_market_features = _optional_market_features(
+            self.db, "QQQ", self.v4_params
+        )
+
+    @property
+    def _benchmark_price_available(self) -> bool:
+        return not self._benchmark_price.empty
+
+    @property
+    def _in_flight_limit(self) -> int:
+        return min(
+            self.settings.technical_max_in_flight,
+            _technical_worker_count(self.settings) * 2,
+        )
+
+
+def _score_tickers_legacy(
+    *,
+    db: Session,
+    symbols: list[str],
+    benchmark_price: pd.DataFrame,
+    sector_price: pd.DataFrame | None,
+    market_features: dict[str, Any],
+    qqq_market_features: dict[str, Any],
+    v4_params: dict[str, Any],
+    run_id: int,
+) -> list[PineReplicaScore | TechnicalScore]:
+    score_results: list[PineReplicaScore | TechnicalScore] = []
+    for ticker in symbols:
+        try:
+            score_results.append(
+                _score_ticker(
+                    db=db,
+                    ticker=ticker,
+                    benchmark_price=benchmark_price,
+                    sector_price=sector_price,
+                    market_features=market_features,
+                    qqq_market_features=qqq_market_features,
+                    v4_params=v4_params,
+                )
+            )
+        except Exception as exc:
+            score_results.append(
+                unavailable_technical_score(run_id, ticker, str(exc), v4_params=v4_params)
+            )
+    operational_metrics.increment(
+        "swinglens_technical_scoring_runs_total",
+        mode="legacy",
+    )
+    return score_results
+
+
+def _score_tickers_pure_sequential(
+    *,
+    db: Session,
+    symbols: list[str],
+    benchmark_price: pd.DataFrame,
+    sector_price: pd.DataFrame | None,
+    market_features: dict[str, Any],
+    qqq_market_features: dict[str, Any],
+    pine_params: dict[str, Any],
+    v4_params: dict[str, Any],
+    shadow_compare: bool,
+    run_id: int,
+    settings: Settings,
+    indicator_config_hash: str,
+    scoring_config_hash: str,
+) -> list[PineReplicaScore | TechnicalScore]:
+    results: list[PineReplicaScore | TechnicalScore] = []
+    for ticker in symbols:
+        try:
+            price, trades = load_preferred_ohlcv_frames(db, ticker)
+            artifact_key, cached_artifact = _artifact_cache_context(
+                db=db,
+                ticker=ticker,
+                settings=settings,
+                indicator_config_hash=indicator_config_hash,
+                scoring_config_hash=scoring_config_hash,
+            )
+            item = _build_work_item(
+                ticker=ticker,
+                price=price,
+                trades=trades,
+                benchmark_price=benchmark_price,
+                sector_price=sector_price,
+                market_features=market_features,
+                qqq_market_features=qqq_market_features,
+                pine_params=pine_params,
+                v4_params=v4_params,
+                artifact_key=artifact_key,
+                cached_local_artifact=(
+                    cached_artifact
+                    if settings.technical_artifact_cache_enabled and not shadow_compare
+                    else None
+                ),
+            )
+            pure_result = execute_technical_work_item(item)
+            pure_score = _score_from_work_result(pure_result)
+            if shadow_compare and cached_artifact is not None:
+                cached_result = execute_technical_work_item(
+                    replace(item, cached_local_artifact=cached_artifact)
+                )
+                cached_score = _score_from_work_result(cached_result)
+                if _technical_score_fingerprint(pure_score) != _technical_score_fingerprint(
+                    cached_score
+                ):
+                    operational_metrics.increment(
+                        "swinglens_technical_artifact_cache_shadow_mismatches_total"
+                    )
+            if shadow_compare:
+                legacy_score = _legacy_score_or_error(
+                    db=db,
+                    ticker=ticker,
+                    benchmark_price=benchmark_price,
+                    sector_price=sector_price,
+                    market_features=market_features,
+                    qqq_market_features=qqq_market_features,
+                    v4_params=v4_params,
+                    run_id=run_id,
+                )
+                if _technical_score_fingerprint(pure_score) != _technical_score_fingerprint(
+                    legacy_score
+                ):
+                    operational_metrics.increment(
+                        "swinglens_technical_pure_boundary_shadow_mismatches_total"
+                    )
+                    pure_score = legacy_score
+            _persist_local_artifact(
+                db,
+                pure_result,
+                artifact_key,
+                enabled=(
+                    settings.technical_artifact_cache_enabled
+                    or settings.technical_artifact_cache_write_enabled
+                ),
+            )
+            results.append(pure_score)
+        except Exception as exc:
+            results.append(
+                unavailable_technical_score(run_id, ticker, str(exc), v4_params=v4_params)
+            )
+    operational_metrics.increment(
+        "swinglens_technical_scoring_runs_total",
+        mode="pure_sequential_shadow" if shadow_compare else "pure_sequential",
+    )
+    return results
+
+
+def _score_tickers_process_pool(
+    *,
+    db: Session,
+    symbols: list[str],
+    benchmark_price: pd.DataFrame,
+    sector_price: pd.DataFrame | None,
+    market_features: dict[str, Any],
+    qqq_market_features: dict[str, Any],
+    pine_params: dict[str, Any],
+    v4_params: dict[str, Any],
+    settings: Settings,
+    run_id: int,
+    indicator_config_hash: str,
+    scoring_config_hash: str,
+) -> list[PineReplicaScore | TechnicalScore]:
+    items: list[tuple[int, TechnicalWorkItem]] = []
+    results: list[PineReplicaScore | TechnicalScore | None] = [None] * len(symbols)
+    for index, ticker in enumerate(symbols):
+        try:
+            price, trades = load_preferred_ohlcv_frames(db, ticker)
+            artifact_key, cached_artifact = _artifact_cache_context(
+                db=db,
+                ticker=ticker,
+                settings=settings,
+                indicator_config_hash=indicator_config_hash,
+                scoring_config_hash=scoring_config_hash,
+            )
+            items.append(
+                (
+                    index,
+                    _build_work_item(
+                        ticker=ticker,
+                        price=price,
+                        trades=trades,
+                        benchmark_price=benchmark_price,
+                        sector_price=sector_price,
+                        market_features=market_features,
+                        qqq_market_features=qqq_market_features,
+                        pine_params=pine_params,
+                        v4_params=v4_params,
+                        artifact_key=artifact_key,
+                        cached_local_artifact=(
+                            cached_artifact
+                            if settings.technical_artifact_cache_enabled
+                            and not settings.technical_artifact_cache_shadow_read_enabled
+                            else None
+                        ),
+                    ),
+                )
+            )
+        except Exception as exc:
+            results[index] = unavailable_technical_score(
+                run_id, ticker, str(exc), v4_params=v4_params
+            )
+
+    try:
+        workers = _technical_worker_count(settings)
+        in_flight_limit = min(settings.technical_max_in_flight, workers * 2)
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            pending = {}
+            next_item = iter(items)
+            while len(pending) < in_flight_limit:
+                try:
+                    index, item = next(next_item)
+                except StopIteration:
+                    break
+                pending[executor.submit(execute_technical_work_item, item)] = (index, item)
+
+            while pending:
+                completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in completed:
+                    index, item = pending.pop(future)
+                    try:
+                        work_result = future.result()
+                        results[index] = _score_from_work_result(work_result)
+                        _persist_local_artifact(
+                            db,
+                            work_result,
+                            LocalArtifactKey(**work_result.artifact_key)
+                            if work_result.artifact_key
+                            else None,
+                            enabled=(
+                                settings.technical_artifact_cache_enabled
+                                or settings.technical_artifact_cache_write_enabled
+                            ),
+                        )
+                    except Exception as exc:
+                        results[index] = unavailable_technical_score(
+                            run_id,
+                            item.ticker,
+                            str(exc),
+                            v4_params=v4_params,
+                        )
+                    try:
+                        next_index, next_item_value = next(next_item)
+                    except StopIteration:
+                        continue
+                    pending[executor.submit(execute_technical_work_item, next_item_value)] = (
+                        next_index,
+                        next_item_value,
+                    )
+    except Exception as exc:
+        operational_metrics.increment(
+            "swinglens_technical_process_pool_fallback_total",
+            reason=type(exc).__name__,
+        )
+        return _score_tickers_pure_sequential(
+            db=db,
+            symbols=symbols,
+            benchmark_price=benchmark_price,
+            sector_price=sector_price,
+            market_features=market_features,
+            qqq_market_features=qqq_market_features,
+            pine_params=pine_params,
+            v4_params=v4_params,
+            shadow_compare=False,
+            run_id=run_id,
+            settings=settings,
+            indicator_config_hash=indicator_config_hash,
+            scoring_config_hash=scoring_config_hash,
+        )
+
+    operational_metrics.increment(
+        "swinglens_technical_scoring_runs_total",
+        mode="process_pool",
+        workers=_technical_worker_count(settings),
+    )
+    return [
+        result
+        if result is not None
+        else unavailable_technical_score(
+            run_id, symbols[index], "Technical worker returned no result.", v4_params=v4_params
+        )
+        for index, result in enumerate(results)
+    ]
+
+
+def _build_work_item(
+    *,
+    ticker: str,
+    price: pd.DataFrame,
+    trades: pd.DataFrame | None,
+    benchmark_price: pd.DataFrame,
+    sector_price: pd.DataFrame | None,
+    market_features: dict[str, Any],
+    qqq_market_features: dict[str, Any],
+    pine_params: dict[str, Any],
+    v4_params: dict[str, Any],
+    artifact_key: LocalArtifactKey | None = None,
+    cached_local_artifact: dict[str, Any] | None = None,
+) -> TechnicalWorkItem:
+    return build_technical_work_item(
+        ticker=ticker,
+        price=price,
+        trades=trades,
+        benchmark_price=benchmark_price,
+        sector_price=sector_price,
+        technical_config=v4_params,
+        pine_config=pine_params,
+        relative_config=v4_params.get("relative_leadership", {}),
+        market_features=market_features,
+        qqq_market_features=qqq_market_features,
+        input_signature=artifact_key.input_signature if artifact_key else "",
+        artifact_key=asdict(artifact_key) if artifact_key else None,
+        cached_local_artifact=cached_local_artifact,
+    )
+
+
+def _artifact_cache_context(
+    *,
+    db: Session,
+    ticker: str,
+    settings: Settings,
+    indicator_config_hash: str,
+    scoring_config_hash: str,
+) -> tuple[LocalArtifactKey | None, dict[str, Any] | None]:
+    cache_reads = (
+        settings.technical_artifact_cache_enabled
+        or settings.technical_artifact_cache_shadow_read_enabled
+    )
+    cache_writes = (
+        settings.technical_artifact_cache_enabled
+        or settings.technical_artifact_cache_write_enabled
+    )
+    if not cache_reads and not cache_writes:
+        return None, None
+    versions = load_series_versions(db, ticker)
+    if "ADJUSTED_LAST" not in versions or "TRADES" not in versions:
+        return None, None
+    key = build_local_artifact_key(
+        ticker=ticker,
+        adjusted_series_version=versions["ADJUSTED_LAST"],
+        trades_series_version=versions["TRADES"],
+        indicator_config_hash=indicator_config_hash,
+        scoring_config_hash=scoring_config_hash,
+        technical_engine_version=ENGINE_VERSION,
+    )
+    if not cache_reads:
+        return key, None
+    artifact = get_local_artifact(db, key)
+    return key, artifact.artifact_json if artifact is not None else None
+
+
+def _persist_local_artifact(
+    db: Session,
+    result: TechnicalWorkResult,
+    key: LocalArtifactKey | None,
+    *,
+    enabled: bool,
+) -> None:
+    if not enabled or key is None or result.score is None or result.error is not None:
+        return
+    upsert_local_artifact(
+        db,
+        key,
+        artifact_json={
+            "feature_result": result.feature_result,
+            "htf_features": result.htf_features,
+        },
+        warning_flags=result.warnings,
+    )
+
+
+def _score_from_work_result(result: TechnicalWorkResult) -> PineReplicaScore:
+    if result.score is None:
+        raise TechnicalScoringError(result.error or "Technical worker failed.")
+    return result.score
+
+
+def _legacy_score_or_error(
+    *,
+    db: Session,
+    ticker: str,
+    benchmark_price: pd.DataFrame,
+    sector_price: pd.DataFrame | None,
+    market_features: dict[str, Any],
+    qqq_market_features: dict[str, Any],
+    v4_params: dict[str, Any],
+    run_id: int,
+) -> PineReplicaScore | TechnicalScore:
+    try:
+        return _score_ticker(
+            db=db,
+            ticker=ticker,
+            benchmark_price=benchmark_price,
+            sector_price=sector_price,
+            market_features=market_features,
+            qqq_market_features=qqq_market_features,
+            v4_params=v4_params,
+        )
+    except Exception as exc:
+        return unavailable_technical_score(run_id, ticker, str(exc), v4_params=v4_params)
+
+
+def _technical_score_fingerprint(score: PineReplicaScore | TechnicalScore) -> str:
+    if isinstance(score, TechnicalScore):
+        payload = {
+            key: getattr(score, key)
+            for key in (
+                "ticker",
+                "trend_score",
+                "local_trend_score",
+                "momentum_score",
+                "setup_score",
+                "risk_score",
+                "market_score",
+                "relative_strength_score",
+                "sector_relative_strength_score",
+                "combined_relative_strength_score",
+                "htf_score",
+                "dual_score",
+                "classification",
+                "action_bias",
+                "pullback_health",
+                "suggested_stop",
+                "suggested_target",
+                "reward_risk",
+                "entry_risk_pct",
+                "technical_confidence",
+                "technical_engine_version",
+                "data_quality_score",
+                "stage",
+                "market_regime",
+                "leadership_score",
+                "vcp_score",
+                "box_tightness_score",
+                "breakout_quality_score",
+                "climax_risk_score",
+                "atr_percentile_252",
+                "volume_percentile_252",
+                "range_percentile_252",
+                "extension_percentile_252",
+                "feature_flags_json",
+                "warning_flags_json",
+                "sub_tags_json",
+                "v4_debug_json",
+                "insufficient_data",
+                "missing_data_json",
+                "debug_json",
+            )
+        }
+    else:
+        payload = asdict(score)
+    return json.dumps(payload, default=str, sort_keys=True)
+
+
+def _technical_worker_count(settings: Settings) -> int:
+    return settings.technical_worker_processes
 
 
 def unavailable_technical_score(

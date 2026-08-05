@@ -57,6 +57,20 @@ class Settings(BaseSettings):
     ib_daily_bar_stale_after_days: int = 3
     ib_revision_audit_enabled: bool = True
 
+    technical_pure_boundary_enabled: bool = False
+    technical_pure_boundary_shadow_compare_enabled: bool = False
+    technical_process_pool_enabled: bool = False
+    technical_worker_processes: int = 4
+    technical_max_in_flight: int = 8
+    technical_series_version_maintenance_enabled: bool = False
+    technical_artifact_cache_enabled: bool = False
+    technical_artifact_cache_write_enabled: bool = False
+    technical_artifact_cache_shadow_read_enabled: bool = False
+    fetch_technical_overlap_enabled: bool = False
+    market_data_prewarm_enabled: bool = False
+    market_data_prewarm_max_tickers: int = 1000
+    market_data_prewarm_watchlist: str = ""
+
     job_worker_enabled: bool = True
     job_poll_interval_seconds: float = 2.0
     job_stale_after_seconds: int = 900
@@ -69,6 +83,9 @@ class Settings(BaseSettings):
     winner_probability_admin_enabled: bool = False
     setup_lifecycle_enabled: bool = False
     setup_lifecycle_pipeline_step_enabled: bool = False
+    setup_latest_bar_projection_enabled: bool = False
+    setup_latest_bar_projection_shadow_compare_enabled: bool = False
+    setup_capture_handoff_enabled: bool = False
     setup_lifecycle_alerts_enabled: bool = False
     setup_lifecycle_replay_enabled: bool = False
     setup_lifecycle_reconstruction_enabled: bool = False
@@ -122,10 +139,15 @@ class Settings(BaseSettings):
             "cleanup_cache_retention_days": self.cleanup_cache_retention_days,
             "cleanup_orphan_upload_grace_days": self.cleanup_orphan_upload_grace_days,
             "cleanup_job_retention_days": self.cleanup_job_retention_days,
+            "market_data_prewarm_max_tickers": self.market_data_prewarm_max_tickers,
         }
         for field_name, value in positive_fields.items():
             if value < 1:
                 raise ValueError(f"{field_name} must be positive")
+        if not 1 <= self.technical_worker_processes <= 8:
+            raise ValueError("technical_worker_processes must be between 1 and 8")
+        if self.technical_max_in_flight < 1:
+            raise ValueError("technical_max_in_flight must be positive")
         return self
 
 

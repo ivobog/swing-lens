@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -93,6 +94,7 @@ class PipelineStatusDto:
     error_message: str | None
     background_job_id: int | None
     steps: list[PipelineStepStatusDto]
+    result_json: dict[str, Any] | None = None
 
 
 def start_pipeline(
@@ -235,6 +237,7 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
             )
             for step in steps
         ],
+        result_json=pipeline.result_json,
     )
 
 

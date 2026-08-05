@@ -234,6 +234,10 @@ def test_events_changes_alerts_and_operations_payloads_are_queryable() -> None:
         )["total"]
         == 1
     )
+    status = service.operations_status(db)
+    assert status["conflicted_count"] == 1
+    assert status["stale_count"] == 1
+    assert status["quarantined_count"] == 1
 
 
 def test_run_missing_raises_stable_error_code() -> None:

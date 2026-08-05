@@ -11,11 +11,15 @@ from app.services.winner_probability.capture_service import (
 )
 from app.services.winner_probability.job_handlers import (
     FEATURE_NOT_ENABLED,
+    WINNER_COHORT_REFRESH,
     WINNER_MODEL_TRAINING,
     WINNER_OUTCOME_MATURATION,
     WINNER_PREDICTION_CAPTURE,
+    WinnerCohortRefreshCancelled,
+    WinnerCohortRefreshResult,
     WinnerJobFeatureNotEnabled,
     disabled_winner_job_handler,
+    execute_cohort_refresh_job,
     execute_outcome_maturation_job,
     execute_prediction_capture_job,
 )
@@ -30,6 +34,7 @@ def test_default_job_handlers_register_completed_winner_jobs_only() -> None:
 
     assert WINNER_PREDICTION_CAPTURE in handlers
     assert WINNER_OUTCOME_MATURATION in handlers
+    assert WINNER_COHORT_REFRESH in handlers
     assert WINNER_MODEL_TRAINING not in handlers
 
 
@@ -127,6 +132,39 @@ def test_outcome_maturation_job_observes_cancel_before_next_batch() -> None:
     assert db.processing_runs[0].status == JobStatus.CANCELLED
 
 
+def test_cohort_refresh_job_persists_processing_run_and_counts() -> None:
+    db = JobHandlerFakeDb()
+    job = _job(
+        job_type=WINNER_COHORT_REFRESH,
+        payload={"outcome_definition_id": "T2_5_S2_0_H5_NEXT_OPEN"},
+    )
+    service = FakeCohortRefreshService(WinnerCohortRefreshResult(processed=3, duplicate=2))
+
+    result = execute_cohort_refresh_job(db, job, cohort_refresh_service=service)
+
+    assert result["job_type"] == WINNER_COHORT_REFRESH
+    assert result["processed"] == 3
+    assert result["duplicate"] == 2
+    assert service.outcome_definition_id == "T2_5_S2_0_H5_NEXT_OPEN"
+    assert db.processing_runs[0].process_type == WINNER_COHORT_REFRESH
+    assert db.processing_runs[0].status == JobStatus.COMPLETED
+    assert db.processing_runs[0].checkpoint_json["last_completed_phase"] == "cohort_refresh"
+
+
+def test_cohort_refresh_job_observes_cancel_before_next_prediction() -> None:
+    db = JobHandlerFakeDb(cancel_requested=True)
+    job = _job(job_type=WINNER_COHORT_REFRESH, payload={})
+    heartbeat_calls = {"count": 0}
+    job._heartbeat = lambda: heartbeat_calls.__setitem__("count", heartbeat_calls["count"] + 1)
+    service = CancellingCohortRefreshService()
+
+    with pytest.raises(CancelRequested):
+        execute_cohort_refresh_job(db, job, cohort_refresh_service=service)
+
+    assert heartbeat_calls["count"] == 1
+    assert db.processing_runs[0].status == JobStatus.CANCELLED
+
+
 class FakeCaptureService:
     def __init__(self, result: WinnerPredictionCaptureResult) -> None:
         self.result = result
@@ -159,6 +197,23 @@ class CancellingOutcomeService:
     def process_due_outcomes(self, _db, **kwargs) -> OutcomeMaturationResult:
         assert kwargs["should_cancel"]()
         raise OutcomeMaturationCancelled("cancelled")
+
+
+class FakeCohortRefreshService:
+    def __init__(self, result: WinnerCohortRefreshResult) -> None:
+        self.result = result
+        self.outcome_definition_id = None
+
+    def refresh_cohorts(self, _db, **kwargs) -> WinnerCohortRefreshResult:
+        self.outcome_definition_id = kwargs["outcome_definition_id"]
+        assert callable(kwargs["should_cancel"])
+        return self.result
+
+
+class CancellingCohortRefreshService:
+    def refresh_cohorts(self, _db, **kwargs) -> WinnerCohortRefreshResult:
+        assert kwargs["should_cancel"]()
+        raise WinnerCohortRefreshCancelled("cancelled")
 
 
 class JobHandlerFakeDb:

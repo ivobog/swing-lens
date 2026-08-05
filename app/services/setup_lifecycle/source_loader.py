@@ -3,8 +3,9 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
+from time import perf_counter
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -19,6 +20,8 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.operational_metrics import operational_metrics
+from app.settings import get_settings
 
 DAILY_PRICE_TIMEFRAMES = ("1 day", "1d")
 PRICE_BAR_SOURCE_ORDER = ("TRADES", "ADJUSTED_LAST")
@@ -55,6 +58,25 @@ class RunSourceContext:
 
 
 class SetupLifecycleSourceLoader:
+    def __init__(
+        self,
+        *,
+        latest_bar_projection_enabled: bool | None = None,
+        shadow_compare_enabled: bool | None = None,
+    ) -> None:
+        settings = get_settings()
+        self.latest_bar_projection_enabled = (
+            settings.setup_latest_bar_projection_enabled
+            if latest_bar_projection_enabled is None
+            else latest_bar_projection_enabled
+        )
+        self.shadow_compare_enabled = (
+            settings.setup_latest_bar_projection_shadow_compare_enabled
+            if shadow_compare_enabled is None
+            else shadow_compare_enabled
+        )
+        self.last_metrics: dict[str, float] = {}
+
     def load_run_context(self, db: Session, run_id: int) -> RunSourceContext:
         upload_run = db.get(UploadRun, run_id)
         if upload_run is None:
@@ -70,15 +92,12 @@ class SetupLifecycleSourceLoader:
             )
         )
         tickers = tuple(row.ticker.upper() for row in raw_rows if row.ticker)
-        price_bars = tuple(
-            db.scalars(
-                select(PriceBar)
-                .where(PriceBar.ticker.in_(tickers))
-                .where(PriceBar.timeframe.in_(DAILY_PRICE_TIMEFRAMES))
-                .where(PriceBar.what_to_show.in_(PRICE_BAR_SOURCE_ORDER))
-                .order_by(PriceBar.ticker, PriceBar.bar_date)
-            )
-        ) if tickers else ()
+        price_bars = self._load_price_bars(db, tickers)
+        operational_metrics.increment(
+            "swinglens_setup_price_rows_materialized_total",
+            len(price_bars),
+            mode="latest_projection" if self.latest_bar_projection_enabled else "legacy",
+        )
         technical_scores = tuple(
             db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id))
         )
@@ -88,6 +107,7 @@ class SetupLifecycleSourceLoader:
             technical_scores=technical_scores,
             price_bars=price_bars,
         )
+        context_started_at = perf_counter()
         market_snapshot = self._latest_market_snapshot(db, run_id, context_cutoff)
         sector_snapshot = self._latest_sector_snapshot(db, run_id, context_cutoff)
         sector_rows = tuple(
@@ -98,7 +118,7 @@ class SetupLifecycleSourceLoader:
             )
         ) if sector_snapshot is not None else ()
 
-        return build_run_source_context(
+        context = build_run_source_context(
             upload_run=upload_run,
             raw_rows=raw_rows,
             fundamental_scores=tuple(
@@ -116,6 +136,61 @@ class SetupLifecycleSourceLoader:
             sector_rotation_rows=sector_rows,
             price_bars=price_bars,
         )
+        self.last_metrics["setup_context_build_ms"] = round(
+            (perf_counter() - context_started_at) * 1000, 3
+        )
+        return context
+
+    def _load_price_bars(self, db: Session, tickers: tuple[str, ...]) -> tuple[PriceBar, ...]:
+        if not tickers:
+            self.last_metrics["setup_latest_bar_query_ms"] = 0.0
+            return ()
+
+        started_at = perf_counter()
+        legacy_price_bars: tuple[PriceBar, ...] | None = None
+        projected_price_bars: tuple[PriceBar, ...] | None = None
+
+        if self.latest_bar_projection_enabled or self.shadow_compare_enabled:
+            projected_price_bars = tuple(
+                db.scalars(_latest_price_bars_statement(tickers))
+            )
+        if not self.latest_bar_projection_enabled or self.shadow_compare_enabled:
+            legacy_price_bars = tuple(db.scalars(_legacy_price_bars_statement(tickers)))
+
+        if self.shadow_compare_enabled:
+            assert legacy_price_bars is not None
+            assert projected_price_bars is not None
+            mismatches = compare_latest_bar_selection(legacy_price_bars, projected_price_bars)
+            operational_metrics.increment(
+                "swinglens_setup_latest_bar_projection_shadow_comparisons_total"
+            )
+            if mismatches:
+                operational_metrics.increment(
+                    "swinglens_setup_latest_bar_projection_shadow_mismatches_total",
+                    len(mismatches),
+                )
+                operational_metrics.increment(
+                    "swinglens_setup_latest_bar_query_ms_total",
+                    (perf_counter() - started_at) * 1000,
+                    mode="shadow_fallback",
+                )
+                self.last_metrics["setup_latest_bar_query_ms"] = round(
+                    (perf_counter() - started_at) * 1000, 3
+                )
+                return legacy_price_bars
+
+        query_ms = (perf_counter() - started_at) * 1000
+        operational_metrics.increment(
+            "swinglens_setup_latest_bar_query_ms_total",
+            query_ms,
+            mode="latest_projection" if self.latest_bar_projection_enabled else "legacy",
+        )
+        self.last_metrics["setup_latest_bar_query_ms"] = round(query_ms, 3)
+        if self.latest_bar_projection_enabled:
+            assert projected_price_bars is not None
+            return projected_price_bars
+        assert legacy_price_bars is not None
+        return legacy_price_bars
 
     def _latest_market_snapshot(
         self,
@@ -244,6 +319,62 @@ def latest_completed_bar(price_bars: tuple[PriceBar, ...]) -> PriceBar | None:
     )
 
 
+def _legacy_price_bars_statement(tickers: tuple[str, ...]):
+    return (
+        select(PriceBar)
+        .where(PriceBar.ticker.in_(tickers))
+        .where(PriceBar.timeframe.in_(DAILY_PRICE_TIMEFRAMES))
+        .where(PriceBar.what_to_show.in_(PRICE_BAR_SOURCE_ORDER))
+        .order_by(PriceBar.ticker, PriceBar.bar_date)
+    )
+
+
+def _latest_price_bars_statement(tickers: tuple[str, ...]):
+    return (
+        select(PriceBar)
+        .where(PriceBar.ticker.in_(tickers))
+        .where(PriceBar.timeframe.in_(DAILY_PRICE_TIMEFRAMES))
+        .where(PriceBar.what_to_show.in_(PRICE_BAR_SOURCE_ORDER))
+        .where(PriceBar.close.is_not(None))
+        .distinct(PriceBar.ticker)
+        .order_by(
+            PriceBar.ticker,
+            PriceBar.bar_date.desc(),
+            case(
+                (PriceBar.what_to_show == "TRADES", 0),
+                (PriceBar.what_to_show == "ADJUSTED_LAST", 1),
+                else_=2,
+            ),
+            PriceBar.id.desc(),
+        )
+    )
+
+
+def compare_latest_bar_selection(
+    legacy_price_bars: tuple[PriceBar, ...],
+    projected_price_bars: tuple[PriceBar, ...],
+) -> tuple[str, ...]:
+    legacy_by_ticker = _latest_bars_by_ticker(legacy_price_bars)
+    projected_by_ticker = _latest_bars_by_ticker(projected_price_bars)
+    mismatches: list[str] = []
+    for ticker in sorted(set(legacy_by_ticker) | set(projected_by_ticker)):
+        legacy = legacy_by_ticker.get(ticker)
+        projected = projected_by_ticker.get(ticker)
+        legacy_identity = _bar_identity(legacy)
+        projected_identity = _bar_identity(projected)
+        if legacy_identity != projected_identity:
+            mismatches.append(
+                f"{ticker}: legacy={legacy_identity!r}, projected={projected_identity!r}"
+            )
+    return tuple(mismatches)
+
+
+def _bar_identity(bar: PriceBar | None) -> tuple[object, ...] | None:
+    if bar is None:
+        return None
+    return (bar.id, bar.bar_date, bar.what_to_show)
+
+
 def _latest_context_statement(model, cutoff: date):
     return select(model).where(model.as_of_date <= cutoff)
 
@@ -255,11 +386,19 @@ def _run_context_cutoff_date(
     technical_scores: tuple[TechnicalScore, ...],
     price_bars: tuple[PriceBar, ...],
 ) -> date:
+    latest_bars = _latest_bars_by_ticker(price_bars)
+    technical_by_ticker = _by_ticker(technical_scores)
     ticker_cutoffs = [
-        cutoff
+        latest_bar.bar_date if latest_bar is not None else technical.created_at.date()
         for row in raw_rows
-        if row.ticker and (cutoff := _ticker_context_cutoff_date(row, technical_scores, price_bars))
-        is not None
+        if row.ticker
+        and (
+            (latest_bar := latest_bars.get(normalize_ticker(row.ticker))) is not None
+            or (
+                (technical := technical_by_ticker.get(normalize_ticker(row.ticker))) is not None
+                and technical.created_at is not None
+            )
+        )
     ]
     if ticker_cutoffs:
         return min(ticker_cutoffs)
@@ -287,6 +426,19 @@ def _ticker_context_cutoff_date(
     if technical is not None and technical.created_at is not None:
         return technical.created_at.date()
     return None
+
+
+def _latest_bars_by_ticker(
+    price_bars: tuple[PriceBar, ...],
+) -> dict[str, PriceBar]:
+    grouped: dict[str, list[PriceBar]] = defaultdict(list)
+    for row in price_bars:
+        grouped[normalize_ticker(row.ticker)].append(row)
+    return {
+        ticker: latest
+        for ticker, rows in grouped.items()
+        if (latest := latest_completed_bar(tuple(rows))) is not None
+    }
 
 
 def normalize_ticker(ticker: str) -> str:

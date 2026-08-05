@@ -1717,6 +1717,7 @@ def _pipeline_status_payload(
         "background_job_id": status.background_job_id,
         "job_status": job.status if job else None,
         "job_cancel_requested": bool(job.requested_cancel) if job else False,
+        "result": status.result_json or {},
         "completed_steps": completed_steps,
         "total_steps": total_steps,
         "percentage": round((completed_steps / total_steps) * 100, 1) if total_steps else 0.0,

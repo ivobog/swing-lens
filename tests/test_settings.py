@@ -48,6 +48,22 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.winner_probability_admin_enabled is False
     assert settings.setup_lifecycle_enabled is False
     assert settings.setup_lifecycle_pipeline_step_enabled is False
+    assert settings.setup_latest_bar_projection_enabled is False
+    assert settings.setup_latest_bar_projection_shadow_compare_enabled is False
+    assert settings.setup_capture_handoff_enabled is False
+    assert settings.technical_pure_boundary_enabled is False
+    assert settings.technical_pure_boundary_shadow_compare_enabled is False
+    assert settings.technical_process_pool_enabled is False
+    assert settings.technical_worker_processes == 4
+    assert settings.technical_max_in_flight == 8
+    assert settings.technical_series_version_maintenance_enabled is False
+    assert settings.technical_artifact_cache_enabled is False
+    assert settings.technical_artifact_cache_write_enabled is False
+    assert settings.technical_artifact_cache_shadow_read_enabled is False
+    assert settings.fetch_technical_overlap_enabled is False
+    assert settings.market_data_prewarm_enabled is False
+    assert settings.market_data_prewarm_max_tickers == 1000
+    assert settings.market_data_prewarm_watchlist == ""
     assert settings.setup_lifecycle_alerts_enabled is False
     assert settings.setup_lifecycle_replay_enabled is False
     assert settings.setup_lifecycle_reconstruction_enabled is False
@@ -79,6 +95,9 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     monkeypatch.setenv("JOB_STALE_AFTER_SECONDS", "60")
     monkeypatch.setenv("JOB_WORKER_ID", "test-worker")
     monkeypatch.setenv("WINNER_PROBABILITY_ENABLED", "true")
+    monkeypatch.setenv("MARKET_DATA_PREWARM_ENABLED", "true")
+    monkeypatch.setenv("MARKET_DATA_PREWARM_MAX_TICKERS", "25")
+    monkeypatch.setenv("MARKET_DATA_PREWARM_WATCHLIST", "AAPL, msft")
     monkeypatch.setenv("WINNER_PROBABILITY_CAPTURE_IN_PIPELINE", "true")
     monkeypatch.setenv("WINNER_PROBABILITY_CONFIG_PATH", "config/test_winner.yaml")
     monkeypatch.setenv("WINNER_PROBABILITY_ADMIN_ENABLED", "true")
@@ -115,6 +134,9 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     assert settings.job_stale_after_seconds == 60
     assert settings.job_worker_id == "test-worker"
     assert settings.winner_probability_enabled is True
+    assert settings.market_data_prewarm_enabled is True
+    assert settings.market_data_prewarm_max_tickers == 25
+    assert settings.market_data_prewarm_watchlist == "AAPL, msft"
     assert settings.winner_probability_capture_in_pipeline is True
     assert settings.winner_probability_config_path == Path("config/test_winner.yaml")
     assert settings.winner_probability_admin_enabled is True

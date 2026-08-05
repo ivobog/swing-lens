@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, WinnerPredictionSnapshot, WinnerProcessingRun
+from app.models.tables import (
+    BackgroundJob,
+    PredictionEligibility,
+    WinnerOutcomeDefinition,
+    WinnerPredictionSnapshot,
+    WinnerProcessingRun,
+)
 from app.services.background_job_service import JobStatus, is_cancel_requested
 from app.services.background_worker import CancelRequested
 from app.services.redaction import redact_sensitive, redacted_token_metadata
@@ -21,10 +28,14 @@ from app.services.winner_probability.capture_service import (
     WinnerPredictionCaptureService,
 )
 from app.services.winner_probability.config import load_winner_probability_config
+from app.services.winner_probability.decision_time_estimate_service import (
+    DecisionTimeEstimateService,
+)
 from app.services.winner_probability.outcome_service import (
     OutcomeMaturationCancelled,
     OutcomeMaturationService,
 )
+from app.services.winner_probability.repository import WinnerProbabilityRepository
 
 WINNER_PREDICTION_CAPTURE = "WINNER_PREDICTION_CAPTURE"
 WINNER_OUTCOME_MATURATION = "WINNER_OUTCOME_MATURATION"
@@ -46,10 +57,113 @@ class WinnerJobFeatureNotEnabled(RuntimeError):
         self.code = FEATURE_NOT_ENABLED
 
 
+class WinnerCohortRefreshCancelled(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class WinnerCohortRefreshResult:
+    processed: int = 0
+    estimated: int = 0
+    duplicate: int = 0
+    insufficient: int = 0
+    failed: int = 0
+
+    def as_dict(self) -> dict[str, int]:
+        return self.__dict__.copy()
+
+
+class WinnerCohortRefreshService:
+    def __init__(
+        self,
+        *,
+        repository: WinnerProbabilityRepository | None = None,
+        decision_time_estimate_service: DecisionTimeEstimateService | None = None,
+    ) -> None:
+        self.repository = repository or WinnerProbabilityRepository()
+        self.decision_time_estimate_service = (
+            decision_time_estimate_service or DecisionTimeEstimateService(self.repository)
+        )
+
+    def refresh_cohorts(
+        self,
+        db: Session,
+        *,
+        outcome_definition_id: str | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> WinnerCohortRefreshResult:
+        config = load_winner_probability_config()
+        outcome_definition = self._outcome_definition(
+            db,
+            outcome_definition_id=outcome_definition_id,
+            calculation_version=config.engine.calculation_version,
+            default_definition_id=config.primary_outcome_definition.id,
+        )
+        counts = _MutableCohortRefreshCounts()
+        for prediction in _eligible_predictions(db):
+            if should_cancel is not None and should_cancel():
+                raise WinnerCohortRefreshCancelled("winner cohort refresh was cancelled")
+            counts.processed += 1
+            try:
+                result = self.decision_time_estimate_service.create_decision_time_estimate(
+                    db,
+                    prediction=prediction,
+                    outcome_definition=outcome_definition,
+                    config=config,
+                )
+            except Exception:
+                counts.failed += 1
+                continue
+            if result.status == "duplicate":
+                counts.duplicate += 1
+            elif result.status == "insufficient":
+                counts.insufficient += 1
+            else:
+                counts.estimated += 1
+        return counts.to_result()
+
+    def _outcome_definition(
+        self,
+        db: Session,
+        *,
+        outcome_definition_id: str | None,
+        calculation_version: str,
+        default_definition_id: str,
+    ) -> WinnerOutcomeDefinition:
+        definition_id = outcome_definition_id or default_definition_id
+        outcome_definition = self.repository.get_outcome_definition(
+            db,
+            definition_id=definition_id,
+            calculation_version=calculation_version,
+        )
+        if outcome_definition is None:
+            raise ValueError(f"Winner outcome definition was not found: {definition_id}")
+        return outcome_definition
+
+
+@dataclass
+class _MutableCohortRefreshCounts:
+    processed: int = 0
+    estimated: int = 0
+    duplicate: int = 0
+    insufficient: int = 0
+    failed: int = 0
+
+    def to_result(self) -> WinnerCohortRefreshResult:
+        return WinnerCohortRefreshResult(
+            processed=self.processed,
+            estimated=self.estimated,
+            duplicate=self.duplicate,
+            insufficient=self.insufficient,
+            failed=self.failed,
+        )
+
+
 def implemented_winner_job_handlers() -> dict[str, WinnerJobHandler]:
     return {
         WINNER_PREDICTION_CAPTURE: execute_prediction_capture_job,
         WINNER_OUTCOME_MATURATION: execute_outcome_maturation_job,
+        WINNER_COHORT_REFRESH: execute_cohort_refresh_job,
         WINNER_HISTORICAL_BACKFILL: execute_historical_backfill_job,
     }
 
@@ -205,6 +319,76 @@ def execute_outcome_maturation_job(
     )
     return {
         "job_type": WINNER_OUTCOME_MATURATION,
+        "processing_run_id": processing_run.id,
+        "status": status,
+        **counts,
+    }
+
+
+def execute_cohort_refresh_job(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    cohort_refresh_service: WinnerCohortRefreshService | None = None,
+) -> dict[str, Any]:
+    payload = job.payload_json or {}
+    outcome_definition_id = payload.get("outcome_definition_id")
+    config = load_winner_probability_config()
+    processing_run = _start_processing_run(
+        db,
+        job=job,
+        process_type=WINNER_COHORT_REFRESH,
+        run_id=None,
+        config_hash=config.config_hash,
+    )
+    cohort_refresh_service = cohort_refresh_service or WinnerCohortRefreshService()
+    started_at = processing_run.started_at or _utcnow()
+
+    try:
+        result = cohort_refresh_service.refresh_cohorts(
+            db,
+            outcome_definition_id=str(outcome_definition_id)
+            if outcome_definition_id is not None
+            else None,
+            should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+        )
+    except WinnerCohortRefreshCancelled as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.CANCELLED,
+            started_at=started_at,
+            error=str(exc),
+        )
+        raise CancelRequested(str(exc)) from exc
+    except Exception as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.FAILED,
+            started_at=started_at,
+            error=str(exc),
+        )
+        raise
+
+    counts = result.as_dict()
+    status = JobStatus.PARTIAL if counts.get("failed", 0) else JobStatus.COMPLETED
+    if status == JobStatus.PARTIAL:
+        job.status = JobStatus.PARTIAL
+    _finish_processing_run(
+        db,
+        processing_run,
+        status=status,
+        started_at=started_at,
+        counts=counts,
+        checkpoint={
+            "last_completed_phase": "cohort_refresh",
+            "outcome_definition_id": outcome_definition_id
+            or config.primary_outcome_definition.id,
+        },
+    )
+    return {
+        "job_type": WINNER_COHORT_REFRESH,
         "processing_run_id": processing_run.id,
         "status": status,
         **counts,
@@ -368,6 +552,22 @@ def _latest_source_cutoff_at(db: Session, run_id: int) -> datetime | None:
         )
     )
     return value if isinstance(value, datetime) else None
+
+
+def _eligible_predictions(db: Session) -> list[WinnerPredictionSnapshot]:
+    return list(
+        db.scalars(
+            select(WinnerPredictionSnapshot)
+            .where(WinnerPredictionSnapshot.eligibility_status == PredictionEligibility.ELIGIBLE)
+            .where(WinnerPredictionSnapshot.superseded_at.is_(None))
+            .order_by(
+                WinnerPredictionSnapshot.run_id.asc(),
+                WinnerPredictionSnapshot.ticker.asc(),
+                WinnerPredictionSnapshot.prediction_as_of_date.asc(),
+                WinnerPredictionSnapshot.id.asc(),
+            )
+        )
+    )
 
 
 def _required_int(payload: dict[str, Any], key: str) -> int:

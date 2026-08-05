@@ -27,6 +27,9 @@ def test_golden_pipeline_scoring_regression() -> None:
     assert combined[0].position_size_hint == expected["position_size_hint"]
     assert combined[0].warning_flags_json == expected["warning_flags"]
     assert sum(not row.is_complete for row in combined) == expected["incomplete_count"]
+    assert db.executed_statements.index("UPDATE winner_prediction_snapshots") < (
+        db.executed_statements.index("DELETE FROM combined_results")
+    )
 
 
 class FakeScalarResult:
@@ -69,6 +72,7 @@ class GoldenFakeDb:
             for row in fixture["technical_scores"]
         ]
         self.combined = []
+        self.executed_statements = []
 
     def scalars(self, statement):
         text = str(statement)
@@ -82,9 +86,12 @@ class GoldenFakeDb:
 
     def execute(self, statement):
         text = str(statement)
+        if "UPDATE winner_prediction_snapshots" in text:
+            self.executed_statements.append("UPDATE winner_prediction_snapshots")
         if "DELETE FROM fundamental_scores" in text:
             self.fundamentals = []
         elif "DELETE FROM combined_results" in text:
+            self.executed_statements.append("DELETE FROM combined_results")
             self.combined = []
 
     def add_all(self, rows) -> None:

@@ -12,6 +12,7 @@ from app.services.ib_api import IB
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars
+from app.services.price_series_version_service import maintain_price_series_versions
 from app.settings import Settings, get_settings
 
 DEFAULT_WHAT_TO_SHOW = ("ADJUSTED_LAST", "TRADES")
@@ -134,6 +135,7 @@ def cache_bars(
     updated = 0
     revised = 0
     unchanged = 0
+    changed_series: set[tuple[str, str, str]] = set()
 
     for bar in bars:
         key = _bar_key(bar.ticker, bar.bar_date, bar.timeframe, bar.what_to_show)
@@ -142,6 +144,9 @@ def cache_bars(
 
         if current is None:
             db.add(_to_price_bar(bar, new_hash, now))
+            changed_series.add(
+                (bar.ticker.upper(), bar.timeframe, bar.what_to_show)
+            )
             inserted += 1
             continue
 
@@ -178,8 +183,12 @@ def cache_bars(
         current.revised_at = now
         current.revision_count = revision_number
         current.data_hash = new_hash
+        changed_series.add((bar.ticker.upper(), bar.timeframe, bar.what_to_show))
         updated += 1
         revised += 1
+
+    if get_settings().technical_series_version_maintenance_enabled:
+        maintain_price_series_versions(db, bars, changed_series, now=now)
 
     return BarUpsertSummary(
         inserted=inserted,

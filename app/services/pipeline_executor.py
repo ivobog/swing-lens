@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from inspect import Parameter, signature
 from typing import Any
 
 from sqlalchemy import select
@@ -26,6 +27,8 @@ from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan
 from app.services.market_regime_command_center import MarketRegimeCommandCenterService
 from app.services.market_regime_dtos import MarketRegimeCommandCenterDto
+from app.services.operational_metrics import operational_metrics
+from app.services.pipeline_performance import PipelinePerformanceTracker
 from app.services.pipeline_service import (
     PipelineStatus,
     PipelineStepStatus,
@@ -37,7 +40,10 @@ from app.services.setup_lifecycle.constants import (
     SLSE_PIPELINE_CAPTURE_STEP,
     SLSE_PIPELINE_EVALUATION_STEP,
 )
-from app.services.technical_score_service import score_run_technicals
+from app.services.technical_score_service import (
+    TechnicalScoringOverlapCoordinator,
+    score_run_technicals,
+)
 from app.settings import get_settings
 
 
@@ -111,6 +117,7 @@ class PipelineExecutionResult:
     winner_prediction_capture_skipped: int
     incomplete_rows: int
     warning_rows: int
+    performance: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -131,6 +138,8 @@ class PipelineExecutionDependencies:
     capture_setup_signals: Callable[[Session, int], Any] | None = None
     evaluate_setup_lifecycles: Callable[[Session, int], Any] | None = None
     setup_lifecycle_pipeline_step_enabled: bool | None = None
+    setup_capture_handoff_enabled: bool | None = None
+    fetch_technical_overlap_enabled: bool | None = None
     capture_winner_predictions: Callable[[Session, int], Any] | None = None
     winner_probability_capture_enabled: bool | None = None
 
@@ -146,25 +155,41 @@ def execute_full_pipeline(
     pipeline = _require_pipeline(db, pipeline_run_id)
     upload_run = _require_upload_run(db, pipeline.upload_run_id)
     should_cancel = should_cancel or (lambda: False)
+    performance = PipelinePerformanceTracker()
 
     result = _empty_result(pipeline, upload_run)
+    overlap_coordinator: TechnicalScoringOverlapCoordinator | None = None
     try:
         _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
         _raise_if_cancelled(should_cancel)
 
-        with _pipeline_step(db, pipeline, "VALIDATING_RUN", lease_guard=lease_guard):
+        with _pipeline_step(
+            db, pipeline, "VALIDATING_RUN", lease_guard=lease_guard, performance=performance
+        ):
             tickers = _tickers_for_run(db, upload_run.id)
             if not tickers:
                 raise ValueError("No uploaded tickers are available for this run.")
             result["uploaded_rows"] = upload_run.row_count or len(tickers)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "SCORING_FUNDAMENTALS", lease_guard=lease_guard):
+        if _fetch_technical_overlap_enabled(dependencies):
+            overlap_coordinator = TechnicalScoringOverlapCoordinator(
+                db,
+                run_id=upload_run.id,
+                tickers=tickers,
+                should_cancel=should_cancel,
+                lease_guard=lease_guard,
+            )
+        with _pipeline_step(
+            db, pipeline, "SCORING_FUNDAMENTALS", lease_guard=lease_guard, performance=performance
+        ):
             fundamental_scores = dependencies.recalculate_fundamentals(db, upload_run.id)
             result["fundamental_scores"] = len(fundamental_scores)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "FETCHING_MARKET_DATA", lease_guard=lease_guard):
+        with _pipeline_step(
+            db, pipeline, "FETCHING_MARKET_DATA", lease_guard=lease_guard, performance=performance
+        ):
             plan = dependencies.build_fetch_plan(
                 db=db,
                 tickers=tickers,
@@ -175,12 +200,17 @@ def execute_full_pipeline(
             result["ib_planned_requests"] = plan.estimated_request_count
             fetch_run = None
             if plan.estimated_request_count:
-                fetch_run = dependencies.execute_fetch_plan(
-                    db=db,
-                    plan=plan,
-                    include_benchmarks=True,
-                    should_cancel=should_cancel,
-                )
+                fetch_kwargs: dict[str, Any] = {
+                    "db": db,
+                    "plan": plan,
+                    "include_benchmarks": True,
+                    "should_cancel": should_cancel,
+                }
+                if overlap_coordinator is not None and _accepts_keyword(
+                    dependencies.execute_fetch_plan, "on_ticker_ready"
+                ):
+                    fetch_kwargs["on_ticker_ready"] = overlap_coordinator.on_ticker_ready
+                fetch_run = dependencies.execute_fetch_plan(**fetch_kwargs)
                 _apply_fetch_result(result, fetch_run)
                 if fetch_run.status == "CANCELLED":
                     raise PipelineCancelled("Pipeline cancelled during market data fetch.")
@@ -188,13 +218,25 @@ def execute_full_pipeline(
                 result["ib_skipped_count"] = plan.estimated_skips
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "SCORING_TECHNICALS", lease_guard=lease_guard):
-            technical_scores = dependencies.score_technicals(db, upload_run.id)
+        with _pipeline_step(
+            db, pipeline, "SCORING_TECHNICALS", lease_guard=lease_guard, performance=performance
+        ):
+            if overlap_coordinator is not None:
+                technical_scores = overlap_coordinator.finalize()
+            else:
+                technical_scores = dependencies.score_technicals(db, upload_run.id)
+            _raise_if_cancelled(should_cancel)
             result["technical_scores"] = len(technical_scores)
             result["technical_error_count"] = _technical_error_count(technical_scores)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "MARKET_REGIME_SNAPSHOT", lease_guard=lease_guard):
+        with _pipeline_step(
+            db,
+            pipeline,
+            "MARKET_REGIME_SNAPSHOT",
+            lease_guard=lease_guard,
+            performance=performance,
+        ):
             snapshot = dependencies.build_market_regime_snapshot(db, upload_run.id)
             result["market_regime_snapshots"] = 1
             result["market_regime"] = snapshot.regime
@@ -204,14 +246,22 @@ def execute_full_pipeline(
             result["market_regime_low_confidence"] = int(snapshot.confidence == "low")
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "COMBINING_RESULTS", lease_guard=lease_guard):
+        with _pipeline_step(
+            db, pipeline, "COMBINING_RESULTS", lease_guard=lease_guard, performance=performance
+        ):
             combined_results = dependencies.refresh_combined(db, upload_run.id)
             result["combined_results"] = len(combined_results)
             result["incomplete_rows"] = sum(not row.is_complete for row in combined_results)
             result["warning_rows"] = sum(row.has_warning for row in combined_results)
 
         _raise_if_cancelled(should_cancel)
-        with _pipeline_step(db, pipeline, "SECTOR_ROTATION_SNAPSHOT", lease_guard=lease_guard):
+        with _pipeline_step(
+            db,
+            pipeline,
+            "SECTOR_ROTATION_SNAPSHOT",
+            lease_guard=lease_guard,
+            performance=performance,
+        ):
             sector_snapshot = dependencies.build_sector_rotation_snapshot(db, upload_run.id)
             result["sector_rotation_snapshots"] = 1
             result["sector_rotation_sector_count"] = int(
@@ -223,7 +273,13 @@ def execute_full_pipeline(
 
         if _ceri_run_capture_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
-            with _pipeline_step(db, pipeline, CERI_PIPELINE_CAPTURE_STEP, lease_guard=lease_guard):
+            with _pipeline_step(
+                db,
+                pipeline,
+                CERI_PIPELINE_CAPTURE_STEP,
+                lease_guard=lease_guard,
+                performance=performance,
+            ):
                 capture = dependencies.capture_ceri_snapshot or _capture_ceri_snapshot
                 ceri_result = capture(db, upload_run.id)
                 _apply_ceri_capture_result(result, ceri_result)
@@ -235,10 +291,15 @@ def execute_full_pipeline(
                 pipeline,
                 SLSE_PIPELINE_CAPTURE_STEP,
                 lease_guard=lease_guard,
+                performance=performance,
             ):
                 capture = dependencies.capture_setup_signals or _capture_setup_signals
                 capture_result = capture(db, upload_run.id)
-                _apply_setup_lifecycle_capture_result(result, capture_result)
+                _apply_setup_lifecycle_capture_result(
+                    result,
+                    capture_result,
+                    performance=performance,
+                )
 
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
@@ -246,11 +307,16 @@ def execute_full_pipeline(
                 pipeline,
                 SLSE_PIPELINE_EVALUATION_STEP,
                 lease_guard=lease_guard,
+                performance=performance,
             ):
                 evaluate = dependencies.evaluate_setup_lifecycles or _evaluate_setup_lifecycles
-                evaluation_result = evaluate(
+                evaluation_result = _invoke_setup_evaluation(
+                    evaluate,
                     db,
                     upload_run.id,
+                    capture_result=capture_result
+                    if _setup_capture_handoff_enabled(dependencies)
+                    else None,
                 )
                 _apply_setup_lifecycle_evaluation_result(result, evaluation_result)
 
@@ -260,6 +326,7 @@ def execute_full_pipeline(
             pipeline,
             "CAPTURING_WINNER_PREDICTIONS",
             lease_guard=lease_guard,
+            performance=performance,
         ):
             if _winner_probability_capture_enabled(dependencies):
                 capture = dependencies.capture_winner_predictions or _capture_winner_predictions
@@ -268,16 +335,28 @@ def execute_full_pipeline(
             else:
                 result["winner_prediction_capture_skipped"] = 1
 
+        result["performance"] = performance.snapshot()
         final_status = _final_pipeline_status(result)
+        _record_performance_metrics(final_status, result["performance"])
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
     except JobLeaseLost:
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
         raise
     except PipelineCancelled:
-        _mark_pipeline_cancelled(db, pipeline, lease_guard=lease_guard)
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
+        result["performance"] = performance.snapshot()
+        _record_performance_metrics(PipelineStatus.CANCELLED, result["performance"])
+        _mark_pipeline_cancelled(db, pipeline, result=result, lease_guard=lease_guard)
         raise
     except Exception as exc:
-        _mark_pipeline_failed(db, pipeline, exc, lease_guard=lease_guard)
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
+        result["performance"] = performance.snapshot()
+        _record_performance_metrics(PipelineStatus.FAILED, result["performance"])
+        _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         raise
 
 
@@ -288,6 +367,7 @@ def _pipeline_step(
     step_name: str,
     *,
     lease_guard: Callable[[], None] | None = None,
+    performance: PipelinePerformanceTracker | None = None,
 ):
     step = _require_step(db, pipeline.id, step_name)
     if step.status in {
@@ -305,6 +385,8 @@ def _pipeline_step(
     step.status = PipelineStepStatus.RUNNING
     step.started_at = step.started_at or _utcnow()
     step.error_message = None
+    if performance is not None:
+        performance.start_step(step_name)
     _save_progress(db, lease_guard=lease_guard)
     try:
         yield step
@@ -314,17 +396,23 @@ def _pipeline_step(
         step.status = PipelineStepStatus.CANCELLED
         step.completed_at = _utcnow()
         step.error_message = "Pipeline cancellation requested."
+        if performance is not None:
+            performance.finish_step(step_name, step.status)
         _save_progress(db, lease_guard=lease_guard)
         raise
     except Exception as exc:
         step.status = PipelineStepStatus.FAILED
         step.completed_at = _utcnow()
         step.error_message = _safe_message(str(exc))
+        if performance is not None:
+            performance.finish_step(step_name, step.status)
         _save_progress(db, lease_guard=lease_guard)
         raise
     else:
         step.status = PipelineStepStatus.COMPLETED
         step.completed_at = _utcnow()
+        if performance is not None:
+            performance.finish_step(step_name, step.status)
         _save_progress(db, lease_guard=lease_guard)
 
 
@@ -407,12 +495,18 @@ def _mark_pipeline_cancelled(
     db: Session,
     pipeline: PipelineRun,
     *,
+    result: dict[str, Any] | None = None,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
     pipeline.status = PipelineStatus.CANCELLED
     pipeline.completed_at = _utcnow()
     pipeline.message = "Pipeline was cancelled."
     pipeline.error_message = None
+    if result is not None:
+        pipeline.result_json = {
+            **(pipeline.result_json or {}),
+            **_public_result(result),
+        }
     _cancel_unfinished_steps(db, pipeline.id)
     _save_progress(db, lease_guard=lease_guard)
 
@@ -422,12 +516,18 @@ def _mark_pipeline_failed(
     pipeline: PipelineRun,
     exc: Exception,
     *,
+    result: dict[str, Any] | None = None,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
     pipeline.status = PipelineStatus.FAILED
     pipeline.completed_at = _utcnow()
     pipeline.message = "Pipeline failed."
     pipeline.error_message = _safe_message(str(exc))
+    if result is not None:
+        pipeline.result_json = {
+            **(pipeline.result_json or {}),
+            **_public_result(result),
+        }
     _save_progress(db, lease_guard=lease_guard)
 
 
@@ -631,6 +731,7 @@ def _to_execution_result(
         winner_prediction_capture_skipped=result["winner_prediction_capture_skipped"],
         incomplete_rows=result["incomplete_rows"],
         warning_rows=result["warning_rows"],
+        performance=result.get("performance", {}),
     )
 
 
@@ -647,6 +748,22 @@ def _public_result(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _record_performance_metrics(status: str, performance: dict[str, Any]) -> None:
+    operational_metrics.increment("swinglens_pipeline_runs_total", status=status)
+    operational_metrics.increment(
+        "swinglens_pipeline_duration_ms_total",
+        float(performance.get("pipeline_wall_ms") or 0),
+        status=status,
+    )
+    for step_name, duration_ms in (performance.get("step_durations_ms") or {}).items():
+        operational_metrics.increment(
+            "swinglens_pipeline_step_duration_ms_total",
+            float(duration_ms or 0),
+            step=step_name,
+            status=status,
+        )
+
+
 def _safe_message(message: str) -> str:
     return str(redact_sensitive(message)).replace("\n", " ").strip()[:500]
 
@@ -655,6 +772,12 @@ def _setup_lifecycle_pipeline_step_enabled(dependencies: PipelineExecutionDepend
     if dependencies.setup_lifecycle_pipeline_step_enabled is not None:
         return dependencies.setup_lifecycle_pipeline_step_enabled
     return get_settings().setup_lifecycle_pipeline_step_enabled
+
+
+def _setup_capture_handoff_enabled(dependencies: PipelineExecutionDependencies) -> bool:
+    if dependencies.setup_capture_handoff_enabled is not None:
+        return dependencies.setup_capture_handoff_enabled
+    return get_settings().setup_capture_handoff_enabled
 
 
 def _ceri_run_capture_enabled(dependencies: PipelineExecutionDependencies) -> bool:
@@ -667,6 +790,22 @@ def _winner_probability_capture_enabled(dependencies: PipelineExecutionDependenc
     if dependencies.winner_probability_capture_enabled is not None:
         return dependencies.winner_probability_capture_enabled
     return get_settings().winner_probability_capture_in_pipeline
+
+
+def _fetch_technical_overlap_enabled(dependencies: PipelineExecutionDependencies) -> bool:
+    if dependencies.fetch_technical_overlap_enabled is not None:
+        return dependencies.fetch_technical_overlap_enabled
+    return get_settings().fetch_technical_overlap_enabled
+
+
+def _accepts_keyword(callable_obj: Callable[..., Any], keyword: str) -> bool:
+    try:
+        parameters = signature(callable_obj).parameters
+    except (TypeError, ValueError):
+        return True
+    return keyword in parameters or any(
+        parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters.values()
+    )
 
 
 def _capture_ceri_snapshot(db: Session, run_id: int):
@@ -689,12 +828,40 @@ def _capture_setup_signals(db: Session, run_id: int):
     return SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(db, run_id)
 
 
-def _evaluate_setup_lifecycles(db: Session, run_id: int):
+def _evaluate_setup_lifecycles(
+    db: Session,
+    run_id: int,
+    *,
+    capture_result: Any | None = None,
+):
     from app.services.setup_lifecycle.evaluation_service import (
         SetupLifecycleEvaluationService,
     )
 
-    return SetupLifecycleEvaluationService().evaluate_run(db, run_id)
+    return SetupLifecycleEvaluationService().evaluate_run(
+        db,
+        run_id,
+        capture_result=capture_result,
+    )
+
+
+def _invoke_setup_evaluation(
+    evaluate: Callable[..., Any],
+    db: Session,
+    run_id: int,
+    *,
+    capture_result: Any | None,
+) -> Any:
+    if capture_result is None:
+        return evaluate(db, run_id)
+    parameters = signature(evaluate).parameters.values()
+    accepts_capture_result = any(
+        parameter.name == "capture_result" or parameter.kind == Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+    if accepts_capture_result:
+        return evaluate(db, run_id, capture_result=capture_result)
+    return evaluate(db, run_id)
 
 
 def _apply_ceri_capture_result(result: dict[str, Any], ceri_result: Any) -> None:
@@ -726,7 +893,12 @@ def _apply_winner_capture_result(result: dict[str, Any], capture_result: Any) ->
     )
 
 
-def _apply_setup_lifecycle_capture_result(result: dict[str, Any], capture_result: Any) -> None:
+def _apply_setup_lifecycle_capture_result(
+    result: dict[str, Any],
+    capture_result: Any,
+    *,
+    performance: PipelinePerformanceTracker | None = None,
+) -> None:
     values = (
         capture_result.as_dict()
         if hasattr(capture_result, "as_dict")
@@ -740,6 +912,9 @@ def _apply_setup_lifecycle_capture_result(result: dict[str, Any], capture_result
     )
     result["setup_lifecycle_low_confidence"] += int(values.get("low_confidence", 0))
     result["setup_lifecycle_failed"] += int(values.get("failed", 0))
+    if performance is not None:
+        for name, value in (values.get("performance") or {}).items():
+            performance.set_metric(name, value)
 
 
 def _apply_setup_lifecycle_evaluation_result(
