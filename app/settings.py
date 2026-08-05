@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     technical_process_pool_enabled: bool = False
     technical_worker_processes: int = 4
     technical_max_in_flight: int = 8
+    technical_series_version_maintenance_enabled: bool = False
+    technical_artifact_cache_enabled: bool = False
+    technical_artifact_cache_write_enabled: bool = False
+    technical_artifact_cache_shadow_read_enabled: bool = False
 
     job_worker_enabled: bool = True
     job_poll_interval_seconds: float = 2.0

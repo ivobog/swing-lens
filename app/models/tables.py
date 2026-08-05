@@ -251,6 +251,96 @@ class PriceBarRevision(Base):
     )
 
 
+class PriceSeriesVersion(Base):
+    __tablename__ = "price_series_versions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(Text, nullable=False)
+    what_to_show: Mapped[str] = mapped_column(Text, nullable=False)
+    series_version: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
+    bar_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    first_bar_date: Mapped[date | None] = mapped_column(Date)
+    latest_bar_date: Mapped[date | None] = mapped_column(Date)
+    last_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "ticker",
+            "timeframe",
+            "what_to_show",
+            name="uq_price_series_versions_identity",
+        ),
+        Index("idx_price_series_versions_latest", "latest_bar_date", "ticker"),
+    )
+
+
+class TechnicalFeatureArtifact(Base):
+    __tablename__ = "technical_feature_artifacts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(Text, nullable=False, default="1 day")
+    artifact_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    input_signature: Mapped[str] = mapped_column(Text, nullable=False)
+    artifact_schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    technical_engine_version: Mapped[str] = mapped_column(Text, nullable=False)
+    scoring_config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    input_versions_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    artifact_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    warning_flags_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'::jsonb"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    last_used_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "ticker",
+            "timeframe",
+            "artifact_kind",
+            "input_signature",
+            name="uq_technical_feature_artifacts_signature",
+        ),
+        CheckConstraint(
+            "artifact_kind IN ('LOCAL', 'RELATIVE')",
+            name="ck_technical_feature_artifacts_kind",
+        ),
+        Index("idx_technical_feature_artifacts_last_used", "last_used_at"),
+    )
+
+
 class FundamentalScore(Base):
     __tablename__ = "fundamental_scores"
 

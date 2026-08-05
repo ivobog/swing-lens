@@ -500,6 +500,9 @@ Proposed settings:
 | `TECHNICAL_PROCESS_POOL_ENABLED` | `false` during rollout, then `true` | Enables process workers. |
 | `TECHNICAL_WORKER_PROCESSES` | `4` | Maximum technical worker processes. |
 | `TECHNICAL_MAX_IN_FLIGHT` | `8` | Bounds queued work and memory. |
+| `TECHNICAL_SERIES_VERSION_MAINTENANCE_ENABLED` | `false` during rollout | Advances exact price-series invalidation versions after changed bar writes. |
+| `TECHNICAL_ARTIFACT_CACHE_WRITE_ENABLED` | `false` during rollout | Persists local technical artifacts without enabling cache reads. |
+| `TECHNICAL_ARTIFACT_CACHE_SHADOW_READ_ENABLED` | `false` during rollout | Compares matching cached local artifacts with fresh calculation without reusing them. |
 | `TECHNICAL_ARTIFACT_CACHE_ENABLED` | `false` during rollout, then `true` | Enables exact artifact reuse. |
 | `FETCH_TECHNICAL_OVERLAP_ENABLED` | `false` during rollout, then `true` | Enables ticker-ready overlap. |
 | `MARKET_DATA_PREWARM_ENABLED` | `false` | Enables prewarm job and UI. |

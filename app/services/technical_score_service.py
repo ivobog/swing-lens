@@ -10,9 +10,21 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import RawCompanyRow, TechnicalScore
 from app.services.operational_metrics import operational_metrics
-from app.services.pine_replica_engine import PineReplicaScore, score_from_feature_result
+from app.services.pine_replica_engine import (
+    ENGINE_VERSION,
+    PineReplicaScore,
+    score_from_feature_result,
+)
 from app.services.price_bar_repository import load_preferred_ohlcv_frames
+from app.services.price_series_version_service import load_series_versions
 from app.services.relative_leadership import calculate_beta_adjusted_rs, rank_technical_universe
+from app.services.technical_artifact_cache import (
+    LocalArtifactKey,
+    build_local_artifact_key,
+    config_hash,
+    get_local_artifact,
+    upsert_local_artifact,
+)
 from app.services.technical_explainability import add_leadership_to_explainability
 from app.services.technical_indicators import (
     calculate_htf_trend_features,
@@ -53,6 +65,13 @@ def score_run_technicals(
     qqq_market_features = _optional_market_features(db, "QQQ", v4_params)
 
     settings = get_settings()
+    indicator_config_hash = config_hash(pine_params)
+    scoring_config_hash = config_hash(v4_params)
+    artifact_cache_active = (
+        settings.technical_artifact_cache_enabled
+        or settings.technical_artifact_cache_write_enabled
+        or settings.technical_artifact_cache_shadow_read_enabled
+    )
     if settings.technical_process_pool_enabled:
         score_results = _score_tickers_process_pool(
             db=db,
@@ -65,10 +84,13 @@ def score_run_technicals(
             v4_params=v4_params,
             settings=settings,
             run_id=run_id,
+            indicator_config_hash=indicator_config_hash,
+            scoring_config_hash=scoring_config_hash,
         )
     elif (
         settings.technical_pure_boundary_enabled
         or settings.technical_pure_boundary_shadow_compare_enabled
+        or artifact_cache_active
     ):
         score_results = _score_tickers_pure_sequential(
             db=db,
@@ -81,6 +103,9 @@ def score_run_technicals(
             v4_params=v4_params,
             shadow_compare=settings.technical_pure_boundary_shadow_compare_enabled,
             run_id=run_id,
+            settings=settings,
+            indicator_config_hash=indicator_config_hash,
+            scoring_config_hash=scoring_config_hash,
         )
     else:
         score_results = _score_tickers_legacy(
@@ -176,11 +201,21 @@ def _score_tickers_pure_sequential(
     v4_params: dict[str, Any],
     shadow_compare: bool,
     run_id: int,
+    settings: Settings,
+    indicator_config_hash: str,
+    scoring_config_hash: str,
 ) -> list[PineReplicaScore | TechnicalScore]:
     results: list[PineReplicaScore | TechnicalScore] = []
     for ticker in symbols:
         try:
             price, trades = load_preferred_ohlcv_frames(db, ticker)
+            artifact_key, cached_artifact = _artifact_cache_context(
+                db=db,
+                ticker=ticker,
+                settings=settings,
+                indicator_config_hash=indicator_config_hash,
+                scoring_config_hash=scoring_config_hash,
+            )
             item = _build_work_item(
                 ticker=ticker,
                 price=price,
@@ -191,9 +226,26 @@ def _score_tickers_pure_sequential(
                 qqq_market_features=qqq_market_features,
                 pine_params=pine_params,
                 v4_params=v4_params,
+                artifact_key=artifact_key,
+                cached_local_artifact=(
+                    cached_artifact
+                    if settings.technical_artifact_cache_enabled and not shadow_compare
+                    else None
+                ),
             )
             pure_result = execute_technical_work_item(item)
             pure_score = _score_from_work_result(pure_result)
+            if shadow_compare and cached_artifact is not None:
+                cached_result = execute_technical_work_item(
+                    replace(item, cached_local_artifact=cached_artifact)
+                )
+                cached_score = _score_from_work_result(cached_result)
+                if _technical_score_fingerprint(pure_score) != _technical_score_fingerprint(
+                    cached_score
+                ):
+                    operational_metrics.increment(
+                        "swinglens_technical_artifact_cache_shadow_mismatches_total"
+                    )
             if shadow_compare:
                 legacy_score = _legacy_score_or_error(
                     db=db,
@@ -212,6 +264,15 @@ def _score_tickers_pure_sequential(
                         "swinglens_technical_pure_boundary_shadow_mismatches_total"
                     )
                     pure_score = legacy_score
+            _persist_local_artifact(
+                db,
+                pure_result,
+                artifact_key,
+                enabled=(
+                    settings.technical_artifact_cache_enabled
+                    or settings.technical_artifact_cache_write_enabled
+                ),
+            )
             results.append(pure_score)
         except Exception as exc:
             results.append(
@@ -236,12 +297,21 @@ def _score_tickers_process_pool(
     v4_params: dict[str, Any],
     settings: Settings,
     run_id: int,
+    indicator_config_hash: str,
+    scoring_config_hash: str,
 ) -> list[PineReplicaScore | TechnicalScore]:
     items: list[tuple[int, TechnicalWorkItem]] = []
     results: list[PineReplicaScore | TechnicalScore | None] = [None] * len(symbols)
     for index, ticker in enumerate(symbols):
         try:
             price, trades = load_preferred_ohlcv_frames(db, ticker)
+            artifact_key, cached_artifact = _artifact_cache_context(
+                db=db,
+                ticker=ticker,
+                settings=settings,
+                indicator_config_hash=indicator_config_hash,
+                scoring_config_hash=scoring_config_hash,
+            )
             items.append(
                 (
                     index,
@@ -255,6 +325,13 @@ def _score_tickers_process_pool(
                         qqq_market_features=qqq_market_features,
                         pine_params=pine_params,
                         v4_params=v4_params,
+                        artifact_key=artifact_key,
+                        cached_local_artifact=(
+                            cached_artifact
+                            if settings.technical_artifact_cache_enabled
+                            and not settings.technical_artifact_cache_shadow_read_enabled
+                            else None
+                        ),
                     ),
                 )
             )
@@ -281,7 +358,19 @@ def _score_tickers_process_pool(
                 for future in completed:
                     index, item = pending.pop(future)
                     try:
-                        results[index] = _score_from_work_result(future.result())
+                        work_result = future.result()
+                        results[index] = _score_from_work_result(work_result)
+                        _persist_local_artifact(
+                            db,
+                            work_result,
+                            LocalArtifactKey(**work_result.artifact_key)
+                            if work_result.artifact_key
+                            else None,
+                            enabled=(
+                                settings.technical_artifact_cache_enabled
+                                or settings.technical_artifact_cache_write_enabled
+                            ),
+                        )
                     except Exception as exc:
                         results[index] = unavailable_technical_score(
                             run_id,
@@ -313,6 +402,9 @@ def _score_tickers_process_pool(
             v4_params=v4_params,
             shadow_compare=False,
             run_id=run_id,
+            settings=settings,
+            indicator_config_hash=indicator_config_hash,
+            scoring_config_hash=scoring_config_hash,
         )
 
     operational_metrics.increment(
@@ -341,6 +433,8 @@ def _build_work_item(
     qqq_market_features: dict[str, Any],
     pine_params: dict[str, Any],
     v4_params: dict[str, Any],
+    artifact_key: LocalArtifactKey | None = None,
+    cached_local_artifact: dict[str, Any] | None = None,
 ) -> TechnicalWorkItem:
     return build_technical_work_item(
         ticker=ticker,
@@ -353,6 +447,64 @@ def _build_work_item(
         relative_config=v4_params.get("relative_leadership", {}),
         market_features=market_features,
         qqq_market_features=qqq_market_features,
+        input_signature=artifact_key.input_signature if artifact_key else "",
+        artifact_key=asdict(artifact_key) if artifact_key else None,
+        cached_local_artifact=cached_local_artifact,
+    )
+
+
+def _artifact_cache_context(
+    *,
+    db: Session,
+    ticker: str,
+    settings: Settings,
+    indicator_config_hash: str,
+    scoring_config_hash: str,
+) -> tuple[LocalArtifactKey | None, dict[str, Any] | None]:
+    cache_reads = (
+        settings.technical_artifact_cache_enabled
+        or settings.technical_artifact_cache_shadow_read_enabled
+    )
+    cache_writes = (
+        settings.technical_artifact_cache_enabled
+        or settings.technical_artifact_cache_write_enabled
+    )
+    if not cache_reads and not cache_writes:
+        return None, None
+    versions = load_series_versions(db, ticker)
+    if "ADJUSTED_LAST" not in versions or "TRADES" not in versions:
+        return None, None
+    key = build_local_artifact_key(
+        ticker=ticker,
+        adjusted_series_version=versions["ADJUSTED_LAST"],
+        trades_series_version=versions["TRADES"],
+        indicator_config_hash=indicator_config_hash,
+        scoring_config_hash=scoring_config_hash,
+        technical_engine_version=ENGINE_VERSION,
+    )
+    if not cache_reads:
+        return key, None
+    artifact = get_local_artifact(db, key)
+    return key, artifact.artifact_json if artifact is not None else None
+
+
+def _persist_local_artifact(
+    db: Session,
+    result: TechnicalWorkResult,
+    key: LocalArtifactKey | None,
+    *,
+    enabled: bool,
+) -> None:
+    if not enabled or key is None or result.score is None or result.error is not None:
+        return
+    upsert_local_artifact(
+        db,
+        key,
+        artifact_json={
+            "feature_result": result.feature_result,
+            "htf_features": result.htf_features,
+        },
+        warning_flags=result.warnings,
     )
 
 

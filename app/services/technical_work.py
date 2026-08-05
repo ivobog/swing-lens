@@ -8,6 +8,7 @@ import pandas as pd
 from app.services.pine_replica_engine import PineReplicaScore, score_from_feature_result
 from app.services.relative_leadership import calculate_beta_adjusted_rs
 from app.services.technical_indicators import (
+    TechnicalFeatureResult,
     calculate_htf_trend_features,
     calculate_relative_strength_features,
     calculate_technical_features,
@@ -31,6 +32,8 @@ class TechnicalWorkItem:
     market_features: dict[str, Any]
     qqq_market_features: dict[str, Any]
     input_signature: str = ""
+    artifact_key: dict[str, Any] | None = None
+    cached_local_artifact: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +48,7 @@ class TechnicalWorkResult:
     warnings: tuple[str, ...]
     score: PineReplicaScore | None
     error: str | None
+    artifact_key: dict[str, Any] | None = None
 
 
 def build_technical_work_item(
@@ -60,6 +64,8 @@ def build_technical_work_item(
     market_features: dict[str, Any],
     qqq_market_features: dict[str, Any] | None = None,
     input_signature: str = "",
+    artifact_key: dict[str, Any] | None = None,
+    cached_local_artifact: dict[str, Any] | None = None,
 ) -> TechnicalWorkItem:
     return TechnicalWorkItem(
         ticker=ticker.upper(),
@@ -73,6 +79,8 @@ def build_technical_work_item(
         market_features=market_features,
         qqq_market_features=qqq_market_features or {},
         input_signature=input_signature,
+        artifact_key=artifact_key,
+        cached_local_artifact=cached_local_artifact,
     )
 
 
@@ -93,14 +101,20 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
                 f"No cached OHLCV bars for {item.ticker}. Fetch IB data first."
             )
 
-        feature_result = calculate_technical_features(
-            price,
-            trades if not trades.empty else None,
-            ticker=item.ticker,
-            params=item.pine_config,
-            v4_params=item.technical_config,
-        )
-        htf_features = calculate_htf_trend_features(price, params=item.pine_config)
+        if item.cached_local_artifact is None:
+            feature_result = calculate_technical_features(
+                price,
+                trades if not trades.empty else None,
+                ticker=item.ticker,
+                params=item.pine_config,
+                v4_params=item.technical_config,
+            )
+            htf_features = calculate_htf_trend_features(price, params=item.pine_config)
+        else:
+            feature_result = TechnicalFeatureResult(
+                **item.cached_local_artifact["feature_result"]
+            )
+            htf_features = dict(item.cached_local_artifact["htf_features"])
         relative_strength_features = _relative_strength_features(
             price,
             benchmark,
@@ -126,6 +140,7 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
             warnings=tuple(score.warning_flags),
             score=score,
             error=None,
+            artifact_key=item.artifact_key,
         )
     except Exception as exc:
         return TechnicalWorkResult(
@@ -137,6 +152,7 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
             warnings=(),
             score=None,
             error=str(exc),
+            artifact_key=item.artifact_key,
         )
 
 

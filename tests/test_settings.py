@@ -56,6 +56,10 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.technical_process_pool_enabled is False
     assert settings.technical_worker_processes == 4
     assert settings.technical_max_in_flight == 8
+    assert settings.technical_series_version_maintenance_enabled is False
+    assert settings.technical_artifact_cache_enabled is False
+    assert settings.technical_artifact_cache_write_enabled is False
+    assert settings.technical_artifact_cache_shadow_read_enabled is False
     assert settings.setup_lifecycle_alerts_enabled is False
     assert settings.setup_lifecycle_replay_enabled is False
     assert settings.setup_lifecycle_reconstruction_enabled is False

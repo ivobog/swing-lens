@@ -116,6 +116,56 @@ def test_process_pool_mode_returns_scores_in_input_order(monkeypatch) -> None:
     assert len(db.rows) == 2
 
 
+def test_artifact_write_mode_persists_local_work_result(monkeypatch) -> None:
+    frame = _synthetic_frame()
+    writes = []
+
+    class FakeDb:
+        def execute(self, _statement):
+            pass
+
+        def add_all(self, rows):
+            self.rows = rows
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_series_versions",
+        lambda _db, _ticker: {"ADJUSTED_LAST": 12, "TRADES": 15},
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "upsert_local_artifact",
+        lambda _db, key, **kwargs: writes.append((key, kwargs)),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "get_settings",
+        lambda: Settings(
+            _env_file=None,
+            technical_artifact_cache_write_enabled=True,
+        ),
+    )
+
+    rows = technical_score_service.score_run_technicals(
+        FakeDb(),
+        run_id=7,
+        tickers=["aaa"],
+    )
+
+    assert rows[0].ticker == "AAA"
+    assert len(writes) == 1
+    assert writes[0][0].input_versions["adjusted_series_version"] == 12
+    assert "feature_result" in writes[0][1]["artifact_json"]
+
+
 def _synthetic_frame() -> pd.DataFrame:
     dates = pd.date_range("2020-01-01", periods=320, freq="D")
     close = np.linspace(100.0, 180.0, len(dates))
