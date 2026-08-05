@@ -84,6 +84,9 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/api/ceri/run/{run_id}` | `ceri_run` |
 | GET | `/api/ceri/ticker/{ticker}` | `ceri_ticker` |
 | GET | `/api/ceri/ticker/{ticker}/history` | `ceri_ticker_history` |
+| POST | `/api/market-data/prewarm` | `queue_market_data_prewarm` |
+| GET | `/api/market-data/prewarm/{job_id}` | `market_data_prewarm_status` |
+| POST | `/api/market-data/prewarm/{job_id}/cancel` | `cancel_market_data_prewarm` |
 | GET | `/api/market-regime/history` | `market_regime_history_api` |
 | GET | `/api/market-regime/latest` | `latest_market_regime_api` |
 | GET | `/api/market-regime/run/{run_id}` | `run_market_regime_api` |

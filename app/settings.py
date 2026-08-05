@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     technical_artifact_cache_write_enabled: bool = False
     technical_artifact_cache_shadow_read_enabled: bool = False
     fetch_technical_overlap_enabled: bool = False
+    market_data_prewarm_enabled: bool = False
+    market_data_prewarm_max_tickers: int = 1000
+    market_data_prewarm_watchlist: str = ""
 
     job_worker_enabled: bool = True
     job_poll_interval_seconds: float = 2.0
@@ -136,6 +139,7 @@ class Settings(BaseSettings):
             "cleanup_cache_retention_days": self.cleanup_cache_retention_days,
             "cleanup_orphan_upload_grace_days": self.cleanup_orphan_upload_grace_days,
             "cleanup_job_retention_days": self.cleanup_job_retention_days,
+            "market_data_prewarm_max_tickers": self.market_data_prewarm_max_tickers,
         }
         for field_name, value in positive_fields.items():
             if value < 1:
