@@ -60,6 +60,7 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.technical_artifact_cache_enabled is False
     assert settings.technical_artifact_cache_write_enabled is False
     assert settings.technical_artifact_cache_shadow_read_enabled is False
+    assert settings.fetch_technical_overlap_enabled is False
     assert settings.setup_lifecycle_alerts_enabled is False
     assert settings.setup_lifecycle_replay_enabled is False
     assert settings.setup_lifecycle_reconstruction_enabled is False

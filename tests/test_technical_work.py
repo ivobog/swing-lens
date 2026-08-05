@@ -1,10 +1,13 @@
 from dataclasses import asdict
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
 
 from app.services import technical_score_service
+from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.technical_indicators import load_pine_defaults
+from app.services.technical_score_service import TechnicalScoringOverlapCoordinator
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
 from app.services.technical_work import (
     build_technical_work_item,
@@ -164,6 +167,45 @@ def test_artifact_write_mode_persists_local_work_result(monkeypatch) -> None:
     assert len(writes) == 1
     assert writes[0][0].input_versions["adjusted_series_version"] == 12
     assert "feature_result" in writes[0][1]["artifact_json"]
+
+
+def test_overlap_coordinator_submits_ready_ticker_and_finalizes(monkeypatch) -> None:
+    frame = _synthetic_frame()
+
+    class FakeDb:
+        def execute(self, _statement):
+            pass
+
+        def add_all(self, rows):
+            self.rows = rows
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+
+    coordinator = TechnicalScoringOverlapCoordinator(
+        FakeDb(),
+        run_id=7,
+        tickers=["AAA"],
+        settings=Settings(_env_file=None, technical_worker_processes=1),
+    )
+    coordinator.on_ticker_ready(
+        TickerReadyEvent(
+            ticker="AAA",
+            statuses=("SUCCESS",),
+            failed=False,
+            completed_at=datetime.now(UTC),
+        )
+    )
+    rows = coordinator.finalize()
+
+    assert [row.ticker for row in rows] == ["AAA"]
+    assert rows[0].technical_confidence != "error"
 
 
 def _synthetic_frame() -> pd.DataFrame:

@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import asdict, replace
 from decimal import Decimal
@@ -9,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import RawCompanyRow, TechnicalScore
+from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.operational_metrics import operational_metrics
 from app.services.pine_replica_engine import (
     ENGINE_VERSION,
@@ -119,10 +121,31 @@ def score_run_technicals(
             run_id=run_id,
         )
 
-    scored = [
-        result
+    return finalize_technical_scores(
+        db,
+        run_id,
+        score_results,
+        symbols=symbols,
+        v4_params=v4_params,
+    )
+
+
+def finalize_technical_scores(
+    db: Session,
+    run_id: int,
+    score_results: list[PineReplicaScore | TechnicalScore],
+    *,
+    symbols: list[str] | None = None,
+    v4_params: dict[str, Any] | None = None,
+) -> list[TechnicalScore]:
+    v4_params = v4_params or load_technical_scoring_v4_config()
+    symbols = symbols or [
+        result.ticker.upper()
         for result in score_results
-        if isinstance(result, PineReplicaScore)
+        if isinstance(result, (PineReplicaScore, TechnicalScore))
+    ]
+    scored = [
+        result for result in score_results if isinstance(result, PineReplicaScore)
     ]
     leadership = rank_technical_universe(
         [_leadership_rank_input(score) for score in scored],
@@ -140,7 +163,6 @@ def score_run_technicals(
         else result
         for result in score_results
     ]
-
     if symbols:
         db.execute(
             delete(TechnicalScore).where(
@@ -151,6 +173,177 @@ def score_run_technicals(
     db.add_all(scores)
     db.flush()
     return scores
+
+
+class TechnicalScoringOverlapCoordinator:
+    """Submit committed ticker inputs while the serialized IB loop continues."""
+
+    def __init__(
+        self,
+        db: Session,
+        *,
+        run_id: int,
+        tickers: list[str],
+        settings: Settings | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+        lease_guard: Callable[[], None] | None = None,
+    ) -> None:
+        self.db = db
+        self.run_id = run_id
+        self.symbols = _normalize_tickers(tickers)
+        self.settings = settings or get_settings()
+        self.should_cancel = should_cancel or (lambda: False)
+        self.lease_guard = lease_guard or (lambda: None)
+        self.pine_params = load_pine_defaults()
+        self.v4_params = load_technical_scoring_v4_config()
+        self.indicator_config_hash = config_hash(self.pine_params)
+        self.scoring_config_hash = config_hash(self.v4_params)
+        self._ready: set[str] = set()
+        self._pending: set[str] = set()
+        self._results: dict[str, PineReplicaScore | TechnicalScore] = {}
+        self._futures: dict[Any, str] = {}
+        self._closed = False
+        self._refresh_run_level_inputs()
+        self._executor = ProcessPoolExecutor(
+            max_workers=_technical_worker_count(self.settings)
+        )
+
+    def on_ticker_ready(self, event: TickerReadyEvent) -> None:
+        if self._closed:
+            return
+        self._ready.add(event.ticker.upper())
+        self._pending.add(event.ticker.upper())
+        if event.ticker.upper() in {"SPY", "QQQ"}:
+            self._refresh_run_level_inputs()
+        self._submit_ready()
+
+    def finalize(self) -> list[TechnicalScore]:
+        try:
+            self._ready.update(self.symbols)
+            self._pending.update(self.symbols)
+            self._refresh_run_level_inputs()
+            self._submit_ready()
+            while self._futures:
+                self._drain_one()
+            for ticker in self.symbols:
+                if ticker not in self._results:
+                    self._results[ticker] = unavailable_technical_score(
+                        self.run_id,
+                        ticker,
+                        "Ticker was not submitted for technical overlap.",
+                        v4_params=self.v4_params,
+                    )
+            ordered = [self._results[ticker] for ticker in self.symbols]
+            return finalize_technical_scores(
+                self.db,
+                self.run_id,
+                ordered,
+                symbols=self.symbols,
+                v4_params=self.v4_params,
+            )
+        finally:
+            self._closed = True
+            self._executor.shutdown(wait=True, cancel_futures=True)
+
+    def abort(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        for future in self._futures:
+            future.cancel()
+        self._futures.clear()
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _submit_ready(self) -> None:
+        if self._closed or not self._benchmark_price_available:
+            return
+        for ticker in sorted(self._pending):
+            if ticker not in self.symbols or ticker in self._results:
+                continue
+            while len(self._futures) >= self._in_flight_limit:
+                self._drain_one()
+            self.lease_guard()
+            if self.should_cancel():
+                return
+            price, trades = load_preferred_ohlcv_frames(self.db, ticker)
+            artifact_key, cached_artifact = _artifact_cache_context(
+                db=self.db,
+                ticker=ticker,
+                settings=self.settings,
+                indicator_config_hash=self.indicator_config_hash,
+                scoring_config_hash=self.scoring_config_hash,
+            )
+            item = _build_work_item(
+                ticker=ticker,
+                price=price,
+                trades=trades,
+                benchmark_price=self._benchmark_price,
+                sector_price=self._sector_price,
+                market_features=self._market_features,
+                qqq_market_features=self._qqq_market_features,
+                pine_params=self.pine_params,
+                v4_params=self.v4_params,
+                artifact_key=artifact_key,
+                cached_local_artifact=(
+                    cached_artifact
+                    if self.settings.technical_artifact_cache_enabled
+                    else None
+                ),
+            )
+            future = self._executor.submit(execute_technical_work_item, item)
+            self._futures[future] = ticker
+        self._pending.difference_update(self.symbols)
+
+    def _drain_one(self) -> None:
+        completed, _ = wait(self._futures, return_when=FIRST_COMPLETED)
+        for future in completed:
+            ticker = self._futures.pop(future)
+            try:
+                work_result = future.result()
+                self._results[ticker] = _score_from_work_result(work_result)
+                _persist_local_artifact(
+                    self.db,
+                    work_result,
+                    LocalArtifactKey(**work_result.artifact_key)
+                    if work_result.artifact_key
+                    else None,
+                    enabled=(
+                        self.settings.technical_artifact_cache_enabled
+                        or self.settings.technical_artifact_cache_write_enabled
+                    ),
+                )
+            except Exception as exc:
+                self._results[ticker] = unavailable_technical_score(
+                    self.run_id,
+                    ticker,
+                    str(exc),
+                    v4_params=self.v4_params,
+                )
+            self.lease_guard()
+            if self.should_cancel():
+                for outstanding in self._futures:
+                    outstanding.cancel()
+                self._futures.clear()
+                return
+
+    def _refresh_run_level_inputs(self) -> None:
+        self._benchmark_price = _load_price_frame(self.db, "SPY")
+        self._market_features = _market_features(self._benchmark_price, "SPY")
+        self._sector_price = _sector_benchmark_price(self.db, self.pine_params)
+        self._qqq_market_features = _optional_market_features(
+            self.db, "QQQ", self.v4_params
+        )
+
+    @property
+    def _benchmark_price_available(self) -> bool:
+        return not self._benchmark_price.empty
+
+    @property
+    def _in_flight_limit(self) -> int:
+        return min(
+            self.settings.technical_max_in_flight,
+            _technical_worker_count(self.settings) * 2,
+        )
 
 
 def _score_tickers_legacy(

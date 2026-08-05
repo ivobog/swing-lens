@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     technical_artifact_cache_enabled: bool = False
     technical_artifact_cache_write_enabled: bool = False
     technical_artifact_cache_shadow_read_enabled: bool = False
+    fetch_technical_overlap_enabled: bool = False
 
     job_worker_enabled: bool = True
     job_poll_interval_seconds: float = 2.0

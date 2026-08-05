@@ -40,7 +40,10 @@ from app.services.setup_lifecycle.constants import (
     SLSE_PIPELINE_CAPTURE_STEP,
     SLSE_PIPELINE_EVALUATION_STEP,
 )
-from app.services.technical_score_service import score_run_technicals
+from app.services.technical_score_service import (
+    TechnicalScoringOverlapCoordinator,
+    score_run_technicals,
+)
 from app.settings import get_settings
 
 
@@ -136,6 +139,7 @@ class PipelineExecutionDependencies:
     evaluate_setup_lifecycles: Callable[[Session, int], Any] | None = None
     setup_lifecycle_pipeline_step_enabled: bool | None = None
     setup_capture_handoff_enabled: bool | None = None
+    fetch_technical_overlap_enabled: bool | None = None
     capture_winner_predictions: Callable[[Session, int], Any] | None = None
     winner_probability_capture_enabled: bool | None = None
 
@@ -154,6 +158,7 @@ def execute_full_pipeline(
     performance = PipelinePerformanceTracker()
 
     result = _empty_result(pipeline, upload_run)
+    overlap_coordinator: TechnicalScoringOverlapCoordinator | None = None
     try:
         _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
         _raise_if_cancelled(should_cancel)
@@ -167,6 +172,14 @@ def execute_full_pipeline(
             result["uploaded_rows"] = upload_run.row_count or len(tickers)
 
         _raise_if_cancelled(should_cancel)
+        if _fetch_technical_overlap_enabled(dependencies):
+            overlap_coordinator = TechnicalScoringOverlapCoordinator(
+                db,
+                run_id=upload_run.id,
+                tickers=tickers,
+                should_cancel=should_cancel,
+                lease_guard=lease_guard,
+            )
         with _pipeline_step(
             db, pipeline, "SCORING_FUNDAMENTALS", lease_guard=lease_guard, performance=performance
         ):
@@ -187,12 +200,17 @@ def execute_full_pipeline(
             result["ib_planned_requests"] = plan.estimated_request_count
             fetch_run = None
             if plan.estimated_request_count:
-                fetch_run = dependencies.execute_fetch_plan(
-                    db=db,
-                    plan=plan,
-                    include_benchmarks=True,
-                    should_cancel=should_cancel,
-                )
+                fetch_kwargs: dict[str, Any] = {
+                    "db": db,
+                    "plan": plan,
+                    "include_benchmarks": True,
+                    "should_cancel": should_cancel,
+                }
+                if overlap_coordinator is not None and _accepts_keyword(
+                    dependencies.execute_fetch_plan, "on_ticker_ready"
+                ):
+                    fetch_kwargs["on_ticker_ready"] = overlap_coordinator.on_ticker_ready
+                fetch_run = dependencies.execute_fetch_plan(**fetch_kwargs)
                 _apply_fetch_result(result, fetch_run)
                 if fetch_run.status == "CANCELLED":
                     raise PipelineCancelled("Pipeline cancelled during market data fetch.")
@@ -203,7 +221,11 @@ def execute_full_pipeline(
         with _pipeline_step(
             db, pipeline, "SCORING_TECHNICALS", lease_guard=lease_guard, performance=performance
         ):
-            technical_scores = dependencies.score_technicals(db, upload_run.id)
+            if overlap_coordinator is not None:
+                technical_scores = overlap_coordinator.finalize()
+            else:
+                technical_scores = dependencies.score_technicals(db, upload_run.id)
+            _raise_if_cancelled(should_cancel)
             result["technical_scores"] = len(technical_scores)
             result["technical_error_count"] = _technical_error_count(technical_scores)
 
@@ -319,13 +341,19 @@ def execute_full_pipeline(
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
     except JobLeaseLost:
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
         raise
     except PipelineCancelled:
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
         result["performance"] = performance.snapshot()
         _record_performance_metrics(PipelineStatus.CANCELLED, result["performance"])
         _mark_pipeline_cancelled(db, pipeline, result=result, lease_guard=lease_guard)
         raise
     except Exception as exc:
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
         result["performance"] = performance.snapshot()
         _record_performance_metrics(PipelineStatus.FAILED, result["performance"])
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
@@ -762,6 +790,22 @@ def _winner_probability_capture_enabled(dependencies: PipelineExecutionDependenc
     if dependencies.winner_probability_capture_enabled is not None:
         return dependencies.winner_probability_capture_enabled
     return get_settings().winner_probability_capture_in_pipeline
+
+
+def _fetch_technical_overlap_enabled(dependencies: PipelineExecutionDependencies) -> bool:
+    if dependencies.fetch_technical_overlap_enabled is not None:
+        return dependencies.fetch_technical_overlap_enabled
+    return get_settings().fetch_technical_overlap_enabled
+
+
+def _accepts_keyword(callable_obj: Callable[..., Any], keyword: str) -> bool:
+    try:
+        parameters = signature(callable_obj).parameters
+    except (TypeError, ValueError):
+        return True
+    return keyword in parameters or any(
+        parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters.values()
+    )
 
 
 def _capture_ceri_snapshot(db: Session, run_id: int):

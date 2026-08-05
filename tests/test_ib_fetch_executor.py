@@ -218,6 +218,55 @@ def test_execute_fetch_plan_can_cancel_before_next_item(monkeypatch) -> None:
     assert fetch_run.message == "IB fetch was cancelled."
 
 
+def test_execute_fetch_plan_emits_one_committed_ready_event_per_ticker(monkeypatch) -> None:
+    db = FakeDb()
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker),
+            error_message=None,
+        ),
+    )
+    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda db, bars, **kwargs: BarUpsertSummary(inserted=1),
+    )
+    events = []
+
+    execute_fetch_plan(
+        db=db,
+        plan=FetchPlan(
+            run_id=7,
+            requested_tickers=["MSFT", "AAPL"],
+            symbols_including_benchmarks=["MSFT", "AAPL"],
+            items=[
+                _plan_item("MSFT", FetchAction.SKIP, duration=None),
+                _plan_item("MSFT", FetchAction.TOP_UP_RECENT, duration="10 D"),
+                _plan_item("AAPL", FetchAction.FAILED, duration=None),
+            ],
+            estimated_request_count=1,
+            estimated_full_backfills=0,
+            estimated_top_ups=1,
+            estimated_refreshes=0,
+            estimated_skips=1,
+            warnings=[],
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+        on_ticker_ready=events.append,
+    )
+
+    assert [event.ticker for event in events] == ["MSFT", "AAPL"]
+    assert events[0].statuses == ("SKIPPED", "SUCCESS")
+    assert events[0].failed is False
+    assert events[1].statuses == ("FAILED",)
+    assert events[1].failed is True
+
+
 def _plan_item(
     ticker: str,
     action: FetchAction,

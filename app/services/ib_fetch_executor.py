@@ -1,4 +1,6 @@
+from collections import defaultdict
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from sqlalchemy import select
@@ -15,6 +17,7 @@ from app.services.ib_rate_limiter import (
     IbHistoricalRateLimiter,
     rate_limit_config_from_settings,
 )
+from app.services.operational_metrics import operational_metrics
 from app.services.us_market_calendar import is_daily_bar_fresh
 from app.settings import Settings, get_settings
 
@@ -23,6 +26,14 @@ NON_FETCH_ACTIONS = {
     FetchAction.UNSUPPORTED,
     FetchAction.FAILED,
 }
+
+
+@dataclass(frozen=True)
+class TickerReadyEvent:
+    ticker: str
+    statuses: tuple[str, ...]
+    failed: bool
+    completed_at: datetime
 
 
 def execute_fetch_plan(
@@ -36,6 +47,7 @@ def execute_fetch_plan(
     force_full_backfill: bool = False,
     fetch_run_id: int | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    on_ticker_ready: Callable[[TickerReadyEvent], None] | None = None,
 ) -> IBFetchRun:
     settings = settings or get_settings()
     rate_limiter = rate_limiter or IbHistoricalRateLimiter(
@@ -50,6 +62,11 @@ def execute_fetch_plan(
         fetch_run_id=fetch_run_id,
     )
     ib = ib_client_factory() if ib_client_factory else create_ib_client()
+    completed_by_ticker: dict[str, list[IBFetchItem]] = defaultdict(list)
+    expected_by_ticker: dict[str, int] = defaultdict(int)
+    notified_tickers: set[str] = set()
+    for plan_item in plan.items:
+        expected_by_ticker[plan_item.ticker.upper()] += 1
 
     try:
         ib.connect(
@@ -78,6 +95,13 @@ def execute_fetch_plan(
             )
             _refresh_run_totals(fetch_run)
             db.commit()
+            _record_ticker_completion(
+                fetch_item=fetch_item,
+                completed_by_ticker=completed_by_ticker,
+                expected_by_ticker=expected_by_ticker,
+                notified_tickers=notified_tickers,
+                on_ticker_ready=on_ticker_ready,
+            )
     except Exception as exc:
         fetch_run.status = "FAILED"
         fetch_run.completed_at = datetime.now(UTC)
@@ -317,3 +341,38 @@ def _run_message(fetch_run: IBFetchRun) -> str:
 
 def _safe_message(message: str) -> str:
     return message.replace("\n", " ").strip()[:500]
+
+
+def _record_ticker_completion(
+    *,
+    fetch_item: IBFetchItem,
+    completed_by_ticker: dict[str, list[IBFetchItem]],
+    expected_by_ticker: dict[str, int],
+    notified_tickers: set[str],
+    on_ticker_ready: Callable[[TickerReadyEvent], None] | None,
+) -> None:
+    if on_ticker_ready is None:
+        return
+    ticker = fetch_item.ticker.upper()
+    completed_by_ticker[ticker].append(fetch_item)
+    if ticker in notified_tickers:
+        return
+    if len(completed_by_ticker[ticker]) < expected_by_ticker[ticker]:
+        return
+    notified_tickers.add(ticker)
+    statuses = tuple(item.status for item in completed_by_ticker[ticker])
+    event = TickerReadyEvent(
+        ticker=ticker,
+        statuses=statuses,
+        failed=any(status == "FAILED" for status in statuses),
+        completed_at=datetime.now(UTC),
+    )
+    try:
+        on_ticker_ready(event)
+        operational_metrics.increment("swinglens_technical_overlap_tickers_total")
+    except Exception as exc:
+        operational_metrics.increment(
+            "swinglens_pipeline_optimized_fallback_total",
+            component="technical_overlap_callback",
+            reason=type(exc).__name__,
+        )
