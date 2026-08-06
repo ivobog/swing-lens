@@ -40,7 +40,7 @@ are generated under ignored `test-results/` and by CI.
 | F-04, R-05 | Throttle, retry/backoff, cancellation/resume/retry failed | Unit / integration | IB limiter/fetch job/executor/progress suites | Scripted errors and fixed timing | Bounded retry; safe cancel/resume; failures separately exportable | PASS | Full regression green | — |
 | F-04, R-05 | Partial failures, idempotency, request coalescing | Integration | fetch/pipeline/background job suites | Mixed scripted outcomes/PostgreSQL | Successful rows preserved; duplicate work coalesced | PASS | Full regression green | — |
 | QO-04, R-13 | No IB order behavior | Static / security | `test_no_order_boundary.py`, SLSE acceptance scan | App source + IB spy | Zero order route/control/method invocation | PASS | Full regression green | — |
-| F-04 | Live IB paper verification | Manual / external | `LIVE_IB_PAPER_VALIDATION.md` | Paper Gateway, entitlements | Read-only live market-data smoke | BLOCKED | No Gateway session/credentials supplied | — |
+| F-04 | Live IB paper verification | Manual / external | `LIVE_IB_PAPER_VALIDATION.md` | Paper Gateway, entitlements | Read-only live market-data smoke | PARTIAL | Gateway 10.48/server 176: connection, MSFT/SPY/invalid resolution, bars, repeat cache, partial failure, redaction, and no-order guard passed; disconnect/cancel/resume drill remains | DEF-003 fixed |
 | F-05, R-02 | SMA/EMA/RSI/ATR/DMI/ADX/OBV/ROC | Unit / golden | technical indicator and Pine replica suites | Deterministic OHLCV/Pine fixtures | Indicator values match approved semantics | PASS | Full regression green | — |
 | F-05, R-02 | Trend/pullback/breakout/volume/candle/stop/target/RS | Unit / golden | technical, breakout, VCP, climax, stage, target-stop tests | Golden OHLCV | Exact setup/risk/level outputs | PASS | Full regression green | — |
 | F-05, R-04 | Weekly aggregation/minimum data/confidence/adaptive flags | Unit | technical confidence/features/display/flags suites | Complete/degraded series | Explicit insufficient state and versioned confidence | PASS | Full regression green | — |
@@ -104,4 +104,5 @@ E2E-001 through E2E-018 and E2E-020 are covered by the green deterministic regre
 browser lane, invariance/leakage/safety tests, and the evidence above. E2E-019 passed for a clean
 schema backup/restore after DEF-001. E2E-019 and M-06 now also pass with populated upload, scoring,
 pipeline, regime, sector, SLSE, OWPE, CERI, and audit evidence. Live paper IB is deliberately
-separated from automated evidence and remains blocked pending an approved session.
+separated from automated evidence. Its read-only smoke is now partial: live disconnect and
+cancel/reconnect/resume drills remain.

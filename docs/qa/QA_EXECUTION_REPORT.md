@@ -6,15 +6,17 @@ Recommended release decision: **GO only after the remaining manual P0/P1 checks 
 
 ## 1. Executive Verdict
 
-All feasible deterministic automation is green after one release-blocking backup/restore defect was
-fixed. No open S0 or S1 defect remains. Golden/scoring, evidence immutability, future-data leakage,
+All feasible deterministic automation is green after one release-blocking backup/restore defect and
+one live-IB request-accounting defect were fixed. No open S0 or S1 defect remains. Golden/scoring,
+evidence immutability, future-data leakage,
 feature isolation, advisory non-mutation, destructive confirmations, secret redaction, migration,
 restore validation, and the no-order safety boundary passed their implemented automated controls.
 
-The verdict is conditional because no live IB paper session, Microsoft Edge/screen-reader review,
-licensed CERI provider certification, or long-running 250/1,000-ticker resilience soak was
-available in this execution. These are reported as blocked/manual, not as passes. The previously
-manual populated multi-module restore is now an automated passing release gate.
+The verdict is conditional because the live IB paper procedure is only partial, and no Microsoft
+Edge/screen-reader review, licensed CERI provider certification, or long-running 250/1,000-ticker
+resilience soak was available. The live paper connection, contracts, bars, cache reuse, partial
+failure, redaction, and no-order controls passed; live disconnect/cancel/resume remains manual. The
+previously manual populated multi-module restore is now an automated passing release gate.
 
 ## 2. Repository and Environment
 
@@ -23,7 +25,7 @@ manual populated multi-module restore is now an automated passing release gate.
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | Application/tests at `e66a16d3c175f4366b0d13b86727b3c472bda012`; CI artifact fix at `bfc7fe2750df0fb4ce879ca9542f5b86e640e0fb` |
+| Code candidate tested | `298cd47` (IB accounting fix and regression tests); documentation evidence follows in repository history |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -52,6 +54,15 @@ states without modifying `.env` or using secrets.
 | Untouched `uv run pytest -q` | PASS; 1,086 passed, 4 warnings in 204.20 s |
 | Phase 1 `uv run pytest -q` | PASS; 1,096 passed, 4 warnings in 126.14 s |
 | Final complete `uv run pytest -q` | PASS; 1,109 passed, 6 warnings in 128.36 s |
+| Final post-live-fix complete pytest | PASS; 1,112 passed, 1 skipped, 4 warnings in 78.21 s; JUnit XML written |
+| Focused IB plan/executor regression | PASS; 16 passed, 1 warning in 0.51 s |
+| Documented Ruff scope | PASS; `ruff check app tests scripts` reported `All checks passed!` |
+| Route inventory after live fix | PASS; `scripts/docs/check_route_inventory.py` exit 0 |
+| Direct guarded IB paper smoke | PASS; read-only connection, server 176, MSFT/SPY contracts and bars, invalid contract explicit, zero guarded order-method calls |
+| Disposable route-level IB smoke | PASS; first valid fetch inserted 1,502 unique bars, repeat executed 0/inserted 0, mixed outcome preserved success |
+| Initial forced mixed live request | FAIL; returned `planned=0`, `executed=2` although one historical request was attempted; DEF-003 opened |
+| Forced mixed live retest at `298cd47` | PASS; `PARTIAL`, planned 2, executed 1, 752 MSFT bars inserted, invalid ticker isolated; disposable DB dropped |
+| Harness-only `ruff check .` / obsolete route path | NOT A PRODUCT FAILURE; legacy migrations are outside the configured Ruff gate and `scripts/check_route_inventory.py` does not exist; documented commands above passed |
 | `uv run pytest tests/qa/test_qa_infrastructure.py -q` | PASS; 7 passed in 0.78 s |
 | Focused upload/recalculation tests | PASS; 28 passed in 1.00 s |
 | Chromium + Firefox E2E | PASS; 6 passed in 39.21 s |
@@ -71,8 +82,9 @@ states without modifying `.env` or using secrets.
 | GitHub Actions run `31105400739` | PASS; all blocking jobs green; restore 1 passed, coverage 1,102 passed, golden 3 passed, browsers 6 passed; QA artifacts published |
 | `uv run playwright install chromium firefox` | PASS; both pinned engines installed |
 
-Six non-failing warning instances remain: one Starlette TestClient/httpx deprecation, one Python
-3.12 SQLite datetime adapter deprecation, and four Alembic `path_separator` deprecations.
+Four non-failing warning instances appeared in the post-live-fix full suite: one Starlette
+TestClient/httpx deprecation, one Python 3.12 SQLite datetime adapter deprecation, and two Alembic
+`path_separator` deprecations.
 
 ## 4. Coverage by Product Area
 
@@ -116,6 +128,9 @@ state engines, safety boundaries, and deterministic model contracts have stronge
 - Added a tracked-file credential-shape scanner and tests.
 - Added coverage configuration, JUnit/coverage artifacts, CI browser lane, golden gate, PostgreSQL
   migration gate, nightly performance lane, and artifact upload.
+- Added IB plan/executor regressions for post-resolution request estimates, actual historical-call
+  accounting, mixed success preservation, and unsupported data types; retained forced-refresh intent
+  after contract resolution.
 
 ## 6. Defects Found and Fixed
 
@@ -141,9 +156,9 @@ state engines, safety boundaries, and deterministic model contracts have stronge
 - Remaining risk: none specific to populated restore fidelity; long-running recovery and environment
   portability remain covered by the separate manual resilience procedures.
 
-No other product defect was confirmed. A first Firefox smoke failure was traced to a new test's
-incorrect empty-database assumption after Chromium created a run; the test was corrected to assert
-the stable UI contract and is not counted as a product defect.
+A first Firefox smoke failure was traced to a new test's incorrect empty-database assumption after
+Chromium created a run; the test was corrected to assert the stable UI contract and is not counted
+as a product defect.
 
 ### DEF-002 — S2 — Main CI job did not retain machine-readable QA reports
 
@@ -164,11 +179,36 @@ the stable UI contract and is not counted as a product defect.
 - Remaining risk: GitHub reports Node 20 action deprecation warnings for current action major
   versions; this does not affect report contents but should be handled in routine CI maintenance.
 
+### DEF-003 — S2 — IB fetch counters included contract-resolution failures as data requests
+
+- Affected: F-04, R-04, R-05; IB fetch progress/API evidence and operational pacing audit.
+- Environment: Windows 10, IB Gateway 10.48 paper session/API server 176, PostgreSQL disposable DB,
+  Python 3.12.2, pre-fix commit `627f610`.
+- Reproduction: force-refresh `MSFT,SWINGLENSINVALIDXYZ` through `POST /ib/fetch`, with benchmarks
+  disabled and `what_to_show=TRADES`.
+- Expected: plan both possible post-resolution historical calls, execute one historical call for
+  `MSFT`, preserve its bars, and report the invalid contract separately.
+- Actual: the run correctly returned `PARTIAL` and preserved 751 MSFT bars, but reported
+  `planned_request_count=0` and `executed_request_count=2`.
+- Evidence: the invalid ticker failed during contract resolution before any historical-data call;
+  only the valid ticker reached `reqHistoricalData`.
+- Root cause: unresolved-contract plan items always estimated zero requests, while totals counted
+  every terminal failed item as an executed IB request regardless of `attempt_count`.
+- Fix: estimate the post-resolution fetch action from coverage/force intent, preserve forced-refresh
+  behavior after resolution, and count executed historical requests only for items with at least one
+  fetch attempt. Unsupported data types now fail before historical-data access.
+- Regression: `test_unresolved_contract_estimates_post_resolution_request`,
+  `test_execute_fetch_plan_counts_only_attempted_historical_requests`, contract-resolution failure,
+  current-cache, and unsupported-data-type tests.
+- Retest: live paper route returned `PARTIAL`, planned 2, executed 1, inserted 752 MSFT bars, isolated
+  the invalid contract, and dropped the disposable database afterward.
+- Remaining risk: live disconnect/retry-failed and cancel/reconnect/resume drills remain manual.
+
 ## 7. Blocked and Manual Verification
 
 | Item | State | Exact reason |
 | --- | --- | --- |
-| Live IB paper validation | BLOCKED | No approved paper Gateway session/credentials or entitlement set was supplied |
+| Live IB paper validation | PARTIAL | Core read-only smoke passed; uploaded-run benchmark, intentional Gateway disconnect/retry-failed, and live cancel/reconnect/resume remain |
 | Licensed CERI provider | BLOCKED | No licensed adapter or approved test credential exists in scope |
 | Microsoft Edge smoke | MANUAL | Playwright Chromium/Firefox ran; Edge-specific binary/visual review not executed |
 | Screen-reader/contrast review | MANUAL | Requires Narrator/NVDA and human judgment |
@@ -181,7 +221,7 @@ the stable UI contract and is not counted as a product defect.
 The performance lane passed 21 repeatable checks. It includes structured export 413 behavior,
 cleanup safety, deterministic p50/p95 instrumentation, a 1,000-ticker SLSE identity workload under
 its 1.0 s local budget, and a 500-row CERI export under its 2.0 s budget. The full non-browser suite
-with coverage took 188.63 s; the final uninstrumented full suite took 102.34 s. These measurements
+with coverage took 188.63 s; the final post-live-fix uninstrumented suite took 78.21 s. These measurements
 are specific to the recorded machine and are not universal guarantees.
 
 ## 9. Security and Safety Verdict
@@ -192,8 +232,9 @@ escaping, CSV formula mitigation, provider/export redaction, error redaction, pu
 tracked-secret scanning, and audit contracts passed.
 
 The no-order boundary passed static source scanning, unsafe route inventory, read-only IB connection
-assertions, and an IB spy that fails on order-method access. No route, UI action, or service path was
-found that places, modifies, routes, or cancels an order.
+assertions, and both deterministic and live paper spies that fail on order-method access. The live
+paper client invoked zero guarded order methods. No route, UI action, or service path was found that
+places, modifies, routes, or cancels an order.
 
 ## 10. Migration and Restore Verdict
 
@@ -223,6 +264,8 @@ CERI behavior remains blocked by provider availability.
 - `scripts/ops/PostgresUrl.psm1`, `backup_postgres.ps1`, `restore_postgres.ps1`
 - `scripts/ops/evidence_manifest.py`, `validate_restore.py`
 - `tests/integration/test_populated_restore.py`, `tests/ops/test_evidence_manifest.py`
+- `app/services/ib_fetch_plan_service.py`, `app/services/ib_fetch_executor.py`
+- `tests/test_ib_fetch_plan_service.py`, `tests/test_ib_fetch_executor.py`
 - `docs/qa/README.md`, `QA_EXECUTION_MATRIX.md`, `QA_EXECUTION_REPORT.md`,
   `MANUAL_TEST_PROCEDURES.md`, `LIVE_IB_PAPER_VALIDATION.md`,
   `PERFORMANCE_BASELINE.md`, `RELEASE_QA_CHECKLIST.md`
@@ -235,13 +278,15 @@ CERI behavior remains blocked by provider availability.
 - `b459c40 fix(ops): normalize database URLs for backup restore tools`
 - `e66a16d test(ops): verify populated evidence restore`
 - `bfc7fe2 ci(qa): preserve machine-readable test reports`
+- `627f610 docs(qa): record populated restore evidence`
+- `298cd47 fix(ib): report attempted market-data requests accurately`
 - Documentation evidence commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
 
-Residual risk is environmental rather than an observed deterministic product failure: live IB
-entitlements/pacing, Edge/assistive visual behavior, licensed provider policy, long-running resource
-behavior, and Python 3.13/3.14 compatibility.
+Residual risk is environmental rather than an open deterministic product failure: live IB
+disconnect/cancel/resume behavior, Edge/assistive visual behavior, licensed provider policy,
+long-running resource behavior, and Python 3.13/3.14 compatibility.
 
 Recommendation: **CONDITIONAL GO** for continued local research validation; **do not issue an
 unconditional release sign-off** until the required manual checks in `RELEASE_QA_CHECKLIST.md` are

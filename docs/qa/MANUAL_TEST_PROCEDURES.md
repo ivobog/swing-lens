@@ -23,6 +23,11 @@ loading status, errors, and non-color warning cues. Record browser and screen-re
 Execute `LIVE_IB_PAPER_VALIDATION.md`. This is read-only and must never use a live account or order
 API.
 
+2026-08-06 status: **PARTIAL**. Read-only connection, contract resolution, daily bars, cache reuse,
+partial failure preservation, output redaction, and runtime/static no-order checks passed on the paper
+Gateway. Still required: uploaded-run benchmark coverage, intentional Gateway disconnect/retry-failed,
+and live cancel/reconnect/resume.
+
 ## M-04 Licensed CERI Provider Certification
 
 Only when a licensed adapter and approved test credential exist, verify credential-missing health,

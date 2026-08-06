@@ -24,6 +24,7 @@ These are local observations, not universal latency or capacity guarantees. The 
 | --- | --- | --- |
 | Full non-browser regression with coverage | PASS | 1,098 passed in 188.63 s; 82.9% branch-aware application coverage |
 | Final complete regression | PASS | 1,109 passed in 128.36 s, including populated restore |
+| Post-live-fix complete regression | PASS | 1,112 passed, 1 skipped in 78.21 s |
 | Full default regression after harness | PASS | 1,096 passed in 126.14 s at Phase 1 checkpoint |
 | Performance marker lane | PASS | 21 passed, 1,083 deselected in 5.33 s |
 | Chromium + Firefox browser smoke | PASS | 6 passed in 39.21 s after repeated-upload coverage |

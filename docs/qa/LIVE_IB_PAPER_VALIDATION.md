@@ -45,3 +45,29 @@ Gateway/TWS paper environment without placing, modifying, routing, or cancelling
 
 If any order-related behavior is observed, stop immediately, preserve redacted evidence, and record
 an S0 defect. Do not retry against a live account.
+
+## Execution Record — 2026-08-06
+
+Status: **PARTIAL** on commit `298cd47`.
+
+- Environment: IB Gateway `10.48`, API server version `176`, paper port `127.0.0.1:4002`, Europe/Zurich,
+  conservative pacing enabled, read-only client ID `21`. Port `4001` was closed.
+- Direct guarded API smoke: connected with `readonly=True`; resolved `MSFT` (`conId 272093`) and
+  `SPY` (`conId 756733`); rejected `SWINGLENSINVALIDXYZ` with IB error 200; returned nine unique,
+  chronological completed daily bars for each valid symbol from 2026-07-24 through 2026-08-05.
+- The live client was instrumented so `placeOrder`, `cancelOrder`, `whatIfOrder`,
+  `reqOpenOrders`, `reqAllOpenOrders`, and `reqGlobalCancel` failed on access. Invocation count: zero.
+- Route smoke on a migrated disposable database: `/health`, `/ready`, `/ib/status`, `/ib/test`,
+  contract resolution, historical fetch, repeat fetch, mixed failure, and OpenAPI inspection passed.
+  The first `MSFT`/`SPY` request inserted 1,502 unique daily bars; the repeat planned and executed
+  zero historical requests and inserted zero duplicates.
+- Forced mixed retest after DEF-003: `MSFT` plus the invalid ticker returned `PARTIAL`, planned two
+  potential historical calls, executed one, preserved and inserted 752 `MSFT` bars, and reported
+  the invalid contract separately. The disposable database was dropped after verification.
+- Captured app logs had zero matches for database credentials, `DATABASE_URL`, authorization or
+  bearer headers, and local user paths. OpenAPI exposed no broker-write path.
+
+Not yet executed: step 6 through an uploaded run with benchmarks, step 9's intentional live Gateway
+disconnect/retry-failed drill, and step 10's live cancellation/reconnect/resume drill. Deterministic
+fake and durable-job automation covers these behaviors, but it is not a substitute for the remaining
+environmental procedure.
