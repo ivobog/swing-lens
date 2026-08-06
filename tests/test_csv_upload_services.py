@@ -28,6 +28,29 @@ def test_load_and_map_tradingview_style_csv(tmp_path: Path) -> None:
     assert mapped[0].raw["Symbol"] == "msft"
 
 
+def test_loader_preserves_utf8_unicode_values(tmp_path: Path) -> None:
+    csv_path = tmp_path / "unicode.csv"
+    csv_path.write_text(
+        "Symbol,Description,Sector\nŽABA,Žaba München,Technology\n",
+        encoding="utf-8",
+    )
+
+    rows = load_csv_rows(csv_path)
+    mapped = map_csv_rows(rows)
+
+    assert rows[0]["Description"] == "Žaba München"
+    assert mapped[0].ticker == "ŽABA"
+    assert mapped[0].raw == rows[0]
+
+
+def test_loader_rejects_unsupported_encoding(tmp_path: Path) -> None:
+    csv_path = tmp_path / "unsupported.csv"
+    csv_path.write_bytes(b"Symbol,Description\nMSFT,invalid-\x81-byte\n")
+
+    with pytest.raises(CsvLoadError, match="encoding is not supported"):
+        load_csv_rows(csv_path)
+
+
 def test_validation_rejects_rows_without_tickers() -> None:
     mapped = map_csv_rows([{"Description": "No ticker"}])
 

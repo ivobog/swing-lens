@@ -1,3 +1,4 @@
+from copy import deepcopy
 from types import SimpleNamespace
 
 from app.models.tables import BackgroundJob, FundamentalScore, RawCompanyRow, UploadRun
@@ -11,25 +12,23 @@ from app.services.pipeline_service import (
 
 
 def test_recalculate_run_fundamentals_replaces_scores_from_stored_raw_rows() -> None:
-    db = FundamentalFakeDb(
-        [
-            RawCompanyRow(
-                run_id=7,
-                row_number=1,
-                ticker="MSFT",
-                company_name="Microsoft",
-                sector="Technology",
-                raw_json={
-                    "Symbol": "MSFT",
-                    "Description": "Microsoft",
-                    "Sector": "Technology",
-                    "Market capitalization": "3000000000000",
-                    "Free cash flow TTM": "70000000000",
-                    "Net income TTM": "80000000000",
-                },
-            )
-        ]
+    raw_row = RawCompanyRow(
+        run_id=7,
+        row_number=1,
+        ticker="MSFT",
+        company_name="Microsoft",
+        sector="Technology",
+        raw_json={
+            "Symbol": "MSFT",
+            "Description": "Microsoft",
+            "Sector": "Technology",
+            "Market capitalization": "3000000000000",
+            "Free cash flow TTM": "70000000000",
+            "Net income TTM": "80000000000",
+        },
     )
+    original_raw_json = deepcopy(raw_row.raw_json)
+    db = FundamentalFakeDb([raw_row])
 
     scores = recalculate_run_fundamentals(db, run_id=7)
 
@@ -39,6 +38,7 @@ def test_recalculate_run_fundamentals_replaces_scores_from_stored_raw_rows() -> 
     assert isinstance(db.added[0], FundamentalScore)
     assert db.added[0].ticker == "MSFT"
     assert db.added[0].scoring_model_version == "fundamentals_v2.1"
+    assert raw_row.raw_json == original_raw_json
 
 
 def test_refresh_combined_route_rebuilds_combined_only(monkeypatch) -> None:

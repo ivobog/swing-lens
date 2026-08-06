@@ -45,9 +45,16 @@ def test_csv_upload_reaches_run_detail_in_real_browser(
     page.get_by_role("button", name="Process").click()
 
     expect(page).to_have_url(re.compile(r"/runs/\d+$"))
+    first_run_url = page.url
     expect(page.get_by_role("heading", name=re.compile(r"Run \d+"))).to_be_visible()
     expect(page.get_by_text("browser-unicode.csv", exact=True)).to_be_visible()
     expect(page.get_by_role("heading", name="Raw CSV Preview")).to_be_visible()
+
+    page.goto(live_server_url)
+    page.locator("#csv-file").set_input_files(csv_path)
+    page.get_by_role("button", name="Process").click()
+    expect(page).to_have_url(re.compile(r"/runs/\d+$"))
+    assert page.url != first_run_url
 
 
 @pytest.mark.e2e
