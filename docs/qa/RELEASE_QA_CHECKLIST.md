@@ -12,7 +12,7 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | Database | Downgrade one revision and re-upgrade | PASS | `0026 -> 0025 -> 0026` on disposable DB |
 | Recovery | Clean backup/restore validator | PASS | fixed runbook; validator `passed: true` |
 | Recovery | Populated multi-module restore | PASS | 20 evidence/audit tables; exact row and SHA-256 parity; `/ready` healthy |
-| CI evidence | JUnit and coverage artifacts | PASS | Run `31110322944`; `qa-test-reports` artifact published (94,829 bytes) |
+| CI evidence | JUnit and coverage artifacts | PASS | Run `31115680660`; `qa-test-reports` artifact published (94,914 bytes) |
 | Regression | Non-browser suite | PASS | 1,098 passed; 6 e2e deselected |
 | Regression | Complete final suite | PASS | 1,115 passed, 1 skipped, 4 warnings in 146.65 s |
 | Coverage | Coverage report generated | PASS | 83.0% branch-aware CI total; XML generated |

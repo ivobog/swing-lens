@@ -26,7 +26,7 @@ now an automated passing release gate.
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | `5a75474` (transport fault proxy, failed-contract retry fix, and regressions; documentation follows) |
+| Code candidate tested | `cc2c1d5` (transport fault proxy, failed-contract retry fix, regressions, and final M-03 evidence) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -98,6 +98,7 @@ states without modifying `.env` or using secrets.
 | GitHub Actions run `31105400739` | PASS; all blocking jobs green; restore 1 passed, coverage 1,102 passed, golden 3 passed, browsers 6 passed; QA artifacts published |
 | GitHub Actions run `31108152746` | PASS on `dcea77d`; migration/restore/lint/routes/secrets green; coverage 1,106 passed/6 deselected at 83.0%; golden 3 passed; browsers 6 passed; 94,711-byte QA and 506-byte browser artifacts published |
 | GitHub Actions run `31110322944` | PASS on `7943449`; migration/restore/lint/routes/secrets green; coverage 1,107 passed/6 deselected at 83.0%; golden 3 passed; browsers 6 passed; 94,829-byte QA and 502-byte browser artifacts published |
+| GitHub Actions run `31115680660` | PASS on `cc2c1d5`; migration/restore/lint/routes/secrets green; coverage 1,109 passed/6 deselected at 83.0%; golden 3 passed; browsers 6 passed; 94,914-byte QA and 507-byte browser artifacts published |
 | `uv run playwright install chromium firefox` | PASS; both pinned engines installed |
 
 Four non-failing warning instances appeared in the post-live-fix full suite: one Starlette
@@ -361,6 +362,7 @@ CERI behavior remains blocked by provider availability.
 - `e16a683 docs(qa): attach IB progress CI evidence`
 - `3bc6f10 test(ib): add localhost transport fault proxy`
 - `5a75474 fix(ib): retry contract resolution after outage`
+- `cc2c1d5 docs(qa): complete live IB paper validation`
 - Final CI-evidence documentation commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
