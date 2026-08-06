@@ -114,6 +114,7 @@ def resume_fetch_job(
         force_refresh=previous.force_refresh,
         force_full_backfill=previous.force_full_backfill,
         what_to_show_values=resume_what_to_show,
+        retry_failed_contracts=True,
     )
     options = FetchJobOptions(
         include_benchmarks=False,

@@ -5,6 +5,7 @@ from app.services.ib_fetch_plan_service import (
     FetchPlan,
     FetchPlanItem,
     _build_plan_item,
+    _contract_status_for_plan,
     _latest_date_current,
     _plan_action,
     fetch_plan_to_dict,
@@ -47,6 +48,12 @@ def test_plan_action_marks_failed_contracts() -> None:
     assert action == FetchAction.FAILED
     assert duration is None
     assert "failed" in reason.lower()
+
+
+def test_retry_plan_re_resolves_failed_but_not_ambiguous_contracts() -> None:
+    assert _contract_status_for_plan("FAILED", retry_failed_contracts=True) == "MISSING"
+    assert _contract_status_for_plan("AMBIGUOUS", retry_failed_contracts=True) == "AMBIGUOUS"
+    assert _contract_status_for_plan("FAILED", retry_failed_contracts=False) == "FAILED"
 
 
 def test_plan_action_marks_ambiguous_contracts_failed_until_selection() -> None:

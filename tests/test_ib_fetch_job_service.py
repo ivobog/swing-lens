@@ -126,6 +126,7 @@ def test_resume_fetch_job_queues_failed_tickers_only(monkeypatch) -> None:
     assert calls["include_benchmarks"] is False
     assert calls["force_full_backfill"] is True
     assert calls["what_to_show_values"] == ("TRADES",)
+    assert calls["retry_failed_contracts"] is True
     assert fetch_run.status == "QUEUED"
     assert resume_plan is plan
     assert options.include_benchmarks is False

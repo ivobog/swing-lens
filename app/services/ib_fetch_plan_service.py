@@ -66,6 +66,7 @@ def build_fetch_plan(
     force_full_backfill: bool = False,
     what_to_show_values: tuple[str, ...] = DEFAULT_WHAT_TO_SHOW,
     settings: Settings | None = None,
+    retry_failed_contracts: bool = False,
 ) -> FetchPlan:
     settings = settings or get_settings()
     requested_tickers = _normalize_symbols(tickers)
@@ -89,6 +90,10 @@ def build_fetch_plan(
     )
     coverage_by_ticker.update(benchmark_coverage)
     contract_statuses = _contract_statuses(db, symbols)
+    contract_statuses = {
+        ticker: _contract_status_for_plan(status, retry_failed_contracts)
+        for ticker, status in contract_statuses.items()
+    }
 
     items = [
         _build_plan_item(
@@ -316,6 +321,12 @@ def _contract_statuses(db: Session, symbols: list[str]) -> dict[str, str]:
         )
     ).all()
     return {str(ticker).upper(): str(status) for ticker, status in rows}
+
+
+def _contract_status_for_plan(status: str, retry_failed_contracts: bool) -> str:
+    if retry_failed_contracts and status == "FAILED":
+        return "MISSING"
+    return status
 
 
 def _bar_count_for_type(item: OhlcvCoverageItem, what_to_show: str) -> int:
