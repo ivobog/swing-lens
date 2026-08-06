@@ -4,6 +4,8 @@ param(
 
     [string]$RestoreDatabaseUrl = $env:RESTORE_DATABASE_URL,
     [string]$ValidationReport = "backups/restore_validation_report.json",
+    [string]$ExpectedEvidenceManifest,
+    [string]$EvidenceComparisonReport = "backups/restore_evidence_comparison.json",
     [switch]$PlainSql
 )
 
@@ -47,6 +49,30 @@ uv run python scripts/ops/validate_restore.py `
 
 if ($LASTEXITCODE -ne 0) {
     throw "restore validation failed with exit code $LASTEXITCODE."
+}
+
+if ([string]::IsNullOrWhiteSpace($ExpectedEvidenceManifest)) {
+    $backupBaseName = [System.IO.Path]::GetFileNameWithoutExtension($BackupPath)
+    $candidateManifest = Join-Path (Split-Path $BackupPath -Parent) "$backupBaseName.evidence.json"
+    if (Test-Path $candidateManifest) {
+        $ExpectedEvidenceManifest = $candidateManifest
+    }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ExpectedEvidenceManifest)) {
+    if (-not (Test-Path $ExpectedEvidenceManifest)) {
+        throw "Expected evidence manifest was not found: $ExpectedEvidenceManifest"
+    }
+    Write-Host "Comparing restored evidence to source manifest."
+    uv run python scripts/ops/evidence_manifest.py verify `
+        --database-url $RestoreDatabaseUrl `
+        --expected $ExpectedEvidenceManifest `
+        --report $EvidenceComparisonReport
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "restored evidence comparison failed with exit code $LASTEXITCODE."
+    }
+    Write-Host "Evidence comparison report: $EvidenceComparisonReport"
 }
 
 Write-Host "Restore validation report: $ValidationReport"

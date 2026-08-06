@@ -4,6 +4,7 @@ import csv
 import os
 import uuid
 from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -13,6 +14,7 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 from psycopg import sql
+from sqlalchemy.engine import make_url
 
 from app.main import create_app
 from app.settings import Settings
@@ -208,22 +210,41 @@ def fake_ib_gateway_factory() -> Callable[..., ScriptedIBGateway]:
 
 
 @pytest.fixture
-def disposable_postgres_database() -> Iterator[str]:
-    """Create a safely named empty PostgreSQL database and drop only that database."""
+def disposable_postgres_database_factory() -> Callable[[], AbstractContextManager[str]]:
+    """Return a context manager that creates and safely drops disposable databases."""
     admin_url = os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL", POSTGRES_ADMIN_URL)
-    database_name = f"{DISPOSABLE_DATABASE_PREFIX}{uuid.uuid4().hex[:12]}"
-    try:
-        admin = psycopg.connect(admin_url, autocommit=True)
-    except psycopg.Error as exc:
-        pytest.skip(f"PostgreSQL admin database unavailable: {exc}")
+    sqlalchemy_admin_url = make_url(
+        admin_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    )
 
-    try:
-        admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
-        yield f"postgresql+psycopg://postgres:postgres@127.0.0.1:5432/{database_name}"
-    finally:
-        admin.execute(
-            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
-                sql.Identifier(database_name)
+    @contextmanager
+    def create_database() -> Iterator[str]:
+        database_name = f"{DISPOSABLE_DATABASE_PREFIX}{uuid.uuid4().hex[:12]}"
+        try:
+            admin = psycopg.connect(admin_url, autocommit=True)
+        except psycopg.Error as exc:
+            pytest.skip(f"PostgreSQL admin database unavailable: {exc}")
+
+        try:
+            admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
+            yield sqlalchemy_admin_url.set(database=database_name).render_as_string(
+                hide_password=False
             )
-        )
-        admin.close()
+        finally:
+            admin.execute(
+                sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
+                    sql.Identifier(database_name)
+                )
+            )
+            admin.close()
+
+    return create_database
+
+
+@pytest.fixture
+def disposable_postgres_database(
+    disposable_postgres_database_factory: Callable[[], AbstractContextManager[str]],
+) -> Iterator[str]:
+    """Create a safely named empty PostgreSQL database and drop only that database."""
+    with disposable_postgres_database_factory() as database_url:
+        yield database_url

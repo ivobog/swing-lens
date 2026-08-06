@@ -21,6 +21,7 @@ New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 $extension = if ($PlainSql) { "sql" } else { "dump" }
 $backupPath = Join-Path $BackupDir "swinglens_$BackupId.$extension"
 $metadataPath = Join-Path $BackupDir "swinglens_$BackupId.metadata.json"
+$evidenceManifestPath = Join-Path $BackupDir "swinglens_$BackupId.evidence.json"
 $format = if ($PlainSql) { "plain" } else { "custom" }
 $clientDatabaseUrl = ConvertTo-PostgresClientUrl -DatabaseUrl $DatabaseUrl
 
@@ -31,11 +32,21 @@ if ($LASTEXITCODE -ne 0) {
     throw "pg_dump failed with exit code $LASTEXITCODE."
 }
 
+Write-Host "Capturing deterministic evidence manifest: $evidenceManifestPath"
+uv run python scripts/ops/evidence_manifest.py capture `
+    --database-url $DatabaseUrl `
+    --report $evidenceManifestPath
+
+if ($LASTEXITCODE -ne 0) {
+    throw "evidence manifest capture failed with exit code $LASTEXITCODE."
+}
+
 $metadata = [ordered]@{
     backup_id = $BackupId
     created_at = (Get-Date).ToUniversalTime().ToString("o")
     format = $format
     backup_path = (Resolve-Path $backupPath).Path
+    evidence_manifest_path = (Resolve-Path $evidenceManifestPath).Path
     database_url_fingerprint = ($DatabaseUrl -replace "://.*@", "://<redacted>@")
     commit = (git rev-parse HEAD 2>$null)
 }

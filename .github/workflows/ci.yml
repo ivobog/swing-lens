@@ -51,6 +51,9 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked --extra dev
 
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+
       - name: Lint
         run: uv run ruff check app tests scripts
 
@@ -75,9 +78,15 @@ jobs:
       - name: Clean PostgreSQL migration harness
         run: uv run pytest tests/test_migration_remediation.py -q
 
+      - name: Populated backup and restore evidence gate
+        run: >-
+          uv run pytest tests/integration/test_populated_restore.py -q
+          --junitxml=test-results/populated-restore.xml
+
       - name: Unit and service tests with coverage
         run: >-
           uv run pytest -q -m "not e2e and not external"
+          --ignore=tests/integration/test_populated_restore.py
           --junitxml=test-results/pytest.xml
           --cov=app
           --cov-report=term-missing
