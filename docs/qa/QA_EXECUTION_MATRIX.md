@@ -92,15 +92,16 @@ are generated under ignored `test-results/` and by CI.
 | QO-03, R-12 | Full 50/250/1,000 pipeline, query/RSS, eight-hour soak | Performance / manual | M-05 and performance residual plan | Disposable DB, scripted IB, monitors | Measured p50/p95/RSS/queries without leak trend | MANUAL | Not executed | — |
 | QO-08, R-09 | Clean migration/current revision | Integration / destructive | migration remediation + manual disposable command | PostgreSQL | Clean DB reaches repository head | PASS | `0026_technical_artifact_cache` | — |
 | QO-08, R-09 | One-step downgrade and re-upgrade | Destructive | disposable Alembic cycle | PostgreSQL QA DB | `0026 -> 0025 -> 0026` | PASS | Command exit 0 | — |
-| QO-08, R-09 | Backup creation and clean restore validator | Destructive / regression | runbooks + `test_postgres_url.py` + validator tests | PostgreSQL 18 client/server | Backup/restore succeeds; tables/FKs/hashes pass | PASS | Validator `passed: true` | DEF-001 fixed |
-| QO-08 | Populated multi-module evidence restore | Manual / destructive | M-06 | Disposable populated DB | Row counts and hashes preserved; `/ready` healthy | MANUAL | Empty-schema drill passed; populated drill outstanding | — |
+| QO-08, R-09 | Backup creation and clean restore validator | Destructive / regression | runbooks + `test_postgres_url.py` + validator tests | PostgreSQL 16 server / 18.3 client | Backup/restore succeeds; tables/FKs/hashes pass | PASS | Validator `passed: true` | DEF-001 fixed |
+| QO-08, R-09 | Populated multi-module evidence restore | Integration / destructive | `test_populated_multi_module_backup_restore_preserves_evidence` + M-06 runbook | Two disposable PostgreSQL DBs; deterministic 20-table fixture | Exact row/full-content hash parity; FKs/hashes pass; `/ready` healthy | PASS | 1 passed in 12.92 s; runbooks: 20 populated tables, zero mismatches | — |
 | R-09 | Cleanup preview/execution guardrails | Unit / destructive | performance budget/cleanup tests | Temp files and fake DB | Preview exact; only rebuildable/expired artifacts removed | PASS | Full regression green | — |
-| QO-07 | CI locked install/lint/routes/unit/PostgreSQL/golden/coverage | CI | `.github/workflows/ci.yml` | GitHub Actions PostgreSQL 16 | Blocking quality gates and artifacts | PARTIAL | YAML parsed and local equivalents green; remote workflow not dispatched | — |
-| QO-07 | CI browser, performance, secret scan artifacts | CI | browser-smoke and performance-advisory jobs | Playwright/PostgreSQL 16 | Separate browsers/nightly budgets; zero tracked secret shapes | PARTIAL | Local equivalents green; remote workflow not dispatched | — |
+| QO-07 | CI locked install/lint/routes/unit/PostgreSQL/golden/coverage/restore | CI | `.github/workflows/ci.yml` | GitHub Actions PostgreSQL 16 | Blocking gates green; machine reports published | PASS | Run `31105400739`; 1 restore + 1,102 coverage + 3 golden; 94,588-byte artifact | DEF-002 fixed |
+| QO-07 | CI browser, performance, secret scan artifacts | CI | browser-smoke and performance-advisory jobs | Playwright/PostgreSQL 16 | Separate browsers/nightly budgets; zero tracked secret shapes | PASS | Run `31105400739`; browser green/artifact published; performance skipped as expected on push | — |
 
 ## Critical End-to-End Scenario Summary
 
 E2E-001 through E2E-018 and E2E-020 are covered by the green deterministic regression, focused
 browser lane, invariance/leakage/safety tests, and the evidence above. E2E-019 passed for a clean
-schema backup/restore after DEF-001; the populated multi-module variant remains M-06. Live paper IB
-is deliberately separated from automated evidence and remains blocked pending an approved session.
+schema backup/restore after DEF-001. E2E-019 and M-06 now also pass with populated upload, scoring,
+pipeline, regime, sector, SLSE, OWPE, CERI, and audit evidence. Live paper IB is deliberately
+separated from automated evidence and remains blocked pending an approved session.

@@ -40,6 +40,8 @@ uv run python scripts/qa/scan_tracked_secrets.py
 uv run alembic heads
 uv run alembic upgrade head
 uv run alembic current
+uv run pytest tests/integration/test_populated_restore.py -q `
+  --junitxml=test-results/populated-restore.xml
 uv run pytest -q -m "not e2e and not external" `
   --junitxml=test-results/regression.xml `
   --cov=app `
@@ -61,6 +63,8 @@ by CI where applicable. Exact results for the current execution are in
 `tests/conftest.py` provides isolated upload/export/cache paths, an environment-independent
 `Settings` factory, a FastAPI client factory, deterministic CSV and OHLCV factories, a fixed UTC
 clock, a read-only scripted IB Gateway, and a safely named disposable PostgreSQL fixture.
+The disposable database factory supports isolated source and restore databases for real
+`pg_dump`/`pg_restore` fidelity checks.
 
 `tests/e2e/conftest.py` migrates a fresh PostgreSQL database, launches SwingLens on an ephemeral
 localhost port with advanced modules and the worker disabled, waits for `/health`, and tears down

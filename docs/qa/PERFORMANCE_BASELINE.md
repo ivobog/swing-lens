@@ -11,19 +11,19 @@ Execution date: 2026-08-06 (Europe/Zurich)
 | CPU | Intel Core i7-7500U @ 2.70 GHz |
 | Memory | 17,061,072,896 bytes (approximately 15.9 GiB) |
 | Project Python | CPython 3.12.2 |
-| PostgreSQL | 18.3, 64-bit Windows |
+| PostgreSQL | PostgreSQL 16 Compose server; PostgreSQL 18.3, 64-bit Windows client tools |
 | Browser engines | Playwright Chromium 151.0.7922.34; Firefox 153.0 |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
 
 These are local observations, not universal latency or capacity guarantees. The plan's PostgreSQL
-16 baseline is represented in CI configuration; this workstation executed PostgreSQL 18.3.
+16 baseline was used through the local Compose service; client utilities were PostgreSQL 18.3.
 
 ## Executed Results
 
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Full non-browser regression with coverage | PASS | 1,098 passed in 188.63 s; 82.9% branch-aware application coverage |
-| Final complete regression | PASS | 1,104 passed in 102.34 s |
+| Final complete regression | PASS | 1,109 passed in 128.36 s, including populated restore |
 | Full default regression after harness | PASS | 1,096 passed in 126.14 s at Phase 1 checkpoint |
 | Performance marker lane | PASS | 21 passed, 1,083 deselected in 5.33 s |
 | Chromium + Firefox browser smoke | PASS | 6 passed in 39.21 s after repeated-upload coverage |

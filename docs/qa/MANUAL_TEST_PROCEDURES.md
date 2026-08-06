@@ -37,12 +37,18 @@ worker, and PostgreSQL one at a time. Verify lease recovery, progress, retry cou
 terminal status, and absence of duplicate evidence. Then execute repeated daily-style runs for at
 least eight hours and inspect CPU, memory, cache growth, stale jobs, and database growth trends.
 
-## M-06 Populated Multi-Module Restore
+## M-06 Populated Multi-Module Restore — Automated PASS
 
-Create a disposable completed run containing raw uploads, bars, technical/fundamental/combined
-results, jobs/pipelines, regime, sector, SLSE, OWPE, and CERI evidence. Back it up, restore it into a
-new clean database, run `validate_restore.py`, compare critical row counts and hashes, start the app,
-and confirm `/ready` is healthy before reopening writes.
+`tests/integration/test_populated_restore.py` now creates two safely named disposable PostgreSQL
+databases, migrates the source, seeds raw uploads, bars, technical/fundamental/combined results,
+jobs/pipelines, regime, sector, SLSE, OWPE, CERI, and administrative audit evidence, then performs a
+real custom-format backup and restore. It requires all tracked table counts and canonical SHA-256
+digests to match, validates foreign keys and evidence hashes, and requires readiness to be healthy.
+
+The 2026-08-06 execution passed locally against the PostgreSQL 16 Compose service using PostgreSQL
+18.3 client tools. The operational PowerShell runbooks also passed with 20 populated evidence and
+audit tables, no row/hash mismatches, and no blank required hash fields. Repeat this automated gate
+for every release candidate; it no longer requires manual sign-off when the CI gate is green.
 
 ## M-07 Product/Model Sign-off
 

@@ -1,6 +1,6 @@
 # SwingLens Release QA Checklist
 
-Status reflects the 2026-08-06 execution on `codex/qa-implementation`.
+Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 
 | Area | Gate | Status | Evidence / remaining action |
 | --- | --- | --- | --- |
@@ -11,9 +11,10 @@ Status reflects the 2026-08-06 execution on `codex/qa-implementation`.
 | Database | Clean migration to head | PASS | `0026_technical_artifact_cache` |
 | Database | Downgrade one revision and re-upgrade | PASS | `0026 -> 0025 -> 0026` on disposable DB |
 | Recovery | Clean backup/restore validator | PASS | fixed runbook; validator `passed: true` |
-| Recovery | Populated multi-module restore | MANUAL | Execute M-06 before release sign-off |
+| Recovery | Populated multi-module restore | PASS | 20 evidence/audit tables; exact row and SHA-256 parity; `/ready` healthy |
+| CI evidence | JUnit and coverage artifacts | PASS | Run `31105400739`; `qa-test-reports` artifact published (94,588 bytes) |
 | Regression | Non-browser suite | PASS | 1,098 passed; 6 e2e deselected |
-| Regression | Complete final suite | PASS | 1,104 passed; 4 deprecation warnings |
+| Regression | Complete final suite | PASS | 1,109 passed; 6 deprecation warnings |
 | Coverage | Coverage report generated | PASS | 82.9% branch-aware total; XML generated |
 | Golden | Scoring/ranking fixtures | PASS | focused gate: 3 passed in 0.34 s |
 | Browser | Chromium and Firefox smoke | PASS | 6 passed |
