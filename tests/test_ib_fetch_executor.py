@@ -123,6 +123,54 @@ def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
     assert fetch_run.unchanged_count == 1
 
 
+def test_execute_fetch_plan_commits_current_item_before_historical_request(monkeypatch) -> None:
+    db = FakeDb()
+    observed = {}
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker),
+            error_message=None,
+        ),
+    )
+
+    def observe_fetch(*args, **kwargs):
+        fetch_item = next(row for row in db.added if isinstance(row, IBFetchItem))
+        observed.update(status=fetch_item.status, commits=db.commits)
+        return ["bar"]
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", observe_fetch)
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda db, bars, **kwargs: BarUpsertSummary(inserted=1),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=FetchPlan(
+            run_id=7,
+            requested_tickers=["MSFT"],
+            symbols_including_benchmarks=["MSFT"],
+            items=[_plan_item("MSFT", FetchAction.TOP_UP_RECENT, duration="10 D")],
+            estimated_request_count=1,
+            estimated_full_backfills=0,
+            estimated_top_ups=1,
+            estimated_refreshes=0,
+            estimated_skips=0,
+            warnings=[],
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+
+    assert observed == {"status": "RUNNING", "commits": 1}
+    assert fetch_run.status == "COMPLETED"
+    assert fetch_run.items[0].status == "SUCCESS"
+
+
 def test_execute_fetch_plan_persists_contract_resolution_failure(monkeypatch) -> None:
     db = FakeDb()
     monkeypatch.setattr(

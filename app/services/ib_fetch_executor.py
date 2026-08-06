@@ -196,6 +196,9 @@ def _execute_plan_item(
     force_full_backfill: bool,
 ) -> None:
     fetch_item.started_at = datetime.now(UTC)
+    fetch_item.status = "RUNNING"
+    db.flush()
+    db.commit()
 
     if plan_item.action == FetchAction.SKIP:
         _mark_skipped(fetch_item, plan_item.reason)
