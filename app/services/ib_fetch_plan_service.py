@@ -192,15 +192,39 @@ def _build_plan_item(
         latest_bar_date=latest_bar_date,
         required_bars=coverage.required_rows,
         reason=reason,
-        estimated_request_count=0
-        if action
-        in {
-            FetchAction.SKIP,
-            FetchAction.CONTRACT_RESOLUTION_REQUIRED,
-            FetchAction.UNSUPPORTED,
-            FetchAction.FAILED,
-        }
-        else 1,
+        estimated_request_count=_estimated_request_count(
+            action=action,
+            what_to_show=what_to_show,
+            current_bar_count=current_bar_count,
+            required_bars=coverage.required_rows,
+            latest_current=latest_current,
+            force_refresh=force_refresh,
+            force_full_backfill=force_full_backfill,
+        ),
+    )
+
+
+def _estimated_request_count(
+    *,
+    action: FetchAction,
+    what_to_show: str,
+    current_bar_count: int,
+    required_bars: int,
+    latest_current: bool,
+    force_refresh: bool,
+    force_full_backfill: bool,
+) -> int:
+    if action in {FetchAction.SKIP, FetchAction.UNSUPPORTED, FetchAction.FAILED}:
+        return 0
+    if action != FetchAction.CONTRACT_RESOLUTION_REQUIRED:
+        return 1
+    if what_to_show not in DEFAULT_WHAT_TO_SHOW:
+        return 0
+    return int(
+        force_full_backfill
+        or current_bar_count < required_bars
+        or force_refresh
+        or not latest_current
     )
 
 

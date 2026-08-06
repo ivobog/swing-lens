@@ -170,6 +170,80 @@ def test_build_plan_item_uses_coverage_for_specific_data_type() -> None:
     assert plan_item.estimated_request_count == 1
 
 
+def test_unresolved_contract_estimates_post_resolution_request() -> None:
+    settings = Settings(ib_default_bar_size="1 day")
+    coverage = OhlcvCoverageSummary(
+        total_tickers=1,
+        ready_count=0,
+        insufficient_count=0,
+        missing_count=1,
+        benchmark_spy_ready=False,
+        benchmark_qqq_ready=False,
+        required_rows=252,
+        items=[],
+    )
+    item = OhlcvCoverageItem(
+        ticker="MSFT",
+        adjusted_bars=0,
+        trades_bars=0,
+        has_price=False,
+        has_volume=False,
+        sufficient_history=False,
+        status="missing",
+    )
+
+    plan_item = _build_plan_item(
+        coverage_item=item,
+        contract_status="MISSING",
+        what_to_show="TRADES",
+        coverage=coverage,
+        settings=settings,
+        force_refresh=False,
+        force_full_backfill=False,
+    )
+
+    assert plan_item.action == FetchAction.CONTRACT_RESOLUTION_REQUIRED
+    assert plan_item.estimated_request_count == 1
+
+
+def test_unresolved_contract_with_current_cache_estimates_no_request() -> None:
+    settings = Settings(ib_default_bar_size="1 day")
+    coverage = OhlcvCoverageSummary(
+        total_tickers=1,
+        ready_count=1,
+        insufficient_count=0,
+        missing_count=0,
+        benchmark_spy_ready=False,
+        benchmark_qqq_ready=False,
+        required_rows=252,
+        items=[],
+    )
+    item = OhlcvCoverageItem(
+        ticker="MSFT",
+        adjusted_bars=300,
+        trades_bars=300,
+        has_price=True,
+        has_volume=True,
+        sufficient_history=True,
+        status="ready",
+        first_trades_date=date(2025, 1, 1),
+        latest_trades_date=date.today(),
+    )
+
+    plan_item = _build_plan_item(
+        coverage_item=item,
+        contract_status="MISSING",
+        what_to_show="TRADES",
+        coverage=coverage,
+        settings=settings,
+        force_refresh=False,
+        force_full_backfill=False,
+    )
+
+    assert plan_item.action == FetchAction.CONTRACT_RESOLUTION_REQUIRED
+    assert plan_item.estimated_request_count == 0
+
+
 def test_fetch_plan_to_dict_serializes_actions() -> None:
     plan = FetchPlan(
         run_id=7,
