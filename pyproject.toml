@@ -30,7 +30,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "httpx>=0.27",
+  "playwright>=1.55",
   "pytest>=8.2",
+  "pytest-cov>=7.0",
+  "pytest-playwright>=0.7",
   "ruff>=0.5"
 ]
 
@@ -40,6 +43,31 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "--strict-markers"
+markers = [
+  "unit: fast isolated tests without external infrastructure",
+  "integration: tests that cross service, database, or process boundaries",
+  "e2e: real application workflows exercised through HTTP or a browser",
+  "slow: tests intentionally excluded from the fastest developer lane",
+  "destructive: tests that create, migrate, restore, purge, or remove disposable data",
+  "external: manual or opt-in checks against an external dependency",
+  "security: input hardening, redaction, authorization, or safety-boundary checks",
+  "performance: repeatable local performance and resource measurements",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/static/vendor/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 1
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]
 
 [tool.ruff]
 line-length = 100
