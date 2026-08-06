@@ -6,6 +6,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Import-Module (Join-Path $PSScriptRoot "PostgresUrl.psm1") -Force
 
 if ([string]::IsNullOrWhiteSpace($DatabaseUrl)) {
     throw "DATABASE_URL is required. Pass -DatabaseUrl or set `$env:DATABASE_URL."
@@ -21,9 +22,10 @@ $extension = if ($PlainSql) { "sql" } else { "dump" }
 $backupPath = Join-Path $BackupDir "swinglens_$BackupId.$extension"
 $metadataPath = Join-Path $BackupDir "swinglens_$BackupId.metadata.json"
 $format = if ($PlainSql) { "plain" } else { "custom" }
+$clientDatabaseUrl = ConvertTo-PostgresClientUrl -DatabaseUrl $DatabaseUrl
 
 Write-Host "Creating SwingLens PostgreSQL backup: $backupPath"
-& $pgDump.Source --format=$format --file=$backupPath $DatabaseUrl
+& $pgDump.Source --format=$format --file=$backupPath $clientDatabaseUrl
 
 if ($LASTEXITCODE -ne 0) {
     throw "pg_dump failed with exit code $LASTEXITCODE."
