@@ -7,13 +7,13 @@ Recommended release decision: **GO only after the remaining manual P0/P1 checks 
 ## 1. Executive Verdict
 
 All feasible deterministic automation is green after one release-blocking backup/restore defect,
-three live-IB recovery/progress/accounting defects, and three Edge UI/accessibility defects were
+three live-IB recovery/progress/accounting defects, and four UI/accessibility defects were
 fixed. No open S0 or S1 defect remains. Golden/scoring,
 evidence immutability, future-data leakage,
 feature isolation, advisory non-mutation, destructive confirmations, secret redaction, migration,
 restore validation, and the no-order safety boundary passed their implemented automated controls.
 
-The verdict is conditional because no screen-reader/contrast review, licensed CERI provider
+The verdict is conditional because no human screen-reader auditory review, licensed CERI provider
 certification, or long-running 250/1,000-ticker resilience soak was available. Microsoft Edge M-01
 passed on the installed browser after responsive, favicon, and alert-semantics fixes. The complete live
 paper procedure passed through a localhost network-isolation alternative: connection, uploaded
@@ -28,7 +28,7 @@ now an automated passing release gate.
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | `a7a6a9f` (M-01 Edge fixes and browser regressions; QA documentation follows) |
+| Code candidate tested | `3588393` (M-02 contrast fix and three-browser accessibility regression; QA documentation follows) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -63,6 +63,11 @@ states without modifying `.env` or using secrets.
 | M-01 focused template/unit regressions | PASS; 37 passed, 1 warning in 9.71 s |
 | M-01 Chromium + Firefox regressions | PASS; 10 passed, 1 warning in 25.60 s |
 | M-01 final complete pytest | PASS; 1,119 passed, 1 skipped, 4 warnings in 80.87 s; JUnit XML written |
+| Initial M-02 Chromium accessibility/contrast run | FAIL; 5 of 13 new surface checks found muted text at about 4.41:1 or warning text at about 4.43:1; DEF-009 opened |
+| M-02 Chromium accessibility/contrast retest | PASS; 18 passed, 1 warning in 42.79 s |
+| M-02 Firefox accessibility/contrast retest | PASS; 18 passed, 1 warning in 50.93 s |
+| M-02 installed Edge accessibility/contrast retest | PASS; 18 passed, 1 warning in 40.21 s |
+| M-02 final complete pytest | PASS; 1,132 passed, 1 skipped, 4 warnings in 78.50 s; JUnit XML written |
 | Focused IB plan/executor regression | PASS; 16 passed, 1 warning in 0.51 s |
 | Focused IB progress/cancel regression | PASS; 18 passed, 1 warning in 0.56 s |
 | Documented Ruff scope | PASS; `ruff check app tests scripts` reported `All checks passed!` |
@@ -153,6 +158,8 @@ state engines, safety boundaries, and deterministic model contracts have stronge
 - Added responsive CERI table-containment and clean-browser-console regressions to the Chromium and
   Firefox lane, and enabled the CERI UI in its disposable browser fixture.
 - Added semantic alert regressions for upload processing errors and persisted failed-run messages.
+- Added a 13-surface rendered accessibility gate for landmarks, headings, navigation, control
+  names, table headers, non-color warning/status text, and WCAG AA text contrast.
 - Added Unicode and unsupported-encoding upload regressions.
 - Strengthened fundamental recalculation coverage to assert raw JSON immutability.
 - Added PostgreSQL client URL conversion regressions for backup/restore scripts.
@@ -348,7 +355,29 @@ as a product defect.
 - Regression: `test_upload_template_marks_processing_errors_as_alerts` and
   `test_run_detail_marks_failed_run_message_as_an_alert` protect both template paths.
 - Retest: Edge exposed the empty-CSV failure as `alert: CSV file has no data rows.`.
-- Remaining risk: actual announcement timing and contrast remain part of the human M-02 procedure.
+- Remaining risk: actual announcement timing remains part of the human M-02 procedure.
+
+### DEF-009 — S3 — Muted and warning text missed WCAG AA contrast
+
+- Affected: QO-06 and M-02; explanatory text, research disclaimers, and warning badges.
+- Environment: Windows 10, Playwright Chromium and Firefox, Microsoft Edge 151.0.4129.59,
+  disposable PostgreSQL database, commit `a8bef54`.
+- Reproduction: render the 13 representative application surfaces and compare computed foreground
+  and effective background colors against the 4.5:1 normal-text contrast threshold.
+- Expected: all visible normal text reaches at least 4.5:1.
+- Actual: muted text reached approximately 4.41:1 on the accent-soft background, while warning text
+  reached approximately 4.43:1 on warning-soft backgrounds.
+- Evidence: the initial Chromium matrix failed five surface cases and identified the affected text,
+  CSS class, measured ratio, and required ratio.
+- Root cause: the shared `--muted` and `--warning` tokens were calibrated too close to the minimum
+  when placed on tinted surfaces.
+- Fix: darken `--muted` from `#667085` to `#626c7d` and `--warning` from `#976b00` to `#916600`.
+- Regression: `test_core_surfaces_have_accessible_structure_and_contrast` validates computed,
+  composited rendered text contrast plus semantic basics on 13 routes.
+- Retest: all 18 focused tests passed independently in Chromium, Firefox, and installed Edge; the
+  complete suite passed 1,132 tests with one skip.
+- Remaining risk: Narrator/NVDA announcement timing and comprehension still require human M-02
+  listening evidence.
 
 ## 7. Blocked and Manual Verification
 
@@ -357,7 +386,7 @@ as a product defect.
 | Live IB paper validation | PASS | Localhost network isolation severed only the disposable app transport; reconnect/retry, cancel/resume, cache integrity, redaction, and no-order checks passed |
 | Licensed CERI provider | BLOCKED | No licensed adapter or approved test credential exists in scope |
 | Microsoft Edge smoke | PASS | Edge 151.0.4129.59: 84 route/width checks, keyboard/upload/export/error/pipeline flows, screenshots, and clean console passed after DEF-006/007/008 |
-| Screen-reader/contrast review | MANUAL | Requires Narrator/NVDA and human judgment |
+| Screen-reader auditory review | MANUAL | Structure and contrast passed in three browsers; announcement timing and comprehension require Narrator/NVDA and human judgment |
 | Python 3.13/3.14 compatibility | BLOCKED | Only project Python 3.12.2 was installed/executed |
 | 50/250/1,000 full pipeline + eight-hour soak | MANUAL | No long-running monitored disposable environment was executed |
 | Real process/worker/PostgreSQL restart drill | MANUAL | Deterministic fault/lease tests passed; external process restart procedure remains |
@@ -367,9 +396,9 @@ as a product defect.
 The performance lane passed 21 repeatable checks. It includes structured export 413 behavior,
 cleanup safety, deterministic p50/p95 instrumentation, a 1,000-ticker SLSE identity workload under
 its 1.0 s local budget, and a 500-row CERI export under its 2.0 s budget. The full non-browser suite
-with coverage took 188.63 s; the post-DEF-005 uninstrumented suite took 146.65 s and the final
-post-M-01 suite took 80.87 s. These measurements are specific to the recorded machine and are not
-universal guarantees.
+with coverage took 188.63 s; the post-DEF-005 uninstrumented suite took 146.65 s, the final
+post-M-01 suite took 80.87 s, and the final post-M-02 suite took 78.50 s. These measurements are
+specific to the recorded machine and are not universal guarantees.
 
 ## 9. Security and Safety Verdict
 
@@ -440,13 +469,14 @@ CERI behavior remains blocked by provider availability.
 - `cc2c1d5 docs(qa): complete live IB paper validation`
 - `0a0f9e8 docs(qa): attach transport recovery CI evidence`
 - `a7a6a9f fix(ui): harden responsive Edge surfaces`
+- `3588393 fix(ui): enforce accessible text contrast`
 - Final CI-evidence documentation commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
 
-Residual risk is environmental rather than an open deterministic product failure: screen-reader and
-contrast behavior, licensed provider policy, long-running resource behavior, and Python 3.13/3.14
-compatibility. Edge visual/interaction smoke is complete.
+Residual risk is environmental rather than an open deterministic product failure: human
+screen-reader announcement behavior, licensed provider policy, long-running resource behavior, and
+Python 3.13/3.14 compatibility. Automated contrast and Edge visual/interaction smoke are complete.
 
 Recommendation: **CONDITIONAL GO** for continued local research validation; **do not issue an
 unconditional release sign-off** until the required manual checks in `RELEASE_QA_CHECKLIST.md` are

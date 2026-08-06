@@ -19,8 +19,8 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | Golden | Scoring/ranking fixtures | PASS | focused gate: 3 passed in 0.34 s |
 | Browser | Chromium and Firefox smoke | PASS | 10 passed after responsive/console regressions |
 | Browser | Microsoft Edge visual/interaction smoke | PASS | Edge 151.0.4129.59; M-01 passed 84 page/width checks and representative visual/interaction flows |
-| Accessibility | Automated basics | PASS | skip link, focus, labels, templates, responsive viewport |
-| Accessibility | Screen-reader/contrast review | MANUAL | Execute M-02 |
+| Accessibility | Automated basics and contrast | PASS | 13 surfaces passed semantics and WCAG AA rendered-text contrast in Chromium, Firefox, and Edge |
+| Accessibility | Screen-reader auditory review | MANUAL | M-02 structure/contrast automation passed; execute Narrator/NVDA listening procedure |
 | IB | Deterministic fake regression | PASS | read-only fake and no-order spy green |
 | IB | Live paper connection | PASS | Uploaded benchmarks, localhost transport isolation/reconnect, retry-failed, cancel/resume, cache, redaction, and no-order checks passed |
 | Jobs | Retry/cancel/coalesce/lease/recovery | PASS | background job, worker, fetch, and pipeline suites green |

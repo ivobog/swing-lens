@@ -39,6 +39,20 @@ Use Windows Narrator or NVDA with keyboard-only navigation. Verify the skip link
 headings, primary navigation name/state, form labels, alert announcements, table header context,
 loading status, errors, and non-color warning cues. Record browser and screen-reader versions.
 
+2026-08-06 status: **PARTIAL**. Automated browser evidence now covers 13 representative surfaces
+in Playwright Chromium, Firefox, and installed Microsoft Edge. Each surface returned 200 and passed
+main landmark, single H1, named primary navigation, named enabled form controls, table-header,
+non-color status/warning text, and rendered WCAG AA normal-text contrast checks. The first run found
+muted explanatory text at approximately 4.41:1 and warning badges at approximately 4.43:1. DEF-009
+darkened the shared muted and warning tokens; all 18 focused tests then passed in each browser, and
+the complete regression passed with 1,132 tests and one skip.
+
+The remaining step is a human auditory check in Narrator or NVDA. Confirm that the skip link and
+heading/navigation structure are understandable when traversed, and that upload errors, pipeline
+progress, reconnect messages, and loading-state changes are announced at the expected time without
+duplicate or excessively verbose speech. Automation does not constitute evidence that a person
+heard and understood those announcements.
+
 ## M-03 Live IB Paper Connectivity
 
 Execute `LIVE_IB_PAPER_VALIDATION.md`. This is read-only and must never use a live account or order
