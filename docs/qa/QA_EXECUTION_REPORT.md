@@ -7,16 +7,17 @@ Recommended release decision: **GO only after the remaining manual P0/P1 checks 
 ## 1. Executive Verdict
 
 All feasible deterministic automation is green after one release-blocking backup/restore defect and
-one live-IB request-accounting defect were fixed. No open S0 or S1 defect remains. Golden/scoring,
+two live-IB progress/accounting defects were fixed. No open S0 or S1 defect remains. Golden/scoring,
 evidence immutability, future-data leakage,
 feature isolation, advisory non-mutation, destructive confirmations, secret redaction, migration,
 restore validation, and the no-order safety boundary passed their implemented automated controls.
 
 The verdict is conditional because the live IB paper procedure is only partial, and no Microsoft
 Edge/screen-reader review, licensed CERI provider certification, or long-running 250/1,000-ticker
-resilience soak was available. The live paper connection, contracts, bars, cache reuse, partial
-failure, redaction, and no-order controls passed; live disconnect/cancel/resume remains manual. The
-previously manual populated multi-module restore is now an automated passing release gate.
+resilience soak was available. The live paper connection, uploaded benchmark fetch, cache reuse,
+client-session loss/retry, cancel/resume, partial failure, redaction, and no-order controls passed;
+only a supervised physical Gateway disconnect/reconnect remains manual. The previously manual
+populated multi-module restore is now an automated passing release gate.
 
 ## 2. Repository and Environment
 
@@ -25,7 +26,7 @@ previously manual populated multi-module restore is now an automated passing rel
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | `dcea77d` (IB accounting fix, regression tests, and live-paper evidence) |
+| Code candidate tested | `e392ba7` (IB progress visibility fix and regression; documentation evidence follows) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -55,13 +56,22 @@ states without modifying `.env` or using secrets.
 | Phase 1 `uv run pytest -q` | PASS; 1,096 passed, 4 warnings in 126.14 s |
 | Final complete `uv run pytest -q` | PASS; 1,109 passed, 6 warnings in 128.36 s |
 | Final post-live-fix complete pytest | PASS; 1,112 passed, 1 skipped, 4 warnings in 78.21 s; JUnit XML written |
+| Final post-DEF-004 complete pytest | PASS; 1,113 passed, 1 skipped, 4 warnings in 118.52 s; JUnit XML written |
 | Focused IB plan/executor regression | PASS; 16 passed, 1 warning in 0.51 s |
+| Focused IB progress/cancel regression | PASS; 18 passed, 1 warning in 0.56 s |
 | Documented Ruff scope | PASS; `ruff check app tests scripts` reported `All checks passed!` |
 | Route inventory after live fix | PASS; `scripts/docs/check_route_inventory.py` exit 0 |
 | Direct guarded IB paper smoke | PASS; read-only connection, server 176, MSFT/SPY contracts and bars, invalid contract explicit, zero guarded order-method calls |
 | Disposable route-level IB smoke | PASS; first valid fetch inserted 1,502 unique bars, repeat executed 0/inserted 0, mixed outcome preserved success |
 | Initial forced mixed live request | FAIL; returned `planned=0`, `executed=2` although one historical request was attempted; DEF-003 opened |
 | Forced mixed live retest at `298cd47` | PASS; `PARTIAL`, planned 2, executed 1, 752 MSFT bars inserted, invalid ticker isolated; disposable DB dropped |
+| Uploaded-run live benchmark fetch | PASS; MSFT/AAPL/SPY/QQQ completed, 3,008 TRADES bars fetched/inserted |
+| Uploaded-run repeat cache check | PASS; planned 0, executed 0, skipped 4, inserted 0 |
+| Injected read-only client-session loss | PASS; run `PARTIAL`, MSFT preserved, AAPL explicit/exported failure; retry-failed targeted only AAPL and completed |
+| Initial cancellation progress observation | FAIL; live run was `RUNNING` but `current_ticker` remained null; DEF-004 opened; the eight-call run completed normally |
+| Pre-fix live cancellation/resume | PASS for workflow; cancelled after 2/8 calls, resumed 4/4 with zero failures and no duplicate keys |
+| DEF-004 live retest | PASS; `current_ticker=MSFT`, cancelled after 1/8 calls, resumed 4/4, 6,016/6,016 unique bars |
+| M-03 disposable cleanup | PASS; database absent, temp upload/export/cache tree absent, paper port 4002 still open, live port 4001 closed |
 | Harness-only `ruff check .` / obsolete route path | NOT A PRODUCT FAILURE; legacy migrations are outside the configured Ruff gate and `scripts/check_route_inventory.py` does not exist; documented commands above passed |
 | `uv run pytest tests/qa/test_qa_infrastructure.py -q` | PASS; 7 passed in 0.78 s |
 | Focused upload/recalculation tests | PASS; 28 passed in 1.00 s |
@@ -133,6 +143,8 @@ state engines, safety boundaries, and deterministic model contracts have stronge
 - Added IB plan/executor regressions for post-resolution request estimates, actual historical-call
   accounting, mixed success preservation, and unsupported data types; retained forced-refresh intent
   after contract resolution.
+- Added regression coverage proving the current IB fetch item is committed as `RUNNING` before the
+  historical request, making progress and cooperative cancellation observable across sessions.
 
 ## 6. Defects Found and Fixed
 
@@ -204,13 +216,38 @@ as a product defect.
   current-cache, and unsupported-data-type tests.
 - Retest: live paper route returned `PARTIAL`, planned 2, executed 1, inserted 752 MSFT bars, isolated
   the invalid contract, and dropped the disposable database afterward.
-- Remaining risk: live disconnect/retry-failed and cancel/reconnect/resume drills remain manual.
+- Remaining risk: none for request accounting; live session-loss/retry and cancel/resume passed.
+
+### DEF-004 — S2 — Running IB fetch did not expose its current ticker
+
+- Affected: F-04, R-05; durable fetch progress, UI status, and cancellation timing.
+- Environment: Windows 10, IB Gateway 10.48 paper/API server 176, PostgreSQL disposable DB,
+  Python 3.12.2, pre-fix commit `dee769b`.
+- Reproduction: queue an eight-item forced live fetch and poll
+  `/runs/{run_id}/ib/fetches/{fetch_run_id}/status` while it is active.
+- Expected: `status=RUNNING` identifies the current ticker so progress is auditable and cancellation
+  can be requested at a known safe boundary.
+- Actual: the first observable running state was `RUNNING`, `completed_items=1`,
+  `current_ticker=null`; the current item stayed transaction-local until its request finished.
+- Evidence: the initial cancellation harness could not observe a current ticker and timed out after
+  the otherwise successful eight-call run completed.
+- Root cause: the executor created and flushed the fetch item but committed only after contract
+  resolution and historical-data work completed. Independent progress requests could not see it.
+- Fix: mark the item `RUNNING` and commit it before contract resolution/historical-data access; final
+  status and counters remain committed after the bounded item completes.
+- Regression: `test_execute_fetch_plan_commits_current_item_before_historical_request` asserts the
+  in-progress status and transaction boundary before the IB call.
+- Retest: the live API exposed `current_ticker=MSFT` with zero completed items, cancellation stopped
+  after 1/8 requests, resume completed 4/4 with zero failures, and all 6,016 cache rows remained
+  unique. Full regression: 1,113 passed, 1 skipped.
+- Remaining risk: a crash can leave an explicit `RUNNING` item for operational recovery rather than
+  hiding the in-flight item; stale-run recovery policy remains covered separately.
 
 ## 7. Blocked and Manual Verification
 
 | Item | State | Exact reason |
 | --- | --- | --- |
-| Live IB paper validation | PARTIAL | Core read-only smoke passed; uploaded-run benchmark, intentional Gateway disconnect/retry-failed, and live cancel/reconnect/resume remain |
+| Live IB paper validation | PARTIAL | Uploaded benchmarks, injected client-session loss/retry-failed, and live cancel/resume passed; stopping/network-isolating the authenticated Gateway requires supervised re-authentication readiness |
 | Licensed CERI provider | BLOCKED | No licensed adapter or approved test credential exists in scope |
 | Microsoft Edge smoke | MANUAL | Playwright Chromium/Firefox ran; Edge-specific binary/visual review not executed |
 | Screen-reader/contrast review | MANUAL | Requires Narrator/NVDA and human judgment |
@@ -223,7 +260,7 @@ as a product defect.
 The performance lane passed 21 repeatable checks. It includes structured export 413 behavior,
 cleanup safety, deterministic p50/p95 instrumentation, a 1,000-ticker SLSE identity workload under
 its 1.0 s local budget, and a 500-row CERI export under its 2.0 s budget. The full non-browser suite
-with coverage took 188.63 s; the final post-live-fix uninstrumented suite took 78.21 s. These measurements
+with coverage took 188.63 s; the final post-DEF-004 uninstrumented suite took 118.52 s. These measurements
 are specific to the recorded machine and are not universal guarantees.
 
 ## 9. Security and Safety Verdict
@@ -283,12 +320,14 @@ CERI behavior remains blocked by provider availability.
 - `627f610 docs(qa): record populated restore evidence`
 - `298cd47 fix(ib): report attempted market-data requests accurately`
 - `dcea77d docs(qa): record live IB paper evidence`
-- Final CI-evidence documentation commit: recorded in repository history after this report is committed.
+- `dee769b docs(qa): attach live IB CI evidence`
+- `e392ba7 fix(ib): publish current fetch progress`
+- Final M-03 evidence documentation commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
 
-Residual risk is environmental rather than an open deterministic product failure: live IB
-disconnect/cancel/resume behavior, Edge/assistive visual behavior, licensed provider policy,
+Residual risk is environmental rather than an open deterministic product failure: a supervised
+physical Gateway disconnect/reconnect, Edge/assistive visual behavior, licensed provider policy,
 long-running resource behavior, and Python 3.13/3.14 compatibility.
 
 Recommendation: **CONDITIONAL GO** for continued local research validation; **do not issue an

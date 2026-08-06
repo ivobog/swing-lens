@@ -71,3 +71,31 @@ Not yet executed: step 6 through an uploaded run with benchmarks, step 9's inten
 disconnect/retry-failed drill, and step 10's live cancellation/reconnect/resume drill. Deterministic
 fake and durable-job automation covers these behaviors, but it is not a substitute for the remaining
 environmental procedure.
+
+### M-03 continuation — 2026-08-06
+
+Status remains **PARTIAL** on commit `e392ba7`; steps 6–8 and 10 now pass. Step 9 passed for an
+injected read-only client-session loss against live paper data, but the authenticated Gateway process
+was deliberately left running.
+
+- Uploaded `MSFT` and `AAPL`, included `SPY` and `QQQ`, and fetched `TRADES` into a migrated
+  disposable database. All four items completed: 3,008 bars fetched and inserted.
+- Repeated the same uploaded-run request. It planned/executed zero historical calls, skipped all four
+  items, inserted zero rows, and retained unique cache keys.
+- Dropped the app's read-only IB session immediately before the second request. The run returned
+  `PARTIAL`: `MSFT` remained successful, `AAPL` failed explicitly, and the failed-item CSV contained
+  exactly the `AAPL/TRADES` failure. Retry-failed targeted only `AAPL` and completed successfully.
+- Requested cancellation while an eight-call live fetch was running. Before DEF-004, the API exposed
+  `RUNNING` with a null `current_ticker`; cancellation still stopped after two completed calls and
+  resume completed four requested ticker/data-type items without duplicate evidence.
+- After DEF-004, the API exposed `current_ticker=MSFT` before request completion. Cancellation stopped
+  after one of eight planned calls; resume completed four items with zero failures.
+- Final database evidence: 6,016 price bars, 6,016 unique composite keys, zero duplicate groups;
+  `MSFT`, `AAPL`, `SPY`, and `QQQ` each retained 1,504 bars. `/ready` remained healthy.
+- The disposable database and temporary upload/export/cache tree were removed. Paper port `4002`
+  remained open and live port `4001` remained closed.
+
+Remaining environmental check: stop or network-isolate the authenticated Gateway during an active
+request, then reconnect it and repeat retry-failed. This requires a supervised session because the
+Gateway may require interactive re-authentication. The equivalent app-session loss, preservation,
+failure export, and retry behavior passed above.
