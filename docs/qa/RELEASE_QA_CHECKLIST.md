@@ -14,7 +14,7 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | Recovery | Populated multi-module restore | PASS | 20 evidence/audit tables; exact row and SHA-256 parity; `/ready` healthy |
 | CI evidence | JUnit and coverage artifacts | PASS | Run `31115680660`; `qa-test-reports` artifact published (94,914 bytes) |
 | Regression | Non-browser suite | PASS | 1,098 passed; 6 e2e deselected |
-| Regression | Complete final suite | PASS | 1,119 passed, 1 skipped, 4 warnings in 80.87 s |
+| Regression | Complete final suite | PASS | 1,140 passed, 1 skipped, 4 warnings in 151.66 s after M-05 |
 | Coverage | Coverage report generated | PASS | 83.0% branch-aware CI total; XML generated |
 | Golden | Scoring/ranking fixtures | PASS | focused gate: 3 passed in 0.34 s |
 | Browser | Chromium and Firefox smoke | PASS | 10 passed after responsive/console regressions |
@@ -30,10 +30,12 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | CERI | Manual provider, redaction, purge, outage isolation | PASS | deterministic CERI suite included in regression |
 | CERI | Licensed provider certification | BLOCKED | Adapter/credential not supplied; execute M-04 if in release scope |
 | Exports | Schema, UTF-8, ordering, formula safety, 413 | PASS | export suites and browser workflow green |
-| Performance | Repeatable component budgets | PASS | 21 passed |
-| Performance | Full scale/soak baseline | MANUAL | Execute M-05 and residual baseline work |
+| Performance | Repeatable component budgets | PASS | 21 passed, 1,120 deselected in 2.56 s |
+| Performance | 50/250/1,000 scale baseline | FAIL | Functional evidence passed; 7/10 budgets passed; DEF-010 open S2 |
+| Resilience | Real web/worker/PostgreSQL restart | PASS | 337.2 s; two lease recoveries, readiness recovery, no duplicate evidence |
+| Performance | Eight-hour soak | MANUAL | Two-cycle shakedown passed; execute the full M-05 command for eight elapsed hours |
 | Safety | No broker-order path | PASS | static scan, read-only connection tests, IB method spy |
-| Defects | Open S0/S1 | PASS | none open; DEF-001 and DEF-003 through DEF-008 fixed and regressed |
+| Defects | Open S0/S1 | PASS | none open; DEF-010 is open S2; DEF-011 fixed and regressed |
 | Evidence | Matrix/report/manual procedures | PASS | files in `docs/qa/` |
 
 ## Release Sign-off

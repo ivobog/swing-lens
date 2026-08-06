@@ -80,6 +80,24 @@ uv run python scripts/qa/ib_fault_proxy.py --listen-port 4003 --upstream-port 40
 localhost port with advanced modules and the worker disabled, waits for `/health`, and tears down
 the process and database after the browser lane.
 
+## M-05 Scale and Resilience Commands
+
+These opt-in commands create only safely named disposable databases or dedicated QA containers and
+use deterministic cached bars with zero IB requests:
+
+```powershell
+uv run python scripts/qa/run_m05_scale.py --output test-results/m05-scale.json
+uv run python scripts/qa/run_m05_restart.py --output test-results/m05-restart.json
+uv run python scripts/qa/run_m05_soak.py `
+  --duration-hours 8 --interval-seconds 900 `
+  --output test-results/m05-soak.json
+```
+
+The scale report evaluates documented local budgets but does not present them as universal
+guarantees. The restart harness uses its own PostgreSQL 16 container and never restarts the user's
+normal Compose database. A shorter soak invocation is labeled `SHAKEDOWN_PASS`; it cannot satisfy
+the eight-hour release requirement.
+
 ## Evidence Index
 
 - `QA_EXECUTION_MATRIX.md` — requirement/risk-to-test traceability and status.

@@ -78,6 +78,36 @@ worker, and PostgreSQL one at a time. Verify lease recovery, progress, retry cou
 terminal status, and absence of duplicate evidence. Then execute repeated daily-style runs for at
 least eight hours and inspect CPU, memory, cache growth, stale jobs, and database growth trends.
 
+2026-08-06 status: **PARTIAL**. The finite scale and real restart portions are automated and were
+executed against disposable PostgreSQL environments at commit `13c87b1`:
+
+- `run_m05_scale.py` processed 50, 250, and 1,000 tickers with 756 deterministic daily bars per
+  symbol and zero IB requests. Exact raw, fundamental, technical, combined, and five-profile
+  ranking evidence counts passed at every size. Seven of ten documented performance checks passed;
+  the 250-ticker technical step (182.932 s), 1,000-ticker run-detail p95 (2.838 s), and 1,000-ticker
+  combined-export p95 (2.288 s) missed their 60 s, 1.5 s, and 2 s targets. DEF-010 remains open S2.
+- `run_m05_restart.py` passed in 337.2 s using its own PostgreSQL 16 container. Web restart, two
+  worker lease recoveries, PostgreSQL stop/start, request coalescing, and final evidence integrity
+  passed. Readiness returned HTTP 200/degraded in 3.063 s during outage and HTTP 200/ok after
+  restart. The drill planned zero IB requests and left one terminal job, zero active jobs, 250 rows
+  in every core scoring table, and one regime and sector snapshot. DEF-011 was fixed and regressed.
+- A two-cycle `run_m05_soak.py` shakedown passed in 97.5 s: 100 technical/combined rows, 500 ranking
+  rows, zero active/stale jobs, stable 214 SQL statements per pipeline, and 191,356,928-byte peak
+  RSS. This is harness validation, not eight-hour evidence.
+
+The remaining M-05 action is the actual eight-hour observation. Run the following from a stable
+local session and retain `test-results/m05-soak.json` plus the console log:
+
+```powershell
+uv run python scripts/qa/run_m05_soak.py `
+  --duration-hours 8 `
+  --interval-seconds 900 `
+  --output test-results/m05-soak.json
+```
+
+Only a report with `mode=RELEASE_SOAK`, `status=PASS`, and
+`completed_target_duration=true` closes the duration requirement.
+
 ## M-06 Populated Multi-Module Restore — Automated PASS
 
 `tests/integration/test_populated_restore.py` now creates two safely named disposable PostgreSQL

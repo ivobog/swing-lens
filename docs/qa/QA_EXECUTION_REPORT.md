@@ -6,15 +6,16 @@ Recommended release decision: **GO only after the remaining manual P0/P1 checks 
 
 ## 1. Executive Verdict
 
-All feasible deterministic automation is green after one release-blocking backup/restore defect,
-three live-IB recovery/progress/accounting defects, and four UI/accessibility defects were
-fixed. No open S0 or S1 defect remains. Golden/scoring,
+Functional deterministic automation is green after one release-blocking backup/restore defect,
+three live-IB recovery/progress/accounting defects, four UI/accessibility defects, and one real
+readiness-recovery defect were fixed. No open S0 or S1 defect remains. The completed M-05 scale run
+opened DEF-010 S2 after three of ten local performance targets failed. Golden/scoring,
 evidence immutability, future-data leakage,
 feature isolation, advisory non-mutation, destructive confirmations, secret redaction, migration,
 restore validation, and the no-order safety boundary passed their implemented automated controls.
 
 The verdict is conditional because no human screen-reader auditory review, licensed CERI provider
-certification, or long-running 250/1,000-ticker resilience soak was available. Microsoft Edge M-01
+certification, or eight-hour resilience soak was completed, and DEF-010 remains open. Microsoft Edge M-01
 passed on the installed browser after responsive, favicon, and alert-semantics fixes. The complete live
 paper procedure passed through a localhost network-isolation alternative: connection, uploaded
 benchmarks, cache reuse, transport loss/reconnect, retry-failed, cancel/resume, partial failure,
@@ -28,7 +29,7 @@ now an automated passing release gate.
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | `3588393` (M-02 contrast fix and three-browser accessibility regression; QA documentation follows) |
+| Code candidate tested | `13c87b1` (M-05 scale/restart/soak harness and readiness recovery fix; QA documentation follows) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -68,6 +69,17 @@ states without modifying `.env` or using secrets.
 | M-02 Firefox accessibility/contrast retest | PASS; 18 passed, 1 warning in 50.93 s |
 | M-02 installed Edge accessibility/contrast retest | PASS; 18 passed, 1 warning in 40.21 s |
 | M-02 final complete pytest | PASS; 1,132 passed, 1 skipped, 4 warnings in 78.50 s; JUnit XML written |
+| M-05 scale safety/unit slice | PASS; 7 tests, 1 warning in 0.17 s |
+| M-05 50/250/1,000 scale profile | FAIL performance; 7/10 targets passed; all evidence counts and HTTP contracts passed; DEF-010 opened |
+| M-05 50/250/1,000 pipeline timings | 39.489 s / 187.454 s / 739.117 s; technical steps 36.873 s / 182.932 s / 724.678 s |
+| M-05 1,000 route/export profile | Run-detail p95 2,837.804 ms; combined-export p95 2,287.843 ms; both above target |
+| Initial real database-outage readiness drill | FAIL; stale pooled readiness request exceeded the harness response window; DEF-011 opened |
+| M-05 real restart retest | PASS in 337.2 s; web restart, two worker recoveries, PostgreSQL restart, coalescing, and exact evidence |
+| M-05 readiness outage/recovery | PASS; HTTP 200/degraded in 3,062.798 ms during outage, then HTTP 200/ok after restart |
+| M-05 two-cycle soak shakedown | SHAKEDOWN_PASS in 97.5 s; 100 technical/combined, 500 ranking, zero active/stale jobs, peak RSS 191,356,928 B |
+| M-05 final Ruff and route inventory | PASS; `All checks passed!`; route inventory exit 0 |
+| M-05 final complete pytest | PASS; 1,140 passed, 1 skipped, 4 warnings in 151.66 s |
+| M-05 final performance marker lane | PASS; 21 passed, 1,120 deselected, 1 warning in 2.56 s |
 | Focused IB plan/executor regression | PASS; 16 passed, 1 warning in 0.51 s |
 | Focused IB progress/cancel regression | PASS; 18 passed, 1 warning in 0.56 s |
 | Documented Ruff scope | PASS; `ruff check app tests scripts` reported `All checks passed!` |
@@ -179,6 +191,14 @@ state engines, safety boundaries, and deterministic model contracts have stronge
   connection-loss drills without stopping the authenticated Gateway.
 - Added retry planning that re-resolves cached `FAILED` contracts after connectivity recovery while
   continuing to require manual selection for `AMBIGUOUS` contracts.
+- Added opt-in M-05 scale, real restart, and repeated-run soak harnesses with safely scoped
+  disposable PostgreSQL targets, deterministic cached bars, zero-request IB guards, SQL/RSS/CPU/
+  database-growth measurements, and machine-readable JSON reports.
+- Added a real three-process worker recovery drill with durable lease-owner checkpoints, web
+  restart, dedicated PostgreSQL 16 stop/start, readiness degradation/recovery, coalescing, and exact
+  post-replay evidence validation.
+- Added a bounded PostgreSQL readiness probe that avoids stale application-pool sockets and skips
+  redundant migration/job queries after database unavailability.
 
 ## 6. Defects Found and Fixed
 
@@ -379,6 +399,51 @@ as a product defect.
 - Remaining risk: Narrator/NVDA announcement timing and comprehension still require human M-02
   listening evidence.
 
+### DEF-010 — S2 — Full-scale technical scoring and large views miss local budgets
+
+- Affected: QO-03, R-12, M-05; technical scoring, run-detail rendering, and combined export.
+- Environment: Windows 10, Intel Core i7-7500U, Python 3.12.2, PostgreSQL 16 disposable database,
+  756 daily bars per symbol, commit `e6f9730` with the M-05 harness working tree.
+- Reproduction: run `uv run python scripts/qa/run_m05_scale.py` with default 50/250/1,000 sizes.
+- Expected: 250-ticker technical scoring at most 60 s, 1,000-ticker run-detail p95 at most 1.5 s,
+  and combined-export p95 at most 2 s.
+- Actual: 182.932 s, 2.838 s, and 2.288 s respectively; seven other evaluated checks passed.
+- Evidence: `test-results/m05-scale.json`; exact row/evidence counts passed at all sizes. The
+  1,000-ticker pipeline used 2,106 SQL statements and was 95.92% CPU-to-wall time, with the
+  technical step consuming 724.678 of 739.117 seconds.
+- Root cause: profiling identifies sequential CPU-bound technical computation as the dominant
+  pipeline cost; large run-detail/export responses also materialize 8.05 MB and 557.7 KB payloads.
+  A production optimization has not yet been selected.
+- Fix: no product performance fix in this phase. The new harness makes the miss repeatable and
+  prevents an unsupported green claim.
+- Regression: `tests/qa/test_m05_scale.py` protects target evaluation, local-only destructive
+  bounds, deterministic symbols, and working RSS instrumentation.
+- Remaining risk: open S2. Capacity on slower local research machines is limited, and these targets
+  must not become blocking CI thresholds until DEF-010 is optimized and an approved baseline exists.
+
+### DEF-011 — S2 — Readiness blocked on stale pooled connection during PostgreSQL outage
+
+- Affected: F-01, QO-03, R-05, R-14, M-05; operational dependency degradation and recovery.
+- Environment: Windows 10, dedicated `postgres:16` container, real Uvicorn process and three worker
+  processes, 250-ticker deterministic pipeline.
+- Reproduction: stop the dedicated PostgreSQL container while the web process is healthy, then call
+  `/ready` through the retained application process.
+- Expected: HTTP 200 with a prompt redacted `status=degraded`, followed by `status=ok` after restart.
+- Actual: the pre-fix request remained blocked on a stale pooled TCP connection beyond the client
+  observation window.
+- Evidence: three real restart attempts reproduced the stale-pool delay before the corrected drill
+  passed; the final degraded response completed in 3,062.798 ms and disclosed no credentials.
+- Root cause: readiness reused the application pool's dead socket, and independently attempted the
+  database, migration, and stale-job queries after the first database failure.
+- Fix: add a validated three-second PostgreSQL connection timeout, use a short-lived `NullPool`
+  connection for the database probe, and mark migration/job checks skipped after database failure.
+- Regression: `test_readiness_short_circuits_database_dependent_checks_when_unavailable`, settings
+  default/override assertions, focused readiness/hardening tests, and `run_m05_restart.py`.
+- Retest: real web restart, two stale worker recoveries, PostgreSQL stop/start, HTTP readiness
+  degradation/recovery, and exact single-copy 250-row evidence passed in 337.2 seconds.
+- Remaining risk: none specific to local PostgreSQL outage detection; observed timing remains
+  machine-specific and the response continues to use the documented HTTP 200 readiness contract.
+
 ## 7. Blocked and Manual Verification
 
 | Item | State | Exact reason |
@@ -388,17 +453,20 @@ as a product defect.
 | Microsoft Edge smoke | PASS | Edge 151.0.4129.59: 84 route/width checks, keyboard/upload/export/error/pipeline flows, screenshots, and clean console passed after DEF-006/007/008 |
 | Screen-reader auditory review | MANUAL | Structure and contrast passed in three browsers; announcement timing and comprehension require Narrator/NVDA and human judgment |
 | Python 3.13/3.14 compatibility | BLOCKED | Only project Python 3.12.2 was installed/executed |
-| 50/250/1,000 full pipeline + eight-hour soak | MANUAL | No long-running monitored disposable environment was executed |
-| Real process/worker/PostgreSQL restart drill | MANUAL | Deterministic fault/lease tests passed; external process restart procedure remains |
+| 50/250/1,000 full pipeline scale | FAIL | Functional/evidence checks passed, but 3/10 documented local performance targets failed; DEF-010 open S2 |
+| Eight-hour soak | MANUAL | Two-cycle shakedown passed; eight elapsed hours have not been observed |
+| Real process/worker/PostgreSQL restart drill | PASS | Dedicated PostgreSQL 16, real web, and three workers recovered twice with no duplicate evidence |
 
 ## 8. Performance Observations
 
-The performance lane passed 21 repeatable checks. It includes structured export 413 behavior,
-cleanup safety, deterministic p50/p95 instrumentation, a 1,000-ticker SLSE identity workload under
-its 1.0 s local budget, and a 500-row CERI export under its 2.0 s budget. The full non-browser suite
-with coverage took 188.63 s; the post-DEF-005 uninstrumented suite took 146.65 s, the final
-post-M-01 suite took 80.87 s, and the final post-M-02 suite took 78.50 s. These measurements are
-specific to the recorded machine and are not universal guarantees.
+The component performance lane passed 21 repeatable checks. The full M-05 scale profile failed
+three of ten documented local targets while preserving exact evidence at 50, 250, and 1,000
+tickers. Pipeline wall times were 39.489 s, 187.454 s, and 739.117 s; technical computation
+accounted for nearly all of the large-run time. The 1,000-ticker request peak reached 563,933,184
+bytes. The real restart drill passed, and the two-cycle soak shakedown showed stable 214 SQL
+statements per pipeline, zero active/stale jobs, and 191,356,928-byte peak RSS. The actual eight-hour
+soak and DEF-010 optimization remain. These measurements are specific to the recorded machine and
+are not universal guarantees.
 
 ## 9. Security and Safety Verdict
 
@@ -445,6 +513,10 @@ CERI behavior remains blocked by provider availability.
 - `tests/integration/test_populated_restore.py`, `tests/ops/test_evidence_manifest.py`
 - `app/services/ib_fetch_plan_service.py`, `app/services/ib_fetch_executor.py`
 - `tests/test_ib_fetch_plan_service.py`, `tests/test_ib_fetch_executor.py`
+- `app/db.py`, `app/settings.py`, `app/services/readiness_service.py`, `.env.example`
+- `scripts/qa/run_m05_scale.py`, `run_m05_restart.py`, `run_m05_soak.py`
+- `tests/qa/test_m05_scale.py`, `test_m05_restart.py`, `test_m05_soak.py`
+- `tests/ops/test_readiness_metrics.py`, `tests/test_settings.py`
 - `docs/qa/README.md`, `QA_EXECUTION_MATRIX.md`, `QA_EXECUTION_REPORT.md`,
   `MANUAL_TEST_PROCEDURES.md`, `LIVE_IB_PAPER_VALIDATION.md`,
   `PERFORMANCE_BASELINE.md`, `RELEASE_QA_CHECKLIST.md`
@@ -470,13 +542,15 @@ CERI behavior remains blocked by provider availability.
 - `0a0f9e8 docs(qa): attach transport recovery CI evidence`
 - `a7a6a9f fix(ui): harden responsive Edge surfaces`
 - `3588393 fix(ui): enforce accessible text contrast`
+- `13c87b1 test(qa): automate scale and restart resilience`
 - Final CI-evidence documentation commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
 
-Residual risk is environmental rather than an open deterministic product failure: human
-screen-reader announcement behavior, licensed provider policy, long-running resource behavior, and
-Python 3.13/3.14 compatibility. Automated contrast and Edge visual/interaction smoke are complete.
+Residual risk includes one open deterministic S2 performance defect (DEF-010), plus environmental
+screen-reader announcement behavior, licensed provider policy, the unexecuted eight-hour resource
+observation, and Python 3.13/3.14 compatibility. Automated contrast, Edge visual/interaction smoke,
+and real web/worker/PostgreSQL restart recovery are complete.
 
 Recommendation: **CONDITIONAL GO** for continued local research validation; **do not issue an
 unconditional release sign-off** until the required manual checks in `RELEASE_QA_CHECKLIST.md` are
