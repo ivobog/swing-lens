@@ -26,7 +26,7 @@ populated multi-module restore is now an automated passing release gate.
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | `e392ba7` (IB progress visibility fix and regression; documentation evidence follows) |
+| Code candidate tested | `7943449` (IB progress visibility fix, regression, and M-03 evidence) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -91,6 +91,7 @@ states without modifying `.env` or using secrets.
 | GitHub Actions run `31104978621` | Checks PASS; PostgreSQL 16 restore, regression/coverage, golden, Chromium, and Firefox green; main report upload warned and opened DEF-002 |
 | GitHub Actions run `31105400739` | PASS; all blocking jobs green; restore 1 passed, coverage 1,102 passed, golden 3 passed, browsers 6 passed; QA artifacts published |
 | GitHub Actions run `31108152746` | PASS on `dcea77d`; migration/restore/lint/routes/secrets green; coverage 1,106 passed/6 deselected at 83.0%; golden 3 passed; browsers 6 passed; 94,711-byte QA and 506-byte browser artifacts published |
+| GitHub Actions run `31110322944` | PASS on `7943449`; migration/restore/lint/routes/secrets green; coverage 1,107 passed/6 deselected at 83.0%; golden 3 passed; browsers 6 passed; 94,829-byte QA and 502-byte browser artifacts published |
 | `uv run playwright install chromium firefox` | PASS; both pinned engines installed |
 
 Four non-failing warning instances appeared in the post-live-fix full suite: one Starlette
@@ -322,7 +323,8 @@ CERI behavior remains blocked by provider availability.
 - `dcea77d docs(qa): record live IB paper evidence`
 - `dee769b docs(qa): attach live IB CI evidence`
 - `e392ba7 fix(ib): publish current fetch progress`
-- Final M-03 evidence documentation commit: recorded in repository history after this report is committed.
+- `7943449 docs(qa): record IB cancellation and resume evidence`
+- Final CI-evidence documentation commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
 
