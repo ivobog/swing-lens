@@ -27,6 +27,44 @@ def test_dashboard_keyboard_navigation_and_responsive_layout(
 
 @pytest.mark.e2e
 @pytest.mark.slow
+def test_ceri_operations_contains_wide_tables_on_mobile(
+    page: Page,
+    live_server_url: str,
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(f"{live_server_url}/ceri/operations")
+
+    expect(page.get_by_role("heading", name="CERI Operations", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Provider Health", exact=True)).to_be_visible()
+    assert page.evaluate(
+        "Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) "
+        "<= window.innerWidth"
+    )
+    assert page.locator(".table-wrap").first.evaluate(
+        "element => element.scrollWidth > element.clientWidth"
+    )
+
+
+@pytest.mark.e2e
+@pytest.mark.slow
+def test_dashboard_loads_without_browser_console_errors(
+    page: Page,
+    live_server_url: str,
+) -> None:
+    errors: list[str] = []
+    page.on(
+        "console",
+        lambda message: errors.append(message.text) if message.type == "error" else None,
+    )
+
+    page.goto(live_server_url)
+    expect(page).to_have_title("SwingLens Dashboard")
+
+    assert errors == []
+
+
+@pytest.mark.e2e
+@pytest.mark.slow
 def test_csv_upload_reaches_run_detail_in_real_browser(
     page: Page,
     live_server_url: str,

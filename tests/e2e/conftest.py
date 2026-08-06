@@ -48,7 +48,8 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         "CACHE_DIR": str(runtime_root / "cache"),
         "WINNER_PROBABILITY_ENABLED": "false",
         "SETUP_LIFECYCLE_ENABLED": "false",
-        "CERI_ENABLED": "false",
+        "CERI_ENABLED": "true",
+        "CERI_UI_ENABLED": "true",
     }
     migration = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
