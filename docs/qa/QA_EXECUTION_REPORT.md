@@ -6,14 +6,16 @@ Recommended release decision: **GO only after the remaining manual P0/P1 checks 
 
 ## 1. Executive Verdict
 
-All feasible deterministic automation is green after one release-blocking backup/restore defect and
-three live-IB recovery/progress/accounting defects were fixed. No open S0 or S1 defect remains. Golden/scoring,
+All feasible deterministic automation is green after one release-blocking backup/restore defect,
+three live-IB recovery/progress/accounting defects, and three Edge UI/accessibility defects were
+fixed. No open S0 or S1 defect remains. Golden/scoring,
 evidence immutability, future-data leakage,
 feature isolation, advisory non-mutation, destructive confirmations, secret redaction, migration,
 restore validation, and the no-order safety boundary passed their implemented automated controls.
 
-The verdict is conditional because no Microsoft Edge/screen-reader review, licensed CERI provider
-certification, or long-running 250/1,000-ticker resilience soak was available. The complete live
+The verdict is conditional because no screen-reader/contrast review, licensed CERI provider
+certification, or long-running 250/1,000-ticker resilience soak was available. Microsoft Edge M-01
+passed on the installed browser after responsive, favicon, and alert-semantics fixes. The complete live
 paper procedure passed through a localhost network-isolation alternative: connection, uploaded
 benchmarks, cache reuse, transport loss/reconnect, retry-failed, cancel/resume, partial failure,
 redaction, and no-order controls all passed. The previously manual populated multi-module restore is
@@ -26,14 +28,14 @@ now an automated passing release gate.
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | `cc2c1d5` (transport fault proxy, failed-contract retry fix, regressions, and final M-03 evidence) |
+| Code candidate tested | `a7a6a9f` (M-01 Edge fixes and browser regressions; QA documentation follows) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
 | PostgreSQL | PostgreSQL 16 Compose server; PostgreSQL 18.3 client tools |
 | Migration head | `0026_technical_artifact_cache` |
 | Dependency state | `uv.lock` synchronized frozen; QA additions locked |
-| Browser engines | Playwright Chromium 151.0.7922.34 and Firefox 153.0 |
+| Browser engines | Microsoft Edge 151.0.4129.59; Playwright Chromium 151.0.7922.34 and Firefox 153.0 |
 
 The QA plan names Windows 11 and PostgreSQL 16 as the primary baseline. This machine used Windows
 10, the PostgreSQL 16 Compose service, and PostgreSQL 18.3 client tools. CI is configured with
@@ -58,6 +60,9 @@ states without modifying `.env` or using secrets.
 | Final post-live-fix complete pytest | PASS; 1,112 passed, 1 skipped, 4 warnings in 78.21 s; JUnit XML written |
 | Final post-DEF-004 complete pytest | PASS; 1,113 passed, 1 skipped, 4 warnings in 118.52 s; JUnit XML written |
 | Final post-DEF-005 complete pytest | PASS; 1,115 passed, 1 skipped, 4 warnings in 146.65 s; JUnit XML written |
+| M-01 focused template/unit regressions | PASS; 37 passed, 1 warning in 9.71 s |
+| M-01 Chromium + Firefox regressions | PASS; 10 passed, 1 warning in 25.60 s |
+| M-01 final complete pytest | PASS; 1,119 passed, 1 skipped, 4 warnings in 80.87 s; JUnit XML written |
 | Focused IB plan/executor regression | PASS; 16 passed, 1 warning in 0.51 s |
 | Focused IB progress/cancel regression | PASS; 18 passed, 1 warning in 0.56 s |
 | Documented Ruff scope | PASS; `ruff check app tests scripts` reported `All checks passed!` |
@@ -81,7 +86,14 @@ states without modifying `.env` or using secrets.
 | Harness-only `ruff check .` / obsolete route path | NOT A PRODUCT FAILURE; legacy migrations are outside the configured Ruff gate and `scripts/check_route_inventory.py` does not exist; documented commands above passed |
 | `uv run pytest tests/qa/test_qa_infrastructure.py -q` | PASS; 7 passed in 0.78 s |
 | Focused upload/recalculation tests | PASS; 28 passed in 1.00 s |
-| Chromium + Firefox E2E | PASS; 6 passed in 39.21 s |
+| Initial Chromium + Firefox E2E | PASS; 6 passed in 39.21 s |
+| Edge M-01 core surface matrix | PASS; 13 routes x 4 widths = 52 checks, all 200 with title/H1/main, named controls, and no post-fix page overflow |
+| Edge M-01 run surface matrix | PASS; 8 routes x 4 widths = 32 checks, all 200 with title/H1/main, named controls, and no page overflow |
+| Edge keyboard/visual smoke | PASS; skip link visibly focused, Enter moved focus to main; screenshots inspected at 390/768/1280/1920 px |
+| Edge upload/error/export flow | PASS; two UTF-8 rows preserved, empty CSV failed explicitly, raw CSV downloaded (545 bytes, HTTP 200) |
+| Edge queued pipeline flow | PASS; confirmation, eight persisted pending steps, and queued cancellation to matching pipeline/job `CANCELLED`; no IB request executed |
+| Edge settings/console safety | PASS; market-data/read-only boundary visible; no DB URL, credential, or order action; zero post-fix console errors |
+| M-01 disposable cleanup | PASS; Edge sessions closed, port 8766 closed, IPv4 and Docker disposable databases absent |
 | Secret scanner tests and scanner CLI | PASS; 2 passed; zero tracked credential-shaped findings |
 | Backup/restore regression and validator tests | PASS; 6 passed in 1.29 s |
 | Populated PostgreSQL integration restore | PASS; 1 passed, 3 warnings in 12.92 s |
@@ -138,6 +150,9 @@ state engines, safety boundaries, and deterministic model contracts have stronge
 - Added deterministic CSV, OHLCV, fixed-clock, HTTP client, and read-only scripted IB factories.
 - Added real Chromium/Firefox tests for responsive keyboard navigation, upload/run creation, repeated
   upload behavior, Unicode input, and research-only settings.
+- Added responsive CERI table-containment and clean-browser-console regressions to the Chromium and
+  Firefox lane, and enabled the CERI UI in its disposable browser fixture.
+- Added semantic alert regressions for upload processing errors and persisted failed-run messages.
 - Added Unicode and unsupported-encoding upload regressions.
 - Strengthened fundamental recalculation coverage to assert raw JSON immutability.
 - Added PostgreSQL client URL conversion regressions for backup/restore scripts.
@@ -279,13 +294,69 @@ as a product defect.
 - Remaining risk: none specific to retrying transient failed contracts; ambiguous instruments remain
   intentionally blocked pending manual selection.
 
+### DEF-006 — S3 — CERI Operations tables escaped the mobile viewport
+
+- Affected: F-14, QO-06, M-01; responsive CERI Operations usability.
+- Environment: Windows 10, Microsoft Edge 151.0.4129.59, 390/768 px viewports, disposable
+  PostgreSQL database, CERI UI enabled.
+- Reproduction: open `/ceri/operations` at 390 px and inspect the document/table widths.
+- Expected: the page remains within the viewport and wide provider tables scroll inside their
+  `.table-wrap` containers.
+- Actual: the document was 778 px wide in a 390 px viewport (388 px overflow) and retained 10 px
+  overflow at 768 px; the provider table was visibly clipped behind a page-level scrollbar.
+- Evidence: pre-fix Edge screenshot plus measured `bodyOverflow=388`; all other core surfaces were
+  contained at the same width.
+- Root cause: a grid child `.panel` kept its automatic minimum width, allowing the table's min-content
+  width to enlarge the grid track despite the inner overflow wrapper.
+- Fix: set `.panel { min-width: 0; }`, leaving the wide table horizontally scrollable inside its
+  intended wrapper.
+- Regression: `test_ceri_operations_contains_wide_tables_on_mobile` requires document containment
+  and proves the table itself remains internally scrollable in Chromium and Firefox.
+- Retest: fresh Edge measured document width 375 at a 390 px viewport and a 293 px table wrapper
+  containing 713 px of scrollable content; all 84 M-01 page/width checks were contained.
+- Remaining risk: none specific; future wide panels are protected by the common panel rule and the
+  focused browser regression.
+
+### DEF-007 — S4 — Missing favicon generated a browser console error
+
+- Affected: F-14, QO-06, M-01; clean page load and browser diagnostics.
+- Environment: Microsoft Edge 151.0.4129.59 on the dashboard.
+- Reproduction: open `/` in a fresh browser session and inspect the console/network log.
+- Expected: static page assets load without an avoidable error.
+- Actual: Edge requested `/favicon.ico`, received 404, and logged one console error.
+- Evidence: initial console result was one error and zero warnings; the failed request was the
+  favicon only.
+- Root cause: the base template did not declare an application icon.
+- Fix: add a local SVG favicon and an explicit `rel="icon"` link in the base template.
+- Regression: `test_dashboard_loads_without_browser_console_errors` records console errors and
+  requires none during the dashboard load in Chromium and Firefox.
+- Retest: a fresh Edge session reported zero console errors and zero warnings.
+- Remaining risk: none.
+
+### DEF-008 — S3 — Upload and failed-run messages lacked alert semantics
+
+- Affected: F-14, QO-06, M-01/M-02; stable error accessibility.
+- Environment: Microsoft Edge 151.0.4129.59 with a disposable failed empty-CSV run.
+- Reproduction: upload a CSV containing only `Symbol`, open the failed run, and inspect its
+  accessibility snapshot; separately render the upload-processing error block.
+- Expected: failure messages are exposed as alert landmarks so assistive technology can identify
+  them as errors.
+- Actual: the persisted run failure and upload error container were generic elements.
+- Evidence: the pre-fix Edge snapshot exposed `CSV file has no data rows.` as `generic`.
+- Root cause: both template alert containers used only the visual `.alert` class.
+- Fix: add `role="alert"` to the upload error and failed-run message containers.
+- Regression: `test_upload_template_marks_processing_errors_as_alerts` and
+  `test_run_detail_marks_failed_run_message_as_an_alert` protect both template paths.
+- Retest: Edge exposed the empty-CSV failure as `alert: CSV file has no data rows.`.
+- Remaining risk: actual announcement timing and contrast remain part of the human M-02 procedure.
+
 ## 7. Blocked and Manual Verification
 
 | Item | State | Exact reason |
 | --- | --- | --- |
 | Live IB paper validation | PASS | Localhost network isolation severed only the disposable app transport; reconnect/retry, cancel/resume, cache integrity, redaction, and no-order checks passed |
 | Licensed CERI provider | BLOCKED | No licensed adapter or approved test credential exists in scope |
-| Microsoft Edge smoke | MANUAL | Playwright Chromium/Firefox ran; Edge-specific binary/visual review not executed |
+| Microsoft Edge smoke | PASS | Edge 151.0.4129.59: 84 route/width checks, keyboard/upload/export/error/pipeline flows, screenshots, and clean console passed after DEF-006/007/008 |
 | Screen-reader/contrast review | MANUAL | Requires Narrator/NVDA and human judgment |
 | Python 3.13/3.14 compatibility | BLOCKED | Only project Python 3.12.2 was installed/executed |
 | 50/250/1,000 full pipeline + eight-hour soak | MANUAL | No long-running monitored disposable environment was executed |
@@ -296,8 +367,9 @@ as a product defect.
 The performance lane passed 21 repeatable checks. It includes structured export 413 behavior,
 cleanup safety, deterministic p50/p95 instrumentation, a 1,000-ticker SLSE identity workload under
 its 1.0 s local budget, and a 500-row CERI export under its 2.0 s budget. The full non-browser suite
-with coverage took 188.63 s; the final post-DEF-005 uninstrumented suite took 146.65 s. These measurements
-are specific to the recorded machine and are not universal guarantees.
+with coverage took 188.63 s; the post-DEF-005 uninstrumented suite took 146.65 s and the final
+post-M-01 suite took 80.87 s. These measurements are specific to the recorded machine and are not
+universal guarantees.
 
 ## 9. Security and Safety Verdict
 
@@ -332,6 +404,9 @@ CERI behavior remains blocked by provider availability.
 - `pyproject.toml`, `uv.lock`
 - `tests/conftest.py`
 - `tests/e2e/conftest.py`, `tests/e2e/test_browser_smoke.py`
+- `app/static/app.css`, `app/static/favicon.svg`, `app/templates/base.html`
+- `app/templates/upload.html`, `app/templates/run_detail.html`
+- `tests/test_dashboard_upload.py`, `tests/test_run_detail_view_models.py`
 - `tests/qa/test_qa_infrastructure.py`, `tests/qa/test_secret_scan.py`
 - `tests/test_csv_upload_services.py`, `tests/test_run_actions_phase3.py`
 - `tests/ops/test_postgres_url.py`
@@ -363,13 +438,15 @@ CERI behavior remains blocked by provider availability.
 - `3bc6f10 test(ib): add localhost transport fault proxy`
 - `5a75474 fix(ib): retry contract resolution after outage`
 - `cc2c1d5 docs(qa): complete live IB paper validation`
+- `0a0f9e8 docs(qa): attach transport recovery CI evidence`
+- `a7a6a9f fix(ui): harden responsive Edge surfaces`
 - Final CI-evidence documentation commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
 
-Residual risk is environmental rather than an open deterministic product failure: Edge/assistive
-visual behavior, licensed provider policy, long-running resource behavior, and Python 3.13/3.14
-compatibility.
+Residual risk is environmental rather than an open deterministic product failure: screen-reader and
+contrast behavior, licensed provider policy, long-running resource behavior, and Python 3.13/3.14
+compatibility. Edge visual/interaction smoke is complete.
 
 Recommendation: **CONDITIONAL GO** for continued local research validation; **do not issue an
 unconditional release sign-off** until the required manual checks in `RELEASE_QA_CHECKLIST.md` are

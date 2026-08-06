@@ -12,6 +12,27 @@ Check 390 px, 768 px, 1280 px, and 1920 px widths. Verify no overlap or horizont
 focus, logical keyboard order, named form fields, table headers, readable alerts, and chart fallback
 text. Compare behavior with the automated Chromium and Firefox lane.
 
+2026-08-06 status: **PASS** on Microsoft Edge `151.0.4129.59`. A headed Playwright CLI session
+using the installed `msedge` binary exercised 13 core surfaces and eight run-scoped surfaces at all
+four required widths (84 page/width checks). Every response was 200, every surface retained its
+title, H1, main landmark, named controls, and table headers, and no page-level horizontal overflow
+remained after DEF-006 was fixed. Screenshots were visually inspected at 390, 768, 1280, and 1920
+px. The skip link received a visible 2.67 px focus outline and Enter moved focus to `main-content`.
+
+The Edge flow uploaded a two-row UTF-8 fixture, preserved `SAP München`, opened the run detail,
+created the run-scoped regime and sector views, downloaded the 545-byte raw CSV with a 200 response,
+and rendered an empty-CSV failure as an alert. With a disposable durable pipeline and its worker
+disabled, the confirmation dialog, queued eight-step progress view, and queued-job cancellation all
+passed without contacting IB. The final database state showed two preserved raw rows, one sector
+snapshot, and matching terminal `CANCELLED` pipeline/job records. Settings showed `Market data only`
+and `Read-only`, exposed no database URL or credentials, and contained no order action. The clean
+post-fix Edge session logged zero console errors. Both explicitly named disposable databases, the
+localhost server, and both browser sessions were removed after evidence capture.
+
+M-01 found and closed DEF-006 (responsive CERI table containment), DEF-007 (missing favicon), and
+DEF-008 (failure messages lacked alert semantics). Automated regressions now run in both Chromium
+and Firefox; the focused browser lane passed 10 tests.
+
 ## M-02 Assistive Technology
 
 Use Windows Narrator or NVDA with keyboard-only navigation. Verify the skip link, page/section
