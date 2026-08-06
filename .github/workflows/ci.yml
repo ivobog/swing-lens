@@ -51,6 +51,12 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked --extra dev
 
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+
+      - name: Prepare QA report directory
+        run: mkdir -p "$RUNNER_TEMP/swinglens-qa"
+
       - name: Lint
         run: uv run ruff check app tests scripts
 
@@ -75,13 +81,19 @@ jobs:
       - name: Clean PostgreSQL migration harness
         run: uv run pytest tests/test_migration_remediation.py -q
 
+      - name: Populated backup and restore evidence gate
+        run: >-
+          uv run pytest tests/integration/test_populated_restore.py -q
+          --junitxml="$RUNNER_TEMP/swinglens-qa/populated-restore.xml"
+
       - name: Unit and service tests with coverage
         run: >-
           uv run pytest -q -m "not e2e and not external"
-          --junitxml=test-results/pytest.xml
+          --ignore=tests/integration/test_populated_restore.py
+          --junitxml="$RUNNER_TEMP/swinglens-qa/pytest.xml"
           --cov=app
           --cov-report=term-missing
-          --cov-report=xml:test-results/coverage.xml
+          --cov-report="xml:$RUNNER_TEMP/swinglens-qa/coverage.xml"
 
       - name: Golden scoring gate
         run: uv run pytest tests/test_golden_pipeline.py tests/test_ranking_profiles_golden.py -q
@@ -91,8 +103,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: qa-test-reports
-          path: test-results/
-          if-no-files-found: warn
+          path: ${{ runner.temp }}/swinglens-qa/
+          if-no-files-found: error
 
   browser-smoke:
     name: Chromium and Firefox Smoke

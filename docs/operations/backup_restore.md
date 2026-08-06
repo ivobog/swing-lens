@@ -24,6 +24,9 @@ Requirements:
 - `DATABASE_URL` points at the source SwingLens database.
 - A secure destination for backup artifacts.
 
+Stop application and worker writes before starting. The database dump and evidence manifest are
+captured as separate read-only snapshots and must observe the same quiescent source state.
+
 ```powershell
 $env:DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
 .\scripts\ops\backup_postgres.ps1 -BackupDir backups
@@ -33,6 +36,12 @@ The script writes:
 
 - `backups/swinglens_<backup_id>.dump`
 - `backups/swinglens_<backup_id>.metadata.json`
+- `backups/swinglens_<backup_id>.evidence.json`
+
+The evidence manifest records deterministic SHA-256 content digests and row counts for upload,
+scoring, pipeline, market-regime, sector-rotation, setup-lifecycle, winner-probability, and CERI
+evidence tables. It contains no table payloads. Keep it beside the dump so restore can prove exact
+content parity without exposing raw research/provider data.
 
 Use the custom dump format by default. Plain SQL is available only for diagnostics:
 
@@ -49,7 +58,8 @@ createdb swinglens_restore_check
 $env:RESTORE_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_restore_check"
 .\scripts\ops\restore_postgres.ps1 `
   -BackupPath backups\swinglens_YYYYMMDD_HHMMSS.dump `
-  -ValidationReport backups\restore_validation_YYYYMMDD_HHMMSS.json
+  -ValidationReport backups\restore_validation_YYYYMMDD_HHMMSS.json `
+  -EvidenceComparisonReport backups\restore_evidence_YYYYMMDD_HHMMSS.json
 ```
 
 The restore target must be clean or disposable. Do not point `RESTORE_DATABASE_URL` at the active
@@ -64,6 +74,12 @@ The restore validator checks:
 - Critical table row counts are captured in the report.
 - Reflected single-column foreign keys have no orphaned child rows.
 - Evidence/hash columns are not blank or null.
+- Restored evidence-table row counts match the source manifest.
+- Canonical full-row SHA-256 digests match the source manifest.
+
+When the `.evidence.json` file is beside the dump with the standard backup name, the restore script
+detects it automatically. Otherwise pass `-ExpectedEvidenceManifest` explicitly. Any missing table,
+row-count mismatch, content mismatch, or schema revision mismatch fails the restore command.
 
 Run it directly when needed:
 
@@ -71,6 +87,15 @@ Run it directly when needed:
 uv run python scripts\ops\validate_restore.py `
   --database-url $env:RESTORE_DATABASE_URL `
   --report backups\restore_validation.json
+```
+
+Evidence fidelity can also be checked independently:
+
+```powershell
+uv run python scripts\ops\evidence_manifest.py verify `
+  --database-url $env:RESTORE_DATABASE_URL `
+  --expected backups\swinglens_YYYYMMDD_HHMMSS.evidence.json `
+  --report backups\restore_evidence_comparison.json
 ```
 
 The command exits `0` only when validation passes. Treat a non-zero exit code as a release blocker

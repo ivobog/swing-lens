@@ -60,3 +60,17 @@ def test_backup_and_restore_scripts_use_normalized_client_urls() -> None:
     assert "$clientDatabaseUrl" in backup
     assert "ConvertTo-PostgresClientUrl -DatabaseUrl $RestoreDatabaseUrl" in restore
     assert "$clientRestoreDatabaseUrl" in restore
+
+
+def test_backup_and_restore_scripts_capture_and_verify_evidence_manifests() -> None:
+    backup = (REPO_ROOT / "scripts" / "ops" / "backup_postgres.ps1").read_text(
+        encoding="utf-8"
+    )
+    restore = (REPO_ROOT / "scripts" / "ops" / "restore_postgres.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "evidence_manifest.py capture" in backup
+    assert "evidence_manifest_path" in backup
+    assert "evidence_manifest.py verify" in restore
+    assert "restored evidence comparison failed" in restore

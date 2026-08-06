@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SwingLens">
+  <rect width="64" height="64" rx="14" fill="#176d5c"/>
+  <path d="M17 42c5 4 11 6 17 6 9 0 15-4 15-11 0-8-7-10-14-12-6-2-9-3-9-6 0-2 3-4 8-4 5 0 9 1 13 4l-4 8c-3-2-6-3-9-3-3 0-5 1-5 3 0 2 3 3 8 4 8 2 16 5 16 14 0 8-7 13-19 13-8 0-15-2-21-7z" fill="#fff"/>
+</svg>

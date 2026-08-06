@@ -92,6 +92,8 @@ def execute_fetch_plan(
                 plan_item=plan_item,
                 rate_limiter=rate_limiter,
                 settings=settings,
+                force_refresh=force_refresh,
+                force_full_backfill=force_full_backfill,
             )
             _refresh_run_totals(fetch_run)
             db.commit()
@@ -190,8 +192,13 @@ def _execute_plan_item(
     plan_item: FetchPlanItem,
     rate_limiter: IbHistoricalRateLimiter,
     settings: Settings,
+    force_refresh: bool,
+    force_full_backfill: bool,
 ) -> None:
     fetch_item.started_at = datetime.now(UTC)
+    fetch_item.status = "RUNNING"
+    db.flush()
+    db.commit()
 
     if plan_item.action == FetchAction.SKIP:
         _mark_skipped(fetch_item, plan_item.reason)
@@ -208,12 +215,20 @@ def _execute_plan_item(
         _mark_failed(fetch_item, resolution.error_message or "Contract resolution failed.")
         return
 
-    action, duration, reason = _execution_action(plan_item, settings)
+    action, duration, reason = _execution_action(
+        plan_item,
+        settings,
+        force_refresh=force_refresh,
+        force_full_backfill=force_full_backfill,
+    )
     fetch_item.action = action.value
     fetch_item.duration = duration
     fetch_item.reason = reason
     if action == FetchAction.SKIP:
         _mark_skipped(fetch_item, reason)
+        return
+    if action in {FetchAction.UNSUPPORTED, FetchAction.FAILED}:
+        _mark_failed(fetch_item, reason)
         return
 
     for attempt in range(1, settings.ib_max_retries + 1):
@@ -253,6 +268,9 @@ def _execute_plan_item(
 def _execution_action(
     plan_item: FetchPlanItem,
     settings: Settings,
+    *,
+    force_refresh: bool,
+    force_full_backfill: bool,
 ) -> tuple[FetchAction, str | None, str]:
     if plan_item.action in {
         FetchAction.FULL_BACKFILL,
@@ -262,11 +280,32 @@ def _execution_action(
     }:
         return plan_item.action, plan_item.duration, plan_item.reason
 
+    if force_full_backfill:
+        return (
+            FetchAction.FORCE_REFRESH,
+            settings.ib_full_backfill_duration,
+            "Force full refresh was requested after contract resolution.",
+        )
+
+    if plan_item.what_to_show not in {"ADJUSTED_LAST", "TRADES"}:
+        return (
+            FetchAction.UNSUPPORTED,
+            None,
+            f"{plan_item.what_to_show} is not supported.",
+        )
+
     if plan_item.current_bar_count == 0 or plan_item.current_bar_count < plan_item.required_bars:
         return (
             FetchAction.FULL_BACKFILL,
             settings.ib_full_backfill_duration,
             f"{plan_item.ticker} needs a full backfill after contract resolution.",
+        )
+
+    if force_refresh:
+        return (
+            FetchAction.REFRESH_RECENT,
+            settings.ib_refresh_duration,
+            "Recent refresh was requested after contract resolution.",
         )
 
     if not _latest_date_current(plan_item.latest_bar_date, settings.ib_daily_bar_stale_after_days):
@@ -309,7 +348,7 @@ def _mark_run_cancelled(fetch_run: IBFetchRun) -> None:
 
 def _refresh_run_totals(fetch_run: IBFetchRun) -> None:
     items = fetch_run.items or []
-    fetch_run.executed_request_count = sum(item.status in {"SUCCESS", "FAILED"} for item in items)
+    fetch_run.executed_request_count = sum((item.attempt_count or 0) > 0 for item in items)
     fetch_run.skipped_count = sum(item.status == "SKIPPED" for item in items)
     fetch_run.success_count = sum(item.status == "SUCCESS" for item in items)
     fetch_run.failure_count = sum(item.status == "FAILED" for item in items)

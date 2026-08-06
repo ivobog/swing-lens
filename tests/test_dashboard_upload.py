@@ -153,6 +153,23 @@ def test_upload_template_handles_missing_dashboard_context(monkeypatch: pytest.M
     assert "<h2>IB Gateway</h2>" not in html
 
 
+def test_upload_template_marks_processing_errors_as_alerts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+
+    html = templates.get_template("upload.html").render(
+        settings=SimpleNamespace(max_upload_size_mb=20),
+        ib_status="Not tested",
+        latest_run=None,
+        recent_runs=[],
+        error="The CSV is empty.",
+    )
+
+    assert '<div class="alert" role="alert">' in html
+    assert "The CSV is empty." in html
+
+
 def _run(status: str) -> UploadRun:
     return UploadRun(id=1, filename="sample.csv", status=status, row_count=1)
 

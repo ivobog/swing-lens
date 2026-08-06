@@ -3,7 +3,7 @@
   --bg: #f6f7f9;
   --surface: #ffffff;
   --text: #18202a;
-  --muted: #667085;
+  --muted: #626c7d;
   --border: #d8dee8;
   --accent: #176d5c;
   --accent-soft: #e7f4f1;
@@ -12,7 +12,7 @@
   --success-soft: #e3f5ee;
   --info: #2f5f98;
   --info-soft: #eaf3ff;
-  --warning: #976b00;
+  --warning: #916600;
   --warning-soft: #fff7dc;
   --danger: #a13a3a;
   --danger-soft-strong: #fff0f0;
@@ -108,6 +108,7 @@ label.file-label:focus-within,
 }
 
 .panel {
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;

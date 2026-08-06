@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     use_durable_pipeline: bool = True
 
     database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
+    database_connect_timeout_seconds: int = Field(default=3, ge=1, le=30)
 
     upload_dir: Path = Field(default=Path("data/uploads"))
     export_dir: Path = Field(default=Path("data/exports"))

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 from types import SimpleNamespace
 
@@ -122,6 +123,54 @@ def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
     assert fetch_run.unchanged_count == 1
 
 
+def test_execute_fetch_plan_commits_current_item_before_historical_request(monkeypatch) -> None:
+    db = FakeDb()
+    observed = {}
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker),
+            error_message=None,
+        ),
+    )
+
+    def observe_fetch(*args, **kwargs):
+        fetch_item = next(row for row in db.added if isinstance(row, IBFetchItem))
+        observed.update(status=fetch_item.status, commits=db.commits)
+        return ["bar"]
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", observe_fetch)
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda db, bars, **kwargs: BarUpsertSummary(inserted=1),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=FetchPlan(
+            run_id=7,
+            requested_tickers=["MSFT"],
+            symbols_including_benchmarks=["MSFT"],
+            items=[_plan_item("MSFT", FetchAction.TOP_UP_RECENT, duration="10 D")],
+            estimated_request_count=1,
+            estimated_full_backfills=0,
+            estimated_top_ups=1,
+            estimated_refreshes=0,
+            estimated_skips=0,
+            warnings=[],
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+
+    assert observed == {"status": "RUNNING", "commits": 1}
+    assert fetch_run.status == "COMPLETED"
+    assert fetch_run.items[0].status == "SUCCESS"
+
+
 def test_execute_fetch_plan_persists_contract_resolution_failure(monkeypatch) -> None:
     db = FakeDb()
     monkeypatch.setattr(
@@ -160,8 +209,101 @@ def test_execute_fetch_plan_persists_contract_resolution_failure(monkeypatch) ->
 
     assert fetch_run.status == "FAILED"
     assert fetch_run.failure_count == 1
+    assert fetch_run.executed_request_count == 0
     assert fetch_run.items[0].status == "FAILED"
     assert fetch_run.items[0].error_message == "No contract"
+
+
+def test_execute_fetch_plan_counts_only_attempted_historical_requests(monkeypatch) -> None:
+    db = FakeDb()
+
+    def resolve_contract(db, ticker, ib):
+        if ticker == "MSFT":
+            return SimpleNamespace(
+                contract=SimpleNamespace(symbol=ticker),
+                error_message=None,
+            )
+        return SimpleNamespace(contract=None, error_message="No contract")
+
+    monkeypatch.setattr(executor, "resolve_us_stock_contract", resolve_contract)
+    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda db, bars, **kwargs: BarUpsertSummary(inserted=1),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=FetchPlan(
+            run_id=7,
+            requested_tickers=["MSFT", "BAD"],
+            symbols_including_benchmarks=["MSFT", "BAD"],
+            items=[
+                _unresolved_plan_item("MSFT"),
+                _unresolved_plan_item("BAD"),
+            ],
+            estimated_request_count=2,
+            estimated_full_backfills=0,
+            estimated_top_ups=0,
+            estimated_refreshes=0,
+            estimated_skips=0,
+            warnings=[],
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+
+    assert fetch_run.status == "PARTIAL"
+    assert fetch_run.planned_request_count == 2
+    assert fetch_run.executed_request_count == 1
+    assert fetch_run.success_count == 1
+    assert fetch_run.failure_count == 1
+    assert fetch_run.inserted_count == 1
+    assert [item.status for item in fetch_run.items] == ["SUCCESS", "FAILED"]
+
+
+def test_unresolved_unsupported_data_type_never_sends_historical_request(monkeypatch) -> None:
+    db = FakeDb()
+    item = replace(_unresolved_plan_item("MSFT"), what_to_show="UNSUPPORTED")
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker),
+            error_message=None,
+        ),
+    )
+    fetch_calls = []
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: fetch_calls.append((args, kwargs)),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=FetchPlan(
+            run_id=7,
+            requested_tickers=["MSFT"],
+            symbols_including_benchmarks=["MSFT"],
+            items=[item],
+            estimated_request_count=0,
+            estimated_full_backfills=0,
+            estimated_top_ups=0,
+            estimated_refreshes=0,
+            estimated_skips=0,
+            warnings=[],
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+
+    assert fetch_run.status == "FAILED"
+    assert fetch_run.executed_request_count == 0
+    assert fetch_calls == []
 
 
 def test_execute_fetch_plan_can_cancel_before_next_item(monkeypatch) -> None:
@@ -285,6 +427,23 @@ def _plan_item(
         required_bars=252,
         reason=f"{action.value} reason",
         estimated_request_count=0 if action == FetchAction.SKIP else 1,
+    )
+
+
+def _unresolved_plan_item(ticker: str) -> FetchPlanItem:
+    return FetchPlanItem(
+        ticker=ticker,
+        contract_status="MISSING",
+        what_to_show="TRADES",
+        action=FetchAction.CONTRACT_RESOLUTION_REQUIRED,
+        duration=None,
+        bar_size="1 day",
+        current_bar_count=0,
+        first_bar_date=None,
+        latest_bar_date=None,
+        required_bars=252,
+        reason="Contract resolution required.",
+        estimated_request_count=1,
     )
 
 

@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, enqueue_job, mark_job_completed
@@ -72,6 +73,30 @@ def test_readiness_degrades_for_storage_failure_and_redacts_error(tmp_path, monk
     assert report.checks["storage"].message == "<restricted:sql>"
     assert "abc123" not in str(report.response_checks())
     assert "Ivica" not in str(report.response_checks())
+
+
+def test_readiness_short_circuits_database_dependent_checks_when_unavailable(
+    tmp_path, monkeypatch
+) -> None:
+    class UnavailableEngine:
+        def connect(self):
+            raise OperationalError("select 1", {}, OSError("database unavailable"))
+
+    def unexpected_check(_self):
+        raise AssertionError("database-dependent readiness check should have been skipped")
+
+    monkeypatch.setattr(ReadinessService, "_migration_check", unexpected_check)
+    monkeypatch.setattr(ReadinessService, "_jobs_check", unexpected_check)
+
+    report = ReadinessService(
+        engine=UnavailableEngine(),  # type: ignore[arg-type]
+        settings=_settings(tmp_path),
+    ).report()
+
+    assert report.status == "degraded"
+    assert report.database_ok is False
+    assert report.checks["migrations"].message == "skipped: database unavailable"
+    assert report.checks["jobs"].message == "skipped: database unavailable"
 
 
 def test_job_and_export_paths_emit_operational_metrics() -> None:

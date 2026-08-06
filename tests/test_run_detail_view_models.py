@@ -356,6 +356,21 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert 'name="include_benchmarks" value="false"' not in html
 
 
+def test_run_detail_marks_failed_run_message_as_an_alert(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(
+        id=2,
+        filename="empty.csv",
+        row_count=0,
+        status="FAILED",
+        error_message="CSV file has no data rows.",
+    )
+
+    html = templates.get_template("run_detail.html").render(run=run)
+
+    assert '<div class="alert" role="alert">CSV file has no data rows.</div>' in html
+
+
 def test_pipeline_progress_template_renders_steps(monkeypatch) -> None:
     monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
     run = UploadRun(id=7, filename="sample.csv", row_count=1, status="COMPLETED")

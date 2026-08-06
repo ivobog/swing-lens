@@ -37,6 +37,7 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     settings = Settings(_env_file=None)
 
     assert settings.app_host == "127.0.0.1"
+    assert settings.database_connect_timeout_seconds == 3
     assert settings.use_durable_pipeline is True
     assert settings.job_worker_enabled is True
     assert settings.job_poll_interval_seconds == 2.0
@@ -89,6 +90,7 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
 
 
 def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_CONNECT_TIMEOUT_SECONDS", "7")
     monkeypatch.setenv("USE_DURABLE_PIPELINE", "true")
     monkeypatch.setenv("JOB_WORKER_ENABLED", "true")
     monkeypatch.setenv("JOB_POLL_INTERVAL_SECONDS", "0.5")
@@ -129,6 +131,7 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     settings = Settings(_env_file=None)
 
     assert settings.use_durable_pipeline is True
+    assert settings.database_connect_timeout_seconds == 7
     assert settings.job_worker_enabled is True
     assert settings.job_poll_interval_seconds == 0.5
     assert settings.job_stale_after_seconds == 60

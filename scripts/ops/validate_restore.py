@@ -20,9 +20,11 @@ DEFAULT_CRITICAL_TABLES = (
     "pipeline_runs",
     "background_jobs",
     "setup_signal_snapshots",
+    "setup_lifecycle_administrative_audit_events",
     "winner_prediction_snapshots",
     "ceri_source_records",
     "ceri_score_snapshots",
+    "ceri_purge_audits",
 )
 
 HASH_COLUMN_SUFFIXES = ("hash", "hashes")
@@ -39,6 +41,7 @@ DEFAULT_EVIDENCE_HASH_COLUMNS = (
     ("ceri_revision_features", "evidence_hash"),
     ("ceri_score_snapshots", "evidence_hash"),
     ("ceri_score_snapshots", "config_hash"),
+    ("ceri_purge_audits", "preview_manifest_hash"),
 )
 
 

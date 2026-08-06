@@ -6,10 +6,11 @@ from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import func, select, text
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import NullPool
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
@@ -53,22 +54,45 @@ class ReadinessService:
         self.now = now or datetime.now(UTC)
 
     def report(self) -> ReadinessReport:
+        database = self._database_check()
+        if database.ok:
+            migrations = self._migration_check()
+            jobs = self._jobs_check()
+        else:
+            dependency_message = "skipped: database unavailable"
+            migrations = ReadinessCheck(False, dependency_message)
+            jobs = ReadinessCheck(False, dependency_message)
         checks = {
-            "database": self._database_check(),
-            "migrations": self._migration_check(),
+            "database": database,
+            "migrations": migrations,
             "storage": self._storage_check(),
             "worker": self._worker_check(),
-            "jobs": self._jobs_check(),
+            "jobs": jobs,
         }
         status = "ok" if all(check.ok for check in checks.values()) else "degraded"
         return ReadinessReport(status=status, checks=checks)
 
     def _database_check(self) -> ReadinessCheck:
+        probe_engine: Engine | None = None
         try:
-            with self.engine.connect() as connection:
+            engine_url = getattr(self.engine, "url", None)
+            driver_name = getattr(engine_url, "drivername", "")
+            if str(driver_name).startswith("postgresql"):
+                probe_engine = create_engine(
+                    engine_url,
+                    poolclass=NullPool,
+                    connect_args={
+                        "connect_timeout": self.settings.database_connect_timeout_seconds
+                    },
+                )
+            connection_engine = probe_engine or self.engine
+            with connection_engine.connect() as connection:
                 connection.execute(text("select 1"))
         except SQLAlchemyError as exc:
             return ReadinessCheck(False, _safe_message(exc))
+        finally:
+            if probe_engine is not None:
+                probe_engine.dispose()
         return ReadinessCheck(True, "ok")
 
     def _migration_check(self) -> ReadinessCheck:
