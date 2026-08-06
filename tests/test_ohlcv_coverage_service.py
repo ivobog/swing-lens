@@ -27,11 +27,11 @@ def test_coverage_item_classifies_ready_insufficient_and_missing() -> None:
         {
             ("MSFT", "ADJUSTED_LAST"): BarSeriesCoverage(
                 count=252,
-                latest_date=date(2026, 7, 2),
+                latest_date=date(2026, 7, 3),
             ),
             ("MSFT", "TRADES"): BarSeriesCoverage(
                 count=252,
-                latest_date=date(2026, 7, 2),
+                latest_date=date(2026, 7, 3),
             ),
         },
         required_rows=252,
@@ -67,7 +67,7 @@ def test_coverage_item_classifies_missing_volume_stale_and_contract_failed() -> 
         {
             ("MSFT", "ADJUSTED_LAST"): BarSeriesCoverage(
                 count=252,
-                latest_date=date(2026, 7, 2),
+                latest_date=date(2026, 7, 3),
             )
         },
         required_rows=252,
@@ -105,8 +105,8 @@ def test_coverage_item_classifies_missing_volume_stale_and_contract_failed() -> 
     assert contract_failed.status == OhlcvCoverageStatus.CONTRACT_FAILED
 
 
-def test_coverage_item_honors_stale_after_days_grace() -> None:
-    within_grace = _coverage_item(
+def test_coverage_item_requires_latest_completed_trading_day() -> None:
+    stale = _coverage_item(
         "MSFT",
         {
             ("MSFT", "ADJUSTED_LAST"): BarSeriesCoverage(
@@ -123,8 +123,8 @@ def test_coverage_item_honors_stale_after_days_grace() -> None:
         today=date(2026, 7, 3),
     )
 
-    assert within_grace.status == OhlcvCoverageStatus.READY
-    assert within_grace.latest_bar_current is True
+    assert stale.status == OhlcvCoverageStatus.STALE
+    assert stale.latest_bar_current is False
 
 
 def test_summary_uses_real_current_time_when_today_is_not_forced(monkeypatch) -> None:
