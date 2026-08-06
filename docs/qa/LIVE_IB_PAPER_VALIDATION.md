@@ -99,3 +99,26 @@ Remaining environmental check: stop or network-isolate the authenticated Gateway
 request, then reconnect it and repeat retry-failed. This requires a supervised session because the
 Gateway may require interactive re-authentication. The equivalent app-session loss, preservation,
 failure export, and retry behavior passed above.
+
+### Localhost transport-isolation completion — 2026-08-06
+
+Final M-03 status: **PASS** on commit `5a75474`.
+
+- Started the localhost-only QA proxy on `127.0.0.1:4003` forwarding to the unchanged paper Gateway
+  on `127.0.0.1:4002`; configured only the disposable SwingLens process to use port 4003.
+- Uploaded `MSFT` and `AAPL`, requested `TRADES`, waited for MSFT to persist 752 bars, then terminated
+  only the verified proxy listener while AAPL was current. Port 4002 and Gateway PID remained intact.
+- The run returned `PARTIAL`: planned two possible historical calls, executed one, preserved MSFT,
+  marked AAPL failed during contract resolution, and exported exactly one failed row. This execution
+  count is correct because AAPL never reached a historical-data request.
+- The first retry exposed DEF-005: cached `FAILED` contract evidence prevented re-resolution after
+  connectivity returned. The run failed with planned/executed zero and no data mutation.
+- After DEF-005, retry-failed again targeted only AAPL, re-resolved the contract, planned/executed one
+  historical request, and completed successfully with 752 AAPL bars.
+- Final evidence: 1,504 bars, 1,504 unique composite keys, zero duplicate groups; AAPL contract status
+  restored to `RESOLVED`; `/ready` healthy.
+- Stopped the verified QA proxy, removed its listener, dropped the disposable database, and removed
+  the temporary upload/export/cache tree. Paper port 4002 remained open; live port 4001 remained closed.
+
+This completes the network-isolation/reconnect alternative in step 9 without risking interactive
+Gateway re-authentication. No broker-order method or endpoint was used.

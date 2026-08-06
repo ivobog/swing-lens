@@ -26,6 +26,7 @@ These are local observations, not universal latency or capacity guarantees. The 
 | Final complete regression | PASS | 1,109 passed in 128.36 s, including populated restore |
 | Post-live-fix complete regression | PASS | 1,112 passed, 1 skipped in 78.21 s |
 | Post-DEF-004 complete regression | PASS | 1,113 passed, 1 skipped in 118.52 s |
+| Post-DEF-005 complete regression | PASS | 1,115 passed, 1 skipped in 146.65 s |
 | Full default regression after harness | PASS | 1,096 passed in 126.14 s at Phase 1 checkpoint |
 | Performance marker lane | PASS | 21 passed, 1,083 deselected in 5.33 s |
 | Chromium + Firefox browser smoke | PASS | 6 passed in 39.21 s after repeated-upload coverage |

@@ -14,7 +14,7 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | Recovery | Populated multi-module restore | PASS | 20 evidence/audit tables; exact row and SHA-256 parity; `/ready` healthy |
 | CI evidence | JUnit and coverage artifacts | PASS | Run `31110322944`; `qa-test-reports` artifact published (94,829 bytes) |
 | Regression | Non-browser suite | PASS | 1,098 passed; 6 e2e deselected |
-| Regression | Complete final suite | PASS | 1,113 passed, 1 skipped, 4 warnings in 118.52 s |
+| Regression | Complete final suite | PASS | 1,115 passed, 1 skipped, 4 warnings in 146.65 s |
 | Coverage | Coverage report generated | PASS | 83.0% branch-aware CI total; XML generated |
 | Golden | Scoring/ranking fixtures | PASS | focused gate: 3 passed in 0.34 s |
 | Browser | Chromium and Firefox smoke | PASS | 6 passed |
@@ -22,7 +22,7 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | Accessibility | Automated basics | PASS | skip link, focus, labels, templates, responsive viewport |
 | Accessibility | Screen-reader/contrast review | MANUAL | Execute M-02 |
 | IB | Deterministic fake regression | PASS | read-only fake and no-order spy green |
-| IB | Live paper connection | PARTIAL | Uploaded benchmarks, client-session loss/retry, cancel/resume, cache, redaction, and no-order checks passed; supervised physical Gateway disconnect remains |
+| IB | Live paper connection | PASS | Uploaded benchmarks, localhost transport isolation/reconnect, retry-failed, cancel/resume, cache, redaction, and no-order checks passed |
 | Jobs | Retry/cancel/coalesce/lease/recovery | PASS | background job, worker, fetch, and pipeline suites green |
 | Regime/Sector | Advisory invariance | PASS | focused module suites included in regression |
 | SLSE | Flags, state, replay, alerts, purge | PASS | full SLSE suite included in regression |
@@ -33,14 +33,14 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | Performance | Repeatable component budgets | PASS | 21 passed |
 | Performance | Full scale/soak baseline | MANUAL | Execute M-05 and residual baseline work |
 | Safety | No broker-order path | PASS | static scan, read-only connection tests, IB method spy |
-| Defects | Open S0/S1 | PASS | none open; DEF-001, DEF-003, and DEF-004 fixed and regressed |
+| Defects | Open S0/S1 | PASS | none open; DEF-001, DEF-003, DEF-004, and DEF-005 fixed and regressed |
 | Evidence | Matrix/report/manual procedures | PASS | files in `docs/qa/` |
 
 ## Release Sign-off
 
 - QA verdict: **CONDITIONAL PASS**.
-- Automated release blockers: none observed after DEF-001, DEF-003, and DEF-004 were fixed.
-- Required before an unconditional release: complete M-01, M-02, the remaining M-03 drills, and M-05; complete
+- Automated release blockers: none observed after DEF-001, DEF-003, DEF-004, and DEF-005 were fixed.
+- Required before an unconditional release: complete M-01, M-02, and M-05; complete
   M-04 only if a licensed CERI provider is included in the candidate.
 - Any failed safety, leakage, golden, migration, restore, evidence-immutability, or advisory
   non-mutation check changes the decision to **FAIL / NO-GO**.

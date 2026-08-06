@@ -23,11 +23,11 @@ loading status, errors, and non-color warning cues. Record browser and screen-re
 Execute `LIVE_IB_PAPER_VALIDATION.md`. This is read-only and must never use a live account or order
 API.
 
-2026-08-06 status: **PARTIAL**. Read-only connection, contract resolution, uploaded-run benchmark
-coverage, daily bars, cache reuse, injected client-session loss, failed-item export/retry, live
-cancel/resume, output redaction, and runtime/static no-order checks passed. Still required: a
-supervised physical Gateway stop or network-isolation/reconnect drill; the Gateway was left running
-to avoid disrupting its authenticated session.
+2026-08-06 status: **PASS**. Read-only connection, contract resolution, uploaded-run benchmark
+coverage, daily bars, cache reuse, real localhost transport isolation/reconnect, failed-item
+export/retry, live cancel/resume, output redaction, and runtime/static no-order checks passed. The
+network-isolation alternative used a disposable localhost proxy, so the authenticated Gateway and
+paper session remained intact.
 
 ## M-04 Licensed CERI Provider Certification
 

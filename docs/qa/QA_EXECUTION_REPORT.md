@@ -7,17 +7,17 @@ Recommended release decision: **GO only after the remaining manual P0/P1 checks 
 ## 1. Executive Verdict
 
 All feasible deterministic automation is green after one release-blocking backup/restore defect and
-two live-IB progress/accounting defects were fixed. No open S0 or S1 defect remains. Golden/scoring,
+three live-IB recovery/progress/accounting defects were fixed. No open S0 or S1 defect remains. Golden/scoring,
 evidence immutability, future-data leakage,
 feature isolation, advisory non-mutation, destructive confirmations, secret redaction, migration,
 restore validation, and the no-order safety boundary passed their implemented automated controls.
 
-The verdict is conditional because the live IB paper procedure is only partial, and no Microsoft
-Edge/screen-reader review, licensed CERI provider certification, or long-running 250/1,000-ticker
-resilience soak was available. The live paper connection, uploaded benchmark fetch, cache reuse,
-client-session loss/retry, cancel/resume, partial failure, redaction, and no-order controls passed;
-only a supervised physical Gateway disconnect/reconnect remains manual. The previously manual
-populated multi-module restore is now an automated passing release gate.
+The verdict is conditional because no Microsoft Edge/screen-reader review, licensed CERI provider
+certification, or long-running 250/1,000-ticker resilience soak was available. The complete live
+paper procedure passed through a localhost network-isolation alternative: connection, uploaded
+benchmarks, cache reuse, transport loss/reconnect, retry-failed, cancel/resume, partial failure,
+redaction, and no-order controls all passed. The previously manual populated multi-module restore is
+now an automated passing release gate.
 
 ## 2. Repository and Environment
 
@@ -26,7 +26,7 @@ populated multi-module restore is now an automated passing release gate.
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | `7943449` (IB progress visibility fix, regression, and M-03 evidence) |
+| Code candidate tested | `5a75474` (transport fault proxy, failed-contract retry fix, and regressions; documentation follows) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -57,6 +57,7 @@ states without modifying `.env` or using secrets.
 | Final complete `uv run pytest -q` | PASS; 1,109 passed, 6 warnings in 128.36 s |
 | Final post-live-fix complete pytest | PASS; 1,112 passed, 1 skipped, 4 warnings in 78.21 s; JUnit XML written |
 | Final post-DEF-004 complete pytest | PASS; 1,113 passed, 1 skipped, 4 warnings in 118.52 s; JUnit XML written |
+| Final post-DEF-005 complete pytest | PASS; 1,115 passed, 1 skipped, 4 warnings in 146.65 s; JUnit XML written |
 | Focused IB plan/executor regression | PASS; 16 passed, 1 warning in 0.51 s |
 | Focused IB progress/cancel regression | PASS; 18 passed, 1 warning in 0.56 s |
 | Documented Ruff scope | PASS; `ruff check app tests scripts` reported `All checks passed!` |
@@ -72,6 +73,11 @@ states without modifying `.env` or using secrets.
 | Pre-fix live cancellation/resume | PASS for workflow; cancelled after 2/8 calls, resumed 4/4 with zero failures and no duplicate keys |
 | DEF-004 live retest | PASS; `current_ticker=MSFT`, cancelled after 1/8 calls, resumed 4/4, 6,016/6,016 unique bars |
 | M-03 disposable cleanup | PASS; database absent, temp upload/export/cache tree absent, paper port 4002 still open, live port 4001 closed |
+| Localhost IB fault proxy regression | PASS; 1 test relayed a payload through loopback only and terminated cleanly |
+| Physical transport-isolation drill | PASS; proxy 4003→paper 4002 terminated during AAPL, MSFT 752 bars preserved, AAPL explicit failure/export, Gateway untouched |
+| First post-outage retry | FAIL; selected only AAPL but cached `FAILED` contract prevented re-resolution; planned/executed 0; DEF-005 opened |
+| DEF-005 live retest | PASS; AAPL re-resolved, planned/executed 1, completed with 752 bars; total 1,504/1,504 unique, `/ready` healthy |
+| Transport-drill cleanup | PASS; verified proxy stopped/port 4003 closed, disposable DB and temp tree removed; paper port 4002 remained open |
 | Harness-only `ruff check .` / obsolete route path | NOT A PRODUCT FAILURE; legacy migrations are outside the configured Ruff gate and `scripts/check_route_inventory.py` does not exist; documented commands above passed |
 | `uv run pytest tests/qa/test_qa_infrastructure.py -q` | PASS; 7 passed in 0.78 s |
 | Focused upload/recalculation tests | PASS; 28 passed in 1.00 s |
@@ -146,6 +152,10 @@ state engines, safety boundaries, and deterministic model contracts have stronge
   after contract resolution.
 - Added regression coverage proving the current IB fetch item is committed as `RUNNING` before the
   historical request, making progress and cooperative cancellation observable across sessions.
+- Added a localhost-only, payload-opaque IB transport fault proxy and relay regression for supervised
+  connection-loss drills without stopping the authenticated Gateway.
+- Added retry planning that re-resolves cached `FAILED` contracts after connectivity recovery while
+  continuing to require manual selection for `AMBIGUOUS` contracts.
 
 ## 6. Defects Found and Fixed
 
@@ -244,11 +254,35 @@ as a product defect.
 - Remaining risk: a crash can leave an explicit `RUNNING` item for operational recovery rather than
   hiding the in-flight item; stale-run recovery policy remains covered separately.
 
+### DEF-005 — S2 — Retry-failed could not recover a contract failed during outage
+
+- Affected: F-04, R-05; connection-loss recovery and retry-failed workflow.
+- Environment: Windows 10, IB Gateway 10.48 paper/API server 176 behind the localhost QA proxy,
+  PostgreSQL disposable DB, Python 3.12.2, pre-fix commit `e16a683`.
+- Reproduction: terminate the verified proxy after MSFT completes and while unresolved AAPL is
+  current; restart the proxy and invoke retry-failed on the partial run.
+- Expected: retry only AAPL, re-resolve its contract after connectivity returns, fetch its bars, and
+  preserve MSFT evidence.
+- Actual: retry selected AAPL but treated its cached `FAILED` contract as terminal, planned/executed
+  zero requests, and failed immediately with `IB contract resolution previously failed.`
+- Evidence: outage run was correctly `PARTIAL` with MSFT success and AAPL failure; first retry was
+  `FAILED` with planned/executed zero and no data mutation.
+- Root cause: normal planning intentionally fences cached failed contracts, but resume used the same
+  policy and provided no retry-specific transition back to contract resolution.
+- Fix: retry plans map `FAILED` contracts to resolution-required while leaving `AMBIGUOUS` contracts
+  fenced for manual selection. The resolver then refreshes the existing failed cache row.
+- Regression: `test_retry_plan_re_resolves_failed_but_not_ambiguous_contracts` and
+  `test_resume_fetch_job_queues_failed_tickers_only` verify the retry-specific plan flag and policy.
+- Retest: AAPL was re-resolved to `RESOLVED`, retry planned/executed one call and completed; MSFT and
+  AAPL each retained 752 bars, with 1,504 unique keys and zero duplicate groups.
+- Remaining risk: none specific to retrying transient failed contracts; ambiguous instruments remain
+  intentionally blocked pending manual selection.
+
 ## 7. Blocked and Manual Verification
 
 | Item | State | Exact reason |
 | --- | --- | --- |
-| Live IB paper validation | PARTIAL | Uploaded benchmarks, injected client-session loss/retry-failed, and live cancel/resume passed; stopping/network-isolating the authenticated Gateway requires supervised re-authentication readiness |
+| Live IB paper validation | PASS | Localhost network isolation severed only the disposable app transport; reconnect/retry, cancel/resume, cache integrity, redaction, and no-order checks passed |
 | Licensed CERI provider | BLOCKED | No licensed adapter or approved test credential exists in scope |
 | Microsoft Edge smoke | MANUAL | Playwright Chromium/Firefox ran; Edge-specific binary/visual review not executed |
 | Screen-reader/contrast review | MANUAL | Requires Narrator/NVDA and human judgment |
@@ -261,7 +295,7 @@ as a product defect.
 The performance lane passed 21 repeatable checks. It includes structured export 413 behavior,
 cleanup safety, deterministic p50/p95 instrumentation, a 1,000-ticker SLSE identity workload under
 its 1.0 s local budget, and a 500-row CERI export under its 2.0 s budget. The full non-browser suite
-with coverage took 188.63 s; the final post-DEF-004 uninstrumented suite took 118.52 s. These measurements
+with coverage took 188.63 s; the final post-DEF-005 uninstrumented suite took 146.65 s. These measurements
 are specific to the recorded machine and are not universal guarantees.
 
 ## 9. Security and Safety Verdict
@@ -324,13 +358,16 @@ CERI behavior remains blocked by provider availability.
 - `dee769b docs(qa): attach live IB CI evidence`
 - `e392ba7 fix(ib): publish current fetch progress`
 - `7943449 docs(qa): record IB cancellation and resume evidence`
+- `e16a683 docs(qa): attach IB progress CI evidence`
+- `3bc6f10 test(ib): add localhost transport fault proxy`
+- `5a75474 fix(ib): retry contract resolution after outage`
 - Final CI-evidence documentation commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
 
-Residual risk is environmental rather than an open deterministic product failure: a supervised
-physical Gateway disconnect/reconnect, Edge/assistive visual behavior, licensed provider policy,
-long-running resource behavior, and Python 3.13/3.14 compatibility.
+Residual risk is environmental rather than an open deterministic product failure: Edge/assistive
+visual behavior, licensed provider policy, long-running resource behavior, and Python 3.13/3.14
+compatibility.
 
 Recommendation: **CONDITIONAL GO** for continued local research validation; **do not issue an
 unconditional release sign-off** until the required manual checks in `RELEASE_QA_CHECKLIST.md` are

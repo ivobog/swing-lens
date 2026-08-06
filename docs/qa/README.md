@@ -66,6 +66,16 @@ clock, a read-only scripted IB Gateway, and a safely named disposable PostgreSQL
 The disposable database factory supports isolated source and restore databases for real
 `pg_dump`/`pg_restore` fidelity checks.
 
+`scripts/qa/ib_fault_proxy.py` provides a localhost-only TCP relay for supervised paper-Gateway
+transport-loss testing without stopping the authenticated Gateway. Point a disposable SwingLens
+process at the proxy port, terminate only the verified proxy listener during an active request, then
+restart the proxy before retry-failed. The proxy rejects non-loopback upstreams and never inspects or
+logs broker payloads.
+
+```powershell
+uv run python scripts/qa/ib_fault_proxy.py --listen-port 4003 --upstream-port 4002
+```
+
 `tests/e2e/conftest.py` migrates a fresh PostgreSQL database, launches SwingLens on an ephemeral
 localhost port with advanced modules and the worker disabled, waits for `/health`, and tears down
 the process and database after the browser lane.
