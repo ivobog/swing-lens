@@ -6,6 +6,9 @@ on:
     branches:
       - main
       - "codex/**"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 
 jobs:
   lint-test-migrations:
@@ -51,6 +54,9 @@ jobs:
       - name: Lint
         run: uv run ruff check app tests scripts
 
+      - name: Scan tracked files for credential-shaped secrets
+        run: uv run python scripts/qa/scan_tracked_secrets.py
+
       - name: Check route inventory docs
         run: uv run python scripts/docs/check_route_inventory.py
 
@@ -69,5 +75,111 @@ jobs:
       - name: Clean PostgreSQL migration harness
         run: uv run pytest tests/test_migration_remediation.py -q
 
-      - name: Tests
-        run: uv run pytest -q
+      - name: Unit and service tests with coverage
+        run: >-
+          uv run pytest -q -m "not e2e and not external"
+          --junitxml=test-results/pytest.xml
+          --cov=app
+          --cov-report=term-missing
+          --cov-report=xml:test-results/coverage.xml
+
+      - name: Golden scoring gate
+        run: uv run pytest tests/test_golden_pipeline.py tests/test_ranking_profiles_golden.py -q
+
+      - name: Publish test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-test-reports
+          path: test-results/
+          if-no-files-found: warn
+
+  browser-smoke:
+    name: Chromium and Firefox Smoke
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Install browser engines
+        run: uv run playwright install --with-deps chromium firefox
+
+      - name: Run browser smoke
+        run: >-
+          uv run pytest tests/e2e -q
+          --browser chromium --browser firefox
+          --junitxml=test-results/browser-smoke.xml
+
+      - name: Publish browser report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-report
+          path: test-results/
+          if-no-files-found: warn
+
+  performance-advisory:
+    name: Nightly Performance Baseline
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Run repeatable performance checks
+        run: >-
+          uv run pytest -q -m performance
+          --junitxml=test-results/performance.xml
+
+      - name: Publish performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: test-results/
+          if-no-files-found: warn

@@ -8,6 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Import-Module (Join-Path $PSScriptRoot "PostgresUrl.psm1") -Force
 
 if ([string]::IsNullOrWhiteSpace($RestoreDatabaseUrl)) {
     throw "RESTORE_DATABASE_URL is required. Pass -RestoreDatabaseUrl or set `$env:RESTORE_DATABASE_URL."
@@ -17,20 +18,22 @@ if (-not (Test-Path $BackupPath)) {
     throw "Backup file was not found: $BackupPath"
 }
 
+$clientRestoreDatabaseUrl = ConvertTo-PostgresClientUrl -DatabaseUrl $RestoreDatabaseUrl
+
 if ($PlainSql) {
     $psql = Get-Command psql -ErrorAction SilentlyContinue
     if (-not $psql) {
         throw "psql was not found on PATH. Install PostgreSQL client tools before restoring."
     }
     Write-Host "Restoring plain SQL backup into clean target database."
-    & $psql.Source $RestoreDatabaseUrl -v ON_ERROR_STOP=1 -f $BackupPath
+    & $psql.Source $clientRestoreDatabaseUrl -v ON_ERROR_STOP=1 -f $BackupPath
 } else {
     $pgRestore = Get-Command pg_restore -ErrorAction SilentlyContinue
     if (-not $pgRestore) {
         throw "pg_restore was not found on PATH. Install PostgreSQL client tools before restoring."
     }
     Write-Host "Restoring custom-format backup into clean target database."
-    & $pgRestore.Source --clean --if-exists --no-owner --dbname $RestoreDatabaseUrl $BackupPath
+    & $pgRestore.Source --clean --if-exists --no-owner --dbname $clientRestoreDatabaseUrl $BackupPath
 }
 
 if ($LASTEXITCODE -ne 0) {
