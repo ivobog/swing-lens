@@ -204,7 +204,7 @@ def test_fetch_plan_to_dict_serializes_actions() -> None:
     assert payload["items"][0]["action"] == "SKIP"
 
 
-def test_latest_date_current_honors_stale_after_days(monkeypatch) -> None:
+def test_latest_date_current_requires_latest_completed_trading_day(monkeypatch) -> None:
     import app.services.us_market_calendar as calendar
 
     monkeypatch.setattr(
@@ -213,5 +213,5 @@ def test_latest_date_current_honors_stale_after_days(monkeypatch) -> None:
         lambda now=None: date(2026, 7, 3),
     )
 
-    assert _latest_date_current(date(2026, 6, 30), stale_after_days=3) is True
-    assert _latest_date_current(date(2026, 6, 29), stale_after_days=3) is False
+    assert _latest_date_current(date(2026, 7, 3), stale_after_days=3) is True
+    assert _latest_date_current(date(2026, 7, 2), stale_after_days=3) is False
