@@ -25,7 +25,7 @@ previously manual populated multi-module restore is now an automated passing rel
 | Repository | `ivobog/swing-lens` |
 | Branch | `codex/qa-populated-restore` |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
-| Code candidate tested | `298cd47` (IB accounting fix and regression tests); documentation evidence follows in repository history |
+| Code candidate tested | `dcea77d` (IB accounting fix, regression tests, and live-paper evidence) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -80,6 +80,7 @@ states without modifying `.env` or using secrets.
 | Populated runbook backup→restore→manifest comparison | PASS; 20 tables with one row each, no count/hash mismatch, validator `passed: true` |
 | GitHub Actions run `31104978621` | Checks PASS; PostgreSQL 16 restore, regression/coverage, golden, Chromium, and Firefox green; main report upload warned and opened DEF-002 |
 | GitHub Actions run `31105400739` | PASS; all blocking jobs green; restore 1 passed, coverage 1,102 passed, golden 3 passed, browsers 6 passed; QA artifacts published |
+| GitHub Actions run `31108152746` | PASS on `dcea77d`; migration/restore/lint/routes/secrets green; coverage 1,106 passed/6 deselected at 83.0%; golden 3 passed; browsers 6 passed; 94,711-byte QA and 506-byte browser artifacts published |
 | `uv run playwright install chromium firefox` | PASS; both pinned engines installed |
 
 Four non-failing warning instances appeared in the post-live-fix full suite: one Starlette
@@ -88,8 +89,9 @@ TestClient/httpx deprecation, one Python 3.12 SQLite datetime adapter deprecatio
 
 ## 4. Coverage by Product Area
 
-Overall measured application coverage is 82.9% with branch coverage enabled. The area figures below
-are line-oriented groupings derived from `coverage.xml`; they are diagnostic, not release thresholds.
+Latest CI application coverage is 83.0% with branch coverage enabled. The area figures below are
+line-oriented groupings from the preceding detailed `coverage.xml` snapshot; they are diagnostic,
+not release thresholds.
 
 | Area | Covered / measured lines | Line coverage |
 | --- | ---: | ---: |
@@ -280,7 +282,8 @@ CERI behavior remains blocked by provider availability.
 - `bfc7fe2 ci(qa): preserve machine-readable test reports`
 - `627f610 docs(qa): record populated restore evidence`
 - `298cd47 fix(ib): report attempted market-data requests accurately`
-- Documentation evidence commit: recorded in repository history after this report is committed.
+- `dcea77d docs(qa): record live IB paper evidence`
+- Final CI-evidence documentation commit: recorded in repository history after this report is committed.
 
 ## 14. Residual Risks and Release Decision
 

@@ -12,10 +12,10 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | Database | Downgrade one revision and re-upgrade | PASS | `0026 -> 0025 -> 0026` on disposable DB |
 | Recovery | Clean backup/restore validator | PASS | fixed runbook; validator `passed: true` |
 | Recovery | Populated multi-module restore | PASS | 20 evidence/audit tables; exact row and SHA-256 parity; `/ready` healthy |
-| CI evidence | JUnit and coverage artifacts | PASS | Run `31105400739`; `qa-test-reports` artifact published (94,588 bytes) |
+| CI evidence | JUnit and coverage artifacts | PASS | Run `31108152746`; `qa-test-reports` artifact published (94,711 bytes) |
 | Regression | Non-browser suite | PASS | 1,098 passed; 6 e2e deselected |
 | Regression | Complete final suite | PASS | 1,112 passed, 1 skipped, 4 warnings in 78.21 s |
-| Coverage | Coverage report generated | PASS | 82.9% branch-aware total; XML generated |
+| Coverage | Coverage report generated | PASS | 83.0% branch-aware CI total; XML generated |
 | Golden | Scoring/ranking fixtures | PASS | focused gate: 3 passed in 0.34 s |
 | Browser | Chromium and Firefox smoke | PASS | 6 passed |
 | Browser | Microsoft Edge visual/interaction smoke | MANUAL | Execute M-01 |
