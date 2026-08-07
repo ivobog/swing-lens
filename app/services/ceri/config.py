@@ -52,6 +52,7 @@ REQUIRED_CONFIG_SECTIONS = (
     "posture",
     "exports",
     "retention",
+    "price_response",
 )
 
 REQUIRED_TAXONOMY_CATEGORIES = frozenset(CatalystCategory)
@@ -189,6 +190,16 @@ class RetentionConfig:
 
 
 @dataclass(frozen=True)
+class PriceResponseConfig:
+    benchmark: str
+    windows: tuple[int, ...]
+    trailing_volume_sessions: int
+    positive_relative_return_threshold: float
+    strong_relative_return_threshold: float
+    volume_confirmation_threshold: float
+
+
+@dataclass(frozen=True)
 class CeriConfig:
     engine: EngineConfig
     providers: ProvidersConfig
@@ -207,6 +218,7 @@ class CeriConfig:
     posture: PostureConfig
     exports: ExportsConfig
     retention: RetentionConfig
+    price_response: PriceResponseConfig
     taxonomy: CatalystTaxonomyConfig
     api_error_codes: tuple[str, ...]
     config_hash: str
@@ -240,6 +252,7 @@ def load_ceri_config(
         posture=_parse_posture(_mapping(raw, "posture")),
         exports=_parse_exports(_mapping(raw, "exports")),
         retention=_parse_retention(_mapping(raw, "retention")),
+        price_response=_parse_price_response(_mapping(raw, "price_response")),
         taxonomy=taxonomy,
         api_error_codes=tuple(sorted(CERI_API_ERROR_CODES)),
         config_hash="",
@@ -600,6 +613,31 @@ def _parse_retention(raw: dict[str, Any]) -> RetentionConfig:
             "retention.provider_license_purge_enabled",
         ),
         provider_terms_version=_required_text(raw, "retention.provider_terms_version"),
+    )
+
+
+def _parse_price_response(raw: dict[str, Any]) -> PriceResponseConfig:
+    windows = tuple(int(_number(item, "price_response.windows")) for item in _list(raw, "windows"))
+    if not windows or any(item <= 0 for item in windows):
+        raise CeriConfigError("price_response.windows must contain positive values")
+    return PriceResponseConfig(
+        benchmark=_required_text(raw, "price_response.benchmark").upper(),
+        windows=windows,
+        trailing_volume_sessions=_positive_int(
+            raw.get("trailing_volume_sessions"), "price_response.trailing_volume_sessions"
+        ),
+        positive_relative_return_threshold=_number(
+            raw.get("positive_relative_return_threshold"),
+            "price_response.positive_relative_return_threshold",
+        ),
+        strong_relative_return_threshold=_number(
+            raw.get("strong_relative_return_threshold"),
+            "price_response.strong_relative_return_threshold",
+        ),
+        volume_confirmation_threshold=_positive_number(
+            raw.get("volume_confirmation_threshold"),
+            "price_response.volume_confirmation_threshold",
+        ),
     )
 
 

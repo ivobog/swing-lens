@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
 from app.models.ceri_tables import CeriIngestionRun, CeriProcessingRun, CeriSourceRecord
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
 from app.services.background_worker import default_job_handlers
 from app.services.ceri.enums import CeriDataset
+from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.ceri.job_handlers import (
     CERI_NORMALIZE,
     CERI_PROVIDER_INGEST,
@@ -98,7 +101,10 @@ def test_ceri_job_handlers_are_registered_with_default_worker() -> None:
     assert CERI_NORMALIZE in handlers
 
 
-def test_provider_ingest_job_marks_partial_when_ingestion_has_failures() -> None:
+def test_provider_ingest_job_marks_partial_when_ingestion_has_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_ceri(monkeypatch)
     db = FakeDb()
     job = BackgroundJob(
         id=5,
@@ -124,7 +130,8 @@ def test_provider_ingest_job_marks_partial_when_ingestion_has_failures() -> None
     assert normalize_jobs[0].payload_json["request_key"].startswith("ceri:normalize:")
 
 
-def test_normalize_job_persists_processing_run_lineage() -> None:
+def test_normalize_job_persists_processing_run_lineage(monkeypatch: pytest.MonkeyPatch) -> None:
+    _enable_ceri(monkeypatch)
     db = FakeDb()
     job = BackgroundJob(
         id=6,
@@ -142,7 +149,8 @@ def test_normalize_job_persists_processing_run_lineage() -> None:
     assert result["job_type"] == CERI_NORMALIZE
 
 
-def test_normalize_job_coalesces_existing_processing_run() -> None:
+def test_normalize_job_coalesces_existing_processing_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    _enable_ceri(monkeypatch)
     existing = CeriProcessingRun(
         id=9,
         job_type=CERI_NORMALIZE,
@@ -170,6 +178,11 @@ def _ingestion_service(rows: list[dict]) -> CeriIngestionService:
     provider = ManualCeriProvider({CeriDataset.ESTIMATES: rows})
     registry = CeriProviderRegistry(providers={"manual": provider})
     return CeriIngestionService(registry=registry)
+
+
+def _enable_ceri(monkeypatch: pytest.MonkeyPatch) -> None:
+    flags = CeriFeatureFlags(True, True, True, True, True, True, True)
+    monkeypatch.setattr("app.services.ceri.job_handlers.ceri_flags", lambda: flags)
 
 
 class FakeDb:

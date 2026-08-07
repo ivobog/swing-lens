@@ -14,9 +14,11 @@ from app.models.ceri_tables import (
     CeriCatalystEventRevision,
     CeriCatalystSource,
     CeriChangeEvent,
+    CeriDerivedFeature,
     CeriEarningsActual,
     CeriEstimateSnapshot,
     CeriGuidanceEvent,
+    CeriPriceResponseFeature,
     CeriPurgeAudit,
     CeriRevisionFeature,
     CeriScoreSnapshot,
@@ -208,13 +210,24 @@ class CeriPurgeService:
             for feature in _load(db, CeriRevisionFeature)
             if source_ids.intersection(set(feature.source_observation_ids_json or []))
         ]
+        derived_features = [
+            feature
+            for feature in _load(db, CeriDerivedFeature)
+            if source_ids.intersection(set(feature.source_ids_json or []))
+        ]
+        normalized_ids = {
+            row.id for row in [*estimates, *earnings, *guidance, *catalyst_revisions] if row.id
+        }
+        price_response_features = [
+            feature
+            for feature in _load(db, CeriPriceResponseFeature)
+            if feature.event_id in normalized_ids
+        ]
         affected_source_ids = source_ids
         score_snapshots = [
             snapshot
             for snapshot in _load(db, CeriScoreSnapshot)
-            if affected_source_ids.intersection(
-                set((snapshot.component_json or {}).get("source_ids") or [])
-            )
+            if affected_source_ids.intersection(_snapshot_source_ids(snapshot))
         ]
         score_snapshot_ids = {
             snapshot.id for snapshot in score_snapshots if snapshot.id is not None
@@ -243,9 +256,13 @@ class CeriPurgeService:
             "guidance_events": len(guidance),
             "catalyst_revisions": len(catalyst_revisions),
             "catalyst_sources": len(catalyst_sources),
+            "derived_features": len(derived_features),
+            "price_response_features": len(price_response_features),
         }
         invalidated_derivatives = {
             "revision_features": len(revision_features),
+            "derived_features": len(derived_features),
+            "price_response_features": len(price_response_features),
             "score_snapshots": len(score_snapshots),
             "change_events": len(change_events),
             "alert_events": len(alert_events),
@@ -262,6 +279,8 @@ class CeriPurgeService:
             "catalyst_revisions": catalyst_revisions,
             "catalyst_sources": catalyst_sources,
             "revision_features": revision_features,
+            "derived_features": derived_features,
+            "price_response_features": price_response_features,
             "score_snapshots": score_snapshots,
             "change_events": change_events,
             "alert_events": alert_events,
@@ -280,10 +299,10 @@ def _validate_required_request(request: Any) -> None:
             raise CeriPurgeError(f"Provider-license purge requires {field}.")
     provider = str(request.provider).strip().lower()
     scope = str(request.license_scope).strip().lower()
-    if scope == "personal" and provider != "eodhd":
-        raise CeriPurgeError(
-            "The personal licensed-data purge scope is only valid for provider eodhd."
-        )
+    if provider != "eodhd":
+        raise CeriPurgeError("Provider-license purge is only valid for provider eodhd.")
+    if not scope or scope in {"*", "all"}:
+        raise CeriPurgeError("EODHD purge requires an explicit stored license scope.")
 
 
 def _record_blocked(
@@ -321,24 +340,20 @@ def _rows_with_source_ids(db: Session, model: type, source_ids: set[int]) -> lis
     return [row for row in _load(db, model) if getattr(row, "source_record_id", None) in source_ids]
 
 
+def _snapshot_source_ids(snapshot: CeriScoreSnapshot) -> set[int]:
+    component_ids = set((snapshot.component_json or {}).get("source_ids") or [])
+    lineage = snapshot.evidence_lineage_json or {}
+    lineage_ids = set(lineage.get("revision_source_ids") or [])
+    lineage_ids.update(lineage.get("earnings_source_ids") or [])
+    lineage_ids.update(lineage.get("guidance_source_ids") or [])
+    lineage_ids.update(lineage.get("catalyst_source_ids") or [])
+    return component_ids | lineage_ids
+
+
 def _source_matches_scope(source: CeriSourceRecord, license_scope: str) -> bool:
     scope = license_scope.strip()
-    if scope in {"*", "all"}:
-        return True
     stored_scope = (source.license_scope or "").strip()
-    # EODHD is the licensed purge boundary.  Never infer its scope from the
-    # request, dataset, or export policy when older rows lack the metadata.
-    if source.provider == "eodhd":
-        return stored_scope == scope
-    return stored_scope == scope or (
-        not stored_scope
-        and scope
-        in {
-            source.dataset,
-            source.provider_terms_version,
-            source.export_policy,
-        }
-    )
+    return source.provider == "eodhd" and stored_scope == scope and source.purge_eligible
 
 
 def _manifest_hash_input(
@@ -367,11 +382,19 @@ def _manifest_hash_input(
                 "guidance",
                 "catalyst_revisions",
                 "catalyst_sources",
+                "price_response_features",
             )
         },
         "derived_ids": {
             key: sorted(getattr(row, "id", None) for row in manifest[key])
-            for key in ("revision_features", "score_snapshots", "change_events", "alert_events")
+            for key in (
+                "revision_features",
+                "derived_features",
+                "price_response_features",
+                "score_snapshots",
+                "change_events",
+                "alert_events",
+            )
         },
     }
 
@@ -440,6 +463,18 @@ def _apply_purge_lifecycle(
         feature.provider_selection_reason = _append_text_marker(
             feature.provider_selection_reason,
             "invalidated_by_provider_license_purge",
+        )
+    for feature in manifest["derived_features"]:
+        feature.value_json = _merge_json_object(
+            feature.value_json,
+            marker,
+        )
+        feature.source_ids_json = []
+    for feature in manifest["price_response_features"]:
+        feature.metrics_json = _merge_json_object(feature.metrics_json, marker)
+        feature.warnings_json = _append_flag(
+            feature.warnings_json,
+            PURGE_INVALIDATION_FLAG,
         )
     for snapshot in manifest["score_snapshots"]:
         snapshot.warnings_json = _append_flag(snapshot.warnings_json, PURGE_INVALIDATION_FLAG)

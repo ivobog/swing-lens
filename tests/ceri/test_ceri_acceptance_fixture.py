@@ -67,8 +67,8 @@ def test_redaction_blocks_auth_tokens_sql_details_and_nested_secrets() -> None:
 def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -> None:
     source = CeriSourceRecord(
         id=10,
-        provider="primary",
-        provider_terms_version="primary-terms-2026",
+            provider="eodhd",
+            provider_terms_version="2026-08-personal",
         dataset="estimates",
         provider_record_id="est-1",
         raw_json={"ticker": "MSFT", "provider_secret": "secret"},
@@ -77,7 +77,9 @@ def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -
         source_reference="vendor-row-1",
         content_hash="hash",
         idempotency_key="idem",
-        export_policy="restricted",
+            export_policy="restricted",
+            license_scope="personal",
+            purge_eligible=True,
     )
     estimate = CeriEstimateSnapshot(id=20, source_record_id=10, company_id=42)
     revision = CeriRevisionFeature(id=30, company_id=42, source_observation_ids_json=[10])
@@ -122,8 +124,8 @@ def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -
     preview = service.preview(
         db,
         CeriPurgePreviewRequest(
-            provider="primary",
-            license_scope="estimates",
+            provider="eodhd",
+            license_scope="personal",
             actor="local-admin",
             reason="license test",
         ),
@@ -132,8 +134,8 @@ def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -
     executed = service.execute(
         db,
         CeriPurgeExecuteRequest(
-            provider="primary",
-            license_scope="estimates",
+            provider="eodhd",
+            license_scope="personal",
             actor="local-admin",
             reason="confirmed license test",
             confirmation_token=token,
@@ -186,8 +188,8 @@ def test_purge_execute_requires_matching_confirmation_token() -> None:
         CeriPurgeService().execute(
             db,
             CeriPurgeExecuteRequest(
-                provider="primary",
-                license_scope="estimates",
+                provider="eodhd",
+                license_scope="personal",
                 actor="local-admin",
                 reason="bad token",
                 confirmation_token="wrong",
@@ -211,8 +213,8 @@ def test_localhost_binding_and_admin_csrf_boundary_are_preserved() -> None:
 def _audit() -> CeriPurgeAudit:
     return CeriPurgeAudit(
         id=1,
-        provider="primary",
-        license_scope="estimates",
+                provider="eodhd",
+                license_scope="personal",
         preview_manifest_hash="preview-hash",
         actor="local-admin",
         reason="preview",

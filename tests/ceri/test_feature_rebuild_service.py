@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from app.models.ceri_tables import CeriCompany, CeriRevisionFeature
+from app.models.ceri_tables import CeriCompany, CeriDerivedFeature, CeriRevisionFeature
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
@@ -26,6 +26,7 @@ def test_feature_rebuild_persists_windows_and_acceleration() -> None:
     assert len(rows) == 4
     assert {row.window_days for row in rows} == {7, 90}
     assert rows[0].acceleration == Decimal("0.10") or rows[1].acceleration == Decimal("0.10")
+    assert any(row.feature_family == "confidence" for row in db.rows[CeriDerivedFeature])
 
 
 class StubRevisionService:

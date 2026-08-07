@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import pytest
+
 from app.models.ceri_tables import CeriAlertEvent, CeriAlertRule, CeriChangeEvent
 from app.services.ceri.alert_service import CeriAlertService
+from app.services.ceri.feature_flags import CeriFeatureFlags
 
 
-def test_alert_rebuild_emits_one_alert_for_same_change_under_rerun() -> None:
+def test_alert_rebuild_emits_one_alert_for_same_change_under_rerun(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.ceri.alert_service.ceri_flags",
+        lambda: CeriFeatureFlags(True, True, True, True, True, True, True),
+    )
     change = CeriChangeEvent(
         id=3,
         company_id=42,

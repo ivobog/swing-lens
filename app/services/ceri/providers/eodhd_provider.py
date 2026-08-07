@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -28,12 +28,18 @@ class EodhdCeriProvider:
     credential_env_var = "EODHD_API_KEY"
 
     def __init__(
-        self, *, api_key: str | None = None, client: EodhdHttpClient | None = None, **config: Any
+        self,
+        *,
+        api_key: str | None = None,
+        client: EodhdHttpClient | None = None,
+        clock: Callable[[], datetime] | None = None,
+        **config: Any,
     ) -> None:
         key = api_key if api_key is not None else os.getenv(self.credential_env_var)
         self.terms_version = str(
             config.pop("terms_version", os.getenv("EODHD_TERMS_VERSION", "2026-08-personal"))
         )
+        self._clock = clock or (lambda: datetime.now(UTC))
         self.client = client or EodhdHttpClient(
             EodhdClientConfig(
                 api_key=key,
@@ -142,6 +148,9 @@ class EodhdCeriProvider:
                     "low": row.get(f"{prefix}Low"),
                     "analyst_count": row.get(f"{prefix}NumberOfAnalysts"),
                 }
+                payload["current_observation_reference"] = (
+                    f"{symbol}:{ptype}:{fiscal_end}:{metric}"
+                )
                 if metric == "REVENUE":
                     payload["growth"] = (
                         row.get("revenueGrowth")
@@ -166,7 +175,7 @@ class EodhdCeriProvider:
                     CeriDataset.ESTIMATES,
                     f"{symbol}:{ptype}:{fiscal_end}:{metric}",
                     payload,
-                    row.get("date"),
+                    None,
                 )
                 if metric == "EPS_DILUTED":
                     # Earnings Trends includes historical consensus points in
@@ -177,22 +186,36 @@ class EodhdCeriProvider:
                         baseline = row.get(f"epsTrend{days}daysAgo")
                         if baseline is None:
                             continue
-                        observed_at = _datetime(base.get("observed_at")) or datetime.now(UTC)
-                        baseline_at = observed_at - timedelta(days=days)
+                        observed_at = _datetime(base.get("provider_observed_at"))
+                        baseline_at = (
+                            observed_at - timedelta(days=days) if observed_at is not None else None
+                        )
                         baseline_payload = {
                             **payload,
                             "consensus": baseline,
                             # EODHD's trend points are observations relative to
                             # the provider response time, never the fiscal end.
-                            "provider_observation_at": observed_at.isoformat(),
-                            "observed_at": baseline_at.isoformat(),
+                            "provider_observation_at": (
+                                observed_at.isoformat() if observed_at is not None else None
+                            ),
+                            "observed_at": (
+                                baseline_at.isoformat() if baseline_at is not None else None
+                            ),
+                            "effective_at": (
+                                baseline_at.isoformat() if baseline_at is not None else None
+                            ),
                             "trend_baseline_days": days,
+                            "trend_baseline_window_days": days,
+                            "baseline_origin": "PROVIDER_RELATIVE_WINDOW",
+                            "current_observation_reference": (
+                                f"{symbol}:{ptype}:{fiscal_end}:EPS_DILUTED"
+                            ),
                         }
                         yield self._record(
                             CeriDataset.ESTIMATES,
                             f"{symbol}:{ptype}:{fiscal_end}:EPS_DILUTED:baseline:{days}",
                             baseline_payload,
-                            baseline_at.isoformat(),
+                            None,
                         )
 
     def fetch_earnings_actuals(self, request: EarningsRequest) -> Iterable[RawProviderRecord]:
@@ -293,45 +316,50 @@ class EodhdCeriProvider:
             _datetime(row.get("observedAt"))
             or _datetime(row.get("updatedAt"))
             or _datetime(row.get("lastUpdated"))
-            or datetime.now(UTC)
         )
-        return {
+        payload = {
             "ticker": symbol.split(".")[0],
             "provider_company_id": symbol,
             "provider_terms_version": self.terms_version,
             "period_type": ptype,
             "fiscal_period_end": fiscal_end.isoformat(),
-            "source_date": fiscal_end.isoformat(),
-            "provider_observation_at": provider_observed_at.isoformat(),
-            "observed_at": provider_observed_at.isoformat(),
+            "currency": row.get("currency") or row.get("currencyCode"),
+            "source_currency": row.get("currency") or row.get("currencyCode"),
+            "provider_observed_at": (
+                provider_observed_at.isoformat() if provider_observed_at is not None else None
+            ),
+            "observed_at": (
+                provider_observed_at.isoformat() if provider_observed_at is not None else None
+            ),
         }
+        return payload
 
     def _record(
         self, dataset: CeriDataset, provider_id: str, payload: dict[str, Any], observed: Any
     ) -> RawProviderRecord:
-        retrieved_at = datetime.now(UTC)
+        retrieved_at = self._clock()
         observed_at = (
             _datetime(payload.get("observed_at"))
             or _datetime(payload.get("provider_observation_at"))
-            or retrieved_at
         )
         published_at = (
             _datetime(payload.get("published_at"))
             or _datetime(payload.get("announced_at"))
             or _datetime(payload.get("source_timestamp"))
-            or _datetime(payload.get("source_date"))
             or _datetime(observed)
         )
         return RawProviderRecord(
-            self.name,
-            dataset,
-            provider_id,
-            {**payload, "provider_terms_version": self.terms_version},
-            published_at,
-            observed_at,
-            payload.get("source_url"),
-            ExportPolicy.RESTRICTED.value,
-            retrieved_at,
+            provider=self.name,
+            dataset=dataset,
+            provider_record_id=provider_id,
+            payload={**payload, "provider_terms_version": self.terms_version},
+            published_at=published_at,
+            observed_at=observed_at,
+            source_url=payload.get("source_url"),
+            export_policy=ExportPolicy.RESTRICTED.value,
+            retrieved_at=retrieved_at,
+            source_timestamp=_datetime(payload.get("source_timestamp"))
+            or _datetime(payload.get("provider_observed_at")),
         )
 
 

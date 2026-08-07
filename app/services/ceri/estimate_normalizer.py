@@ -37,10 +37,22 @@ class CeriEstimateNormalizer:
         period = self.fiscal_periods.normalize(payload)
         observed_at = _datetime(payload.get("effective_at")) or source_record.observed_at
         source_date = _date(payload.get("source_date")) or _date(payload.get("published_date"))
-        session = self.effective_sessions.resolve(
-            timestamp=observed_at or source_record.published_at,
-            source_date=source_date,
-        )
+        observation_timestamp = observed_at or source_record.published_at
+        if observation_timestamp is not None or source_date is not None:
+            session = self.effective_sessions.resolve(
+                timestamp=observation_timestamp,
+                source_date=source_date,
+            )
+            effective_at = session.effective_at
+            effective_session = session.effective_session
+            session_warnings = list(session.warnings)
+        else:
+            # EODHD trend fields may be relative to the provider observation
+            # point without exposing that point.  Keep the estimate usable,
+            # but do not invent a fiscal-period-relative session.
+            effective_at = None
+            effective_session = None
+            session_warnings = ["missing_observation_timestamp"]
         source_currency = _currency(payload.get("source_currency") or payload.get("currency"))
         source_scale = (
             decimal_or_none(payload.get("source_scale") or payload.get("scale"))
@@ -65,7 +77,7 @@ class CeriEstimateNormalizer:
             conversion_source_record_id=conversion_source_record_id,
             conversion_effective_at=conversion_effective_at,
         )
-        quality_flags = [*session.warnings, *consensus_conversion.warnings]
+        quality_flags = [*session_warnings, *consensus_conversion.warnings]
         if consensus is None:
             quality_flags.append("consensus_missing")
 
@@ -104,8 +116,21 @@ class CeriEstimateNormalizer:
             conversion_rate=consensus_conversion.conversion_rate,
             conversion_source_record_id=consensus_conversion.conversion_source_record_id,
             conversion_effective_at=consensus_conversion.conversion_effective_at,
-            effective_at=session.effective_at,
-            effective_session=session.effective_session,
+            effective_at=effective_at,
+            effective_session=effective_session,
+            provider_observed_at=(
+                _datetime(payload.get("provider_observed_at"))
+                or source_record.source_timestamp
+                or source_record.observed_at
+            ),
+            source_timestamp=source_record.source_timestamp,
+            trend_baseline_window_days=_optional_int(
+                payload.get("trend_baseline_window_days")
+                if payload.get("trend_baseline_window_days") is not None
+                else payload.get("trend_baseline_days")
+            ),
+            baseline_origin=_text(payload.get("baseline_origin")),
+            current_observation_reference=_text(payload.get("current_observation_reference")),
             canonical_observation_key=canonical_estimate_key(
                 company_id=company_id,
                 metric=str(payload.get("metric") or "EPS_DILUTED"),
@@ -113,7 +138,7 @@ class CeriEstimateNormalizer:
                 fiscal_period_end=period.fiscal_period_end,
                 currency=consensus_conversion.canonical_currency or source_currency or "UNVERIFIED",
                 scale=consensus_conversion.canonical_scale or source_scale,
-                effective_session=session.effective_session,
+                effective_session=effective_session,
             ),
             original_fields_json=payload,
             quality_flags_json=quality_flags or None,
@@ -150,7 +175,7 @@ def canonical_estimate_key(
     fiscal_period_end: date,
     currency: str,
     scale: Decimal,
-    effective_session: date,
+    effective_session: date | None,
 ) -> str:
     return ":".join(
         [
@@ -160,7 +185,7 @@ def canonical_estimate_key(
             fiscal_period_end.isoformat(),
             currency.upper(),
             str(scale.normalize()),
-            effective_session.isoformat(),
+            effective_session.isoformat() if effective_session is not None else "UNKNOWN",
         ]
     )
 
@@ -173,6 +198,15 @@ def _text(value: Any) -> str | None:
     if value in (None, ""):
         return None
     return str(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _currency(value: Any) -> str | None:

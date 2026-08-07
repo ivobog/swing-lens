@@ -109,6 +109,8 @@ def test_score_reproduction_succeeds_from_stored_snapshot_inputs() -> None:
         confidence=_confidence(),
         source_ids=[1, 2, 3],
         alignment_inputs={"fundamentals": True, "technicals": True},
+        alignment_context={"fundamentals": {"score": 8.0}, "technicals": {"score": 7.0}},
+        evidence_lineage={"revision_source_ids": [1, 2], "price_bar_ids": [9, 10]},
     )
 
     reproduction = service.reproduce_snapshot(snapshot)
@@ -118,6 +120,8 @@ def test_score_reproduction_succeeds_from_stored_snapshot_inputs() -> None:
     assert snapshot.posture in {"Positive", "Improving", "Mixed", "Binary Risk", "Unrated"}
     assert snapshot.alignment_flags_json["fundamentals"] is True
     assert snapshot.component_json["source_ids"] == [1, 2, 3]
+    assert snapshot.alignment_context_json["fundamentals"]["score"] == 8.0
+    assert snapshot.evidence_lineage_json["price_bar_ids"] == [9, 10]
 
 
 def _revision_feature(

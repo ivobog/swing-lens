@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.dtos import ProviderCapabilities, ProviderHealth
@@ -132,3 +133,46 @@ def _default_providers() -> dict[str, CeriProvider]:
         CeriProviderName.EODHD.value: EodhdCeriProvider(),
         CeriProviderName.SEC.value: SecCeriProvider(),
     }
+
+
+def provider_storage_projection(
+    provider: str,
+    dataset: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Project provider responses to fields permitted for persistence."""
+    if provider not in {"eodhd", "sec"}:
+        return dict(payload)
+    allowed = {
+        "ticker", "exchange", "provider_company_id", "company_id", "cik",
+        "provider_terms_version", "provider_observed_at", "observed_at",
+        "source_timestamp", "source_date", "published_at", "published_date",
+        "announced_at", "effective_at", "report_at", "report_time",
+        "metric", "period", "period_type", "period_label", "fiscal_period_end",
+        "source_currency", "canonical_currency", "source_scale", "canonical_scale",
+        "fiscal_year", "fiscal_quarter", "consensus", "current", "high", "low",
+        "analyst_count", "upward_count", "downward_count", "growth",
+        "eps_trend_current", "eps_trend_7d", "eps_trend_30d",
+        "eps_trend_60d", "eps_trend_90d", "trend_baseline_days",
+        "trend_baseline_window_days", "baseline_origin",
+        "current_observation_reference", "actual_value", "estimate",
+        "surprise_percent", "category", "subtype", "title", "headline",
+        "subject", "canonical_text", "confidence", "status", "direction",
+        "materiality", "tags", "related_tickers", "sentiment", "source_reference",
+        "source_url", "evidence_locator", "filing_accession", "comparison_basis",
+        "action", "low_value", "high_value", "point_value", "unit", "units",
+        "currency", "manual_review_required", "management_claim",
+        "extraction_confidence", "comparison_confidence", "quality_warnings",
+    }
+    projected = {
+        key: value
+        for key, value in payload.items()
+        if key in allowed or key.startswith("epsRevisions")
+    }
+    if provider == "eodhd":
+        # EODHD subscription data is not redistributed by SwingLens.  Keep
+        # evidence locators only where the configured provider policy permits
+        # them; external URLs/references are intentionally not persisted.
+        projected.pop("source_url", None)
+        projected.pop("source_reference", None)
+    return projected

@@ -189,7 +189,17 @@ def test_execute_full_pipeline_passes_setup_capture_handoff_when_enabled() -> No
     assert "setup_evaluate_handoff" in calls
 
 
-def test_execute_full_pipeline_runs_ceri_before_setup_lifecycle_when_enabled() -> None:
+def test_execute_full_pipeline_runs_ceri_before_setup_lifecycle_when_enabled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.pipeline_executor.ceri_flags",
+        lambda: SimpleNamespace(enabled=True, run_capture=True, provider_ingest=False),
+    )
+    monkeypatch.setattr(
+        "app.services.pipeline_service.ceri_flags",
+        lambda: SimpleNamespace(enabled=True, run_capture=True, provider_ingest=False),
+    )
     db = PipelineExecutorFakeDb(
         tickers=["MSFT"],
         ceri_enabled=True,
@@ -251,7 +261,15 @@ def test_execute_full_pipeline_runs_ceri_before_setup_lifecycle_when_enabled() -
     assert result.setup_lifecycle_transitions == 1
 
 
-def test_execute_full_pipeline_marks_partial_for_ceri_capture_failures() -> None:
+def test_execute_full_pipeline_marks_partial_for_ceri_capture_failures(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.pipeline_executor.ceri_flags",
+        lambda: SimpleNamespace(enabled=True, run_capture=True, provider_ingest=False),
+    )
+    monkeypatch.setattr(
+        "app.services.pipeline_service.ceri_flags",
+        lambda: SimpleNamespace(enabled=True, run_capture=True, provider_ingest=False),
+    )
     db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_enabled=True)
     calls = []
     dependencies = _dependencies(
@@ -606,6 +624,7 @@ def _dependencies(
         build_sector_rotation_snapshot=sector_rotation,
         capture_ceri_snapshot=ceri_capture if ceri_capture_result is not None else None,
         ceri_run_capture_enabled=ceri_enabled,
+        ceri_provider_ingest_enabled=False,
         capture_setup_signals=setup_capture if setup_capture_result is not None else None,
         evaluate_setup_lifecycles=setup_evaluate
         if setup_evaluation_result is not None
@@ -702,6 +721,7 @@ class PipelineExecutorFakeDb:
             for index, step_name in enumerate(
                 pipeline_step_names(
                     ceri_run_capture_enabled=ceri_enabled,
+                    ceri_provider_ingest_enabled=False,
                     setup_lifecycle_pipeline_step_enabled=setup_lifecycle_enabled
                 ),
                 start=1,

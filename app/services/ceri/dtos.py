@@ -113,6 +113,7 @@ class RawProviderRecord:
     source_url: str | None = None
     export_policy: str = "exportable"
     retrieved_at: datetime | None = None
+    source_timestamp: datetime | None = None
 
 
 @dataclass(frozen=True)

@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
+import pytest
+
 from app.models.ceri_tables import (
     CeriCatalystEvent,
     CeriCatalystEventRevision,
@@ -20,6 +22,7 @@ from app.services.ceri.change_rebuild_service import (
     CeriChangeRebuildRequest,
     CeriChangeRebuildService,
 )
+from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.ceri.job_handlers import execute_alert_rebuild_job, execute_backfill_job
 
 UTC_INFO = UTC
@@ -136,7 +139,13 @@ def test_standalone_change_rebuild_honors_company_scope() -> None:
     assert detector.score_companies == [1]
 
 
-def test_alert_rebuild_request_key_is_stable_across_job_ids() -> None:
+def test_alert_rebuild_request_key_is_stable_across_job_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.ceri.job_handlers.ceri_flags",
+        lambda: CeriFeatureFlags(True, True, True, True, True, True, True),
+    )
     db = ProcessingDb(scalar_queue=[None])
     first_job = BackgroundJob(id=10, job_type="CERI_ALERT_REBUILD", payload_json={})
 

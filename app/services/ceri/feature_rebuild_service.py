@@ -8,14 +8,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
+    CeriCatalystEvent,
+    CeriCatalystEventRevision,
     CeriCompany,
+    CeriDerivedFeature,
     CeriEarningsActual,
     CeriEstimateSnapshot,
+    CeriGuidanceEvent,
     CeriRevisionFeature,
 )
 from app.models.tables import RawCompanyRow
+from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
+from app.services.ceri.confidence_service import CeriConfidenceService
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import HistoricalViewMode
+from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.revision_feature_service import CeriRevisionFeatureService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
 
@@ -58,10 +65,16 @@ class CeriFeatureRebuildService:
         config: CeriConfig | None = None,
         revisions: CeriRevisionFeatureService | None = None,
         surprise: CeriSurpriseFeatureService | None = None,
+        catalysts: CeriCatalystFeatureService | None = None,
+        confidence: CeriConfidenceService | None = None,
+        price_response: CeriPriceResponseService | None = None,
     ) -> None:
         self.config = config or load_ceri_config()
         self.revisions = revisions or CeriRevisionFeatureService(config=self.config)
         self.surprise = surprise or CeriSurpriseFeatureService(config=self.config)
+        self.catalysts = catalysts or CeriCatalystFeatureService(config=self.config)
+        self.confidence = confidence or CeriConfidenceService(config=self.config)
+        self.price_response = price_response or CeriPriceResponseService(config=self.config)
 
     def rebuild(
         self, db: Session, request: CeriFeatureRebuildRequest, *, processing_run: Any | None = None
@@ -82,10 +95,14 @@ class CeriFeatureRebuildService:
                     calculated = self.revisions.calculate_windows(
                         db, company_id=company.id, metric=metric, cutoff_at=cutoff_at, mode=mode
                     )
+                    self._add_acceleration(calculated, calculated)
                     for feature in calculated:
+                        if request.from_session and feature.as_of_session < request.from_session:
+                            continue
                         existing = self._existing_feature(db, feature)
                         if existing is not None:
                             company_features.append(existing)
+                            _copy_revision_derived(existing, feature)
                             deduped += 1
                             continue
                         db.add(feature)
@@ -93,11 +110,8 @@ class CeriFeatureRebuildService:
                         company_features.append(feature)
                         features += 1
                         warnings += len(feature.warnings_json or [])
-                    self._add_acceleration(calculated, company_features)
                 estimates = [
-                    row
-                    for row in _load(db, CeriEstimateSnapshot)
-                    if row.company_id == company.id
+                    row for row in _load(db, CeriEstimateSnapshot) if row.company_id == company.id
                 ]
                 earnings = [
                     row
@@ -110,6 +124,117 @@ class CeriFeatureRebuildService:
                     for row in earnings:
                         if row.consensus_snapshot_id is not None:
                             earnings_updated += 1
+                    self._upsert_derived(
+                        db,
+                        company_id=company.id,
+                        family="earnings_surprise",
+                        key="latest",
+                        as_of_session=cutoff,
+                        value={
+                            "features": [
+                                {
+                                    "earnings_actual_id": item.earnings_actual_id,
+                                    "consensus_snapshot_id": item.consensus_snapshot_id,
+                                    "surprise_absolute": str(item.surprise_absolute)
+                                    if item.surprise_absolute is not None
+                                    else None,
+                                    "surprise_pct": str(item.surprise_pct)
+                                    if item.surprise_pct is not None
+                                    else None,
+                                    "direction": item.direction,
+                                    "warnings": item.warnings,
+                                }
+                                for item in self.surprise.summarize(earnings, estimates).features
+                            ]
+                        },
+                        source_ids=[
+                            row.source_record_id
+                            for row in earnings
+                            if row.source_record_id is not None
+                        ],
+                    )
+                guidance_rows = [
+                    row
+                    for row in _load(db, CeriGuidanceEvent)
+                    if row.company_id == company.id
+                    and (row.effective_session is None or row.effective_session <= cutoff)
+                ]
+                if request.from_session:
+                    guidance_rows = [
+                        row
+                        for row in guidance_rows
+                        if (
+                            row.effective_session is None
+                            or row.effective_session >= request.from_session
+                        )
+                    ]
+                if guidance_rows:
+                    latest_guidance = max(
+                        guidance_rows,
+                        key=lambda row: (row.effective_session or date.min, row.id or 0),
+                    )
+                    self._upsert_derived(
+                        db,
+                        company_id=company.id,
+                        family="guidance",
+                        key="latest",
+                        as_of_session=cutoff,
+                        value={
+                            "guidance_id": latest_guidance.id,
+                            "action": latest_guidance.action,
+                            "confidence": latest_guidance.confidence,
+                            "metric": latest_guidance.metric,
+                            "period_type": latest_guidance.period_type,
+                            "low_value": str(latest_guidance.low_value)
+                            if latest_guidance.low_value is not None
+                            else None,
+                            "high_value": str(latest_guidance.high_value)
+                            if latest_guidance.high_value is not None
+                            else None,
+                            "point_value": str(latest_guidance.point_value)
+                            if latest_guidance.point_value is not None
+                            else None,
+                        },
+                        source_ids=[row.source_record_id for row in guidance_rows],
+                    )
+                event_rows = _current_catalysts(db, company.id, cutoff)
+                catalyst_values = []
+                catalyst_source_ids: list[int] = []
+                for event, revision in event_rows:
+                    value = self.catalysts.calculate(
+                        event=event, revision=revision, as_of_session=cutoff
+                    )
+                    catalyst_values.append(_json_safe(asdict(value)))
+                    if revision.source_record_id is not None:
+                        catalyst_source_ids.append(revision.source_record_id)
+                if catalyst_values:
+                    self._upsert_derived(
+                        db,
+                        company_id=company.id,
+                        family="catalysts",
+                        key="current",
+                        as_of_session=cutoff,
+                        value={"items": catalyst_values},
+                        source_ids=catalyst_source_ids,
+                    )
+                confidence = self.confidence.calculate(
+                    as_of_session=cutoff,
+                    revision_features=company_features,
+                )
+                self._upsert_derived(
+                    db,
+                    company_id=company.id,
+                    family="confidence",
+                    key="score",
+                    as_of_session=cutoff,
+                    value=_json_safe(asdict(confidence)),
+                    source_ids=[
+                        source_id
+                        for feature in company_features
+                        for source_id in (feature.source_observation_ids_json or [])
+                    ],
+                )
+                self._rebuild_price_response(db, company.id, company.ticker, cutoff)
                 if processing_run is not None:
                     processing_run.checkpoint_json = {
                         "company_id": company.id,
@@ -122,6 +247,83 @@ class CeriFeatureRebuildService:
                 )
         return CeriFeatureRebuildResult(
             features, deduped, earnings_updated, len(companies), warnings, failed, tuple(errors)
+        )
+
+    def _upsert_derived(
+        self,
+        db: Session,
+        *,
+        company_id: int,
+        family: str,
+        key: str,
+        as_of_session: date,
+        value: dict[str, Any],
+        source_ids: list[int],
+    ) -> CeriDerivedFeature:
+        existing = next(
+            (
+                row
+                for row in _load(db, CeriDerivedFeature)
+                if row.company_id == company_id
+                and row.feature_family == family
+                and row.feature_key == key
+                and row.as_of_session == as_of_session
+                and row.config_hash == self.config.config_hash
+                and row.calculation_version == self.config.engine.calculation_version
+            ),
+            None,
+        )
+        evidence = {
+            "company_id": company_id,
+            "family": family,
+            "key": key,
+            "as_of_session": as_of_session.isoformat(),
+            "value": value,
+            "source_ids": sorted(set(source_ids)),
+            "config_hash": self.config.config_hash,
+            "calculation_version": self.config.engine.calculation_version,
+        }
+        if existing is None:
+            existing = CeriDerivedFeature(
+                company_id=company_id,
+                feature_family=family,
+                feature_key=key,
+                as_of_session=as_of_session,
+                config_version=self.config.engine.config_version,
+                config_hash=self.config.config_hash,
+                calculation_version=self.config.engine.calculation_version,
+                evidence_hash=_stable_hash(evidence),
+            )
+            db.add(existing)
+        existing.value_json = value
+        existing.source_ids_json = sorted(set(source_ids))
+        existing.evidence_hash = _stable_hash(evidence)
+        db.flush()
+        return existing
+
+    def _rebuild_price_response(
+        self, db: Session, company_id: int, ticker: str, cutoff: date
+    ) -> None:
+        event = _latest_price_event(db, company_id, cutoff)
+        if event is None:
+            return
+        result = self.price_response.calculate(
+            db,
+            company_id=company_id,
+            ticker=ticker,
+            event_type=event[0],
+            event_id=event[1],
+            event_effective_at=event[2],
+            event_effective_session=event[3],
+        )
+        self.price_response.persist(
+            db,
+            result=result,
+            company_id=company_id,
+            ticker=ticker,
+            event_id=event[1],
+            event_effective_at=event[2],
+            event_effective_session=event[3],
         )
 
     def _companies(self, db: Session, request: CeriFeatureRebuildRequest) -> list[CeriCompany]:
@@ -177,3 +379,97 @@ def _load(db: Session, model: Any) -> list[Any]:
         return []
     result = scalars(select(model))
     return list(result.all() if hasattr(result, "all") else result)
+
+
+def _copy_revision_derived(target: CeriRevisionFeature, source: CeriRevisionFeature) -> None:
+    target.actual_elapsed_days = source.actual_elapsed_days
+    target.absolute_change = source.absolute_change
+    target.pct_change = source.pct_change
+    target.upward_count = source.upward_count
+    target.downward_count = source.downward_count
+    target.net_breadth = source.net_breadth
+    target.dispersion = source.dispersion
+    target.acceleration = source.acceleration
+    target.revision_confidence_score = source.revision_confidence_score
+    target.revision_confidence_label = source.revision_confidence_label
+    target.warnings_json = source.warnings_json
+    target.evidence_hash = source.evidence_hash
+
+
+def _current_catalysts(
+    db: Session, company_id: int, cutoff: date
+) -> list[tuple[CeriCatalystEvent, CeriCatalystEventRevision]]:
+    events = {
+        event.id: event for event in _load(db, CeriCatalystEvent) if event.company_id == company_id
+    }
+    revisions = [
+        revision
+        for revision in _load(db, CeriCatalystEventRevision)
+        if revision.is_current
+        and revision.catalyst_event_id in events
+        and (revision.effective_session is None or revision.effective_session <= cutoff)
+    ]
+    return [(events[revision.catalyst_event_id], revision) for revision in revisions]
+
+
+def _latest_price_event(
+    db: Session, company_id: int, cutoff: date
+) -> tuple[str, int | None, datetime | None, date | None] | None:
+    candidates: list[tuple[str, int | None, datetime | None, date | None]] = []
+    earnings = [
+        row
+        for row in _load(db, CeriEarningsActual)
+        if row.company_id == company_id
+        and row.report_session is not None
+        and row.report_session <= cutoff
+    ]
+    if earnings:
+        row = max(earnings, key=lambda item: (item.report_session, item.id or 0))
+        candidates.append(("EARNINGS", row.id, row.report_at, row.report_session))
+    guidance = [
+        row
+        for row in _load(db, CeriGuidanceEvent)
+        if row.company_id == company_id
+        and (row.effective_session is None or row.effective_session <= cutoff)
+    ]
+    if guidance:
+        row = max(guidance, key=lambda item: (item.effective_session or date.min, item.id or 0))
+        candidates.append(("GUIDANCE", row.id, row.effective_at, row.effective_session))
+    for _event, revision in _current_catalysts(db, company_id, cutoff):
+        candidates.append(
+            (
+                "CATALYST",
+                revision.id,
+                revision.announced_at,
+                revision.effective_session or revision.expected_date,
+            )
+        )
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda item: (
+            item[3] or date.min,
+            item[2] or datetime.min.replace(tzinfo=UTC),
+            item[1] or 0,
+        ),
+    )
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, "value"):
+        return value.value
+    return value
+
+
+def _stable_hash(value: Any) -> str:
+    import hashlib
+    import json
+
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode()
+    ).hexdigest()
