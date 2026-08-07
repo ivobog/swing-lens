@@ -37,6 +37,7 @@ class CeriBackfillResult:
     status: str
     checkpoints: dict[str, Any]
     skipped: int = 0
+    failed: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -44,6 +45,7 @@ class CeriBackfillResult:
             "status": self.status,
             "checkpoints": self.checkpoints,
             "skipped": self.skipped,
+            "failed": self.failed,
         }
 
 
@@ -113,23 +115,50 @@ class CeriBackfillService:
                 if company.ticker
             )
         checkpoint = dict(run.checkpoint_json or {})
+        completed_tickers = {
+            str(value).upper() for value in checkpoint.get("completed_tickers", [])
+        }
+        failed_by_ticker = {
+            str(item.get("ticker", "")).upper(): {
+                "ticker": str(item.get("ticker", "")).upper(),
+                "error": str(item.get("error", ""))[:300],
+                "attempts": int(item.get("attempts", 1) or 1),
+            }
+            for item in checkpoint.get("failed_tickers", [])
+            if isinstance(item, dict) and str(item.get("ticker", "")).strip()
+        }
         checkpoint.update(
             {
                 "provider_page": checkpoint.get("provider_page", 0),
                 "ticker": request.ticker,
                 "mode": request.mode,
                 "last_ticker_index": checkpoint.get("last_ticker_index", -1),
-                "completed_tickers": checkpoint.get("completed_tickers", []),
-                "failed_tickers": checkpoint.get("failed_tickers", []),
+                "completed_tickers": sorted(completed_tickers),
+                "failed_tickers": list(failed_by_ticker.values()),
             }
         )
         if callable(getattr(db, "scalars", None)) and tickers:
             ingestion = CeriIngestionService(config=self.config)
             normalizer = CeriNormalizationService()
             feature_rebuild = CeriFeatureRebuildService()
+            index_by_ticker = {ticker: index for index, ticker in enumerate(tickers)}
+            retry_tickers = [
+                ticker
+                for ticker in tickers
+                if ticker in failed_by_ticker and ticker not in completed_tickers
+            ]
             start_index = int(checkpoint["last_ticker_index"]) + 1
-            batch = tickers[start_index : start_index + self.config.backfill.company_batch_size]
-            for index, ticker in enumerate(batch, start=start_index):
+            new_tickers = [
+                ticker
+                for ticker in tickers[start_index:]
+                if ticker not in completed_tickers and ticker not in failed_by_ticker
+            ]
+            batch = tuple(dict.fromkeys(retry_tickers + new_tickers))[
+                : self.config.backfill.company_batch_size
+            ]
+            checkpoint["batch_tickers"] = list(batch)
+            for ticker in batch:
+                index = index_by_ticker[ticker]
                 try:
                     result = ingestion.ingest(
                         db,
@@ -163,20 +192,36 @@ class CeriBackfillService:
                         CeriFeatureRebuildRequest(ticker=ticker, mode=request.mode),
                         processing_run=run,
                     )
-                    checkpoint["completed_tickers"] = [*checkpoint["completed_tickers"], ticker]
+                    completed_tickers.add(ticker)
+                    failed_by_ticker.pop(ticker, None)
+                    checkpoint["completed_tickers"] = sorted(completed_tickers)
+                    checkpoint["failed_tickers"] = list(failed_by_ticker.values())
                     checkpoint["last_ticker_index"] = index
                     run.checkpoint_json = checkpoint
                 except Exception as exc:
-                    checkpoint["failed_tickers"] = [
-                        *checkpoint["failed_tickers"],
-                        {"ticker": ticker, "error": str(exc)[:300]},
-                    ]
+                    prior_failure = failed_by_ticker.get(ticker, {})
+                    failed_by_ticker[ticker] = {
+                        "ticker": ticker,
+                        "error": str(exc).replace("\n", " ")[:300],
+                        "attempts": int(prior_failure.get("attempts", 0) or 0) + 1,
+                    }
+                    checkpoint["failed_tickers"] = list(failed_by_ticker.values())
                     checkpoint["last_ticker_index"] = index
                     run.checkpoint_json = checkpoint
+            checkpoint["completed_tickers"] = sorted(completed_tickers)
+            checkpoint["failed_tickers"] = list(failed_by_ticker.values())
+            checkpoint["next_ticker_index"] = next(
+                (
+                    index
+                    for index, ticker in enumerate(tickers)
+                    if ticker not in completed_tickers
+                ),
+                len(tickers),
+            )
         checkpoint["resumable"] = bool(
             callable(getattr(db, "scalars", None))
             and tickers
-            and len(checkpoint.get("completed_tickers", [])) < len(tickers)
+            and len(completed_tickers) < len(tickers)
         )
         final_status = (
             "PARTIAL" if checkpoint["resumable"] or checkpoint["failed_tickers"] else "COMPLETED"
@@ -192,6 +237,7 @@ class CeriBackfillService:
             processing_run_id=run.id,
             status=run.status,
             checkpoints=checkpoint,
+            failed=len(failed_by_ticker),
         )
 
 

@@ -46,6 +46,19 @@ Structured CERI log events include job/run identifiers, provider, dataset, ticke
 ## Security Defaults
 
 The app binds to `127.0.0.1` by default. CERI admin writes remain disabled unless `ceri_admin_enabled` is set and require the existing local-admin and CSRF checks.
+
+## Wave 2 Processing Guarantees
+
+- Catalyst features used for capture are limited to the target company and
+  evidence known by the capture session.
+- Standalone change rebuilds honor company, ticker, run, date, and change-time
+  scope instead of scanning unrelated catalyst or guidance evidence.
+- Partial normalization, feature rebuild, and capture stages do not enqueue
+  downstream stages. The failed stage must be repaired and re-run first.
+- Backfill checkpoints retain failed tickers with attempt counts. Re-running a
+  partial processing run retries those tickers before advancing to new work.
+- Alert rebuild processing keys are derived from the request scope, so the same
+  request remains idempotent across different background-job IDs.
 # CERI Full Stack Operations
 
 The production provider path is explicitly `eodhd`; `primary` remains a

@@ -159,9 +159,9 @@ class CeriChangeDetectionService:
                 changes[CeriChangeType.REVISION_ACCELERATED] = {"delta": acceleration_delta}
             elif acceleration_delta <= -threshold:
                 changes[CeriChangeType.REVISION_DECELERATED] = {"delta": acceleration_delta}
-        if (current.warnings_json or []) and not (prior.warnings_json or []):
+        if _has_stale_warning(current) and not _has_stale_warning(prior):
             changes[CeriChangeType.DATA_STALE] = {"warnings": current.warnings_json}
-        if not (current.warnings_json or []) and (prior.warnings_json or []):
+        if not _has_stale_warning(current) and _has_stale_warning(prior):
             changes[CeriChangeType.DATA_REFRESHED] = {"prior_warnings": prior.warnings_json}
         current_conflicts = _has_conflict_warning(current)
         prior_conflicts = _has_conflict_warning(prior)
@@ -236,6 +236,13 @@ def _has_conflict_warning(snapshot: CeriScoreSnapshot | None) -> bool:
         return False
     values = [str(value).lower() for value in (snapshot.warnings_json or [])]
     return any("conflict" in value for value in values)
+
+
+def _has_stale_warning(snapshot: CeriScoreSnapshot | None) -> bool:
+    if snapshot is None:
+        return False
+    values = [str(value).lower() for value in (snapshot.warnings_json or [])]
+    return any("stale" in value for value in values)
 
 
 def _severity(delta: dict[str, Any]) -> str:

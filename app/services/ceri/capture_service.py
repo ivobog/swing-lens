@@ -234,14 +234,24 @@ def _catalyst_features_for_company(
     as_of_session,
     service: CeriCatalystFeatureService,
 ):
-    events = _scalars(
-        db,
-        select(CeriCatalystEvent).where(CeriCatalystEvent.company_id == company_id),
-    )
+    events = [
+        event
+        for event in _scalars(
+            db,
+            select(CeriCatalystEvent).where(CeriCatalystEvent.company_id == company_id),
+        )
+        if event.company_id == company_id
+    ]
     event_by_id = {event.id: event for event in events}
     revisions = _scalars(
         db,
-        select(CeriCatalystEventRevision).where(CeriCatalystEventRevision.is_current.is_(True)),
+        select(CeriCatalystEventRevision)
+        .join(
+            CeriCatalystEvent,
+            CeriCatalystEvent.id == CeriCatalystEventRevision.catalyst_event_id,
+        )
+        .where(CeriCatalystEvent.company_id == company_id)
+        .where(CeriCatalystEventRevision.is_current.is_(True)),
     )
     return [
         service.calculate(
@@ -251,7 +261,16 @@ def _catalyst_features_for_company(
         )
         for revision in revisions
         if revision.catalyst_event_id in event_by_id
+        and _revision_is_known_by(revision, as_of_session)
     ]
+
+
+def _revision_is_known_by(revision: CeriCatalystEventRevision, as_of_session) -> bool:
+    if revision.effective_session is not None:
+        return revision.effective_session <= as_of_session
+    if revision.announced_at is not None:
+        return revision.announced_at.date() <= as_of_session
+    return False
 
 
 def _existing_snapshot(
@@ -296,9 +315,9 @@ def _latest_changes(db: Session, company_id: int, limit: int):
         db,
         select(CeriChangeEvent).where(CeriChangeEvent.company_id == company_id),
     )
-    return [change for change in changes if getattr(change, "company_id", None) == company_id][
-        -limit:
-    ]
+    scoped = [change for change in changes if getattr(change, "company_id", None) == company_id]
+    scoped.sort(key=lambda change: (change.created_at or datetime.min, change.id or 0))
+    return scoped[-limit:]
 
 
 def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:

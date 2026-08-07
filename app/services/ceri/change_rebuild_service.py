@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import (
     CeriCatalystEvent,
     CeriCatalystEventRevision,
+    CeriCompany,
     CeriGuidanceEvent,
     CeriScoreSnapshot,
 )
@@ -54,6 +55,7 @@ class CeriChangeRebuildService:
 
     def rebuild(self, db: Session, request: CeriChangeRebuildRequest) -> CeriChangeRebuildResult:
         snapshots = self._snapshots(db, request)
+        scoped_company_ids = self._scoped_company_ids(db, request, snapshots)
         changes = duplicates = failed = 0
         errors: list[dict[str, Any]] = []
         grouped: dict[int, list[CeriScoreSnapshot]] = {}
@@ -74,7 +76,7 @@ class CeriChangeRebuildService:
                 errors.append(
                     {"company_id": company_id, "error": str(exc).replace("\n", " ")[:500]}
                 )
-        revisions = self._current_revisions(db, request)
+        revisions = self._current_revisions(db, request, scoped_company_ids)
         for revision in revisions:
             try:
                 prior = (
@@ -95,7 +97,7 @@ class CeriChangeRebuildService:
                 errors.append(
                     {"revision_id": revision.id, "error": str(exc).replace("\n", " ")[:500]}
                 )
-        for company_id, guidance_rows in self._guidance(db, request).items():
+        for company_id, guidance_rows in self._guidance(db, request, scoped_company_ids).items():
             prior_action = None
             for guidance in guidance_rows:
                 try:
@@ -132,31 +134,89 @@ class CeriChangeRebuildService:
             rows = [row for row in rows if row.created_at >= request.changed_since]
         return rows
 
+    def _scoped_company_ids(
+        self,
+        db: Session,
+        request: CeriChangeRebuildRequest,
+        snapshots: list[CeriScoreSnapshot],
+    ) -> set[int] | None:
+        if request.company_ids:
+            return set(request.company_ids)
+        if request.ticker:
+            return {
+                company.id
+                for company in _load(db, CeriCompany)
+                if company.ticker.upper() == request.ticker.upper()
+            }
+        if request.run_id is not None:
+            return {snapshot.company_id for snapshot in snapshots}
+        return None
+
     def _current_revisions(
-        self, db: Session, request: CeriChangeRebuildRequest
+        self,
+        db: Session,
+        request: CeriChangeRebuildRequest,
+        scoped_company_ids: set[int] | None,
     ) -> list[CeriCatalystEventRevision]:
         revisions = [row for row in _load(db, CeriCatalystEventRevision) if row.is_current]
+        events = {event.id: event for event in _load(db, CeriCatalystEvent)}
+        revisions = [
+            row
+            for row in revisions
+            if row.catalyst_event_id in events
+            and (
+                scoped_company_ids is None
+                or events[row.catalyst_event_id].company_id in scoped_company_ids
+            )
+        ]
         if request.from_session:
             revisions = [
                 row
                 for row in revisions
-                if row.effective_session is None or row.effective_session >= request.from_session
+                if _revision_date(row) is None or _revision_date(row) >= request.from_session
             ]
         if request.to_session:
             revisions = [
                 row
                 for row in revisions
-                if row.effective_session is None or row.effective_session <= request.to_session
+                if _revision_date(row) is None or _revision_date(row) <= request.to_session
             ]
+        if request.changed_since:
+            revisions = [
+                row
+                for row in revisions
+                if row.created_at is not None and row.created_at >= request.changed_since
+            ]
+        revisions.sort(key=lambda row: (_revision_date(row) or date.min, row.id or 0))
         return revisions
 
     def _guidance(
-        self, db: Session, request: CeriChangeRebuildRequest
+        self,
+        db: Session,
+        request: CeriChangeRebuildRequest,
+        scoped_company_ids: set[int] | None,
     ) -> dict[int, list[CeriGuidanceEvent]]:
         rows = _load(db, CeriGuidanceEvent)
-        ids = set(request.company_ids or ())
-        if ids:
-            rows = [row for row in rows if row.company_id in ids]
+        if scoped_company_ids is not None:
+            rows = [row for row in rows if row.company_id in scoped_company_ids]
+        if request.from_session:
+            rows = [
+                row
+                for row in rows
+                if row.effective_session is None or row.effective_session >= request.from_session
+            ]
+        if request.to_session:
+            rows = [
+                row
+                for row in rows
+                if row.effective_session is None or row.effective_session <= request.to_session
+            ]
+        if request.changed_since:
+            rows = [
+                row
+                for row in rows
+                if row.created_at is not None and row.created_at >= request.changed_since
+            ]
         grouped: dict[int, list[CeriGuidanceEvent]] = {}
         for row in rows:
             grouped.setdefault(row.company_id, []).append(row)
@@ -181,3 +241,11 @@ def _get(db: Session, model: Any, identifier: int | None) -> Any | None:
 def _company_id(db: Session, revision: CeriCatalystEventRevision) -> int:
     event = _get(db, CeriCatalystEvent, revision.catalyst_event_id)
     return int(event.company_id) if event is not None else 0
+
+
+def _revision_date(revision: CeriCatalystEventRevision) -> date | None:
+    if revision.effective_session is not None:
+        return revision.effective_session
+    if revision.announced_at is not None:
+        return revision.announced_at.date()
+    return None

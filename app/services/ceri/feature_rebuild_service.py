@@ -94,9 +94,16 @@ class CeriFeatureRebuildService:
                         features += 1
                         warnings += len(feature.warnings_json or [])
                     self._add_acceleration(calculated, company_features)
-                estimates = _load(db, CeriEstimateSnapshot)
+                estimates = [
+                    row
+                    for row in _load(db, CeriEstimateSnapshot)
+                    if row.company_id == company.id
+                ]
                 earnings = [
-                    row for row in _load(db, CeriEarningsActual) if row.company_id == company.id
+                    row
+                    for row in _load(db, CeriEarningsActual)
+                    if row.company_id == company.id
+                    and (row.report_at is None or row.report_at <= cutoff_at)
                 ]
                 if earnings:
                     self.surprise.summarize(earnings, estimates)
