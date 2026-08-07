@@ -112,6 +112,7 @@ class RawProviderRecord:
     observed_at: datetime | None
     source_url: str | None = None
     export_policy: str = "exportable"
+    retrieved_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -153,7 +154,7 @@ class NormalizedCatalystRecord:
     subject_key: str
     status: CatalystStatus
     direction: CatalystDirection
-    materiality: float
+    materiality: float | None
     confidence: CeriConfidenceLabel
     date_confidence: DateConfidence
     announced_at: datetime | None = None

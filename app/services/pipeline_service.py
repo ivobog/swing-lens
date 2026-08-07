@@ -13,7 +13,8 @@ from app.services.background_job_service import (
     enqueue_job,
     request_job_cancel,
 )
-from app.services.ceri.constants import CERI_PIPELINE_STEPS
+from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI_PIPELINE_STEPS
+from app.services.ceri.feature_flags import ceri_flags
 from app.services.operational_metrics import operational_metrics
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 from app.settings import get_settings
@@ -49,6 +50,7 @@ class PipelineStatus:
     MARKET_REGIME_SNAPSHOT = "MARKET_REGIME_SNAPSHOT"
     COMBINING_RESULTS = "COMBINING_RESULTS"
     SECTOR_ROTATION_SNAPSHOT = "SECTOR_ROTATION_SNAPSHOT"
+    CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
     CERI_CAPTURE_SNAPSHOT = "CERI_CAPTURE_SNAPSHOT"
     CAPTURING_SETUP_SIGNALS = "CAPTURING_SETUP_SIGNALS"
     EVALUATING_SETUP_LIFECYCLES = "EVALUATING_SETUP_LIFECYCLES"
@@ -102,6 +104,7 @@ def start_pipeline(
     upload_run_id: int,
     requested_by: str | None = None,
     ceri_run_capture_enabled: bool | None = None,
+    ceri_provider_ingest_enabled: bool | None = None,
     setup_lifecycle_pipeline_step_enabled: bool | None = None,
 ) -> PipelineRun:
     upload_run = db.get(UploadRun, upload_run_id)
@@ -110,6 +113,7 @@ def start_pipeline(
 
     step_names = pipeline_step_names(
         ceri_run_capture_enabled=ceri_run_capture_enabled,
+        ceri_provider_ingest_enabled=ceri_provider_ingest_enabled,
         setup_lifecycle_pipeline_step_enabled=setup_lifecycle_pipeline_step_enabled,
     )
     request_key = _pipeline_request_key(upload_run_id, step_names)
@@ -180,22 +184,31 @@ def start_pipeline(
 
 def pipeline_step_names(
     ceri_run_capture_enabled: bool | None = None,
+    ceri_provider_ingest_enabled: bool | None = None,
     setup_lifecycle_pipeline_step_enabled: bool | None = None,
 ) -> tuple[str, ...]:
+    effective_flags = ceri_flags()
     ceri_enabled = (
-        get_settings().ceri_run_capture_enabled
+        effective_flags.run_capture
         if ceri_run_capture_enabled is None
-        else ceri_run_capture_enabled
+        else effective_flags.enabled and bool(ceri_run_capture_enabled)
     )
     setup_enabled = (
         get_settings().setup_lifecycle_pipeline_step_enabled
         if setup_lifecycle_pipeline_step_enabled is None
         else setup_lifecycle_pipeline_step_enabled
     )
-    if not ceri_enabled and not setup_enabled:
+    provider_ingest_enabled = (
+        effective_flags.provider_ingest
+        if ceri_provider_ingest_enabled is None
+        else effective_flags.enabled and bool(ceri_provider_ingest_enabled)
+    )
+    if not ceri_enabled and not provider_ingest_enabled and not setup_enabled:
         return PIPELINE_STEP_NAMES
     optional_steps: tuple[str, ...] = ()
-    if ceri_enabled:
+    if provider_ingest_enabled:
+        optional_steps = (*optional_steps, CERI_PIPELINE_PROVIDER_INGEST_STEP)
+    if ceri_enabled and not provider_ingest_enabled:
         optional_steps = (*optional_steps, *CERI_PIPELINE_STEPS)
     if setup_enabled:
         optional_steps = (*optional_steps, *SLSE_PIPELINE_STEPS)

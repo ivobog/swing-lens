@@ -57,7 +57,7 @@ class CeriCatalystTaxonomy:
             subject_key=subject_key(subject),
             status=status,
             direction=direction,
-            materiality=float(payload.get("materiality") or 0.0),
+            materiality=_optional_float(payload.get("materiality")),
             confidence=_confidence(payload.get("confidence")),
             date_confidence=session.date_confidence,
             announced_at=session.effective_at,
@@ -106,7 +106,17 @@ def _subject_text(value: Any) -> str | None:
 def _confidence(value: Any) -> CeriConfidenceLabel:
     if value in (None, ""):
         return CeriConfidenceLabel.NORMAL
-    return CeriConfidenceLabel(str(value))
+    normalized = str(value).strip().lower()
+    for label in CeriConfidenceLabel:
+        if label.value.lower() == normalized:
+            return label
+    return CeriConfidenceLabel.INSUFFICIENT
+
+
+def _optional_float(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    return float(value)
 
 
 def _enum_or_default(value: Any, enum_type, default):

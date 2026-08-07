@@ -44,7 +44,7 @@
   "dashboard_url": "/ceri",
   "operations_url": "/ceri/operations"
 }) %}
-{% set ceri_ui_enabled = request is defined and request.app is defined and request.app.state.settings.ceri_ui_enabled %}
+{% set ceri_ui_enabled = request is defined and request.app is defined and request.app.state.settings.ceri_enabled and request.app.state.settings.ceri_ui_enabled %}
 {% set run_summary = run_summary|default({
   "row_count": run.row_count or 0,
   "combined_count": 0,

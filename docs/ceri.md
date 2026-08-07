@@ -2,6 +2,16 @@
 
 CERI is disabled by default and is intended for local research workflows. The manual provider is the safe fixture provider. The production path is the explicit `eodhd` adapter for estimates, earnings and news, complemented by the `sec` adapter for first-party filings and conservative guidance extraction. The `primary` adapter remains registered for compatibility with older fixtures.
 
+## Feature flags
+
+`CERI_ENABLED` is the fail-closed master switch. The child flags
+`CERI_PROVIDER_INGEST_ENABLED`, `CERI_RUN_CAPTURE_ENABLED`, `CERI_UI_ENABLED`,
+`CERI_ALERTS_ENABLED`, `CERI_ADMIN_ENABLED`, and `CERI_BACKFILL_ENABLED` only
+take effect when the master switch is explicitly true. All flags are parsed as
+booleans; values such as `"false"` never enable a feature. In particular,
+alerts and administrative purge operations remain disabled unless their child
+flag and the master switch are both enabled.
+
 ## Provider Controls
 
 - Provider priority is `manual`, `primary`, `eodhd`, then `sec`; live callers select EODHD or SEC explicitly while the first two entries preserve existing fixture behavior.

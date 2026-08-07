@@ -114,7 +114,9 @@ def _admin_request(*, csrf_token: str | None, query_csrf_token: str | None = Non
                 settings=Settings(
                     _env_file=None,
                     job_worker_enabled=False,
+                    ceri_enabled=True,
                     ceri_admin_enabled=True,
+                    ceri_provider_ingest_enabled=True,
                 ),
             )
         ),

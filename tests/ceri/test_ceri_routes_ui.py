@@ -12,7 +12,9 @@ from app.settings import Settings
 
 
 def test_ceri_nav_is_feature_flagged() -> None:
-    enabled = create_app(Settings(_env_file=None, job_worker_enabled=False, ceri_ui_enabled=True))
+    enabled = create_app(
+        Settings(_env_file=None, job_worker_enabled=False, ceri_enabled=True, ceri_ui_enabled=True)
+    )
     disabled = create_app(Settings(_env_file=None, job_worker_enabled=False, ceri_ui_enabled=False))
     enabled.dependency_overrides[get_db] = lambda: object()
     disabled.dependency_overrides[get_db] = lambda: object()
@@ -187,6 +189,7 @@ def _app(**settings):
         Settings(
             _env_file=None,
             job_worker_enabled=False,
+            ceri_enabled=True,
             **settings,
         )
     )

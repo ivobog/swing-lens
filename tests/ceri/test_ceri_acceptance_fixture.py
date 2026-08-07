@@ -81,7 +81,15 @@ def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -
     )
     estimate = CeriEstimateSnapshot(id=20, source_record_id=10, company_id=42)
     revision = CeriRevisionFeature(id=30, company_id=42, source_observation_ids_json=[10])
-    score = CeriScoreSnapshot(id=40, company_id=42, ticker="MSFT")
+    score = CeriScoreSnapshot(
+        id=40,
+        company_id=42,
+        ticker="MSFT",
+        component_json={"source_ids": [10]},
+        data_confidence="Normal",
+        coverage_pct=100.0,
+        posture="Positive",
+    )
     change = CeriChangeEvent(
         id=50,
         company_id=42,

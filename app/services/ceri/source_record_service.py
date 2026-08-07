@@ -154,6 +154,7 @@ class CeriSourceRecordService:
             company_hint_json=_company_hint(record.payload),
             published_at=record.published_at,
             observed_at=record.observed_at,
+            retrieved_at=record.retrieved_at or _utcnow(),
             source_url=record.source_url,
             source_reference=_optional_payload_text(record, "source_reference"),
             raw_json=record.payload if raw_payload_allowed and not quarantine_reason else None,

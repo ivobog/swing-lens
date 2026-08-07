@@ -156,7 +156,7 @@ class EodhdHttpClient:
                 self._failed += 1
                 raise EodhdProviderError(f"EODHD request failed with HTTP {exc.code}") from exc
             except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-                self._last_error = _safe_error(exc)
+                self._last_error = _safe_error(exc, self.config.api_key)
                 if attempt >= attempts:
                     self._failed += 1
                     raise EodhdProviderError("EODHD network or response failure") from exc
@@ -246,6 +246,9 @@ def _retry_after(headers: dict[str, str]) -> float | None:
             return None
 
 
-def _safe_error(exc: Exception) -> str:
-    text = str(exc).replace("api_token", "[redacted]").replace("\n", " ").strip()
+def _safe_error(exc: Exception, secret: str | None = None) -> str:
+    text = str(exc).replace("api_token", "[redacted]")
+    if secret:
+        text = text.replace(secret, "[redacted]")
+    text = text.replace("\n", " ").strip()
     return text[:300] or exc.__class__.__name__

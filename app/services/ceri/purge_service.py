@@ -66,7 +66,10 @@ class CeriPurgeService:
     ) -> CeriPurgeAudit:
         _validate_required_request(request)
         manifest = self.preview_manifest(db, request.provider, request.license_scope)
-        preview_hash = request.preview_manifest_hash or manifest["preview_manifest_hash"]
+        calculated_hash = manifest["preview_manifest_hash"]
+        if request.preview_manifest_hash and request.preview_manifest_hash != calculated_hash:
+            raise CeriPurgeError("Supplied purge manifest hash does not match the current preview.")
+        preview_hash = calculated_hash
         existing = _find_audit(db, preview_hash)
         if existing is not None:
             return existing
@@ -133,6 +136,14 @@ class CeriPurgeService:
             raise CeriPurgeError("Provider-license purge confirmation token is invalid.")
 
         manifest = self._lifecycle_manifest(db, request.provider, request.license_scope)
+        current_hash = _manifest_hash(
+            _manifest_hash_input(manifest, request.provider, request.license_scope)
+        )
+        if current_hash != request.preview_manifest_hash:
+            _record_blocked(request, "preview_manifest_changed", job_id, processing_run_id)
+            raise CeriPurgeError(
+                "Provider-license purge preview no longer matches the eligible evidence set."
+            )
         lifecycle = _apply_purge_lifecycle(
             manifest,
             preview_manifest_hash=request.preview_manifest_hash,
@@ -172,13 +183,7 @@ class CeriPurgeService:
     def preview_manifest(self, db: Session, provider: str, license_scope: str) -> dict[str, Any]:
         manifest = self._lifecycle_manifest(db, provider, license_scope)
         preview_manifest_hash = _manifest_hash(
-            {
-                "provider": provider,
-                "license_scope": license_scope,
-                "affected_counts": manifest["affected_counts"],
-                "invalidated_derivatives": manifest["invalidated_derivatives"],
-                "source_ids": sorted(manifest["source_ids"]),
-            }
+            _manifest_hash_input(manifest, provider, license_scope)
         )
         return {
             "preview_manifest_hash": preview_manifest_hash,
@@ -203,15 +208,13 @@ class CeriPurgeService:
             for feature in _load(db, CeriRevisionFeature)
             if source_ids.intersection(set(feature.source_observation_ids_json or []))
         ]
-        company_ids = {
-            row.company_id
-            for row in [*estimates, *earnings, *guidance, *revision_features]
-            if getattr(row, "company_id", None) is not None
-        }
+        affected_source_ids = source_ids
         score_snapshots = [
             snapshot
             for snapshot in _load(db, CeriScoreSnapshot)
-            if snapshot.company_id in company_ids
+            if affected_source_ids.intersection(
+                set((snapshot.component_json or {}).get("source_ids") or [])
+            )
         ]
         score_snapshot_ids = {
             snapshot.id for snapshot in score_snapshots if snapshot.id is not None
@@ -222,9 +225,9 @@ class CeriPurgeService:
         change_events = [
             change
             for change in _load(db, CeriChangeEvent)
-            if change.company_id in company_ids
-            or change.from_snapshot_id in score_snapshot_ids
+            if change.from_snapshot_id in score_snapshot_ids
             or change.to_snapshot_id in score_snapshot_ids
+            or change.catalyst_revision_id in catalyst_revision_ids
         ]
         change_event_ids = {change.id for change in change_events if change.id is not None}
         alert_events = [
@@ -275,6 +278,12 @@ def _validate_required_request(request: Any) -> None:
     for field in ("provider", "license_scope", "actor", "reason"):
         if not str(getattr(request, field, "") or "").strip():
             raise CeriPurgeError(f"Provider-license purge requires {field}.")
+    provider = str(request.provider).strip().lower()
+    scope = str(request.license_scope).strip().lower()
+    if scope == "personal" and provider != "eodhd":
+        raise CeriPurgeError(
+            "The personal licensed-data purge scope is only valid for provider eodhd."
+        )
 
 
 def _record_blocked(
@@ -309,21 +318,61 @@ def _find_audit(db: Session, preview_manifest_hash: str) -> CeriPurgeAudit | Non
 
 
 def _rows_with_source_ids(db: Session, model: type, source_ids: set[int]) -> list[Any]:
-    return [
-        row
-        for row in _load(db, model)
-        if getattr(row, "source_record_id", None) in source_ids
-    ]
+    return [row for row in _load(db, model) if getattr(row, "source_record_id", None) in source_ids]
 
 
 def _source_matches_scope(source: CeriSourceRecord, license_scope: str) -> bool:
     scope = license_scope.strip()
     if scope in {"*", "all"}:
         return True
-    return scope in {
-        source.dataset,
-        source.provider_terms_version,
-        source.export_policy,
+    stored_scope = (source.license_scope or "").strip()
+    # EODHD is the licensed purge boundary.  Never infer its scope from the
+    # request, dataset, or export policy when older rows lack the metadata.
+    if source.provider == "eodhd":
+        return stored_scope == scope
+    return stored_scope == scope or (
+        not stored_scope
+        and scope
+        in {
+            source.dataset,
+            source.provider_terms_version,
+            source.export_policy,
+        }
+    )
+
+
+def _manifest_hash_input(
+    manifest: dict[str, Any], provider: str, license_scope: str
+) -> dict[str, Any]:
+    return {
+        "provider": provider,
+        "license_scope": license_scope,
+        "source_records": sorted(
+            [
+                {
+                    "id": source.id,
+                    "provider_record_id": source.provider_record_id,
+                    "content_hash": source.content_hash,
+                    "normalized_hash": source.normalized_hash,
+                }
+                for source in manifest["sources"]
+            ],
+            key=lambda row: (row["id"] or 0, row["provider_record_id"]),
+        ),
+        "normalized_ids": {
+            key: sorted(getattr(row, "id", None) for row in manifest[key])
+            for key in (
+                "estimates",
+                "earnings",
+                "guidance",
+                "catalyst_revisions",
+                "catalyst_sources",
+            )
+        },
+        "derived_ids": {
+            key: sorted(getattr(row, "id", None) for row in manifest[key])
+            for key in ("revision_features", "score_snapshots", "change_events", "alert_events")
+        },
     }
 
 
@@ -365,7 +414,7 @@ def _apply_purge_lifecycle(
             estimate.quality_flags_json,
             PURGE_INVALIDATION_FLAG,
         )
-        estimate.original_fields_json = _merge_json_object(estimate.original_fields_json, marker)
+        estimate.original_fields_json = marker
     for row in [*manifest["earnings"], *manifest["guidance"]]:
         row.quality_warnings_json = _append_flag(
             row.quality_warnings_json,
@@ -379,7 +428,7 @@ def _apply_purge_lifecycle(
         revision.review_state = "INVALIDATED_BY_PURGE"
     for catalyst_source in manifest["catalyst_sources"]:
         catalyst_source.source_fields_json = _merge_json_object(
-            catalyst_source.source_fields_json,
+            None,
             marker,
         )
     for feature in manifest["revision_features"]:

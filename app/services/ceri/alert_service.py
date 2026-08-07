@@ -11,6 +11,7 @@ from app.models.ceri_tables import CeriAlertEvent, CeriAlertRule, CeriChangeEven
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 from app.services.ceri.enums import CeriChangeType
+from app.services.ceri.feature_flags import ceri_flags
 
 
 @dataclass(frozen=True)
@@ -31,9 +32,8 @@ class CeriAlertService:
         alerts_enabled: bool | None = None,
     ) -> None:
         self.config = config or load_ceri_config()
-        self.alerts_enabled = (
-            self.config.alerts.enabled if alerts_enabled is None else alerts_enabled
-        )
+        requested = self.config.alerts.enabled if alerts_enabled is None else bool(alerts_enabled)
+        self.alerts_enabled = ceri_flags().alerts and requested
         self.sessions = CeriEffectiveSessionService(self.config.engine.timezone)
 
     def rebuild_alerts(

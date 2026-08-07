@@ -130,16 +130,18 @@ class CeriChangeDetectionService:
         changes: dict[CeriChangeType, dict[str, Any]] = {}
         score_delta = float(self.config.change_thresholds["score_delta"])
         revision_delta = float(self.config.change_thresholds["revision_pct_points"])
-        opportunity_delta = (current.opportunity_score or 0.0) - (prior.opportunity_score or 0.0)
-        risk_delta = (current.event_risk_score or 0.0) - (prior.event_risk_score or 0.0)
-        if opportunity_delta >= score_delta:
-            changes[CeriChangeType.OPPORTUNITY_UPGRADED] = {"delta": opportunity_delta}
-        elif opportunity_delta <= -score_delta:
-            changes[CeriChangeType.OPPORTUNITY_DOWNGRADED] = {"delta": opportunity_delta}
-        if risk_delta >= float(self.config.change_thresholds["risk_escalation_delta"]):
-            changes[CeriChangeType.RISK_ESCALATED] = {"delta": risk_delta}
-        elif risk_delta <= -float(self.config.change_thresholds["risk_escalation_delta"]):
-            changes[CeriChangeType.RISK_DEESCALATED] = {"delta": risk_delta}
+        if current.opportunity_score is not None and prior.opportunity_score is not None:
+            opportunity_delta = current.opportunity_score - prior.opportunity_score
+            if opportunity_delta >= score_delta:
+                changes[CeriChangeType.OPPORTUNITY_UPGRADED] = {"delta": opportunity_delta}
+            elif opportunity_delta <= -score_delta:
+                changes[CeriChangeType.OPPORTUNITY_DOWNGRADED] = {"delta": opportunity_delta}
+        if current.event_risk_score is not None and prior.event_risk_score is not None:
+            risk_delta = current.event_risk_score - prior.event_risk_score
+            if risk_delta >= float(self.config.change_thresholds["risk_escalation_delta"]):
+                changes[CeriChangeType.RISK_ESCALATED] = {"delta": risk_delta}
+            elif risk_delta <= -float(self.config.change_thresholds["risk_escalation_delta"]):
+                changes[CeriChangeType.RISK_DEESCALATED] = {"delta": risk_delta}
         revision_current = _component_value(current, "revision_magnitude")
         revision_prior = _component_value(prior, "revision_magnitude")
         if revision_current is not None and revision_prior is not None:
@@ -237,7 +239,10 @@ def _has_conflict_warning(snapshot: CeriScoreSnapshot | None) -> bool:
 
 
 def _severity(delta: dict[str, Any]) -> str:
-    value = abs(float(delta.get("delta") or delta.get("to") or 0.0))
+    raw = delta.get("delta")
+    if raw is None:
+        raw = delta.get("to")
+    value = abs(float(raw)) if raw is not None else 0.0
     return "RISK" if value >= 3.0 else "NOTABLE"
 
 

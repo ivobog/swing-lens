@@ -14,6 +14,10 @@ class SecEdgarError(RuntimeError):
     pass
 
 
+class SecFairAccessError(SecEdgarError):
+    pass
+
+
 @dataclass(frozen=True)
 class SecClientConfig:
     base_url: str = "https://data.sec.gov"
@@ -22,6 +26,7 @@ class SecClientConfig:
     user_agent: str = "SwingLens/0.1.0 operator@example.invalid"
     requests_per_second: float = 2.0
     timeout_seconds: int = 30
+    max_attempts: int = 3
 
 
 class SecEdgarClient:
@@ -41,6 +46,7 @@ class SecEdgarClient:
         self.requests = 0
         self.failures = 0
         self.last_success_at: datetime | None = None
+        self._cache: dict[str, Any] = {}
 
     def submissions(self, cik: str) -> dict[str, Any]:
         normalized = str(cik).zfill(10)
@@ -77,37 +83,73 @@ class SecEdgarClient:
         return value
 
     def _request(self, path: str, *, absolute: bool = False) -> Any:
+        url = path if absolute else self.config.base_url.rstrip("/") + "/" + path.lstrip("/")
+        if url in self._cache:
+            return self._cache[url]
+        attempts = max(1, self.config.max_attempts)
+        for attempt in range(1, attempts + 1):
+            self._pace()
+            self.requests += 1
+            try:
+                response = self._transport(url, self.config.timeout_seconds, self.config.user_agent)
+                if isinstance(response, (dict, list, str)):
+                    payload = response
+                    status = 200
+                    headers: dict[str, str] = {}
+                else:
+                    status = int(getattr(response, "status", getattr(response, "code", 200)))
+                    headers = {
+                        str(key).lower(): str(value)
+                        for key, value in dict(getattr(response, "headers", {})).items()
+                    }
+                    if status == 403:
+                        raise SecFairAccessError("SEC fair-access response HTTP 403")
+                    if status == 429 or status >= 500:
+                        if attempt >= attempts:
+                            raise SecEdgarError(
+                                f"SEC transient request failure after {attempts} attempts"
+                            )
+                        self._sleep(_retry_after(headers) or min(30.0, 2 ** (attempt - 1)))
+                        continue
+                    if status >= 400:
+                        raise SecEdgarError(f"SEC request failed with HTTP {status}")
+                    body = response.read()
+                    if isinstance(body, bytes):
+                        body = body.decode("utf-8")
+                    content_type = str(getattr(response, "headers", {}).get("Content-Type", ""))
+                    payload = (
+                        body
+                        if "json" not in content_type and not body.lstrip().startswith(("{", "["))
+                        else json.loads(body)
+                    )
+                self._cache[url] = payload
+                self.last_success_at = datetime.now(UTC)
+                return payload
+            except SecFairAccessError:
+                self.failures += 1
+                raise
+            except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+                status = int(getattr(exc, "code", 0) or 0)
+                if status == 403:
+                    self.failures += 1
+                    raise SecFairAccessError("SEC fair-access response HTTP 403") from exc
+                if (status == 429 or status >= 500 or status == 0) and attempt < attempts:
+                    self._sleep(min(30.0, 2 ** (attempt - 1)))
+                    continue
+                self.failures += 1
+                raise SecEdgarError("SEC network or response failure") from exc
+            except SecEdgarError:
+                self.failures += 1
+                raise
+        self.failures += 1
+        raise SecEdgarError("SEC request exhausted retry budget")
+
+    def _pace(self) -> None:
         now = time.monotonic()
-        minimum_gap = 1.0 / self.config.requests_per_second
+        minimum_gap = 1.0 / max(self.config.requests_per_second, 0.1)
         if self._last_request and now - self._last_request < minimum_gap:
             self._sleep(minimum_gap - (now - self._last_request))
         self._last_request = time.monotonic()
-        url = path if absolute else self.config.base_url.rstrip("/") + "/" + path.lstrip("/")
-        self.requests += 1
-        try:
-            response = self._transport(url, self.config.timeout_seconds, self.config.user_agent)
-            if isinstance(response, (dict, list, str)):
-                payload = response
-            else:
-                status = int(getattr(response, "status", getattr(response, "code", 200)))
-                if status in {403, 429}:
-                    raise SecEdgarError(f"SEC fair-access response HTTP {status}")
-                if status >= 400:
-                    raise SecEdgarError(f"SEC request failed with HTTP {status}")
-                body = response.read()
-                if isinstance(body, bytes):
-                    body = body.decode("utf-8")
-                content_type = str(getattr(response, "headers", {}).get("Content-Type", ""))
-                payload = (
-                    body
-                    if "json" not in content_type and not body.lstrip().startswith(("{", "["))
-                    else json.loads(body)
-                )
-            self.last_success_at = datetime.now(UTC)
-            return payload
-        except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-            self.failures += 1
-            raise SecEdgarError("SEC network or response failure") from exc
 
     @staticmethod
     def _urllib_transport(url: str, timeout: int, user_agent: str) -> Any:
@@ -116,3 +158,13 @@ class SecEdgarClient:
         )
         with urlopen(request, timeout=timeout) as response:  # noqa: S310 - provider URL is configured
             return response
+
+
+def _retry_after(headers: dict[str, str]) -> float | None:
+    value = headers.get("retry-after")
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        return None
