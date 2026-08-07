@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime, timedelta
@@ -21,6 +20,7 @@ from app.services.ceri.dtos import (
 from app.services.ceri.enums import CeriDataset, CeriProviderCapability, ExportPolicy
 from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
 from app.services.ceri.providers.eodhd_mapping import eodhd_symbol, period_type, provider_date
+from app.settings import get_settings
 
 
 class EodhdCeriProvider:
@@ -35,26 +35,27 @@ class EodhdCeriProvider:
         clock: Callable[[], datetime] | None = None,
         **config: Any,
     ) -> None:
-        key = api_key if api_key is not None else os.getenv(self.credential_env_var)
+        settings = get_settings()
+        key = api_key if api_key is not None else settings.eodhd_api_key
         self.terms_version = str(
-            config.pop("terms_version", os.getenv("EODHD_TERMS_VERSION", "2026-08-personal"))
+            config.pop("terms_version", settings.eodhd_terms_version)
         )
         self._clock = clock or (lambda: datetime.now(UTC))
         self.client = client or EodhdHttpClient(
             EodhdClientConfig(
                 api_key=key,
                 base_url=str(
-                    config.pop("base_url", os.getenv("EODHD_BASE_URL", "https://eodhd.com"))
+                    config.pop("base_url", settings.eodhd_base_url)
                 ),
                 timeout_seconds=int(
-                    config.pop("timeout_seconds", os.getenv("EODHD_HTTP_TIMEOUT_SECONDS", 30))
+                    config.pop("timeout_seconds", settings.eodhd_http_timeout_seconds)
                 ),
-                max_attempts=int(config.pop("max_attempts", os.getenv("EODHD_MAX_ATTEMPTS", 4))),
+                max_attempts=int(config.pop("max_attempts", settings.eodhd_max_attempts)),
                 requests_per_minute=int(
-                    config.pop("requests_per_minute", os.getenv("EODHD_REQUESTS_PER_MINUTE", 300))
+                    config.pop("requests_per_minute", settings.eodhd_requests_per_minute)
                 ),
                 daily_call_budget=int(
-                    config.pop("daily_call_budget", os.getenv("EODHD_DAILY_CALL_BUDGET", 80000))
+                    config.pop("daily_call_budget", settings.eodhd_daily_call_budget)
                 ),
             )
         )

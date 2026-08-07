@@ -4,6 +4,19 @@ from app.services.ceri.dtos import EstimateRequest
 from app.services.ceri.enums import CeriMetric, CeriPeriodType
 from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
 from app.services.ceri.providers.eodhd_provider import EodhdCeriProvider
+from app.settings import Settings
+
+
+def test_eodhd_provider_reads_api_key_from_application_settings(monkeypatch) -> None:
+    settings = Settings(_env_file=None, eodhd_api_key="from-settings")
+    monkeypatch.setattr(
+        "app.services.ceri.providers.eodhd_provider.get_settings",
+        lambda: settings,
+    )
+
+    provider = EodhdCeriProvider()
+
+    assert provider.client.config.api_key == "from-settings"
 
 
 def test_eodhd_trends_maps_current_and_historical_eps_points_without_zero_fill() -> None:
