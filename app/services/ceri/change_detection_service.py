@@ -85,6 +85,36 @@ class CeriChangeDetectionService:
         )
         return ChangeDetectionResult(changes=int(event is not None), duplicates=int(event is None))
 
+    def detect_guidance_change(
+        self,
+        db: Session,
+        *,
+        guidance: Any,
+        company_id: int,
+        prior_action: str | None = None,
+        scope: str = "daily_change_feed",
+    ) -> ChangeDetectionResult:
+        action_map = {
+            "RAISED": CeriChangeType.GUIDANCE_RAISED,
+            "LOWERED": CeriChangeType.GUIDANCE_LOWERED,
+            "WITHDRAWN": CeriChangeType.GUIDANCE_WITHDRAWN,
+        }
+        change_type = action_map.get(str(guidance.action))
+        if change_type is None or str(guidance.action) == prior_action:
+            return ChangeDetectionResult(changes=0, duplicates=0)
+        event = self._persist_change(
+            db,
+            company_id=company_id,
+            change_type=change_type,
+            severity="RISK" if change_type is CeriChangeType.GUIDANCE_LOWERED else "NOTABLE",
+            effective_session=guidance.effective_session,
+            scope=scope,
+            delta={"action": guidance.action, "prior_action": prior_action},
+            config_hash="guidance_event",
+            calculation_version="ceri-1.0.0",
+        )
+        return ChangeDetectionResult(changes=int(event is not None), duplicates=int(event is None))
+
     def _score_changes(
         self,
         current: CeriScoreSnapshot,
@@ -118,10 +148,25 @@ class CeriChangeDetectionService:
                 changes[CeriChangeType.REVISION_UP] = {"delta": delta}
             elif delta <= -revision_delta:
                 changes[CeriChangeType.REVISION_DOWN] = {"delta": delta}
+        acceleration_current = _component_value(current, "revision_acceleration")
+        acceleration_prior = _component_value(prior, "revision_acceleration")
+        if acceleration_current is not None and acceleration_prior is not None:
+            acceleration_delta = acceleration_current - acceleration_prior
+            threshold = float(self.config.change_thresholds.get("acceleration_delta", 0.01))
+            if acceleration_delta >= threshold:
+                changes[CeriChangeType.REVISION_ACCELERATED] = {"delta": acceleration_delta}
+            elif acceleration_delta <= -threshold:
+                changes[CeriChangeType.REVISION_DECELERATED] = {"delta": acceleration_delta}
         if (current.warnings_json or []) and not (prior.warnings_json or []):
             changes[CeriChangeType.DATA_STALE] = {"warnings": current.warnings_json}
         if not (current.warnings_json or []) and (prior.warnings_json or []):
             changes[CeriChangeType.DATA_REFRESHED] = {"prior_warnings": prior.warnings_json}
+        current_conflicts = _has_conflict_warning(current)
+        prior_conflicts = _has_conflict_warning(prior)
+        if current_conflicts and not prior_conflicts:
+            changes[CeriChangeType.CONFLICT_OPENED] = {"warnings": current.warnings_json}
+        elif prior_conflicts and not current_conflicts:
+            changes[CeriChangeType.CONFLICT_RESOLVED] = {"prior_warnings": prior.warnings_json}
         return changes
 
     def _persist_change(
@@ -182,6 +227,13 @@ def _component_value(snapshot: CeriScoreSnapshot, name: str) -> float | None:
         if component.get("name") == name and component.get("value") is not None:
             return float(component["value"])
     return None
+
+
+def _has_conflict_warning(snapshot: CeriScoreSnapshot | None) -> bool:
+    if snapshot is None:
+        return False
+    values = [str(value).lower() for value in (snapshot.warnings_json or [])]
+    return any("conflict" in value for value in values)
 
 
 def _severity(delta: dict[str, Any]) -> str:

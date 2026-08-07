@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from app.services.ceri.catalyst_feature_service import CatalystFeature
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,7 @@ class EventRiskResult:
 class CeriEventRiskService:
     def __init__(self, config: CeriConfig | None = None) -> None:
         self.config = config or load_ceri_config()
+        self.sessions = CeriEffectiveSessionService(self.config.engine.timezone)
 
     def calculate(
         self,
@@ -62,7 +64,9 @@ class CeriEventRiskService:
     ) -> EarningsProximity:
         if next_earnings_session is None:
             return EarningsProximity(days_until_earnings=None, level="unknown", risk_score=1.0)
-        days = (next_earnings_session - as_of_session).days
+        as_of_session = self.sessions.next_trading_session(as_of_session)
+        next_earnings_session = self.sessions.next_trading_session(next_earnings_session)
+        days = _trading_sessions_until(as_of_session, next_earnings_session, self.sessions)
         if days < 0:
             return EarningsProximity(days_until_earnings=days, level="clear", risk_score=0.0)
         if days <= int(self.config.event_risk["earnings_block_trading_days"]):
@@ -72,3 +76,18 @@ class CeriEventRiskService:
         if days <= 10:
             return EarningsProximity(days_until_earnings=days, level="medium", risk_score=1.5)
         return EarningsProximity(days_until_earnings=days, level="clear", risk_score=0.0)
+
+
+def _trading_sessions_until(
+    start: date,
+    end: date,
+    sessions: CeriEffectiveSessionService,
+) -> int:
+    if end <= start:
+        return (end - start).days
+    count = 0
+    cursor = start
+    while cursor < end:
+        cursor = sessions.next_trading_session(cursor + timedelta(days=1))
+        count += 1
+    return count

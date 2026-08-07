@@ -10,6 +10,8 @@ providers:
   priority:
     - manual
     - primary
+    - eodhd
+    - sec
   default_source_policy: provider_priority
   conflict_resolution: preserve_all_observations
   terms_version_required: true
@@ -27,6 +29,17 @@ providers:
       - identity
       - estimates
       - earnings
+      - guidance
+      - catalysts
+    eodhd:
+      - health
+      - identity
+      - estimates
+      - earnings
+      - catalysts
+    sec:
+      - health
+      - identity
       - guidance
       - catalysts
 
@@ -119,6 +132,7 @@ change_thresholds:
   score_delta: 1.0
   revision_pct_points: 2.0
   risk_escalation_delta: 2.0
+  acceleration_delta: 0.01
 
 taxonomy:
   enabled_categories:

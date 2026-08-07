@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriAlertEvent, CeriAlertRule, CeriChangeEvent
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 from app.services.ceri.enums import CeriChangeType
 
 
@@ -32,6 +34,7 @@ class CeriAlertService:
         self.alerts_enabled = (
             self.config.alerts.enabled if alerts_enabled is None else alerts_enabled
         )
+        self.sessions = CeriEffectiveSessionService(self.config.engine.timezone)
 
     def rebuild_alerts(
         self,
@@ -77,6 +80,8 @@ class CeriAlertService:
         )
         if existing is not None:
             return None
+        if self._within_cooldown(db, rule, ticker, change):
+            return None
         event = CeriAlertEvent(
             alert_rule_id=rule.id,
             source_change_event_id=change.id,
@@ -98,11 +103,13 @@ class CeriAlertService:
 
     def acknowledge(self, db: Session, alert: CeriAlertEvent) -> CeriAlertEvent:
         alert.status = "ACKNOWLEDGED"
+        alert.acknowledged_at = datetime.now(UTC)
         db.flush()
         return alert
 
     def dismiss(self, db: Session, alert: CeriAlertEvent) -> CeriAlertEvent:
         alert.status = "DISMISSED"
+        alert.dismissed_at = datetime.now(UTC)
         db.flush()
         return alert
 
@@ -123,7 +130,7 @@ class CeriAlertService:
             select(CeriAlertRule).where(CeriAlertRule.rule_id == change_type.value),
         )
         if existing is not None:
-            return existing
+            return existing if existing.enabled else None
         rule = CeriAlertRule(
             rule_id=change_type.value,
             enabled=True,
@@ -137,6 +144,28 @@ class CeriAlertService:
         db.add(rule)
         db.flush()
         return rule
+
+    def _within_cooldown(
+        self,
+        db: Session,
+        rule: CeriAlertRule,
+        ticker: str,
+        change: CeriChangeEvent,
+    ) -> bool:
+        if not rule.cooldown_sessions:
+            return False
+        alerts = _load(db, CeriAlertEvent)
+        for alert in alerts:
+            if alert.alert_rule_id != rule.id or alert.ticker.upper() != ticker.upper():
+                continue
+            if alert.created_at is None or change.created_at is None:
+                continue
+            age_sessions = _trading_sessions_between(
+                alert.created_at.date(), change.created_at.date(), self.sessions
+            )
+            if 0 <= age_sessions < rule.cooldown_sessions:
+                return True
+        return False
 
 
 def alert_event_key(
@@ -154,3 +183,22 @@ def _maybe_scalar(db: Session, statement):
     if callable(scalar):
         return scalar(statement)
     return None
+
+
+def _load(db: Session, model):
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return []
+    result = scalars(select(model))
+    return list(result.all() if hasattr(result, "all") else result)
+
+
+def _trading_sessions_between(start, end, sessions: CeriEffectiveSessionService) -> int:
+    if end <= start:
+        return (end - start).days
+    count = 0
+    cursor = start
+    while cursor < end:
+        cursor = sessions.next_trading_session(cursor + timedelta(days=1))
+        count += 1
+    return count

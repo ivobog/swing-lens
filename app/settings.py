@@ -78,9 +78,7 @@ class Settings(BaseSettings):
     job_worker_id: str = "local-worker-1"
     winner_probability_enabled: bool = False
     winner_probability_capture_in_pipeline: bool = False
-    winner_probability_config_path: Path = Field(
-        default=Path("config/winner_probability.yaml")
-    )
+    winner_probability_config_path: Path = Field(default=Path("config/winner_probability.yaml"))
     winner_probability_admin_enabled: bool = False
     setup_lifecycle_enabled: bool = False
     setup_lifecycle_pipeline_step_enabled: bool = False
@@ -106,6 +104,17 @@ class Settings(BaseSettings):
     ceri_backfill_enabled: bool = False
     ceri_config_path: Path = Field(default=Path("config/ceri.yaml"))
     ceri_taxonomy_path: Path = Field(default=Path("config/ceri_catalyst_taxonomy.yaml"))
+    eodhd_api_key: str | None = None
+    eodhd_base_url: str = "https://eodhd.com"
+    eodhd_requests_per_minute: int = Field(default=300, ge=1)
+    eodhd_daily_call_budget: int = Field(default=80000, ge=1)
+    eodhd_http_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    eodhd_max_attempts: int = Field(default=4, ge=1, le=8)
+    eodhd_terms_version: str = "2026-08-personal"
+    sec_user_agent: str = "SwingLens/0.1.0 operator@example.invalid"
+    sec_requests_per_second: float = Field(default=2.0, gt=0, le=10)
+    sec_http_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    sec_form4_enabled: bool = False
     runs_default_page_size: int = 25
     history_default_page_size: int = 50
     history_max_page_size: int = 200
@@ -113,9 +122,7 @@ class Settings(BaseSettings):
     @property
     def ib_benchmark_symbols(self) -> tuple[str, ...]:
         return tuple(
-            symbol.strip().upper()
-            for symbol in self.ib_benchmarks.split(",")
-            if symbol.strip()
+            symbol.strip().upper() for symbol in self.ib_benchmarks.split(",") if symbol.strip()
         )
 
     def ensure_local_dirs(self) -> None:

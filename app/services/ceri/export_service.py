@@ -131,10 +131,12 @@ class CeriExportService:
                 else None,
                 "source_url": self.policy.mask("source_url"),
                 "raw_payload": self.policy.mask("raw_payload"),
+                # A restricted provider payload is intentionally never passed
+                # through as a generic export field.  The source hash and
+                # provider identity are sufficient safe lineage for exports.
                 "permitted_fields": None
-                if _is_purged_source(source)
-                else source.restricted_normalized_json
-                or self.policy.permitted_payload(source.raw_json),
+                if _is_purged_source(source) or source.provider in {"eodhd", "sec"}
+                else self.policy.permitted_payload(source.raw_json),
             }
             rows.append(self.policy.export_row(row))
         rows.extend(_revision_rows(db, company_id, as_of_session))
@@ -251,9 +253,9 @@ def _full_evidence_metadata() -> dict[str, Any]:
 
 
 def _is_purged_source(source: CeriSourceRecord) -> bool:
-    return source.export_policy == "purged" or (
-        source.quarantine_reason or ""
-    ).startswith("provider_license_purge")
+    return source.export_policy == "purged" or (source.quarantine_reason or "").startswith(
+        "provider_license_purge"
+    )
 
 
 def _load(db: Session, model):

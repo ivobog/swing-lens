@@ -171,9 +171,7 @@ class CeriQueryService:
                 status_code=404,
             )
         if filters.as_of is not None:
-            snapshots = [
-                snapshot for snapshot in snapshots if snapshot.cutoff_at <= filters.as_of
-            ]
+            snapshots = [snapshot for snapshot in snapshots if snapshot.cutoff_at <= filters.as_of]
         payload = self._page(
             [_score_snapshot_payload(snapshot) for snapshot in snapshots],
             query=query,
@@ -440,9 +438,7 @@ class CeriQueryService:
                 for run in [*ingestion_runs, *processing_runs]
                 if run.errors_json
             ],
-            "quarantined_count": sum(
-                1 for source in source_records if source.quarantine_reason
-            ),
+            "quarantined_count": sum(1 for source in source_records if source.quarantine_reason),
             "conflicted_count": len(
                 self.operations_conflicts(
                     db,
@@ -456,9 +452,7 @@ class CeriQueryService:
                 )["items"]
             ),
             "processing_runs": [_processing_run_payload(run) for run in processing_runs],
-            "alert_delivery": dict(
-                Counter(alert.status for alert in _load(db, CeriAlertEvent))
-            ),
+            "alert_delivery": dict(Counter(alert.status for alert in _load(db, CeriAlertEvent))),
             "provider_terms_version": self.config.retention.provider_terms_version,
             "retention": {
                 "retain_source_evidence_indefinitely": (
@@ -512,10 +506,7 @@ class CeriQueryService:
                 "INVALID_DATE_RANGE",
                 "event_date_from must be on or before event_date_to.",
             )
-        if (
-            filters.config_version
-            and filters.config_version != self.config.engine.config_version
-        ):
+        if filters.config_version and filters.config_version != self.config.engine.config_version:
             raise CeriQueryError(
                 "CONFIG_VERSION_NOT_FOUND",
                 f"CERI config version was not found: {filters.config_version}",
@@ -526,6 +517,21 @@ class CeriQueryService:
         self, db: Session, filters: CeriQueryFilters
     ) -> list[CeriScoreSnapshot]:
         snapshots = []
+        catalyst_company_ids: set[int] | None = None
+        if filters.catalyst_category:
+            events = [
+                event
+                for event in _load(db, CeriCatalystEvent)
+                if event.category == filters.catalyst_category.upper()
+            ]
+            current_event_ids = {
+                revision.catalyst_event_id
+                for revision in _load(db, CeriCatalystEventRevision)
+                if revision.is_current
+            }
+            catalyst_company_ids = {
+                event.company_id for event in events if event.id in current_event_ids
+            }
         for snapshot in _load(db, CeriScoreSnapshot):
             if filters.run_id is not None and snapshot.run_id != filters.run_id:
                 continue
@@ -537,8 +543,7 @@ class CeriQueryService:
             ):
                 continue
             if filters.risk_max is not None and (
-                snapshot.event_risk_score is None
-                or snapshot.event_risk_score > filters.risk_max
+                snapshot.event_risk_score is None or snapshot.event_risk_score > filters.risk_max
             ):
                 continue
             if filters.confidence and snapshot.data_confidence != filters.confidence:
@@ -553,6 +558,8 @@ class CeriQueryService:
             if filters.alignment_flag and not (snapshot.alignment_flags_json or {}).get(
                 filters.alignment_flag
             ):
+                continue
+            if catalyst_company_ids is not None and snapshot.company_id not in catalyst_company_ids:
                 continue
             snapshots.append(snapshot)
         return snapshots
@@ -571,9 +578,7 @@ class CeriQueryService:
         if revision is None:
             return True
         event_date = revision.expected_date or revision.effective_session
-        if filters.event_date_from and (
-            event_date is None or event_date < filters.event_date_from
-        ):
+        if filters.event_date_from and (event_date is None or event_date < filters.event_date_from):
             return False
         if filters.event_date_to and (event_date is None or event_date > filters.event_date_to):
             return False
@@ -690,9 +695,7 @@ def _score_snapshot_payload(snapshot: CeriScoreSnapshot) -> dict[str, Any]:
         "calculation_version": snapshot.calculation_version,
         "evidence_hash": snapshot.evidence_hash,
         "invalidated_by_purge": _is_invalidated(snapshot.warnings_json),
-        "purge_invalidation": (snapshot.alignment_flags_json or {}).get(
-            "purge_invalidation"
-        ),
+        "purge_invalidation": (snapshot.alignment_flags_json or {}).get("purge_invalidation"),
     }
 
 
@@ -906,9 +909,9 @@ def _has_purge_marker(value: dict[str, Any] | None) -> bool:
 
 
 def _is_purged_source(source: CeriSourceRecord) -> bool:
-    return source.export_policy == "purged" or (
-        source.quarantine_reason or ""
-    ).startswith("provider_license_purge")
+    return source.export_policy == "purged" or (source.quarantine_reason or "").startswith(
+        "provider_license_purge"
+    )
 
 
 def _load(db: Session, model):

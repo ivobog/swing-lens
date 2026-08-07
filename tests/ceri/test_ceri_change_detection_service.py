@@ -3,7 +3,12 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from app.models.ceri_tables import CeriCatalystEventRevision, CeriChangeEvent, CeriScoreSnapshot
+from app.models.ceri_tables import (
+    CeriCatalystEventRevision,
+    CeriChangeEvent,
+    CeriGuidanceEvent,
+    CeriScoreSnapshot,
+)
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 
 UTC = ZoneInfo("UTC")
@@ -46,6 +51,33 @@ def test_catalyst_revision_change_emits_stable_binary_event() -> None:
     assert result.changes == 1
     assert changes[0].change_type == "NEW_BINARY_EVENT"
     assert changes[0].dedup_key
+
+
+def test_guidance_and_conflict_transitions_are_persisted() -> None:
+    guidance = CeriGuidanceEvent(
+        id=12,
+        company_id=42,
+        action="RAISED",
+        effective_session=date(2026, 8, 1),
+        confidence="High",
+    )
+    db = FakeDb(scalar_queue=[None, None])
+    service = CeriChangeDetectionService()
+
+    guidance_result = service.detect_guidance_change(
+        db,
+        guidance=guidance,
+        company_id=42,
+    )
+    prior = _snapshot(3, opportunity=4.0, risk=1.0)
+    current = _snapshot(4, opportunity=4.0, risk=1.0)
+    current.warnings_json = ["provider_conflict_open"]
+    conflict_result = service.detect_score_changes(db, current=current, prior=prior)
+
+    types = {row.change_type for row in db.added if isinstance(row, CeriChangeEvent)}
+    assert guidance_result.changes == 1
+    assert conflict_result.changes == 2
+    assert types == {"GUIDANCE_RAISED", "DATA_STALE", "CONFLICT_OPENED"}
 
 
 def _snapshot(snapshot_id: int, *, opportunity: float, risk: float) -> CeriScoreSnapshot:

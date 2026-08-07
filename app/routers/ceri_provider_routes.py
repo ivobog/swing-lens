@@ -39,5 +39,8 @@ def ceri_provider_health() -> dict[str, Any]:
             str(capability) for capability in capabilities["capabilities"]
         )
         health["datasets"] = sorted(str(dataset) for dataset in capabilities["datasets"])
+        metadata = getattr(registry.get(provider), "safe_metadata", None)
+        if callable(metadata):
+            health["metadata"] = metadata()
         providers.append(health)
     return {"items": providers, "total": len(providers)}

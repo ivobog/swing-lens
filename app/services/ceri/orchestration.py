@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import time
 from dataclasses import asdict, dataclass
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriIngestionRun
+from app.models.ceri_tables import CeriIngestionRun, CeriProviderRequestTelemetry
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.dtos import (
     CatalystRequest,
@@ -31,6 +34,8 @@ class CeriIngestionRequest:
     ticker: str
     request_key: str | None = None
     scope: dict[str, Any] | None = None
+    start: date | None = None
+    end: date | None = None
 
 
 @dataclass(frozen=True)
@@ -72,12 +77,14 @@ class CeriIngestionService:
         should_cancel=None,
     ) -> CeriIngestionResult:
         provider = self.registry.get(request.provider)
-        dataset_policy = self.registry.dataset_policy(request.dataset.value)
+        dataset_policy = self.registry.license_policy(request.provider, request.dataset.value)
         request_key = request.request_key or self.request_key(request)
         ingestion_run = self.source_records.create_ingestion_run(
             db,
             provider=request.provider,
-            provider_terms_version=self.config.retention.provider_terms_version,
+            provider_terms_version=getattr(provider, "terms_version", None)
+            or getattr(provider, "provider_terms_version", None)
+            or dataset_policy.terms_version,
             dataset=request.dataset.value,
             scope=request.scope or {"ticker": request.ticker},
             request_key=request_key,
@@ -91,6 +98,8 @@ class CeriIngestionService:
         warning_count = 0
         errors: list[dict[str, Any]] = []
         checkpoint: dict[str, Any] = {}
+        provider_stats_before = _provider_stats(provider)
+        started = time.perf_counter()
 
         try:
             for index, record in enumerate(self._fetch_records(provider, request), start=1):
@@ -139,6 +148,16 @@ class CeriIngestionService:
             errors={"records": errors} if errors else None,
             warnings=None,
         )
+        _record_provider_telemetry(
+            db,
+            provider=provider,
+            dataset=request.dataset.value,
+            request_key=request_key,
+            scope=request.scope or {"ticker": request.ticker},
+            before=provider_stats_before,
+            started=started,
+            failed=failed,
+        )
         return self._result_from_run(finished)
 
     def request_key(self, request: CeriIngestionRequest) -> str:
@@ -156,20 +175,30 @@ class CeriIngestionService:
                     ticker=request.ticker,
                     metrics=self.config.metrics.required,
                     period_types=self.config.metrics.period_types,
+                    start=request.start,
+                    end=request.end,
                 )
             )
         if request.dataset is CeriDataset.EARNINGS:
             return provider.fetch_earnings_actuals(
-                EarningsRequest(company_id=None, ticker=request.ticker)
+                EarningsRequest(
+                    company_id=None, ticker=request.ticker, start=request.start, end=request.end
+                )
             )
         if request.dataset is CeriDataset.GUIDANCE:
-            return provider.fetch_guidance(GuidanceRequest(company_id=None, ticker=request.ticker))
+            return provider.fetch_guidance(
+                GuidanceRequest(
+                    company_id=None, ticker=request.ticker, start=request.start, end=request.end
+                )
+            )
         if request.dataset is CeriDataset.CATALYSTS:
             return provider.fetch_catalysts(
                 CatalystRequest(
                     company_id=None,
                     ticker=request.ticker,
                     categories=tuple(CatalystCategory),
+                    start=request.start,
+                    end=request.end,
                 )
             )
         raise ValueError(f"Unsupported CERI dataset: {request.dataset}")
@@ -207,3 +236,52 @@ def _safe_error(
 
 def _safe_message(exc: Exception) -> str:
     return str(exc).replace("\n", " ").strip()[:500]
+
+
+def _provider_stats(provider: CeriProvider):
+    client = getattr(provider, "client", None)
+    stats = getattr(client, "stats", None)
+    return stats() if callable(stats) else None
+
+
+def _record_provider_telemetry(
+    db: Session,
+    *,
+    provider: CeriProvider,
+    dataset: str,
+    request_key: str,
+    scope: dict[str, Any],
+    before: Any,
+    started: float,
+    failed: int,
+) -> None:
+    after = _provider_stats(provider)
+    if after is None:
+        return
+    before_requests = int(getattr(before, "requests", 0) or 0)
+    calls = max(0, int(getattr(after, "requests", 0) or 0) - before_requests)
+    if calls == 0:
+        return
+    scope_hash = hashlib.sha256(repr(sorted(scope.items())).encode("utf-8")).hexdigest()
+    db.add(
+        CeriProviderRequestTelemetry(
+            provider=getattr(provider, "name", "unknown"),
+            dataset=dataset,
+            endpoint=f"dataset:{dataset}",
+            request_key=hashlib.sha256(request_key.encode("utf-8")).hexdigest(),
+            scope_hash=scope_hash,
+            status_code=503 if failed else 200,
+            call_cost=max(
+                1,
+                int(getattr(after, "calls_used_today", 0) or 0)
+                - int(getattr(before, "calls_used_today", 0) or 0),
+            ),
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            retry_count=max(
+                0,
+                int(getattr(after, "retries", 0) or 0) - int(getattr(before, "retries", 0) or 0),
+            ),
+            error_code="PROVIDER_REQUEST_FAILED" if failed else None,
+            observed_at=datetime.now(UTC),
+        )
+    )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -282,6 +282,7 @@ def ceri_latest(
     opportunity_min: float | None = None,
     risk_max: float | None = None,
     confidence: str | None = None,
+    catalyst_category: str | None = None,
     posture: str | None = None,
     alignment_flag: str | None = None,
     has_warnings: bool | None = None,
@@ -298,6 +299,7 @@ def ceri_latest(
                 opportunity_min=opportunity_min,
                 risk_max=risk_max,
                 confidence=confidence,
+                catalyst_category=catalyst_category,
                 posture=posture,
                 alignment_flag=alignment_flag,
                 has_warnings=has_warnings,
@@ -748,6 +750,10 @@ def create_ceri_backfill(
         provider=str(payload.get("provider") or "manual"),
         dataset=str(payload.get("dataset") or "estimates"),
         ticker=payload.get("ticker"),
+        start=_optional_date_payload(payload.get("start")),
+        end=_optional_date_payload(payload.get("end")),
+        mode=str(payload.get("mode") or "AS_KNOWN"),
+        tickers=tuple(str(ticker) for ticker in payload.get("tickers", []) if str(ticker).strip()),
         actor=payload.get("actor"),
     )
     request_key = CeriBackfillService().request_key(backfill_request)
@@ -1134,3 +1140,16 @@ def _structured_http_error(code: str, message: str, *, status_code: int) -> HTTP
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _optional_date_payload(value: Any) -> date | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError as exc:
+        raise _structured_http_error(
+            "INVALID_FILTER", "date values must be ISO dates", status_code=400
+        ) from exc

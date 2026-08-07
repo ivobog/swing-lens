@@ -1,0 +1,62 @@
+from __future__ import annotations
+
+from app.services.ceri.dtos import (
+    CompanyQuery,
+    ProviderCapabilities,
+    ProviderCompany,
+    ProviderHealth,
+    RawProviderRecord,
+)
+from app.services.ceri.enums import CeriDataset
+from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.validation_service import CeriProviderValidationService
+
+
+def test_eodhd_license_policy_restricts_raw_and_requires_purge() -> None:
+    policy = CeriProviderRegistry().provider_license_policy("eodhd", "estimates")
+
+    assert policy.raw_payload_storage_allowed is False
+    assert policy.export_policy == "restricted"
+    assert policy.purge_required_on_termination is True
+    assert policy.deletion_deadline_days == 30
+
+
+class FixtureProvider:
+    name = "fixture"
+
+    def capabilities(self):
+        return ProviderCapabilities("fixture", frozenset(), frozenset())
+
+    def health(self):
+        return ProviderHealth("fixture", True)
+
+    def resolve_company(self, query: CompanyQuery):
+        return [ProviderCompany("fixture", f"{query.ticker}.X", query.ticker or "")]
+
+    def fetch_estimate_snapshots(self, request):
+        yield RawProviderRecord(
+            "fixture",
+            CeriDataset.ESTIMATES,
+            "estimate-1",
+            {"ticker": request.ticker, "consensus": 1},
+            None,
+            None,
+        )
+
+    def fetch_earnings_actuals(self, request):
+        return iter(())
+
+    def fetch_guidance(self, request):
+        return iter(())
+
+    def fetch_catalysts(self, request):
+        return iter(())
+
+
+def test_validation_service_produces_offline_summary() -> None:
+    summary = CeriProviderValidationService().validate(FixtureProvider(), ("MSFT", "AAPL"))
+
+    assert summary.sample_size == 2
+    assert summary.identity_successes == 2
+    assert summary.estimate_coverage == 2
+    assert summary.errors == ()

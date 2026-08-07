@@ -142,6 +142,9 @@ class CeriSourceRecordService:
             )
 
         quarantine_reason = _quarantine_reason(record)
+        restricted_payload = (
+            record.payload if (not raw_payload_allowed or quarantine_reason) else None
+        )
         source = CeriSourceRecord(
             ingestion_run_id=ingestion_run_id,
             provider=record.provider,
@@ -154,15 +157,24 @@ class CeriSourceRecordService:
             source_url=record.source_url,
             source_reference=_optional_payload_text(record, "source_reference"),
             raw_json=record.payload if raw_payload_allowed and not quarantine_reason else None,
-            restricted_normalized_json=record.payload
-            if (not raw_payload_allowed or quarantine_reason)
-            else None,
+            restricted_normalized_json=restricted_payload,
             content_hash=content_hash,
+            normalized_hash=source_record_content_hash(restricted_payload)
+            if restricted_payload is not None
+            else None,
             idempotency_key=idempotency_key,
             export_policy=record.export_policy,
             supersedes_id=getattr(prior_provider_record, "id", None),
             correction_type="CORRECTION" if prior_provider_record is not None else None,
             quarantine_reason=quarantine_reason,
+            license_scope="personal"
+            if record.provider == "eodhd"
+            else "public_first_party"
+            if record.provider == "sec"
+            else "manual",
+            redistribution_allowed=record.export_policy == "exportable"
+            and record.provider not in {"eodhd"},
+            purge_eligible=record.provider == "eodhd",
         )
         db.add(source)
         db.flush()

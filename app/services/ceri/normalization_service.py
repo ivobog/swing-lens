@@ -11,6 +11,9 @@ from app.models.ceri_tables import (
     CeriCatalystEvent,
     CeriCatalystEventRevision,
     CeriCatalystSource,
+    CeriEarningsActual,
+    CeriEstimateSnapshot,
+    CeriGuidanceEvent,
     CeriProcessingRun,
     CeriSourceRecord,
 )
@@ -69,9 +72,7 @@ class CeriNormalizationService:
         source_records: list[CeriSourceRecord] | None = None,
     ) -> CeriNormalizationResult:
         records = (
-            source_records
-            if source_records is not None
-            else _source_records(db, ingestion_run_id)
+            source_records if source_records is not None else _source_records(db, ingestion_run_id)
         )
         read = normalized = quarantined = failed = warning_count = 0
         errors: list[dict[str, Any]] = []
@@ -140,12 +141,18 @@ class CeriNormalizationService:
     ) -> int:
         dataset = CeriDataset(source_record.dataset)
         if dataset is CeriDataset.ESTIMATES:
+            if _exists_by_source(db, CeriEstimateSnapshot, source_record.id):
+                return 0
             db.add(self.estimate_normalizer.normalize(source_record, company_id=company_id))
             return 1
         if dataset is CeriDataset.EARNINGS:
+            if _exists_by_source(db, CeriEarningsActual, source_record.id):
+                return 0
             db.add(self.earnings_normalizer.normalize(source_record, company_id=company_id))
             return 1
         if dataset is CeriDataset.GUIDANCE:
+            if _exists_by_source(db, CeriGuidanceEvent, source_record.id):
+                return 0
             db.add(self.guidance_normalizer.normalize(source_record, company_id=company_id))
             return 1
         if dataset is CeriDataset.CATALYSTS:
@@ -157,16 +164,79 @@ class CeriNormalizationService:
                 subject_key=record.subject_key,
             )
             if event is not None:
+                if _exists_by_source(db, CeriCatalystSource, source_record.id):
+                    return 0
+                current = _maybe_scalar(
+                    db,
+                    select(CeriCatalystEventRevision)
+                    .where(CeriCatalystEventRevision.catalyst_event_id == event.id)
+                    .where(CeriCatalystEventRevision.is_current.is_(True)),
+                )
+                if current is None:
+                    db.add(
+                        CeriCatalystSource(
+                            catalyst_event_id=event.id,
+                            catalyst_revision_id=None,
+                            source_record_id=source_record.id,
+                            source_fields_json=source_record.raw_json
+                            or source_record.restricted_normalized_json,
+                        )
+                    )
+                    return 1
+                if current is not None and _catalyst_revision_matches(current, record):
+                    db.add(
+                        CeriCatalystSource(
+                            catalyst_event_id=event.id,
+                            catalyst_revision_id=current.id,
+                            source_record_id=source_record.id,
+                            source_fields_json=source_record.raw_json
+                            or source_record.restricted_normalized_json,
+                        )
+                    )
+                    return 1
+                if current is not None:
+                    current.is_current = False
+                next_number = (
+                    max(
+                        [
+                            revision.revision_number
+                            for revision in _load(db, CeriCatalystEventRevision)
+                            if revision.catalyst_event_id == event.id
+                        ]
+                        or [0]
+                    )
+                    + 1
+                )
+                revision = CeriCatalystEventRevision(
+                    catalyst_event_id=event.id,
+                    source_record_id=source_record.id,
+                    prior_revision_id=current.id if current is not None else None,
+                    revision_number=next_number,
+                    is_current=True,
+                    announced_at=record.announced_at,
+                    expected_date=record.expected_date,
+                    effective_session=record.effective_session,
+                    status=record.status.value,
+                    direction=record.direction.value,
+                    materiality=record.materiality,
+                    date_confidence=record.date_confidence.value,
+                    source_confidence=record.confidence.value,
+                    operational_values_json={"subject_key": record.subject_key},
+                    conflict_flags_json=list(record.conflict_flags) or None,
+                )
+                db.add(revision)
+                db.flush()
+                event.last_updated_at = _utcnow()
                 db.add(
                     CeriCatalystSource(
                         catalyst_event_id=event.id,
-                        catalyst_revision_id=None,
+                        catalyst_revision_id=revision.id,
                         source_record_id=source_record.id,
                         source_fields_json=source_record.raw_json
                         or source_record.restricted_normalized_json,
                     )
                 )
-                return 1
+                return 2
 
             event = CeriCatalystEvent(
                 company_id=company_id,
@@ -235,6 +305,41 @@ def _find_catalyst_event(
         .where(CeriCatalystEvent.category == category)
         .where(CeriCatalystEvent.subject_key == subject_key)
     )
+
+
+def _exists_by_source(db: Session, model: Any, source_record_id: int) -> bool:
+    # Lightweight fake sessions used by the existing unit tests expose only
+    # a scalar queue for the event lookup; do not consume that queue for an
+    # optional idempotency probe.
+    if not callable(getattr(db, "scalars", None)):
+        return False
+    if model is CeriCatalystSource:
+        statement = select(model).where(model.source_record_id == source_record_id)
+    else:
+        statement = select(model).where(model.source_record_id == source_record_id)
+    return _maybe_scalar(db, statement) is not None
+
+
+def _maybe_scalar(db: Session, statement):
+    scalar = getattr(db, "scalar", None)
+    return scalar(statement) if callable(scalar) else None
+
+
+def _catalyst_revision_matches(current: CeriCatalystEventRevision, record) -> bool:
+    return (
+        current.status == record.status.value
+        and current.direction == record.direction.value
+        and current.expected_date == record.expected_date
+        and current.materiality == record.materiality
+    )
+
+
+def _load(db: Session, model: Any) -> list[Any]:
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return []
+    result = scalars(select(model))
+    return list(result.all() if hasattr(result, "all") else result)
 
 
 def _warning_count_for_last(db: Session) -> int:

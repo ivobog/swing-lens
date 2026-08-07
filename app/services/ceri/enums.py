@@ -30,6 +30,8 @@ class CeriDataset(StrEnum):
 class CeriProvider(StrEnum):
     MANUAL = "manual"
     PRIMARY = "primary"
+    EODHD = "eodhd"
+    SEC = "sec"
 
 
 class CeriProviderCapability(StrEnum):

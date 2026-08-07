@@ -81,6 +81,11 @@ class CeriIdentityResolver:
                     matched_ids.add(company.id)
             if cik and company.cik == cik:
                 matched_ids.add(company.id)
+            provider_ids = company.current_provider_ids_json or {}
+            if provider_company_id and _provider_id_matches(
+                provider_ids, provider, provider_company_id
+            ):
+                matched_ids.add(company.id)
 
         for alias in aliases:
             if alias.provider != provider:
@@ -140,6 +145,13 @@ def _alias_valid(alias: CeriCompanyAlias, as_of: date | None) -> bool:
     if alias.valid_to is not None and as_of > alias.valid_to:
         return False
     return True
+
+
+def _provider_id_matches(values: dict[str, Any], provider: str, expected: str) -> bool:
+    candidate = values.get(provider)
+    if isinstance(candidate, dict):
+        candidate = candidate.get("id") or candidate.get("provider_company_id")
+    return candidate is not None and str(candidate).upper() == expected.upper()
 
 
 def _text(value: Any) -> str | None:

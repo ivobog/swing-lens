@@ -396,8 +396,7 @@ def _parse_metrics(raw: dict[str, Any]) -> MetricsConfig:
 
 def _parse_revision(raw: dict[str, Any]) -> RevisionConfig:
     windows = tuple(
-        int(_number(value, "revision.windows_days"))
-        for value in _list(raw, "windows_days")
+        int(_number(value, "revision.windows_days")) for value in _list(raw, "windows_days")
     )
     if windows != tuple(sorted(set(windows))) or any(window <= 0 for window in windows):
         raise CeriConfigError("revision.windows_days must be unique positive ascending values")
@@ -648,19 +647,23 @@ def _validate_cross_section_rules(config: CeriConfig) -> None:
     missing = sorted(category.value for category in missing_categories)
     if missing:
         raise CeriConfigError(f"enabled taxonomy categories missing definitions: {missing}")
+    # Providers are deliberately allowed to expose partial capabilities.  For
+    # example SEC supplies first-party guidance/catalysts while EODHD supplies
+    # estimates/earnings/news.  The registry and orchestration select a
+    # provider explicitly; requiring every provider to implement every dataset
+    # would make the provider-neutral protocol impossible to extend.
     for dataset in CeriDataset:
         capability = CeriProviderCapability(dataset.value)
-        for provider in config.providers.priority:
-            if capability not in config.providers.capabilities[provider]:
-                raise CeriConfigError(
-                    f"{provider.value} provider lacks required {dataset.value} capability"
-                )
+        if not any(
+            capability in config.providers.capabilities[provider]
+            for provider in config.providers.priority
+        ):
+            raise CeriConfigError(f"no configured provider supports {dataset.value}")
 
 
 def _parse_weights(raw: dict[str, Any], section_name: str) -> dict[str, float]:
     weights = {
-        key: _nonnegative_number(value, f"{section_name}.{key}")
-        for key, value in raw.items()
+        key: _nonnegative_number(value, f"{section_name}.{key}") for key, value in raw.items()
     }
     total = round(sum(weights.values()), 6)
     if total != 1.0:
@@ -689,9 +692,7 @@ def _normalized_data(
 def _strip_config_hashes(value: Any) -> Any:
     if isinstance(value, dict):
         return {
-            key: _strip_config_hashes(item)
-            for key, item in value.items()
-            if key != "config_hash"
+            key: _strip_config_hashes(item) for key, item in value.items() if key != "config_hash"
         }
     if isinstance(value, list):
         return [_strip_config_hashes(item) for item in value]

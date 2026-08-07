@@ -8,15 +8,23 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriProcessingRun
+from app.models.ceri_tables import CeriChangeEvent, CeriCompany, CeriProcessingRun
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
 from app.services.background_worker import CancelRequested
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.capture_service import CeriRunCaptureService
+from app.services.ceri.change_rebuild_service import (
+    CeriChangeRebuildRequest,
+    CeriChangeRebuildService,
+)
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
+from app.services.ceri.feature_rebuild_service import (
+    CeriFeatureRebuildRequest,
+    CeriFeatureRebuildService,
+)
 from app.services.ceri.normalization_service import CeriNormalizationService
 from app.services.ceri.orchestration import (
     CeriIngestionCancelled,
@@ -31,6 +39,7 @@ from app.services.ceri.purge_service import (
     CeriPurgePreviewRequest,
     CeriPurgeService,
 )
+from app.settings import get_settings
 
 CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
 CERI_NORMALIZE = "CERI_NORMALIZE"
@@ -114,9 +123,7 @@ def execute_normalize_job(
     request_key = str(payload.get("request_key") or f"ceri:normalize:{job.id}")
     existing = _maybe_scalar(
         db,
-        select(CeriProcessingRun).where(
-            CeriProcessingRun.deterministic_request_key == request_key
-        ),
+        select(CeriProcessingRun).where(CeriProcessingRun.deterministic_request_key == request_key),
     )
     if existing is not None:
         return {
@@ -150,8 +157,56 @@ def execute_normalize_job(
     return {"job_type": CERI_NORMALIZE, **result.as_dict()}
 
 
-def execute_rebuild_features_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
-    return _finish_processing_job(db, job, CERI_REBUILD_FEATURES, feature_count=0)
+def execute_rebuild_features_job(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    feature_service: CeriFeatureRebuildService | None = None,
+) -> dict[str, Any]:
+    payload = job.payload_json or {}
+    processing, created = _processing_run(
+        db,
+        CERI_REBUILD_FEATURES,
+        payload,
+        default_request_key=f"ceri:feature-rebuild:{_scope_key(payload, job.id)}",
+    )
+    if not created and processing.status == "COMPLETED":
+        return {
+            "job_type": CERI_REBUILD_FEATURES,
+            "processing_run_id": processing.id,
+            "status": processing.status,
+            "coalesced": True,
+        }
+    result = (feature_service or CeriFeatureRebuildService()).rebuild(
+        db,
+        CeriFeatureRebuildRequest(
+            company_ids=_optional_int_tuple(payload.get("company_ids")),
+            ticker=payload.get("ticker"),
+            as_of_session=_optional_date(payload.get("as_of_session")),
+            from_session=_optional_date(payload.get("from_session")),
+            to_session=_optional_date(payload.get("to_session")),
+            run_id=_optional_int(payload.get("run_id")),
+            mode=str(payload.get("mode") or "AS_KNOWN"),
+        ),
+        processing_run=processing,
+    )
+    CeriProcessingRunService().finish(
+        db,
+        processing,
+        status="PARTIAL" if result.failed else "COMPLETED",
+        counts={"features": result.features, "warnings": result.warnings, "failed": result.failed},
+        checkpoint={
+            "scope": payload.get("scope") or payload,
+            "processed_companies": result.processed_companies,
+        },
+        errors={"records": list(result.errors)} if result.errors else None,
+    )
+    return {
+        "job_type": CERI_REBUILD_FEATURES,
+        "processing_run_id": processing.id,
+        "status": processing.status,
+        **result.as_dict(),
+    }
 
 
 def execute_capture_run_job(
@@ -193,8 +248,55 @@ def execute_capture_run_job(
     return {"job_type": CERI_CAPTURE_RUN, "processing_run_id": processing.id, **values}
 
 
-def execute_change_detection_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
-    return _finish_processing_job(db, job, CERI_CHANGE_DETECTION, change_count=0)
+def execute_change_detection_job(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    change_service: CeriChangeRebuildService | None = None,
+) -> dict[str, Any]:
+    payload = job.payload_json or {}
+    processing, created = _processing_run(
+        db,
+        CERI_CHANGE_DETECTION,
+        payload,
+        default_request_key=f"ceri:change-rebuild:{_scope_key(payload, job.id)}",
+    )
+    if not created and processing.status == "COMPLETED":
+        return {
+            "job_type": CERI_CHANGE_DETECTION,
+            "processing_run_id": processing.id,
+            "status": processing.status,
+            "coalesced": True,
+        }
+    result = (change_service or CeriChangeRebuildService()).rebuild(
+        db,
+        CeriChangeRebuildRequest(
+            company_ids=_optional_int_tuple(payload.get("company_ids")),
+            ticker=payload.get("ticker"),
+            run_id=_optional_int(payload.get("run_id")),
+            from_session=_optional_date(payload.get("from_session")),
+            to_session=_optional_date(payload.get("to_session")),
+            changed_since=_optional_datetime(payload.get("changed_since")),
+        ),
+    )
+    CeriProcessingRunService().finish(
+        db,
+        processing,
+        status="PARTIAL" if result.failed else "COMPLETED",
+        counts={
+            "change_events": result.changes,
+            "warnings": result.warnings,
+            "failed": result.failed,
+        },
+        checkpoint={"scope": payload.get("scope") or payload, "change_count": result.changes},
+        errors={"records": list(result.errors)} if result.errors else None,
+    )
+    return {
+        "job_type": CERI_CHANGE_DETECTION,
+        "processing_run_id": processing.id,
+        "status": processing.status,
+        **result.as_dict(),
+    }
 
 
 def execute_backfill_job(
@@ -214,6 +316,9 @@ def execute_backfill_job(
             end=_optional_date(payload.get("end")),
             mode=str(payload.get("mode") or "AS_KNOWN"),
             actor=payload.get("actor"),
+            tickers=tuple(
+                str(ticker) for ticker in payload.get("tickers", []) if str(ticker).strip()
+            ),
         ),
     )
     return {"job_type": CERI_BACKFILL, **result.as_dict()}
@@ -234,9 +339,21 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
             "processing_run_id": processing.id,
             "coalesced": True,
         }
-    result = CeriAlertService(alerts_enabled=bool(payload.get("alerts_enabled"))).rebuild_alerts(
+    changes = _eligible_changes(db, payload)
+    ticker_by_company = {
+        company.id: company.ticker
+        for company in _load_rows(db, CeriCompany)
+        if company.id in {change.company_id for change in changes}
+    }
+    alerts_enabled = (
+        payload["alerts_enabled"]
+        if "alerts_enabled" in payload
+        else get_settings().ceri_alerts_enabled
+    )
+    result = CeriAlertService(alerts_enabled=bool(alerts_enabled)).rebuild_alerts(
         db,
-        changes=[],
+        changes=changes,
+        ticker_by_company=ticker_by_company,
     )
     CeriProcessingRunService().finish(
         db,
@@ -250,12 +367,15 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         checkpoint={
             "duplicates": result.duplicates,
             "skipped": result.skipped,
+            "eligible_change_count": len(changes),
+            "alerts_enabled": bool(alerts_enabled),
         },
     )
     return {
         "job_type": CERI_ALERT_REBUILD,
         "processing_run_id": processing.id,
         "status": processing.status,
+        "alerts_status": "REBUILT" if alerts_enabled else "SKIPPED_DISABLED",
         **result.as_dict(),
     }
 
@@ -401,6 +521,44 @@ def _processing_run(
     )
 
 
+def _eligible_changes(db: Session, payload: dict[str, Any]) -> list[CeriChangeEvent]:
+    changes = _load_rows(db, CeriChangeEvent)
+    ids = {int(value) for value in payload.get("change_ids", []) if str(value).isdigit()}
+    if ids:
+        changes = [change for change in changes if change.id in ids]
+    company_ids = set(_optional_int_tuple(payload.get("company_ids")) or ())
+    if company_ids:
+        changes = [change for change in changes if change.company_id in company_ids]
+    if payload.get("ticker"):
+        company_ids_for_ticker = {
+            company.id
+            for company in _load_rows(db, CeriCompany)
+            if company.ticker.upper() == str(payload["ticker"]).upper()
+        }
+        changes = [change for change in changes if change.company_id in company_ids_for_ticker]
+    since = _optional_datetime(payload.get("changed_since"))
+    if since is not None:
+        changes = [change for change in changes if change.created_at >= since]
+    return sorted(changes, key=lambda change: (change.created_at, change.id or 0))
+
+
+def _load_rows(db: Session, model: Any) -> list[Any]:
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return []
+    result = scalars(select(model))
+    return list(result.all() if hasattr(result, "all") else result)
+
+
+def _scope_key(payload: dict[str, Any], fallback: int) -> str:
+    import hashlib
+    import json
+
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()[:24] or str(fallback)
+
+
 def _enqueue_normalize_job(
     db: Session,
     *,
@@ -483,6 +641,22 @@ def _optional_int(value: Any) -> int | None:
     if value in (None, ""):
         return None
     return int(value)
+
+
+def _optional_int_tuple(value: Any) -> tuple[int, ...] | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, (str, int)):
+        value = [value]
+    return tuple(int(item) for item in value if str(item).strip())
+
+
+def _optional_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
 def _optional_date(value: Any) -> date | None:

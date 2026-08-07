@@ -194,6 +194,7 @@ class CeriSourceRecord(Base):
     raw_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     restricted_normalized_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    normalized_hash: Mapped[str | None] = mapped_column(String(128))
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
     export_policy: Mapped[str] = mapped_column(String(32), nullable=False, default="exportable")
     provider_retention_deadline: Mapped[date | None] = mapped_column(Date)
@@ -202,6 +203,9 @@ class CeriSourceRecord(Base):
     )
     correction_type: Mapped[str | None] = mapped_column(String(64))
     quarantine_reason: Mapped[str | None] = mapped_column(Text)
+    license_scope: Mapped[str | None] = mapped_column(Text)
+    redistribution_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    purge_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
         UniqueConstraint(
@@ -713,6 +717,30 @@ class CeriPurgeAudit(Base):
             name="uq_ceri_purge_audits_preview_scope",
         ),
         Index("ix_ceri_purge_audits_status", "status"),
+    )
+
+
+class CeriProviderRequestTelemetry(Base):
+    __tablename__ = "ceri_provider_request_telemetry"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    dataset: Mapped[str | None] = mapped_column(String(64))
+    endpoint: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_key: Mapped[str | None] = mapped_column(Text)
+    scope_hash: Mapped[str | None] = mapped_column(String(128))
+    status_code: Mapped[int | None] = mapped_column(Integer)
+    call_cost: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_ceri_provider_telemetry_provider_observed", "provider", "observed_at"),
+        Index("ix_ceri_provider_telemetry_endpoint_observed", "endpoint", "observed_at"),
     )
 
 
