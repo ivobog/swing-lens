@@ -106,6 +106,56 @@ def test_clean_postgresql_database_can_upgrade_to_alembic_head() -> None:
             )
 
 
+def test_wave1_ceri_lineage_migration_preserves_populated_rows() -> None:
+    database_name = f"swinglens_pytest_populated_ceri_{uuid.uuid4().hex[:12]}"
+    with _connect_admin_or_skip() as conn:
+        try:
+            conn.execute(sql.SQL("CREATE DATABASE {} ").format(sql.Identifier(database_name)))
+            database_url = _database_url_for(database_name)
+            upgrade = _run_alembic(database_url, "upgrade", "0027_ceri_provider_policy_telemetry")
+            assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
+            with psycopg.connect(
+                database_url.replace("+psycopg", ""), autocommit=True
+            ) as populated:
+                populated.execute(
+                    "INSERT INTO ceri_companies (ticker, exchange) VALUES (%s, %s)",
+                    ("MSFT", "US"),
+                )
+                populated.execute(
+                    """
+                    INSERT INTO ceri_source_records
+                    (provider, dataset, provider_record_id, content_hash, idempotency_key,
+                     export_policy, redistribution_allowed, purge_eligible)
+                    VALUES ('eodhd', 'estimates', 'fixture-1', 'hash-1', 'idem-1',
+                            'restricted', false, true)
+                    """
+                )
+                populated.execute(
+                    """
+                    INSERT INTO ceri_guidance_events
+                    (source_record_id, company_id, action, confidence)
+                    VALUES (1, 1, 'UNKNOWN', 'Normal')
+                    """
+                )
+            upgrade = _run_alembic(database_url, "upgrade", "head")
+            assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
+            with psycopg.connect(database_url.replace("+psycopg", ""), autocommit=True) as check:
+                source = check.execute(
+                    "SELECT provider_record_id, retrieved_at FROM ceri_source_records"
+                ).fetchone()
+                guidance = check.execute(
+                    "SELECT action, point_value, filing_accession FROM ceri_guidance_events"
+                ).fetchone()
+                assert source == ("fixture-1", None)
+                assert guidance == ("UNKNOWN", None, None)
+        finally:
+            conn.execute(
+                sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
+                    sql.Identifier(database_name)
+                )
+            )
+
+
 def test_migration_import_lint_rejects_live_model_imports() -> None:
     violations = find_live_model_imports()
 

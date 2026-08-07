@@ -18,9 +18,14 @@ from app.models.tables import (
     RawCompanyRow,
     UploadRun,
 )
-from app.services.background_job_service import JobLeaseLost
+from app.services.background_job_service import JobLeaseLost, enqueue_job
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
-from app.services.ceri.constants import CERI_PIPELINE_CAPTURE_STEP
+from app.services.ceri.constants import (
+    CERI_PIPELINE_CAPTURE_STEP,
+    CERI_PIPELINE_PROVIDER_INGEST_STEP,
+)
+from app.services.ceri.feature_flags import ceri_flags
+from app.services.ceri.job_handlers import CERI_PROVIDER_INGEST
 from app.services.combined_decision import refresh_combined_results
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
@@ -135,6 +140,8 @@ class PipelineExecutionDependencies:
     )
     capture_ceri_snapshot: Callable[[Session, int], Any] | None = None
     ceri_run_capture_enabled: bool | None = None
+    ceri_provider_ingest_enabled: bool | None = None
+    schedule_ceri_provider_ingest: Callable[[Session, int], Any] | None = None
     capture_setup_signals: Callable[[Session, int], Any] | None = None
     evaluate_setup_lifecycles: Callable[[Session, int], Any] | None = None
     setup_lifecycle_pipeline_step_enabled: bool | None = None
@@ -271,7 +278,21 @@ def execute_full_pipeline(
             result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get("weakest_sector")
             result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
 
-        if _ceri_run_capture_enabled(dependencies):
+        if _ceri_provider_ingest_enabled(dependencies):
+            _raise_if_cancelled(should_cancel)
+            with _pipeline_step(
+                db,
+                pipeline,
+                CERI_PIPELINE_PROVIDER_INGEST_STEP,
+                lease_guard=lease_guard,
+                performance=performance,
+            ):
+                schedule = (
+                    dependencies.schedule_ceri_provider_ingest
+                    or _schedule_ceri_provider_ingest
+                )
+                result["ceri_provider_jobs"] = int(schedule(db, upload_run.id) or 0)
+        elif _ceri_run_capture_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
                 db,
@@ -562,6 +583,7 @@ def _pipeline_status_for_step(step_name: str) -> str:
         PipelineStatus.MARKET_REGIME_SNAPSHOT,
         PipelineStatus.COMBINING_RESULTS,
         PipelineStatus.SECTOR_ROTATION_SNAPSHOT,
+        PipelineStatus.CERI_PROVIDER_INGEST,
         PipelineStatus.CERI_CAPTURE_SNAPSHOT,
         PipelineStatus.CAPTURING_SETUP_SIGNALS,
         PipelineStatus.EVALUATING_SETUP_LIFECYCLES,
@@ -781,9 +803,67 @@ def _setup_capture_handoff_enabled(dependencies: PipelineExecutionDependencies) 
 
 
 def _ceri_run_capture_enabled(dependencies: PipelineExecutionDependencies) -> bool:
+    if not ceri_flags().enabled:
+        return False
     if dependencies.ceri_run_capture_enabled is not None:
         return dependencies.ceri_run_capture_enabled
-    return get_settings().ceri_run_capture_enabled
+    return ceri_flags().run_capture
+
+
+def _ceri_provider_ingest_enabled(dependencies: PipelineExecutionDependencies) -> bool:
+    if not ceri_flags().enabled:
+        return False
+    if dependencies.ceri_provider_ingest_enabled is not None:
+        return dependencies.ceri_provider_ingest_enabled
+    return ceri_flags().provider_ingest
+
+
+def _schedule_ceri_provider_ingest(db: Session, run_id: int) -> int:
+    """Queue provider-specific ingestion jobs for the current SwingLens run."""
+    from app.services.ceri.enums import CeriDataset
+    from app.services.ceri.provider_registry import CeriProviderRegistry
+
+    tickers = sorted(
+        {
+            row.ticker.upper()
+            for row in db.scalars(select(RawCompanyRow).where(RawCompanyRow.run_id == run_id))
+            if row.ticker
+        }
+    )
+    registry = CeriProviderRegistry()
+    datasets_by_provider = {
+        "eodhd": (CeriDataset.ESTIMATES, CeriDataset.EARNINGS, CeriDataset.CATALYSTS),
+        "sec": (CeriDataset.GUIDANCE,),
+    }
+    scheduled = 0
+    for ticker in tickers:
+        for provider, datasets in datasets_by_provider.items():
+            try:
+                capabilities = registry.capabilities(provider)
+            except Exception:
+                continue
+            for dataset in datasets:
+                if dataset not in capabilities.datasets:
+                    continue
+                request_key = f"ceri:pipeline:{run_id}:{provider}:{dataset.value}:{ticker}"
+                enqueue_job(
+                    db,
+                    CERI_PROVIDER_INGEST,
+                    {
+                        "provider": provider,
+                        "dataset": dataset.value,
+                        "ticker": ticker,
+                        "run_id": run_id,
+                        "request_key": request_key,
+                        "scope": {"ticker": ticker, "run_id": run_id},
+                    },
+                    related_run_id=run_id,
+                    request_key=request_key,
+                    priority=110,
+                )
+                scheduled += 1
+    db.flush()
+    return scheduled
 
 
 def _winner_probability_capture_enabled(dependencies: PipelineExecutionDependencies) -> bool:

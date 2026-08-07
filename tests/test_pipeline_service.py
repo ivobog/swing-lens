@@ -3,6 +3,7 @@ import pytest
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
 from app.services.background_job_service import JobStatus
 from app.services.ceri.constants import CERI_PIPELINE_STEPS
+from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.pipeline_service import (
     FULL_PIPELINE_JOB_TYPE,
     PIPELINE_STEP_NAMES,
@@ -14,6 +15,18 @@ from app.services.pipeline_service import (
     start_pipeline,
 )
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
+
+
+@pytest.fixture(autouse=True)
+def _disable_optional_pipeline_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.pipeline_service.ceri_flags",
+        lambda: CeriFeatureFlags(True, False, False, False, False, False, False),
+    )
+    monkeypatch.setattr(
+        "app.services.pipeline_service.get_settings",
+        lambda: type("SettingsStub", (), {"setup_lifecycle_pipeline_step_enabled": False})(),
+    )
 
 
 def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:

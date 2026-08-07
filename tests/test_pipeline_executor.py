@@ -5,6 +5,7 @@ import pytest
 import app.services.pipeline_executor as pipeline_executor
 from app.models.tables import CombinedResult, IBFetchRun, PipelineRun, PipelineStep, UploadRun
 from app.services.background_job_service import JobLeaseLost
+from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.pipeline_executor import (
     PipelineCancelled,
@@ -14,6 +15,27 @@ from app.services.pipeline_executor import (
 )
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
+
+
+@pytest.fixture(autouse=True)
+def _disable_optional_runtime_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.pipeline_executor.ceri_flags",
+        lambda: CeriFeatureFlags(True, False, False, False, False, False, False),
+    )
+    monkeypatch.setattr(
+        "app.services.pipeline_executor.get_settings",
+        lambda: type(
+            "SettingsStub",
+            (),
+            {
+                "setup_lifecycle_pipeline_step_enabled": False,
+                "setup_capture_handoff_enabled": False,
+                "winner_probability_capture_in_pipeline": False,
+                "fetch_technical_overlap_enabled": False,
+            },
+        )(),
+    )
 
 
 def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> None:

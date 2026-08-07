@@ -36,6 +36,7 @@ from app.services.background_job_service import (
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.export_service import CeriExportService
+from app.services.ceri.feature_flags import ceri_flags, require_flag
 from app.services.ceri.job_handlers import (
     CERI_ALERT_REBUILD,
     CERI_BACKFILL,
@@ -62,11 +63,19 @@ from app.services.resource_limits import (
 from app.settings import get_settings
 from app.templates import templates
 
+
+def _require_ceri_ui(request: Request) -> None:
+    settings = getattr(request.app.state, "settings", None)
+    flags = ceri_flags(settings)
+    if not flags.ui:
+        raise HTTPException(status_code=404, detail="CERI UI is disabled.")
+
+
 router = APIRouter(tags=["ceri"])
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-@router.get("/ceri", response_class=HTMLResponse)
+@router.get("/ceri", response_class=HTMLResponse, dependencies=[Depends(_require_ceri_ui)])
 def ceri_dashboard_page(
     request: Request,
     db: DbSession,
@@ -132,7 +141,9 @@ def ceri_dashboard_page(
     )
 
 
-@router.get("/runs/{run_id}/ceri", response_class=HTMLResponse)
+@router.get(
+    "/runs/{run_id}/ceri", response_class=HTMLResponse, dependencies=[Depends(_require_ceri_ui)]
+)
 def ceri_run_page(
     run_id: int,
     request: Request,
@@ -177,7 +188,11 @@ def ceri_run_page(
     )
 
 
-@router.get("/ceri/ticker/{ticker}", response_class=HTMLResponse)
+@router.get(
+    "/ceri/ticker/{ticker}",
+    response_class=HTMLResponse,
+    dependencies=[Depends(_require_ceri_ui)],
+)
 def ceri_ticker_page(ticker: str, request: Request, db: DbSession) -> HTMLResponse:
     payload, ui_error = _ui_payload_or_empty(lambda: CeriQueryService().ticker(db, ticker))
     return templates.TemplateResponse(
@@ -191,7 +206,7 @@ def ceri_ticker_page(ticker: str, request: Request, db: DbSession) -> HTMLRespon
     )
 
 
-@router.get("/ceri/changes", response_class=HTMLResponse)
+@router.get("/ceri/changes", response_class=HTMLResponse, dependencies=[Depends(_require_ceri_ui)])
 def ceri_changes_page(
     request: Request,
     db: DbSession,
@@ -239,7 +254,11 @@ def ceri_changes_page(
     )
 
 
-@router.get("/ceri/operations", response_class=HTMLResponse)
+@router.get(
+    "/ceri/operations",
+    response_class=HTMLResponse,
+    dependencies=[Depends(_require_ceri_ui)],
+)
 def ceri_operations_page(request: Request, db: DbSession) -> HTMLResponse:
     operations = CeriQueryService().operations_status(db)
     quarantine, _quarantine_error = _ui_payload_or_empty(
@@ -276,7 +295,7 @@ def ceri_operations_page(request: Request, db: DbSession) -> HTMLResponse:
     )
 
 
-@router.get("/api/ceri/latest")
+@router.get("/api/ceri/latest", dependencies=[Depends(_require_ceri_ui)])
 def ceri_latest(
     db: DbSession,
     opportunity_min: float | None = None,
@@ -313,7 +332,7 @@ def ceri_latest(
     )
 
 
-@router.get("/api/ceri/run/{run_id}")
+@router.get("/api/ceri/run/{run_id}", dependencies=[Depends(_require_ceri_ui)])
 def ceri_run(
     run_id: int,
     db: DbSession,
@@ -331,12 +350,12 @@ def ceri_run(
     )
 
 
-@router.get("/api/ceri/ticker/{ticker}")
+@router.get("/api/ceri/ticker/{ticker}", dependencies=[Depends(_require_ceri_ui)])
 def ceri_ticker(ticker: str, db: DbSession) -> dict[str, Any]:
     return _query_or_http(lambda: CeriQueryService().ticker(db, ticker))
 
 
-@router.get("/api/ceri/ticker/{ticker}/history")
+@router.get("/api/ceri/ticker/{ticker}/history", dependencies=[Depends(_require_ceri_ui)])
 def ceri_ticker_history(
     ticker: str,
     db: DbSession,
@@ -363,7 +382,7 @@ def ceri_ticker_history(
     )
 
 
-@router.get("/api/ceri/changes")
+@router.get("/api/ceri/changes", dependencies=[Depends(_require_ceri_ui)])
 def ceri_changes(
     db: DbSession,
     ticker: str | None = None,
@@ -388,7 +407,7 @@ def ceri_changes(
     )
 
 
-@router.get("/api/ceri/events")
+@router.get("/api/ceri/events", dependencies=[Depends(_require_ceri_ui)])
 def ceri_events(
     db: DbSession,
     ticker: str | None = None,
@@ -419,12 +438,12 @@ def ceri_events(
     )
 
 
-@router.get("/api/ceri/events/{event_id}")
+@router.get("/api/ceri/events/{event_id}", dependencies=[Depends(_require_ceri_ui)])
 def ceri_event(event_id: int, db: DbSession) -> dict[str, Any]:
     return _query_or_http(lambda: CeriQueryService().event_detail(db, event_id))
 
 
-@router.get("/api/ceri/events/{event_id}/revisions")
+@router.get("/api/ceri/events/{event_id}/revisions", dependencies=[Depends(_require_ceri_ui)])
 def ceri_event_revisions(
     event_id: int,
     db: DbSession,
@@ -442,7 +461,7 @@ def ceri_event_revisions(
     )
 
 
-@router.get("/api/ceri/revisions")
+@router.get("/api/ceri/revisions", dependencies=[Depends(_require_ceri_ui)])
 def ceri_revisions(
     db: DbSession,
     ticker: str | None = None,
@@ -471,12 +490,12 @@ def ceri_revisions(
     )
 
 
-@router.get("/api/ceri/revisions/{revision_id}")
+@router.get("/api/ceri/revisions/{revision_id}", dependencies=[Depends(_require_ceri_ui)])
 def ceri_revision(revision_id: int, db: DbSession) -> dict[str, Any]:
     return _query_or_http(lambda: CeriQueryService().revision_detail(db, revision_id))
 
 
-@router.get("/api/ceri/alerts")
+@router.get("/api/ceri/alerts", dependencies=[Depends(_require_ceri_ui)])
 def ceri_alerts(
     db: DbSession,
     ticker: str | None = None,
@@ -494,7 +513,7 @@ def ceri_alerts(
     return result
 
 
-@router.get("/api/ceri/operations/quarantine")
+@router.get("/api/ceri/operations/quarantine", dependencies=[Depends(_require_ceri_ui)])
 def ceri_operations_quarantine(
     db: DbSession,
     sort: str = "ingested_at",
@@ -510,7 +529,7 @@ def ceri_operations_quarantine(
     )
 
 
-@router.get("/api/ceri/operations/conflicts")
+@router.get("/api/ceri/operations/conflicts", dependencies=[Depends(_require_ceri_ui)])
 def ceri_operations_conflicts(
     db: DbSession,
     sort: str = "id",
@@ -526,7 +545,7 @@ def ceri_operations_conflicts(
     )
 
 
-@router.get("/api/ceri/operations/stale")
+@router.get("/api/ceri/operations/stale", dependencies=[Depends(_require_ceri_ui)])
 def ceri_operations_stale(
     db: DbSession,
     sort: str = "stale_days",
@@ -542,12 +561,12 @@ def ceri_operations_stale(
     )
 
 
-@router.get("/api/ceri/operations/status")
+@router.get("/api/ceri/operations/status", dependencies=[Depends(_require_ceri_ui)])
 def ceri_operations_status(db: DbSession) -> dict[str, Any]:
     return CeriQueryService().operations_status(db)
 
 
-@router.get("/api/ceri/jobs/{job_id}")
+@router.get("/api/ceri/jobs/{job_id}", dependencies=[Depends(_require_ceri_ui)])
 def ceri_job_status(job_id: int, db: DbSession) -> dict[str, Any]:
     job = db.get(BackgroundJob, job_id)
     if job is None:
@@ -567,7 +586,7 @@ def ceri_job_status(job_id: int, db: DbSession) -> dict[str, Any]:
     }
 
 
-@router.get("/ceri/export.csv")
+@router.get("/ceri/export.csv", dependencies=[Depends(_require_ceri_ui)])
 def export_ceri_csv(
     db: DbSession,
     run_id: int | None = None,
@@ -588,7 +607,7 @@ def export_ceri_csv(
     )
 
 
-@router.get("/ceri/export.json")
+@router.get("/ceri/export.json", dependencies=[Depends(_require_ceri_ui)])
 def export_ceri_json(
     db: DbSession,
     run_id: int | None = None,
@@ -622,6 +641,7 @@ def create_ceri_ingestion_run(
     payload: dict[str, Any] | None = None,
 ) -> JSONResponse:
     _require_local_admin(request)
+    _require_child_flag(request, "provider_ingest")
     payload = dict(payload or {})
     if not payload.get("ticker") or not payload.get("dataset"):
         raise _structured_http_error(
@@ -652,6 +672,7 @@ def recalculate_ceri(
     _require_local_admin(request)
     payload = dict(payload or {})
     job_type = CERI_CAPTURE_RUN if payload.get("run_id") else CERI_REBUILD_FEATURES
+    _require_child_flag(request, "run_capture" if job_type == CERI_CAPTURE_RUN else "enabled")
     job = _enqueue_job_once(db, job_type, payload, related_run_id=payload.get("run_id"))
     db.commit()
     return _job_response(job, coalesced=getattr(job, "_coalesced", False))
@@ -745,6 +766,7 @@ def create_ceri_backfill(
     payload: dict[str, Any] | None = None,
 ) -> JSONResponse:
     _require_local_admin(request)
+    _require_child_flag(request, "backfill")
     payload = dict(payload or {})
     backfill_request = CeriBackfillRequest(
         provider=str(payload.get("provider") or "manual"),
@@ -795,6 +817,11 @@ def reprocess_ceri(
             f"Unsupported reprocess job_type: {job_type}",
             status_code=400,
         )
+    flag_name = {
+        CERI_CAPTURE_RUN: "run_capture",
+        CERI_ALERT_REBUILD: "alerts",
+    }.get(job_type, "enabled")
+    _require_child_flag(request, flag_name)
     job = _enqueue_job_once(db, job_type, payload, related_run_id=payload.get("run_id"))
     db.commit()
     return _job_response(job, coalesced=getattr(job, "_coalesced", False))
@@ -809,6 +836,7 @@ def reprocess_ceri(
 )
 def acknowledge_ceri_alert(alert_id: int, request: Request, db: DbSession) -> dict[str, Any]:
     _require_local_admin(request)
+    _require_child_flag(request, "alerts")
     alert = db.get(CeriAlertEvent, alert_id)
     if alert is None:
         raise _structured_http_error(
@@ -828,6 +856,7 @@ def acknowledge_ceri_alert(alert_id: int, request: Request, db: DbSession) -> di
 )
 def dismiss_ceri_alert(alert_id: int, request: Request, db: DbSession) -> dict[str, Any]:
     _require_local_admin(request)
+    _require_child_flag(request, "alerts")
     alert = db.get(CeriAlertEvent, alert_id)
     if alert is None:
         raise _structured_http_error(
@@ -858,9 +887,7 @@ def preview_ceri_purge(
             "provider and license_scope are required.",
             status_code=400,
         )
-    payload["preview_manifest_hash"] = payload.get("preview_manifest_hash") or _stable_request_key(
-        payload
-    )
+    payload.pop("preview_manifest_hash", None)
     job = _enqueue_job_once(db, CERI_PURGE_LICENSED_DATA, payload)
     db.commit()
     return _job_response(job, coalesced=getattr(job, "_coalesced", False))
@@ -1025,20 +1052,28 @@ def _provider_health_payload() -> list[dict[str, Any]]:
 
 def _admin_enabled(request: Request) -> bool:
     settings = getattr(request.app.state, "settings", None)
-    return bool(settings and settings.ceri_admin_enabled)
+    return ceri_flags(settings).admin
 
 
 def _require_local_admin(request: Request) -> None:
     settings = getattr(request.app.state, "settings", None)
     require_local_admin(
         request,
-        enabled=bool(settings and settings.ceri_admin_enabled),
+        enabled=ceri_flags(settings).admin,
         disabled_message="CERI admin is disabled.",
         local_only_message="CERI admin is local only.",
         csrf_message="CERI admin CSRF token is required.",
         structured_code="ADMIN_FORBIDDEN",
         csrf_required=True,
     )
+
+
+def _require_child_flag(request: Request, name: str) -> None:
+    settings = getattr(request.app.state, "settings", None)
+    try:
+        require_flag(ceri_flags(settings), name)
+    except Exception as exc:
+        raise _structured_http_error("CERI_DISABLED", str(exc), status_code=404) from exc
 
 
 def _enqueue_job_once(

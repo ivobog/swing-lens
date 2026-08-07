@@ -11,6 +11,8 @@ from app.models.ceri_tables import (
     CeriCatalystEvent,
     CeriCatalystEventRevision,
     CeriCatalystSource,
+    CeriCompany,
+    CeriCompanyAlias,
     CeriEarningsActual,
     CeriEstimateSnapshot,
     CeriGuidanceEvent,
@@ -92,6 +94,7 @@ class CeriNormalizationService:
                     source_record,
                     company_id=resolution.company_id,
                 )
+                _persist_sec_identity(db, source_record, resolution.company_id)
                 normalized += created
                 warning_count += _warning_count_for_last(db)
                 processing_run.checkpoint_json = {
@@ -287,6 +290,50 @@ def _source_records(db: Session, ingestion_run_id: int | None) -> list[CeriSourc
         statement = statement.where(CeriSourceRecord.ingestion_run_id == ingestion_run_id)
     result = scalars(statement)
     return list(result.all() if hasattr(result, "all") else result)
+
+
+def _persist_sec_identity(
+    db: Session,
+    source_record: CeriSourceRecord,
+    company_id: int | None,
+) -> None:
+    """Persist the SEC CIK learned during ingestion for future resolution.
+
+    SEC's public ticker map is an external lookup aid, not durable SwingLens
+    identity evidence.  Once a source record resolves successfully, retain
+    the CIK on the canonical company and as a provider alias so subsequent
+    runs do not depend on a fresh ticker-map lookup.
+    """
+    if source_record.provider != "sec" or company_id is None:
+        return
+    payload = source_record.raw_json or source_record.restricted_normalized_json or {}
+    cik_value = payload.get("cik") or payload.get("provider_company_id")
+    if cik_value in (None, ""):
+        return
+    cik = str(cik_value).zfill(10)
+    company = getattr(db, "get", lambda *_args: None)(CeriCompany, company_id)
+    if company is not None and not company.cik:
+        company.cik = cik
+    scalar = getattr(db, "scalar", None)
+    if not callable(scalar):
+        return
+    existing = scalar(
+        select(CeriCompanyAlias)
+        .where(CeriCompanyAlias.provider == "sec")
+        .where(CeriCompanyAlias.alias_type == "cik")
+        .where(CeriCompanyAlias.alias_value == cik)
+    )
+    if existing is None:
+        db.add(
+            CeriCompanyAlias(
+                company_id=company_id,
+                provider="sec",
+                alias_type="cik",
+                alias_value=cik,
+                source="sec-guidance-ingestion",
+                confidence="High",
+            )
+        )
 
 
 def _find_catalyst_event(

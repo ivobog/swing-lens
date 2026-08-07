@@ -178,7 +178,9 @@ def _top_contributors(
 ) -> list[dict[str, Any]]:
     rows = []
     for component in components:
-        contribution = component.contribution or 0.0
+        contribution = (
+            component.contribution if component.contribution is not None else 0.0
+        )
         if positive and contribution <= 0:
             continue
         if not positive and contribution >= 0:

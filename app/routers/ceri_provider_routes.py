@@ -3,14 +3,22 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.provider_registry import CeriProviderRegistry, CeriProviderRegistryError
+
+
+def _require_ceri_provider_ui(request: Request) -> None:
+    settings = getattr(request.app.state, "settings", None)
+    if not ceri_flags(settings).ui:
+        raise HTTPException(status_code=404, detail="CERI UI is disabled.")
+
 
 router = APIRouter(tags=["ceri-providers"])
 
 
-@router.get("/api/ceri/providers/health")
+@router.get("/api/ceri/providers/health", dependencies=[Depends(_require_ceri_provider_ui)])
 def ceri_provider_health() -> dict[str, Any]:
     registry = CeriProviderRegistry()
     providers = []

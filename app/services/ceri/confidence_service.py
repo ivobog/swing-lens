@@ -76,7 +76,11 @@ class CeriConfidenceService:
 
 
 def _freshness_score(as_of_session: date, features: list[CeriRevisionFeature]) -> float:
-    elapsed = [feature.actual_elapsed_days for feature in features if feature.actual_elapsed_days]
+    elapsed = [
+        feature.actual_elapsed_days
+        for feature in features
+        if feature.actual_elapsed_days is not None
+    ]
     if not elapsed:
         return 4.0
     newest_age = min(abs((as_of_session - feature.as_of_session).days) for feature in features)

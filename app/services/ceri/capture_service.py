@@ -11,6 +11,8 @@ from app.models.ceri_tables import (
     CeriCatalystEventRevision,
     CeriChangeEvent,
     CeriCompany,
+    CeriEarningsActual,
+    CeriEstimateSnapshot,
     CeriGuidanceEvent,
     CeriRevisionFeature,
     CeriScoreSnapshot,
@@ -21,10 +23,10 @@ from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureServic
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.confidence_service import CeriConfidenceService
 from app.services.ceri.event_risk_service import CeriEventRiskService
+from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.opportunity_score_service import CeriOpportunityScoreService
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
-from app.settings import get_settings
 
 
 @dataclass(frozen=True)
@@ -63,9 +65,7 @@ class CeriRunCaptureService:
     ) -> None:
         self.snapshot_service = snapshot_service or CeriSnapshotService()
         self.change_detection = change_detection or CeriChangeDetectionService()
-        self.alert_service = alert_service or CeriAlertService(
-            alerts_enabled=get_settings().ceri_alerts_enabled
-        )
+        self.alert_service = alert_service or CeriAlertService(alerts_enabled=ceri_flags().alerts)
         self.opportunity = CeriOpportunityScoreService(config=self.snapshot_service.config)
         self.risk = CeriEventRiskService(config=self.snapshot_service.config)
         self.confidence = CeriConfidenceService(config=self.snapshot_service.config)
@@ -73,6 +73,8 @@ class CeriRunCaptureService:
         self.catalysts = CeriCatalystFeatureService(config=self.snapshot_service.config)
 
     def capture_run(self, db: Session, run_id: int) -> CeriRunCaptureResult:
+        if not ceri_flags().run_capture:
+            return CeriRunCaptureResult(skipped=1)
         rows = _raw_rows_for_run(db, run_id)
         if not rows:
             return CeriRunCaptureResult(skipped=1)
@@ -107,30 +109,44 @@ class CeriRunCaptureService:
                     cutoff_at.date(),
                     self.catalysts,
                 )
-                counts["conflicted"] += sum(
-                    bool(feature.warnings_json) for feature in features
+                company_conflicted = sum(
+                    _is_conflict_warning(feature.warnings_json) for feature in features
                 )
-                counts["stale"] += sum(
-                    "estimate_data_stale" in (feature.warnings_json or [])
-                    for feature in features
+                company_stale = sum(
+                    "estimate_data_stale" in (feature.warnings_json or []) for feature in features
                 )
+                counts["conflicted"] += company_conflicted
+                counts["stale"] += company_stale
+                earnings = _scalars(
+                    db,
+                    select(CeriEarningsActual).where(CeriEarningsActual.company_id == company.id),
+                )
+                estimates = _scalars(
+                    db,
+                    select(CeriEstimateSnapshot).where(
+                        CeriEstimateSnapshot.company_id == company.id
+                    ),
+                )
+                surprise_summary = self.surprise.summarize(earnings, estimates)
                 confidence = self.confidence.calculate(
                     as_of_session=cutoff_at.date(),
                     revision_features=features,
-                    conflict_penalty=float(counts["conflicted"]),
+                    conflict_penalty=float(company_conflicted),
                 )
                 opportunity = self.opportunity.calculate(
                     revision_features=features,
+                    surprise_summary=surprise_summary,
                     guidance_events=_guidance_for_company(db, company.id, cutoff_at.date()),
                     catalyst_features=catalyst_features,
-                    conflict_penalty=min(3.0, float(counts["conflicted"])),
+                    price_response_quality=surprise_summary.price_response_quality,
+                    conflict_penalty=min(3.0, float(company_conflicted)),
                 )
                 risk = self.risk.calculate(
                     as_of_session=cutoff_at.date(),
                     next_earnings_session=row.upcoming_earnings_date,
                     catalyst_features=catalyst_features,
-                    stale=bool(counts["stale"]),
-                    conflict_penalty=min(3.0, float(counts["conflicted"])),
+                    stale=bool(company_stale),
+                    conflict_penalty=min(3.0, float(company_conflicted)),
                 )
                 source_ids = _source_ids(features)
                 snapshot = self.snapshot_service.build_snapshot(
@@ -280,9 +296,9 @@ def _latest_changes(db: Session, company_id: int, limit: int):
         db,
         select(CeriChangeEvent).where(CeriChangeEvent.company_id == company_id),
     )
-    return [
-        change for change in changes if getattr(change, "company_id", None) == company_id
-    ][-limit:]
+    return [change for change in changes if getattr(change, "company_id", None) == company_id][
+        -limit:
+    ]
 
 
 def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:
@@ -293,13 +309,11 @@ def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:
 
 
 def _quarantined_count(db: Session) -> int:
-    return len(
-        [
-            row
-            for row in getattr(db, "added", [])
-            if getattr(row, "quarantine_reason", None)
-        ]
-    )
+    return len([row for row in getattr(db, "added", []) if getattr(row, "quarantine_reason", None)])
+
+
+def _is_conflict_warning(warnings: list[str] | None) -> bool:
+    return any("conflict" in str(value).lower() for value in (warnings or []))
 
 
 def _maybe_scalar(db: Session, statement):

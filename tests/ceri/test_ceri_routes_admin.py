@@ -149,7 +149,11 @@ def _admin_request(*, csrf: bool = True, enabled: bool = True):
                 settings=Settings(
                     _env_file=None,
                     job_worker_enabled=False,
+                    ceri_enabled=True,
                     ceri_admin_enabled=enabled,
+                    ceri_provider_ingest_enabled=True,
+                    ceri_backfill_enabled=True,
+                    ceri_alerts_enabled=True,
                 )
             )
         ),

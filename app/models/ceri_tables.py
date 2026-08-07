@@ -184,6 +184,7 @@ class CeriSourceRecord(Base):
     company_hint_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -339,10 +340,15 @@ class CeriGuidanceEvent(Base):
     period_label: Mapped[str | None] = mapped_column(Text)
     low_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     high_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
+    point_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
+    unit: Mapped[str | None] = mapped_column(String(32))
+    currency: Mapped[str | None] = mapped_column(String(16))
     comparison_basis: Mapped[str | None] = mapped_column(Text)
     confidence: Mapped[str] = mapped_column(String(32), nullable=False, default="Normal")
     effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     effective_session: Mapped[date | None] = mapped_column(Date)
+    evidence_locator: Mapped[str | None] = mapped_column(Text)
+    filing_accession: Mapped[str | None] = mapped_column(String(64))
     supersedes_id: Mapped[int | None] = mapped_column(
         ForeignKey("ceri_guidance_events.id", ondelete="SET NULL")
     )

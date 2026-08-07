@@ -127,7 +127,6 @@ def test_purge_job_records_processing_run_and_purge_audit() -> None:
         payload_json={
             "provider": "manual",
             "license_scope": "estimates",
-            "preview_manifest_hash": "abc123",
         },
     )
 
@@ -140,7 +139,7 @@ def test_purge_job_records_processing_run_and_purge_audit() -> None:
     assert result["processing_run_id"] == processing_run.id
     assert result["purge_audit_id"] == purge_audit.id
     assert processing_run.status == "COMPLETED"
-    assert processing_run.checkpoint_json["preview_manifest_hash"] == "abc123"
+    assert processing_run.checkpoint_json["preview_manifest_hash"]
 
 
 class FakeCaptureService:

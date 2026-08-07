@@ -46,12 +46,33 @@ class CeriGuidanceNormalizer:
             metric=_optional_enum_value(payload.get("metric"), CeriMetric),
             period_type=_optional_enum_value(payload.get("period_type"), CeriPeriodType),
             period_label=_text(payload.get("period_label")),
-            low_value=decimal_or_none(payload.get("low_value") or payload.get("low")),
-            high_value=decimal_or_none(payload.get("high_value") or payload.get("high")),
+            low_value=decimal_or_none(
+                payload.get("low_value")
+                if payload.get("low_value") is not None
+                else payload.get("low")
+            ),
+            high_value=decimal_or_none(
+                payload.get("high_value")
+                if payload.get("high_value") is not None
+                else payload.get("high")
+            ),
+            point_value=decimal_or_none(
+                payload.get("point_value")
+                if payload.get("point_value") is not None
+                else payload.get("point")
+            ),
+            unit=_text(
+                payload.get("unit") if payload.get("unit") is not None else payload.get("units")
+            ),
+            currency=_text(payload.get("currency")),
             comparison_basis=_text(payload.get("comparison_basis")),
             confidence=_confidence(payload.get("confidence")).value,
             effective_at=session.effective_at,
             effective_session=session.effective_session,
+            evidence_locator=_text(
+                payload.get("evidence_locator") or payload.get("source_reference")
+            ),
+            filing_accession=_text(payload.get("filing_accession") or payload.get("accession")),
             quality_warnings_json=list(session.warnings) or None,
         )
 
@@ -66,7 +87,14 @@ def normalize_guidance_action(value: Any) -> GuidanceAction:
 def _confidence(value: Any) -> CeriConfidenceLabel:
     if value in (None, ""):
         return CeriConfidenceLabel.NORMAL
-    return CeriConfidenceLabel(str(value))
+    normalized = str(value).strip().lower()
+    aliases = {
+        "high": CeriConfidenceLabel.HIGH,
+        "normal": CeriConfidenceLabel.NORMAL,
+        "low": CeriConfidenceLabel.LOW,
+        "insufficient": CeriConfidenceLabel.INSUFFICIENT,
+    }
+    return aliases.get(normalized, CeriConfidenceLabel.INSUFFICIENT)
 
 
 def _optional_enum_value(value: Any, enum_type) -> str | None:

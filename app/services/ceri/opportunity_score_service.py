@@ -44,13 +44,20 @@ class CeriOpportunityScoreService:
             self._component("catalysts", _catalyst_score(catalyst_features)),
             self._component("price_response", price_response_quality),
         )
-        score = sum(component.contribution or 0.0 for component in components)
+        score = sum(
+            component.contribution
+            if component.contribution is not None
+            else 0.0
+            for component in components
+        )
         score = max(0.0, min(10.0, score - conflict_penalty))
         warnings = tuple(
             warning for component in components for warning in component.warnings
         )
         reasons = tuple(
-            component.name for component in components if (component.contribution or 0.0) > 0
+            component.name
+            for component in components
+            if component.contribution is not None and component.contribution > 0
         )
         if conflict_penalty:
             reasons = (*reasons, "conflict_penalty")
@@ -75,7 +82,11 @@ class CeriOpportunityScoreService:
 
 
 def _revision_magnitude(features: list[CeriRevisionFeature]) -> float | None:
-    values = [abs(float(feature.pct_change)) * 100 for feature in features if feature.pct_change]
+    values = [
+        abs(float(feature.pct_change)) * 100
+        for feature in features
+        if feature.pct_change is not None
+    ]
     if not values:
         return None
     return min(10.0, sum(values) / len(values))

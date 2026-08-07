@@ -106,7 +106,9 @@ def test_provider_health_route_exposes_provider_capabilities() -> None:
 
 
 def test_create_app_registers_phase_8_routes() -> None:
-    app = create_app(Settings(_env_file=None, job_worker_enabled=False))
+    app = create_app(
+        Settings(_env_file=None, job_worker_enabled=False, ceri_enabled=True, ceri_ui_enabled=True)
+    )
     ceri_paths = {route.path for route in ceri_routes.router.routes}
     provider_paths = {route.path for route in ceri_provider_routes.router.routes}
 
@@ -120,7 +122,9 @@ def test_create_app_registers_phase_8_routes() -> None:
 
 def test_ceri_latest_endpoint_round_trips_through_app(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeQueryService())
-    app = create_app(Settings(_env_file=None, job_worker_enabled=False))
+    app = create_app(
+        Settings(_env_file=None, job_worker_enabled=False, ceri_enabled=True, ceri_ui_enabled=True)
+    )
     app.dependency_overrides[get_db] = lambda: object()
 
     response = TestClient(app).get("/api/ceri/latest?limit=5")

@@ -8,7 +8,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriChangeEvent, CeriCompany, CeriProcessingRun
+from app.models.ceri_tables import (
+    CeriChangeEvent,
+    CeriCompany,
+    CeriProcessingRun,
+    CeriScoreSnapshot,
+)
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
 from app.services.background_worker import CancelRequested
@@ -21,6 +26,7 @@ from app.services.ceri.change_rebuild_service import (
 )
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
+from app.services.ceri.feature_flags import ceri_flags, parse_explicit_bool
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
@@ -39,7 +45,6 @@ from app.services.ceri.purge_service import (
     CeriPurgePreviewRequest,
     CeriPurgeService,
 )
-from app.settings import get_settings
 
 CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
 CERI_NORMALIZE = "CERI_NORMALIZE"
@@ -72,6 +77,8 @@ def execute_provider_ingest_job(
     *,
     ingestion_service: CeriIngestionService | None = None,
 ) -> dict[str, Any]:
+    if not ceri_flags().provider_ingest:
+        return _skipped_job(CERI_PROVIDER_INGEST, "provider_ingest_disabled")
     payload = job.payload_json or {}
     dataset = _dataset(payload)
     provider = str(payload.get("provider") or "manual")
@@ -94,6 +101,17 @@ def execute_provider_ingest_job(
         )
     except CeriIngestionCancelled as exc:
         raise CancelRequested(str(exc)) from exc
+    except Exception as exc:
+        job.status = JobStatus.PARTIAL
+        return {
+            "job_type": CERI_PROVIDER_INGEST,
+            "status": "PARTIAL",
+            "provider": provider,
+            "dataset": dataset.value,
+            "ticker": ticker,
+            "failed": 1,
+            "error": _safe_job_error(exc),
+        }
 
     values = result.as_dict()
     normalize_job_id = _enqueue_normalize_job(
@@ -119,6 +137,8 @@ def execute_normalize_job(
     *,
     normalization_service: CeriNormalizationService | None = None,
 ) -> dict[str, Any]:
+    if not ceri_flags().enabled:
+        return _skipped_job(CERI_NORMALIZE, "ceri_disabled")
     payload = job.payload_json or {}
     request_key = str(payload.get("request_key") or f"ceri:normalize:{job.id}")
     existing = _maybe_scalar(
@@ -126,13 +146,22 @@ def execute_normalize_job(
         select(CeriProcessingRun).where(CeriProcessingRun.deterministic_request_key == request_key),
     )
     if existing is not None:
-        return {
+        values = {
             "job_type": CERI_NORMALIZE,
             "processing_run_id": existing.id,
             "status": existing.status,
             "normalized": existing.normalized_count,
             "coalesced": True,
         }
+        feature_job_id = _enqueue_feature_rebuild_after_normalize(
+            db,
+            source_job=job,
+            source_payload=payload,
+            normalize_result=values,
+        )
+        if feature_job_id is not None:
+            values["feature_job_id"] = feature_job_id
+        return values
 
     started_at = _utcnow()
     processing_run = CeriProcessingRun(
@@ -154,7 +183,13 @@ def execute_normalize_job(
         processing_run=processing_run,
         ingestion_run_id=_optional_int(payload.get("ingestion_run_id")),
     )
-    return {"job_type": CERI_NORMALIZE, **result.as_dict()}
+    values = {"job_type": CERI_NORMALIZE, **result.as_dict()}
+    feature_job_id = _enqueue_feature_rebuild_after_normalize(
+        db, source_job=job, source_payload=payload, normalize_result=values
+    )
+    if feature_job_id is not None:
+        values["feature_job_id"] = feature_job_id
+    return values
 
 
 def execute_rebuild_features_job(
@@ -163,6 +198,8 @@ def execute_rebuild_features_job(
     *,
     feature_service: CeriFeatureRebuildService | None = None,
 ) -> dict[str, Any]:
+    if not ceri_flags().enabled:
+        return _skipped_job(CERI_REBUILD_FEATURES, "ceri_disabled")
     payload = job.payload_json or {}
     processing, created = _processing_run(
         db,
@@ -171,12 +208,16 @@ def execute_rebuild_features_job(
         default_request_key=f"ceri:feature-rebuild:{_scope_key(payload, job.id)}",
     )
     if not created and processing.status == "COMPLETED":
-        return {
+        values = {
             "job_type": CERI_REBUILD_FEATURES,
             "processing_run_id": processing.id,
             "status": processing.status,
             "coalesced": True,
         }
+        capture_job_id = _enqueue_capture_after_features(db, job=job, payload=payload)
+        if capture_job_id is not None:
+            values["capture_job_id"] = capture_job_id
+        return values
     result = (feature_service or CeriFeatureRebuildService()).rebuild(
         db,
         CeriFeatureRebuildRequest(
@@ -201,12 +242,16 @@ def execute_rebuild_features_job(
         },
         errors={"records": list(result.errors)} if result.errors else None,
     )
-    return {
+    values = {
         "job_type": CERI_REBUILD_FEATURES,
         "processing_run_id": processing.id,
         "status": processing.status,
         **result.as_dict(),
     }
+    capture_job_id = _enqueue_capture_after_features(db, job=job, payload=payload)
+    if capture_job_id is not None:
+        values["capture_job_id"] = capture_job_id
+    return values
 
 
 def execute_capture_run_job(
@@ -215,6 +260,8 @@ def execute_capture_run_job(
     *,
     capture_service: CeriRunCaptureService | None = None,
 ) -> dict[str, Any]:
+    if not ceri_flags().run_capture:
+        return _skipped_job(CERI_CAPTURE_RUN, "run_capture_disabled")
     payload = job.payload_json or {}
     run_id = _required_int(payload, "run_id")
     processing, created = _processing_run(
@@ -224,12 +271,20 @@ def execute_capture_run_job(
         default_request_key=f"ceri:capture-run:{run_id}",
     )
     if not created and processing.status == "COMPLETED":
-        return {
+        values = {
             "job_type": CERI_CAPTURE_RUN,
             "processing_run_id": processing.id,
             "status": processing.status,
             "coalesced": True,
         }
+        change_job_id = _enqueue_change_after_capture(
+            db,
+            job=job,
+            run_id=run_id,
+        )
+        if change_job_id is not None:
+            values["change_job_id"] = change_job_id
+        return values
     result = (capture_service or CeriRunCaptureService()).capture_run(db, run_id)
     values = result.as_dict()
     CeriProcessingRunService().finish(
@@ -245,6 +300,9 @@ def execute_capture_run_job(
         },
         checkpoint={"run_id": run_id},
     )
+    change_job_id = _enqueue_change_after_capture(db, job=job, run_id=run_id)
+    if change_job_id is not None:
+        values["change_job_id"] = change_job_id
     return {"job_type": CERI_CAPTURE_RUN, "processing_run_id": processing.id, **values}
 
 
@@ -254,6 +312,8 @@ def execute_change_detection_job(
     *,
     change_service: CeriChangeRebuildService | None = None,
 ) -> dict[str, Any]:
+    if not ceri_flags().enabled:
+        return _skipped_job(CERI_CHANGE_DETECTION, "ceri_disabled")
     payload = job.payload_json or {}
     processing, created = _processing_run(
         db,
@@ -262,12 +322,16 @@ def execute_change_detection_job(
         default_request_key=f"ceri:change-rebuild:{_scope_key(payload, job.id)}",
     )
     if not created and processing.status == "COMPLETED":
-        return {
+        values = {
             "job_type": CERI_CHANGE_DETECTION,
             "processing_run_id": processing.id,
             "status": processing.status,
             "coalesced": True,
         }
+        alert_job_id = _enqueue_alert_after_change(db, job=job, payload=payload)
+        if alert_job_id is not None:
+            values["alert_job_id"] = alert_job_id
+        return values
     result = (change_service or CeriChangeRebuildService()).rebuild(
         db,
         CeriChangeRebuildRequest(
@@ -291,12 +355,18 @@ def execute_change_detection_job(
         checkpoint={"scope": payload.get("scope") or payload, "change_count": result.changes},
         errors={"records": list(result.errors)} if result.errors else None,
     )
-    return {
+    values = {
         "job_type": CERI_CHANGE_DETECTION,
         "processing_run_id": processing.id,
         "status": processing.status,
         **result.as_dict(),
     }
+    alert_job_id = (
+        _enqueue_alert_after_change(db, job=job, payload=payload) if result.changes else None
+    )
+    if alert_job_id is not None:
+        values["alert_job_id"] = alert_job_id
+    return values
 
 
 def execute_backfill_job(
@@ -305,6 +375,8 @@ def execute_backfill_job(
     *,
     backfill_service: CeriBackfillService | None = None,
 ) -> dict[str, Any]:
+    if not ceri_flags().backfill:
+        return _skipped_job(CERI_BACKFILL, "backfill_disabled")
     payload = job.payload_json or {}
     result = (backfill_service or CeriBackfillService()).run(
         db,
@@ -325,6 +397,8 @@ def execute_backfill_job(
 
 
 def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
+    if not ceri_flags().alerts:
+        return _skipped_job(CERI_ALERT_REBUILD, "alerts_disabled")
     payload = job.payload_json or {}
     processing, created = _processing_run(
         db,
@@ -345,11 +419,7 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         for company in _load_rows(db, CeriCompany)
         if company.id in {change.company_id for change in changes}
     }
-    alerts_enabled = (
-        payload["alerts_enabled"]
-        if "alerts_enabled" in payload
-        else get_settings().ceri_alerts_enabled
-    )
+    alerts_enabled = parse_explicit_bool(payload.get("alerts_enabled"), default=ceri_flags().alerts)
     result = CeriAlertService(alerts_enabled=bool(alerts_enabled)).rebuild_alerts(
         db,
         changes=changes,
@@ -381,14 +451,17 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
 
 
 def execute_purge_licensed_data_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
+    if not ceri_flags().admin:
+        return _skipped_job(CERI_PURGE_LICENSED_DATA, "admin_disabled")
     payload = job.payload_json or {}
-    preview_hash = str(payload.get("preview_manifest_hash") or f"preview:{job.id}")
-    execute = bool(payload.get("execute"))
+    execute = parse_explicit_bool(payload.get("execute"), default=False)
+    preview_hash = str(payload.get("preview_manifest_hash") or "")
+    processing_key = preview_hash or f"scope:{_scope_key(payload, job.id)}"
     processing, created = _processing_run(
         db,
         CERI_PURGE_LICENSED_DATA,
         payload,
-        default_request_key=f"ceri:purge:{preview_hash}",
+        default_request_key=f"ceri:purge:{processing_key}",
     )
     if not created and processing.status == "COMPLETED":
         return {
@@ -420,7 +493,7 @@ def execute_purge_licensed_data_job(db: Session, job: BackgroundJob) -> dict[str
                 license_scope=str(payload.get("license_scope") or "manual"),
                 actor=str(payload.get("actor") or "system"),
                 reason=str(payload.get("reason") or "licensed data purge preview"),
-                preview_manifest_hash=preview_hash,
+                preview_manifest_hash=preview_hash or None,
             ),
             job_id=job.id,
             processing_run_id=processing.id,
@@ -523,6 +596,18 @@ def _processing_run(
 
 def _eligible_changes(db: Session, payload: dict[str, Any]) -> list[CeriChangeEvent]:
     changes = _load_rows(db, CeriChangeEvent)
+    run_id = _optional_int(payload.get("run_id"))
+    if run_id is not None:
+        snapshots = {
+            snapshot.id
+            for snapshot in _load_rows(db, CeriScoreSnapshot)
+            if snapshot.run_id == run_id
+        }
+        changes = [
+            change
+            for change in changes
+            if change.from_snapshot_id in snapshots or change.to_snapshot_id in snapshots
+        ]
     ids = {int(value) for value in payload.get("change_ids", []) if str(value).isdigit()}
     if ids:
         changes = [change for change in changes if change.id in ids]
@@ -594,6 +679,8 @@ def _enqueue_normalize_job(
             "provider": ingestion_result["provider"],
             "dataset": ingestion_result["dataset"],
             "scope": source_payload.get("scope") or {"ticker": source_payload.get("ticker")},
+            "ticker": source_payload.get("ticker"),
+            "run_id": source_payload.get("run_id") or source_job.related_run_id,
             "config_version": source_payload.get("config_version"),
             "config_hash": source_payload.get("config_hash"),
             "actor": source_payload.get("actor"),
@@ -604,6 +691,100 @@ def _enqueue_normalize_job(
         request_key=request_key,
     )
     return job.id
+
+
+def _enqueue_feature_rebuild_after_normalize(
+    db: Session,
+    *,
+    source_job: BackgroundJob,
+    source_payload: dict[str, Any],
+    normalize_result: dict[str, Any],
+) -> int | None:
+    if normalize_result.get("status") == "CANCELLED":
+        return None
+    ticker = source_payload.get("ticker")
+    if not ticker:
+        return None
+    upstream_id = normalize_result.get("processing_run_id") or source_job.id
+    request_key = f"ceri:feature-rebuild:upstream:{upstream_id}"
+    job = enqueue_job(
+        db,
+        CERI_REBUILD_FEATURES,
+        {
+            "request_key": request_key,
+            "ticker": str(ticker).upper(),
+            "run_id": source_payload.get("run_id") or source_job.related_run_id,
+            "scope": source_payload.get("scope") or {"ticker": str(ticker).upper()},
+            "mode": "AS_KNOWN",
+        },
+        related_run_id=source_payload.get("run_id") or source_job.related_run_id,
+        priority=(source_job.priority or 100) + 10,
+        max_retries=source_job.max_retries or 3,
+        request_key=request_key,
+    )
+    return job.id
+
+
+def _enqueue_capture_after_features(
+    db: Session, *, job: BackgroundJob, payload: dict[str, Any]
+) -> int | None:
+    if not ceri_flags().run_capture:
+        return None
+    run_id = _optional_int(payload.get("run_id") or job.related_run_id)
+    if run_id is None:
+        return None
+    request_key = f"ceri:capture-run:{run_id}"
+    capture_job = enqueue_job(
+        db,
+        CERI_CAPTURE_RUN,
+        {"request_key": request_key, "run_id": run_id},
+        related_run_id=run_id,
+        priority=(job.priority or 100) + 10,
+        max_retries=job.max_retries or 3,
+        request_key=request_key,
+    )
+    return capture_job.id
+
+
+def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: int) -> int | None:
+    request_key = f"ceri:change-rebuild:run:{run_id}"
+    change_job = enqueue_job(
+        db,
+        CERI_CHANGE_DETECTION,
+        {"request_key": request_key, "run_id": run_id},
+        related_run_id=run_id,
+        priority=(job.priority or 100) + 10,
+        max_retries=job.max_retries or 3,
+        request_key=request_key,
+    )
+    return change_job.id
+
+
+def _enqueue_alert_after_change(
+    db: Session, *, job: BackgroundJob, payload: dict[str, Any]
+) -> int | None:
+    if not ceri_flags().alerts:
+        return None
+    upstream_id = payload.get("run_id") or job.related_run_id or job.id
+    request_key = f"ceri:alert-rebuild:upstream:{upstream_id}"
+    alert_job = enqueue_job(
+        db,
+        CERI_ALERT_REBUILD,
+        {"request_key": request_key, "run_id": payload.get("run_id")},
+        related_run_id=job.related_run_id,
+        priority=(job.priority or 100) + 10,
+        max_retries=job.max_retries or 3,
+        request_key=request_key,
+    )
+    return alert_job.id
+
+
+def _skipped_job(job_type: str, reason: str) -> dict[str, Any]:
+    return {"job_type": job_type, "status": "SKIPPED", "skipped": 1, "reason": reason}
+
+
+def _safe_job_error(exc: Exception) -> str:
+    return str(exc).replace("\n", " ").strip()[:500] or exc.__class__.__name__
 
 
 def _heartbeat_and_check_cancel(db: Session, job: BackgroundJob) -> bool:

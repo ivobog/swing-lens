@@ -57,7 +57,12 @@ class GuidanceExtractionService:
                 action = "UNKNOWN"
                 warnings.append("guidance_comparison_insufficient")
             confidence = (
-                "HIGH" if metric and period and (low is not None or point is not None) else "LOW"
+                "HIGH"
+                if metric
+                and period
+                and action != "UNKNOWN"
+                and (low is not None or point is not None)
+                else "LOW"
             )
             results.append(
                 GuidanceExtraction(

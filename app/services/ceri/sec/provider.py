@@ -127,12 +127,16 @@ class SecCeriProvider:
                     "period_type": extraction.period_label,
                     "low_value": extraction.low_value,
                     "high_value": extraction.high_value,
+                    "point_value": extraction.point_value,
+                    "unit": _unit_from_text(extraction.matched_text),
                     "confidence": extraction.confidence,
                     "announced_at": f"{filing_date}T00:00:00+00:00",
                     "source_date": str(filing_date),
                     "comparison_basis": extraction.matched_text,
                     "source_reference": extraction.evidence_locator,
                     "evidence_locator": extraction.evidence_locator,
+                    "filing_accession": accession,
+                    "source_timestamp": f"{filing_date}T00:00:00+00:00",
                 }
                 record_id = f"{accession}:{extraction.evidence_locator}"
                 records.append(
@@ -167,3 +171,11 @@ class SecCeriProvider:
 
 def _date_time(value: Any) -> datetime:
     return datetime.fromisoformat(str(value)[:10]).replace(tzinfo=UTC)
+
+
+def _unit_from_text(text: str) -> str | None:
+    lowered = text.lower()
+    for unit in ("billion", "million", "%"):
+        if unit in lowered:
+            return unit
+    return None

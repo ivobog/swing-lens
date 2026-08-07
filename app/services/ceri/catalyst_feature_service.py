@@ -34,7 +34,11 @@ class CeriCatalystFeatureService:
         revision: CeriCatalystEventRevision,
         as_of_session: date,
     ) -> CatalystFeature:
-        materiality = float(revision.materiality or 0.0)
+        materiality = (
+            float(revision.materiality)
+            if revision.materiality is not None
+            else 0.0
+        )
         direction_multiplier = _direction_multiplier(revision.direction)
         conflicts = tuple(revision.conflict_flags_json or ())
         conflict_penalty = min(3.0, 0.75 * len(conflicts))
@@ -44,6 +48,8 @@ class CeriCatalystFeatureService:
         warnings = []
         if conflicts:
             warnings.append("catalyst_conflicts_present")
+        if revision.materiality is None:
+            warnings.append("catalyst_materiality_unavailable")
         low_confidence_dates = {
             DateConfidence.UNKNOWN.value,
             DateConfidence.DATE_RANGE.value,
