@@ -15,7 +15,7 @@ feature isolation, advisory non-mutation, destructive confirmations, secret reda
 restore validation, and the no-order safety boundary passed their implemented automated controls.
 
 The verdict is conditional because no human screen-reader auditory review, licensed CERI provider
-certification, or eight-hour resilience soak was completed, and DEF-010 remains open. Microsoft Edge M-01
+certification was completed, and DEF-010 remains open. Microsoft Edge M-01
 passed on the installed browser after responsive, favicon, and alert-semantics fixes. The complete live
 paper procedure passed through a localhost network-isolation alternative: connection, uploaded
 benchmarks, cache reuse, transport loss/reconnect, retry-failed, cancel/resume, partial failure,
@@ -27,9 +27,11 @@ now an automated passing release gate.
 | Item | Value |
 | --- | --- |
 | Repository | `ivobog/swing-lens` |
-| Branch | `codex/qa-populated-restore` |
+| Branch | `agent/ceri-wave-2-scoped-processing` (repository state at report time) |
 | Baseline commit | `de5c78cdb91f4fca98f3c3eaf0cd303583d7dac6` |
 | Code candidate tested | `13c87b1` (M-05 scale/restart/soak harness and readiness recovery fix; QA documentation follows) |
+| M-05 soak launch commit | `89a5ec4a069cf02c781543ca0f31c47131cfdafb` |
+| M-05 soak report commit | `f0775b75e6057017b9e5772cee3f4a47a8de095b` (the checkout was independently advanced during the run) |
 | Application version | `0.1.0` |
 | OS | Windows 10 Home 2009, build 19045 |
 | Python | CPython 3.12.2 in `.venv` |
@@ -77,6 +79,7 @@ states without modifying `.env` or using secrets.
 | M-05 real restart retest | PASS in 337.2 s; web restart, two worker recoveries, PostgreSQL restart, coalescing, and exact evidence |
 | M-05 readiness outage/recovery | PASS; HTTP 200/degraded in 3,062.798 ms during outage, then HTTP 200/ok after restart |
 | M-05 two-cycle soak shakedown | SHAKEDOWN_PASS in 97.5 s; 100 technical/combined, 500 ranking, zero active/stale jobs, peak RSS 191,356,928 B |
+| M-05 genuine eight-hour release soak | PASS; 8.025047 h, 29 cycles, zero failures, zero active/stale jobs, exact 1,450 technical/combined and 7,250 ranking rows; peak RSS 211,464,192 B; report `test-results/m05-soak.json` |
 | M-05 final Ruff and route inventory | PASS; `All checks passed!`; route inventory exit 0 |
 | M-05 final complete pytest | PASS; 1,140 passed, 1 skipped, 4 warnings in 151.66 s |
 | M-05 final performance marker lane | PASS; 21 passed, 1,120 deselected, 1 warning in 2.56 s |
@@ -454,7 +457,7 @@ as a product defect.
 | Screen-reader auditory review | MANUAL | Structure and contrast passed in three browsers; announcement timing and comprehension require Narrator/NVDA and human judgment |
 | Python 3.13/3.14 compatibility | BLOCKED | Only project Python 3.12.2 was installed/executed |
 | 50/250/1,000 full pipeline scale | FAIL | Functional/evidence checks passed, but 3/10 documented local performance targets failed; DEF-010 open S2 |
-| Eight-hour soak | MANUAL | Two-cycle shakedown passed; eight elapsed hours have not been observed |
+| Eight-hour soak | PASS | `RELEASE_SOAK`; 8.025047 elapsed hours; 29 cycles; `completed_target_duration=true`; zero failures; disposable DB only; `test-results/m05-soak.json` |
 | Real process/worker/PostgreSQL restart drill | PASS | Dedicated PostgreSQL 16, real web, and three workers recovered twice with no duplicate evidence |
 
 ## 8. Performance Observations
@@ -463,10 +466,11 @@ The component performance lane passed 21 repeatable checks. The full M-05 scale 
 three of ten documented local targets while preserving exact evidence at 50, 250, and 1,000
 tickers. Pipeline wall times were 39.489 s, 187.454 s, and 739.117 s; technical computation
 accounted for nearly all of the large-run time. The 1,000-ticker request peak reached 563,933,184
-bytes. The real restart drill passed, and the two-cycle soak shakedown showed stable 214 SQL
-statements per pipeline, zero active/stale jobs, and 191,356,928-byte peak RSS. The actual eight-hour
-soak and DEF-010 optimization remain. These measurements are specific to the recorded machine and
-are not universal guarantees.
+bytes. The real restart drill passed, and the completed eight-hour soak ran 29 cycles with stable
+364 SQL statements per pipeline, zero active/stale jobs, observed RSS from 181,891,072 to
+211,464,192 bytes, and 52,379,648 bytes of disposable-database growth. Final evidence counts were
+1,450 technical, 1,450 combined, and 7,250 ranking rows. DEF-010 optimization remains open; these
+measurements are specific to the recorded machine and are not universal guarantees.
 
 ## 9. Security and Safety Verdict
 
@@ -548,8 +552,8 @@ CERI behavior remains blocked by provider availability.
 ## 14. Residual Risks and Release Decision
 
 Residual risk includes one open deterministic S2 performance defect (DEF-010), plus environmental
-screen-reader announcement behavior, licensed provider policy, the unexecuted eight-hour resource
-observation, and Python 3.13/3.14 compatibility. Automated contrast, Edge visual/interaction smoke,
+screen-reader announcement behavior, licensed provider policy, and Python 3.13/3.14 compatibility.
+Automated contrast, Edge visual/interaction smoke,
 and real web/worker/PostgreSQL restart recovery are complete.
 
 Recommendation: **CONDITIONAL GO** for continued local research validation; **do not issue an

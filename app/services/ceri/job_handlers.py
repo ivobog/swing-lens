@@ -214,7 +214,11 @@ def execute_rebuild_features_job(
             "status": processing.status,
             "coalesced": True,
         }
-        capture_job_id = _enqueue_capture_after_features(db, job=job, payload=payload)
+        capture_job_id = (
+            _enqueue_capture_after_features(db, job=job, payload=payload)
+            if processing.status == "COMPLETED"
+            else None
+        )
         if capture_job_id is not None:
             values["capture_job_id"] = capture_job_id
         return values
@@ -248,7 +252,11 @@ def execute_rebuild_features_job(
         "status": processing.status,
         **result.as_dict(),
     }
-    capture_job_id = _enqueue_capture_after_features(db, job=job, payload=payload)
+    capture_job_id = (
+        _enqueue_capture_after_features(db, job=job, payload=payload)
+        if processing.status == "COMPLETED"
+        else None
+    )
     if capture_job_id is not None:
         values["capture_job_id"] = capture_job_id
     return values
@@ -300,7 +308,11 @@ def execute_capture_run_job(
         },
         checkpoint={"run_id": run_id},
     )
-    change_job_id = _enqueue_change_after_capture(db, job=job, run_id=run_id)
+    change_job_id = (
+        _enqueue_change_after_capture(db, job=job, run_id=run_id)
+        if processing.status == "COMPLETED"
+        else None
+    )
     if change_job_id is not None:
         values["change_job_id"] = change_job_id
     return {"job_type": CERI_CAPTURE_RUN, "processing_run_id": processing.id, **values}
@@ -362,7 +374,9 @@ def execute_change_detection_job(
         **result.as_dict(),
     }
     alert_job_id = (
-        _enqueue_alert_after_change(db, job=job, payload=payload) if result.changes else None
+        _enqueue_alert_after_change(db, job=job, payload=payload)
+        if result.changes and processing.status == "COMPLETED"
+        else None
     )
     if alert_job_id is not None:
         values["alert_job_id"] = alert_job_id
@@ -393,6 +407,8 @@ def execute_backfill_job(
             ),
         ),
     )
+    if result.status == "PARTIAL":
+        job.status = JobStatus.PARTIAL
     return {"job_type": CERI_BACKFILL, **result.as_dict()}
 
 
@@ -404,7 +420,7 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         db,
         CERI_ALERT_REBUILD,
         payload,
-        default_request_key=f"ceri:alert-rebuild:{job.id}",
+        default_request_key=f"ceri:alert-rebuild:{_scope_key(payload, job.id)}",
     )
     if not created and processing.status == "COMPLETED":
         return {
@@ -700,7 +716,7 @@ def _enqueue_feature_rebuild_after_normalize(
     source_payload: dict[str, Any],
     normalize_result: dict[str, Any],
 ) -> int | None:
-    if normalize_result.get("status") == "CANCELLED":
+    if normalize_result.get("status") != "COMPLETED":
         return None
     ticker = source_payload.get("ticker")
     if not ticker:

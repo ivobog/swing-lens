@@ -71,7 +71,7 @@ def test_guidance_and_conflict_transitions_are_persisted() -> None:
     )
     prior = _snapshot(3, opportunity=4.0, risk=1.0)
     current = _snapshot(4, opportunity=4.0, risk=1.0)
-    current.warnings_json = ["provider_conflict_open"]
+    current.warnings_json = ["estimate_data_stale", "provider_conflict_open"]
     conflict_result = service.detect_score_changes(db, current=current, prior=prior)
 
     types = {row.change_type for row in db.added if isinstance(row, CeriChangeEvent)}
