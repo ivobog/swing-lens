@@ -72,10 +72,15 @@ guarantee.
 - Two-cycle repeated-run shakedown: **SHAKEDOWN_PASS in 97.5 s**. Pipeline SQL remained 214 per
   cycle; final counts were 100 technical, 100 combined, and 500 rankings; active/stale jobs were
   zero; peak RSS was 191,356,928 bytes; database size grew from 13,670,079 to 30,619,327 bytes.
+- Eight-hour release soak: **PASS in 8.025047 h**. The disposable database completed 29 cycles
+  (50 tickers, 756 bars, deterministic cached data), with 364 SQL statements per cycle, zero
+  active/stale jobs, exact final counts of 1,450 technical, 1,450 combined, and 7,250 ranking rows,
+  observed RSS from 181,891,072 to 211,464,192 bytes, and database growth of 52,379,648 bytes.
+  Per-cycle run-detail p95 ranged from 251.497 to 6,077.131 ms and combined-export p95 from 94.027
+  to 2,605.130 ms. Evidence: `test-results/m05-soak.json` and `test-results/m05-soak.console.log`.
 
 ## Residual Performance Work
 
-- Execute `run_m05_soak.py` for eight actual hours; the short shakedown is not duration evidence.
 - Profile and optimize DEF-010 before approving scale targets or a 20% regression threshold.
 - Continue to treat the CI performance lane as advisory until an approved stable baseline exists.
 

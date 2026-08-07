@@ -33,7 +33,7 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 | Performance | Repeatable component budgets | PASS | 21 passed, 1,120 deselected in 2.56 s |
 | Performance | 50/250/1,000 scale baseline | FAIL | Functional evidence passed; 7/10 budgets passed; DEF-010 open S2 |
 | Resilience | Real web/worker/PostgreSQL restart | PASS | 337.2 s; two lease recoveries, readiness recovery, no duplicate evidence |
-| Performance | Eight-hour soak | MANUAL | Two-cycle shakedown passed; execute the full M-05 command for eight elapsed hours |
+| Performance | Eight-hour soak | PASS | `RELEASE_SOAK` passed: 8.025047 h, 29 cycles, zero failures, zero active/stale jobs; evidence in `test-results/m05-soak.json` |
 | Safety | No broker-order path | PASS | static scan, read-only connection tests, IB method spy |
 | Defects | Open S0/S1 | PASS | none open; DEF-010 is open S2; DEF-011 fixed and regressed |
 | Evidence | Matrix/report/manual procedures | PASS | files in `docs/qa/` |
@@ -42,7 +42,7 @@ Status reflects the 2026-08-06 execution on `codex/qa-populated-restore`.
 
 - QA verdict: **CONDITIONAL PASS**.
 - Automated release blockers: none observed after DEF-001 and DEF-003 through DEF-008 were fixed.
-- Required before an unconditional release: complete M-02 and M-05; complete
+- Required before an unconditional release: complete M-02; complete
   M-04 only if a licensed CERI provider is included in the candidate.
 - Any failed safety, leakage, golden, migration, restore, evidence-immutability, or advisory
   non-mutation check changes the decision to **FAIL / NO-GO**.
