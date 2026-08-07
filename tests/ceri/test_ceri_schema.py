@@ -45,6 +45,8 @@ CERI_TABLE_NAMES = {
     "ceri_alert_rules",
     "ceri_alert_events",
     "ceri_purge_audits",
+    "ceri_price_response_features",
+    "ceri_derived_features",
 }
 
 
@@ -70,6 +72,8 @@ def test_source_record_preserves_provider_lineage_and_restrictions() -> None:
         "source_reference",
         "raw_json",
         "restricted_normalized_json",
+        "source_timestamp",
+        "payload_remediation_version",
         "content_hash",
         "idempotency_key",
         "export_policy",

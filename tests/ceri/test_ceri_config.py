@@ -46,6 +46,7 @@ def test_config_hash_is_stable_for_semantically_identical_input() -> None:
         "api_error_codes": data["api_error_codes"],
         "taxonomy": data["taxonomy"],
         "retention": data["retention"],
+        "price_response": data["price_response"],
         "exports": data["exports"],
         "posture": data["posture"],
         "alerts": data["alerts"],

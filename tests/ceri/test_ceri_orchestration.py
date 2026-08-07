@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from app.models.ceri_tables import CeriProcessingRun, CeriPurgeAudit
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
 from app.services.background_worker import default_job_handlers
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.capture_service import CeriRunCaptureResult
+from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.ceri.job_handlers import (
     CERI_ALERT_REBUILD,
     CERI_BACKFILL,
@@ -63,7 +66,10 @@ def test_backfill_request_is_idempotent_and_records_checkpoint() -> None:
     assert second.skipped == 1
 
 
-def test_capture_run_job_marks_processing_run_and_returns_counters() -> None:
+def test_capture_run_job_marks_processing_run_and_returns_counters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_ceri(monkeypatch)
     db = FakeDb()
     job = BackgroundJob(
         id=3,
@@ -84,7 +90,8 @@ def test_capture_run_job_marks_processing_run_and_returns_counters() -> None:
     assert any(isinstance(row, CeriProcessingRun) for row in db.added)
 
 
-def test_backfill_job_uses_scope_payload() -> None:
+def test_backfill_job_uses_scope_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    _enable_ceri(monkeypatch)
     db = FakeDb()
     job = BackgroundJob(
         id=4,
@@ -99,7 +106,10 @@ def test_backfill_job_uses_scope_payload() -> None:
     assert result["status"] == "COMPLETED"
 
 
-def test_alert_rebuild_job_records_terminal_processing_run() -> None:
+def test_alert_rebuild_job_records_terminal_processing_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_ceri(monkeypatch)
     db = FakeDb()
     job = BackgroundJob(
         id=5,
@@ -118,15 +128,18 @@ def test_alert_rebuild_job_records_terminal_processing_run() -> None:
     assert processing_run.alert_event_count == 0
 
 
-def test_purge_job_records_processing_run_and_purge_audit() -> None:
+def test_purge_job_records_processing_run_and_purge_audit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_ceri(monkeypatch)
     db = FakeDb()
     job = BackgroundJob(
         id=6,
         job_type=CERI_PURGE_LICENSED_DATA,
         status=JobStatus.RUNNING,
         payload_json={
-            "provider": "manual",
-            "license_scope": "estimates",
+            "provider": "eodhd",
+            "license_scope": "personal",
         },
     )
 
@@ -145,6 +158,11 @@ def test_purge_job_records_processing_run_and_purge_audit() -> None:
 class FakeCaptureService:
     def capture_run(self, _db, _run_id):
         return CeriRunCaptureResult(score_snapshots=1, change_events=2, alerts=1)
+
+
+def _enable_ceri(monkeypatch: pytest.MonkeyPatch) -> None:
+    flags = CeriFeatureFlags(True, True, True, True, True, True, True)
+    monkeypatch.setattr("app.services.ceri.job_handlers.ceri_flags", lambda: flags)
 
 
 class FakeDb:

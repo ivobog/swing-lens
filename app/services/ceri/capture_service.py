@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,6 +26,7 @@ from app.services.ceri.confidence_service import CeriConfidenceService
 from app.services.ceri.event_risk_service import CeriEventRiskService
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.opportunity_score_service import CeriOpportunityScoreService
+from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
 
@@ -71,6 +73,7 @@ class CeriRunCaptureService:
         self.confidence = CeriConfidenceService(config=self.snapshot_service.config)
         self.surprise = CeriSurpriseFeatureService(config=self.snapshot_service.config)
         self.catalysts = CeriCatalystFeatureService(config=self.snapshot_service.config)
+        self.price_response = CeriPriceResponseService(config=self.snapshot_service.config)
 
     def capture_run(self, db: Session, run_id: int) -> CeriRunCaptureResult:
         if not ceri_flags().run_capture:
@@ -128,6 +131,13 @@ class CeriRunCaptureService:
                     ),
                 )
                 surprise_summary = self.surprise.summarize(earnings, estimates)
+                price_result, price_feature = _price_response_for_company(
+                    db,
+                    company_id=company.id,
+                    ticker=row.ticker,
+                    as_of_session=cutoff_at.date(),
+                    service=self.price_response,
+                )
                 confidence = self.confidence.calculate(
                     as_of_session=cutoff_at.date(),
                     revision_features=features,
@@ -138,7 +148,9 @@ class CeriRunCaptureService:
                     surprise_summary=surprise_summary,
                     guidance_events=_guidance_for_company(db, company.id, cutoff_at.date()),
                     catalyst_features=catalyst_features,
-                    price_response_quality=surprise_summary.price_response_quality,
+                    price_response_quality=(
+                        price_result.quality if price_result is not None else None
+                    ),
                     conflict_penalty=min(3.0, float(company_conflicted)),
                 )
                 risk = self.risk.calculate(
@@ -148,7 +160,40 @@ class CeriRunCaptureService:
                     stale=bool(company_stale),
                     conflict_penalty=min(3.0, float(company_conflicted)),
                 )
-                source_ids = _source_ids(features)
+                guidance_rows = _guidance_for_company(db, company.id, cutoff_at.date())
+                catalyst_lineage = _catalyst_lineage(db, company.id, cutoff_at.date())
+                evidence_lineage = {
+                    "revision_feature_ids": [feature.id for feature in features if feature.id],
+                    "revision_source_ids": _source_ids(features),
+                    "earnings_ids": [item.id for item in earnings if item.id],
+                    "earnings_source_ids": [item.source_record_id for item in earnings],
+                    "guidance_ids": [item.id for item in guidance_rows if item.id],
+                    "guidance_source_ids": [item.source_record_id for item in guidance_rows],
+                    "catalyst_event_ids": catalyst_lineage["event_ids"],
+                    "catalyst_revision_ids": catalyst_lineage["revision_ids"],
+                    "catalyst_source_ids": catalyst_lineage["source_ids"],
+                    "price_response_feature_ids": [price_feature.id]
+                    if price_feature is not None and price_feature.id
+                    else [],
+                    "price_bar_ids": list(price_result.price_bar_ids)
+                    if price_result is not None
+                    else [],
+                    "warnings": sorted(
+                        set(
+                            warning
+                            for feature in features
+                            for warning in (feature.warnings_json or [])
+                        )
+                    ),
+                }
+                source_ids = sorted(
+                    set(
+                        _source_ids(features)
+                        + [item.source_record_id for item in earnings]
+                        + [item.source_record_id for item in guidance_rows]
+                        + catalyst_lineage["source_ids"]
+                    )
+                )
                 snapshot = self.snapshot_service.build_snapshot(
                     run_id=run_id,
                     source_run_id_text=str(run_id),
@@ -163,7 +208,12 @@ class CeriRunCaptureService:
                     alignment_inputs={
                         "fundamentals": bool(row.raw_json.get("fundamental_score")),
                         "technicals": bool(row.raw_json.get("technical_score")),
+                        "sector": bool(row.sector),
+                        "regime": bool(row.raw_json.get("market_regime")),
+                        "lifecycle": bool(row.raw_json.get("lifecycle_state")),
                     },
+                    alignment_context=_alignment_context(db, row, run_id),
+                    evidence_lineage=evidence_lineage,
                 )
                 self.snapshot_service.persist_snapshot(db, snapshot)
                 counts["score_snapshots"] += 1
@@ -263,6 +313,143 @@ def _catalyst_features_for_company(
         if revision.catalyst_event_id in event_by_id
         and _revision_is_known_by(revision, as_of_session)
     ]
+
+
+def _catalyst_lineage(db: Session, company_id: int, as_of_session) -> dict[str, list[int]]:
+    events = [
+        event
+        for event in _scalars(
+            db,
+            select(CeriCatalystEvent).where(CeriCatalystEvent.company_id == company_id),
+        )
+    ]
+    event_ids = {event.id for event in events if event.id is not None}
+    revisions = [
+        revision
+        for revision in _scalars(db, select(CeriCatalystEventRevision))
+        if revision.catalyst_event_id in event_ids
+        and revision.is_current
+        and _revision_is_known_by(revision, as_of_session)
+    ]
+    return {
+        "event_ids": sorted(event_ids),
+        "revision_ids": sorted(revision.id for revision in revisions if revision.id),
+        "source_ids": sorted(
+            revision.source_record_id for revision in revisions if revision.source_record_id
+        ),
+    }
+
+
+def _price_response_for_company(
+    db: Session,
+    *,
+    company_id: int,
+    ticker: str,
+    as_of_session,
+    service: CeriPriceResponseService,
+):
+    candidates: list[tuple[str, int | None, datetime | None, object]] = []
+    earnings = [
+        row
+        for row in _scalars(
+            db,
+            select(CeriEarningsActual).where(CeriEarningsActual.company_id == company_id),
+        )
+        if row.report_session is not None and row.report_session <= as_of_session
+    ]
+    for event in earnings:
+        candidates.append(("EARNINGS", event.id, event.report_at, event.report_session))
+    guidance = [
+        row
+        for row in _scalars(
+            db,
+            select(CeriGuidanceEvent).where(CeriGuidanceEvent.company_id == company_id),
+        )
+        if row.effective_session is None or row.effective_session <= as_of_session
+    ]
+    for event in guidance:
+        candidates.append(("GUIDANCE", event.id, event.effective_at, event.effective_session))
+    catalysts = [
+        revision
+        for revision in _scalars(db, select(CeriCatalystEventRevision))
+        if revision.is_current
+        and _revision_is_known_by(revision, as_of_session)
+        and any(
+            event.id == revision.catalyst_event_id
+            for event in _scalars(
+                db,
+                select(CeriCatalystEvent).where(CeriCatalystEvent.company_id == company_id),
+            )
+        )
+    ]
+    for event in catalysts:
+        candidates.append(
+            (
+                "CATALYST",
+                event.id,
+                event.announced_at,
+                event.effective_session or event.expected_date,
+            )
+        )
+    if not candidates:
+        return None, None
+    event_type, event_id, event_at, event_session = max(
+        candidates,
+        key=lambda item: (
+            item[3] or datetime.min.date(),
+            item[2] or datetime.min.replace(tzinfo=UTC),
+            item[1] or 0,
+        ),
+    )
+    result = service.calculate(
+        db,
+        company_id=company_id,
+        ticker=ticker,
+        event_type=event_type,
+        event_id=event_id,
+        event_effective_at=event_at,
+        event_effective_session=event_session,
+    )
+    feature = service.persist(
+        db,
+        result=result,
+        company_id=company_id,
+        ticker=ticker,
+        event_id=event_id,
+        event_effective_at=event_at,
+        event_effective_session=event_session,
+    )
+    return result, feature
+
+
+def _alignment_context(db: Session, row: RawCompanyRow, run_id: int) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "fundamentals": {
+            "score": row.raw_json.get("fundamental_score"),
+            "source": "raw_company_row",
+        },
+        "technicals": {
+            "score": row.raw_json.get("technical_score"),
+            "source": "raw_company_row",
+        },
+        "sector": {
+            "identity": row.sector,
+            "state": row.raw_json.get("sector_state"),
+            "source": "raw_company_row",
+        },
+        "regime": {
+            "label": row.raw_json.get("market_regime"),
+            "score": row.raw_json.get("market_regime_score"),
+            "source_run_id": run_id,
+        },
+        "lifecycle": {
+            "state": row.raw_json.get("lifecycle_state"),
+            "actionability": row.raw_json.get("lifecycle_actionability"),
+            "source_run_id": run_id,
+        },
+        "earnings_clearance": row.upcoming_earnings_date,
+    }
+    return context
 
 
 def _revision_is_known_by(revision: CeriCatalystEventRevision, as_of_session) -> bool:

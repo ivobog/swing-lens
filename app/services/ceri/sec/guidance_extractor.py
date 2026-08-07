@@ -17,6 +17,8 @@ class GuidanceExtraction:
     confidence: str
     evidence_locator: str
     matched_text: str
+    management_claim: str | None = None
+    comparison_confidence: str = "INSUFFICIENT"
     warnings: tuple[str, ...] = ()
 
 
@@ -41,7 +43,7 @@ class GuidanceExtractionService:
             lowered = paragraph.lower()
             if not any(word in lowered for word in ("guidance", "outlook", "expects", "forecast")):
                 continue
-            action = _action(lowered)
+            management_claim = _action(lowered)
             metric = _metric(lowered)
             period = _period(lowered)
             match = self._RANGE.search(paragraph)
@@ -54,28 +56,31 @@ class GuidanceExtractionService:
                 point_match = self._POINT.search(paragraph)
                 point = _decimal(point_match.group("point")) if point_match else None
             if metric is None or period is None or (low is None and point is None):
-                action = "UNKNOWN"
+                management_claim = management_claim if management_claim != "UNKNOWN" else None
                 warnings.append("guidance_comparison_insufficient")
+            elif management_claim is not None:
+                warnings.append("guidance_comparison_requires_prior")
             confidence = (
                 "HIGH"
                 if metric
                 and period
-                and action != "UNKNOWN"
                 and (low is not None or point is not None)
                 else "LOW"
             )
             results.append(
                 GuidanceExtraction(
-                    metric,
-                    period,
-                    low,
-                    high,
-                    point,
-                    action,
-                    confidence,
-                    f"{locator}#paragraph-{index + 1}",
-                    paragraph.strip(),
-                    tuple(warnings),
+                    metric=metric,
+                    period_label=period,
+                    low_value=low,
+                    high_value=high,
+                    point_value=point,
+                    action="UNKNOWN",
+                    confidence=confidence,
+                    evidence_locator=f"{locator}#paragraph-{index + 1}",
+                    matched_text=paragraph.strip(),
+                    management_claim=management_claim,
+                    comparison_confidence="INSUFFICIENT",
+                    warnings=tuple(warnings),
                 )
             )
         return results

@@ -125,9 +125,12 @@ def test_wave1_ceri_lineage_migration_preserves_populated_rows() -> None:
                     """
                     INSERT INTO ceri_source_records
                     (provider, dataset, provider_record_id, content_hash, idempotency_key,
-                     export_policy, redistribution_allowed, purge_eligible)
+                     export_policy, redistribution_allowed, purge_eligible,
+                     raw_json, restricted_normalized_json, source_url)
                     VALUES ('eodhd', 'estimates', 'fixture-1', 'hash-1', 'idem-1',
-                            'restricted', false, true)
+                            'restricted', false, true,
+                            '{"consensus": 2.0, "original_document": "restricted"}'::jsonb,
+                            NULL, 'https://restricted.example')
                     """
                 )
                 populated.execute(
@@ -141,12 +144,21 @@ def test_wave1_ceri_lineage_migration_preserves_populated_rows() -> None:
             assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
             with psycopg.connect(database_url.replace("+psycopg", ""), autocommit=True) as check:
                 source = check.execute(
-                    "SELECT provider_record_id, retrieved_at FROM ceri_source_records"
+                    """
+                    SELECT provider_record_id, retrieved_at, raw_json,
+                           restricted_normalized_json, payload_remediation_version,
+                           source_url
+                    FROM ceri_source_records
+                    """
                 ).fetchone()
                 guidance = check.execute(
                     "SELECT action, point_value, filing_accession FROM ceri_guidance_events"
                 ).fetchone()
-                assert source == ("fixture-1", None)
+                assert source[0:2] == ("fixture-1", None)
+                assert source[2] is None
+                assert source[3] == {"consensus": 2.0}
+                assert source[4] == "wave4-evidence-projection-v1"
+                assert source[5] is None
                 assert guidance == ("UNKNOWN", None, None)
         finally:
             conn.execute(

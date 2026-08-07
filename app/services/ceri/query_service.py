@@ -685,6 +685,8 @@ def _score_snapshot_payload(snapshot: CeriScoreSnapshot) -> dict[str, Any]:
         "posture": snapshot.posture,
         "earnings_proximity_risk": snapshot.earnings_proximity_risk,
         "alignment_flags": snapshot.alignment_flags_json,
+        "alignment_context": snapshot.alignment_context_json,
+        "evidence_lineage": snapshot.evidence_lineage_json,
         "top_positive_contributors": snapshot.top_positive_contributors_json,
         "top_negative_contributors": snapshot.top_negative_contributors_json,
         "components": snapshot.component_json,

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
 from app.services.ceri.dtos import RawProviderRecord
 from app.services.ceri.observability import ceri_log_event, ceri_metrics
+from app.services.ceri.provider_registry import provider_storage_projection
 
 
 @dataclass(frozen=True)
@@ -142,8 +143,15 @@ class CeriSourceRecordService:
             )
 
         quarantine_reason = _quarantine_reason(record)
-        restricted_payload = (
-            record.payload if (not raw_payload_allowed or quarantine_reason) else None
+        normalized_projection = provider_storage_projection(
+            record.provider,
+            record.dataset.value,
+            record.payload,
+        )
+        stored_projection = (
+            normalized_projection
+            if not raw_payload_allowed or record.provider in {"eodhd", "sec"}
+            else None
         )
         source = CeriSourceRecord(
             ingestion_run_id=ingestion_run_id,
@@ -154,25 +162,36 @@ class CeriSourceRecordService:
             company_hint_json=_company_hint(record.payload),
             published_at=record.published_at,
             observed_at=record.observed_at,
+            source_timestamp=record.source_timestamp
+            or _optional_payload_datetime(record.payload, "source_timestamp"),
             retrieved_at=record.retrieved_at or _utcnow(),
-            source_url=record.source_url,
-            source_reference=_optional_payload_text(record, "source_reference"),
-            raw_json=record.payload if raw_payload_allowed and not quarantine_reason else None,
-            restricted_normalized_json=restricted_payload,
+            source_url=None if record.provider == "eodhd" else record.source_url,
+            source_reference=(
+                None
+                if record.provider == "eodhd"
+                else _optional_payload_text(record, "source_reference")
+            ),
+            raw_json=(
+                record.payload
+                if raw_payload_allowed
+                and record.provider not in {"eodhd", "sec"}
+                and not quarantine_reason
+                else None
+            ),
+            restricted_normalized_json=stored_projection or None,
+            payload_remediation_version=(
+                "wave4-evidence-projection-v1"
+                if record.provider in {"eodhd", "sec"}
+                else None
+            ),
             content_hash=content_hash,
-            normalized_hash=source_record_content_hash(restricted_payload)
-            if restricted_payload is not None
-            else None,
+            normalized_hash=source_record_content_hash(normalized_projection),
             idempotency_key=idempotency_key,
             export_policy=record.export_policy,
             supersedes_id=getattr(prior_provider_record, "id", None),
             correction_type="CORRECTION" if prior_provider_record is not None else None,
             quarantine_reason=quarantine_reason,
-            license_scope="personal"
-            if record.provider == "eodhd"
-            else "public_first_party"
-            if record.provider == "sec"
-            else "manual",
+            license_scope=_license_scope(record.provider),
             redistribution_allowed=record.export_policy == "exportable"
             and record.provider not in {"eodhd"},
             purge_eligible=record.provider == "eodhd",
@@ -331,6 +350,26 @@ def _optional_payload_text(record: RawProviderRecord, key: str) -> str | None:
     if value in (None, ""):
         return None
     return str(value)
+
+
+def _optional_payload_datetime(payload: dict[str, Any], key: str) -> datetime | None:
+    value = payload.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _license_scope(provider: str) -> str:
+    return {
+        "eodhd": "personal",
+        "sec": "public_first_party",
+        "manual": "manual_fixture",
+        "primary": "provider_terms",
+        "ibkr": "swinglens_native",
+    }.get(provider, "provider_terms")
 
 
 def _maybe_scalar(db: Session, statement):

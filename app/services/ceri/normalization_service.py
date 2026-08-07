@@ -23,6 +23,7 @@ from app.services.ceri.catalyst_taxonomy import CeriCatalystTaxonomy
 from app.services.ceri.earnings_normalizer import CeriEarningsNormalizer
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.estimate_normalizer import CeriEstimateNormalizer
+from app.services.ceri.guidance_comparison_service import compare_guidance
 from app.services.ceri.guidance_normalizer import CeriGuidanceNormalizer
 from app.services.ceri.identity_resolver import CeriIdentityResolver
 
@@ -156,7 +157,19 @@ class CeriNormalizationService:
         if dataset is CeriDataset.GUIDANCE:
             if _exists_by_source(db, CeriGuidanceEvent, source_record.id):
                 return 0
-            db.add(self.guidance_normalizer.normalize(source_record, company_id=company_id))
+            guidance = self.guidance_normalizer.normalize(source_record, company_id=company_id)
+            db.add(guidance)
+            db.flush()
+            prior = _prior_guidance(db, guidance)
+            comparison = compare_guidance(guidance, prior)
+            if source_record.provider == "sec":
+                guidance.action = comparison.action
+                guidance.confidence = comparison.confidence
+                guidance.quality_warnings_json = sorted(
+                    set(guidance.quality_warnings_json or [])
+                    | set(comparison.warnings)
+                    | ({"manual_review_required"} if comparison.action == "UNKNOWN" else set())
+                )
             return 1
         if dataset is CeriDataset.CATALYSTS:
             record = self.catalyst_taxonomy.normalize(source_record, company_id=company_id)
@@ -365,6 +378,21 @@ def _exists_by_source(db: Session, model: Any, source_record_id: int) -> bool:
     else:
         statement = select(model).where(model.source_record_id == source_record_id)
     return _maybe_scalar(db, statement) is not None
+
+
+def _prior_guidance(db: Session, current: CeriGuidanceEvent) -> CeriGuidanceEvent | None:
+    rows = [
+        row
+        for row in _load(db, CeriGuidanceEvent)
+        if row.id != current.id
+        and row.company_id == current.company_id
+        and row.metric == current.metric
+        and row.period_type == current.period_type
+        and row.effective_at is not None
+        and current.effective_at is not None
+        and row.effective_at < current.effective_at
+    ]
+    return max(rows, key=lambda row: (row.effective_at, row.id or 0)) if rows else None
 
 
 def _maybe_scalar(db: Session, statement):

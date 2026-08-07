@@ -42,6 +42,8 @@ class CeriSnapshotService:
         run_id: int | None = None,
         source_run_id_text: str | None = None,
         alignment_inputs: dict[str, bool] | None = None,
+        alignment_context: dict[str, Any] | None = None,
+        evidence_lineage: dict[str, Any] | None = None,
     ) -> CeriScoreSnapshot:
         posture = derive_posture(
             opportunity_score=opportunity.score,
@@ -70,6 +72,8 @@ class CeriSnapshotService:
             "source_ids": sorted(source_ids),
             "config_hash": self.config.config_hash,
             "calculation_version": self.config.engine.calculation_version,
+            "alignment_context": alignment_context or {},
+            "evidence_lineage": evidence_lineage or {},
         }
         snapshot = CeriScoreSnapshot(
             run_id=run_id,
@@ -85,6 +89,8 @@ class CeriSnapshotService:
             posture=posture,
             earnings_proximity_risk=earnings_risk,
             alignment_flags_json=alignment_flags,
+            alignment_context_json=alignment_context or {},
+            evidence_lineage_json=evidence_lineage or {},
             top_positive_contributors_json=_top_contributors(opportunity.components, positive=True),
             top_negative_contributors_json=_top_contributors(
                 opportunity.components,
@@ -94,6 +100,8 @@ class CeriSnapshotService:
                 "components": components,
                 "source_ids": sorted(source_ids),
                 "earnings_proximity": asdict(event_risk.earnings_proximity),
+                "alignment_context": alignment_context or {},
+                "evidence_lineage": evidence_lineage or {},
             },
             reasons_json=reasons or None,
             warnings_json=warnings or None,
@@ -125,6 +133,8 @@ class CeriSnapshotService:
             "source_ids": component_json.get("source_ids") or [],
             "config_hash": snapshot.config_hash,
             "calculation_version": snapshot.calculation_version,
+            "alignment_context": snapshot.alignment_context_json or {},
+            "evidence_lineage": snapshot.evidence_lineage_json or {},
         }
         reproduced = score_evidence_hash(payload)
         differences = () if reproduced == snapshot.evidence_hash else ("evidence_hash",)

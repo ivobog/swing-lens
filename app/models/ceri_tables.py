@@ -184,6 +184,7 @@ class CeriSourceRecord(Base):
     company_hint_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -194,6 +195,7 @@ class CeriSourceRecord(Base):
     source_reference: Mapped[str | None] = mapped_column(Text)
     raw_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     restricted_normalized_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    payload_remediation_version: Mapped[str | None] = mapped_column(Text)
     content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     normalized_hash: Mapped[str | None] = mapped_column(String(128))
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
@@ -257,6 +259,11 @@ class CeriEstimateSnapshot(Base):
     conversion_effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     effective_session: Mapped[date | None] = mapped_column(Date)
+    provider_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trend_baseline_window_days: Mapped[int | None] = mapped_column(Integer)
+    baseline_origin: Mapped[str | None] = mapped_column(String(64))
+    current_observation_reference: Mapped[str | None] = mapped_column(Text)
     canonical_observation_key: Mapped[str] = mapped_column(Text, nullable=False)
     original_fields_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     quality_flags_json: Mapped[list[str] | None] = mapped_column(JSONB)
@@ -513,16 +520,72 @@ class CeriRevisionFeature(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "company_id",
-            "metric",
-            "period_key",
-            "as_of_session",
-            "window_days",
-            "config_hash",
-            "calculation_version",
-            name="uq_ceri_revision_features_identity",
+            "company_id", "metric", "period_key", "as_of_session", "window_days",
+            "config_hash", "calculation_version", name="uq_ceri_revision_features_identity",
         ),
         Index("ix_ceri_revision_features_company_session", "company_id", "as_of_session"),
+    )
+
+
+class CeriPriceResponseFeature(Base):
+    __tablename__ = "ceri_price_response_features"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("ceri_companies.id", ondelete="RESTRICT"), nullable=False
+    )
+    ticker: Mapped[str] = mapped_column(String(32), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_id: Mapped[int | None] = mapped_column(BigInteger)
+    event_effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    event_effective_session: Mapped[date | None] = mapped_column(Date)
+    reaction_session: Mapped[date | None] = mapped_column(Date)
+    benchmark: Mapped[str | None] = mapped_column(String(32))
+    metrics_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    reasons_json: Mapped[list[str] | None] = mapped_column(JSONB)
+    warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)
+    price_bar_ids_json: Mapped[list[int] | None] = mapped_column(JSONB)
+    evidence_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    event_key: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("event_key", name="uq_ceri_price_response_event_key"),
+        Index("ix_ceri_price_response_company_session", "company_id", "reaction_session"),
+    )
+
+
+class CeriDerivedFeature(Base):
+    __tablename__ = "ceri_derived_features"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("ceri_companies.id", ondelete="RESTRICT"), nullable=False
+    )
+    feature_family: Mapped[str] = mapped_column(String(64), nullable=False)
+    feature_key: Mapped[str] = mapped_column(Text, nullable=False)
+    as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
+    value_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    source_ids_json: Mapped[list[int] | None] = mapped_column(JSONB)
+    evidence_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id", "feature_family", "feature_key", "as_of_session",
+            "config_hash", "calculation_version", name="uq_ceri_derived_features_identity"
+        ),
+        Index("ix_ceri_derived_features_company_session", "company_id", "as_of_session"),
     )
 
 
@@ -546,6 +609,8 @@ class CeriScoreSnapshot(Base):
     posture: Mapped[str] = mapped_column(String(64), nullable=False)
     earnings_proximity_risk: Mapped[float | None] = mapped_column(Float)
     alignment_flags_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    alignment_context_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    evidence_lineage_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     top_positive_contributors_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     top_negative_contributors_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     component_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
@@ -763,6 +828,8 @@ CERI_TABLES = (
     CeriCatalystEventRevision.__table__,
     CeriCatalystSource.__table__,
     CeriRevisionFeature.__table__,
+    CeriPriceResponseFeature.__table__,
+    CeriDerivedFeature.__table__,
     CeriScoreSnapshot.__table__,
     CeriChangeEvent.__table__,
     CeriManualReview.__table__,

@@ -213,3 +213,13 @@ retention:
   retain_source_evidence_indefinitely: true
   provider_license_purge_enabled: false
   provider_terms_version: manual-fixture-1.0
+
+price_response:
+  benchmark: SPY
+  windows:
+    - 1
+    - 3
+  trailing_volume_sessions: 20
+  positive_relative_return_threshold: 0.01
+  strong_relative_return_threshold: 0.03
+  volume_confirmation_threshold: 1.25

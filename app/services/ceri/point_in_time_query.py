@@ -49,6 +49,7 @@ class CeriPointInTimeQuery:
             if snapshot.company_id == company_id
             and snapshot.metric == metric
             and _comparable(snapshot)
+            and _is_current_observation(snapshot)
         ]
         if mode is HistoricalViewMode.AS_KNOWN:
             return sorted(
@@ -101,6 +102,25 @@ class CeriPointInTimeQuery:
                 unavailable_reason="current_snapshot_unavailable",
             )
         key = canonical_estimate_key(current)
+        semantic_baselines = [
+            snapshot
+            for snapshot in self._load_snapshots(db)
+            if snapshot.company_id == company_id
+            and snapshot.metric == metric
+            and snapshot is not current
+            and snapshot.trend_baseline_window_days == window_days
+            and snapshot.current_observation_reference
+            == current.current_observation_reference
+            and _comparable(snapshot)
+        ]
+        if semantic_baselines:
+            baseline = max(semantic_baselines, key=_snapshot_sort)
+            return BaselineSelection(
+                current=current,
+                baseline=baseline,
+                target_baseline_date=target_date,
+                actual_elapsed_days=window_days,
+            )
         eligible = [
             snapshot
             for snapshot in self.eligible_estimates(
@@ -125,7 +145,11 @@ class CeriPointInTimeQuery:
                 actual_elapsed_days=None,
                 unavailable_reason="baseline_unavailable",
             )
-        elapsed = (current.effective_session - baseline.effective_session).days
+        elapsed = (
+            (current.effective_session - baseline.effective_session).days
+            if current.effective_session is not None and baseline.effective_session is not None
+            else window_days
+        )
         return BaselineSelection(
             current=current,
             baseline=baseline,
@@ -218,15 +242,21 @@ def _comparable(snapshot: CeriEstimateSnapshot) -> bool:
     return snapshot.canonical_currency is not None and snapshot.canonical_scale is not None
 
 
+def _is_current_observation(snapshot: CeriEstimateSnapshot) -> bool:
+    return snapshot.trend_baseline_window_days is None
+
+
 def _effective_at(snapshot: CeriEstimateSnapshot) -> datetime:
     if snapshot.effective_at is None:
+        if snapshot.effective_session is None:
+            return datetime.min.replace(tzinfo=UTC)
         return datetime.combine(snapshot.effective_session, datetime.min.time(), tzinfo=UTC)
     return snapshot.effective_at
 
 
 def _snapshot_sort(snapshot: CeriEstimateSnapshot) -> tuple[Any, ...]:
     return (
-        snapshot.effective_session,
+        snapshot.effective_session or date.min,
         _effective_at(snapshot),
         snapshot.id or 0,
         snapshot.source_record_id,

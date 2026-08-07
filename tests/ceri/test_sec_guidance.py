@@ -11,7 +11,9 @@ def test_guidance_extractor_preserves_locator_and_marks_ambiguous_claims() -> No
 
     rows = GuidanceExtractionService().extract(text, locator="acc-1/exhibit-99.htm")
 
-    assert rows[0].action == "RAISED"
+    assert rows[0].action == "UNKNOWN"
+    assert rows[0].management_claim == "RAISED"
+    assert "guidance_comparison_requires_prior" in rows[0].warnings
     assert rows[0].metric == "REVENUE"
     assert rows[0].low_value == 100
     assert rows[0].high_value == 110

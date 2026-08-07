@@ -243,6 +243,12 @@ def test_zero_revision_is_scored_but_none_revision_is_unavailable() -> None:
 def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPatch) -> None:
     import app.services.ceri.capture_service as capture_module
 
+    monkeypatch.setattr(
+        capture_module,
+        "ceri_flags",
+        lambda: CeriFeatureFlags(True, True, True, True, True, True, True),
+    )
+
     company_a = CeriCompany(id=1, ticker="AAA", exchange="US")
     company_b = CeriCompany(id=2, ticker="BBB", exchange="US")
     rows = [
