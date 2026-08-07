@@ -52,6 +52,13 @@
         <button type="submit">Preview purge</button>
         <output data-ceri-form-output></output>
       </form>
+      <form data-ceri-json-form data-ceri-csrf-token="{{ csrf_token }}" method="post" action="/api/ceri/providers/validate">
+        <h3>Validation Gate</h3>
+        <label><span>Provider</span><input name="provider" value="eodhd"></label>
+        <label><span>Tickers</span><input name="tickers" placeholder="Optional JSON array"></label>
+        <button type="submit">Run validation sample</button>
+        <output data-ceri-form-output></output>
+      </form>
     </div>
   </section>
 {% endif %}

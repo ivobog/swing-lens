@@ -9,7 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
+    CeriCatalystEvent,
     CeriCatalystEventRevision,
+    CeriCatalystSource,
+    CeriCompany,
+    CeriEarningsActual,
+    CeriEstimateSnapshot,
     CeriGuidanceEvent,
     CeriRevisionFeature,
     CeriScoreSnapshot,
@@ -64,8 +69,11 @@ class CeriExportService:
         snapshots: list[CeriScoreSnapshot] | None = None,
     ) -> CeriExportResult:
         tickers_set = {ticker.upper() for ticker in tickers or []}
+        candidates = snapshots if snapshots is not None else _load(db, CeriScoreSnapshot)
+        if run_id is None:
+            candidates = _latest_snapshot_rows(candidates)
         rows = []
-        for snapshot in snapshots if snapshots is not None else _load(db, CeriScoreSnapshot):
+        for snapshot in candidates:
             if run_id is not None and snapshot.run_id != run_id:
                 continue
             if tickers_set and snapshot.ticker.upper() not in tickers_set:
@@ -105,10 +113,13 @@ class CeriExportService:
         output_format: str = "json",
         source_records: list[CeriSourceRecord] | None = None,
     ) -> CeriExportResult:
+        sources = source_records if source_records is not None else _load(db, CeriSourceRecord)
+        source_company_ids = _source_company_ids(db)
         rows = []
-        for source in source_records if source_records is not None else _load(db, CeriSourceRecord):
-            hint_company_id = (source.company_hint_json or {}).get("company_id")
-            if company_id is not None and hint_company_id != company_id:
+        for source in sources:
+            if company_id is not None and not _source_belongs_to_company(
+                source, company_id, source_company_ids, db
+            ):
                 continue
             row = {
                 "source_record_id": source.id,
@@ -158,7 +169,7 @@ def _revision_rows(
     for feature in _load(db, CeriRevisionFeature):
         if company_id is not None and feature.company_id != company_id:
             continue
-        if as_of_session is not None and feature.as_of_session != as_of_session:
+        if as_of_session is not None and feature.as_of_session > as_of_session:
             continue
         rows.append(
             {
@@ -187,7 +198,9 @@ def _guidance_rows(
     for guidance in _load(db, CeriGuidanceEvent):
         if company_id is not None and guidance.company_id != company_id:
             continue
-        if as_of_session is not None and guidance.effective_session != as_of_session:
+        if as_of_session is not None and (
+            guidance.effective_session is None or guidance.effective_session > as_of_session
+        ):
             continue
         rows.append(
             {
@@ -206,7 +219,12 @@ def _guidance_rows(
 def _catalyst_rows(db: Session, as_of_session: date | None) -> list[dict[str, Any]]:
     rows = []
     for revision in _load(db, CeriCatalystEventRevision):
-        if as_of_session is not None and revision.effective_session != as_of_session:
+        effective_session = revision.effective_session or (
+            revision.announced_at.date() if revision.announced_at else None
+        )
+        if as_of_session is not None and (
+            effective_session is None or effective_session > as_of_session
+        ):
             continue
         rows.append(
             {
@@ -226,6 +244,73 @@ def _catalyst_rows(db: Session, as_of_session: date | None) -> list[dict[str, An
 
 def _is_invalidated(flags: list[str] | None) -> bool:
     return PURGE_INVALIDATION_FLAG in set(flags or [])
+
+
+def _latest_snapshot_rows(snapshots: list[CeriScoreSnapshot]) -> list[CeriScoreSnapshot]:
+    latest: dict[str, CeriScoreSnapshot] = {}
+    for snapshot in snapshots:
+        key = snapshot.ticker.upper()
+        current = latest.get(key)
+        if current is None or _snapshot_sort_key(snapshot) > _snapshot_sort_key(current):
+            latest[key] = snapshot
+    return sorted(latest.values(), key=lambda row: row.ticker.upper())
+
+
+def _snapshot_sort_key(snapshot: CeriScoreSnapshot) -> tuple[Any, Any, int]:
+    return (
+        snapshot.as_of_session or date.min,
+        snapshot.cutoff_at.isoformat() if snapshot.cutoff_at else "",
+        snapshot.id or 0,
+    )
+
+
+def _source_company_ids(db: Session) -> dict[int, set[int]]:
+    links: dict[int, set[int]] = {}
+    for model in (CeriEstimateSnapshot, CeriEarningsActual, CeriGuidanceEvent):
+        for row in _load(db, model):
+            links.setdefault(row.source_record_id, set()).add(row.company_id)
+    events_by_id = {event.id: event for event in _load(db, CeriCatalystEvent)}
+    for row in _load(db, CeriCatalystSource):
+        event = events_by_id.get(row.catalyst_event_id)
+        if event is not None:
+            links.setdefault(row.source_record_id, set()).add(event.company_id)
+    return links
+
+
+def _source_belongs_to_company(
+    source: CeriSourceRecord,
+    company_id: int,
+    source_company_ids: dict[int, set[int]],
+    db: Session,
+) -> bool:
+    if company_id in source_company_ids.get(source.id, set()):
+        return True
+    hint = source.company_hint_json or {}
+    if hint.get("company_id") == company_id:
+        return True
+    company = _get_company(db, company_id)
+    if company is None:
+        return False
+    ticker = str(hint.get("ticker") or "").upper()
+    exchange = str(hint.get("exchange") or "").upper()
+    company_exchange = str(company.exchange or "").upper()
+    if ticker and ticker == str(company.ticker or "").upper() and (
+        not exchange or not company_exchange or exchange == company_exchange
+    ):
+        return True
+    provider_ids = company.current_provider_ids_json or {}
+    return any(
+        hint.get(key) is not None
+        and str(hint.get(key)) == str(provider_ids.get(key))
+        for key in ("provider_company_id", "cik")
+    )
+
+
+def _get_company(db: Session, company_id: int) -> CeriCompany | None:
+    getter = getattr(db, "get", None)
+    if callable(getter):
+        return getter(CeriCompany, company_id)
+    return next((row for row in _load(db, CeriCompany) if row.id == company_id), None)
 
 
 def _current_view_metadata() -> dict[str, Any]:
