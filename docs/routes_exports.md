@@ -75,6 +75,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/api/ceri/operations/stale` | `ceri_operations_stale` |
 | GET | `/api/ceri/operations/status` | `ceri_operations_status` |
 | GET | `/api/ceri/providers/health` | `ceri_provider_health` |
+| POST | `/api/ceri/providers/validate` | `ceri_provider_validate` |
 | POST | `/api/ceri/purge/execute` | `execute_ceri_purge` |
 | POST | `/api/ceri/purge/preview` | `preview_ceri_purge` |
 | POST | `/api/ceri/recalculate` | `recalculate_ceri` |

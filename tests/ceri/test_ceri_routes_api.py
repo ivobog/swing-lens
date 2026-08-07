@@ -105,6 +105,54 @@ def test_provider_health_route_exposes_provider_capabilities() -> None:
     assert "health" in payload["items"][0]["capabilities"]
 
 
+def test_provider_validation_route_is_admin_protected_and_returns_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeProvider:
+        name = "fixture"
+
+    class FakeRegistry:
+        def get(self, name):
+            assert name == "fixture"
+            return FakeProvider()
+
+    class FakeSummary:
+        ready = False
+
+        def as_dict(self):
+            return {"ready": False, "blocking_reasons": ["provider_errors"]}
+
+    class FakeValidation:
+        def validate(self, provider, tickers):
+            assert provider.name == "fixture"
+            assert tickers == ("MSFT",)
+            return FakeSummary()
+
+    monkeypatch.setattr(ceri_provider_routes, "CeriProviderRegistry", FakeRegistry)
+    monkeypatch.setattr(ceri_provider_routes, "CeriProviderValidationService", FakeValidation)
+
+    payload = ceri_provider_routes.ceri_provider_validate(
+        request=_provider_admin_request(),
+        payload={"provider": "fixture", "tickers": ["MSFT"]},
+    )
+
+    assert payload == {
+        "status": "BLOCKED",
+        "alerts_may_be_enabled": False,
+        "summary": {"ready": False, "blocking_reasons": ["provider_errors"]},
+    }
+
+
+def test_provider_validation_route_rejects_missing_csrf() -> None:
+    with pytest.raises(HTTPException) as exc:
+        ceri_provider_routes.ceri_provider_validate(
+            request=_provider_admin_request(csrf=False),
+            payload={"provider": "fixture", "tickers": ["MSFT"]},
+        )
+
+    assert exc.value.status_code == 403
+
+
 def test_create_app_registers_phase_8_routes() -> None:
     app = create_app(
         Settings(_env_file=None, job_worker_enabled=False, ceri_enabled=True, ceri_ui_enabled=True)
@@ -116,6 +164,7 @@ def test_create_app_registers_phase_8_routes() -> None:
     assert "/api/ceri/latest" in ceri_paths
     assert "/api/ceri/ticker/{ticker}/history" in ceri_paths
     assert "/api/ceri/providers/health" in provider_paths
+    assert "/api/ceri/providers/validate" in provider_paths
     assert "/api/ceri/backfills" in ceri_paths
     assert "/ceri/export.csv" in ceri_paths
 
@@ -171,6 +220,24 @@ class FakeDb:
         if model is CeriProcessingRun:
             return FakeScalarResult(self.processing_runs)
         return FakeScalarResult([])
+
+
+def _provider_admin_request(*, csrf: bool = True):
+    token = "secure-test-token"
+    return SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                local_admin_csrf_token=token,
+                settings=Settings(
+                    _env_file=None,
+                    ceri_enabled=True,
+                    ceri_admin_enabled=True,
+                ),
+            )
+        ),
+        client=SimpleNamespace(host="testclient"),
+        headers={"x-csrf-token": token} if csrf else {},
+    )
 
 
 class FakeScalarResult:

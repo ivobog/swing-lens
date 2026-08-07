@@ -81,6 +81,15 @@ does not require an API key. IBKR remains the sole CERI price source.
 6. After the validation gate passes, explicitly enable alerts. Alerts remain
    disabled by default and do not submit broker orders.
 
+The local-admin **Validation Gate** in CERI Ops calls
+`POST /api/ceri/providers/validate`. It runs the representative sample without
+exporting provider payloads and reports identity coverage, consensus and
+baseline coverage, analyst counts, earnings dates and actuals, duplicate
+provider records, invalid estimate ranges, provider errors, and blocking
+reasons. A `READY` result is evidence for review only; it never enables alerts
+automatically. Repeat live validation after changing provider terms,
+credentials, mapping logic, or the sample.
+
 ## Licensing and purge
 
 EODHD source records are marked restricted, are never included as raw payloads
@@ -95,3 +104,14 @@ The durable worker supports provider ingest, normalization, feature rebuild,
 capture, standalone change detection, alert rebuild, bounded backfill and
 licensed-data purge. Rebuild and change jobs use deterministic request keys;
 re-running the same scope is coalesced or deduplicated.
+
+## Wave 3 Validation And Export Guarantees
+
+- Current-view exports select one latest canonical snapshot per ticker unless a
+  specific run is requested.
+- Full-evidence company exports follow normalized source lineage and stable
+  company identity; they do not select all evidence for a ticker by accident.
+- As-of evidence exports include records effective on or before the requested
+  session and exclude records with no reliable effective timestamp.
+- Provider validation is an explicit local-admin operation and remains
+  separate from alert activation.
