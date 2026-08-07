@@ -222,6 +222,12 @@ class CeriSourceRecord(Base):
         Index("ix_ceri_source_records_content_hash", "content_hash"),
         Index("ix_ceri_source_records_dataset_published", "dataset", "published_at"),
         Index("ix_ceri_source_records_quarantine", "quarantine_reason"),
+        Index("ix_ceri_source_records_provider_retrieved", "provider", "retrieved_at"),
+        Index(
+            "ix_ceri_source_records_provider_source_timestamp",
+            "provider",
+            "source_timestamp",
+        ),
     )
 
 
@@ -284,6 +290,11 @@ class CeriEstimateSnapshot(Base):
             "effective_at",
         ),
         Index("ix_ceri_estimate_snapshots_effective_session", "effective_session"),
+        Index(
+            "ix_ceri_estimates_trend_baseline_reference",
+            "current_observation_reference",
+            "trend_baseline_window_days",
+        ),
         CheckConstraint(
             "analyst_count IS NULL OR analyst_count >= 0",
             name="ck_ceri_estimates_analysts_nonnegative",
@@ -364,6 +375,11 @@ class CeriGuidanceEvent(Base):
     __table_args__ = (
         Index("ix_ceri_guidance_events_company_effective", "company_id", "effective_session"),
         Index("ix_ceri_guidance_events_action", "action"),
+        Index(
+            "ix_ceri_guidance_events_source_accession",
+            "source_record_id",
+            "filing_accession",
+        ),
     )
 
 
