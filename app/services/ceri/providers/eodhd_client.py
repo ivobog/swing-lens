@@ -211,7 +211,11 @@ class EodhdHttpClient:
     def _urllib_transport(url: str, timeout: int) -> Any:
         request = Request(url, headers={"User-Agent": "SwingLens/0.1.0"})
         with urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed provider base URL
-            return response
+            return _BufferedResponse(
+                status=int(getattr(response, "status", getattr(response, "code", 200))),
+                headers=dict(getattr(response, "headers", {})),
+                body=response.read(),
+            )
 
     @staticmethod
     def _decode_response(response: Any) -> tuple[Any, int, dict[str, str]]:
@@ -231,6 +235,18 @@ class EodhdHttpClient:
 class _RetryableProviderError(RuntimeError):
     def __init__(self, retry_after: float | None) -> None:
         self.retry_after = retry_after
+
+
+@dataclass(frozen=True)
+class _BufferedResponse:
+    """Response data copied while urllib's context manager is still open."""
+
+    status: int
+    headers: dict[str, str]
+    body: bytes
+
+    def read(self) -> bytes:
+        return self.body
 
 
 def _retry_after(headers: dict[str, str]) -> float | None:

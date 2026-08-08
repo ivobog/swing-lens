@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -262,14 +263,16 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(capture_module, "_raw_rows_for_run", lambda _db, _run: rows)
     monkeypatch.setattr(
         capture_module,
-        "_company_for_ticker",
-        lambda _db, ticker: company_a if ticker == "AAA" else company_b,
+        "_companies_for_tickers",
+        lambda _db, _tickers: {"AAA": company_a, "BBB": company_b},
     )
-    monkeypatch.setattr(capture_module, "_existing_snapshot", lambda *_args: None)
+    monkeypatch.setattr(
+        capture_module, "_existing_snapshot_company_ids", lambda *_args: set()
+    )
     monkeypatch.setattr(
         capture_module,
-        "_revision_features",
-        lambda _db, company_id, _date: features[company_id],
+        "_revision_features_for_companies",
+        lambda _db, _company_ids, _date: features,
     )
     monkeypatch.setattr(capture_module, "_catalyst_features_for_company", lambda *_args: [])
     monkeypatch.setattr(capture_module, "_guidance_for_company", lambda *_args: [])
@@ -341,6 +344,20 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
     assert [call["conflict_penalty"] for call in confidence_calls] == [1.0, 0.0]
     assert [call["conflict_penalty"] for call in risk_calls] == [1.0, 0.0]
     assert [call["stale"] for call in risk_calls] == [True, False]
+
+
+def test_capture_alignment_context_serializes_earnings_date() -> None:
+    from app.services.ceri.capture_service import _alignment_context
+
+    row = SimpleNamespace(
+        raw_json={},
+        sector=None,
+        upcoming_earnings_date=date(2026, 8, 12),
+    )
+
+    context = _alignment_context(TraceDb(), row, 7)
+
+    assert context["earnings_clearance"] == "2026-08-12"
 
 
 def test_guidance_confidence_aliases_point_values_and_unknown_extraction() -> None:
@@ -416,6 +433,23 @@ def test_sec_fair_access_403_stops_without_retry() -> None:
         client.get_json("/submissions/CIK0000000001.json")
     assert client.requests == 1
     assert sleeps == []
+
+
+def test_sec_default_transport_buffers_json_and_requests_identity_encoding(monkeypatch) -> None:
+    response = ContextJsonResponse({"0": {"ticker": "MSFT", "cik_str": 789019}})
+    captured_headers: dict[str, str] = {}
+
+    def fake_urlopen(request, timeout):
+        captured_headers.update(dict(request.header_items()))
+        return response
+
+    monkeypatch.setattr("app.services.ceri.sec.client.urlopen", fake_urlopen)
+
+    result = SecEdgarClient(SecClientConfig(max_attempts=1)).company_tickers()
+
+    assert result["0"]["ticker"] == "MSFT"
+    assert response.closed is True
+    assert "Accept-encoding" not in captured_headers
 
 
 def test_eodhd_purge_rechecks_manifest_and_preserves_independent_lineage() -> None:
@@ -588,24 +622,31 @@ def test_pipeline_job_chain_enqueues_each_stage_in_order(monkeypatch: pytest.Mon
     assert ingest_result["normalize_job_id"]
 
     normalize_job = next(row for row in db.added if row.job_type == CERI_NORMALIZE)
+    assert normalize_job.priority == 90
     normalize_result = execute_normalize_job(
         db, normalize_job, normalization_service=FakeNormalizationService()
     )
     assert normalize_result["feature_job_id"]
 
     feature_job = next(row for row in db.added if row.job_type == CERI_REBUILD_FEATURES)
+    assert feature_job.priority == 80
     feature_result = execute_rebuild_features_job(
         db, feature_job, feature_service=FakeFeatureService()
     )
     assert feature_result["capture_job_id"]
 
     capture_job = next(row for row in db.added if row.job_type == CERI_CAPTURE_RUN)
+    assert capture_job.request_key == f"ceri:capture-run:77:upstream:{feature_job.id}"
+    assert capture_job.priority == 70
     capture_result = execute_capture_run_job(db, capture_job, capture_service=FakeCaptureService())
     assert capture_result["change_job_id"]
 
     change_job = next(row for row in db.added if row.job_type == CERI_CHANGE_DETECTION)
+    assert change_job.priority == 60
     change_result = execute_change_detection_job(db, change_job, change_service=FakeChangeService())
     assert change_result["alert_job_id"]
+    alert_job = next(row for row in db.added if row.job_type == CERI_ALERT_REBUILD)
+    assert alert_job.priority == 50
     assert [row.job_type for row in db.added if isinstance(row, BackgroundJob)] == [
         CERI_NORMALIZE,
         CERI_REBUILD_FEATURES,
@@ -613,6 +654,26 @@ def test_pipeline_job_chain_enqueues_each_stage_in_order(monkeypatch: pytest.Mon
         CERI_CHANGE_DETECTION,
         CERI_ALERT_REBUILD,
     ]
+
+
+class ContextJsonResponse:
+    status = 200
+    headers = {"Content-Type": "application/json"}
+
+    def __init__(self, payload) -> None:
+        self.body = json.dumps(payload).encode("utf-8")
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args) -> None:
+        self.closed = True
+
+    def read(self) -> bytes:
+        if self.closed:
+            return b""
+        return self.body
 
 
 class FakeIngestionService:

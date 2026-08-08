@@ -110,7 +110,10 @@ def decimal_or_none(value: Any) -> Decimal | None:
 def int_or_none(value: Any) -> int | None:
     if value in (None, ""):
         return None
-    return int(value)
+    parsed = Decimal(str(value))
+    if parsed != parsed.to_integral_value():
+        return None
+    return int(parsed)
 
 
 def _currency(value: str | None) -> str | None:

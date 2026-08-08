@@ -153,11 +153,25 @@ class SecEdgarClient:
 
     @staticmethod
     def _urllib_transport(url: str, timeout: int, user_agent: str) -> Any:
-        request = Request(
-            url, headers={"User-Agent": user_agent, "Accept-Encoding": "gzip, deflate"}
-        )
+        request = Request(url, headers={"User-Agent": user_agent})
         with urlopen(request, timeout=timeout) as response:  # noqa: S310 - provider URL is configured
-            return response
+            return _BufferedResponse(
+                status=int(getattr(response, "status", getattr(response, "code", 200))),
+                headers=dict(getattr(response, "headers", {})),
+                body=response.read(),
+            )
+
+
+@dataclass(frozen=True)
+class _BufferedResponse:
+    """Response data copied while urllib's context manager is still open."""
+
+    status: int
+    headers: dict[str, str]
+    body: bytes
+
+    def read(self) -> bytes:
+        return self.body
 
 
 def _retry_after(headers: dict[str, str]) -> float | None:

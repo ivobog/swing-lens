@@ -82,6 +82,19 @@ class CeriRunCaptureService:
         if not rows:
             return CeriRunCaptureResult(skipped=1)
         cutoff_at = _utcnow()
+        companies_by_ticker = _companies_for_tickers(
+            db, {str(row.ticker).upper() for row in rows}
+        )
+        company_ids = {company.id for company in companies_by_ticker.values()}
+        features_by_company = _revision_features_for_companies(
+            db, company_ids, cutoff_at.date()
+        )
+        existing_snapshot_company_ids = _existing_snapshot_company_ids(
+            db,
+            run_id,
+            company_ids,
+            self.snapshot_service.config,
+        )
         counts = {
             "score_snapshots": 0,
             "change_events": 0,
@@ -95,14 +108,14 @@ class CeriRunCaptureService:
         }
         for row in rows:
             try:
-                company = _company_for_ticker(db, row.ticker)
+                company = companies_by_ticker.get(str(row.ticker).upper())
                 if company is None:
                     counts["unrated"] += 1
                     continue
-                if _existing_snapshot(db, run_id, company.id, self.snapshot_service.config):
+                if company.id in existing_snapshot_company_ids:
                     counts["skipped"] += 1
                     continue
-                features = _revision_features(db, company.id, cutoff_at.date())
+                features = features_by_company.get(company.id, [])
                 if not features:
                     counts["unrated"] += 1
                     continue
@@ -252,6 +265,18 @@ def _company_for_ticker(db: Session, ticker: str) -> CeriCompany | None:
     )
 
 
+def _companies_for_tickers(
+    db: Session, tickers: set[str]
+) -> dict[str, CeriCompany]:
+    if not tickers:
+        return {}
+    companies = _scalars(
+        db,
+        select(CeriCompany).where(CeriCompany.ticker.in_(sorted(tickers))),
+    )
+    return {company.ticker.upper(): company for company in companies}
+
+
 def _revision_features(
     db: Session,
     company_id: int,
@@ -263,6 +288,25 @@ def _revision_features(
         .where(CeriRevisionFeature.company_id == company_id)
         .where(CeriRevisionFeature.as_of_session == as_of_session),
     )
+
+
+def _revision_features_for_companies(
+    db: Session,
+    company_ids: set[int],
+    as_of_session,
+) -> dict[int, list[CeriRevisionFeature]]:
+    if not company_ids:
+        return {}
+    features = _scalars(
+        db,
+        select(CeriRevisionFeature)
+        .where(CeriRevisionFeature.company_id.in_(sorted(company_ids)))
+        .where(CeriRevisionFeature.as_of_session == as_of_session),
+    )
+    grouped: dict[int, list[CeriRevisionFeature]] = {}
+    for feature in features:
+        grouped.setdefault(feature.company_id, []).append(feature)
+    return grouped
 
 
 def _guidance_for_company(
@@ -447,7 +491,11 @@ def _alignment_context(db: Session, row: RawCompanyRow, run_id: int) -> dict[str
             "actionability": row.raw_json.get("lifecycle_actionability"),
             "source_run_id": run_id,
         },
-        "earnings_clearance": row.upcoming_earnings_date,
+        "earnings_clearance": (
+            row.upcoming_earnings_date.isoformat()
+            if row.upcoming_earnings_date is not None
+            else None
+        ),
     }
     return context
 
@@ -473,6 +521,29 @@ def _existing_snapshot(
         .where(CeriScoreSnapshot.company_id == company_id)
         .where(CeriScoreSnapshot.config_hash == config.config_hash)
         .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
+    )
+
+
+def _existing_snapshot_company_ids(
+    db: Session,
+    run_id: int,
+    company_ids: set[int],
+    config,
+) -> set[int]:
+    if not company_ids:
+        return set()
+    return set(
+        _scalars(
+            db,
+            select(CeriScoreSnapshot.company_id)
+            .where(CeriScoreSnapshot.run_id == run_id)
+            .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
+            .where(CeriScoreSnapshot.config_hash == config.config_hash)
+            .where(
+                CeriScoreSnapshot.calculation_version
+                == config.engine.calculation_version
+            ),
+        )
     )
 
 

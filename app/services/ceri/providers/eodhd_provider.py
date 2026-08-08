@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime, timedelta
@@ -21,6 +20,7 @@ from app.services.ceri.dtos import (
 from app.services.ceri.enums import CeriDataset, CeriProviderCapability, ExportPolicy
 from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
 from app.services.ceri.providers.eodhd_mapping import eodhd_symbol, period_type, provider_date
+from app.settings import get_settings
 
 
 class EodhdCeriProvider:
@@ -35,26 +35,27 @@ class EodhdCeriProvider:
         clock: Callable[[], datetime] | None = None,
         **config: Any,
     ) -> None:
-        key = api_key if api_key is not None else os.getenv(self.credential_env_var)
+        settings = get_settings()
+        key = api_key if api_key is not None else settings.eodhd_api_key
         self.terms_version = str(
-            config.pop("terms_version", os.getenv("EODHD_TERMS_VERSION", "2026-08-personal"))
+            config.pop("terms_version", settings.eodhd_terms_version)
         )
         self._clock = clock or (lambda: datetime.now(UTC))
         self.client = client or EodhdHttpClient(
             EodhdClientConfig(
                 api_key=key,
                 base_url=str(
-                    config.pop("base_url", os.getenv("EODHD_BASE_URL", "https://eodhd.com"))
+                    config.pop("base_url", settings.eodhd_base_url)
                 ),
                 timeout_seconds=int(
-                    config.pop("timeout_seconds", os.getenv("EODHD_HTTP_TIMEOUT_SECONDS", 30))
+                    config.pop("timeout_seconds", settings.eodhd_http_timeout_seconds)
                 ),
-                max_attempts=int(config.pop("max_attempts", os.getenv("EODHD_MAX_ATTEMPTS", 4))),
+                max_attempts=int(config.pop("max_attempts", settings.eodhd_max_attempts)),
                 requests_per_minute=int(
-                    config.pop("requests_per_minute", os.getenv("EODHD_REQUESTS_PER_MINUTE", 300))
+                    config.pop("requests_per_minute", settings.eodhd_requests_per_minute)
                 ),
                 daily_call_budget=int(
-                    config.pop("daily_call_budget", os.getenv("EODHD_DAILY_CALL_BUDGET", 80000))
+                    config.pop("daily_call_budget", settings.eodhd_daily_call_budget)
                 ),
             )
         )
@@ -123,16 +124,35 @@ class EodhdCeriProvider:
     def fetch_estimate_snapshots(self, request: EstimateRequest) -> Iterable[RawProviderRecord]:
         symbol = self._symbol(request.ticker)
         rows = _rows(self.client.get_json("/api/calendar/trends", {"symbols": symbol}))
+        observation_at = self._clock()
+        fiscal_start = request.start or observation_at.date() - timedelta(days=120)
+        fiscal_end_limit = request.end or observation_at.date() + timedelta(days=550)
+        requested_periods = {value.value for value in request.period_types}
+        requested_metrics = {value.value for value in request.metrics}
         for row in rows:
             ptype = period_type(row.get("period"))
             fiscal_end = provider_date(row.get("date"))
-            if not ptype or fiscal_end is None:
+            if (
+                not ptype
+                or ptype not in requested_periods
+                or fiscal_end is None
+                or fiscal_end < fiscal_start
+                or fiscal_end > fiscal_end_limit
+            ):
                 continue
-            base = self._base_payload(symbol, row, fiscal_end, ptype)
+            base = self._base_payload(
+                symbol,
+                row,
+                fiscal_end,
+                ptype,
+                fallback_observed_at=observation_at,
+            )
             for metric, prefix in (
                 ("EPS_DILUTED", "earningsEstimate"),
                 ("REVENUE", "revenueEstimate"),
             ):
+                if metric not in requested_metrics:
+                    continue
                 consensus = row.get(f"{prefix}Avg")
                 if (
                     consensus is None
@@ -310,12 +330,19 @@ class EodhdCeriProvider:
         return symbol
 
     def _base_payload(
-        self, symbol: str, row: dict[str, Any], fiscal_end: date, ptype: str
+        self,
+        symbol: str,
+        row: dict[str, Any],
+        fiscal_end: date,
+        ptype: str,
+        *,
+        fallback_observed_at: datetime,
     ) -> dict[str, Any]:
         provider_observed_at = (
             _datetime(row.get("observedAt"))
             or _datetime(row.get("updatedAt"))
             or _datetime(row.get("lastUpdated"))
+            or fallback_observed_at
         )
         payload = {
             "ticker": symbol.split(".")[0],
@@ -365,13 +392,24 @@ class EodhdCeriProvider:
 
 def _rows(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, list):
-        return [dict(row) for row in value if isinstance(row, dict)]
+        return _flatten_rows(value)
     if isinstance(value, dict):
         for key in ("data", "results", "earnings", "news", "trends"):
             if isinstance(value.get(key), list):
-                return [dict(row) for row in value[key] if isinstance(row, dict)]
+                return _flatten_rows(value[key])
         return [value]
     return []
+
+
+def _flatten_rows(value: list[Any]) -> list[dict[str, Any]]:
+    """Flatten provider containers such as ``trends: [[...rows...]]``."""
+    rows: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, dict):
+            rows.append(dict(item))
+        elif isinstance(item, list):
+            rows.extend(_flatten_rows(item))
+    return rows
 
 
 def _datetime(value: Any) -> datetime | None:
