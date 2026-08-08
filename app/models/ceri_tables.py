@@ -276,12 +276,16 @@ class CeriEstimateSnapshot(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "source_record_id",
+            name="uq_ceri_estimate_snapshots_source_record",
+        ),
+        Index(
+            "ix_ceri_estimate_snapshots_canonical_observation",
             "company_id",
             "metric",
             "period_type",
             "fiscal_period_end",
             "canonical_observation_key",
-            name="uq_ceri_estimate_snapshots_observation",
         ),
         Index(
             "ix_ceri_estimate_snapshots_company_metric_effective",

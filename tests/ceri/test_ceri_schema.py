@@ -170,8 +170,12 @@ def test_estimate_snapshot_fields_keep_missing_values_nullable() -> None:
         assert column_name in table.c
 
     assert isinstance(table.c.quality_flags_json.type, JSONB)
-    constraint_names = {constraint.name for constraint in table.constraints}
-    assert "uq_ceri_estimate_snapshots_observation" in constraint_names
+    constraints = {constraint.name: constraint for constraint in table.constraints}
+    source_constraint = constraints["uq_ceri_estimate_snapshots_source_record"]
+    assert {column.name for column in source_constraint.columns} == {"source_record_id"}
+    assert "ix_ceri_estimate_snapshots_canonical_observation" in {
+        index.name for index in table.indexes
+    }
 
 
 def test_revision_score_change_alert_and_purge_indexes_are_defined() -> None:
@@ -375,3 +379,14 @@ def test_price_bar_revisions_ceri_corrections_migration_follows_current_head() -
     assert 'down_revision: str | None = "0021_add_ceri_earnings_consensus_reason"' in migration
     assert "price_bar_revisions" in migration
     assert '["provider", "dataset", "provider_record_id", "content_hash"]' in migration
+
+
+def test_estimate_snapshot_identity_fix_follows_current_head() -> None:
+    migration = Path(
+        "alembic/versions/20260809_0030_fix_ceri_estimate_snapshot_identity.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'revision: str = "0030_fix_ceri_estimate_snapshot_identity"' in migration
+    assert 'down_revision: str | None = "0029_ceri_wave4_evidence_features"' in migration
+    assert "uq_ceri_estimate_snapshots_source_record" in migration
+    assert "ix_ceri_estimate_snapshots_canonical_observation" in migration
