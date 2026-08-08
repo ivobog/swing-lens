@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.tables import IBContract, PriceBar, PriceBarRevision
 from app.routers import ib_routes
+from app.services import bar_cache_service
 from app.services.bar_cache_service import _normalize_symbols, cache_bars
 from app.services.ib_api import Contract
 from app.services.ib_connection import check_ib_connection
@@ -202,7 +203,12 @@ def test_resolve_us_stock_contract_marks_multiple_qualified_contracts_ambiguous(
     assert db.flushed is True
 
 
-def test_cache_bars_inserts_new_bars_with_revision_metadata() -> None:
+def test_cache_bars_inserts_new_bars_with_revision_metadata(monkeypatch) -> None:
+    monkeypatch.setattr(
+        bar_cache_service,
+        "get_settings",
+        lambda: SimpleNamespace(technical_series_version_maintenance_enabled=False),
+    )
     db = FakeDb()
     summary = cache_bars(
         db,
@@ -235,7 +241,12 @@ def test_cache_bars_updates_last_seen_for_unchanged_bars() -> None:
     assert db.added == []
 
 
-def test_cache_bars_revises_changed_existing_bars() -> None:
+def test_cache_bars_revises_changed_existing_bars(monkeypatch) -> None:
+    monkeypatch.setattr(
+        bar_cache_service,
+        "get_settings",
+        lambda: SimpleNamespace(technical_series_version_maintenance_enabled=False),
+    )
     existing = _price_bar("MSFT", close=10, volume=1000)
     db = FakeDb(existing=[existing])
 

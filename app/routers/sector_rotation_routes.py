@@ -49,30 +49,6 @@ def sector_rotation_dashboard(request: Request, run_id: int, db: DbSession) -> H
     )
 
 
-@router.get("/runs/{run_id}/sector-rotation/{sector_slug}", response_class=HTMLResponse)
-def sector_rotation_drilldown(
-    request: Request,
-    run_id: int,
-    sector_slug: str,
-    db: DbSession,
-) -> HTMLResponse:
-    _require_run(db, run_id)
-    payload = _run_payload_or_calculate(db, run_id)
-    row = _payload_sector_row(payload, sector_slug)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Sector was not found in this snapshot.")
-    return templates.TemplateResponse(
-        request,
-        "sector_rotation_drilldown.html",
-        _drilldown_template_context(
-            payload=payload,
-            row=row,
-            run_id=run_id,
-            ticker_rows=_sector_ticker_drilldown_rows(db, run_id, sector_slug),
-        ),
-    )
-
-
 @router.get("/api/runs/{run_id}/sector-rotation")
 def api_sector_rotation(run_id: int, db: DbSession) -> dict:
     _require_run(db, run_id)
@@ -159,6 +135,30 @@ def export_sector_rotation_dashboard_markdown(run_id: int, db: DbSession) -> Res
         export_sector_rotation_markdown(snapshot, rows),
         media_type="text/markdown",
         filename=f"swinglens_run_{run_id}_sector_rotation_brief.md",
+    )
+
+
+@router.get("/runs/{run_id}/sector-rotation/{sector_slug}", response_class=HTMLResponse)
+def sector_rotation_drilldown(
+    request: Request,
+    run_id: int,
+    sector_slug: str,
+    db: DbSession,
+) -> HTMLResponse:
+    _require_run(db, run_id)
+    payload = _run_payload_or_calculate(db, run_id)
+    row = _payload_sector_row(payload, sector_slug)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Sector was not found in this snapshot.")
+    return templates.TemplateResponse(
+        request,
+        "sector_rotation_drilldown.html",
+        _drilldown_template_context(
+            payload=payload,
+            row=row,
+            run_id=run_id,
+            ticker_rows=_sector_ticker_drilldown_rows(db, run_id, sector_slug),
+        ),
     )
 
 
@@ -266,12 +266,7 @@ def _summary_metrics(payload: dict) -> list[dict[str, object]]:
 
 def _distribution_rows(rows: list[dict], key: str) -> list[dict[str, object]]:
     names = sorted(
-        {
-            str(name)
-            for row in rows
-            for name in (row.get(key) or {})
-            if str(name).strip()
-        }
+        {str(name) for row in rows for name in (row.get(key) or {}) if str(name).strip()}
     )
     return [
         {
@@ -427,8 +422,7 @@ def _normalization_for_drilldown_row(
         return SectorNormalizationResult(
             raw_sector=str(raw_sector).strip() if raw_sector is not None else None,
             canonical_sector=canonical,
-            taxonomy=taxonomy
-            or str(config.get("sector_taxonomy", {}).get("source") or "unknown"),
+            taxonomy=taxonomy or str(config.get("sector_taxonomy", {}).get("source") or "unknown"),
             status=status,
         )
     return normalize_sector_result(raw_sector, config)

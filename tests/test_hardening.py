@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pandas as pd
 from fastapi.testclient import TestClient
 
@@ -6,7 +8,20 @@ from app.services import technical_score_service
 from app.services.pine_replica_engine import PineReplicaScore
 
 
+def _legacy_scoring_settings() -> SimpleNamespace:
+    return SimpleNamespace(
+        technical_process_pool_enabled=False,
+        technical_pure_boundary_enabled=False,
+        technical_pure_boundary_shadow_compare_enabled=False,
+        technical_artifact_cache_enabled=False,
+        technical_artifact_cache_write_enabled=False,
+        technical_artifact_cache_shadow_read_enabled=False,
+    )
+
+
 def test_score_run_technicals_continues_when_symbol_fails(monkeypatch) -> None:
+    monkeypatch.setattr(technical_score_service, "get_settings", _legacy_scoring_settings)
+
     class FakeDb:
         def __init__(self) -> None:
             self.added = []
@@ -27,6 +42,11 @@ def test_score_run_technicals_continues_when_symbol_fails(monkeypatch) -> None:
 
     empty_frame = pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
     monkeypatch.setattr(technical_score_service, "_load_price_frame", lambda *args: empty_frame)
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda *args: (empty_frame, empty_frame),
+    )
     monkeypatch.setattr(technical_score_service, "_score_ticker", fail_score)
 
     db = FakeDb()
@@ -65,6 +85,8 @@ def test_unavailable_technical_score_is_export_safe() -> None:
 
 
 def test_score_run_technicals_adds_run_level_leadership_debug(monkeypatch) -> None:
+    monkeypatch.setattr(technical_score_service, "get_settings", _legacy_scoring_settings)
+
     class FakeDb:
         def __init__(self) -> None:
             self.added = []
@@ -101,6 +123,14 @@ def test_score_run_technicals_adds_run_level_leadership_debug(monkeypatch) -> No
         "_load_price_frame",
         lambda *args: pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"]),
     )
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda *args: (
+            pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"]),
+            pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"]),
+        ),
+    )
     monkeypatch.setattr(technical_score_service, "_market_features", lambda *args: {})
     monkeypatch.setattr(
         technical_score_service,
@@ -128,6 +158,8 @@ def test_score_run_technicals_adds_run_level_leadership_debug(monkeypatch) -> No
 
 
 def test_score_run_technicals_passes_configured_sector_benchmark(monkeypatch) -> None:
+    monkeypatch.setattr(technical_score_service, "get_settings", _legacy_scoring_settings)
+
     class FakeDb:
         def execute(self, statement):
             pass
@@ -165,6 +197,11 @@ def test_score_run_technicals_passes_configured_sector_benchmark(monkeypatch) ->
         technical_score_service,
         "_load_price_frame",
         lambda _db, ticker: frames[ticker.upper()],
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda *args: (frames["SPY"], frames["SPY"]),
     )
     monkeypatch.setattr(technical_score_service, "_market_features", lambda *args: {})
 

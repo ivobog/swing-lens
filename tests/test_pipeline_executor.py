@@ -518,6 +518,7 @@ def test_execute_full_pipeline_fails_when_run_has_no_tickers() -> None:
     assert db.pipeline.status == PipelineStatus.FAILED
     assert db.pipeline.error_message == "No uploaded tickers are available for this run."
     assert db.steps[0].status == PipelineStepStatus.FAILED
+    assert db.rollbacks == 1
 
 
 def test_execute_full_pipeline_does_not_commit_step_completion_after_lease_loss() -> None:
@@ -672,9 +673,7 @@ def _dependencies(
         ceri_run_capture_enabled=ceri_enabled,
         ceri_provider_ingest_enabled=False,
         capture_setup_signals=setup_capture if setup_capture_result is not None else None,
-        evaluate_setup_lifecycles=setup_evaluate
-        if setup_evaluation_result is not None
-        else None,
+        evaluate_setup_lifecycles=setup_evaluate if setup_evaluation_result is not None else None,
         setup_lifecycle_pipeline_step_enabled=setup_lifecycle_enabled,
         setup_capture_handoff_enabled=setup_capture_handoff_enabled,
         capture_winner_predictions=winner_capture,
@@ -768,13 +767,14 @@ class PipelineExecutorFakeDb:
                 pipeline_step_names(
                     ceri_run_capture_enabled=ceri_enabled,
                     ceri_provider_ingest_enabled=False,
-                    setup_lifecycle_pipeline_step_enabled=setup_lifecycle_enabled
+                    setup_lifecycle_pipeline_step_enabled=setup_lifecycle_enabled,
                 ),
                 start=1,
             )
         ]
         self.flushes = 0
         self.commits = 0
+        self.rollbacks = 0
         self.commit_snapshots: list[dict[str, object]] = []
         self._step_index = 0
 
@@ -809,3 +809,6 @@ class PipelineExecutorFakeDb:
                 "steps": {step.step_name: step.status for step in self.steps},
             }
         )
+
+    def rollback(self) -> None:
+        self.rollbacks += 1

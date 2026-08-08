@@ -172,32 +172,46 @@ class ProbabilityEstimator:
             evidence=evidence,
             hash_algorithm=config.evidence_membership.manifest_hash_algorithm,
         )
-        statistic = WinnerCohortStatistic(
+        statistic = _existing_cohort_statistic(
+            db,
             cohort_definition_id=cohort_definition.id,
             outcome_definition_id=outcome_definition.id,
-            statistic_as_of=_utcnow(),
             training_cutoff_at=training_cutoff_at,
-            sample_n=statistics.sample_n,
-            effective_n=statistics.effective_n,
-            wins=statistics.wins,
-            raw_rate=statistics.raw_rate,
-            posterior_probability=statistics.posterior_probability,
-            lower_bound=statistics.lower_bound,
-            upper_bound=statistics.upper_bound,
-            median_return_pct=statistics.median_return_pct,
-            median_mfe_pct=statistics.median_mfe_pct,
-            median_mae_pct=statistics.median_mae_pct,
-            evidence_grade=statistics.evidence_grade,
-            config_hash=config.config_hash,
-            evidence_manifest_hash=manifest.manifest_hash,
-            metadata_json={
-                "mean_return_pct": _str_or_none(statistics.mean_return_pct),
-                "target_first_rate": _str_or_none(statistics.target_first_rate),
-                "interval_width": str(statistics.interval_width),
-            },
         )
-        db.add(statistic)
-        db.flush()
+        if statistic is None:
+            statistic = WinnerCohortStatistic(
+                cohort_definition_id=cohort_definition.id,
+                outcome_definition_id=outcome_definition.id,
+                statistic_as_of=_utcnow(),
+                training_cutoff_at=training_cutoff_at,
+                sample_n=statistics.sample_n,
+                effective_n=statistics.effective_n,
+                wins=statistics.wins,
+                raw_rate=statistics.raw_rate,
+                posterior_probability=statistics.posterior_probability,
+                lower_bound=statistics.lower_bound,
+                upper_bound=statistics.upper_bound,
+                median_return_pct=statistics.median_return_pct,
+                median_mfe_pct=statistics.median_mfe_pct,
+                median_mae_pct=statistics.median_mae_pct,
+                evidence_grade=statistics.evidence_grade,
+                config_hash=config.config_hash,
+                evidence_manifest_hash=manifest.manifest_hash,
+                metadata_json={
+                    "mean_return_pct": _str_or_none(statistics.mean_return_pct),
+                    "target_first_rate": _str_or_none(statistics.target_first_rate),
+                    "interval_width": str(statistics.interval_width),
+                },
+            )
+            db.add(statistic)
+            db.flush()
+        elif (
+            statistic.evidence_manifest_hash != manifest.manifest_hash
+            or statistic.config_hash != config.config_hash
+        ):
+            raise ValueError(
+                "cohort statistic key already exists with different evidence or configuration"
+            )
         estimate = WinnerProbabilityEstimate(
             prediction_id=prediction.id,
             outcome_definition_id=outcome_definition.id,
@@ -386,6 +400,28 @@ def _existing_estimate(
         .where(WinnerProbabilityEstimate.estimate_kind == estimate_kind)
         .where(WinnerProbabilityEstimate.source_version == COHORT_BASELINE_SOURCE_VERSION)
         .where(WinnerProbabilityEstimate.training_cutoff_at == training_cutoff_at)
+    )
+
+
+def _existing_cohort_statistic(
+    db: Session,
+    *,
+    cohort_definition_id: int,
+    outcome_definition_id: int,
+    training_cutoff_at: datetime,
+) -> WinnerCohortStatistic | None:
+    getter = getattr(db, "get_existing_cohort_statistic", None)
+    if callable(getter):
+        return getter(
+            cohort_definition_id=cohort_definition_id,
+            outcome_definition_id=outcome_definition_id,
+            training_cutoff_at=training_cutoff_at,
+        )
+    return db.scalar(
+        select(WinnerCohortStatistic)
+        .where(WinnerCohortStatistic.cohort_definition_id == cohort_definition_id)
+        .where(WinnerCohortStatistic.outcome_definition_id == outcome_definition_id)
+        .where(WinnerCohortStatistic.training_cutoff_at == training_cutoff_at)
     )
 
 

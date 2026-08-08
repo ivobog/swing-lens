@@ -13,10 +13,32 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from playwright.sync_api import Browser, Page, sync_playwright
 from psycopg import sql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
+
+
+@pytest.fixture(scope="session")
+def browser() -> Iterator[Browser]:
+    """Provide pytest-playwright-compatible browser state without its optional plugin."""
+    with sync_playwright() as playwright:
+        instance = playwright.chromium.launch(headless=True)
+        try:
+            yield instance
+        finally:
+            instance.close()
+
+
+@pytest.fixture
+def page(browser: Browser) -> Iterator[Page]:
+    context = browser.new_context(viewport={"width": 1440, "height": 1000})
+    current_page = context.new_page()
+    try:
+        yield current_page
+    finally:
+        context.close()
 
 
 def _available_port() -> int:
@@ -62,9 +84,7 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     )
     if migration.returncode != 0:
         admin.execute(
-            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
-                sql.Identifier(database_name)
-            )
+            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(database_name))
         )
         admin.close()
         pytest.fail(migration.stdout + migration.stderr)
@@ -118,8 +138,6 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
             process.wait(timeout=5)
         log_handle.close()
         admin.execute(
-            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
-                sql.Identifier(database_name)
-            )
+            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(database_name))
         )
         admin.close()

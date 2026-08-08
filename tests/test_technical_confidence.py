@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pandas as pd
 
 from app.services import technical_score_service
@@ -89,6 +91,19 @@ def test_score_result_carries_missing_context_without_failing_base_score() -> No
 
 
 def test_score_run_technicals_marks_missing_benchmark_low_confidence(monkeypatch) -> None:
+    monkeypatch.setattr(
+        technical_score_service,
+        "get_settings",
+        lambda: SimpleNamespace(
+            technical_process_pool_enabled=False,
+            technical_pure_boundary_enabled=False,
+            technical_pure_boundary_shadow_compare_enabled=False,
+            technical_artifact_cache_enabled=False,
+            technical_artifact_cache_write_enabled=False,
+            technical_artifact_cache_shadow_read_enabled=False,
+        ),
+    )
+
     class FakeDb:
         def __init__(self) -> None:
             self.executed = False

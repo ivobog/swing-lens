@@ -45,8 +45,7 @@ def test_estimator_backs_off_to_broader_eligible_cohort_and_persists_membership(
     assert result.estimate.point_probability == Decimal("0.500000")
     assert len(db.rows[WinnerEstimateEvidenceMember]) == 20
     assert (
-        db.rows[WinnerEvidenceManifest][0].manifest_hash
-        == result.estimate.evidence_manifest_hash
+        db.rows[WinnerEvidenceManifest][0].manifest_hash == result.estimate.evidence_manifest_hash
     )
     assert (
         db.rows[WinnerCohortStatistic][0].evidence_manifest_hash
@@ -74,6 +73,34 @@ def test_insufficient_estimate_persists_raw_counts_without_fake_probability() ->
     assert result.estimate.point_probability is None
     assert result.estimate.sample_n == 2
     assert result.estimate.insufficient_reasons_json == ["no_eligible_cohort"]
+
+
+def test_shared_cohort_cutoff_reuses_one_statistic_for_multiple_predictions() -> None:
+    config = load_winner_probability_config()
+    evidence = tuple(_evidence(index, won=index % 2 == 0) for index in range(20))
+    db = EstimatorFakeDb()
+    estimator = ProbabilityEstimator(evidence_service=FakeEvidenceService({"L5": evidence}))
+    first = _prediction(901)
+    second = _prediction(902)
+    second.source_data_cutoff_at = first.source_data_cutoff_at
+
+    first_result = estimator.create_decision_time_estimate(
+        db,
+        prediction=first,
+        outcome_definition=_definition(),
+        config=config,
+    )
+    second_result = estimator.create_decision_time_estimate(
+        db,
+        prediction=second,
+        outcome_definition=_definition(),
+        config=config,
+    )
+
+    assert first_result.status == "estimated"
+    assert second_result.status == "estimated"
+    assert len(db.rows[WinnerCohortStatistic]) == 1
+    assert len(db.rows[WinnerProbabilityEstimate]) == 2
 
 
 def test_latest_rescore_is_stored_separately_from_decision_time() -> None:
@@ -150,6 +177,8 @@ class EstimatorFakeDb:
 
     def scalar(self, statement):
         text = str(statement)
+        if "winner_cohort_definitions" in text:
+            return next(iter(self.rows[WinnerCohortDefinition]), None)
         if "winner_evidence_manifests" in text:
             return None
         return None
@@ -173,6 +202,18 @@ class EstimatorFakeDb:
                 and estimate.estimate_kind == kwargs["estimate_kind"]
                 and estimate.source_version == kwargs["source_version"]
                 and estimate.training_cutoff_at == kwargs["training_cutoff_at"]
+            ),
+            None,
+        )
+
+    def get_existing_cohort_statistic(self, **kwargs):
+        return next(
+            (
+                statistic
+                for statistic in self.rows[WinnerCohortStatistic]
+                if statistic.cohort_definition_id == kwargs["cohort_definition_id"]
+                and statistic.outcome_definition_id == kwargs["outcome_definition_id"]
+                and statistic.training_cutoff_at == kwargs["training_cutoff_at"]
             ),
             None,
         )
