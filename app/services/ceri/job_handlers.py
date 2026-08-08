@@ -660,6 +660,17 @@ def _scope_key(payload: dict[str, Any], fallback: int) -> str:
     ).hexdigest()[:24] or str(fallback)
 
 
+def _child_priority(job: BackgroundJob) -> int:
+    """Run dependent work before returning to the wider provider backlog.
+
+    Background jobs sort smaller numeric priorities first. CERI previously
+    added ten at each stage, which inverted the intended dependency order and
+    starved normalize/feature/capture jobs behind every provider request.
+    """
+
+    return max(0, int(job.priority or 100) - 10)
+
+
 def _enqueue_normalize_job(
     db: Session,
     *,
@@ -702,7 +713,7 @@ def _enqueue_normalize_job(
             "actor": source_payload.get("actor"),
         },
         related_run_id=source_job.related_run_id,
-        priority=(source_job.priority or 100) + 10,
+        priority=_child_priority(source_job),
         max_retries=source_job.max_retries or 3,
         request_key=request_key,
     )
@@ -734,7 +745,7 @@ def _enqueue_feature_rebuild_after_normalize(
             "mode": "AS_KNOWN",
         },
         related_run_id=source_payload.get("run_id") or source_job.related_run_id,
-        priority=(source_job.priority or 100) + 10,
+        priority=_child_priority(source_job),
         max_retries=source_job.max_retries or 3,
         request_key=request_key,
     )
@@ -749,13 +760,18 @@ def _enqueue_capture_after_features(
     run_id = _optional_int(payload.get("run_id") or job.related_run_id)
     if run_id is None:
         return None
-    request_key = f"ceri:capture-run:{run_id}"
+    # A provider run rebuilds features independently for each ticker/dataset.
+    # Use the completed feature job as part of the capture identity so later
+    # feature arrivals can capture newly eligible tickers. CeriRunCaptureService
+    # remains idempotent and skips snapshots already stored for this run/version.
+    upstream_id = job.id or payload.get("request_key") or "unknown"
+    request_key = f"ceri:capture-run:{run_id}:upstream:{upstream_id}"
     capture_job = enqueue_job(
         db,
         CERI_CAPTURE_RUN,
         {"request_key": request_key, "run_id": run_id},
         related_run_id=run_id,
-        priority=(job.priority or 100) + 10,
+        priority=_child_priority(job),
         max_retries=job.max_retries or 3,
         request_key=request_key,
     )
@@ -769,7 +785,7 @@ def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: in
         CERI_CHANGE_DETECTION,
         {"request_key": request_key, "run_id": run_id},
         related_run_id=run_id,
-        priority=(job.priority or 100) + 10,
+        priority=_child_priority(job),
         max_retries=job.max_retries or 3,
         request_key=request_key,
     )
@@ -788,7 +804,7 @@ def _enqueue_alert_after_change(
         CERI_ALERT_REBUILD,
         {"request_key": request_key, "run_id": payload.get("run_id")},
         related_run_id=job.related_run_id,
-        priority=(job.priority or 100) + 10,
+        priority=_child_priority(job),
         max_retries=job.max_retries or 3,
         request_key=request_key,
     )

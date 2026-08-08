@@ -3,14 +3,17 @@ from types import SimpleNamespace
 import pytest
 
 import app.services.pipeline_executor as pipeline_executor
+from app.models.ceri_tables import CeriCompany
 from app.models.tables import CombinedResult, IBFetchRun, PipelineRun, PipelineStep, UploadRun
 from app.services.background_job_service import JobLeaseLost
+from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.pipeline_executor import (
     PipelineCancelled,
     PipelineExecutionDependencies,
     _capture_ceri_snapshot,
+    _schedule_ceri_provider_ingest,
     execute_full_pipeline,
 )
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
@@ -36,6 +39,49 @@ def _disable_optional_runtime_flags(monkeypatch: pytest.MonkeyPatch) -> None:
             },
         )(),
     )
+
+
+def test_ceri_provider_schedule_prioritizes_score_inputs_before_sec_guidance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scheduled: list[tuple[str, int]] = []
+    added: list[object] = []
+
+    class Db:
+        def scalars(self, statement):
+            entity = statement.column_descriptions[0].get("entity")
+            if entity is CeriCompany:
+                return []
+            return [SimpleNamespace(ticker="MSFT")]
+
+        def add(self, value) -> None:
+            added.append(value)
+
+        def flush(self) -> None:
+            pass
+
+    class Registry:
+        def capabilities(self, _provider):
+            return SimpleNamespace(datasets=frozenset(CeriDataset))
+
+    def capture_enqueue(_db, _job_type, payload, **kwargs):
+        scheduled.append((payload["dataset"], kwargs["priority"]))
+        return SimpleNamespace(id=len(scheduled))
+
+    monkeypatch.setattr(
+        "app.services.ceri.provider_registry.CeriProviderRegistry", lambda: Registry()
+    )
+    monkeypatch.setattr(pipeline_executor, "enqueue_job", capture_enqueue)
+
+    assert _schedule_ceri_provider_ingest(Db(), run_id=7) == 4
+    assert dict(scheduled) == {
+        "estimates": 80,
+        "earnings": 90,
+        "catalysts": 100,
+        "guidance": 120,
+    }
+    assert [(company.ticker, company.exchange) for company in added] == [("MSFT", "US")]
+    assert added[0].current_provider_ids_json == {"eodhd": "MSFT.US"}
 
 
 def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> None:

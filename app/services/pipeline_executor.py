@@ -820,6 +820,7 @@ def _ceri_provider_ingest_enabled(dependencies: PipelineExecutionDependencies) -
 
 def _schedule_ceri_provider_ingest(db: Session, run_id: int) -> int:
     """Queue provider-specific ingestion jobs for the current SwingLens run."""
+    from app.models.ceri_tables import CeriCompany
     from app.services.ceri.enums import CeriDataset
     from app.services.ceri.provider_registry import CeriProviderRegistry
 
@@ -830,10 +831,35 @@ def _schedule_ceri_provider_ingest(db: Session, run_id: int) -> int:
             if row.ticker
         }
     )
+    existing_companies = {
+        (company.ticker.upper(), (company.exchange or "").upper())
+        for company in db.scalars(select(CeriCompany))
+    }
+    for ticker in tickers:
+        if (ticker, "US") in existing_companies:
+            continue
+        db.add(
+            CeriCompany(
+                ticker=ticker,
+                exchange="US",
+                current_provider_ids_json={"eodhd": f"{ticker}.US"},
+            )
+        )
+        existing_companies.add((ticker, "US"))
+    db.flush()
+
     registry = CeriProviderRegistry()
     datasets_by_provider = {
         "eodhd": (CeriDataset.ESTIMATES, CeriDataset.EARNINGS, CeriDataset.CATALYSTS),
         "sec": (CeriDataset.GUIDANCE,),
+    }
+    dataset_priorities = {
+        CeriDataset.ESTIMATES: 80,
+        CeriDataset.EARNINGS: 90,
+        CeriDataset.CATALYSTS: 100,
+        # SEC guidance may scan several filings. Keep it behind the inputs
+        # needed to produce the first run score snapshots.
+        CeriDataset.GUIDANCE: 120,
     }
     scheduled = 0
     for ticker in tickers:
@@ -859,7 +885,7 @@ def _schedule_ceri_provider_ingest(db: Session, run_id: int) -> int:
                     },
                     related_run_id=run_id,
                     request_key=request_key,
-                    priority=110,
+                    priority=dataset_priorities[dataset],
                 )
                 scheduled += 1
     db.flush()

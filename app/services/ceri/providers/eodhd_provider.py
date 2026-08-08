@@ -124,16 +124,35 @@ class EodhdCeriProvider:
     def fetch_estimate_snapshots(self, request: EstimateRequest) -> Iterable[RawProviderRecord]:
         symbol = self._symbol(request.ticker)
         rows = _rows(self.client.get_json("/api/calendar/trends", {"symbols": symbol}))
+        observation_at = self._clock()
+        fiscal_start = request.start or observation_at.date() - timedelta(days=120)
+        fiscal_end_limit = request.end or observation_at.date() + timedelta(days=550)
+        requested_periods = {value.value for value in request.period_types}
+        requested_metrics = {value.value for value in request.metrics}
         for row in rows:
             ptype = period_type(row.get("period"))
             fiscal_end = provider_date(row.get("date"))
-            if not ptype or fiscal_end is None:
+            if (
+                not ptype
+                or ptype not in requested_periods
+                or fiscal_end is None
+                or fiscal_end < fiscal_start
+                or fiscal_end > fiscal_end_limit
+            ):
                 continue
-            base = self._base_payload(symbol, row, fiscal_end, ptype)
+            base = self._base_payload(
+                symbol,
+                row,
+                fiscal_end,
+                ptype,
+                fallback_observed_at=observation_at,
+            )
             for metric, prefix in (
                 ("EPS_DILUTED", "earningsEstimate"),
                 ("REVENUE", "revenueEstimate"),
             ):
+                if metric not in requested_metrics:
+                    continue
                 consensus = row.get(f"{prefix}Avg")
                 if (
                     consensus is None
@@ -311,12 +330,19 @@ class EodhdCeriProvider:
         return symbol
 
     def _base_payload(
-        self, symbol: str, row: dict[str, Any], fiscal_end: date, ptype: str
+        self,
+        symbol: str,
+        row: dict[str, Any],
+        fiscal_end: date,
+        ptype: str,
+        *,
+        fallback_observed_at: datetime,
     ) -> dict[str, Any]:
         provider_observed_at = (
             _datetime(row.get("observedAt"))
             or _datetime(row.get("updatedAt"))
             or _datetime(row.get("lastUpdated"))
+            or fallback_observed_at
         )
         payload = {
             "ticker": symbol.split(".")[0],
@@ -366,13 +392,24 @@ class EodhdCeriProvider:
 
 def _rows(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, list):
-        return [dict(row) for row in value if isinstance(row, dict)]
+        return _flatten_rows(value)
     if isinstance(value, dict):
         for key in ("data", "results", "earnings", "news", "trends"):
             if isinstance(value.get(key), list):
-                return [dict(row) for row in value[key] if isinstance(row, dict)]
+                return _flatten_rows(value[key])
         return [value]
     return []
+
+
+def _flatten_rows(value: list[Any]) -> list[dict[str, Any]]:
+    """Flatten provider containers such as ``trends: [[...rows...]]``."""
+    rows: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, dict):
+            rows.append(dict(item))
+        elif isinstance(item, list):
+            rows.extend(_flatten_rows(item))
+    return rows
 
 
 def _datetime(value: Any) -> datetime | None:

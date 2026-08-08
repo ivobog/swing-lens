@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -378,7 +378,22 @@ class WinnerOutcomeRepository:
                 .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
                 .where(WinnerForwardOutcome.is_current_revision.is_(True))
                 .where(WinnerForwardOutcome.due_session <= completed_on)
-                .order_by(WinnerForwardOutcome.due_session, WinnerForwardOutcome.id)
+                # Try never-attempted outcomes before retrying rows already
+                # blocked by missing bars. Otherwise the same old missing rows
+                # consume most of every bounded batch and starve later horizons.
+                .order_by(
+                    case(
+                        (
+                            WinnerForwardOutcome.metadata_json["pending_reason"]
+                            .as_string()
+                            .is_(None),
+                            0,
+                        ),
+                        else_=1,
+                    ),
+                    WinnerForwardOutcome.due_session,
+                    WinnerForwardOutcome.id,
+                )
                 .limit(limit)
             )
         )

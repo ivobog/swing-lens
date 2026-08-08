@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriPriceResponseFeature
@@ -244,14 +244,26 @@ class CeriPriceResponseService:
         return self.sessions.next_trading_session(effective_session)
 
     def _bars(self, db: Session, ticker: str) -> list[PriceBar]:
-        rows = _load(db, PriceBar)
+        rows = _scalars(
+            db,
+            select(PriceBar)
+            .where(PriceBar.ticker == ticker.upper())
+            .where(func.lower(PriceBar.timeframe).in_(("1d", "1 day", "day", "daily")))
+            .where(
+                func.lower(PriceBar.source).in_(("ib", "ibkr", "interactive_brokers"))
+            )
+            .where(PriceBar.close.is_not(None))
+            .order_by(PriceBar.bar_date),
+        )
+        # Retain the same filtering for lightweight test/session adapters that
+        # do not execute SQLAlchemy predicates themselves.
         return sorted(
             [
                 row
                 for row in rows
                 if row.ticker.upper() == ticker.upper()
-                and row.timeframe.lower() in {"1d", "day", "daily"}
-                and row.source.lower() in {"ibkr", "interactive_brokers"}
+                and row.timeframe.lower() in {"1d", "1 day", "day", "daily"}
+                and row.source.lower() in {"ib", "ibkr", "interactive_brokers"}
                 and row.close is not None
             ],
             key=lambda row: row.bar_date,
@@ -314,11 +326,11 @@ def _hash(value: Any) -> str:
     ).hexdigest()
 
 
-def _load(db: Session, model: Any) -> list[Any]:
+def _scalars(db: Session, statement: Any) -> list[Any]:
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []
-    result = scalars(select(model))
+    result = scalars(statement)
     return list(result.all() if hasattr(result, "all") else result)
 
 

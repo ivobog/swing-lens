@@ -88,6 +88,29 @@ def test_verified_currency_conversion_is_traceable() -> None:
     assert estimate.conversion_effective_at is not None
 
 
+def test_provider_decimal_formatted_counts_are_normalized_as_integers() -> None:
+    estimate = CeriEstimateNormalizer().normalize(
+        _source(
+            {
+                "metric": "EPS_DILUTED",
+                "period_type": "ANNUAL",
+                "fiscal_year": 2026,
+                "consensus": "10",
+                "currency": "USD",
+                "analyst_count": "21.0000",
+                "upward_count": "3.0000",
+                "downward_count": "2.0000",
+                "source_date": "2026-08-03",
+            }
+        ),
+        company_id=42,
+    )
+
+    assert estimate.analyst_count == 21
+    assert estimate.upward_count == 3
+    assert estimate.downward_count == 2
+
+
 def _source(payload: dict) -> CeriSourceRecord:
     published_at = payload.get("published_at")
     return CeriSourceRecord(
