@@ -288,8 +288,7 @@ def execute_full_pipeline(
                 performance=performance,
             ):
                 schedule = (
-                    dependencies.schedule_ceri_provider_ingest
-                    or _schedule_ceri_provider_ingest
+                    dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
                 )
                 result["ceri_provider_jobs"] = int(schedule(db, upload_run.id) or 0)
         elif _ceri_run_capture_enabled(dependencies):
@@ -375,6 +374,10 @@ def execute_full_pipeline(
     except Exception as exc:
         if overlap_coordinator is not None:
             overlap_coordinator.abort()
+        rollback = getattr(db, "rollback", None)
+        if callable(rollback):
+            rollback()
+            pipeline = _require_pipeline(db, pipeline_run_id)
         result["performance"] = performance.snapshot()
         _record_performance_metrics(PipelineStatus.FAILED, result["performance"])
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
@@ -1006,9 +1009,7 @@ def _apply_setup_lifecycle_capture_result(
     performance: PipelinePerformanceTracker | None = None,
 ) -> None:
     values = (
-        capture_result.as_dict()
-        if hasattr(capture_result, "as_dict")
-        else dict(capture_result)
+        capture_result.as_dict() if hasattr(capture_result, "as_dict") else dict(capture_result)
     )
     result["setup_lifecycle_snapshots_captured"] = int(
         values.get("snapshots_captured", values.get("captured", 0))

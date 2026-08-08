@@ -280,6 +280,14 @@ def test_export_routes_return_attachments(monkeypatch) -> None:
     assert markdown_response.media_type == "text/markdown"
     assert b"Sector Rotation Brief" in markdown_response.body
 
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: RouteFakeDb()
+    routed_response = TestClient(app).get("/runs/7/sector-rotation/export.csv")
+
+    assert routed_response.status_code == 200
+    assert routed_response.headers["content-type"].startswith("text/csv")
+    assert "sector_rotation.csv" in routed_response.headers["content-disposition"]
+
 
 def test_sector_rotation_routes_404_missing_run() -> None:
     with pytest.raises(HTTPException) as exc:
