@@ -180,6 +180,15 @@ def test_volatility_zero_missing_entitlement_and_ceri_bound():
         iv_availability=AvailabilityStatus.SUBSCRIPTION_REQUIRED,
     )
     assert missing.coverage_status == AvailabilityStatus.SUBSCRIPTION_REQUIRED
+    inferred_missing = calculate_volatility(_bars([0.2]), [], as_of=date.today())
+    assert inferred_missing.coverage_status == AvailabilityStatus.UNAVAILABLE
+    unavailable_with_old_iv = calculate_volatility(
+        _bars([0.2]),
+        _bars([0.4]),
+        as_of=date.today(),
+        iv_availability=AvailabilityStatus.SUBSCRIPTION_REQUIRED,
+    )
+    assert unavailable_with_old_iv.coverage_status == AvailabilityStatus.SUBSCRIPTION_REQUIRED
     extreme = calculate_volatility(_bars([0.1]), _bars([0.4]), as_of=date.today())
     assert options_event_premium_score(extreme, maximum=1.5) == 1.5
 
@@ -215,6 +224,14 @@ def test_options_activity_ratios_zero_and_unavailable_are_distinct():
     )
     assert unavailable.classification == "INSUFFICIENT"
     assert "OPTIONS_ACTIVITY_SUBSCRIPTION_REQUIRED" in unavailable.warnings
+    partial = calculate_options_activity(
+        {"call_volume": 100, "put_volume": 40},
+        availability_status=AvailabilityStatus.UNAVAILABLE,
+    )
+    assert partial.classification == "INSUFFICIENT"
+    assert partial.score is None
+    assert partial.components["put_call_volume_ratio"] is None
+    assert partial.coverage_status == AvailabilityStatus.UNAVAILABLE
 
 
 def test_histogram_unimodal_multiple_peaks_sparse_and_relative_price():

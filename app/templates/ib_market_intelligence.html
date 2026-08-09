@@ -12,10 +12,10 @@
   </div>
 </section>
 <section class="metric-grid section-gap" aria-label="Market intelligence coverage">
-  <div class="metric"><span>Liquidity</span><strong>{{ payload.cards.liquidity.coverage }}</strong><small>{{ payload.cards.liquidity.warning_count }} warnings</small></div>
-  <div class="metric"><span>Borrow Pressure</span><strong>{{ payload.cards.short_pressure.coverage }}</strong><small>{{ payload.cards.short_pressure.warning_count }} elevated</small></div>
-  <div class="metric"><span>Volatility</span><strong>{{ payload.cards.volatility.coverage }}</strong><small>{{ payload.cards.volatility.warning_count }} elevated</small></div>
-  <div class="metric"><span>Options Activity</span><strong>{{ payload.cards.options_activity.coverage }}</strong><small>{{ payload.cards.options_activity.warning_count }} abnormal</small></div>
+  <div class="metric"><span>Liquidity</span><strong>{{ payload.cards.liquidity.coverage }}</strong><small>{{ payload.cards.liquidity.warning_count }} warnings · {{ payload.cards.liquidity.unavailable }} unavailable</small></div>
+  <div class="metric"><span>Borrow Pressure</span><strong>{{ payload.cards.short_pressure.coverage }}</strong><small>{{ payload.cards.short_pressure.warning_count }} elevated · {{ payload.cards.short_pressure.unavailable }} unavailable</small></div>
+  <div class="metric"><span>Volatility</span><strong>{{ payload.cards.volatility.coverage }}</strong><small>{{ payload.cards.volatility.warning_count }} elevated · {{ payload.cards.volatility.unavailable }} unavailable</small></div>
+  <div class="metric"><span>Options Activity</span><strong>{{ payload.cards.options_activity.coverage }}</strong><small>{{ payload.cards.options_activity.warning_count }} abnormal · {{ payload.cards.options_activity.unavailable }} unavailable</small></div>
   <div class="metric"><span>Scanner Candidates</span><strong>{{ payload.cards.scanner_candidates }}</strong></div>
   <div class="metric"><span>Histogram Coverage</span><strong>{{ payload.cards.histogram_coverage }}</strong></div>
   <div class="metric"><span>Closed Trades</span><strong>{{ payload.cards.closed_trades }}</strong></div>

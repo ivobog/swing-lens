@@ -17,7 +17,16 @@ from app.services.ib_market_intelligence.enums import (
     AvailabilityStatus,
     HistoricalMetricType,
 )
+from app.services.ib_market_intelligence.orchestration import (
+    _latest_historical_availability,
+    effective_histogram_period,
+)
 from app.services.ib_market_intelligence.request_budget import WeightedWindowBudget
+from app.services.ib_market_intelligence.scanner_identity import (
+    canonical_scanner_identity,
+    scanner_conids_by_ticker,
+)
+from app.settings import Settings
 
 
 def test_typed_historical_parser_preserves_non_price_semantics():
@@ -92,6 +101,76 @@ def test_live_snapshot_cancels_subscription_and_tracks_reconnect_semantics():
     assert manager.restart_required is False
 
 
+def test_live_options_waits_for_all_required_fields_before_available():
+    contract = SimpleNamespace(symbol="XYZ", conId=1)
+    ticker = SimpleNamespace(
+        callVolume=100,
+        putVolume=50,
+        callOpenInterest=None,
+        putOpenInterest=None,
+        avOptionVolume=75,
+    )
+
+    class FakeIB:
+        def __init__(self):
+            self.cancelled = []
+            self.waits = 0
+
+        def reqMktData(self, *_args, **_kwargs):
+            return ticker
+
+        def waitOnUpdate(self, **_kwargs):
+            self.waits += 1
+            ticker.callOpenInterest = 200
+            ticker.putOpenInterest = 150
+
+        def cancelMktData(self, item):
+            self.cancelled.append(item)
+
+    ib = FakeIB()
+    result = IBLiveSnapshotManager(ib, timeout_seconds=0.1).capture(
+        contract, "OPTIONS_ACTIVITY"
+    )
+    assert ib.waits == 1
+    assert result.availability_status == AvailabilityStatus.AVAILABLE
+    assert result.source_request["missing_required_fields"] == []
+    assert ib.cancelled == [contract]
+
+
+def test_live_options_partial_fields_remain_raw_but_are_not_available():
+    contract = SimpleNamespace(symbol="XYZ", conId=1)
+
+    class FakeIB:
+        def __init__(self):
+            self.cancelled = []
+
+        def reqMktData(self, *_args, **_kwargs):
+            return SimpleNamespace(
+                callVolume=100,
+                putVolume=50,
+                callOpenInterest=None,
+                putOpenInterest=None,
+                avOptionVolume=75,
+            )
+
+        def cancelMktData(self, item):
+            self.cancelled.append(item)
+
+    result = IBLiveSnapshotManager(FakeIB(), timeout_seconds=0.1).capture(
+        contract, "OPTIONS_ACTIVITY"
+    )
+    assert result.values["call_volume"] == 100
+    assert result.availability_status == AvailabilityStatus.UNAVAILABLE
+    assert result.source_request["missing_required_fields"] == [
+        "call_open_interest",
+        "put_open_interest",
+    ]
+    assert result.warning_flags == (
+        "MISSING_REQUIRED_FIELD:call_open_interest",
+        "MISSING_REQUIRED_FIELD:put_open_interest",
+    )
+
+
 def test_weighted_window_budget_accounts_for_weight():
     state = {"now": 0.0, "sleeps": []}
 
@@ -149,6 +228,59 @@ def test_scanner_propagates_request_failure():
     preset = ScannerPreset("TEST", "1", "STK", "STK.US", "MOST_ACTIVE", 50, ())
     with pytest.raises(RuntimeError, match="scanner unavailable"):
         IBScannerClient(FakeIB()).run(preset)
+
+
+def test_scanner_identity_merges_missing_conid_with_one_canonical_contract():
+    known = scanner_conids_by_ticker([("aapl", None), ("AAPL", 265598)])
+    resolved = canonical_scanner_identity(
+        ticker="AAPL", ib_conid=265598, known_conids_by_ticker=known
+    )
+    unresolved = canonical_scanner_identity(
+        ticker="aapl",
+        ib_conid=None,
+        contract_metadata={"sec_type": "STK", "currency": "USD"},
+        known_conids_by_ticker=known,
+    )
+    assert resolved == unresolved == "CONID:265598"
+
+
+def test_scanner_identity_keeps_ambiguous_symbol_contracts_separate():
+    known = scanner_conids_by_ticker([("XYZ", 1), ("XYZ", 2)])
+    unresolved = canonical_scanner_identity(
+        ticker="XYZ",
+        ib_conid=None,
+        contract_metadata={
+            "sec_type": "STK",
+            "currency": "USD",
+            "primary_exchange": "NASDAQ",
+        },
+        known_conids_by_ticker=known,
+    )
+    assert unresolved == "SYMBOL:XYZ:STK:USD:NASDAQ"
+
+
+def test_histogram_request_period_override_is_the_effective_persisted_period():
+    settings = Settings(_env_file=None, job_worker_enabled=False, ib_histogram_period="20 days")
+    assert (
+        effective_histogram_period(
+            {"period": "5 days"}, {"period": "10 days"}, settings
+        )
+        == "5 days"
+    )
+    assert effective_histogram_period({}, {"period": "10 days"}, settings) == "10 days"
+
+
+def test_latest_historical_entitlement_status_overrides_existing_iv_rows():
+    db = SimpleNamespace(scalar=lambda _statement: AvailabilityStatus.SUBSCRIPTION_REQUIRED)
+    assert (
+        _latest_historical_availability(
+            db,
+            "AAPL",
+            HistoricalMetricType.OPTION_IMPLIED_VOLATILITY,
+            has_rows=True,
+        )
+        == AvailabilityStatus.SUBSCRIPTION_REQUIRED
+    )
 
 
 def test_market_intelligence_package_contains_no_order_execution_calls():

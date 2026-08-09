@@ -132,6 +132,13 @@ class IBLiveSnapshotManager:
         "VOL_LIVE": ("histVolatility", "impliedVolatility"),
     }
     GENERIC_TICKS = {"SHORTABLE": "236", "OPTIONS_ACTIVITY": "100,101,105", "VOL_LIVE": "104,106"}
+    REQUIRED_FIELDS = {
+        "SHORTABLE": frozenset({"shortable_indicator"}),
+        "OPTIONS_ACTIVITY": frozenset(
+            {"call_volume", "put_volume", "call_open_interest", "put_open_interest"}
+        ),
+        "VOL_LIVE": frozenset({"historical_volatility", "implied_volatility"}),
+    }
 
     def __init__(
         self,
@@ -187,21 +194,23 @@ class IBLiveSnapshotManager:
                 values: dict[str, Any] = {}
                 while time.monotonic() < deadline:
                     values = self._read_values(ticker, snapshot_type)
-                    if values:
+                    if self._required_fields_present(values, snapshot_type):
                         break
                     wait = getattr(self.ib, "waitOnUpdate", None)
                     if callable(wait):
                         wait(timeout=min(0.25, max(0.0, deadline - time.monotonic())))
                     else:
                         break
+                missing_fields = sorted(self.REQUIRED_FIELDS[snapshot_type] - values.keys())
                 status, capability_reason = (
                     (AvailabilityStatus.AVAILABLE, None)
-                    if values
+                    if not missing_fields
                     else capability_errors[-1]
                     if capability_errors
                     else (
                         AvailabilityStatus.UNAVAILABLE,
-                        "Required fields were not returned before timeout.",
+                        "Required fields were not returned before timeout: "
+                        + ", ".join(missing_fields),
                     )
                 )
                 return LiveSnapshotDTO(
@@ -213,9 +222,15 @@ class IBLiveSnapshotManager:
                     values=values,
                     availability_status=status,
                     capability_reason=capability_reason,
+                    warning_flags=tuple(
+                        f"MISSING_REQUIRED_FIELD:{field}" for field in missing_fields
+                    ),
                     source_request={
                         "generic_ticks": self.GENERIC_TICKS[snapshot_type],
-                        "streaming": False,
+                        "streaming": True,
+                        "cancel_after_completion": True,
+                        "required_fields": sorted(self.REQUIRED_FIELDS[snapshot_type]),
+                        "missing_required_fields": missing_fields,
                     },
                 )
             except Exception as exc:
@@ -231,7 +246,9 @@ class IBLiveSnapshotManager:
                     capability_reason=reason,
                     source_request={
                         "generic_ticks": self.GENERIC_TICKS[snapshot_type],
-                        "streaming": False,
+                        "streaming": True,
+                        "cancel_after_completion": True,
+                        "required_fields": sorted(self.REQUIRED_FIELDS[snapshot_type]),
                     },
                 )
             finally:
@@ -275,6 +292,9 @@ class IBLiveSnapshotManager:
                     else "NOT_SHORTABLE"
                 )
         return values
+
+    def _required_fields_present(self, values: dict[str, Any], snapshot_type: str) -> bool:
+        return self.REQUIRED_FIELDS[snapshot_type].issubset(values)
 
 
 class IBScannerClient:

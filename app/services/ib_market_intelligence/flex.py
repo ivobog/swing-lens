@@ -11,6 +11,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -123,7 +124,7 @@ class IBFlexClient:
             return response.read().decode("utf-8-sig")
 
 
-def parse_flex_report(content: str) -> list[FlexExecutionDTO]:
+def parse_flex_report(content: str, *, report_timezone: str = "UTC") -> list[FlexExecutionDTO]:
     stripped = content.lstrip()
     rows = (
         _xml_execution_rows(content) if stripped.startswith("<") else _csv_execution_rows(content)
@@ -132,7 +133,7 @@ def parse_flex_report(content: str) -> list[FlexExecutionDTO]:
     errors: list[str] = []
     for index, row in enumerate(rows, start=1):
         try:
-            executions.append(_normalize_execution(row))
+            executions.append(_normalize_execution(row, report_timezone=report_timezone))
         except (ValueError, InvalidOperation) as exc:
             errors.append(f"row {index}: {exc}")
     if errors:
@@ -150,6 +151,7 @@ def import_flex_report(
     dry_run: bool = False,
     intelligence_run_id: int | None = None,
     now: datetime | None = None,
+    report_timezone: str = "UTC",
 ) -> dict[str, Any]:
     now = now or datetime.now(UTC)
     digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -161,7 +163,7 @@ def import_flex_report(
     )
     if existing_run is not None and not dry_run:
         return {"status": "DUPLICATE_REPORT", "import_run_id": existing_run.id, "inserted": 0}
-    executions = parse_flex_report(content)
+    executions = parse_flex_report(content, report_timezone=report_timezone)
     if dry_run:
         return {
             "status": "DRY_RUN",
@@ -201,6 +203,9 @@ def import_flex_report(
                 .where(IBExecutionFill.is_superseded.is_(False))
                 .order_by(IBExecutionFill.id.desc())
             )
+        if superseded:
+            superseded.is_superseded = True
+            db.flush()
         fill = IBExecutionFill(
             flex_import_run_id=run.id,
             external_execution_id=execution.external_execution_id,
@@ -224,7 +229,6 @@ def import_flex_report(
         )
         db.add(fill)
         if superseded:
-            superseded.is_superseded = True
             corrected += 1
         inserted += 1
     run.inserted_count = inserted
@@ -259,13 +263,13 @@ def flex_client_from_settings(
     )
 
 
-def _normalize_execution(row: dict[str, str]) -> FlexExecutionDTO:
+def _normalize_execution(row: dict[str, str], *, report_timezone: str) -> FlexExecutionDTO:
     normalized = {str(key).strip().lower(): (value or "").strip() for key, value in row.items()}
     symbol = _first(normalized, "symbol", "underlyingsymbol")
     side = _normalize_side(_first(normalized, "buy/sell", "buysell", "side", "transactiontype"))
     quantity = abs(_decimal(_first(normalized, "quantity", "tradequantity", "qty"), required=True))
     price = _decimal(_first(normalized, "tradeprice", "price", "trade_price"), required=True)
-    trade_time = _parse_datetime(normalized)
+    trade_time = _parse_datetime(normalized, report_timezone=report_timezone)
     if not symbol:
         raise ValueError("missing required symbol")
     if quantity <= 0 or price <= 0:
@@ -317,12 +321,13 @@ def _xml_execution_rows(content: str) -> list[dict[str, str]]:
     return rows
 
 
-def _parse_datetime(row: dict[str, str]) -> datetime:
+def _parse_datetime(row: dict[str, str], *, report_timezone: str) -> datetime:
     combined = _first(row, "datetime", "date/time", "date_time")
     if not combined:
         trade_date = _first(row, "tradedate", "date", "reportdate")
         trade_time = _first(row, "tradetime", "time") or "00:00:00"
         combined = f"{trade_date} {trade_time}".strip()
+    parsed: datetime | None = None
     for fmt in (
         "%Y%m%d;%H%M%S",
         "%Y%m%d %H%M%S",
@@ -332,14 +337,23 @@ def _parse_datetime(row: dict[str, str]) -> datetime:
         "%m/%d/%Y %H:%M:%S",
     ):
         try:
-            return datetime.strptime(combined, fmt).replace(tzinfo=UTC)
+            parsed = datetime.strptime(combined, fmt)
+            break
         except ValueError:
             continue
+    if parsed is None:
+        try:
+            parsed = datetime.fromisoformat(combined.replace("Z", "+00:00"))
+            if parsed.tzinfo is not None:
+                return parsed.astimezone(UTC)
+        except ValueError as exc:
+            raise ValueError(f"unsupported execution timestamp {combined!r}") from exc
+    timezone_name = _first(row, "timezone", "timezonename", "datetimezone") or report_timezone
     try:
-        parsed = datetime.fromisoformat(combined.replace("Z", "+00:00"))
-        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-    except ValueError as exc:
-        raise ValueError(f"unsupported execution timestamp {combined!r}") from exc
+        timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(f"unsupported Flex report timezone {timezone_name!r}") from exc
+    return parsed.replace(tzinfo=timezone).astimezone(UTC)
 
 
 def _normalize_side(value: str) -> str:

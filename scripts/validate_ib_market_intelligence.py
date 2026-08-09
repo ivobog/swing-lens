@@ -66,7 +66,9 @@ def main() -> int:
                 attempts=settings.ib_flex_poll_attempts,
                 poll_seconds=settings.ib_flex_poll_seconds,
             )
-            rows = parse_flex_report(content)
+            rows = parse_flex_report(
+                content, report_timezone=settings.ib_flex_report_timezone
+            )
             print(json.dumps({"module": "flex", "status": "AVAILABLE", "rows": len(rows)}))
             return 0
         except Exception as exc:
