@@ -223,6 +223,7 @@ class IBIntelligenceFeature(Base):
             "module",
             "calculation_version",
             "config_hash",
+            "input_signature",
             name="uq_ib_intelligence_feature_version",
         ),
         Index("ix_ib_intelligence_feature_latest", "ticker", "module", "as_of_session"),
@@ -390,7 +391,15 @@ class IBExecutionFill(Base):
     __table_args__ = (
         Index("ix_ib_execution_external_id", "external_execution_id"),
         Index("ix_ib_execution_symbol_time", "symbol", "execution_time"),
-        Index("ix_ib_execution_raw_hash", "raw_record_hash"),
+        Index("uq_ib_execution_raw_hash", "raw_record_hash", unique=True),
+        Index(
+            "uq_ib_execution_active_external",
+            "external_execution_id",
+            unique=True,
+            postgresql_where=text(
+                "external_execution_id IS NOT NULL AND is_superseded = false"
+            ),
+        ),
     )
 
 

@@ -62,10 +62,15 @@ def rebuild_trade_episodes(db: Session) -> list[IBTradeEpisode]:
         )
     ).all()
     drafts = construct_trade_episodes(fills)
+    existing_rows = {
+        row.episode_key: row for row in db.scalars(select(IBTradeEpisode)).all()
+    }
+    active_keys: set[str] = set()
     persisted: list[IBTradeEpisode] = []
     for draft in drafts:
         key = _episode_key(draft)
-        row = db.scalar(select(IBTradeEpisode).where(IBTradeEpisode.episode_key == key))
+        active_keys.add(key)
+        row = existing_rows.get(key)
         values = _episode_values(draft)
         if row is None:
             row = IBTradeEpisode(episode_key=key, **values)
@@ -74,6 +79,9 @@ def rebuild_trade_episodes(db: Session) -> list[IBTradeEpisode]:
             for name, value in values.items():
                 setattr(row, name, value)
         persisted.append(row)
+    for key, row in existing_rows.items():
+        if key not in active_keys:
+            row.status = "SUPERSEDED"
     db.flush()
     return persisted
 

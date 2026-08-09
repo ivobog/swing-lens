@@ -43,6 +43,20 @@ def test_flex_xml_parser_supports_trade_rows():
     assert rows[0].price == Decimal("420")
 
 
+def test_flex_timezone_less_timestamp_is_normalized_from_configured_zone():
+    rows = parse_flex_report(CSV_REPORT, report_timezone="America/New_York")
+    assert rows[0].trade_time == datetime(2026, 8, 7, 13, 30, tzinfo=UTC)
+
+
+def test_flex_explicit_offset_is_normalized_to_utc():
+    payload = (
+        "AccountId,TradeID,DateTime,Symbol,Buy/Sell,Quantity,TradePrice\n"
+        "U1,X1,2026-08-07T09:30:00-04:00,MSFT,BUY,1,420\n"
+    )
+    rows = parse_flex_report(payload, report_timezone="Europe/Zurich")
+    assert rows[0].trade_time == datetime(2026, 8, 7, 13, 30, tzinfo=UTC)
+
+
 def test_flex_client_two_step_flow_and_token_redaction():
     calls = []
 

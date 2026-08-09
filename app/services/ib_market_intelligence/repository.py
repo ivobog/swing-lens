@@ -170,6 +170,12 @@ def persist_feature(
             "components": feature.components,
             "evidence_hashes": feature.evidence_hashes,
             "classification": feature.classification,
+            "score": feature.score,
+            "confidence": str(feature.confidence),
+            "freshness_status": str(feature.freshness_status),
+            "coverage_status": str(feature.coverage_status),
+            "reasons": feature.reasons,
+            "warnings": feature.warnings,
         }
     )
     existing = db.scalar(
@@ -179,13 +185,9 @@ def persist_feature(
         .where(IBIntelligenceFeature.module == feature.module)
         .where(IBIntelligenceFeature.calculation_version == config.calculation_version)
         .where(IBIntelligenceFeature.config_hash == config.config_hash)
+        .where(IBIntelligenceFeature.input_signature == input_signature)
     )
     if existing is not None:
-        if existing.input_signature != input_signature:
-            raise ValueError(
-                "Immutable feature identity already exists with different input; bump calculation "
-                "version or configuration before rebuilding."
-            )
         return existing, False
     row = IBIntelligenceFeature(
         intelligence_run_id=intelligence_run_id,

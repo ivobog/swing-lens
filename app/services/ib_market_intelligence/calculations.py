@@ -276,13 +276,19 @@ def calculate_volatility(
     *,
     as_of: date,
     config: dict[str, Any] | None = None,
-    iv_availability: str = AvailabilityStatus.AVAILABLE,
+    iv_availability: str | None = None,
 ) -> FeatureResult:
     config = config or {}
     hv = _metric_values(hv_bars)
     iv = _metric_values(iv_bars)
     current_hv = hv[-1][0] if hv else None
     current_iv = iv[-1][0] if iv else None
+    if iv_availability is None:
+        iv_availability = (
+            AvailabilityStatus.AVAILABLE
+            if current_iv is not None
+            else AvailabilityStatus.UNAVAILABLE
+        )
     ratio = safe_ratio(current_iv, current_hv)
     premium = current_iv - current_hv if current_iv is not None and current_hv is not None else None
     window = int(config.get("iv_expansion_window", 20))
@@ -354,9 +360,13 @@ def calculate_volatility(
         else Confidence.INSUFFICIENT,
         freshness_status=freshness,
         coverage_status=AvailabilityStatus.AVAILABLE
-        if current_hv is not None and current_iv is not None
+        if current_hv is not None
+        and current_iv is not None
+        and iv_availability == AvailabilityStatus.AVAILABLE
         else iv_availability
         if current_iv is None
+        else iv_availability
+        if iv_availability != AvailabilityStatus.AVAILABLE
         else AvailabilityStatus.UNAVAILABLE,
         components={
             "historical_volatility": current_hv,
@@ -396,6 +406,7 @@ def calculate_options_activity(
     *,
     availability_status: str = AvailabilityStatus.AVAILABLE,
     config: dict[str, Any] | None = None,
+    evidence_hash: str | None = None,
 ) -> FeatureResult:
     config = config or {}
     call_volume = finite_number(values.get("call_volume"), nonnegative=True)
@@ -403,14 +414,18 @@ def calculate_options_activity(
     call_oi = finite_number(values.get("call_open_interest"), nonnegative=True)
     put_oi = finite_number(values.get("put_open_interest"), nonnegative=True)
     average_volume = finite_number(values.get("average_option_volume"), positive=True)
-    volume_ratio = safe_ratio(put_volume, call_volume)
-    oi_ratio = safe_ratio(put_oi, call_oi)
+    raw_complete = all(value is not None for value in (call_volume, put_volume, call_oi, put_oi))
+    evidence_available = availability_status == AvailabilityStatus.AVAILABLE and raw_complete
+    volume_ratio = safe_ratio(put_volume, call_volume) if evidence_available else None
+    oi_ratio = safe_ratio(put_oi, call_oi) if evidence_available else None
     total_volume = (
         call_volume + put_volume if call_volume is not None and put_volume is not None else None
     )
-    activity_multiple = safe_ratio(total_volume, average_volume)
+    activity_multiple = safe_ratio(total_volume, average_volume) if evidence_available else None
     abnormal = float(config.get("abnormal_activity_multiple", 2.0))
-    if activity_multiple is not None and activity_multiple >= abnormal:
+    if not evidence_available:
+        classification = "INSUFFICIENT"
+    elif activity_multiple is not None and activity_multiple >= abnormal:
         classification = "ABNORMAL_OPTION_ACTIVITY"
     elif volume_ratio is not None and volume_ratio <= float(
         config.get("call_heavy_ratio_max", 0.7)
@@ -423,6 +438,17 @@ def calculate_options_activity(
     else:
         classification = "INSUFFICIENT"
     warnings: list[str] = []
+    if not raw_complete:
+        warnings.extend(
+            f"MISSING_REQUIRED_FIELD:{field}"
+            for field, value in (
+                ("call_volume", call_volume),
+                ("put_volume", put_volume),
+                ("call_open_interest", call_oi),
+                ("put_open_interest", put_oi),
+            )
+            if value is None
+        )
     if availability_status != AvailabilityStatus.AVAILABLE:
         warnings.append(
             "OPTIONS_ACTIVITY_SUBSCRIPTION_REQUIRED"
@@ -443,7 +469,11 @@ def calculate_options_activity(
         if any(value is not None for value in (call_volume, put_volume, call_oi, put_oi))
         else Confidence.INSUFFICIENT,
         freshness_status=availability_status,
-        coverage_status=availability_status,
+        coverage_status=(
+            AvailabilityStatus.AVAILABLE if evidence_available else availability_status
+            if availability_status != AvailabilityStatus.AVAILABLE
+            else AvailabilityStatus.UNAVAILABLE
+        ),
         components={
             "call_volume": call_volume,
             "put_volume": put_volume,
@@ -456,6 +486,7 @@ def calculate_options_activity(
         },
         reasons=tuple(reasons),
         warnings=tuple(warnings),
+        evidence_hashes=(evidence_hash,) if evidence_hash else (),
     )
 
 

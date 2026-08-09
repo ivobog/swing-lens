@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     ib_flex_http_timeout_seconds: int = Field(default=30, ge=1, le=120)
     ib_flex_poll_attempts: int = Field(default=8, ge=1, le=30)
     ib_flex_poll_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
+    ib_flex_report_timezone: str = "UTC"
 
     technical_pure_boundary_enabled: bool = False
     technical_pure_boundary_shadow_compare_enabled: bool = False

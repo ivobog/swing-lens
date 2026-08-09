@@ -20,6 +20,10 @@ from app.models.ib_market_intelligence_tables import (
     IBTradeResearchLink,
 )
 from app.services.ib_market_intelligence.journal import journal_analytics
+from app.services.ib_market_intelligence.scanner_identity import (
+    canonical_scanner_identity,
+    scanner_conids_by_ticker,
+)
 
 
 def overview(db: Session) -> dict[str, Any]:
@@ -29,6 +33,7 @@ def overview(db: Session) -> dict[str, Any]:
         by_module[feature["module"]].append(feature)
     latest_scan = db.scalar(select(IBScannerRun).order_by(IBScannerRun.started_at.desc()))
     latest_flex = db.scalar(select(IBFlexImportRun).order_by(IBFlexImportRun.started_at.desc()))
+    canonical_candidate_count = len(scanner_runs(db)["candidate_pool"])
     return {
         "cards": {
             "liquidity": _coverage_card(
@@ -45,9 +50,10 @@ def overview(db: Session) -> dict[str, Any]:
             "options_activity": _coverage_card(
                 by_module["OPTIONS_ACTIVITY"], warning_classes={"ABNORMAL_OPTION_ACTIVITY"}
             ),
-            "scanner_candidates": db.scalar(select(func.count()).select_from(IBScannerCandidate))
-            or 0,
-            "histogram_coverage": len(by_module["HISTOGRAM"]),
+            "scanner_candidates": canonical_candidate_count,
+            "histogram_coverage": sum(
+                row["coverage_status"] == "AVAILABLE" for row in by_module["HISTOGRAM"]
+            ),
             "closed_trades": db.scalar(
                 select(func.count())
                 .select_from(IBTradeEpisode)
@@ -90,19 +96,30 @@ def scanner_runs(db: Session, *, limit: int = 50) -> dict[str, Any]:
             IBScannerCandidate.ticker, IBScannerCandidate.rank, IBScannerRun.started_at.desc()
         )
     ).all()
-    merged: dict[tuple[int | None, str], dict[str, Any]] = {}
+    known_conids = scanner_conids_by_ticker(
+        (candidate.ticker, candidate.ib_conid) for candidate, _run in candidates
+    )
+    merged: dict[str, dict[str, Any]] = {}
     for candidate, run in candidates:
-        key = (candidate.ib_conid, candidate.ticker)
+        key = canonical_scanner_identity(
+            ticker=candidate.ticker,
+            ib_conid=candidate.ib_conid,
+            contract_metadata=candidate.contract_metadata_json,
+            known_conids_by_ticker=known_conids,
+        )
         item = merged.setdefault(
             key,
             {
                 "ticker": candidate.ticker,
                 "ib_conid": candidate.ib_conid,
+                "canonical_identity": key,
                 "best_rank": candidate.rank,
                 "discovery_reasons": [],
                 "universe_source": "IBKR_SCANNER",
             },
         )
+        if item["ib_conid"] is None and candidate.ib_conid is not None:
+            item["ib_conid"] = candidate.ib_conid
         item["best_rank"] = min(item["best_rank"], candidate.rank)
         item["discovery_reasons"].append(
             {"scanner_run_id": run.id, "scanner": run.scanner_name, "rank": candidate.rank}
@@ -155,7 +172,11 @@ def histogram_detail(db: Session, ticker: str) -> dict[str, Any] | None:
 def trade_journal(
     db: Session, *, group_by: str = "setup_family", include_account: bool = False
 ) -> dict[str, Any]:
-    episodes = db.scalars(select(IBTradeEpisode).order_by(IBTradeEpisode.opened_at.desc())).all()
+    episodes = db.scalars(
+        select(IBTradeEpisode)
+        .where(IBTradeEpisode.status != "SUPERSEDED")
+        .order_by(IBTradeEpisode.opened_at.desc())
+    ).all()
     links = {row.trade_episode_id: row for row in db.scalars(select(IBTradeResearchLink)).all()}
     fills = db.scalars(
         select(IBExecutionFill).order_by(IBExecutionFill.execution_time.desc()).limit(500)
@@ -194,6 +215,8 @@ def trade_journal(
                 "fees": _number(row.fees),
                 "exchange": row.exchange,
                 "order_reference": row.order_reference,
+                "is_superseded": row.is_superseded,
+                "supersedes_fill_id": row.supersedes_fill_id,
                 **({"account": row.account_masked_label} if include_account else {}),
             }
             for row in fills
@@ -257,9 +280,11 @@ def _feature_dict(row: IBIntelligenceFeature) -> dict[str, Any]:
 
 
 def _coverage_card(rows: list[dict[str, Any]], *, warning_classes: set[str]) -> dict[str, Any]:
+    available = [row for row in rows if row["coverage_status"] == "AVAILABLE"]
     return {
-        "coverage": len(rows),
-        "warning_count": sum(row["classification"] in warning_classes for row in rows),
+        "coverage": len(available),
+        "unavailable": len(rows) - len(available),
+        "warning_count": sum(row["classification"] in warning_classes for row in available),
     }
 
 

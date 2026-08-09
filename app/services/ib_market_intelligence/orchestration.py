@@ -67,6 +67,10 @@ from app.services.ib_market_intelligence.request_budget import (
     IBRequestBudget,
     RequestBudgetConfig,
 )
+from app.services.ib_market_intelligence.scanner_identity import (
+    canonical_scanner_identity,
+    scanner_conids_by_ticker,
+)
 from app.settings import Settings, get_settings
 
 HISTORICAL_MODULE_METRICS = {
@@ -118,6 +122,7 @@ def execute_historical_refresh(
         )
         client = IBHistoricalMetricClient(ib, settings=settings, budget=shared_request_budget())
         for ticker_index, ticker in enumerate(tickers):
+            metric_availability: dict[HistoricalMetricType, str] = {}
             _job_guard(db, job)
             _checkpoint(
                 db,
@@ -168,13 +173,25 @@ def execute_historical_refresh(
                         counts[outcome.lower()] = counts.get(outcome.lower(), 0) + 1
                     _finish_request_item(
                         request_item,
-                        status="COMPLETED",
-                        availability=AvailabilityStatus.AVAILABLE,
+                        status="COMPLETED" if bars else "PARTIAL",
+                        availability=(
+                            AvailabilityStatus.AVAILABLE
+                            if bars
+                            else AvailabilityStatus.UNAVAILABLE
+                        ),
                         result_counts={"rows": len(bars)},
                     )
+                    metric_availability[metric] = (
+                        AvailabilityStatus.AVAILABLE
+                        if bars
+                        else AvailabilityStatus.UNAVAILABLE
+                    )
+                    if not bars:
+                        counts["skipped"] += 1
                     db.commit()
                 except Exception as exc:
                     availability, reason = capability_status_from_error(exc)
+                    metric_availability[metric] = availability
                     _finish_request_item(
                         request_item,
                         status="FAILED",
@@ -187,7 +204,15 @@ def execute_historical_refresh(
                         f"{ticker}:{metric.value}:{str(exc)[:160]}",
                     ]
                     db.commit()
-            _rebuild_ticker_feature(db, ticker, module, date.today(), config, run.id)
+            _rebuild_ticker_feature(
+                db,
+                ticker,
+                module,
+                date.today(),
+                config,
+                run.id,
+                historical_availability=metric_availability,
+            )
             db.commit()
     except CancelRequested:
         _finish_run(db, run, RunStatus.CANCELLED, counts)
@@ -198,7 +223,7 @@ def execute_historical_refresh(
     finally:
         if ib.isConnected():
             ib.disconnect()
-    status = RunStatus.PARTIAL if counts["failed"] else RunStatus.COMPLETED
+    status = RunStatus.PARTIAL if counts["failed"] or counts["skipped"] else RunStatus.COMPLETED
     _finish_run(db, run, status, counts)
     db.commit()
     return {"intelligence_run_id": run.id, "status": status.value, **counts}
@@ -285,7 +310,7 @@ def execute_live_snapshot(
     finally:
         if ib.isConnected():
             ib.disconnect()
-    status = RunStatus.PARTIAL if counts["failed"] else RunStatus.COMPLETED
+    status = RunStatus.PARTIAL if counts["failed"] or counts["skipped"] else RunStatus.COMPLETED
     _finish_run(db, run, status, counts)
     db.commit()
     return {"intelligence_run_id": run.id, "status": status.value, **counts}
@@ -392,11 +417,19 @@ def execute_scanner_run(
                         f"Scanner code {preset.scan_code} is not present in current IBKR parameters"
                     )
                 rows = client.run(preset)
-                seen_candidates: set[tuple[int | None, str]] = set()
+                known_conids = scanner_conids_by_ticker(
+                    (row["ticker"], row["ib_conid"]) for row in rows
+                )
+                seen_candidates: set[str] = set()
                 for row in sorted(rows, key=lambda item: (item["rank"], item["ticker"])):
                     if not row["ticker"]:
                         continue
-                    candidate_key = (row["ib_conid"], row["ticker"])
+                    candidate_key = canonical_scanner_identity(
+                        ticker=row["ticker"],
+                        ib_conid=row["ib_conid"],
+                        contract_metadata=row["contract_metadata"],
+                        known_conids_by_ticker=known_conids,
+                    )
                     if candidate_key in seen_candidates:
                         counts["skipped"] += 1
                         continue
@@ -468,6 +501,7 @@ def execute_histogram_fetch(
     settings = settings or get_settings()
     config = load_ib_market_intelligence_config(settings=settings)
     section = config.section("histogram")
+    requested_period = effective_histogram_period(job.payload_json, section, settings)
     tickers = _tickers(job.payload_json, limit=settings.ib_intelligence_shortlist_limit)
     run = _start_run(db, job, IntelligenceModule.HISTOGRAM, config)
     counts = _counts()
@@ -496,24 +530,22 @@ def execute_histogram_fetch(
                 request_type="HISTOGRAM_DATA",
                 priority=50,
                 request={
-                    "period": job.payload_json.get("period") or section.get("period"),
+                    "period": requested_period,
                     "use_rth": section.get("use_rth", True),
                 },
             )
             levels = client.fetch(
                 resolution.contract,
                 use_rth=bool(section.get("use_rth", True)),
-                period=str(
-                    job.payload_json.get("period")
-                    or section.get("period", settings.ib_histogram_period)
-                ),
+                period=requested_period,
             )
             observed = datetime.now(UTC)
             reference = _latest_close(db, ticker)
             digest = evidence_hash(
                 {
                     "ticker": ticker,
-                    "period": section.get("period"),
+                    "period": requested_period,
+                    "use_rth": bool(section.get("use_rth", True)),
                     "observed_at": observed,
                     "levels": levels,
                 }
@@ -522,7 +554,7 @@ def execute_histogram_fetch(
                 intelligence_run_id=run.id,
                 ticker=ticker,
                 ib_conid=getattr(resolution.contract, "conId", None),
-                requested_period=str(section.get("period", settings.ib_histogram_period)),
+                requested_period=requested_period,
                 use_rth=bool(section.get("use_rth", True)),
                 observed_at=observed,
                 reference_price=Decimal(str(reference)) if reference is not None else None,
@@ -645,6 +677,7 @@ def execute_flex_import(
             reference_code=reference,
             dry_run=bool(job.payload_json.get("dry_run", False)),
             intelligence_run_id=run.id,
+            report_timezone=settings.ib_flex_report_timezone,
         )
         if not job.payload_json.get("dry_run", False) and result["status"] != "DUPLICATE_REPORT":
             episodes = rebuild_trade_episodes(db)
@@ -706,7 +739,9 @@ def _rebuild_ticker_feature(
     as_of: date,
     config: IBMarketIntelligenceConfig,
     run_id: int,
+    historical_availability: dict[HistoricalMetricType, str] | None = None,
 ):
+    historical_availability = historical_availability or {}
     ib_conid = None
     if module == IntelligenceModule.LIQUIDITY:
         bars = _metric_bars(db, ticker, HistoricalMetricType.BID_ASK)
@@ -734,11 +769,17 @@ def _rebuild_ticker_feature(
     elif module == IntelligenceModule.VOLATILITY:
         hv = _metric_bars(db, ticker, HistoricalMetricType.HISTORICAL_VOLATILITY)
         iv = _metric_bars(db, ticker, HistoricalMetricType.OPTION_IMPLIED_VOLATILITY)
+        iv_availability = historical_availability.get(
+            HistoricalMetricType.OPTION_IMPLIED_VOLATILITY
+        ) or _latest_historical_availability(
+            db, ticker, HistoricalMetricType.OPTION_IMPLIED_VOLATILITY, has_rows=bool(iv)
+        )
         feature = calculate_volatility(
             hv,
             iv,
             as_of=as_of,
             config={**config.section("volatility"), **config.section("freshness")},
+            iv_availability=iv_availability,
         )
     elif module == IntelligenceModule.OPTIONS_ACTIVITY:
         snapshot = _latest_snapshot(db, ticker, "OPTIONS_ACTIVITY")
@@ -746,6 +787,7 @@ def _rebuild_ticker_feature(
             snapshot.values_json if snapshot else {},
             availability_status=_snapshot_availability(snapshot, config),
             config=config.section("options_activity"),
+            evidence_hash=snapshot.evidence_hash if snapshot else None,
         )
     else:
         raise ValueError(f"Feature rebuild is not supported for {module}")
@@ -884,6 +926,12 @@ def _counts() -> dict[str, int]:
     return {"read": 0, "inserted": 0, "revised": 0, "unchanged": 0, "skipped": 0, "failed": 0}
 
 
+def effective_histogram_period(
+    payload: dict[str, Any], section: dict[str, Any], settings: Settings
+) -> str:
+    return str(payload.get("period") or section.get("period", settings.ib_histogram_period))
+
+
 def _historical_duration(module: IntelligenceModule, settings: Settings) -> str:
     if module == IntelligenceModule.LIQUIDITY:
         return f"{max(settings.ib_liquidity_lookback_sessions, 60)} D"
@@ -901,6 +949,25 @@ def _metric_bars(
         .where(IBHistoricalMetricBar.metric_type == metric.value)
         .order_by(IBHistoricalMetricBar.session_date)
     ).all()
+
+
+def _latest_historical_availability(
+    db: Session,
+    ticker: str,
+    metric: HistoricalMetricType,
+    *,
+    has_rows: bool,
+) -> str:
+    status = db.scalar(
+        select(IBIntelligenceRequestItem.availability_status)
+        .where(IBIntelligenceRequestItem.ticker == ticker.upper())
+        .where(IBIntelligenceRequestItem.request_family == "HISTORICAL")
+        .where(IBIntelligenceRequestItem.request_type == metric.value)
+        .order_by(IBIntelligenceRequestItem.started_at.desc())
+    )
+    if status:
+        return str(status)
+    return AvailabilityStatus.AVAILABLE if has_rows else AvailabilityStatus.UNAVAILABLE
 
 
 def _latest_snapshot(

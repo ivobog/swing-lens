@@ -620,13 +620,12 @@ def _point_in_time_volatility_feature(
         .where(IBIntelligenceFeature.module == "VOLATILITY")
         .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
         .where(IBIntelligenceFeature.as_of_session <= cutoff_at.date())
-        .where(IBIntelligenceFeature.coverage_status == "AVAILABLE")
         .order_by(
             IBIntelligenceFeature.as_of_session.desc(),
             IBIntelligenceFeature.calculated_at.desc(),
         ),
     )
-    if row is None:
+    if row is None or row.coverage_status != "AVAILABLE":
         return None
     return _VolatilityRiskFeature(id=row.id, components=dict(row.components_json or {}))
 
