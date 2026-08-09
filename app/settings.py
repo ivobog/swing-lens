@@ -57,6 +57,31 @@ class Settings(BaseSettings):
     ib_required_daily_bars: int = 252
     ib_daily_bar_stale_after_days: int = 3
     ib_revision_audit_enabled: bool = True
+    ib_market_intelligence_enabled: bool = False
+    ib_liquidity_enabled: bool = False
+    ib_short_pressure_enabled: bool = False
+    ib_volatility_intelligence_enabled: bool = False
+    ib_options_activity_enabled: bool = False
+    ib_scanner_enabled: bool = False
+    ib_histogram_enabled: bool = False
+    ib_flex_journal_enabled: bool = False
+    ib_intelligence_config_path: Path = Field(
+        default=Path("config/ib_market_intelligence.yaml")
+    )
+    ib_intelligence_shortlist_limit: int = Field(default=25, ge=1, le=100)
+    ib_intelligence_historical_requests_per_minute: int = Field(default=15, ge=1, le=60)
+    ib_intelligence_live_concurrency: int = Field(default=10, ge=1, le=100)
+    ib_liquidity_lookback_sessions: int = Field(default=20, ge=5, le=252)
+    ib_fee_rate_lookback_sessions: int = Field(default=60, ge=20, le=504)
+    ib_volatility_lookback_sessions: int = Field(default=252, ge=20, le=756)
+    ib_histogram_period: str = "20 days"
+    ib_flex_token: str | None = None
+    ib_flex_trade_query_id: str | None = None
+    ib_flex_activity_query_id: str | None = None
+    ib_flex_base_url: str = "https://gdcdyn.interactivebrokers.com/Universal/servlet"
+    ib_flex_http_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    ib_flex_poll_attempts: int = Field(default=8, ge=1, le=30)
+    ib_flex_poll_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
 
     technical_pure_boundary_enabled: bool = False
     technical_pure_boundary_shadow_compare_enabled: bool = False
@@ -148,6 +173,11 @@ class Settings(BaseSettings):
             "cleanup_orphan_upload_grace_days": self.cleanup_orphan_upload_grace_days,
             "cleanup_job_retention_days": self.cleanup_job_retention_days,
             "market_data_prewarm_max_tickers": self.market_data_prewarm_max_tickers,
+            "ib_intelligence_shortlist_limit": self.ib_intelligence_shortlist_limit,
+            "ib_intelligence_historical_requests_per_minute": (
+                self.ib_intelligence_historical_requests_per_minute
+            ),
+            "ib_intelligence_live_concurrency": self.ib_intelligence_live_concurrency,
         }
         for field_name, value in positive_fields.items():
             if value < 1:

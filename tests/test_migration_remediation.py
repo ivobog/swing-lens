@@ -168,6 +168,83 @@ def test_wave1_ceri_lineage_migration_preserves_populated_rows() -> None:
             )
 
 
+def test_ceri_estimate_identity_migration_allows_corrected_observation() -> None:
+    database_name = f"swinglens_pytest_ceri_estimate_{uuid.uuid4().hex[:12]}"
+    with _connect_admin_or_skip() as conn:
+        try:
+            conn.execute(sql.SQL("CREATE DATABASE {} ").format(sql.Identifier(database_name)))
+            database_url = _database_url_for(database_name)
+            upgrade = _run_alembic(
+                database_url,
+                "upgrade",
+                "0029_ceri_wave4_evidence_features",
+            )
+            assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
+            with psycopg.connect(
+                database_url.replace("+psycopg", ""), autocommit=True
+            ) as populated:
+                populated.execute(
+                    "INSERT INTO ceri_companies (ticker, exchange) VALUES (%s, %s)",
+                    ("A", "US"),
+                )
+                populated.execute(
+                    """
+                    INSERT INTO ceri_source_records
+                    (provider, dataset, provider_record_id, content_hash, idempotency_key,
+                     export_policy, redistribution_allowed, purge_eligible)
+                    VALUES
+                    ('eodhd', 'estimates', 'A.US:estimate', 'hash-1', 'idem-1',
+                     'restricted', false, true),
+                    ('eodhd', 'estimates', 'A.US:estimate', 'hash-2', 'idem-2',
+                     'restricted', false, true)
+                    """
+                )
+                populated.execute(
+                    """
+                    INSERT INTO ceri_estimate_snapshots
+                    (source_record_id, company_id, metric, fiscal_period_end,
+                     period_type, canonical_observation_key)
+                    VALUES (1, 1, 'EPS_DILUTED', '2026-10-31',
+                            'NEXT_FISCAL_YEAR', 'same-canonical-observation')
+                    """
+                )
+
+            upgrade = _run_alembic(database_url, "upgrade", "head")
+            assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
+            with psycopg.connect(
+                database_url.replace("+psycopg", ""), autocommit=True
+            ) as check:
+                check.execute(
+                    """
+                    INSERT INTO ceri_estimate_snapshots
+                    (source_record_id, company_id, metric, fiscal_period_end,
+                     period_type, canonical_observation_key)
+                    VALUES (2, 1, 'EPS_DILUTED', '2026-10-31',
+                            'NEXT_FISCAL_YEAR', 'same-canonical-observation')
+                    """
+                )
+                count = check.execute(
+                    "SELECT count(*) FROM ceri_estimate_snapshots"
+                ).fetchone()[0]
+                assert count == 2
+                with pytest.raises(psycopg.errors.UniqueViolation):
+                    check.execute(
+                        """
+                        INSERT INTO ceri_estimate_snapshots
+                        (source_record_id, company_id, metric, fiscal_period_end,
+                         period_type, canonical_observation_key)
+                        VALUES (2, 1, 'REVENUE', '2026-10-31',
+                                'NEXT_FISCAL_YEAR', 'different-observation')
+                        """
+                    )
+        finally:
+            conn.execute(
+                sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
+                    sql.Identifier(database_name)
+                )
+            )
+
+
 def test_migration_import_lint_rejects_live_model_imports() -> None:
     violations = find_live_model_imports()
 

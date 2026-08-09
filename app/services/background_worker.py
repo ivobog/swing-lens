@@ -139,6 +139,9 @@ def execute_job(
 
 def default_job_handlers() -> dict[str, JobHandler]:
     from app.services.ceri.job_handlers import implemented_ceri_job_handlers
+    from app.services.ib_market_intelligence.job_handlers import (
+        implemented_ib_intelligence_job_handlers,
+    )
     from app.services.market_data_prewarm_service import (
         MARKET_DATA_PREWARM,
         execute_market_data_prewarm_job,
@@ -149,6 +152,7 @@ def default_job_handlers() -> dict[str, JobHandler]:
     return {
         "FULL_PIPELINE": _execute_full_pipeline_job,
         MARKET_DATA_PREWARM: execute_market_data_prewarm_job,
+        **implemented_ib_intelligence_job_handlers(),
         **implemented_ceri_job_handlers(),
         **implemented_setup_lifecycle_job_handlers(),
         **implemented_winner_job_handlers(),

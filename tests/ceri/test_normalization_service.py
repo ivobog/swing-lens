@@ -60,6 +60,63 @@ def test_normalization_service_persists_estimate_and_processing_lineage() -> Non
     assert processing_run.checkpoint_json["last_source_record_id"] == 7
 
 
+def test_normalization_service_preserves_same_session_estimate_corrections() -> None:
+    db = FakeDb()
+    processing_run = CeriProcessingRun(
+        id=6,
+        job_type="CERI_NORMALIZE",
+        status="RUNNING",
+        deterministic_request_key="normalize-corrections",
+        started_at=datetime(2026, 8, 9),
+    )
+    payload = {
+        "ticker": "A",
+        "metric": "EPS_DILUTED",
+        "period_type": "NEXT_FISCAL_YEAR",
+        "fiscal_period_end": "2026-10-31",
+        "consensus": "6.0213",
+    }
+    original = CeriSourceRecord(
+        id=935,
+        provider="eodhd",
+        dataset="estimates",
+        provider_record_id="A.US:NEXT_FISCAL_YEAR:2026-10-31:EPS_DILUTED",
+        company_hint_json={"ticker": "A"},
+        restricted_normalized_json=payload,
+        observed_at=datetime.fromisoformat("2026-08-08T17:33:41+02:00"),
+        content_hash="original-hash",
+        idempotency_key="original-key",
+    )
+    correction = CeriSourceRecord(
+        id=2681,
+        provider="eodhd",
+        dataset="estimates",
+        provider_record_id=original.provider_record_id,
+        company_hint_json={"ticker": "A"},
+        restricted_normalized_json=payload,
+        observed_at=datetime.fromisoformat("2026-08-09T01:30:32+02:00"),
+        supersedes_id=original.id,
+        correction_type="CORRECTION",
+        content_hash="correction-hash",
+        idempotency_key="correction-key",
+    )
+    service = CeriNormalizationService(
+        identity_resolver=CeriIdentityResolver(companies=[CeriCompany(id=1, ticker="A")])
+    )
+
+    result = service.normalize(
+        db,
+        processing_run=processing_run,
+        source_records=[original, correction],
+    )
+
+    estimates = [row for row in db.added if isinstance(row, CeriEstimateSnapshot)]
+    assert result.status == "COMPLETED"
+    assert result.normalized == 2
+    assert [row.source_record_id for row in estimates] == [935, 2681]
+    assert estimates[0].canonical_observation_key == estimates[1].canonical_observation_key
+
+
 def test_normalization_service_reuses_existing_catalyst_event_for_duplicate_source() -> None:
     existing = CeriCatalystEvent(
         id=99,

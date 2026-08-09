@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}IB Market Intelligence{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div><h1>IB Market Intelligence</h1><p>Read-only broker evidence for tradeability, risk, confirmation, discovery, price acceptance, and realized outcomes.</p></div>
+    <div class="actions">
+      <a class="button-link secondary" href="/ib-intelligence/scanner">Discovery</a>
+      <a class="button-link secondary" href="/ib-intelligence/trade-journal">Trade Journal</a>
+      <a class="button-link secondary" href="/ib-intelligence/operations">Operations</a>
+    </div>
+  </div>
+</section>
+<section class="metric-grid section-gap" aria-label="Market intelligence coverage">
+  <div class="metric"><span>Liquidity</span><strong>{{ payload.cards.liquidity.coverage }}</strong><small>{{ payload.cards.liquidity.warning_count }} warnings</small></div>
+  <div class="metric"><span>Borrow Pressure</span><strong>{{ payload.cards.short_pressure.coverage }}</strong><small>{{ payload.cards.short_pressure.warning_count }} elevated</small></div>
+  <div class="metric"><span>Volatility</span><strong>{{ payload.cards.volatility.coverage }}</strong><small>{{ payload.cards.volatility.warning_count }} elevated</small></div>
+  <div class="metric"><span>Options Activity</span><strong>{{ payload.cards.options_activity.coverage }}</strong><small>{{ payload.cards.options_activity.warning_count }} abnormal</small></div>
+  <div class="metric"><span>Scanner Candidates</span><strong>{{ payload.cards.scanner_candidates }}</strong></div>
+  <div class="metric"><span>Histogram Coverage</span><strong>{{ payload.cards.histogram_coverage }}</strong></div>
+  <div class="metric"><span>Closed Trades</span><strong>{{ payload.cards.closed_trades }}</strong></div>
+</section>
+<section class="panel section-gap">
+  <div class="panel-header"><div><h2>Latest ticker intelligence</h2><p>Unavailable data stays unavailable and is never converted to zero.</p></div></div>
+  {% if payload.latest_features %}
+  <div class="table-wrap"><table><thead><tr><th>Ticker</th><th>Module</th><th>Classification</th><th>Confidence</th><th>Freshness</th><th>Evidence</th></tr></thead><tbody>
+  {% for item in payload.latest_features %}<tr><td><a href="/api/ib-intelligence/ticker/{{ item.ticker }}">{{ item.ticker }}</a></td><td>{{ item.module|replace('_',' ') }}</td><td>{{ item.classification|replace('_',' ') }}</td><td>{{ item.confidence }}</td><td>{{ item.freshness_status }}</td><td><details><summary>Details</summary><pre>{{ item.components|tojson(indent=2) }}</pre>{% if item.warnings %}<p>{{ item.warnings|join(', ') }}</p>{% endif %}</details></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<div class="empty-state"><strong>No intelligence features have been built.</strong><p>Enable individual modules and queue a refresh from Operations.</p></div>{% endif %}
+</section>
+<section class="panel section-gap"><h2>Semantic boundaries</h2><ul><li>Borrow fees and shortable shares describe IBKR securities-lending conditions, not official exchange short interest.</li><li>Histogram levels describe IBKR price-level activity and are not presented as an exchange-standard volume profile.</li><li>Options and implied-volatility coverage depends on account subscriptions and permissions.</li><li>Scanner appearances are discovery evidence, never automatic entry signals.</li></ul></section>
+{% endblock %}

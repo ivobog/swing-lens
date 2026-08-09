@@ -13,6 +13,9 @@
   <a href="/history" class="{{ 'active' if active_nav == 'history' else '' }}" {{ 'aria-current=page' if active_nav == 'history' else '' }}>History</a>
   <a href="/winner-probability/operations" class="{{ 'active' if active_nav == 'winner-probability' else '' }}" {{ 'aria-current=page' if active_nav == 'winner-probability' else '' }}>Winner Evidence</a>
   <a href="/ib" class="{{ 'active' if active_nav == 'ib' else '' }}" {{ 'aria-current=page' if active_nav == 'ib' else '' }}>IB Gateway</a>
+  {% if app_settings and app_settings.ib_market_intelligence_enabled %}
+    <a href="/ib-intelligence" class="{{ 'active' if active_nav == 'ib-intelligence' else '' }}" {{ 'aria-current=page' if active_nav == 'ib-intelligence' else '' }}>IB Intelligence</a>
+  {% endif %}
   <a href="/scoring" class="{{ 'active' if active_nav == 'scoring' else '' }}" {{ 'aria-current=page' if active_nav == 'scoring' else '' }}>Scoring</a>
   <a href="/settings" class="{{ 'active' if active_nav == 'settings' else '' }}" {{ 'aria-current=page' if active_nav == 'settings' else '' }}>Settings</a>
   <a href="/help" class="{{ 'active' if active_nav == 'help' else '' }}" {{ 'aria-current=page' if active_nav == 'help' else '' }}>Help</a>

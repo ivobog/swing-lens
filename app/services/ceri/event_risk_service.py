@@ -36,17 +36,27 @@ class CeriEventRiskService:
         catalyst_features: list[CatalystFeature] | None = None,
         stale: bool = False,
         conflict_penalty: float = 0.0,
+        options_event_premium_score: float = 0.0,
     ) -> EventRiskResult:
         catalyst_features = catalyst_features or []
         proximity = self.earnings_proximity(as_of_session, next_earnings_session)
         catalyst_risk = sum(feature.binary_risk_score for feature in catalyst_features)
-        score = min(10.0, proximity.risk_score + catalyst_risk + conflict_penalty)
+        options_event_premium_score = max(0.0, min(1.5, float(options_event_premium_score)))
+        score = min(
+            10.0,
+            proximity.risk_score
+            + catalyst_risk
+            + conflict_penalty
+            + options_event_premium_score,
+        )
         warnings: list[str] = []
         reasons = [f"earnings_proximity:{proximity.level}"]
         if catalyst_risk:
             reasons.append("binary_catalyst_risk")
         if conflict_penalty:
             reasons.append("conflict_penalty")
+        if options_event_premium_score:
+            reasons.append("ibkr_options_event_premium")
         if stale:
             warnings.append("data_stale")
             score = min(10.0, score + 1.0)

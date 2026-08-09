@@ -285,3 +285,5 @@ They are not copied into the repository by default.
 
 SwingLens is decision support only. It must not place, modify, or cancel broker orders.
 Setup lifecycle alerts and state changes are research signals, not trading instructions.
+
+The optional, feature-flagged IBKR Market Intelligence extension adds read-only liquidity, borrow-pressure, volatility, options-activity, scanner-discovery, histogram price-acceptance, and Flex trade-journal evidence. See [IB Market Intelligence](docs/IB_MARKET_INTELLIGENCE.md) for activation, semantics, entitlements, operations, security, and validation.

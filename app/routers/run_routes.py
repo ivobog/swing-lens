@@ -61,6 +61,7 @@ from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan, fetc
 from app.services.ib_fetch_summary_service import (
     latest_ib_fetch_for_run,
 )
+from app.services.ib_market_intelligence.query_service import latest_features
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary, summarize_run_ohlcv_coverage
 from app.services.pipeline_service import (
@@ -262,6 +263,12 @@ def run_detail_page(
     winner_probability_context = _winner_probability_context(db, run.id)
     setup_lifecycle_context = _setup_lifecycle_context(db, run.id)
     ceri_context = _ceri_context(db, run.id)
+    intelligence_by_ticker: dict[str, list[dict]] = {}
+    if settings.ib_market_intelligence_enabled:
+        run_tickers = {result.ticker.upper() for result in combined_results}
+        for feature in latest_features(db):
+            if feature["ticker"] in run_tickers:
+                intelligence_by_ticker.setdefault(feature["ticker"], []).append(feature)
     return templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -284,6 +291,7 @@ def run_detail_page(
             "winner_probability_context": winner_probability_context,
             "setup_lifecycle_context": setup_lifecycle_context,
             "ceri_context": ceri_context,
+            "intelligence_by_ticker": intelligence_by_ticker,
             "run_summary": _run_summary(run, rows, combined_results),
             "workflow_steps": _workflow_steps(
                 run=run,
