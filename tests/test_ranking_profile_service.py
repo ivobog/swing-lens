@@ -124,7 +124,7 @@ def test_to_ranking_model_persists_decision_fields(monkeypatch) -> None:
     assert result.notes
     assert isinstance(result.warning_flags_json, list)
     assert result.component_scores_json["momentum_strength"] > 0
-    assert result.debug_json["ranking_engine_version"] == "1.0.0"
+    assert result.debug_json["ranking_engine_version"] == "1.1.0"
 
 
 class FakeDb:
@@ -167,6 +167,11 @@ def _patch_run_inputs(monkeypatch) -> None:
         lambda _db, _run_id: _technicals(),
     )
     monkeypatch.setattr(ranking_profile_service, "_load_scoring_config", lambda: _config())
+    monkeypatch.setattr(
+        ranking_profile_service,
+        "_load_liquidity_features",
+        lambda _db, _cutoff: {},
+    )
 
 
 def _rows() -> list[RawCompanyRow]:
