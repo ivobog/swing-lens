@@ -17,6 +17,7 @@ from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
 )
 from app.services.winner_probability.repository import WinnerProbabilityRepository
+from app.services.winner_probability.trading_session_service import latest_completed_session
 
 
 @dataclass(frozen=True)
@@ -120,7 +121,7 @@ class PendingOutcomeService:
 
         entry_session = prediction.planned_entry_session
         if entry_model == ENTRY_MODEL_SIGNAL_CLOSE_DIAGNOSTIC:
-            entry_session = prediction.prediction_as_of_date
+            entry_session = latest_completed_session(prediction.source_data_cutoff_at)
         due_session = (
             nth_us_trading_day_from_entry(entry_session, horizon_sessions)
             if entry_session is not None

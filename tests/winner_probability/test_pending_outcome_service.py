@@ -47,6 +47,30 @@ def test_pending_outcome_materialization_is_idempotent() -> None:
     assert len(repository.outcome_definitions) == 2
 
 
+def test_signal_close_diagnostic_uses_latest_completed_session_on_weekend() -> None:
+    config = load_winner_probability_config()
+    repository = FakeWinnerRepository()
+    service = PendingOutcomeService(repository)
+    prediction = _prediction()
+    prediction.prediction_as_of_date = date(2026, 8, 8)
+    prediction.source_data_cutoff_at = datetime(2026, 8, 8, 23, 50, tzinfo=UTC)
+    prediction.planned_entry_session = date(2026, 8, 10)
+    repository.add(object(), prediction)
+
+    result = service.materialize_pending_outcomes(object(), prediction, config)
+
+    diagnostic_h5 = next(
+        outcome
+        for outcome in repository.forward_outcomes
+        if outcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC"
+        and outcome.horizon_sessions == 5
+    )
+    assert diagnostic_h5.entry_session == date(2026, 8, 7)
+    assert diagnostic_h5.due_session == date(2026, 8, 13)
+    assert result.forward_outcome_count == 10
+    assert result.target_stop_outcome_count == 2
+
+
 def _prediction() -> WinnerPredictionSnapshot:
     return WinnerPredictionSnapshot(
         id=1,

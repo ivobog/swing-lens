@@ -10,4 +10,4 @@ from ib_insync import (  # noqa: E402
     TagValue,
 )
 
-__all__ = ["IB", "Contract", "Stock"]
+__all__ = ["IB", "Contract", "ScannerSubscription", "Stock", "TagValue"]

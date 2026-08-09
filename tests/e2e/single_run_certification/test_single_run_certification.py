@@ -50,7 +50,7 @@ from single_run_certification.reporting import (
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
-ALEMBIC_HEAD = "0029_ceri_wave4_evidence_features"
+ALEMBIC_HEAD = "0030_fix_ceri_estimate_snapshot_identity"
 TERMINAL_PIPELINE_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
 
 
@@ -913,11 +913,16 @@ def _compare_winner(page: Page, engine, recorder: CertificationRecorder, run_id:
             expected=probability,
             actual=gui["Probability"],
         )
+        evidence_grade = (
+            str(db["evidence_grade"])
+            if db["evidence_grade"] is not None
+            else "Missing"
+        )
         recorder.check(
-            gui["Grade"].strip() == str(db["evidence_grade"]),
+            gui["Grade"].strip() == evidence_grade,
             f"Winner {ticker} evidence grade GUI↔DB",
             area="Winner Evidence",
-            expected=str(db["evidence_grade"]),
+            expected=evidence_grade,
             actual=gui["Grade"],
         )
 

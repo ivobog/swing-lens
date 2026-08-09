@@ -139,12 +139,12 @@ def execute_job(
 
 def default_job_handlers() -> dict[str, JobHandler]:
     from app.services.ceri.job_handlers import implemented_ceri_job_handlers
+    from app.services.ib_market_intelligence.job_handlers import (
+        implemented_ib_intelligence_job_handlers,
+    )
     from app.services.market_data_prewarm_service import (
         MARKET_DATA_PREWARM,
         execute_market_data_prewarm_job,
-    )
-    from app.services.ib_market_intelligence.job_handlers import (
-        implemented_ib_intelligence_job_handlers,
     )
     from app.services.setup_lifecycle.job_handlers import implemented_setup_lifecycle_job_handlers
     from app.services.winner_probability.job_handlers import implemented_winner_job_handlers
