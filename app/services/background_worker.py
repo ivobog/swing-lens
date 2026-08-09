@@ -143,12 +143,16 @@ def default_job_handlers() -> dict[str, JobHandler]:
         MARKET_DATA_PREWARM,
         execute_market_data_prewarm_job,
     )
+    from app.services.ib_market_intelligence.job_handlers import (
+        implemented_ib_intelligence_job_handlers,
+    )
     from app.services.setup_lifecycle.job_handlers import implemented_setup_lifecycle_job_handlers
     from app.services.winner_probability.job_handlers import implemented_winner_job_handlers
 
     return {
         "FULL_PIPELINE": _execute_full_pipeline_job,
         MARKET_DATA_PREWARM: execute_market_data_prewarm_job,
+        **implemented_ib_intelligence_job_handlers(),
         **implemented_ceri_job_handlers(),
         **implemented_setup_lifecycle_job_handlers(),
         **implemented_winner_job_handlers(),

@@ -22,6 +22,7 @@ CI checks that the generated blocks below match runtime route introspection.
 <!-- EXPORT_INVENTORY_START -->
 | Methods | Path | Endpoint |
 | --- | --- | --- |
+| GET | `/api/ib-intelligence/scanner/candidates.csv` | `scanner_candidates_csv` |
 | GET | `/api/setup-lifecycle/alerts/export.csv` | `export_setup_lifecycle_alerts_csv` |
 | GET | `/api/setup-lifecycle/alerts/export.json` | `export_setup_lifecycle_alerts_json` |
 | GET | `/api/setup-lifecycle/changes/export.csv` | `export_setup_lifecycle_changes_csv` |
@@ -85,6 +86,20 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/api/ceri/run/{run_id}` | `ceri_run` |
 | GET | `/api/ceri/ticker/{ticker}` | `ceri_ticker` |
 | GET | `/api/ceri/ticker/{ticker}/history` | `ceri_ticker_history` |
+| POST | `/api/ib-intelligence/flex/import` | `queue_flex` |
+| POST | `/api/ib-intelligence/histogram/fetch` | `queue_histogram` |
+| GET | `/api/ib-intelligence/histogram/{ticker}` | `histogram_api` |
+| POST | `/api/ib-intelligence/live-snapshot` | `queue_live` |
+| GET | `/api/ib-intelligence/operations` | `operations_api` |
+| POST | `/api/ib-intelligence/rebuild-features` | `queue_rebuild` |
+| POST | `/api/ib-intelligence/refresh` | `queue_historical` |
+| GET | `/api/ib-intelligence/run/{run_id}` | `intelligence_run` |
+| GET | `/api/ib-intelligence/scanner/candidates.csv` | `scanner_candidates_csv` |
+| POST | `/api/ib-intelligence/scanner/run` | `queue_scanner` |
+| GET | `/api/ib-intelligence/scanner/runs` | `scanner_runs_api` |
+| GET | `/api/ib-intelligence/ticker/{ticker}` | `ticker_intelligence` |
+| GET | `/api/ib-intelligence/trade-journal` | `trade_journal_api` |
+| POST | `/api/ib-intelligence/trade-journal/fills/{fill_id}/exclude` | `exclude_fill` |
 | POST | `/api/market-data/prewarm` | `queue_market_data_prewarm` |
 | GET | `/api/market-data/prewarm/{job_id}` | `market_data_prewarm_status` |
 | POST | `/api/market-data/prewarm/{job_id}/cancel` | `cancel_market_data_prewarm` |
@@ -150,6 +165,10 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/help` | `help_page` |
 | GET | `/history` | `history_page` |
 | GET | `/ib` | `ib_gateway_page` |
+| GET | `/ib-intelligence` | `intelligence_page` |
+| GET | `/ib-intelligence/operations` | `operations_page` |
+| GET | `/ib-intelligence/scanner` | `scanner_page` |
+| GET | `/ib-intelligence/trade-journal` | `trade_journal_page` |
 | POST | `/ib/fetch` | `fetch_bars` |
 | POST | `/ib/resolve/{ticker}` | `resolve_ticker` |
 | GET | `/ib/status` | `ib_status` |

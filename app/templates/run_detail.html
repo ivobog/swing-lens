@@ -45,6 +45,7 @@
   "operations_url": "/ceri/operations"
 }) %}
 {% set ceri_ui_enabled = request is defined and request.app is defined and request.app.state.settings.ceri_enabled and request.app.state.settings.ceri_ui_enabled %}
+{% set ibmi_enabled = request is defined and request.app is defined and request.app.state.settings.ib_market_intelligence_enabled %}
 {% set run_summary = run_summary|default({
   "row_count": run.row_count or 0,
   "combined_count": 0,
@@ -91,6 +92,7 @@
   "test_message": none
 }) %}
 {% set warning_badges_by_ticker = warning_badges_by_ticker|default({}) %}
+{% set intelligence_by_ticker = intelligence_by_ticker|default({}) %}
 {% set decision_filters = decision_filters|default([]) %}
 {% set sector_filters = sector_filters|default([]) %}
 <section class="panel">
@@ -807,6 +809,7 @@
             {% set warning_flags = result.warning_flags_json or [] %}
             {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
             {% set winner_prediction_id = winner_probability_context.prediction_by_ticker.get(result.ticker) %}
+            {% set intelligence = intelligence_by_ticker.get(result.ticker, []) %}
             {% set is_candidate_plus = result.combined_decision in ["Strong candidate", "Candidate"] %}
             {% set earnings_risk = result.earnings_risk_level or "unknown" %}
             <tr
@@ -877,6 +880,9 @@
                   {% if winner_prediction_id %}
                     <a data-no-row-nav="true" href="/winner-probability/predictions/{{ winner_prediction_id }}">Evidence</a>
                   {% endif %}
+                  {% if ibmi_enabled %}
+                    <a data-no-row-nav="true" href="/api/ib-intelligence/ticker/{{ result.ticker }}">IB Intel{% if intelligence %} ({{ intelligence|length }}){% endif %}</a>
+                  {% endif %}
                   <a data-no-row-nav="true" href="https://www.tradingview.com/chart/?symbol={{ result.ticker }}" target="_blank" rel="noopener">TradingView</a>
                 </div>
               </td>
@@ -884,6 +890,19 @@
             <tr class="detail-row" data-detail-row hidden>
               <td colspan="12">
                 <div class="detail-grid">
+                  {% if ibmi_enabled %}
+                  <div>
+                    <h3>Execution &amp; Market Intelligence</h3>
+                    {% if intelligence %}
+                      <dl class="compact-dl">
+                      {% for item in intelligence %}
+                        <dt>{{ item.module|replace('_', ' ') }}</dt>
+                        <dd>{{ item.classification|replace('_', ' ') }} · {{ item.confidence }}{% if item.warnings %}<small>{{ item.warnings|join(', ') }}</small>{% endif %}</dd>
+                      {% endfor %}
+                      </dl>
+                    {% else %}<p>Optional IBKR intelligence is unavailable; no score penalty is applied.</p>{% endif %}
+                  </div>
+                  {% endif %}
                   <div>
                     <h3>Fundamentals</h3>
                     {% if fundamental %}

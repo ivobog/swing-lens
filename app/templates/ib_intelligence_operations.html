@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}IB Intelligence Operations{% endblock %}
+{% block content %}
+<script src="{{ url_for('static', path='/ib_market_intelligence.js') }}" defer></script>
+<a class="back-link" href="/ib-intelligence">Back to IB Market Intelligence</a>
+<section class="panel" data-ibmi-operations data-csrf-token="{{ csrf_token }}"><div class="panel-header"><div><h1>IB Intelligence Operations</h1><p>Queue bounded, restart-safe jobs. Settings are cached; configuration changes require an application restart.</p></div></div>
+<div class="grid section-gap">
+  <form data-ibmi-form data-endpoint="/api/ib-intelligence/refresh"><h2>Historical refresh</h2><label>Module<select name="module"><option>LIQUIDITY</option><option>SHORT_PRESSURE</option><option>VOLATILITY</option></select></label><label>Tickers<input name="tickers" placeholder="AAPL, MSFT"></label><button type="submit">Queue refresh</button></form>
+  <form data-ibmi-form data-endpoint="/api/ib-intelligence/live-snapshot"><h2>Live shortlist snapshot</h2><label>Module<select name="module"><option>SHORT_PRESSURE</option><option>VOLATILITY</option><option>OPTIONS_ACTIVITY</option></select></label><label>Tickers<input name="tickers" placeholder="AAPL, MSFT"></label><button type="submit">Queue snapshot</button></form>
+  <form data-ibmi-form data-endpoint="/api/ib-intelligence/scanner/run"><h2>Market discovery</h2><label>Presets<input name="presets" placeholder="HOT_VOLUME_US, TOP_GAINERS_US"></label><button type="submit">Queue scanners</button></form>
+  <form data-ibmi-form data-endpoint="/api/ib-intelligence/histogram/fetch"><h2>Price acceptance</h2><label>Tickers<input name="tickers" placeholder="AAPL, MSFT"></label><label>Period<input name="period" value="20 days"></label><button type="submit">Queue histogram</button></form>
+  <form data-ibmi-form data-endpoint="/api/ib-intelligence/flex/import"><h2>Flex reporting import</h2><label>Query type<select name="query_type"><option>TRADE_CONFIRMATIONS</option><option>ACTIVITY</option></select></label><label><input type="checkbox" name="dry_run"> Dry run</label><button type="submit">Queue Flex import</button></form>
+</div><div class="alert section-gap" data-ibmi-result hidden></div></section>
+<section class="panel section-gap"><h2>Recent durable runs</h2>{% if payload.runs %}<div class="table-wrap"><table><thead><tr><th>Started</th><th>Module</th><th>Job</th><th>Status</th><th>Counts / checkpoint</th><th>Error</th></tr></thead><tbody>{% for run in payload.runs %}<tr><td>{{ run.started_at }}</td><td>{{ run.module }}</td><td>{{ run.job_type }}</td><td>{{ run.status }}</td><td><details><summary>{{ run.counts }}</summary><pre>{{ run.checkpoint|tojson(indent=2) }}</pre></details></td><td>{{ run.error_message or '' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state">No intelligence runs yet.</div>{% endif %}</section>
+{% endblock %}

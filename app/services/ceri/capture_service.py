@@ -18,6 +18,7 @@ from app.models.ceri_tables import (
     CeriRevisionFeature,
     CeriScoreSnapshot,
 )
+from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import RawCompanyRow
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
@@ -29,6 +30,9 @@ from app.services.ceri.opportunity_score_service import CeriOpportunityScoreServ
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
+from app.services.ib_market_intelligence.calculations import options_event_premium_score
+from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+from app.settings import get_settings
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,12 @@ class CeriRunCaptureResult:
             "failed": self.failed,
             "skipped": self.skipped,
         }
+
+
+@dataclass(frozen=True)
+class _VolatilityRiskFeature:
+    id: int
+    components: dict[str, Any]
 
 
 class CeriRunCaptureService:
@@ -166,12 +176,23 @@ class CeriRunCaptureService:
                     ),
                     conflict_penalty=min(3.0, float(company_conflicted)),
                 )
+                volatility_feature = _point_in_time_volatility_feature(db, row.ticker, cutoff_at)
+                volatility_config = load_ib_market_intelligence_config().section("volatility")
+                volatility_risk = (
+                    options_event_premium_score(
+                        volatility_feature,
+                        maximum=float(volatility_config.get("ceri_risk_max_contribution", 1.5)),
+                    )
+                    if volatility_feature is not None
+                    else 0.0
+                )
                 risk = self.risk.calculate(
                     as_of_session=cutoff_at.date(),
                     next_earnings_session=row.upcoming_earnings_date,
                     catalyst_features=catalyst_features,
                     stale=bool(company_stale),
                     conflict_penalty=min(3.0, float(company_conflicted)),
+                    options_event_premium_score=volatility_risk,
                 )
                 guidance_rows = _guidance_for_company(db, company.id, cutoff_at.date())
                 catalyst_lineage = _catalyst_lineage(db, company.id, cutoff_at.date())
@@ -190,6 +211,9 @@ class CeriRunCaptureService:
                     else [],
                     "price_bar_ids": list(price_result.price_bar_ids)
                     if price_result is not None
+                    else [],
+                    "ib_volatility_feature_ids": [volatility_feature.id]
+                    if volatility_feature is not None
                     else [],
                     "warnings": sorted(
                         set(
@@ -576,6 +600,35 @@ def _latest_changes(db: Session, company_id: int, limit: int):
     scoped = [change for change in changes if getattr(change, "company_id", None) == company_id]
     scoped.sort(key=lambda change: (change.created_at or datetime.min, change.id or 0))
     return scoped[-limit:]
+
+
+def _point_in_time_volatility_feature(
+    db: Session,
+    ticker: str,
+    cutoff_at: datetime,
+) -> _VolatilityRiskFeature | None:
+    settings = get_settings()
+    if not (
+        settings.ib_market_intelligence_enabled
+        and settings.ib_volatility_intelligence_enabled
+    ):
+        return None
+    row = _maybe_scalar(
+        db,
+        select(IBIntelligenceFeature)
+        .where(IBIntelligenceFeature.ticker == ticker.upper())
+        .where(IBIntelligenceFeature.module == "VOLATILITY")
+        .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
+        .where(IBIntelligenceFeature.as_of_session <= cutoff_at.date())
+        .where(IBIntelligenceFeature.coverage_status == "AVAILABLE")
+        .order_by(
+            IBIntelligenceFeature.as_of_session.desc(),
+            IBIntelligenceFeature.calculated_at.desc(),
+        ),
+    )
+    if row is None:
+        return None
+    return _VolatilityRiskFeature(id=row.id, components=dict(row.components_json or {}))
 
 
 def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:

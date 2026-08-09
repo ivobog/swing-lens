@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}IB Market Discovery{% endblock %}
+{% block content %}
+<a class="back-link" href="/ib-intelligence">Back to IB Market Intelligence</a>
+<section class="panel"><div class="panel-header"><div><h1>IBKR Market Discovery</h1><p>Configuration-validated scanner candidates enter a separate research universe; they do not bypass SwingLens scoring.</p></div><a class="button-link secondary" href="/api/ib-intelligence/scanner/candidates.csv">Export candidates</a></div></section>
+<section class="panel section-gap"><h2>Merged candidate pool</h2>
+{% if payload.candidate_pool %}<div class="table-wrap"><table><thead><tr><th>Ticker</th><th>conId</th><th>Best rank</th><th>Discovery reasons</th></tr></thead><tbody>{% for item in payload.candidate_pool %}<tr><td><strong>{{ item.ticker }}</strong></td><td>{{ item.ib_conid or 'N/A' }}</td><td>{{ item.best_rank }}</td><td>{% for reason in item.discovery_reasons %}<span class="status-pill">{{ reason.scanner }} #{{ reason.rank }}</span>{% endfor %}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state"><strong>No scanner candidates.</strong></div>{% endif %}</section>
+<section class="panel section-gap"><h2>Scanner runs</h2>{% if payload.runs %}<div class="table-wrap"><table><thead><tr><th>Started</th><th>Preset</th><th>Scan code</th><th>Status</th><th>Error</th></tr></thead><tbody>{% for run in payload.runs %}<tr><td>{{ run.started_at }}</td><td>{{ run.scanner_name }}</td><td>{{ run.scan_code }}</td><td>{{ run.status }}</td><td>{{ run.error_message or '' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state">No scanner runs.</div>{% endif %}</section>
+{% endblock %}

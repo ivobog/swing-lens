@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.db import Base
 from app.models import ceri_tables  # noqa: F401
+from app.models import ib_market_intelligence_tables  # noqa: F401
 from app.models import tables  # noqa: F401
 from app.settings import get_settings
 
