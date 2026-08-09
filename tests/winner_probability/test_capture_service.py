@@ -58,7 +58,7 @@ def test_repeated_capture_returns_duplicate_without_new_children() -> None:
     assert len(repository.estimates) == 1
 
 
-def test_historical_source_mutation_does_not_change_existing_snapshot_hash() -> None:
+def test_historical_source_mutation_does_not_change_existing_snapshot_hash(caplog) -> None:
     config = load_winner_probability_config()
     context = build_run_context()
     repository = FakeWinnerRepository(context)
@@ -70,6 +70,7 @@ def test_historical_source_mutation_does_not_change_existing_snapshot_hash() -> 
     second = service.capture_run(object(), run_id=7, config=config)
 
     assert second.failed == 1
+    assert "winner_prediction.capture_failed" in caplog.text
     assert repository.predictions[0].feature_vector_hash == original_hash
     assert repository.predictions[0].feature_json["combined_score"] == "8.5"
 
