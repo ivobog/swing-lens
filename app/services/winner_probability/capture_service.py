@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -28,6 +29,8 @@ from app.services.winner_probability.repository import (
     TickerCaptureContext,
     WinnerProbabilityRepository,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class WinnerPredictionCaptureConflict(ValueError):
@@ -142,6 +145,13 @@ class WinnerPredictionCaptureService:
                     totals.excluded += 1
             except Exception:
                 totals.failed += 1
+                logger.exception(
+                    "winner_prediction.capture_failed",
+                    extra={
+                        "run_id": run_id,
+                        "ticker": getattr(ticker_context.raw_row, "ticker", None),
+                    },
+                )
         return totals.to_result()
 
     def _ensure_eligible_children(

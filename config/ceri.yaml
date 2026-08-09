@@ -156,7 +156,7 @@ backfill:
   checkpoint_policy: provider_page_and_company_session_range
 
 alerts:
-  enabled: false
+  enabled: true
   default_cooldown_sessions: 5
   acknowledgement_required: false
   dedup_scope: event_revision
