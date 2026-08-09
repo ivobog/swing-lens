@@ -20,6 +20,7 @@ from app.services.ib_market_intelligence.dtos import (
     LiveSnapshotDTO,
 )
 from app.services.ib_market_intelligence.evidence_hash import evidence_hash
+from app.services.operational_metrics import operational_metrics
 
 
 def persist_historical_metric_bar(
@@ -212,6 +213,14 @@ def persist_feature(
     )
     db.add(row)
     db.flush()
+    if str(feature.freshness_status) == "STALE":
+        operational_metrics.increment(
+            "swinglens_ibmi_stale_features_total", module=feature.module
+        )
+    if str(feature.coverage_status) in {"FAILED", "UNAVAILABLE"}:
+        operational_metrics.increment(
+            "swinglens_ibmi_calculation_unavailable_total", module=feature.module
+        )
     return row, True
 
 

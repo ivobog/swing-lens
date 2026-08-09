@@ -70,7 +70,14 @@ class Settings(BaseSettings):
     )
     ib_intelligence_shortlist_limit: int = Field(default=25, ge=1, le=100)
     ib_intelligence_historical_requests_per_minute: int = Field(default=15, ge=1, le=60)
+    ib_intelligence_historical_min_spacing_seconds: float = Field(default=3.0, ge=0.0, le=60.0)
+    ib_intelligence_tws_min_spacing_seconds: float = Field(default=0.25, ge=0.0, le=60.0)
+    ib_intelligence_request_max_attempts: int = Field(default=3, ge=1, le=10)
+    ib_intelligence_retry_initial_seconds: float = Field(default=1.0, ge=0.0, le=300.0)
+    ib_intelligence_retry_max_seconds: float = Field(default=30.0, ge=0.0, le=900.0)
+    ib_intelligence_historical_chunk_days: int = Field(default=60, ge=1, le=365)
     ib_intelligence_live_concurrency: int = Field(default=10, ge=1, le=100)
+    ib_intelligence_market_data_line_cap: int = Field(default=100, ge=1, le=10000)
     ib_liquidity_lookback_sessions: int = Field(default=20, ge=5, le=252)
     ib_fee_rate_lookback_sessions: int = Field(default=60, ge=20, le=504)
     ib_volatility_lookback_sessions: int = Field(default=252, ge=20, le=756)
@@ -179,6 +186,9 @@ class Settings(BaseSettings):
                 self.ib_intelligence_historical_requests_per_minute
             ),
             "ib_intelligence_live_concurrency": self.ib_intelligence_live_concurrency,
+            "ib_intelligence_market_data_line_cap": self.ib_intelligence_market_data_line_cap,
+            "ib_intelligence_request_max_attempts": self.ib_intelligence_request_max_attempts,
+            "ib_intelligence_historical_chunk_days": self.ib_intelligence_historical_chunk_days,
         }
         for field_name, value in positive_fields.items():
             if value < 1:

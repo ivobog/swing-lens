@@ -20,6 +20,13 @@ from app.models.ib_market_intelligence_tables import IBExecutionFill, IBFlexImpo
 from app.services.ib_market_intelligence.dtos import FlexExecutionDTO
 from app.services.ib_market_intelligence.evidence_hash import evidence_hash
 from app.services.ib_market_intelligence.request_budget import IBRequestBudget
+from app.services.ib_market_intelligence.resilience import (
+    RetryEvent,
+    RetryPolicy,
+    cancellable_sleep,
+    retry_call,
+)
+from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive
 from app.settings import Settings, get_settings
 
@@ -47,6 +54,9 @@ class IBFlexClient:
         budget: IBRequestBudget | None = None,
         transport: Transport | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        retry_policy: RetryPolicy | None = None,
+        guard: Callable[[], None] | None = None,
+        on_retry: Callable[[RetryEvent], None] | None = None,
     ) -> None:
         if not token:
             raise IBFlexError("IB Flex token is not configured")
@@ -56,16 +66,24 @@ class IBFlexClient:
         self.budget = budget
         self.transport = transport or self._urllib_transport
         self.sleep = sleep
+        self.retry_policy = retry_policy or RetryPolicy(max_attempts=1)
+        self.guard = guard
+        self.on_retry = on_retry
 
     def send_request(self, query_id: str) -> str:
         if not query_id:
             raise IBFlexError("IB Flex query ID is not configured")
         if self.budget:
-            self.budget.acquire_flex_send()
+            self.budget.acquire_flex_send(guard=self.guard)
         url = self._url(
             "FlexStatementService.SendRequest", {"t": self._token, "q": query_id, "v": "3"}
         )
+        started = time.monotonic()
         payload = self._request(url)
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_send_duration_seconds",
+            value=time.monotonic() - started,
+        )
         root = _xml_root(payload, "Flex SendRequest")
         status = (_xml_text(root, "Status") or "").lower()
         if status != "success":
@@ -80,7 +98,12 @@ class IBFlexClient:
             "FlexStatementService.GetStatement",
             {"t": self._token, "q": reference_code, "v": "3"},
         )
+        started = time.monotonic()
         payload = self._request(url)
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_get_duration_seconds",
+            value=time.monotonic() - started,
+        )
         if payload.lstrip().startswith("<FlexStatementResponse"):
             root = _xml_root(payload, "Flex GetStatement")
             code = _xml_text(root, "ErrorCode")
@@ -94,20 +117,76 @@ class IBFlexClient:
             raise IBFlexError(message)
         return payload
 
-    def download(self, query_id: str, *, attempts: int, poll_seconds: float) -> tuple[str, str]:
-        reference = self.send_request(query_id)
-        for attempt in range(attempts):
+    def download(
+        self,
+        query_id: str,
+        *,
+        attempts: int,
+        poll_seconds: float,
+        reference_code: str | None = None,
+        start_attempt: int = 0,
+        on_checkpoint: Callable[[dict[str, Any]], None] | None = None,
+        guard: Callable[[], None] | None = None,
+    ) -> tuple[str, str]:
+        effective_guard = guard or self.guard
+        if effective_guard:
+            effective_guard()
+        reference = reference_code or self.send_request(query_id)
+        for attempt in range(start_attempt, attempts):
+            if effective_guard:
+                effective_guard()
+            if on_checkpoint:
+                on_checkpoint(
+                    {
+                        "phase": "get_statement",
+                        "reference_code_hash": _fingerprint(reference),
+                        "_reference_code": reference,
+                        "attempt": attempt + 1,
+                    }
+                )
             try:
-                return reference, self.get_statement(reference)
+                content = self.get_statement(reference)
+                if on_checkpoint:
+                    on_checkpoint(
+                        {
+                            "phase": "downloaded",
+                            "reference_code_hash": _fingerprint(reference),
+                            "_reference_code": reference,
+                            "attempt": attempt + 1,
+                            "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                        }
+                    )
+                return reference, content
             except IBFlexReportPending:
+                if on_checkpoint:
+                    on_checkpoint(
+                        {
+                            "phase": "get_statement",
+                            "reference_code_hash": _fingerprint(reference),
+                            "_reference_code": reference,
+                            "attempt": attempt + 1,
+                            "next_attempt": attempt + 2,
+                        }
+                    )
                 if attempt + 1 >= attempts:
                     raise
-                self.sleep(poll_seconds)
+                cancellable_sleep(
+                    poll_seconds,
+                    sleep=self.sleep,
+                    guard=effective_guard,
+                )
         raise IBFlexReportPending("Flex report did not become ready")
 
     def _request(self, url: str) -> str:
         try:
-            return self.transport(url, self.timeout_seconds)
+            return retry_call(
+                lambda: self.transport(url, self.timeout_seconds),
+                operation_name="IBKR Flex HTTPS request",
+                policy=self.retry_policy,
+                sleep=self.sleep,
+                guard=self.guard,
+                on_retry=self.on_retry,
+            )
         except Exception as exc:
             safe = str(redact_sensitive(str(exc))).replace(self._token, "[REDACTED]")
             raise IBFlexError(safe) from None
@@ -153,6 +232,7 @@ def import_flex_report(
     now: datetime | None = None,
     report_timezone: str = "UTC",
 ) -> dict[str, Any]:
+    import_started = time.monotonic()
     now = now or datetime.now(UTC)
     digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
     existing_run = db.scalar(
@@ -162,14 +242,31 @@ def import_flex_report(
         .where(IBFlexImportRun.status == "COMPLETED")
     )
     if existing_run is not None and not dry_run:
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_duplicate_reports_total", query_type=query_type
+        )
         return {"status": "DUPLICATE_REPORT", "import_run_id": existing_run.id, "inserted": 0}
     executions = parse_flex_report(content, report_timezone=report_timezone)
+    missing_order_reference_count = sum(
+        execution.order_reference is None for execution in executions
+    )
     if dry_run:
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_import_duration_seconds",
+            value=time.monotonic() - import_started,
+            query_type=query_type,
+        )
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_import_rows_total",
+            value=len(executions),
+            query_type=query_type,
+        )
         return {
             "status": "DRY_RUN",
             "rows": len(executions),
             "symbols": sorted({execution.symbol for execution in executions}),
             "content_hash": digest,
+            "missing_order_reference_count": missing_order_reference_count,
         }
     run = IBFlexImportRun(
         intelligence_run_id=intelligence_run_id,
@@ -237,6 +334,16 @@ def import_flex_report(
     run.status = "COMPLETED"
     run.completed_at = now
     db.flush()
+    operational_metrics.increment(
+        "swinglens_ibmi_flex_import_duration_seconds",
+        value=time.monotonic() - import_started,
+        query_type=query_type,
+    )
+    operational_metrics.increment(
+        "swinglens_ibmi_flex_import_rows_total",
+        value=len(executions),
+        query_type=query_type,
+    )
     return {
         "status": "COMPLETED",
         "import_run_id": run.id,
@@ -244,6 +351,7 @@ def import_flex_report(
         "inserted": inserted,
         "duplicates": duplicates,
         "corrected": corrected,
+        "missing_order_reference_count": missing_order_reference_count,
     }
 
 
@@ -252,6 +360,8 @@ def flex_client_from_settings(
     *,
     budget: IBRequestBudget | None = None,
     transport: Transport | None = None,
+    guard: Callable[[], None] | None = None,
+    on_retry: Callable[[RetryEvent], None] | None = None,
 ) -> IBFlexClient:
     settings = settings or get_settings()
     return IBFlexClient(
@@ -260,6 +370,13 @@ def flex_client_from_settings(
         timeout_seconds=settings.ib_flex_http_timeout_seconds,
         budget=budget,
         transport=transport,
+        guard=guard,
+        on_retry=on_retry,
+        retry_policy=RetryPolicy(
+            max_attempts=settings.ib_intelligence_request_max_attempts,
+            initial_backoff_seconds=settings.ib_intelligence_retry_initial_seconds,
+            max_backoff_seconds=settings.ib_intelligence_retry_max_seconds,
+        ),
     )
 
 

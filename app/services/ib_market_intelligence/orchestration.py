@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from functools import lru_cache
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ib_market_intelligence_tables import (
+    IBFlexImportRun,
     IBHistogramBin,
     IBHistogramSnapshot,
     IBHistoricalMetricBar,
@@ -67,10 +69,17 @@ from app.services.ib_market_intelligence.request_budget import (
     IBRequestBudget,
     RequestBudgetConfig,
 )
+from app.services.ib_market_intelligence.resilience import (
+    RetryEvent,
+    RetryExhausted,
+    RetryPolicy,
+    retry_call,
+)
 from app.services.ib_market_intelligence.scanner_identity import (
     canonical_scanner_identity,
     scanner_conids_by_ticker,
 )
+from app.services.operational_metrics import operational_metrics
 from app.settings import Settings, get_settings
 
 HISTORICAL_MODULE_METRICS = {
@@ -89,7 +98,12 @@ def shared_request_budget() -> IBRequestBudget:
     return IBRequestBudget(
         RequestBudgetConfig(
             historical_weighted_tokens_per_minute=settings.ib_intelligence_historical_requests_per_minute,
+            historical_min_spacing_seconds=(
+                settings.ib_intelligence_historical_min_spacing_seconds
+            ),
+            tws_min_spacing_seconds=settings.ib_intelligence_tws_min_spacing_seconds,
             live_snapshot_concurrency=settings.ib_intelligence_live_concurrency,
+            market_data_line_cap=settings.ib_intelligence_market_data_line_cap,
             scanner_concurrency=10,
             flex_send_per_minute=10,
         )
@@ -109,19 +123,31 @@ def execute_historical_refresh(
     if module not in HISTORICAL_MODULE_METRICS:
         raise ValueError(f"{module} does not use historical metric refresh")
     tickers = _tickers(job.payload_json)
+    resume = _resume_checkpoint(job, module.value)
+    completed_ranges = {
+        _range_key(
+            str(item["ticker"]),
+            str(item["metric"]),
+            date.fromisoformat(str(item["start_date"])),
+            date.fromisoformat(str(item["end_date"])),
+        )
+        for item in resume.get("completed_ranges", [])
+        if isinstance(item, dict)
+        and all(key in item for key in ("ticker", "metric", "start_date", "end_date"))
+    }
+    completed_tickers = {str(value).upper() for value in resume.get("completed_tickers", [])}
+    ranges = _historical_date_ranges(job.payload_json, module, settings)
     run = _start_run(db, job, module.value, config)
-    counts = _counts()
+    counts = {**_counts(), **dict(resume.get("counts") or {})}
     ib = ib_factory() if ib_factory else create_ib_client()
     try:
-        ib.connect(
-            settings.ib_host,
-            settings.ib_port,
-            clientId=settings.ib_client_id,
-            timeout=settings.ib_timeout_seconds,
-            readonly=True,
-        )
-        client = IBHistoricalMetricClient(ib, settings=settings, budget=shared_request_budget())
+        def guard() -> None:
+            _job_guard(db, job)
+
+        _connect_with_retry(ib, settings, guard=guard)
         for ticker_index, ticker in enumerate(tickers):
+            if ticker in completed_tickers:
+                continue
             metric_availability: dict[HistoricalMetricType, str] = {}
             _job_guard(db, job)
             _checkpoint(
@@ -133,77 +159,154 @@ def execute_historical_refresh(
                     "ticker_index": ticker_index,
                     "ticker": ticker,
                     "phase": "resolve",
+                    "completed_ranges": _completed_range_payload(completed_ranges),
+                    "completed_tickers": sorted(completed_tickers),
+                    "counts": counts,
                 },
             )
+            db.commit()
             resolution = resolve_us_stock_contract(db, ticker, ib)
             if not resolution.contract:
                 counts["failed"] += 1
                 continue
             for metric in HISTORICAL_MODULE_METRICS[module]:
-                _checkpoint(
-                    db,
-                    job,
-                    run,
-                    {
+                metric_had_rows = bool(_metric_bars(db, ticker, metric))
+                for range_start, range_end in ranges:
+                    key = _range_key(ticker, metric.value, range_start, range_end)
+                    if key in completed_ranges:
+                        continue
+                    recovering_failed_range = (
+                        resume.get("phase") == "retry_pending"
+                        and resume.get("ticker") == ticker
+                        and resume.get("metric") == metric.value
+                        and resume.get("range_start") == range_start.isoformat()
+                        and resume.get("range_end") == range_end.isoformat()
+                    )
+                    duration = f"{(range_end - range_start).days + 1} D"
+                    checkpoint = {
+                        "version": 2,
                         "module": module.value,
                         "ticker_index": ticker_index,
                         "ticker": ticker,
                         "metric": metric.value,
+                        "range_start": range_start.isoformat(),
+                        "range_end": range_end.isoformat(),
                         "phase": "fetch",
-                    },
-                )
-                duration = _historical_duration(module, settings)
-                request_item = _start_request_item(
-                    db,
-                    run,
-                    ticker=ticker,
-                    ib_conid=getattr(resolution.contract, "conId", None),
-                    request_family="HISTORICAL",
-                    request_type=metric.value,
-                    priority=10 if module == IntelligenceModule.LIQUIDITY else 50,
-                    request={"duration": duration, "bar_size": "1 day"},
-                )
-                try:
-                    bars = client.fetch(resolution.contract, metric.value, duration=duration)
-                    counts["read"] += len(bars)
-                    for bar in bars:
-                        _, outcome = persist_historical_metric_bar(
-                            db, bar, intelligence_run_id=run.id
+                        "completed_ranges": _completed_range_payload(completed_ranges),
+                        "completed_tickers": sorted(completed_tickers),
+                        "counts": counts,
+                    }
+                    _checkpoint(db, job, run, checkpoint)
+                    db.commit()
+                    request_item = _start_request_item(
+                        db,
+                        run,
+                        ticker=ticker,
+                        ib_conid=getattr(resolution.contract, "conId", None),
+                        request_family="HISTORICAL",
+                        request_type=metric.value,
+                        priority=10 if module == IntelligenceModule.LIQUIDITY else 50,
+                        request={
+                            "duration": duration,
+                            "bar_size": "1 day",
+                            "start_date": range_start.isoformat(),
+                            "end_date": range_end.isoformat(),
+                            "weight": 2 if metric == HistoricalMetricType.BID_ASK else 1,
+                        },
+                    )
+
+                    def on_retry(
+                        event: RetryEvent,
+                        item: IBIntelligenceRequestItem = request_item,
+                        request_type: str = metric.value,
+                    ) -> None:
+                        item.retry_count = event.failed_attempt
+                        operational_metrics.increment(
+                            "swinglens_ibmi_retries_total",
+                            request_family="HISTORICAL",
+                            request_type=request_type,
                         )
-                        counts[outcome.lower()] = counts.get(outcome.lower(), 0) + 1
-                    _finish_request_item(
-                        request_item,
-                        status="COMPLETED" if bars else "PARTIAL",
-                        availability=(
-                            AvailabilityStatus.AVAILABLE
-                            if bars
-                            else AvailabilityStatus.UNAVAILABLE
-                        ),
-                        result_counts={"rows": len(bars)},
+
+                    client = IBHistoricalMetricClient(
+                        ib,
+                        settings=settings,
+                        budget=shared_request_budget(),
+                        retry_policy=_retry_policy(settings),
+                        reconnect=lambda: _reconnect_ib(ib, settings),
+                        guard=guard,
+                        on_retry=on_retry,
                     )
-                    metric_availability[metric] = (
-                        AvailabilityStatus.AVAILABLE
-                        if bars
-                        else AvailabilityStatus.UNAVAILABLE
-                    )
-                    if not bars:
-                        counts["skipped"] += 1
-                    db.commit()
-                except Exception as exc:
-                    availability, reason = capability_status_from_error(exc)
-                    metric_availability[metric] = availability
-                    _finish_request_item(
-                        request_item,
-                        status="FAILED",
-                        availability=availability,
-                        error=reason,
-                    )
-                    counts["failed"] += 1
-                    run.warning_flags_json = [
-                        *run.warning_flags_json,
-                        f"{ticker}:{metric.value}:{str(exc)[:160]}",
-                    ]
-                    db.commit()
+                    try:
+                        bars = client.fetch(
+                            resolution.contract,
+                            metric.value,
+                            duration=duration,
+                            start_date=range_start,
+                            end_date=range_end,
+                        )
+                        counts["read"] += len(bars)
+                        for bar in bars:
+                            _, outcome = persist_historical_metric_bar(
+                                db, bar, intelligence_run_id=run.id
+                            )
+                            counts[outcome.lower()] = counts.get(outcome.lower(), 0) + 1
+                        _finish_request_item(
+                            request_item,
+                            status="COMPLETED" if bars else "PARTIAL",
+                            availability=(
+                                AvailabilityStatus.AVAILABLE
+                                if bars
+                                else AvailabilityStatus.UNAVAILABLE
+                            ),
+                            result_counts={
+                                "rows": len(bars),
+                                "retry_count": request_item.retry_count,
+                                "weighted_cost": (
+                                    2 if metric == HistoricalMetricType.BID_ASK else 1
+                                ),
+                            },
+                        )
+                        metric_had_rows = metric_had_rows or bool(bars)
+                        if recovering_failed_range:
+                            counts["failed"] = max(0, counts["failed"] - 1)
+                        if not bars:
+                            counts["skipped"] += 1
+                        completed_ranges.add(key)
+                        checkpoint.update(
+                            {
+                                "phase": "range_complete",
+                                "completed_ranges": _completed_range_payload(completed_ranges),
+                                "counts": counts,
+                            }
+                        )
+                        _checkpoint(db, job, run, checkpoint)
+                        db.commit()
+                    except Exception as exc:
+                        availability, reason = capability_status_from_error(exc)
+                        metric_availability[metric] = availability
+                        _finish_request_item(
+                            request_item,
+                            status="FAILED",
+                            availability=availability,
+                            error=reason,
+                        )
+                        counts["failed"] += 1
+                        run.warning_flags_json = [
+                            *run.warning_flags_json,
+                            f"{ticker}:{metric.value}:{str(exc)[:160]}",
+                        ]
+                        checkpoint.update({"phase": "retry_pending", "counts": counts})
+                        _checkpoint(db, job, run, checkpoint)
+                        db.commit()
+                        if isinstance(exc, RetryExhausted):
+                            raise
+                        break
+                metric_availability.setdefault(
+                    metric,
+                    AvailabilityStatus.AVAILABLE
+                    if metric_had_rows
+                    else AvailabilityStatus.UNAVAILABLE,
+                )
             _rebuild_ticker_feature(
                 db,
                 ticker,
@@ -213,12 +316,30 @@ def execute_historical_refresh(
                 run.id,
                 historical_availability=metric_availability,
             )
+            completed_tickers.add(ticker)
+            _checkpoint(
+                db,
+                job,
+                run,
+                {
+                    "version": 2,
+                    "module": module.value,
+                    "ticker_index": ticker_index + 1,
+                    "ticker": ticker,
+                    "phase": "ticker_complete",
+                    "completed_ranges": _completed_range_payload(completed_ranges),
+                    "completed_tickers": sorted(completed_tickers),
+                    "counts": counts,
+                },
+            )
             db.commit()
     except CancelRequested:
         _finish_run(db, run, RunStatus.CANCELLED, counts)
+        db.commit()
         raise
     except Exception as exc:
         _finish_run(db, run, RunStatus.FAILED, counts, str(exc))
+        db.commit()
         raise
     finally:
         if ib.isConnected():
@@ -247,19 +368,19 @@ def execute_live_snapshot(
     if not snapshot_type:
         raise ValueError(f"{module} does not use live snapshots")
     tickers = _tickers(job.payload_json, limit=settings.ib_intelligence_shortlist_limit)
+    resume = _resume_checkpoint(job, module.value)
+    completed_tickers = {str(value).upper() for value in resume.get("completed_tickers", [])}
     run = _start_run(db, job, module.value, config)
-    counts = _counts()
+    counts = {**_counts(), **dict(resume.get("counts") or {})}
     ib = ib_factory() if ib_factory else create_ib_client()
     try:
-        ib.connect(
-            settings.ib_host,
-            settings.ib_port,
-            clientId=settings.ib_client_id,
-            timeout=settings.ib_timeout_seconds,
-            readonly=True,
-        )
-        manager = IBLiveSnapshotManager(ib, budget=shared_request_budget())
+        def guard() -> None:
+            _job_guard(db, job)
+
+        _connect_with_retry(ib, settings, guard=guard)
         for index, ticker in enumerate(tickers):
+            if ticker in completed_tickers:
+                continue
             _job_guard(db, job)
             _checkpoint(
                 db,
@@ -270,8 +391,11 @@ def execute_live_snapshot(
                     "ticker_index": index,
                     "ticker": ticker,
                     "phase": "snapshot",
+                    "completed_tickers": sorted(completed_tickers),
+                    "counts": counts,
                 },
             )
+            db.commit()
             resolution = resolve_us_stock_contract(db, ticker, ib)
             if not resolution.contract:
                 counts["failed"] += 1
@@ -284,7 +408,28 @@ def execute_live_snapshot(
                 request_family="LIVE_MARKET_DATA",
                 request_type=snapshot_type,
                 priority=20,
-                request={"generic_ticks": manager.GENERIC_TICKS[snapshot_type]},
+                request={"generic_ticks": IBLiveSnapshotManager.GENERIC_TICKS[snapshot_type]},
+            )
+
+            def on_retry(
+                event: RetryEvent,
+                item: IBIntelligenceRequestItem = request_item,
+            ) -> None:
+                item.retry_count = event.failed_attempt
+                operational_metrics.increment(
+                    "swinglens_ibmi_retries_total",
+                    request_family="LIVE_MARKET_DATA",
+                    request_type=snapshot_type,
+                )
+
+            manager = IBLiveSnapshotManager(
+                ib,
+                budget=shared_request_budget(),
+                timeout_seconds=float(settings.ib_timeout_seconds),
+                retry_policy=_retry_policy(settings),
+                reconnect=lambda: _reconnect_ib(ib, settings),
+                guard=guard,
+                on_retry=on_retry,
             )
             snapshot = manager.capture(resolution.contract, snapshot_type)
             _, inserted = persist_live_snapshot(db, snapshot, intelligence_run_id=run.id)
@@ -296,16 +441,53 @@ def execute_live_snapshot(
                     else "PARTIAL"
                 ),
                 availability=snapshot.availability_status,
-                result_counts={"fields": len(snapshot.values)},
+                result_counts={
+                    "fields": len(snapshot.values),
+                    "retry_count": int(snapshot.source_request.get("retry_count", 0)),
+                    "resubscriptions": int(snapshot.source_request.get("resubscriptions", 0)),
+                },
                 error=snapshot.capability_reason,
             )
+            request_item.retry_count = int(snapshot.source_request.get("retry_count", 0))
             counts["inserted" if inserted else "unchanged"] += 1
             if snapshot.availability_status != AvailabilityStatus.AVAILABLE:
                 counts["skipped"] += 1
             _rebuild_ticker_feature(db, ticker, module, snapshot.effective_session, config, run.id)
+            terminal = snapshot.availability_status in {
+                AvailabilityStatus.AVAILABLE,
+                AvailabilityStatus.SUBSCRIPTION_REQUIRED,
+                AvailabilityStatus.NOT_SUPPORTED,
+            }
+            if terminal:
+                completed_tickers.add(ticker)
+            _checkpoint(
+                db,
+                job,
+                run,
+                {
+                    "version": 2,
+                    "module": module.value,
+                    "ticker_index": index + (1 if terminal else 0),
+                    "ticker": ticker,
+                    "phase": "ticker_complete" if terminal else "retry_pending",
+                    "completed_tickers": sorted(completed_tickers),
+                    "counts": counts,
+                },
+            )
             db.commit()
+            if not terminal:
+                raise RetryExhausted(
+                    f"IBKR live {snapshot_type}",
+                    int(snapshot.source_request.get("attempts", 1)),
+                    TimeoutError(snapshot.capability_reason or "live snapshot unavailable"),
+                )
+    except CancelRequested:
+        _finish_run(db, run, RunStatus.CANCELLED, counts)
+        db.commit()
+        raise
     except Exception as exc:
         _finish_run(db, run, RunStatus.FAILED, counts, str(exc))
+        db.commit()
         raise
     finally:
         if ib.isConnected():
@@ -412,11 +594,23 @@ def execute_scanner_run(
                 request={"preset": preset.name, "filters": list(preset.filters)},
             )
             try:
+                operational_metrics.increment(
+                    "swinglens_ibmi_scanner_runs_total", scanner=preset.name
+                )
                 if preset.scan_code not in parameters:
                     raise ValueError(
                         f"Scanner code {preset.scan_code} is not present in current IBKR parameters"
                     )
                 rows = client.run(preset)
+                operational_metrics.increment(
+                    "swinglens_ibmi_scanner_results_total",
+                    value=len(rows),
+                    scanner=preset.name,
+                )
+                if not rows:
+                    operational_metrics.increment(
+                        "swinglens_ibmi_scanner_empty_total", scanner=preset.name
+                    )
                 known_conids = scanner_conids_by_ticker(
                     (row["ticker"], row["ib_conid"]) for row in rows
                 )
@@ -514,7 +708,7 @@ def execute_histogram_fetch(
             timeout=settings.ib_timeout_seconds,
             readonly=True,
         )
-        client = IBHistogramClient(ib)
+        client = IBHistogramClient(ib, budget=shared_request_budget())
         for index, ticker in enumerate(tickers):
             _job_guard(db, job)
             resolution = resolve_us_stock_contract(db, ticker, ib)
@@ -534,10 +728,21 @@ def execute_histogram_fetch(
                     "use_rth": section.get("use_rth", True),
                 },
             )
-            levels = client.fetch(
+            capture = client.fetch_capture(
                 resolution.contract,
                 use_rth=bool(section.get("use_rth", True)),
                 period=requested_period,
+            )
+            levels = list(capture.valid_levels)
+            operational_metrics.increment(
+                "swinglens_ibmi_histogram_fetch_total",
+                outcome=(
+                    "malformed"
+                    if capture.malformed_bin_count
+                    else "success"
+                    if levels
+                    else "empty"
+                ),
             )
             observed = datetime.now(UTC)
             reference = _latest_close(db, ticker)
@@ -547,7 +752,7 @@ def execute_histogram_fetch(
                     "period": requested_period,
                     "use_rth": bool(section.get("use_rth", True)),
                     "observed_at": observed,
-                    "levels": levels,
+                    "raw_bins": capture.raw_bins,
                 }
             )
             snapshot = IBHistogramSnapshot(
@@ -558,12 +763,20 @@ def execute_histogram_fetch(
                 use_rth=bool(section.get("use_rth", True)),
                 observed_at=observed,
                 reference_price=Decimal(str(reference)) if reference is not None else None,
-                availability_status=AvailabilityStatus.AVAILABLE
-                if levels
-                else AvailabilityStatus.UNAVAILABLE,
+                availability_status=(
+                    AvailabilityStatus.AVAILABLE
+                    if levels and capture.malformed_bin_count == 0
+                    else AvailabilityStatus.UNAVAILABLE
+                ),
                 evidence_hash=digest,
                 source_semantics="IBKR_HISTOGRAM_PRICE_LEVEL_ACTIVITY",
-                warnings_json=["NOT_EXCHANGE_VOLUME_PROFILE"],
+                warnings_json=["NOT_EXCHANGE_VOLUME_PROFILE"]
+                + (
+                    ["MALFORMED_BINS_RETAINED_NO_CONCLUSIONS"]
+                    if capture.malformed_bin_count
+                    else []
+                ),
+                raw_bins_json=list(capture.raw_bins),
             )
             db.add(snapshot)
             db.flush()
@@ -585,7 +798,12 @@ def execute_histogram_fetch(
                         density_percentile=Decimal(str(percentile)),
                     )
                 )
-            feature = calculate_histogram(levels, reference_price=reference, config=section)
+            feature = calculate_histogram(
+                levels,
+                reference_price=reference,
+                config=section,
+                malformed_bin_count=capture.malformed_bin_count,
+            )
             persist_feature(
                 db,
                 ticker=ticker,
@@ -600,9 +818,15 @@ def execute_histogram_fetch(
                 request_item,
                 status="COMPLETED",
                 availability=(
-                    AvailabilityStatus.AVAILABLE if levels else AvailabilityStatus.UNAVAILABLE
+                    AvailabilityStatus.AVAILABLE
+                    if levels and capture.malformed_bin_count == 0
+                    else AvailabilityStatus.UNAVAILABLE
                 ),
-                result_counts={"bins": len(levels)},
+                result_counts={
+                    "bins": len(levels),
+                    "raw_bins": len(capture.raw_bins),
+                    "malformed_bins": capture.malformed_bin_count,
+                },
             )
             _checkpoint(
                 db,
@@ -636,8 +860,34 @@ def execute_flex_import(
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     config = load_ib_market_intelligence_config(settings=settings)
+    resume = _resume_checkpoint(job, IntelligenceModule.FLEX.value)
     run = _start_run(db, job, IntelligenceModule.FLEX, config)
     query_type = str(job.payload_json.get("query_type", "TRADE_CONFIRMATIONS"))
+    if (
+        query_type == "ACTIVITY"
+        and not bool(job.payload_json.get("force", False))
+        and _activity_imported_today(db, settings.ib_flex_report_timezone)
+    ):
+        warning = "ACTIVITY_ALREADY_IMPORTED_TODAY"
+        run.warning_flags_json = list(run.warning_flags_json or []) + [warning]
+        _finish_run(db, run, RunStatus.COMPLETED, {"skipped": 1})
+        _checkpoint(
+            db,
+            job,
+            run,
+            {
+                "version": 2,
+                "module": IntelligenceModule.FLEX.value,
+                "query_type": query_type,
+                "phase": "daily_activity_limit",
+            },
+        )
+        db.commit()
+        return {
+            "intelligence_run_id": run.id,
+            "status": "SKIPPED_ALREADY_IMPORTED_TODAY",
+            "warning": warning,
+        }
     query_id = (
         settings.ib_flex_trade_query_id
         if query_type == "TRADE_CONFIRMATIONS"
@@ -645,11 +895,6 @@ def execute_flex_import(
     )
     if not query_id:
         raise ValueError(f"Flex query ID for {query_type} is not configured")
-    client = (
-        client_factory()
-        if client_factory
-        else flex_client_from_settings(settings, budget=shared_request_budget())
-    )
     request_item = _start_request_item(
         db,
         run,
@@ -661,13 +906,66 @@ def execute_flex_import(
         request={
             "query_type": query_type,
             "dry_run": bool(job.payload_json.get("dry_run", False)),
+            "force": bool(job.payload_json.get("force", False)),
         },
     )
+    def guard() -> None:
+        _job_guard(db, job)
+
+    def on_retry(event: RetryEvent) -> None:
+        request_item.retry_count = max(request_item.retry_count, event.failed_attempt)
+        operational_metrics.increment(
+            "swinglens_ibmi_retries_total",
+            request_family="FLEX_HTTPS",
+            request_type=query_type,
+        )
+
+    client = (
+        client_factory()
+        if client_factory
+        else flex_client_from_settings(
+            settings,
+            budget=shared_request_budget(),
+            guard=guard,
+            on_retry=on_retry,
+        )
+    )
+    resume_reference = (
+        str(resume.get("_reference_code"))
+        if resume.get("phase") in {"get_statement", "downloaded"}
+        and resume.get("query_type") == query_type
+        and resume.get("_reference_code")
+        else None
+    )
+    start_attempt = (
+        max(0, int(resume.get("next_attempt", resume.get("attempt", 1))) - 1)
+        if resume_reference
+        else 0
+    )
+
+    def flex_checkpoint(values: dict[str, Any]) -> None:
+        checkpoint = {
+            "version": 2,
+            "module": IntelligenceModule.FLEX.value,
+            "query_type": query_type,
+            **values,
+        }
+        _checkpoint(db, job, run, checkpoint)
+        request_item.retry_count = max(
+            request_item.retry_count,
+            max(0, int(values.get("attempt", 1)) - 1),
+        )
+        db.commit()
+
     try:
         reference, content = client.download(
             query_id,
             attempts=settings.ib_flex_poll_attempts,
             poll_seconds=settings.ib_flex_poll_seconds,
+            reference_code=resume_reference,
+            start_attempt=start_attempt,
+            on_checkpoint=flex_checkpoint,
+            guard=guard,
         )
         result = import_flex_report(
             db,
@@ -703,10 +1001,35 @@ def execute_flex_import(
             result_counts={
                 "rows": int(result.get("rows", 0)),
                 "inserted": int(result.get("inserted", 0)),
+                "retry_count": request_item.retry_count,
+            },
+        )
+        _checkpoint(
+            db,
+            job,
+            run,
+            {
+                "version": 2,
+                "module": IntelligenceModule.FLEX.value,
+                "query_type": query_type,
+                "phase": "complete",
+                "reference_code_hash": run.checkpoint_json.get("reference_code_hash"),
+                "attempt": request_item.retry_count + 1,
+                "content_hash": run.checkpoint_json.get("content_hash"),
             },
         )
         db.commit()
         return {"intelligence_run_id": run.id, **result}
+    except CancelRequested:
+        _finish_request_item(
+            request_item,
+            status="CANCELLED",
+            availability=AvailabilityStatus.UNKNOWN,
+            error="Cancellation requested",
+        )
+        _finish_run(db, run, RunStatus.CANCELLED, _counts())
+        db.commit()
+        raise
     except Exception as exc:
         _finish_request_item(
             request_item,
@@ -715,7 +1038,27 @@ def execute_flex_import(
             error=str(exc),
         )
         _finish_run(db, run, RunStatus.FAILED, _counts(), str(exc))
+        db.commit()
         raise
+
+
+def _activity_imported_today(db: Session, report_timezone: str) -> bool:
+    timezone = ZoneInfo(report_timezone)
+    now_local = datetime.now(UTC).astimezone(timezone)
+    day_start_utc = datetime.combine(
+        now_local.date(), datetime.min.time(), tzinfo=timezone
+    ).astimezone(UTC)
+    return (
+        db.scalar(
+            select(IBFlexImportRun.id)
+            .where(IBFlexImportRun.query_type == "ACTIVITY")
+            .where(IBFlexImportRun.status == "COMPLETED")
+            .where(IBFlexImportRun.dry_run.is_(False))
+            .where(IBFlexImportRun.completed_at >= day_start_utc)
+            .order_by(IBFlexImportRun.completed_at.desc())
+        )
+        is not None
+    )
 
 
 def execute_feature_rebuild(db: Session, job: BackgroundJob) -> dict[str, Any]:
@@ -733,6 +1076,32 @@ def execute_feature_rebuild(db: Session, job: BackgroundJob) -> dict[str, Any]:
 
 
 def _rebuild_ticker_feature(
+    db: Session,
+    ticker: str,
+    module: IntelligenceModule,
+    as_of: date,
+    config: IBMarketIntelligenceConfig,
+    run_id: int,
+    historical_availability: dict[HistoricalMetricType, str] | None = None,
+):
+    try:
+        return _rebuild_ticker_feature_impl(
+            db,
+            ticker,
+            module,
+            as_of,
+            config,
+            run_id,
+            historical_availability,
+        )
+    except Exception:
+        operational_metrics.increment(
+            "swinglens_ibmi_calculation_failures_total", module=module.value
+        )
+        raise
+
+
+def _rebuild_ticker_feature_impl(
     db: Session,
     ticker: str,
     module: IntelligenceModule,
@@ -764,6 +1133,7 @@ def _rebuild_ticker_feature(
             if values.get("shortable_state") is not None
             else None,
             availability_status=status,
+            shortable_share_observations=_shortable_share_observations(db, ticker),
             config={**config.section("short_pressure"), **config.section("freshness")},
         )
     elif module == IntelligenceModule.VOLATILITY:
@@ -808,17 +1178,19 @@ def _start_run(
     module: str | IntelligenceModule,
     config: IBMarketIntelligenceConfig,
 ) -> IBIntelligenceRun:
+    checkpoint = _resume_checkpoint(job, str(module))
+    scope = {key: value for key, value in job.payload_json.items() if key != "checkpoint"}
     row = IBIntelligenceRun(
         background_job_id=job.id,
         job_type=job.job_type,
         module=str(module),
         status=RunStatus.RUNNING,
         deterministic_request_key=job.request_key or f"job:{job.id}",
-        scope_json=dict(job.payload_json),
+        scope_json=scope,
         config_version=config.config_version,
         config_hash=config.config_hash,
         counts_json=_counts(),
-        checkpoint_json={},
+        checkpoint_json=_public_checkpoint(checkpoint),
         warning_flags_json=[],
         started_at=datetime.now(UTC),
     )
@@ -878,6 +1250,12 @@ def _start_request_item(
     )
     db.add(item)
     db.flush()
+    operational_metrics.increment(
+        "swinglens_ibmi_requests_total",
+        module=run.module,
+        request_family=request_family,
+        request_type=request_type,
+    )
     return item
 
 
@@ -894,17 +1272,134 @@ def _finish_request_item(
     item.result_counts_json = result_counts or {}
     item.error_message = error[:1000] if error else None
     item.completed_at = datetime.now(UTC)
+    if str(availability) == AvailabilityStatus.SUBSCRIPTION_REQUIRED:
+        operational_metrics.increment(
+            "swinglens_ibmi_subscription_required_total",
+            request_family=item.request_family,
+            request_type=item.request_type,
+        )
 
 
 def _checkpoint(
     db: Session, job: BackgroundJob, run: IBIntelligenceRun, checkpoint: dict[str, Any]
 ) -> None:
-    run.checkpoint_json = checkpoint
+    run.checkpoint_json = _public_checkpoint(checkpoint)
     job.payload_json = {**job.payload_json, "checkpoint": checkpoint}
     heartbeat = getattr(job, "_heartbeat", None)
     if callable(heartbeat):
         heartbeat()
     db.flush()
+
+
+def _public_checkpoint(checkpoint: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in checkpoint.items() if not key.startswith("_")}
+
+
+def _resume_checkpoint(job: BackgroundJob, module: str) -> dict[str, Any]:
+    checkpoint = job.payload_json.get("checkpoint")
+    if not isinstance(checkpoint, dict):
+        return {}
+    checkpoint_module = checkpoint.get("module")
+    if checkpoint_module and str(checkpoint_module) != str(module):
+        return {}
+    return dict(checkpoint)
+
+
+def _retry_policy(settings: Settings) -> RetryPolicy:
+    return RetryPolicy(
+        max_attempts=settings.ib_intelligence_request_max_attempts,
+        initial_backoff_seconds=settings.ib_intelligence_retry_initial_seconds,
+        max_backoff_seconds=settings.ib_intelligence_retry_max_seconds,
+    )
+
+
+def _connect_with_retry(
+    ib: Any,
+    settings: Settings,
+    *,
+    guard: Any = None,
+) -> None:
+    def on_retry(_event: RetryEvent) -> None:
+        operational_metrics.increment(
+            "swinglens_ibmi_retries_total", request_family="CONNECTION", request_type="TWS"
+        )
+
+    retry_call(
+        lambda: _reconnect_ib(ib, settings),
+        operation_name="IBKR TWS connection",
+        policy=_retry_policy(settings),
+        guard=guard,
+        on_retry=on_retry,
+    )
+
+
+def _reconnect_ib(ib: Any, settings: Settings) -> None:
+    is_connected = getattr(ib, "isConnected", None)
+    if callable(is_connected) and is_connected():
+        return
+    ib.connect(
+        settings.ib_host,
+        settings.ib_port,
+        clientId=settings.ib_client_id,
+        timeout=settings.ib_timeout_seconds,
+        readonly=True,
+    )
+    operational_metrics.increment("swinglens_ibmi_connections_total")
+
+
+def _historical_date_ranges(
+    payload: dict[str, Any], module: IntelligenceModule, settings: Settings
+) -> list[tuple[date, date]]:
+    end_date = _payload_date(payload.get("end_date")) or date.today()
+    start_date = _payload_date(payload.get("start_date"))
+    if start_date is None:
+        duration_days = int(_historical_duration(module, settings).split()[0])
+        start_date = end_date - timedelta(days=max(0, duration_days - 1))
+    if start_date > end_date:
+        raise ValueError("historical start_date cannot be after end_date")
+    ranges: list[tuple[date, date]] = []
+    cursor = start_date
+    chunk_days = settings.ib_intelligence_historical_chunk_days
+    while cursor <= end_date:
+        chunk_end = min(end_date, cursor + timedelta(days=chunk_days - 1))
+        ranges.append((cursor, chunk_end))
+        cursor = chunk_end + timedelta(days=1)
+    return ranges
+
+
+def _payload_date(value: Any) -> date | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value))
+
+
+def _range_key(
+    ticker: str, metric: str, start_date: date, end_date: date
+) -> tuple[str, str, str, str]:
+    return (
+        ticker.upper(),
+        metric,
+        start_date.isoformat(),
+        end_date.isoformat(),
+    )
+
+
+def _completed_range_payload(
+    completed_ranges: set[tuple[str, str, str, str]],
+) -> list[dict[str, str]]:
+    return [
+        {
+            "ticker": ticker,
+            "metric": metric,
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+        for ticker, metric, start_date, end_date in sorted(completed_ranges)
+    ]
 
 
 def _job_guard(db: Session, job: BackgroundJob) -> None:
@@ -979,6 +1474,33 @@ def _latest_snapshot(
         .where(IBMarketIntelligenceSnapshot.snapshot_type == snapshot_type)
         .order_by(IBMarketIntelligenceSnapshot.observed_at.desc())
     )
+
+
+def _shortable_share_observations(
+    db: Session,
+    ticker: str,
+    *,
+    limit: int = 30,
+) -> list[dict[str, Any]]:
+    snapshots = db.scalars(
+        select(IBMarketIntelligenceSnapshot)
+        .where(
+            IBMarketIntelligenceSnapshot.ticker == ticker.upper(),
+            IBMarketIntelligenceSnapshot.snapshot_type == "SHORTABLE",
+            IBMarketIntelligenceSnapshot.availability_status
+            == AvailabilityStatus.AVAILABLE,
+        )
+        .order_by(IBMarketIntelligenceSnapshot.observed_at.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "observed_at": snapshot.observed_at,
+            "shortable_shares": (snapshot.values_json or {}).get("shortable_shares"),
+            "evidence_hash": snapshot.evidence_hash,
+        }
+        for snapshot in reversed(snapshots)
+    ]
 
 
 def _snapshot_availability(

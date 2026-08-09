@@ -42,6 +42,8 @@ DbSession = Annotated[Session, Depends(get_db)]
 class TickerJobRequest(BaseModel):
     tickers: list[str] = Field(min_length=1, max_length=500)
     module: Literal["LIQUIDITY", "SHORT_PRESSURE", "VOLATILITY", "OPTIONS_ACTIVITY"]
+    start_date: date | None = None
+    end_date: date | None = None
 
 
 class ScannerJobRequest(BaseModel):
@@ -56,6 +58,7 @@ class HistogramJobRequest(BaseModel):
 class FlexJobRequest(BaseModel):
     query_type: Literal["TRADE_CONFIRMATIONS", "ACTIVITY"] = "TRADE_CONFIRMATIONS"
     dry_run: bool = False
+    force: bool = False
 
 
 class ExcludeFillRequest(BaseModel):

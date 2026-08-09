@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -157,6 +157,30 @@ def test_short_pressure_marks_stale_historical_and_live_evidence():
     assert "SHORTABLE_DATA_STALE" in feature.warnings
 
 
+def test_short_pressure_uses_only_locally_observed_share_changes_and_required_reason():
+    feature = calculate_short_pressure(
+        _bars([1.0] * 16 + [2, 3, 5, 8, 13]),
+        as_of=date.today(),
+        shortable_shares=50_000,
+        shortable_share_observations=[
+            {
+                "observed_at": datetime(2026, 8, 8, tzinfo=UTC),
+                "shortable_shares": 200_000,
+                "evidence_hash": "local-1",
+            },
+            {
+                "observed_at": datetime(2026, 8, 9, tzinfo=UTC),
+                "shortable_shares": 50_000,
+                "evidence_hash": "local-2",
+            },
+        ],
+    )
+    assert feature.components["locally_observed_shortable_shares_change"] == -150_000
+    assert "SHORTABLE_SHARES_DECREASING" in feature.reasons
+    assert "BORROW_COST_ACCELERATING" in feature.reasons
+    assert {"local-1", "local-2"}.issubset(feature.evidence_hashes)
+
+
 @pytest.mark.parametrize(
     ("hv", "iv", "expected"),
     [
@@ -202,6 +226,7 @@ def test_volatility_marks_stale_metric_evidence():
     )
     assert feature.freshness_status == AvailabilityStatus.STALE
     assert "VOLATILITY_DATA_STALE" in feature.warnings
+    assert "VOL_DATA_STALE" in feature.reasons
 
 
 def test_options_activity_ratios_zero_and_unavailable_are_distinct():
@@ -247,6 +272,32 @@ def test_histogram_unimodal_multiple_peaks_sparse_and_relative_price():
     assert tied.classification == "BELOW_DOMINANT_AREA"
     sparse = calculate_histogram([(10, 1)], reference_price=10)
     assert sparse.classification == "INSUFFICIENT"
+
+
+def test_histogram_zone_is_contiguous_and_exposes_distances_and_proximity():
+    feature = calculate_histogram(
+        [(10, 50), (11, 2), (12, 45), (13, 1)],
+        reference_price=13.5,
+        config={"high_activity_fraction": 0.8},
+    )
+    assert feature.components["high_activity_zone_low"] == 10
+    assert feature.components["high_activity_zone_high"] == 12
+    assert feature.components["distance_to_activity_support_pct"] is not None
+    assert feature.components["distance_to_activity_resistance_pct"] is None
+    assert feature.components["proximity_context"] == "POSITIVE"
+    assert "POSITIVE_PROXIMITY_CONTEXT" in feature.reasons
+
+
+def test_malformed_histogram_retains_no_derived_conclusions():
+    feature = calculate_histogram(
+        [(10, 50), (11, 40)],
+        reference_price=10.5,
+        malformed_bin_count=1,
+    )
+    assert feature.classification == "INSUFFICIENT"
+    assert feature.coverage_status == AvailabilityStatus.UNAVAILABLE
+    assert feature.components["malformed_bin_count"] == 1
+    assert "MALFORMED_BINS_RETAINED_NO_CONCLUSIONS" in feature.warnings
 
 
 def test_safe_ratio_rejects_zero_nan_and_infinity():

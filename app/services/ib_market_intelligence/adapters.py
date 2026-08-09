@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from contextlib import contextmanager, suppress
+from datetime import UTC, date, datetime, timedelta
+from datetime import time as datetime_time
 from typing import Any
 
 from app.services.ib_api import IB, Contract, ScannerSubscription, TagValue
 from app.services.ib_market_intelligence.calculations import finite_number
 from app.services.ib_market_intelligence.config import ScannerPreset
 from app.services.ib_market_intelligence.dtos import (
+    HistogramCapture,
     HistogramLevel,
     HistoricalMetricBarDTO,
     LiveSnapshotDTO,
@@ -19,10 +22,18 @@ from app.services.ib_market_intelligence.enums import (
     HistoricalMetricType,
 )
 from app.services.ib_market_intelligence.request_budget import IBRequestBudget
+from app.services.ib_market_intelligence.resilience import (
+    RetryEvent,
+    RetryPolicy,
+    cancellable_sleep,
+    is_retryable_ib_error,
+    retry_call,
+)
 from app.settings import Settings, get_settings
 
 SUBSCRIPTION_ERROR_CODES = frozenset({10089, 10090, 10167, 10168, 354})
-NOT_SUPPORTED_ERROR_CODES = frozenset({162, 200, 321})
+NOT_SUPPORTED_ERROR_CODES = frozenset({200, 321})
+MARKET_DATA_LINE_ERROR_CODES = frozenset({101})
 
 
 def capability_status_from_error(error: Any) -> tuple[str, str]:
@@ -36,6 +47,8 @@ def capability_status_from_error(error: Any) -> tuple[str, str]:
         return AvailabilityStatus.SUBSCRIPTION_REQUIRED, message
     if code in NOT_SUPPORTED_ERROR_CODES or "not supported" in message.lower():
         return AvailabilityStatus.NOT_SUPPORTED, message
+    if code == 162 and "no data" in message.lower():
+        return AvailabilityStatus.UNAVAILABLE, message
     return AvailabilityStatus.FAILED, message
 
 
@@ -46,10 +59,20 @@ class IBHistoricalMetricClient:
         *,
         settings: Settings | None = None,
         budget: IBRequestBudget | None = None,
+        retry_policy: RetryPolicy | None = None,
+        reconnect: Callable[[], None] | None = None,
+        guard: Callable[[], None] | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+        on_retry: Callable[[RetryEvent], None] | None = None,
     ) -> None:
         self.ib = ib
         self.settings = settings or get_settings()
         self.budget = budget
+        self.retry_policy = retry_policy or RetryPolicy(max_attempts=1)
+        self.reconnect = reconnect
+        self.guard = guard
+        self.sleep = sleep
+        self.on_retry = on_retry
 
     def fetch(
         self,
@@ -58,21 +81,46 @@ class IBHistoricalMetricClient:
         *,
         duration: str,
         bar_size: str = "1 day",
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> list[HistoricalMetricBarDTO]:
         metric = HistoricalMetricType(metric_type)
-        if self.budget:
-            self.budget.acquire_historical(metric.value)
-        raw_bars = self.ib.reqHistoricalData(
-            contract,
-            endDateTime="",
-            durationStr=duration,
-            barSizeSetting=bar_size,
-            whatToShow=metric.value,
-            useRTH=self.settings.ib_use_rth,
-            formatDate=1,
-            keepUpToDate=False,
+        if (start_date is None) != (end_date is None):
+            raise ValueError("historical start_date and end_date must be supplied together")
+        if start_date and end_date:
+            if start_date > end_date:
+                raise ValueError("historical start_date cannot be after end_date")
+            duration = f"{(end_date - start_date).days + 1} D"
+        request_end = (
+            datetime.combine(end_date + timedelta(days=1), datetime_time.min, tzinfo=UTC)
+            if end_date
+            else ""
         )
-        return [
+
+        def request() -> Any:
+            if self.budget:
+                self.budget.acquire_historical(metric.value, guard=self.guard)
+            return self.ib.reqHistoricalData(
+                contract,
+                endDateTime=request_end,
+                durationStr=duration,
+                barSizeSetting=bar_size,
+                whatToShow=metric.value,
+                useRTH=self.settings.ib_use_rth,
+                formatDate=1,
+                keepUpToDate=False,
+            )
+
+        raw_bars = retry_call(
+            request,
+            operation_name=f"IBKR historical {metric.value}",
+            policy=self.retry_policy,
+            sleep=self.sleep,
+            guard=self.guard,
+            reconnect=self.reconnect,
+            on_retry=self.on_retry,
+        )
+        parsed = [
             parse_historical_metric_bar(
                 bar,
                 ticker=str(contract.symbol).upper(),
@@ -83,6 +131,9 @@ class IBHistoricalMetricClient:
             )
             for bar in raw_bars
         ]
+        if start_date and end_date:
+            parsed = [bar for bar in parsed if start_date <= bar.session_date <= end_date]
+        return parsed
 
 
 def parse_historical_metric_bar(
@@ -147,11 +198,21 @@ class IBLiveSnapshotManager:
         budget: IBRequestBudget | None = None,
         timeout_seconds: float = 8.0,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        retry_policy: RetryPolicy | None = None,
+        reconnect: Callable[[], None] | None = None,
+        guard: Callable[[], None] | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+        on_retry: Callable[[RetryEvent], None] | None = None,
     ) -> None:
         self.ib = ib
         self.budget = budget
         self.timeout_seconds = timeout_seconds
         self.clock = clock
+        self.retry_policy = retry_policy or RetryPolicy(max_attempts=1)
+        self.reconnect = reconnect
+        self.guard = guard
+        self.sleep = sleep
+        self.on_retry = on_retry
         self.restart_required = False
 
     def on_connection_error(
@@ -165,97 +226,208 @@ class IBLiveSnapshotManager:
     def capture(self, contract: Contract, snapshot_type: str) -> LiveSnapshotDTO:
         if snapshot_type not in self.FIELD_MAP:
             raise ValueError(f"Unsupported live snapshot type: {snapshot_type}")
-        semaphore = self.budget.live_slots if self.budget else _NullSemaphore()
-        with semaphore:
-            observed = self.clock()
-            ticker = None
-            capability_errors: list[tuple[str, str]] = []
-
-            def on_error(
-                req_id: int, error_code: int, message: str, error_contract: Any = None
-            ) -> None:
-                self.on_connection_error(req_id, error_code, message, error_contract)
-                if error_code in SUBSCRIPTION_ERROR_CODES | NOT_SUPPORTED_ERROR_CODES:
-                    capability_errors.append(
-                        capability_status_from_error(SimpleIBError(error_code, message))
+        slot = (
+            _semaphore_slot(self.budget.live_slots, guard=self.guard)
+            if self.budget
+            else _NullSemaphore()
+        )
+        with slot:
+            best: LiveSnapshotDTO | None = None
+            resubscriptions = 0
+            for attempt in range(1, self.retry_policy.max_attempts + 1):
+                if self.guard:
+                    self.guard()
+                self.restart_required = False
+                try:
+                    result = self._capture_once(contract, snapshot_type)
+                except _LiveDataLost as exc:
+                    resubscriptions += 1
+                    result = None
+                    retryable = True
+                    retry_error: Exception = exc
+                except Exception as exc:
+                    result = None
+                    retryable = is_retryable_ib_error(exc)
+                    retry_error = exc
+                    if retryable and self.reconnect:
+                        self.reconnect()
+                if result is not None:
+                    if best is None or len(result.values) > len(best.values):
+                        best = result
+                    if result.availability_status == AvailabilityStatus.AVAILABLE:
+                        return self._with_attempts(result, attempt, resubscriptions)
+                    if result.availability_status in {
+                        AvailabilityStatus.SUBSCRIPTION_REQUIRED,
+                        AvailabilityStatus.NOT_SUPPORTED,
+                    } or "MARKET_DATA_LINE_CAP" in result.warning_flags:
+                        return self._with_attempts(result, attempt, resubscriptions)
+                    retryable = True
+                    retry_error = TimeoutError(result.capability_reason or "snapshot timed out")
+                if not retryable or attempt >= self.retry_policy.max_attempts:
+                    if best is not None:
+                        return self._with_attempts(best, attempt, resubscriptions)
+                    status, reason = capability_status_from_error(retry_error)
+                    return self._failed_snapshot(
+                        contract,
+                        snapshot_type,
+                        status,
+                        reason,
+                        attempt,
+                        resubscriptions,
                     )
+                event = RetryEvent(
+                    attempt,
+                    attempt + 1,
+                    self.retry_policy.delay(attempt),
+                    retry_error,
+                )
+                if self.on_retry:
+                    self.on_retry(event)
+                cancellable_sleep(
+                    event.delay_seconds,
+                    sleep=self.sleep,
+                    guard=self.guard,
+                )
+            raise AssertionError("live snapshot retry loop exited unexpectedly")
 
-            error_event = getattr(self.ib, "errorEvent", None)
-            if error_event is not None:
-                error_event += on_error
-            try:
-                ticker = self.ib.reqMktData(
-                    contract,
-                    genericTickList=self.GENERIC_TICKS[snapshot_type],
-                    snapshot=False,
-                    regulatorySnapshot=False,
+    def _capture_once(self, contract: Contract, snapshot_type: str) -> LiveSnapshotDTO:
+        observed = self.clock()
+        ticker = None
+        capability_errors: list[tuple[str, str]] = []
+        line_cap_error = False
+
+        def on_error(
+            req_id: int, error_code: int, message: str, error_contract: Any = None
+        ) -> None:
+            nonlocal line_cap_error
+            self.on_connection_error(req_id, error_code, message, error_contract)
+            if error_code in MARKET_DATA_LINE_ERROR_CODES:
+                line_cap_error = True
+                if self.budget:
+                    self.budget.record_market_data_line_error(error_code)
+            if error_code in SUBSCRIPTION_ERROR_CODES | NOT_SUPPORTED_ERROR_CODES:
+                capability_errors.append(
+                    capability_status_from_error(SimpleIBError(error_code, message))
                 )
-                deadline = time.monotonic() + self.timeout_seconds
-                values: dict[str, Any] = {}
-                while time.monotonic() < deadline:
-                    values = self._read_values(ticker, snapshot_type)
-                    if self._required_fields_present(values, snapshot_type):
-                        break
-                    wait = getattr(self.ib, "waitOnUpdate", None)
-                    if callable(wait):
-                        wait(timeout=min(0.25, max(0.0, deadline - time.monotonic())))
-                    else:
-                        break
-                missing_fields = sorted(self.REQUIRED_FIELDS[snapshot_type] - values.keys())
-                status, capability_reason = (
-                    (AvailabilityStatus.AVAILABLE, None)
-                    if not missing_fields
-                    else capability_errors[-1]
-                    if capability_errors
-                    else (
-                        AvailabilityStatus.UNAVAILABLE,
-                        "Required fields were not returned before timeout: "
-                        + ", ".join(missing_fields),
-                    )
+
+        error_event = getattr(self.ib, "errorEvent", None)
+        if error_event is not None:
+            error_event += on_error
+        try:
+            if self.budget:
+                self.budget.acquire_tws_request("LIVE_MARKET_DATA", guard=self.guard)
+            ticker = self.ib.reqMktData(
+                contract,
+                genericTickList=self.GENERIC_TICKS[snapshot_type],
+                snapshot=False,
+                regulatorySnapshot=False,
+            )
+            if self.budget:
+                self.budget.line_acquired()
+            deadline = time.monotonic() + self.timeout_seconds
+            values: dict[str, Any] = {}
+            while time.monotonic() < deadline:
+                if self.guard:
+                    self.guard()
+                if self.restart_required:
+                    raise _LiveDataLost("IBKR reported restored connectivity with data lost (1101)")
+                values = self._read_values(ticker, snapshot_type)
+                if self._required_fields_present(values, snapshot_type) or line_cap_error:
+                    break
+                wait = getattr(self.ib, "waitOnUpdate", None)
+                if callable(wait):
+                    wait(timeout=min(0.25, max(0.0, deadline - time.monotonic())))
+                else:
+                    break
+            missing_fields = sorted(self.REQUIRED_FIELDS[snapshot_type] - values.keys())
+            status, capability_reason = (
+                (AvailabilityStatus.AVAILABLE, None)
+                if not missing_fields
+                else capability_errors[-1]
+                if capability_errors
+                else (
+                    AvailabilityStatus.UNAVAILABLE,
+                    "Market-data-line allowance was exhausted"
+                    if line_cap_error
+                    else "Required fields were not returned before timeout: "
+                    + ", ".join(missing_fields),
                 )
-                return LiveSnapshotDTO(
-                    ticker=str(contract.symbol).upper(),
-                    ib_conid=finite_int(getattr(contract, "conId", None)),
-                    effective_session=observed.date(),
-                    observed_at=observed,
-                    snapshot_type=snapshot_type,
-                    values=values,
-                    availability_status=status,
-                    capability_reason=capability_reason,
-                    warning_flags=tuple(
-                        f"MISSING_REQUIRED_FIELD:{field}" for field in missing_fields
-                    ),
-                    source_request={
-                        "generic_ticks": self.GENERIC_TICKS[snapshot_type],
-                        "streaming": True,
-                        "cancel_after_completion": True,
-                        "required_fields": sorted(self.REQUIRED_FIELDS[snapshot_type]),
-                        "missing_required_fields": missing_fields,
-                    },
-                )
-            except Exception as exc:
-                status, reason = capability_status_from_error(exc)
-                return LiveSnapshotDTO(
-                    ticker=str(contract.symbol).upper(),
-                    ib_conid=finite_int(getattr(contract, "conId", None)),
-                    effective_session=observed.date(),
-                    observed_at=observed,
-                    snapshot_type=snapshot_type,
-                    values={},
-                    availability_status=status,
-                    capability_reason=reason,
-                    source_request={
-                        "generic_ticks": self.GENERIC_TICKS[snapshot_type],
-                        "streaming": True,
-                        "cancel_after_completion": True,
-                        "required_fields": sorted(self.REQUIRED_FIELDS[snapshot_type]),
-                    },
-                )
-            finally:
-                if ticker is not None:
+            )
+            warnings = [f"MISSING_REQUIRED_FIELD:{field}" for field in missing_fields]
+            if line_cap_error:
+                warnings.append("MARKET_DATA_LINE_CAP")
+            return LiveSnapshotDTO(
+                ticker=str(contract.symbol).upper(),
+                ib_conid=finite_int(getattr(contract, "conId", None)),
+                effective_session=observed.date(),
+                observed_at=observed,
+                snapshot_type=snapshot_type,
+                values=values,
+                availability_status=status,
+                capability_reason=capability_reason,
+                warning_flags=tuple(warnings),
+                source_request=self._source_request(snapshot_type, missing_fields),
+            )
+        finally:
+            if ticker is not None:
+                with suppress(Exception):
                     self.ib.cancelMktData(contract)
-                if error_event is not None:
-                    error_event -= on_error
+                if self.budget:
+                    self.budget.line_released()
+            if error_event is not None:
+                error_event -= on_error
+
+    def _failed_snapshot(
+        self,
+        contract: Contract,
+        snapshot_type: str,
+        status: str,
+        reason: str,
+        attempts: int,
+        resubscriptions: int,
+    ) -> LiveSnapshotDTO:
+        observed = self.clock()
+        return LiveSnapshotDTO(
+            ticker=str(contract.symbol).upper(),
+            ib_conid=finite_int(getattr(contract, "conId", None)),
+            effective_session=observed.date(),
+            observed_at=observed,
+            snapshot_type=snapshot_type,
+            values={},
+            availability_status=status,
+            capability_reason=reason,
+            source_request={
+                **self._source_request(snapshot_type, sorted(self.REQUIRED_FIELDS[snapshot_type])),
+                "attempts": attempts,
+                "retry_count": max(0, attempts - 1),
+                "resubscriptions": resubscriptions,
+            },
+        )
+
+    def _with_attempts(
+        self, result: LiveSnapshotDTO, attempts: int, resubscriptions: int
+    ) -> LiveSnapshotDTO:
+        return LiveSnapshotDTO(
+            **{
+                **result.__dict__,
+                "source_request": {
+                    **result.source_request,
+                    "attempts": attempts,
+                    "retry_count": max(0, attempts - 1),
+                    "resubscriptions": resubscriptions,
+                    "line_capacity": self.budget.observability() if self.budget else None,
+                },
+            }
+        )
+
+    def _source_request(self, snapshot_type: str, missing_fields: list[str]) -> dict[str, Any]:
+        return {
+            "generic_ticks": self.GENERIC_TICKS[snapshot_type],
+            "streaming": True,
+            "cancel_after_completion": True,
+            "required_fields": sorted(self.REQUIRED_FIELDS[snapshot_type]),
+            "missing_required_fields": missing_fields,
+        }
 
     def _read_values(self, ticker: Any, snapshot_type: str) -> dict[str, Any]:
         aliases = {
@@ -303,11 +475,15 @@ class IBScannerClient:
         self.budget = budget
 
     def parameters(self) -> str:
+        if self.budget:
+            self.budget.acquire_tws_request("SCANNER_PARAMETERS")
         return str(self.ib.reqScannerParameters())
 
     def run(self, preset: ScannerPreset) -> list[dict[str, Any]]:
         semaphore = self.budget.scanner_slots if self.budget else _NullSemaphore()
         with semaphore:
+            if self.budget:
+                self.budget.acquire_tws_request("SCANNER")
             subscription = ScannerSubscription(
                 instrument=preset.instrument,
                 locationCode=preset.location,
@@ -348,17 +524,64 @@ def scanner_row(row: Any) -> dict[str, Any]:
 
 
 class IBHistogramClient:
-    def __init__(self, ib: IB) -> None:
+    def __init__(self, ib: IB, *, budget: IBRequestBudget | None = None) -> None:
         self.ib = ib
+        self.budget = budget
 
     def fetch(self, contract: Contract, *, use_rth: bool, period: str) -> list[HistogramLevel]:
+        return list(
+            self.fetch_capture(contract, use_rth=use_rth, period=period).valid_levels
+        )
+
+    def fetch_capture(
+        self, contract: Contract, *, use_rth: bool, period: str
+    ) -> HistogramCapture:
+        if self.budget:
+            self.budget.acquire_tws_request("HISTOGRAM")
         rows = self.ib.reqHistogramData(contract, useRTH=use_rth, period=period)
-        return [
-            HistogramLevel(price=float(row.price), activity_count=float(row.size))
-            for row in rows
-            if finite_number(getattr(row, "price", None), positive=True) is not None
-            and finite_number(getattr(row, "size", None), nonnegative=True) is not None
-        ]
+        valid: list[HistogramLevel] = []
+        raw: list[dict[str, Any]] = []
+        malformed = 0
+        seen_prices: set[float] = set()
+        for index, row in enumerate(rows):
+            raw_price = getattr(row, "price", None)
+            raw_activity = getattr(row, "size", None)
+            price = finite_number(raw_price, positive=True)
+            activity = finite_number(raw_activity, nonnegative=True)
+            warnings: list[str] = []
+            if price is None:
+                warnings.append("INVALID_PRICE")
+            if activity is None:
+                warnings.append("INVALID_ACTIVITY_COUNT")
+            if price is not None and price in seen_prices:
+                warnings.append("DUPLICATE_PRICE")
+            if warnings:
+                malformed += 1
+            else:
+                valid.append(HistogramLevel(price=price, activity_count=activity))
+                seen_prices.add(price)
+            raw.append(
+                {
+                    "source_index": index,
+                    "raw_price": _json_scalar(raw_price),
+                    "raw_activity_count": _json_scalar(raw_activity),
+                    "parsed_price": price,
+                    "parsed_activity_count": activity,
+                    "validation_warnings": warnings,
+                }
+            )
+        return HistogramCapture(
+            valid_levels=tuple(valid),
+            raw_bins=tuple(raw),
+            malformed_bin_count=malformed,
+        )
+
+
+def _json_scalar(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    number = finite_number(value)
+    return number if number is not None else str(value)
 
 
 def _bar_date(value: date | datetime | str | None) -> date:
@@ -388,7 +611,25 @@ class _NullSemaphore:
         return None
 
 
+@contextmanager
+def _semaphore_slot(semaphore: Any, *, guard: Callable[[], None] | None = None):
+    acquired = False
+    try:
+        while not acquired:
+            if guard:
+                guard()
+            acquired = semaphore.acquire(timeout=0.25)
+        yield
+    finally:
+        if acquired:
+            semaphore.release()
+
+
 class SimpleIBError:
     def __init__(self, code: int, message: str) -> None:
         self.code = code
         self.message = message
+
+
+class _LiveDataLost(ConnectionError):
+    pass

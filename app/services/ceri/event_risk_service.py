@@ -37,6 +37,7 @@ class CeriEventRiskService:
         stale: bool = False,
         conflict_penalty: float = 0.0,
         options_event_premium_score: float = 0.0,
+        short_pressure_classification: str | None = None,
     ) -> EventRiskResult:
         catalyst_features = catalyst_features or []
         proximity = self.earnings_proximity(as_of_session, next_earnings_session)
@@ -57,6 +58,10 @@ class CeriEventRiskService:
             reasons.append("conflict_penalty")
         if options_event_premium_score:
             reasons.append("ibkr_options_event_premium")
+        if short_pressure_classification:
+            reasons.append(
+                f"ibkr_short_pressure_context:{short_pressure_classification.lower()}"
+            )
         if stale:
             warnings.append("data_stale")
             score = min(10.0, score + 1.0)

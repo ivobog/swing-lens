@@ -11,13 +11,14 @@ document.addEventListener("DOMContentLoaded", () => {
       for (const [key, value] of data.entries()) {
         if (key === "tickers" || key === "presets") {
           payload[key] = String(value).split(",").map((item) => item.trim()).filter(Boolean);
-        } else if (key === "dry_run") {
+        } else if (key === "dry_run" || key === "force") {
           payload[key] = true;
         } else if (value !== "") {
           payload[key] = value;
         }
       }
       if (form.querySelector('[name="dry_run"]') && !("dry_run" in payload)) payload.dry_run = false;
+      if (form.querySelector('[name="force"]') && !("force" in payload)) payload.force = false;
       result.hidden = false;
       result.textContent = "Queuing…";
       try {

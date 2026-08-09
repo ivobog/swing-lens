@@ -60,6 +60,13 @@ class HistogramLevel:
 
 
 @dataclass(frozen=True)
+class HistogramCapture:
+    valid_levels: tuple[HistogramLevel, ...]
+    raw_bins: tuple[dict[str, Any], ...]
+    malformed_bin_count: int = 0
+
+
+@dataclass(frozen=True)
 class FlexExecutionDTO:
     external_execution_id: str | None
     trade_time: datetime

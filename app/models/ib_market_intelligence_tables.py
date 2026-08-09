@@ -305,6 +305,9 @@ class IBHistogramSnapshot(Base):
         Text, nullable=False, default="IBKR_HISTOGRAM_PRICE_LEVEL_ACTIVITY"
     )
     warnings_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    raw_bins_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
 
     __table_args__ = (Index("ix_ib_histogram_latest", "ticker", "observed_at"),)
 

@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,17 +13,22 @@ from sqlalchemy.orm import Session
 
 from app.models.ib_market_intelligence_tables import (
     IBExecutionFill,
+    IBFlexImportRun,
     IBHistoricalMetricRevision,
     IBScannerCandidate,
     IBScannerRun,
     IBTradeEpisode,
 )
+from app.models.tables import CombinedResult, SetupSignalSnapshot, UploadRun
 from app.services.ceri import capture_service as ceri_capture_service
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 from app.services.ib_market_intelligence.dtos import FeatureResult, HistoricalMetricBarDTO
 from app.services.ib_market_intelligence.enums import AvailabilityStatus, Confidence
 from app.services.ib_market_intelligence.flex import import_flex_report
-from app.services.ib_market_intelligence.journal import rebuild_trade_episodes
+from app.services.ib_market_intelligence.journal import (
+    match_episode_to_research,
+    rebuild_trade_episodes,
+)
 from app.services.ib_market_intelligence.query_service import (
     latest_features,
     overview,
@@ -186,7 +192,14 @@ def test_metric_revision_and_flex_import_are_idempotent(
             lambda: SimpleNamespace(
                 ib_market_intelligence_enabled=True,
                 ib_volatility_intelligence_enabled=True,
+                ib_short_pressure_enabled=True,
             ),
+        )
+        assert (
+            ceri_capture_service._point_in_time_volatility_feature(
+                db, "XYZ", datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
+            ).id
+            == first_feature.id
         )
         assert (
             ceri_capture_service._point_in_time_volatility_feature(
@@ -194,6 +207,33 @@ def test_metric_revision_and_flex_import_are_idempotent(
             )
             is None
         )
+        short_context = FeatureResult(
+            module="SHORT_PRESSURE",
+            classification="HIGH_BORROW_COST",
+            score=7.0,
+            confidence=Confidence.NORMAL,
+            freshness_status=AvailabilityStatus.AVAILABLE,
+            coverage_status=AvailabilityStatus.AVAILABLE,
+            components={"fee_rate": 15.0},
+            evidence_hashes=("fee-local",),
+        )
+        short_row, inserted = persist_feature(
+            db,
+            ticker="XYZ",
+            ib_conid=123,
+            as_of_session=date(2026, 8, 9),
+            feature=short_context,
+            config=config,
+            calculated_at=datetime(2026, 8, 9, 12, 1, tzinfo=UTC),
+        )
+        assert inserted is True
+        db.commit()
+        ceri_short = ceri_capture_service._point_in_time_short_pressure_feature(
+            db, "XYZ", datetime(2026, 8, 9, 12, 2, tzinfo=UTC)
+        )
+        assert ceri_short is not None
+        assert ceri_short.id == short_row.id
+        assert ceri_short.classification == "HIGH_BORROW_COST"
 
         resolved_scan = IBScannerRun(
             scanner_name="HOT_VOLUME_US",
@@ -254,6 +294,94 @@ def test_metric_revision_and_flex_import_are_idempotent(
         assert candidate_pool[0]["ib_conid"] == 265598
         assert len(candidate_pool[0]["discovery_reasons"]) == 2
         assert overview(db)["cards"]["scanner_candidates"] == 1
+
+        entry_time = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+        eligible_run = UploadRun(
+            filename="eligible.csv",
+            status="COMPLETED",
+            processed_at=entry_time - timedelta(hours=1),
+        )
+        future_run = UploadRun(
+            filename="future.csv",
+            status="COMPLETED",
+            processed_at=entry_time - timedelta(minutes=30),
+        )
+        db.add_all((eligible_run, future_run))
+        db.flush()
+        eligible_combined = CombinedResult(
+            run_id=eligible_run.id,
+            ticker="PIT",
+            final_score=7.5,
+            combined_decision="Candidate",
+            created_at=entry_time - timedelta(hours=1),
+        )
+        future_combined = CombinedResult(
+            run_id=future_run.id,
+            ticker="PIT",
+            final_score=9.9,
+            combined_decision="Strong candidate",
+            created_at=entry_time + timedelta(minutes=1),
+        )
+        db.add_all((eligible_combined, future_combined))
+        db.flush()
+        db.add(
+            SetupSignalSnapshot(
+                run_id=eligible_run.id,
+                combined_result_id=eligible_combined.id,
+                ticker="PIT",
+                timeframe="1D",
+                data_as_of_date=entry_time.date(),
+                calculated_at=entry_time - timedelta(minutes=45),
+                origin_type="LIVE",
+                engine_version="test",
+                config_version="test",
+                config_hash="pit-config",
+                source_data_hash="pit-source",
+                schema_version="1",
+                data_quality_label="COMPLETE",
+                close_price=100,
+                primary_setup_family="BREAKOUT",
+            )
+        )
+        episode = IBTradeEpisode(
+            episode_key="pit-slippage-e2e",
+            ticker="PIT",
+            direction="LONG",
+            opened_at=entry_time,
+            entry_quantity=10,
+            exit_quantity=0,
+            average_entry_price=102,
+            deployed_entry_capital=1020,
+            commissions=0,
+            fees=0,
+            status="OPEN",
+            fill_ids_json=[],
+            is_excluded=False,
+        )
+        db.add(episode)
+        db.flush()
+        link = match_episode_to_research(db, episode)
+        assert link.matching_status == "MATCHED"
+        assert link.upload_run_id == eligible_run.id
+        assert link.leakage_check == "PASS"
+        assert link.context_json["slippage_reference"] == "SETUP_DECISION_CLOSE"
+        assert Decimal(link.context_json["execution_slippage_pct"]) == Decimal("2")
+
+        today = datetime.now(UTC)
+        db.add(
+            IBFlexImportRun(
+                query_type="ACTIVITY",
+                query_id_fingerprint="daily",
+                status="COMPLETED",
+                dry_run=False,
+                started_at=today - timedelta(minutes=1),
+                completed_at=today,
+            )
+        )
+        db.flush()
+        from app.services.ib_market_intelligence import orchestration
+
+        assert orchestration._activity_imported_today(db, "Europe/Zurich") is True
     engine.dispose()
     downgrade = subprocess.run(
         [sys.executable, "-m", "alembic", "downgrade", "0031_add_ib_market_intelligence"],

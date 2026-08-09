@@ -24,6 +24,7 @@ from app.services.ib_market_intelligence.scanner_identity import (
     canonical_scanner_identity,
     scanner_conids_by_ticker,
 )
+from app.services.operational_metrics import operational_metrics
 
 
 def overview(db: Session) -> dict[str, Any]:
@@ -226,19 +227,49 @@ def trade_journal(
 
 
 def operations(db: Session) -> dict[str, Any]:
+    from app.services.ib_market_intelligence.orchestration import shared_request_budget
+
     rows = db.scalars(
         select(IBIntelligenceRun).order_by(IBIntelligenceRun.started_at.desc()).limit(100)
     ).all()
     latest_by_module: dict[str, dict[str, Any]] = {}
+    last_successful_by_module: dict[str, dict[str, Any]] = {}
     for row in rows:
         latest_by_module.setdefault(row.module, _run_dict(row))
+        if row.status in {"COMPLETED", "PARTIAL"}:
+            last_successful_by_module.setdefault(row.module, _run_dict(row))
     request_items = db.scalars(
         select(IBIntelligenceRequestItem)
         .order_by(IBIntelligenceRequestItem.started_at.desc())
         .limit(200)
     ).all()
+    run_modules = {row.id: row.module for row in rows}
+    subscription_unavailable = [
+        {
+            "module": run_modules.get(item.intelligence_run_id),
+            "ticker": item.ticker,
+            "request_type": item.request_type,
+            "error_message": item.error_message,
+            "observed_at": item.completed_at,
+        }
+        for item in request_items
+        if item.availability_status == "SUBSCRIPTION_REQUIRED"
+    ]
+    metric_samples = [
+        {
+            "name": sample.name,
+            "value": sample.value,
+            "labels": sample.labels,
+        }
+        for sample in operational_metrics.samples()
+        if sample.name.startswith("swinglens_ibmi_")
+    ]
     return {
         "latest_by_module": latest_by_module,
+        "last_successful_by_module": last_successful_by_module,
+        "subscription_unavailable_modules": subscription_unavailable,
+        "observability": metric_samples,
+        "request_budget": shared_request_budget().observability(),
         "runs": [_run_dict(row) for row in rows],
         "request_items": [
             {
@@ -247,9 +278,11 @@ def operations(db: Session) -> dict[str, Any]:
                 "ticker": item.ticker,
                 "request_family": item.request_family,
                 "request_type": item.request_type,
+                "priority": item.priority,
                 "status": item.status,
                 "availability_status": item.availability_status,
                 "result_counts": item.result_counts_json,
+                "retry_count": item.retry_count,
                 "error_message": item.error_message,
                 "started_at": item.started_at,
                 "completed_at": item.completed_at,

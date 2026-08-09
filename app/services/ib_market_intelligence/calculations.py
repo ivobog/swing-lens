@@ -148,6 +148,7 @@ def calculate_short_pressure(
     shortable_shares: float | None = None,
     shortable_state: str | None = None,
     availability_status: str = AvailabilityStatus.AVAILABLE,
+    shortable_share_observations: Sequence[Any] = (),
     config: dict[str, Any] | None = None,
 ) -> FeatureResult:
     config = config or {}
@@ -186,6 +187,31 @@ def calculate_short_pressure(
         components["fee_acceleration_component"] = accel_component
         max_available += 2
     shares = finite_number(shortable_shares, nonnegative=True)
+    observed_shares: list[tuple[Any, float, str]] = []
+    for observation in shortable_share_observations:
+        observed = finite_number(
+            _field(observation, "shortable_shares"), nonnegative=True
+        )
+        observed_at = _field(observation, "observed_at")
+        if observed is not None and observed_at is not None:
+            observed_shares.append(
+                (
+                    observed_at,
+                    observed,
+                    str(_field(observation, "evidence_hash") or ""),
+                )
+            )
+    observed_shares.sort(key=lambda item: item[0])
+    shares_change = (
+        observed_shares[-1][1] - observed_shares[-2][1]
+        if len(observed_shares) >= 2
+        else None
+    )
+    shares_change_pct = (
+        100 * shares_change / observed_shares[-2][1]
+        if shares_change is not None and observed_shares[-2][1] > 0
+        else None
+    )
     normalized_state = (shortable_state or "").upper()
     if availability_status == AvailabilityStatus.AVAILABLE and (
         shares is not None or normalized_state
@@ -220,9 +246,13 @@ def calculate_short_pressure(
     elif current >= high_fee:
         reasons.append("BORROW_FEE_ELEVATED")
     if acceleration is not None and acceleration > 0:
-        reasons.append("BORROW_FEE_RISING")
+        reasons.append("BORROW_COST_ACCELERATING")
     if shares is not None and shares <= low_shares:
         reasons.append("SHORTABLE_SHARES_TIGHT")
+    if shares_change is not None and shares_change < 0:
+        reasons.append("SHORTABLE_SHARES_DECREASING")
+    elif shares_change is not None and shares_change > 0:
+        reasons.append("SHORTABLE_SHARES_INCREASING")
     warnings = ["NOT_OFFICIAL_SHORT_INTEREST"]
     if availability_status != AvailabilityStatus.AVAILABLE:
         warnings.append(
@@ -261,12 +291,18 @@ def calculate_short_pressure(
             "fee_change_20d": change_20d,
             "fee_acceleration": acceleration,
             "shortable_shares": shares,
+            "locally_observed_shortable_shares_change": shares_change,
+            "locally_observed_shortable_shares_change_pct": shares_change_pct,
+            "locally_observed_shortable_shares_observation_count": len(observed_shares),
             "shortable_state": shortable_state,
             **components,
         },
         reasons=tuple(reasons),
         warnings=tuple(warnings),
-        evidence_hashes=tuple(item[2] for item in fees if item[2]),
+        evidence_hashes=tuple(
+            [item[2] for item in fees if item[2]]
+            + [item[2] for item in observed_shares if item[2]]
+        ),
     )
 
 
@@ -341,6 +377,7 @@ def calculate_volatility(
     )
     if stale:
         warnings.append("VOLATILITY_DATA_STALE")
+        reasons.append("VOL_DATA_STALE")
     freshness = (
         AvailabilityStatus.STALE
         if stale
@@ -495,6 +532,7 @@ def calculate_histogram(
     *,
     reference_price: float | None,
     config: dict[str, Any] | None = None,
+    malformed_bin_count: int = 0,
 ) -> FeatureResult:
     config = config or {}
     clean: list[tuple[float, float]] = []
@@ -515,7 +553,7 @@ def calculate_histogram(
             clean.append((price, count))
     clean.sort()
     total = sum(count for _, count in clean)
-    if len(clean) < 2 or total <= 0:
+    if malformed_bin_count > 0 or len(clean) < 2 or total <= 0:
         return FeatureResult(
             module="HISTOGRAM",
             classification="INSUFFICIENT",
@@ -525,25 +563,54 @@ def calculate_histogram(
             coverage_status=AvailabilityStatus.UNAVAILABLE,
             components={
                 "bin_count": len(clean),
+                "malformed_bin_count": malformed_bin_count,
                 "source_semantics": "IBKR_HISTOGRAM_PRICE_LEVEL_ACTIVITY",
             },
-            reasons=("HISTOGRAM_INSUFFICIENT",),
-            warnings=("NOT_EXCHANGE_VOLUME_PROFILE",),
+            reasons=(
+                "MALFORMED_HISTOGRAM_DISTRIBUTION"
+                if malformed_bin_count > 0
+                else "HISTOGRAM_INSUFFICIENT",
+            ),
+            warnings=tuple(
+                ["NOT_EXCHANGE_VOLUME_PROFILE"]
+                + (["MALFORMED_BINS_RETAINED_NO_CONCLUSIONS"] if malformed_bin_count else [])
+            ),
         )
-    poc_price, poc_count = max(clean, key=lambda item: (item[1], -item[0]))
+    poc_index, (poc_price, poc_count) = max(
+        enumerate(clean), key=lambda indexed: (indexed[1][1], -indexed[1][0])
+    )
     fraction = min(1.0, max(0.01, float(config.get("high_activity_fraction", 0.70))))
-    selected: list[tuple[float, float]] = []
-    running = 0.0
-    for level in sorted(clean, key=lambda item: (-item[1], item[0])):
-        selected.append(level)
-        running += level[1]
-        if running / total >= fraction:
-            break
+    left = right = poc_index
+    running = poc_count
+    while running / total < fraction and (left > 0 or right < len(clean) - 1):
+        left_count = clean[left - 1][1] if left > 0 else -1.0
+        right_count = clean[right + 1][1] if right < len(clean) - 1 else -1.0
+        if left_count >= right_count and left > 0:
+            left -= 1
+            running += clean[left][1]
+        else:
+            right += 1
+            running += clean[right][1]
+    selected = clean[left : right + 1]
     zone_low = min(price for price, _ in selected)
     zone_high = max(price for price, _ in selected)
     counts = [count for _, count in clean]
     cutoff = _quantile(counts, float(config.get("low_activity_percentile", 0.20)))
     low_activity = [price for price, count in clean if count <= cutoff]
+    low_activity_gaps: list[dict[str, Any]] = []
+    gap: list[float] = []
+    for level_price, count in clean:
+        if count <= cutoff:
+            gap.append(level_price)
+        elif gap:
+            low_activity_gaps.append(
+                {"low": gap[0], "high": gap[-1], "bin_count": len(gap)}
+            )
+            gap = []
+    if gap:
+        low_activity_gaps.append(
+            {"low": gap[0], "high": gap[-1], "bin_count": len(gap)}
+        )
     price = finite_number(reference_price, positive=True)
     support_candidates = [
         level_price for level_price, _ in clean if price is not None and level_price < price
@@ -553,13 +620,27 @@ def calculate_histogram(
     ]
     nearest_support = max(support_candidates) if support_candidates else None
     nearest_resistance = min(resistance_candidates) if resistance_candidates else None
+    distance_to_support = (
+        100 * (price - nearest_support) / price
+        if price is not None and nearest_support is not None
+        else None
+    )
+    distance_to_resistance = (
+        100 * (nearest_resistance - price) / price
+        if price is not None and nearest_resistance is not None
+        else None
+    )
     if price is None:
+        proximity_context = "NEUTRAL"
         classification = "NEUTRAL"
     elif zone_low <= price <= zone_high:
+        proximity_context = "NEUTRAL"
         classification = "INSIDE_HIGH_ACTIVITY_ZONE"
     elif price > zone_high:
+        proximity_context = "POSITIVE"
         classification = "ABOVE_DOMINANT_AREA"
     else:
+        proximity_context = "NEGATIVE"
         classification = "BELOW_DOMINANT_AREA"
     return FeatureResult(
         module="HISTOGRAM",
@@ -574,6 +655,7 @@ def calculate_histogram(
             "high_activity_zone_low": zone_low,
             "high_activity_zone_high": zone_high,
             "low_activity_prices": low_activity,
+            "low_activity_gaps": low_activity_gaps,
             "concentration": poc_count / total,
             "reference_price": price,
             "distance_to_poc_pct": (100 * (price - poc_price) / poc_price)
@@ -581,10 +663,20 @@ def calculate_histogram(
             else None,
             "nearest_activity_support": nearest_support,
             "nearest_activity_resistance": nearest_resistance,
+            "distance_to_activity_support_pct": distance_to_support,
+            "distance_to_activity_resistance_pct": distance_to_resistance,
+            "distance_to_zone_low_pct": (
+                100 * (price - zone_low) / price if price is not None else None
+            ),
+            "distance_to_zone_high_pct": (
+                100 * (zone_high - price) / price if price is not None else None
+            ),
+            "proximity_context": proximity_context,
             "bin_count": len(clean),
+            "malformed_bin_count": 0,
             "source_semantics": "IBKR_HISTOGRAM_PRICE_LEVEL_ACTIVITY",
         },
-        reasons=(classification,),
+        reasons=(classification, f"{proximity_context}_PROXIMITY_CONTEXT"),
         warnings=("NOT_EXCHANGE_VOLUME_PROFILE",),
     )
 
