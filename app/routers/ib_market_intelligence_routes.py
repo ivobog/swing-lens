@@ -58,6 +58,7 @@ class HistogramJobRequest(BaseModel):
 class FlexJobRequest(BaseModel):
     query_type: Literal["TRADE_CONFIRMATIONS", "ACTIVITY"] = "TRADE_CONFIRMATIONS"
     dry_run: bool = False
+    force: bool = False
 
 
 class ExcludeFillRequest(BaseModel):

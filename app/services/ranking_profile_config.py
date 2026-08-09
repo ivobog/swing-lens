@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +46,15 @@ class RankingThresholds:
 
 
 @dataclass(frozen=True)
+class TradeabilityOverlayConfig:
+    enabled: bool = False
+    poor_penalty: float = 0.0
+    very_poor_penalty: float = 0.0
+    maximum_penalty: float = 0.0
+    minimum_dollar_volume: float | None = None
+
+
+@dataclass(frozen=True)
 class RankingProfileConfig:
     name: str
     enabled: bool
@@ -58,6 +67,9 @@ class RankingProfileConfig:
     thresholds: RankingThresholds
     penalties: dict[str, float]
     gates: dict[str, Any]
+    tradeability_overlay: TradeabilityOverlayConfig = field(
+        default_factory=TradeabilityOverlayConfig
+    )
 
 
 def load_ranking_profiles(
@@ -101,6 +113,7 @@ def _parse_profile(name: str, raw: Any) -> RankingProfileConfig:
     thresholds = _optional_mapping(raw, "thresholds")
     penalties = _optional_mapping(raw, "penalties")
     gates = _optional_mapping(raw, "gates")
+    tradeability = _optional_mapping(raw, "tradeability_overlay")
 
     return RankingProfileConfig(
         name=name,
@@ -148,6 +161,29 @@ def _parse_profile(name: str, raw: Any) -> RankingProfileConfig:
             for penalty, value in penalties.items()
         },
         gates=dict(gates),
+        tradeability_overlay=TradeabilityOverlayConfig(
+            enabled=bool(tradeability.get("enabled", False)),
+            poor_penalty=_float(
+                name, tradeability.get("poor_penalty", 0.0),
+                "tradeability_overlay.poor_penalty",
+            ),
+            very_poor_penalty=_float(
+                name, tradeability.get("very_poor_penalty", 0.0),
+                "tradeability_overlay.very_poor_penalty",
+            ),
+            maximum_penalty=_float(
+                name, tradeability.get("maximum_penalty", 0.0),
+                "tradeability_overlay.maximum_penalty",
+            ),
+            minimum_dollar_volume=(
+                _float(
+                    name, tradeability["minimum_dollar_volume"],
+                    "tradeability_overlay.minimum_dollar_volume",
+                )
+                if tradeability.get("minimum_dollar_volume") is not None
+                else None
+            ),
+        ),
     )
 
 
@@ -191,6 +227,24 @@ def _validate_profile(profile: RankingProfileConfig) -> None:
             raise RankingProfileConfigError(
                 f"{profile.name}: penalties.{penalty_name} must be non-negative"
             )
+    overlay = profile.tradeability_overlay
+    overlay_values = (
+        overlay.poor_penalty,
+        overlay.very_poor_penalty,
+        overlay.maximum_penalty,
+    )
+    if any(value < 0 for value in overlay_values):
+        raise RankingProfileConfigError(
+            f"{profile.name}: tradeability overlay penalties must be non-negative"
+        )
+    if overlay.minimum_dollar_volume is not None and overlay.minimum_dollar_volume < 0:
+        raise RankingProfileConfigError(
+            f"{profile.name}: tradeability_overlay.minimum_dollar_volume must be non-negative"
+        )
+    if max(overlay.poor_penalty, overlay.very_poor_penalty) > overlay.maximum_penalty:
+        raise RankingProfileConfigError(
+            f"{profile.name}: tradeability penalties must not exceed maximum_penalty"
+        )
 
 
 def _required_mapping(profile_name: str, raw: dict[str, Any], field: str) -> dict[str, Any]:

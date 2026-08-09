@@ -3,7 +3,11 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
-from app.services.ranking_profile_config import RankingProfileConfig, get_ranking_profile
+from app.services.ranking_profile_config import (
+    RankingProfileConfig,
+    TradeabilityOverlayConfig,
+    get_ranking_profile,
+)
 from app.services.ranking_profile_engine import (
     calculate_profile_score,
     decision_from_score,
@@ -12,6 +16,70 @@ from app.services.ranking_profile_engine import (
 )
 
 TODAY = date(2026, 7, 7)
+
+
+def test_ibkr_tradeability_penalty_is_profile_scoped_visible_and_bounded() -> None:
+    base = _profile("momentum_swing")
+    profile = replace(
+        base,
+        tradeability_overlay=TradeabilityOverlayConfig(
+            enabled=True,
+            poor_penalty=0.5,
+            very_poor_penalty=1.0,
+            maximum_penalty=0.75,
+            minimum_dollar_volume=5_000_000,
+        ),
+    )
+    row = _row("THIN")
+    fundamental = _fundamental("THIN", 8.0)
+    technical = _technical(
+        "THIN", trend=8, momentum=8, setup=8, risk=2, rs=8
+    )
+    baseline = rank_single_row(
+        profile=replace(profile, tradeability_overlay=TradeabilityOverlayConfig()),
+        row=row,
+        fundamental=fundamental,
+        technical=technical,
+        config=_config(),
+        today=TODAY,
+    )
+    penalized = rank_single_row(
+        profile=profile,
+        row=row,
+        fundamental=fundamental,
+        technical=technical,
+        config=_config(),
+        today=TODAY,
+        liquidity_feature={
+            "classification": "VERY_POOR",
+            "coverage_status": "AVAILABLE",
+            "components": {"dollar_volume": 2_000_000},
+        },
+    )
+    assert penalized.profile_score == baseline.profile_score - 0.75
+    assert penalized.penalties["ibkr_tradeability"] == 0.75
+    assert "IBKR_TRADEABILITY_PENALTY" in penalized.warning_flags
+    assert penalized.debug["inputs"]["ibkr_liquidity_classification"] == "VERY_POOR"
+
+
+def test_ibkr_tradeability_unavailable_evidence_is_a_no_op() -> None:
+    profile = _profile("momentum_swing")
+    row = _row("MISS")
+    fundamental = _fundamental("MISS", 7.0)
+    technical = _technical("MISS", trend=7, momentum=7, setup=7, risk=2, rs=7)
+    decision = rank_single_row(
+        profile=profile,
+        row=row,
+        fundamental=fundamental,
+        technical=technical,
+        config=_config(),
+        liquidity_feature={
+            "classification": "VERY_POOR",
+            "coverage_status": "SUBSCRIPTION_REQUIRED",
+            "components": {},
+        },
+    )
+    assert "ibkr_tradeability" not in decision.penalties
 
 
 def test_calculate_profile_score_rescales_available_score() -> None:

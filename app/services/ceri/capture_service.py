@@ -67,6 +67,12 @@ class _VolatilityRiskFeature:
     components: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class _ShortPressureContextFeature:
+    id: int
+    classification: str
+
+
 class CeriRunCaptureService:
     def __init__(
         self,
@@ -177,6 +183,9 @@ class CeriRunCaptureService:
                     conflict_penalty=min(3.0, float(company_conflicted)),
                 )
                 volatility_feature = _point_in_time_volatility_feature(db, row.ticker, cutoff_at)
+                short_pressure_feature = _point_in_time_short_pressure_feature(
+                    db, row.ticker, cutoff_at
+                )
                 volatility_config = load_ib_market_intelligence_config().section("volatility")
                 volatility_risk = (
                     options_event_premium_score(
@@ -193,6 +202,11 @@ class CeriRunCaptureService:
                     stale=bool(company_stale),
                     conflict_penalty=min(3.0, float(company_conflicted)),
                     options_event_premium_score=volatility_risk,
+                    short_pressure_classification=(
+                        short_pressure_feature.classification
+                        if short_pressure_feature is not None
+                        else None
+                    ),
                 )
                 guidance_rows = _guidance_for_company(db, company.id, cutoff_at.date())
                 catalyst_lineage = _catalyst_lineage(db, company.id, cutoff_at.date())
@@ -214,6 +228,9 @@ class CeriRunCaptureService:
                     else [],
                     "ib_volatility_feature_ids": [volatility_feature.id]
                     if volatility_feature is not None
+                    else [],
+                    "ib_short_pressure_feature_ids": [short_pressure_feature.id]
+                    if short_pressure_feature is not None
                     else [],
                     "warnings": sorted(
                         set(
@@ -609,8 +626,8 @@ def _point_in_time_volatility_feature(
 ) -> _VolatilityRiskFeature | None:
     settings = get_settings()
     if not (
-        settings.ib_market_intelligence_enabled
-        and settings.ib_volatility_intelligence_enabled
+        getattr(settings, "ib_market_intelligence_enabled", False)
+        and getattr(settings, "ib_volatility_intelligence_enabled", False)
     ):
         return None
     row = _maybe_scalar(
@@ -628,6 +645,37 @@ def _point_in_time_volatility_feature(
     if row is None or row.coverage_status != "AVAILABLE":
         return None
     return _VolatilityRiskFeature(id=row.id, components=dict(row.components_json or {}))
+
+
+def _point_in_time_short_pressure_feature(
+    db: Session,
+    ticker: str,
+    cutoff_at: datetime,
+) -> _ShortPressureContextFeature | None:
+    settings = get_settings()
+    if not (
+        getattr(settings, "ib_market_intelligence_enabled", False)
+        and getattr(settings, "ib_short_pressure_enabled", False)
+    ):
+        return None
+    row = _maybe_scalar(
+        db,
+        select(IBIntelligenceFeature)
+        .where(IBIntelligenceFeature.ticker == ticker.upper())
+        .where(IBIntelligenceFeature.module == "SHORT_PRESSURE")
+        .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
+        .where(IBIntelligenceFeature.as_of_session <= cutoff_at.date())
+        .order_by(
+            IBIntelligenceFeature.as_of_session.desc(),
+            IBIntelligenceFeature.calculated_at.desc(),
+        ),
+    )
+    if row is None or row.coverage_status != "AVAILABLE":
+        return None
+    return _ShortPressureContextFeature(
+        id=row.id,
+        classification=row.classification,
+    )
 
 
 def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:

@@ -26,6 +26,7 @@ from app.services.ib_market_intelligence.resilience import (
     cancellable_sleep,
     retry_call,
 )
+from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive
 from app.settings import Settings, get_settings
 
@@ -77,7 +78,12 @@ class IBFlexClient:
         url = self._url(
             "FlexStatementService.SendRequest", {"t": self._token, "q": query_id, "v": "3"}
         )
+        started = time.monotonic()
         payload = self._request(url)
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_send_duration_seconds",
+            value=time.monotonic() - started,
+        )
         root = _xml_root(payload, "Flex SendRequest")
         status = (_xml_text(root, "Status") or "").lower()
         if status != "success":
@@ -92,7 +98,12 @@ class IBFlexClient:
             "FlexStatementService.GetStatement",
             {"t": self._token, "q": reference_code, "v": "3"},
         )
+        started = time.monotonic()
         payload = self._request(url)
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_get_duration_seconds",
+            value=time.monotonic() - started,
+        )
         if payload.lstrip().startswith("<FlexStatementResponse"):
             root = _xml_root(payload, "Flex GetStatement")
             code = _xml_text(root, "ErrorCode")
@@ -221,6 +232,7 @@ def import_flex_report(
     now: datetime | None = None,
     report_timezone: str = "UTC",
 ) -> dict[str, Any]:
+    import_started = time.monotonic()
     now = now or datetime.now(UTC)
     digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
     existing_run = db.scalar(
@@ -230,14 +242,31 @@ def import_flex_report(
         .where(IBFlexImportRun.status == "COMPLETED")
     )
     if existing_run is not None and not dry_run:
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_duplicate_reports_total", query_type=query_type
+        )
         return {"status": "DUPLICATE_REPORT", "import_run_id": existing_run.id, "inserted": 0}
     executions = parse_flex_report(content, report_timezone=report_timezone)
+    missing_order_reference_count = sum(
+        execution.order_reference is None for execution in executions
+    )
     if dry_run:
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_import_duration_seconds",
+            value=time.monotonic() - import_started,
+            query_type=query_type,
+        )
+        operational_metrics.increment(
+            "swinglens_ibmi_flex_import_rows_total",
+            value=len(executions),
+            query_type=query_type,
+        )
         return {
             "status": "DRY_RUN",
             "rows": len(executions),
             "symbols": sorted({execution.symbol for execution in executions}),
             "content_hash": digest,
+            "missing_order_reference_count": missing_order_reference_count,
         }
     run = IBFlexImportRun(
         intelligence_run_id=intelligence_run_id,
@@ -305,6 +334,16 @@ def import_flex_report(
     run.status = "COMPLETED"
     run.completed_at = now
     db.flush()
+    operational_metrics.increment(
+        "swinglens_ibmi_flex_import_duration_seconds",
+        value=time.monotonic() - import_started,
+        query_type=query_type,
+    )
+    operational_metrics.increment(
+        "swinglens_ibmi_flex_import_rows_total",
+        value=len(executions),
+        query_type=query_type,
+    )
     return {
         "status": "COMPLETED",
         "import_run_id": run.id,
@@ -312,6 +351,7 @@ def import_flex_report(
         "inserted": inserted,
         "duplicates": duplicates,
         "corrected": corrected,
+        "missing_order_reference_count": missing_order_reference_count,
     }
 
 

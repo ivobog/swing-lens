@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import (
     FundamentalScore,
     RankingResult,
@@ -30,10 +31,11 @@ def refresh_all_ranking_profiles(
     run_id: int,
     today: date | None = None,
 ) -> list[RankingResult]:
-    _require_run(db, run_id)
+    run = _require_run(db, run_id)
     profiles = load_ranking_profiles()
     rows, fundamentals, technicals = _load_run_inputs(db, run_id)
     config = _load_scoring_config()
+    liquidity_features = _load_liquidity_features(db, _run_cutoff(run))
 
     db.execute(delete(RankingResult).where(RankingResult.run_id == run_id))
 
@@ -46,6 +48,7 @@ def refresh_all_ranking_profiles(
             technicals=technicals,
             config=config,
             today=today,
+            liquidity_features=liquidity_features,
         )
         models = [_to_ranking_model(run_id, decision) for decision in decisions]
         db.add_all(models)
@@ -61,10 +64,11 @@ def refresh_ranking_profile(
     profile_name: str,
     today: date | None = None,
 ) -> list[RankingResult]:
-    _require_run(db, run_id)
+    run = _require_run(db, run_id)
     profile = get_ranking_profile(profile_name)
     rows, fundamentals, technicals = _load_run_inputs(db, run_id)
     config = _load_scoring_config()
+    liquidity_features = _load_liquidity_features(db, _run_cutoff(run))
 
     db.execute(
         delete(RankingResult).where(
@@ -80,6 +84,7 @@ def refresh_ranking_profile(
         technicals=technicals,
         config=config,
         today=today,
+        liquidity_features=liquidity_features,
     )
     models = [_to_ranking_model(run_id, decision) for decision in decisions]
     db.add_all(models)
@@ -114,9 +119,42 @@ def get_all_ranking_results(db: Session, run_id: int) -> list[RankingResult]:
     )
 
 
-def _require_run(db: Session, run_id: int) -> None:
-    if db.get(UploadRun, run_id) is None:
+def _require_run(db: Session, run_id: int) -> UploadRun:
+    run = db.get(UploadRun, run_id)
+    if run is None:
         raise ValueError(f"Upload run {run_id} was not found")
+    return run
+
+
+def _run_cutoff(run: UploadRun) -> datetime:
+    processed_at = getattr(run, "processed_at", None)
+    if processed_at is None:
+        return datetime.now(UTC)
+    return processed_at if processed_at.tzinfo else processed_at.replace(tzinfo=UTC)
+
+
+def _load_liquidity_features(
+    db: Session,
+    cutoff: datetime,
+) -> dict[str, IBIntelligenceFeature]:
+    features = db.scalars(
+        select(IBIntelligenceFeature)
+        .where(
+            IBIntelligenceFeature.module == "LIQUIDITY",
+            IBIntelligenceFeature.calculated_at <= cutoff,
+            IBIntelligenceFeature.as_of_session <= cutoff.date(),
+        )
+        .order_by(
+            IBIntelligenceFeature.ticker,
+            IBIntelligenceFeature.as_of_session.desc(),
+            IBIntelligenceFeature.calculated_at.desc(),
+            IBIntelligenceFeature.id.desc(),
+        )
+    ).all()
+    latest: dict[str, IBIntelligenceFeature] = {}
+    for feature in features:
+        latest.setdefault(feature.ticker.upper(), feature)
+    return latest
 
 
 def _load_run_inputs(

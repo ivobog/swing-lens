@@ -16,6 +16,12 @@ profiles:
     missing_data_policy:
       rescale_available: true
       penalty: 1.0
+    tradeability_overlay:
+      enabled: true
+      poor_penalty: 0.5
+      very_poor_penalty: 1.0
+      maximum_penalty: 1.0
+      minimum_dollar_volume: 5000000
     thresholds:
       strong_candidate_min_score: 8.0
       candidate_min_score: 6.8
@@ -55,6 +61,11 @@ profiles:
     missing_data_policy:
       rescale_available: true
       penalty: 1.0
+    tradeability_overlay:
+      enabled: false
+      poor_penalty: 0.0
+      very_poor_penalty: 0.0
+      maximum_penalty: 0.0
     thresholds:
       strong_candidate_min_score: 8.0
       candidate_min_score: 6.8
@@ -87,6 +98,12 @@ profiles:
     missing_data_policy:
       rescale_available: true
       penalty: 0.8
+    tradeability_overlay:
+      enabled: true
+      poor_penalty: 0.4
+      very_poor_penalty: 0.8
+      maximum_penalty: 0.8
+      minimum_dollar_volume: 3000000
     thresholds:
       strong_candidate_min_score: 8.2
       candidate_min_score: 7.0
@@ -122,6 +139,11 @@ profiles:
     missing_data_policy:
       rescale_available: true
       penalty: 1.2
+    tradeability_overlay:
+      enabled: false
+      poor_penalty: 0.0
+      very_poor_penalty: 0.0
+      maximum_penalty: 0.0
     thresholds:
       strong_candidate_min_score: 8.0
       candidate_min_score: 6.9
@@ -156,6 +178,12 @@ profiles:
     missing_data_policy:
       rescale_available: true
       penalty: 1.5
+    tradeability_overlay:
+      enabled: true
+      poor_penalty: 0.75
+      very_poor_penalty: 1.5
+      maximum_penalty: 1.5
+      minimum_dollar_volume: 10000000
     thresholds:
       strong_candidate_min_score: 8.2
       candidate_min_score: 7.0

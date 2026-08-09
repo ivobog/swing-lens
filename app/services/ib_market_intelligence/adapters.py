@@ -11,6 +11,7 @@ from app.services.ib_api import IB, Contract, ScannerSubscription, TagValue
 from app.services.ib_market_intelligence.calculations import finite_number
 from app.services.ib_market_intelligence.config import ScannerPreset
 from app.services.ib_market_intelligence.dtos import (
+    HistogramCapture,
     HistogramLevel,
     HistoricalMetricBarDTO,
     LiveSnapshotDTO,
@@ -528,15 +529,59 @@ class IBHistogramClient:
         self.budget = budget
 
     def fetch(self, contract: Contract, *, use_rth: bool, period: str) -> list[HistogramLevel]:
+        return list(
+            self.fetch_capture(contract, use_rth=use_rth, period=period).valid_levels
+        )
+
+    def fetch_capture(
+        self, contract: Contract, *, use_rth: bool, period: str
+    ) -> HistogramCapture:
         if self.budget:
             self.budget.acquire_tws_request("HISTOGRAM")
         rows = self.ib.reqHistogramData(contract, useRTH=use_rth, period=period)
-        return [
-            HistogramLevel(price=float(row.price), activity_count=float(row.size))
-            for row in rows
-            if finite_number(getattr(row, "price", None), positive=True) is not None
-            and finite_number(getattr(row, "size", None), nonnegative=True) is not None
-        ]
+        valid: list[HistogramLevel] = []
+        raw: list[dict[str, Any]] = []
+        malformed = 0
+        seen_prices: set[float] = set()
+        for index, row in enumerate(rows):
+            raw_price = getattr(row, "price", None)
+            raw_activity = getattr(row, "size", None)
+            price = finite_number(raw_price, positive=True)
+            activity = finite_number(raw_activity, nonnegative=True)
+            warnings: list[str] = []
+            if price is None:
+                warnings.append("INVALID_PRICE")
+            if activity is None:
+                warnings.append("INVALID_ACTIVITY_COUNT")
+            if price is not None and price in seen_prices:
+                warnings.append("DUPLICATE_PRICE")
+            if warnings:
+                malformed += 1
+            else:
+                valid.append(HistogramLevel(price=price, activity_count=activity))
+                seen_prices.add(price)
+            raw.append(
+                {
+                    "source_index": index,
+                    "raw_price": _json_scalar(raw_price),
+                    "raw_activity_count": _json_scalar(raw_activity),
+                    "parsed_price": price,
+                    "parsed_activity_count": activity,
+                    "validation_warnings": warnings,
+                }
+            )
+        return HistogramCapture(
+            valid_levels=tuple(valid),
+            raw_bins=tuple(raw),
+            malformed_bin_count=malformed,
+        )
+
+
+def _json_scalar(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    number = finite_number(value)
+    return number if number is not None else str(value)
 
 
 def _bar_date(value: date | datetime | str | None) -> date:

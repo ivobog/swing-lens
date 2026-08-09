@@ -4,11 +4,13 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from functools import lru_cache
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ib_market_intelligence_tables import (
+    IBFlexImportRun,
     IBHistogramBin,
     IBHistogramSnapshot,
     IBHistoricalMetricBar,
@@ -592,11 +594,23 @@ def execute_scanner_run(
                 request={"preset": preset.name, "filters": list(preset.filters)},
             )
             try:
+                operational_metrics.increment(
+                    "swinglens_ibmi_scanner_runs_total", scanner=preset.name
+                )
                 if preset.scan_code not in parameters:
                     raise ValueError(
                         f"Scanner code {preset.scan_code} is not present in current IBKR parameters"
                     )
                 rows = client.run(preset)
+                operational_metrics.increment(
+                    "swinglens_ibmi_scanner_results_total",
+                    value=len(rows),
+                    scanner=preset.name,
+                )
+                if not rows:
+                    operational_metrics.increment(
+                        "swinglens_ibmi_scanner_empty_total", scanner=preset.name
+                    )
                 known_conids = scanner_conids_by_ticker(
                     (row["ticker"], row["ib_conid"]) for row in rows
                 )
@@ -714,10 +728,21 @@ def execute_histogram_fetch(
                     "use_rth": section.get("use_rth", True),
                 },
             )
-            levels = client.fetch(
+            capture = client.fetch_capture(
                 resolution.contract,
                 use_rth=bool(section.get("use_rth", True)),
                 period=requested_period,
+            )
+            levels = list(capture.valid_levels)
+            operational_metrics.increment(
+                "swinglens_ibmi_histogram_fetch_total",
+                outcome=(
+                    "malformed"
+                    if capture.malformed_bin_count
+                    else "success"
+                    if levels
+                    else "empty"
+                ),
             )
             observed = datetime.now(UTC)
             reference = _latest_close(db, ticker)
@@ -727,7 +752,7 @@ def execute_histogram_fetch(
                     "period": requested_period,
                     "use_rth": bool(section.get("use_rth", True)),
                     "observed_at": observed,
-                    "levels": levels,
+                    "raw_bins": capture.raw_bins,
                 }
             )
             snapshot = IBHistogramSnapshot(
@@ -738,12 +763,20 @@ def execute_histogram_fetch(
                 use_rth=bool(section.get("use_rth", True)),
                 observed_at=observed,
                 reference_price=Decimal(str(reference)) if reference is not None else None,
-                availability_status=AvailabilityStatus.AVAILABLE
-                if levels
-                else AvailabilityStatus.UNAVAILABLE,
+                availability_status=(
+                    AvailabilityStatus.AVAILABLE
+                    if levels and capture.malformed_bin_count == 0
+                    else AvailabilityStatus.UNAVAILABLE
+                ),
                 evidence_hash=digest,
                 source_semantics="IBKR_HISTOGRAM_PRICE_LEVEL_ACTIVITY",
-                warnings_json=["NOT_EXCHANGE_VOLUME_PROFILE"],
+                warnings_json=["NOT_EXCHANGE_VOLUME_PROFILE"]
+                + (
+                    ["MALFORMED_BINS_RETAINED_NO_CONCLUSIONS"]
+                    if capture.malformed_bin_count
+                    else []
+                ),
+                raw_bins_json=list(capture.raw_bins),
             )
             db.add(snapshot)
             db.flush()
@@ -765,7 +798,12 @@ def execute_histogram_fetch(
                         density_percentile=Decimal(str(percentile)),
                     )
                 )
-            feature = calculate_histogram(levels, reference_price=reference, config=section)
+            feature = calculate_histogram(
+                levels,
+                reference_price=reference,
+                config=section,
+                malformed_bin_count=capture.malformed_bin_count,
+            )
             persist_feature(
                 db,
                 ticker=ticker,
@@ -780,9 +818,15 @@ def execute_histogram_fetch(
                 request_item,
                 status="COMPLETED",
                 availability=(
-                    AvailabilityStatus.AVAILABLE if levels else AvailabilityStatus.UNAVAILABLE
+                    AvailabilityStatus.AVAILABLE
+                    if levels and capture.malformed_bin_count == 0
+                    else AvailabilityStatus.UNAVAILABLE
                 ),
-                result_counts={"bins": len(levels)},
+                result_counts={
+                    "bins": len(levels),
+                    "raw_bins": len(capture.raw_bins),
+                    "malformed_bins": capture.malformed_bin_count,
+                },
             )
             _checkpoint(
                 db,
@@ -819,6 +863,31 @@ def execute_flex_import(
     resume = _resume_checkpoint(job, IntelligenceModule.FLEX.value)
     run = _start_run(db, job, IntelligenceModule.FLEX, config)
     query_type = str(job.payload_json.get("query_type", "TRADE_CONFIRMATIONS"))
+    if (
+        query_type == "ACTIVITY"
+        and not bool(job.payload_json.get("force", False))
+        and _activity_imported_today(db, settings.ib_flex_report_timezone)
+    ):
+        warning = "ACTIVITY_ALREADY_IMPORTED_TODAY"
+        run.warning_flags_json = list(run.warning_flags_json or []) + [warning]
+        _finish_run(db, run, RunStatus.COMPLETED, {"skipped": 1})
+        _checkpoint(
+            db,
+            job,
+            run,
+            {
+                "version": 2,
+                "module": IntelligenceModule.FLEX.value,
+                "query_type": query_type,
+                "phase": "daily_activity_limit",
+            },
+        )
+        db.commit()
+        return {
+            "intelligence_run_id": run.id,
+            "status": "SKIPPED_ALREADY_IMPORTED_TODAY",
+            "warning": warning,
+        }
     query_id = (
         settings.ib_flex_trade_query_id
         if query_type == "TRADE_CONFIRMATIONS"
@@ -837,6 +906,7 @@ def execute_flex_import(
         request={
             "query_type": query_type,
             "dry_run": bool(job.payload_json.get("dry_run", False)),
+            "force": bool(job.payload_json.get("force", False)),
         },
     )
     def guard() -> None:
@@ -972,6 +1042,25 @@ def execute_flex_import(
         raise
 
 
+def _activity_imported_today(db: Session, report_timezone: str) -> bool:
+    timezone = ZoneInfo(report_timezone)
+    now_local = datetime.now(UTC).astimezone(timezone)
+    day_start_utc = datetime.combine(
+        now_local.date(), datetime.min.time(), tzinfo=timezone
+    ).astimezone(UTC)
+    return (
+        db.scalar(
+            select(IBFlexImportRun.id)
+            .where(IBFlexImportRun.query_type == "ACTIVITY")
+            .where(IBFlexImportRun.status == "COMPLETED")
+            .where(IBFlexImportRun.dry_run.is_(False))
+            .where(IBFlexImportRun.completed_at >= day_start_utc)
+            .order_by(IBFlexImportRun.completed_at.desc())
+        )
+        is not None
+    )
+
+
 def execute_feature_rebuild(db: Session, job: BackgroundJob) -> dict[str, Any]:
     config = load_ib_market_intelligence_config()
     module = IntelligenceModule(str(job.payload_json["module"]))
@@ -987,6 +1076,32 @@ def execute_feature_rebuild(db: Session, job: BackgroundJob) -> dict[str, Any]:
 
 
 def _rebuild_ticker_feature(
+    db: Session,
+    ticker: str,
+    module: IntelligenceModule,
+    as_of: date,
+    config: IBMarketIntelligenceConfig,
+    run_id: int,
+    historical_availability: dict[HistoricalMetricType, str] | None = None,
+):
+    try:
+        return _rebuild_ticker_feature_impl(
+            db,
+            ticker,
+            module,
+            as_of,
+            config,
+            run_id,
+            historical_availability,
+        )
+    except Exception:
+        operational_metrics.increment(
+            "swinglens_ibmi_calculation_failures_total", module=module.value
+        )
+        raise
+
+
+def _rebuild_ticker_feature_impl(
     db: Session,
     ticker: str,
     module: IntelligenceModule,
@@ -1018,6 +1133,7 @@ def _rebuild_ticker_feature(
             if values.get("shortable_state") is not None
             else None,
             availability_status=status,
+            shortable_share_observations=_shortable_share_observations(db, ticker),
             config={**config.section("short_pressure"), **config.section("freshness")},
         )
     elif module == IntelligenceModule.VOLATILITY:
@@ -1134,6 +1250,12 @@ def _start_request_item(
     )
     db.add(item)
     db.flush()
+    operational_metrics.increment(
+        "swinglens_ibmi_requests_total",
+        module=run.module,
+        request_family=request_family,
+        request_type=request_type,
+    )
     return item
 
 
@@ -1150,6 +1272,12 @@ def _finish_request_item(
     item.result_counts_json = result_counts or {}
     item.error_message = error[:1000] if error else None
     item.completed_at = datetime.now(UTC)
+    if str(availability) == AvailabilityStatus.SUBSCRIPTION_REQUIRED:
+        operational_metrics.increment(
+            "swinglens_ibmi_subscription_required_total",
+            request_family=item.request_family,
+            request_type=item.request_type,
+        )
 
 
 def _checkpoint(
@@ -1346,6 +1474,33 @@ def _latest_snapshot(
         .where(IBMarketIntelligenceSnapshot.snapshot_type == snapshot_type)
         .order_by(IBMarketIntelligenceSnapshot.observed_at.desc())
     )
+
+
+def _shortable_share_observations(
+    db: Session,
+    ticker: str,
+    *,
+    limit: int = 30,
+) -> list[dict[str, Any]]:
+    snapshots = db.scalars(
+        select(IBMarketIntelligenceSnapshot)
+        .where(
+            IBMarketIntelligenceSnapshot.ticker == ticker.upper(),
+            IBMarketIntelligenceSnapshot.snapshot_type == "SHORTABLE",
+            IBMarketIntelligenceSnapshot.availability_status
+            == AvailabilityStatus.AVAILABLE,
+        )
+        .order_by(IBMarketIntelligenceSnapshot.observed_at.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "observed_at": snapshot.observed_at,
+            "shortable_shares": (snapshot.values_json or {}).get("shortable_shares"),
+            "evidence_hash": snapshot.evidence_hash,
+        }
+        for snapshot in reversed(snapshots)
+    ]
 
 
 def _snapshot_availability(

@@ -16,7 +16,7 @@ from app.services.ranking_profile_config import RankingProfileConfig
 from app.services.ranking_profile_gates import apply_profile_gates
 from app.services.ranking_profile_penalties import calculate_profile_penalties
 
-RANKING_ENGINE_VERSION = "1.0.0"
+RANKING_ENGINE_VERSION = "1.1.0"
 
 
 @dataclass(frozen=True)
@@ -60,7 +60,9 @@ def rank_profile(
     technicals: dict[str, TechnicalScore],
     config: dict[str, Any],
     today: date | None = None,
+    liquidity_features: dict[str, Any] | None = None,
 ) -> list[RankingProfileDecision]:
+    liquidity_features = liquidity_features or {}
     decisions = [
         rank_single_row(
             profile=profile,
@@ -69,6 +71,7 @@ def rank_profile(
             technical=technicals.get(row.ticker.upper()),
             config=config,
             today=today,
+            liquidity_feature=liquidity_features.get(row.ticker.upper()),
         )
         for row in _unique_rows(rows)
     ]
@@ -84,6 +87,7 @@ def rank_single_row(
     technical: TechnicalScore | None,
     config: dict[str, Any],
     today: date | None = None,
+    liquidity_feature: Any | None = None,
 ) -> RankingProfileDecision:
     fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     base_technical_score = _float_or_none(technical.dual_score if technical else None)
@@ -106,7 +110,14 @@ def rank_single_row(
         component_scores=component_scores,
         earnings_risk=earnings_risk,
     )
-    profile_score = _clamp(weighted_score - penalty_result.total_penalty)
+    tradeability_penalty, tradeability_grade, tradeability_warning = _tradeability_penalty(
+        profile, liquidity_feature
+    )
+    penalties = dict(penalty_result.penalties)
+    if tradeability_penalty > 0:
+        penalties["ibkr_tradeability"] = tradeability_penalty
+    total_penalty = penalty_result.total_penalty + tradeability_penalty
+    profile_score = _clamp(weighted_score - total_penalty)
     decision = decision_from_score(profile_score, profile)
     gate_result = apply_profile_gates(
         profile=profile,
@@ -126,9 +137,17 @@ def rank_single_row(
         warning_summary.flags,
         list(earnings_risk.warning_flags),
         penalty_result.warning_flags,
+        [tradeability_warning] if tradeability_warning else [],
         gate_result.warning_flags,
     )
-    notes = _merge_unique_text(penalty_result.notes, gate_result.notes) or ["aligned"]
+    tradeability_notes = (
+        [f"IBKR tradeability overlay applied ({tradeability_grade})"]
+        if tradeability_penalty > 0
+        else []
+    )
+    notes = _merge_unique_text(
+        penalty_result.notes, tradeability_notes, gate_result.notes
+    ) or ["aligned"]
     is_complete = fundamental_score is not None and technical_profile_score is not None
 
     return RankingProfileDecision(
@@ -149,7 +168,7 @@ def rank_single_row(
         position_size_hint=_position_size_hint(gate_result.decision, technical),
         notes=notes,
         warning_flags=warning_flags,
-        penalties=penalty_result.penalties,
+        penalties=penalties,
         gates=gate_result.gates,
         component_scores=component_scores,
         debug=_debug_payload(
@@ -159,12 +178,14 @@ def rank_single_row(
             technical=technical,
             fundamental=fundamental,
             component_scores=component_scores,
-            penalties=penalty_result.penalties,
+            penalties=penalties,
             gates=gate_result.gates,
             technical_profile_score=technical_profile_score,
             weighted_score=weighted_score,
-            total_penalty=penalty_result.total_penalty,
+            total_penalty=total_penalty,
             profile_score=profile_score,
+            liquidity_feature=liquidity_feature,
+            tradeability_grade=tradeability_grade,
         ),
         upcoming_earnings_date=earnings_risk.upcoming_earnings_date,
         days_until_earnings=earnings_risk.days_until_earnings,
@@ -259,6 +280,8 @@ def _debug_payload(
     weighted_score: float,
     total_penalty: float,
     profile_score: float,
+    liquidity_feature: Any | None,
+    tradeability_grade: str | None,
 ) -> dict[str, Any]:
     return {
         "ranking_engine_version": RANKING_ENGINE_VERSION,
@@ -270,12 +293,24 @@ def _debug_payload(
                 "fundamental": profile.fundamental_weight,
             },
             "technical_components": profile.technical_components,
+            "tradeability_overlay": {
+                "enabled": profile.tradeability_overlay.enabled,
+                "poor_penalty": profile.tradeability_overlay.poor_penalty,
+                "very_poor_penalty": profile.tradeability_overlay.very_poor_penalty,
+                "maximum_penalty": profile.tradeability_overlay.maximum_penalty,
+                "minimum_dollar_volume": profile.tradeability_overlay.minimum_dollar_volume,
+            },
         },
         "inputs": {
             "fundamental_score": fundamental_score,
             "base_technical_score": base_technical_score,
             "technical_classification": technical.classification if technical else None,
             "fundamental_label": fundamental.fundamental_label if fundamental else None,
+            "ibkr_liquidity_coverage": _feature_field(liquidity_feature, "coverage_status"),
+            "ibkr_liquidity_classification": _feature_field(
+                liquidity_feature, "classification"
+            ),
+            "ibkr_tradeability_grade": tradeability_grade,
         },
         "component_scores": component_scores,
         "penalties": penalties,
@@ -287,6 +322,44 @@ def _debug_payload(
             "profile_score": profile_score,
         },
     }
+
+
+def _tradeability_penalty(
+    profile: RankingProfileConfig,
+    feature: Any | None,
+) -> tuple[float, str | None, str | None]:
+    overlay = profile.tradeability_overlay
+    if not overlay.enabled or feature is None:
+        return 0.0, None, None
+    if str(_feature_field(feature, "coverage_status") or "").upper() != "AVAILABLE":
+        return 0.0, None, None
+    grade = str(_feature_field(feature, "classification") or "").upper()
+    components = _feature_field(feature, "components_json") or _feature_field(
+        feature, "components"
+    ) or {}
+    dollar_volume = _float_or_none(components.get("dollar_volume"))
+    below_profile_floor = (
+        overlay.minimum_dollar_volume is not None
+        and dollar_volume is not None
+        and dollar_volume < overlay.minimum_dollar_volume
+    )
+    if grade == "VERY_POOR":
+        configured = overlay.very_poor_penalty
+    elif grade == "POOR" or below_profile_floor:
+        grade = "BELOW_PROFILE_DOLLAR_VOLUME" if below_profile_floor else grade
+        configured = overlay.poor_penalty
+    else:
+        return 0.0, grade or None, None
+    penalty = round(min(configured, overlay.maximum_penalty), 4)
+    return penalty, grade, "IBKR_TRADEABILITY_PENALTY" if penalty > 0 else None
+
+
+def _feature_field(feature: Any | None, name: str) -> Any:
+    if feature is None:
+        return None
+    if isinstance(feature, dict):
+        return feature.get(name)
+    return getattr(feature, name, None)
 
 
 def _unique_rows(rows: list[RawCompanyRow]) -> list[RawCompanyRow]:

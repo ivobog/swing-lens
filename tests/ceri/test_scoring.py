@@ -64,6 +64,27 @@ def test_positive_opportunity_and_high_risk_are_simultaneously_visible() -> None
     assert risk.earnings_proximity.level == "blocked"
 
 
+def test_ibkr_options_premium_is_bounded_and_short_pressure_is_context_only() -> None:
+    service = CeriEventRiskService()
+    baseline = service.calculate(
+        as_of_session=date(2026, 8, 1),
+        next_earnings_session=date(2026, 8, 20),
+    )
+    contextual = service.calculate(
+        as_of_session=date(2026, 8, 1),
+        next_earnings_session=date(2026, 8, 20),
+        short_pressure_classification="EXTREME_BORROW_COST",
+    )
+    premium = service.calculate(
+        as_of_session=date(2026, 8, 1),
+        next_earnings_session=date(2026, 8, 20),
+        options_event_premium_score=99,
+    )
+    assert contextual.score == baseline.score
+    assert "ibkr_short_pressure_context:extreme_borrow_cost" in contextual.reasons
+    assert premium.score == min(10.0, baseline.score + 1.5)
+
+
 def test_changing_config_hash_creates_distinct_snapshot_without_mutating_old_one() -> None:
     base_config = load_ceri_config()
     changed_config = replace(base_config, config_hash="changed-hash")

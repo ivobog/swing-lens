@@ -19,12 +19,14 @@ from app.models.ib_market_intelligence_tables import (
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
+    RankingResult,
     SetupSignalSnapshot,
     TechnicalScore,
     UploadRun,
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
 )
+from app.services.operational_metrics import operational_metrics
 
 ZERO = Decimal("0")
 
@@ -147,19 +149,32 @@ def match_episode_to_research(
         .outerjoin(
             TechnicalScore,
             (TechnicalScore.run_id == UploadRun.id)
-            & (TechnicalScore.ticker == CombinedResult.ticker),
+            & (TechnicalScore.ticker == CombinedResult.ticker)
+            & (TechnicalScore.created_at <= cutoff),
         )
         .outerjoin(
             FundamentalScore,
             (FundamentalScore.run_id == UploadRun.id)
-            & (FundamentalScore.ticker == CombinedResult.ticker),
+            & (FundamentalScore.ticker == CombinedResult.ticker)
+            & (FundamentalScore.created_at <= cutoff),
         )
         .where(func.upper(CombinedResult.ticker) == episode.ticker.upper())
         .where(UploadRun.processed_at.is_not(None))
         .where(UploadRun.processed_at <= cutoff)
         .where(UploadRun.processed_at >= earliest)
-        .order_by(UploadRun.processed_at.desc(), UploadRun.id.desc())
+        .where(CombinedResult.created_at <= cutoff)
+        .order_by(CombinedResult.created_at.desc(), UploadRun.processed_at.desc())
     ).all()
+    candidates = sorted(
+        candidates,
+        key=lambda candidate: (
+            candidate[1].created_at.date() == cutoff.date(),
+            candidate[1].created_at,
+            candidate[0].processed_at,
+            candidate[0].id,
+        ),
+        reverse=True,
+    )
     existing = db.scalar(
         select(IBTradeResearchLink).where(IBTradeResearchLink.trade_episode_id == episode.id)
     )
@@ -173,10 +188,11 @@ def match_episode_to_research(
         link.ambiguity_json = []
         if existing is None:
             db.add(link)
+        operational_metrics.increment("swinglens_ibmi_unmatched_executions_total")
         db.flush()
         return link
-    best_time = candidates[0][0].processed_at
-    tied = [candidate for candidate in candidates if candidate[0].processed_at == best_time]
+    best_time = candidates[0][1].created_at
+    tied = [candidate for candidate in candidates if candidate[1].created_at == best_time]
     if len(tied) > 1:
         link = existing or IBTradeResearchLink(trade_episode_id=episode.id)
         link.matching_status = "AMBIGUOUS"
@@ -190,6 +206,7 @@ def match_episode_to_research(
         ]
         if existing is None:
             db.add(link)
+        operational_metrics.increment("swinglens_ibmi_ambiguous_research_links_total")
         db.flush()
         return link
     run, combined, technical, fundamental = candidates[0]
@@ -215,6 +232,25 @@ def match_episode_to_research(
         .where(SetupSignalSnapshot.calculated_at <= cutoff)
         .order_by(SetupSignalSnapshot.calculated_at.desc())
     )
+    ranking = None
+    if setup is not None and setup.ranking_result_id is not None:
+        ranking = db.scalar(
+            select(RankingResult)
+            .where(RankingResult.id == setup.ranking_result_id)
+            .where(RankingResult.created_at <= cutoff)
+        )
+    if ranking is None:
+        ranking_query = (
+            select(RankingResult)
+            .where(RankingResult.run_id == run.id)
+            .where(func.upper(RankingResult.ticker) == episode.ticker.upper())
+            .where(RankingResult.created_at <= cutoff)
+        )
+        if winner is not None and winner.ranking_profile:
+            ranking_query = ranking_query.where(
+                RankingResult.ranking_profile == winner.ranking_profile
+            )
+        ranking = db.scalar(ranking_query.order_by(RankingResult.created_at.desc()))
     ceri = db.scalar(
         select(CeriScoreSnapshot)
         .where(CeriScoreSnapshot.run_id == run.id)
@@ -251,7 +287,17 @@ def match_episode_to_research(
         if winner_estimate
         else None,
         "winner_evidence_grade": winner_estimate.evidence_grade if winner_estimate else None,
-        "ranking_profile": winner.ranking_profile if winner else None,
+        "ranking_profile": (
+            winner.ranking_profile
+            if winner
+            else ranking.ranking_profile
+            if ranking
+            else None
+        ),
+        "ranking_profile_score": _string(ranking.profile_score) if ranking else None,
+        "ranking_profile_rank": ranking.profile_rank if ranking else None,
+        "ranking_decision": ranking.decision_label if ranking else None,
+        "sector": combined.sector,
         "sector_state": winner.sector_state if winner else None,
         "slippage_reference": "SETUP_DECISION_CLOSE" if decision_reference is not None else None,
         "slippage_reference_price": _string(decision_reference),
@@ -264,9 +310,23 @@ def match_episode_to_research(
     link.fundamental_score_id = fundamental.id if fundamental else None
     link.matching_status = "MATCHED"
     link.matching_policy = policy
-    link.decision_timestamp = run.processed_at
+    link.decision_timestamp = combined.created_at
     link.context_json = context
-    link.leakage_check = "PASS" if run.processed_at <= cutoff else "FAIL"
+    evidence_times = [run.processed_at, combined.created_at]
+    evidence_times.extend(
+        timestamp
+        for timestamp in (
+            technical.created_at if technical else None,
+            fundamental.created_at if fundamental else None,
+            setup.calculated_at if setup else None,
+            ranking.created_at if ranking else None,
+            ceri.cutoff_at if ceri else None,
+            winner.source_data_cutoff_at if winner else None,
+            winner_estimate.created_at if winner_estimate else None,
+        )
+        if timestamp is not None
+    )
+    link.leakage_check = "PASS" if all(value <= cutoff for value in evidence_times) else "FAIL"
     link.ambiguity_json = []
     if existing is None:
         db.add(link)

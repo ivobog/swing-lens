@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services.ib_market_intelligence.adapters import (
+    IBHistogramClient,
     IBLiveSnapshotManager,
     IBScannerClient,
     capability_status_from_error,
@@ -286,6 +287,25 @@ def test_histogram_request_period_override_is_the_effective_persisted_period():
         == "5 days"
     )
     assert effective_histogram_period({}, {"period": "10 days"}, settings) == "10 days"
+
+
+def test_histogram_capture_retains_malformed_raw_bins():
+    class FakeIB:
+        def reqHistogramData(self, *_args, **_kwargs):
+            return [
+                SimpleNamespace(price=100, size=50),
+                SimpleNamespace(price="bad-price", size=25),
+                SimpleNamespace(price=102, size=float("nan")),
+            ]
+
+    capture = IBHistogramClient(FakeIB()).fetch_capture(
+        SimpleNamespace(), use_rth=True, period="20 days"
+    )
+    assert len(capture.raw_bins) == 3
+    assert len(capture.valid_levels) == 1
+    assert capture.malformed_bin_count == 2
+    assert capture.raw_bins[1]["raw_price"] == "bad-price"
+    assert capture.raw_bins[1]["validation_warnings"] == ["INVALID_PRICE"]
 
 
 def test_latest_historical_entitlement_status_overrides_existing_iv_rows():
