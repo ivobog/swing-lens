@@ -226,6 +226,8 @@ def trade_journal(
 
 
 def operations(db: Session) -> dict[str, Any]:
+    from app.services.ib_market_intelligence.orchestration import shared_request_budget
+
     rows = db.scalars(
         select(IBIntelligenceRun).order_by(IBIntelligenceRun.started_at.desc()).limit(100)
     ).all()
@@ -239,6 +241,7 @@ def operations(db: Session) -> dict[str, Any]:
     ).all()
     return {
         "latest_by_module": latest_by_module,
+        "request_budget": shared_request_budget().observability(),
         "runs": [_run_dict(row) for row in rows],
         "request_items": [
             {
@@ -247,9 +250,11 @@ def operations(db: Session) -> dict[str, Any]:
                 "ticker": item.ticker,
                 "request_family": item.request_family,
                 "request_type": item.request_type,
+                "priority": item.priority,
                 "status": item.status,
                 "availability_status": item.availability_status,
                 "result_counts": item.result_counts_json,
+                "retry_count": item.retry_count,
                 "error_message": item.error_message,
                 "started_at": item.started_at,
                 "completed_at": item.completed_at,

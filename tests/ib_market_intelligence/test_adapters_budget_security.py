@@ -184,6 +184,24 @@ def test_weighted_window_budget_accounts_for_weight():
     assert state["sleeps"] == [60.0]
 
 
+def test_weighted_window_budget_enforces_minimum_request_spacing():
+    state = {"now": 0.0, "sleeps": []}
+
+    def sleep(seconds):
+        state["sleeps"].append(seconds)
+        state["now"] += seconds
+
+    budget = WeightedWindowBudget(
+        10,
+        min_spacing_seconds=3.0,
+        monotonic=lambda: state["now"],
+        sleep=sleep,
+    )
+    budget.acquire()
+    budget.acquire(2)
+    assert state["sleeps"] == [3.0]
+
+
 def test_scanner_waits_for_initial_results_supports_zero_and_repeated_runs():
     rows = [
         SimpleNamespace(

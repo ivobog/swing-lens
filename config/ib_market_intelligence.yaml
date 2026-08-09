@@ -6,7 +6,14 @@ engine:
 
 request_budget:
   historical_requests_per_minute: 15
+  historical_min_spacing_seconds: 3.0
+  tws_min_spacing_seconds: 0.25
+  request_max_attempts: 3
+  retry_initial_seconds: 1.0
+  retry_max_seconds: 30.0
+  historical_chunk_days: 60
   live_snapshot_concurrency: 10
+  market_data_line_cap: 100
   shortlist_limit: 25
   bid_ask_weight: 2
   default_weight: 1

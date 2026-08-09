@@ -20,6 +20,12 @@ from app.models.ib_market_intelligence_tables import IBExecutionFill, IBFlexImpo
 from app.services.ib_market_intelligence.dtos import FlexExecutionDTO
 from app.services.ib_market_intelligence.evidence_hash import evidence_hash
 from app.services.ib_market_intelligence.request_budget import IBRequestBudget
+from app.services.ib_market_intelligence.resilience import (
+    RetryEvent,
+    RetryPolicy,
+    cancellable_sleep,
+    retry_call,
+)
 from app.services.redaction import redact_sensitive
 from app.settings import Settings, get_settings
 
@@ -47,6 +53,9 @@ class IBFlexClient:
         budget: IBRequestBudget | None = None,
         transport: Transport | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        retry_policy: RetryPolicy | None = None,
+        guard: Callable[[], None] | None = None,
+        on_retry: Callable[[RetryEvent], None] | None = None,
     ) -> None:
         if not token:
             raise IBFlexError("IB Flex token is not configured")
@@ -56,12 +65,15 @@ class IBFlexClient:
         self.budget = budget
         self.transport = transport or self._urllib_transport
         self.sleep = sleep
+        self.retry_policy = retry_policy or RetryPolicy(max_attempts=1)
+        self.guard = guard
+        self.on_retry = on_retry
 
     def send_request(self, query_id: str) -> str:
         if not query_id:
             raise IBFlexError("IB Flex query ID is not configured")
         if self.budget:
-            self.budget.acquire_flex_send()
+            self.budget.acquire_flex_send(guard=self.guard)
         url = self._url(
             "FlexStatementService.SendRequest", {"t": self._token, "q": query_id, "v": "3"}
         )
@@ -94,20 +106,76 @@ class IBFlexClient:
             raise IBFlexError(message)
         return payload
 
-    def download(self, query_id: str, *, attempts: int, poll_seconds: float) -> tuple[str, str]:
-        reference = self.send_request(query_id)
-        for attempt in range(attempts):
+    def download(
+        self,
+        query_id: str,
+        *,
+        attempts: int,
+        poll_seconds: float,
+        reference_code: str | None = None,
+        start_attempt: int = 0,
+        on_checkpoint: Callable[[dict[str, Any]], None] | None = None,
+        guard: Callable[[], None] | None = None,
+    ) -> tuple[str, str]:
+        effective_guard = guard or self.guard
+        if effective_guard:
+            effective_guard()
+        reference = reference_code or self.send_request(query_id)
+        for attempt in range(start_attempt, attempts):
+            if effective_guard:
+                effective_guard()
+            if on_checkpoint:
+                on_checkpoint(
+                    {
+                        "phase": "get_statement",
+                        "reference_code_hash": _fingerprint(reference),
+                        "_reference_code": reference,
+                        "attempt": attempt + 1,
+                    }
+                )
             try:
-                return reference, self.get_statement(reference)
+                content = self.get_statement(reference)
+                if on_checkpoint:
+                    on_checkpoint(
+                        {
+                            "phase": "downloaded",
+                            "reference_code_hash": _fingerprint(reference),
+                            "_reference_code": reference,
+                            "attempt": attempt + 1,
+                            "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                        }
+                    )
+                return reference, content
             except IBFlexReportPending:
+                if on_checkpoint:
+                    on_checkpoint(
+                        {
+                            "phase": "get_statement",
+                            "reference_code_hash": _fingerprint(reference),
+                            "_reference_code": reference,
+                            "attempt": attempt + 1,
+                            "next_attempt": attempt + 2,
+                        }
+                    )
                 if attempt + 1 >= attempts:
                     raise
-                self.sleep(poll_seconds)
+                cancellable_sleep(
+                    poll_seconds,
+                    sleep=self.sleep,
+                    guard=effective_guard,
+                )
         raise IBFlexReportPending("Flex report did not become ready")
 
     def _request(self, url: str) -> str:
         try:
-            return self.transport(url, self.timeout_seconds)
+            return retry_call(
+                lambda: self.transport(url, self.timeout_seconds),
+                operation_name="IBKR Flex HTTPS request",
+                policy=self.retry_policy,
+                sleep=self.sleep,
+                guard=self.guard,
+                on_retry=self.on_retry,
+            )
         except Exception as exc:
             safe = str(redact_sensitive(str(exc))).replace(self._token, "[REDACTED]")
             raise IBFlexError(safe) from None
@@ -252,6 +320,8 @@ def flex_client_from_settings(
     *,
     budget: IBRequestBudget | None = None,
     transport: Transport | None = None,
+    guard: Callable[[], None] | None = None,
+    on_retry: Callable[[RetryEvent], None] | None = None,
 ) -> IBFlexClient:
     settings = settings or get_settings()
     return IBFlexClient(
@@ -260,6 +330,13 @@ def flex_client_from_settings(
         timeout_seconds=settings.ib_flex_http_timeout_seconds,
         budget=budget,
         transport=transport,
+        guard=guard,
+        on_retry=on_retry,
+        retry_policy=RetryPolicy(
+            max_attempts=settings.ib_intelligence_request_max_attempts,
+            initial_backoff_seconds=settings.ib_intelligence_retry_initial_seconds,
+            max_backoff_seconds=settings.ib_intelligence_retry_max_seconds,
+        ),
     )
 
 
