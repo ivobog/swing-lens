@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.ceri_tables import CeriIngestionRun, CeriProcessingRun, CeriSourceRecord
 from app.models.tables import BackgroundJob
@@ -92,6 +93,29 @@ def test_manual_ingestion_counts_corrected_provider_records() -> None:
     assert source_records[0].supersedes_id == existing.id
 
 
+def test_ingestion_propagates_database_write_errors_without_finishing_run() -> None:
+    provider = ManualCeriProvider(
+        {CeriDataset.ESTIMATES: [{"provider_record_id": "est-1", "ticker": "MSFT"}]}
+    )
+    source_records = FailingSourceRecords()
+    service = CeriIngestionService(
+        registry=CeriProviderRegistry(providers={"manual": provider}),
+        source_records=source_records,
+    )
+
+    with pytest.raises(SQLAlchemyError, match="source record flush failed"):
+        service.ingest(
+            FakeDb(),
+            CeriIngestionRequest(
+                provider="manual",
+                dataset=CeriDataset.ESTIMATES,
+                ticker="MSFT",
+            ),
+        )
+
+    assert source_records.finished is False
+
+
 def test_ceri_job_handlers_are_registered_with_default_worker() -> None:
     handlers = default_job_handlers()
 
@@ -128,6 +152,32 @@ def test_provider_ingest_job_marks_partial_when_ingestion_has_failures(
     ]
     assert len(normalize_jobs) == 1
     assert normalize_jobs[0].payload_json["request_key"].startswith("ceri:normalize:")
+
+
+def test_provider_ingest_job_propagates_database_errors_for_worker_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_ceri(monkeypatch)
+    db = FakeDb()
+    job = BackgroundJob(
+        id=5,
+        job_type=CERI_PROVIDER_INGEST,
+        status=JobStatus.RUNNING,
+        payload_json={"provider": "sec", "dataset": "guidance", "ticker": "MSFT"},
+    )
+
+    class FailingIngestionService:
+        def ingest(self, *_args, **_kwargs):
+            raise SQLAlchemyError("database flush failed")
+
+    with pytest.raises(SQLAlchemyError, match="database flush failed"):
+        execute_provider_ingest_job(
+            db,
+            job,
+            ingestion_service=FailingIngestionService(),
+        )
+
+    assert job.status == JobStatus.RUNNING
 
 
 def test_normalize_job_persists_processing_run_lineage(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -206,3 +256,24 @@ class FakeDb:
             if getattr(row, "id", None) is None:
                 row.id = self.next_id
                 self.next_id += 1
+
+
+class FailingSourceRecords:
+    def __init__(self) -> None:
+        self.finished = False
+
+    def create_ingestion_run(self, _db, **kwargs) -> CeriIngestionRun:
+        return CeriIngestionRun(
+            id=1,
+            provider=kwargs["provider"],
+            dataset=kwargs["dataset"],
+            status="RUNNING",
+            request_key=kwargs["request_key"],
+        )
+
+    def store_source_record(self, *_args, **_kwargs):
+        raise SQLAlchemyError("source record flush failed")
+
+    def finish_ingestion_run(self, *_args, **_kwargs):
+        self.finished = True
+        raise AssertionError("a failed database transaction must not be reused")

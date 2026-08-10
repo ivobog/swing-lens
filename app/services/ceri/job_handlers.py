@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -101,6 +102,8 @@ def execute_provider_ingest_job(
         )
     except CeriIngestionCancelled as exc:
         raise CancelRequested(str(exc)) from exc
+    except SQLAlchemyError:
+        raise
     except Exception as exc:
         job.status = JobStatus.PARTIAL
         return {
