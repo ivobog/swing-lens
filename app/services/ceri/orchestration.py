@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriIngestionRun, CeriProviderRequestTelemetry
@@ -118,12 +119,16 @@ class CeriIngestionService:
                     deduplicated += int(write.deduplicated)
                     corrected += int(write.corrected)
                     quarantined += int(write.quarantined)
+                except SQLAlchemyError:
+                    raise
                 except Exception as exc:
                     failed += 1
                     errors.append(_safe_error(index, record, exc))
                 checkpoint = {"last_record_index": index}
         except CeriIngestionCancelled:
             status = "CANCELLED"
+        except SQLAlchemyError:
+            raise
         except Exception as exc:
             failed += 1
             errors.append({"error": _safe_message(exc)})

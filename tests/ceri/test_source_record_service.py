@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
 from app.services.ceri.dtos import RawProviderRecord
@@ -57,6 +59,39 @@ def test_source_record_service_stores_restricted_payload_without_raw_json() -> N
 
     assert result.source_record.raw_json is None
     assert result.source_record.restricted_normalized_json["ticker"] == "MSFT"
+
+
+def test_source_record_service_makes_sec_guidance_decimals_json_safe() -> None:
+    db = FakeDb()
+    service = CeriSourceRecordService()
+    record = RawProviderRecord(
+        provider="sec",
+        dataset=CeriDataset.GUIDANCE,
+        provider_record_id="filing-1:paragraph-1",
+        payload={
+            "ticker": "MSFT",
+            "low_value": Decimal("100.125"),
+            "high_value": Decimal("110.875"),
+            "point_value": None,
+        },
+        published_at=datetime(2026, 8, 1, 20, 15, tzinfo=UTC),
+        observed_at=datetime(2026, 8, 1, 20, 15, tzinfo=UTC),
+    )
+
+    result = service.store_source_record(
+        db,
+        ingestion_run_id=None,
+        record=record,
+        raw_payload_allowed=True,
+    )
+
+    stored = result.source_record.restricted_normalized_json
+    assert json.loads(json.dumps(stored)) == {
+        "ticker": "MSFT",
+        "low_value": "100.125",
+        "high_value": "110.875",
+        "point_value": None,
+    }
 
 
 def test_source_record_service_deduplicates_existing_idempotency_key() -> None:

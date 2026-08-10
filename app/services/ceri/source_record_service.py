@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 from sqlalchemy import select
@@ -143,10 +145,13 @@ class CeriSourceRecordService:
             )
 
         quarantine_reason = _quarantine_reason(record)
-        normalized_projection = provider_storage_projection(
-            record.provider,
-            record.dataset.value,
-            record.payload,
+        json_safe_payload = _json_safe(record.payload)
+        normalized_projection = _json_safe(
+            provider_storage_projection(
+                record.provider,
+                record.dataset.value,
+                record.payload,
+            )
         )
         stored_projection = (
             normalized_projection
@@ -159,7 +164,7 @@ class CeriSourceRecordService:
             provider_terms_version=_optional_payload_text(record, "provider_terms_version"),
             dataset=record.dataset.value,
             provider_record_id=record.provider_record_id,
-            company_hint_json=_company_hint(record.payload),
+            company_hint_json=_company_hint(json_safe_payload),
             published_at=record.published_at,
             observed_at=record.observed_at,
             source_timestamp=record.source_timestamp
@@ -172,7 +177,7 @@ class CeriSourceRecordService:
                 else _optional_payload_text(record, "source_reference")
             ),
             raw_json=(
-                record.payload
+                json_safe_payload
                 if raw_payload_allowed
                 and record.provider not in {"eodhd", "sec"}
                 and not quarantine_reason
@@ -326,6 +331,20 @@ def source_record_idempotency_key(
 
 def _stable_json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, Enum):
+        return _json_safe(value.value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return value
 
 
 def _quarantine_reason(record: RawProviderRecord) -> str | None:
