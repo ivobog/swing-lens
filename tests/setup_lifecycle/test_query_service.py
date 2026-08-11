@@ -117,3 +117,24 @@ def test_invalid_cursor_fails_before_database_access() -> None:
                 cursor="not-an-offset",
             ),
         )
+
+
+@pytest.mark.parametrize(
+    "filters",
+    [
+        SetupLifecycleFilters(alert_severity="WARNING"),
+        SetupLifecycleFilters(alert_status="REVIEWED"),
+        SetupLifecycleFilters(source_type="EVENT"),
+        SetupLifecycleFilters(confidence_min=101),
+        SetupLifecycleFilters(confidence_min=80, confidence_max=70),
+        SetupLifecycleFilters(state_age_min=-1),
+    ],
+)
+def test_invalid_semantic_filters_fail_before_database_access(
+    filters: SetupLifecycleFilters,
+) -> None:
+    with pytest.raises(SetupLifecycleQueryError):
+        SetupLifecycleQueryService().changes(
+            object(),  # type: ignore[arg-type]
+            SetupLifecycleListQuery(filters=filters),
+        )

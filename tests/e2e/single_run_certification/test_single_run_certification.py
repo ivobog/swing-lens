@@ -760,6 +760,8 @@ def _compare_current_surface(
         _compare_winner(page, engine, recorder, run_id)
     elif name == "market-changes":
         _compare_lifecycle(page, engine, recorder, run_id)
+    elif name == "alerts":
+        _compare_lifecycle_alerts(page, engine, recorder)
     elif name == "sector-rotation":
         _compare_sector_rotation(page, engine, recorder, run_id)
     elif name == "ranking-profile":
@@ -1312,43 +1314,129 @@ def _payload_hash(payload: dict) -> str:
 
 
 def _compare_lifecycle(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
-    gui_rows = _table_rows(page, {"Ticker", "Date", "Family", "State", "Actionability"})
-    db_rows = query_rows(
+    gui_rows = _table_rows(
+        page,
+        {"Ticker", "Date", "Family", "Source", "State", "Actionability", "Confidence"},
+    )
+    lifecycle_count = int(query_rows(
         engine,
         """
-        select ticker, effective_date, setup_family, from_state, to_state,
-               actionability_after, confidence_label, confidence_score
-        from setup_lifecycle_events
+        select count(*) as value from setup_lifecycle_events
         where evaluation_run_id in (
           select id from setup_lifecycle_evaluation_runs where source_run_id=:run_id
-        ) order by effective_date desc, id desc
+        ) and is_current_version is true
+          and event_type in ('EPISODE_OPENED','STATE_TRANSITION','PHASE_TRANSITION')
         """,
         {"run_id": run_id},
+    )[0]["value"])
+    signal_count = int(query_rows(
+        engine,
+        """
+        select count(*) as value from signal_change_events e
+        where evaluation_run_id in (
+          select id from setup_lifecycle_evaluation_runs where source_run_id=:run_id
+        ) and exists (
+          select 1 from setup_signal_snapshots s
+          where s.id=e.current_snapshot_id and s.is_canonical is true
+        )
+        """,
+        {"run_id": run_id},
+    )[0]["value"])
+    response = page.request.get(
+        f"{page.url.split('/runs/', 1)[0]}/api/setup-lifecycle/changes?run_id={run_id}&limit=500"
+    )
+    api = response.json()
+    expected_count = lifecycle_count + signal_count
+    recorder.check(
+        response.ok and api["total"] == expected_count,
+        "Market Changes API combines lifecycle and material signal events",
+        area="Setup Lifecycle",
+        expected=expected_count,
+        actual=api.get("total"),
     )
     recorder.check(
-        len(gui_rows) == len(db_rows),
-        "Market Changes visible event count matches DB",
+        len(gui_rows) == len(api["items"]),
+        "Market Changes visible row count matches API",
         area="Setup Lifecycle",
-        expected=len(db_rows),
+        expected=len(api["items"]),
         actual=len(gui_rows),
     )
-    for gui, db in zip(gui_rows, db_rows, strict=False):
-        expected_ticker = str(db["ticker"])
+    for gui, item in zip(gui_rows, api["items"], strict=False):
+        expected_ticker = str(item["ticker"])
         recorder.check(
             gui["Ticker"].startswith(expected_ticker),
-            f"lifecycle ticker {expected_ticker} GUI↔DB",
+            f"Market Changes ticker {expected_ticker} GUI/API",
             area="Setup Lifecycle",
             expected=expected_ticker,
             actual=gui["Ticker"],
         )
-        expected_state = f"{db['from_state'] or 'New'} to {db['to_state']}"
+        expected_state = f"{item['previous_state'] or 'New'} to {item['current_state'] or '—'}"
         recorder.check(
-            gui["State"].strip() == expected_state,
-            f"lifecycle {expected_ticker} state GUI↔DB",
+            gui["State"].strip().startswith(expected_state),
+            f"Market Changes {expected_ticker} state GUI/API",
             area="Setup Lifecycle",
             expected=expected_state,
             actual=gui["State"],
         )
+        if item["state_age_sessions"] is not None:
+            expected_age = f"Age {item['state_age_sessions']} sessions"
+            recorder.check(
+                expected_age in gui["State"],
+                f"Market Changes {expected_ticker} state age GUI/API",
+                area="Setup Lifecycle",
+                expected=expected_age,
+                actual=gui["State"],
+            )
+        recorder.check(
+            str(item["source_type"]) in gui["Source"],
+            f"Market Changes {expected_ticker} source type GUI/API",
+            area="Setup Lifecycle",
+            expected=item["source_type"],
+            actual=gui["Source"],
+        )
+
+
+def _compare_lifecycle_alerts(page: Page, engine, recorder: CertificationRecorder) -> None:
+    gui_rows = _table_rows(
+        page,
+        {"Ticker", "Date", "Alert Type", "Severity", "Source Type", "Review Status"},
+    )
+    db_count = int(
+        query_rows(engine, "select count(*) as value from signal_alert_events", {})[0]["value"]
+    )
+    response = page.request.get(
+        f"{page.url.split('/setup-lifecycle/', 1)[0]}/api/setup-lifecycle/alerts?limit=500"
+    )
+    api = response.json()
+    recorder.check(
+        response.ok and api["total"] == db_count,
+        "Alert API total matches persisted full scope",
+        area="Alerts",
+        expected=db_count,
+        actual=api.get("total"),
+    )
+    recorder.check(
+        len(gui_rows) == len(api["items"]),
+        "Alert Center visible row count matches API",
+        area="Alerts",
+        expected=len(api["items"]),
+        actual=len(gui_rows),
+    )
+    for gui, item in zip(gui_rows, api["items"], strict=False):
+        expected = {
+            "Alert Type": item["alert_type"],
+            "Severity": item["severity"],
+            "Source Type": item["source_type"],
+            "Review Status": item["review_status"],
+        }
+        for field, value in expected.items():
+            recorder.check(
+                gui[field].strip() == str(value),
+                f"Alert {item['id']} {field} GUI/API",
+                area="Alerts",
+                expected=value,
+                actual=gui[field],
+            )
 
 
 def _compare_sector_rotation(
@@ -1549,8 +1637,17 @@ def _capture_exports(page: Page, engine, env, recorder, run_id: int) -> list[dic
             "(select id from sector_rotation_snapshots where run_id=:run_id)"
         ),
         "setup-lifecycle.csv": (
-            "select count(*) as value from setup_lifecycle_events where evaluation_run_id in "
+            "select ("
+            "select count(*) from setup_lifecycle_events where evaluation_run_id in "
             "(select id from setup_lifecycle_evaluation_runs where source_run_id=:run_id)"
+            " and is_current_version is true and event_type in "
+            "('EPISODE_OPENED','STATE_TRANSITION','PHASE_TRANSITION')"
+            ") + ("
+            "select count(*) from signal_change_events e where evaluation_run_id in "
+            "(select id from setup_lifecycle_evaluation_runs where source_run_id=:run_id)"
+            " and exists (select 1 from setup_signal_snapshots s "
+            "where s.id=e.current_snapshot_id and s.is_canonical is true)"
+            ") as value"
         ),
         "winner-evidence.csv": (
             "select count(*) as value from winner_prediction_snapshots where run_id=:run_id"

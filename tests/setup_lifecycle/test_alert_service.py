@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from app.models.tables import (
     SetupLifecycleEpisode,
     SetupLifecycleEvent,
@@ -61,6 +63,37 @@ def test_new_ready_creates_one_actionable_alert_and_retry_dedupes() -> None:
     assert retry.suppressed == 1
     assert len(repository.alerts) == 1
     assert repository.alerts[0].severity == "ACTIONABLE"
+
+
+def test_new_ready_requires_real_transition_and_nonblocked_actionability() -> None:
+    repository = FakeAlertRepository.with_seeded_rules()
+    service = SetupLifecycleAlertService(repository=repository)
+    blocked = _lifecycle_event(
+        event_id=13,
+        episode_id=501,
+        to_state=LifecycleState.READY,
+        source_event_key="ready-blocked",
+    )
+    blocked.actionability_after = Actionability.BLOCKED.value
+    unchanged = _lifecycle_event(
+        event_id=14,
+        episode_id=501,
+        to_state=LifecycleState.READY,
+        source_event_key="ready-unchanged",
+    )
+    unchanged.from_state = LifecycleState.READY.value
+    opened = _lifecycle_event(
+        event_id=15,
+        episode_id=501,
+        to_state=LifecycleState.READY,
+        source_event_key="ready-opened",
+    )
+    opened.event_type = "EPISODE_OPENED"
+    opened.from_state = None
+
+    assert service.evaluate_lifecycle_event(object(), blocked).created == 0
+    assert service.evaluate_lifecycle_event(object(), unchanged).created == 0
+    assert service.evaluate_lifecycle_event(object(), opened).created == 0
 
 
 def test_ready_cooldown_suppresses_same_episode_but_allows_new_episode() -> None:
@@ -125,6 +158,30 @@ def test_new_failure_creates_risk_alert() -> None:
     assert repository.alerts[0].reason_codes_json == ["NEW_FAILURE_ALERT"]
 
 
+def test_new_extension_requires_prior_ready_triggered_or_confirmed_state() -> None:
+    repository = FakeAlertRepository.with_seeded_rules()
+    service = SetupLifecycleAlertService(repository=repository)
+    valid = _lifecycle_event(
+        event_id=21,
+        episode_id=501,
+        to_state=LifecycleState.EXTENDED,
+        source_event_key="extended-valid",
+        severity="RISK",
+    )
+    valid.from_state = LifecycleState.TRIGGERED.value
+    invalid = _lifecycle_event(
+        event_id=22,
+        episode_id=777,
+        to_state=LifecycleState.EXTENDED,
+        source_event_key="extended-invalid",
+        severity="RISK",
+    )
+    invalid.from_state = LifecycleState.DEVELOPING.value
+
+    assert service.evaluate_lifecycle_event(object(), valid).created == 1
+    assert service.evaluate_lifecycle_event(object(), invalid).created == 0
+
+
 def test_gate_blocked_alert_does_not_require_lifecycle_state_mutation() -> None:
     repository = FakeAlertRepository.with_seeded_rules()
     service = SetupLifecycleAlertService(repository=repository)
@@ -146,6 +203,35 @@ def test_gate_blocked_alert_does_not_require_lifecycle_state_mutation() -> None:
     assert alerts.created == 1
     assert repository.alerts[0].lifecycle_event_id is None
     assert repository.alerts[0].evidence_json["blockers"] == ["IMMINENT_EARNINGS"]
+
+
+@pytest.mark.parametrize(
+    ("before", "expected"),
+    [
+        (None, 0),
+        (Actionability.BLOCKED.value, 0),
+        (Actionability.LOW_CONFIDENCE.value, 0),
+        (Actionability.ACTIONABLE.value, 1),
+        (Actionability.WATCH_ONLY.value, 1),
+    ],
+)
+def test_gate_blocked_truth_table_only_allows_srs_predecessors(before, expected) -> None:
+    repository = FakeAlertRepository.with_seeded_rules()
+    service = SetupLifecycleAlertService(repository=repository)
+    result = EpisodeEvaluationResult(
+        episode=_episode(),
+        decision=_decision(LifecycleState.READY),
+        actionability=ActionabilityDecision(
+            actionability=Actionability.BLOCKED,
+            reason_codes=("GATE_BLOCKED",),
+            blockers=("MARKET_POLICY_BLOCK",),
+        ),
+        actionability_before=before,
+    )
+
+    outcome = service.evaluate_episode_result(db=object(), result=result, evaluation_run_id=88)
+
+    assert outcome.created == expected
 
 
 def test_cooldown_suppresses_repeated_score_acceleration() -> None:
@@ -180,6 +266,88 @@ def test_cooldown_suppresses_repeated_score_acceleration() -> None:
     assert first.created == 1
     assert repeated.created == 0
     assert repeated.suppressed == 1
+
+
+def test_score_acceleration_requires_window_amount_crossing_and_real_confidence() -> None:
+    repository = FakeAlertRepository.with_seeded_rules()
+    service = SetupLifecycleAlertService(repository=repository)
+    valid = _signal_change(
+        event_id=60,
+        signal_key="technical_score",
+        source_event_key="score-valid",
+    )
+    missing_confidence = _signal_change(
+        event_id=61,
+        signal_key="technical_score",
+        source_event_key="score-no-confidence",
+    )
+    missing_confidence.evidence_json.pop("confidence_score")
+    too_small = _signal_change(
+        event_id=62,
+        signal_key="technical_score",
+        source_event_key="score-small",
+    )
+    too_small.evidence_json["velocity"]["3"]["normalized_delta"] = "0.4"
+    no_tracking_cross = _signal_change(
+        event_id=63,
+        signal_key="technical_score",
+        source_event_key="score-no-cross",
+    )
+    no_tracking_cross.evidence_json["velocity"]["3"].update(
+        {"old_value": 7.1, "new_value": 7.8}
+    )
+
+    assert service.evaluate_signal_change_events(object(), [valid]).created == 1
+    assert service.evaluate_signal_change_events(object(), [missing_confidence]).created == 0
+    assert service.evaluate_signal_change_events(object(), [too_small]).created == 0
+    assert service.evaluate_signal_change_events(object(), [no_tracking_cross]).created == 0
+
+
+def test_sector_acceleration_uses_improvement_and_sector_confidence() -> None:
+    repository = FakeAlertRepository.with_seeded_rules()
+    service = SetupLifecycleAlertService(repository=repository)
+    valid = _signal_change(
+        event_id=70,
+        signal_key="sector_rank",
+        source_event_key="sector-valid",
+        normalized_delta=Decimal("4"),
+    )
+    low_confidence = _signal_change(
+        event_id=71,
+        signal_key="sector_rank",
+        source_event_key="sector-low-confidence",
+        normalized_delta=Decimal("4"),
+    )
+    low_confidence.evidence_json["sector_confidence"] = "LOW"
+    wrong_direction = _signal_change(
+        event_id=72,
+        signal_key="sector_rank",
+        source_event_key="sector-worse",
+        normalized_delta=Decimal("-4"),
+    )
+
+    assert service.evaluate_signal_change_events(object(), [valid]).created == 1
+    assert service.evaluate_signal_change_events(object(), [low_confidence]).created == 0
+    assert service.evaluate_signal_change_events(object(), [wrong_direction]).created == 0
+
+
+def test_alert_market_restrictions_are_enforced() -> None:
+    repository = FakeAlertRepository.with_seeded_rules()
+    rule = next(rule for rule in repository.rules if rule.rule_id == "SCORE_ACCELERATION")
+    rule.market_restrictions_json = {"allowed_regimes": ["RISK_ON"]}
+    service = SetupLifecycleAlertService(repository=repository)
+    allowed = _signal_change(
+        event_id=73, signal_key="technical_score", source_event_key="market-allowed"
+    )
+    blocked = _signal_change(
+        event_id=74, signal_key="technical_score", source_event_key="market-blocked"
+    )
+    blocked.evidence_json["market_regime"] = "RISK_OFF"
+
+    assert service.evaluate_signal_change_events(object(), [allowed]).created == 1
+    outcome = service.evaluate_signal_change_events(object(), [blocked])
+    assert outcome.created == 0
+    assert outcome.warning_codes == ("MARKET_RESTRICTION",)
 
 
 def test_data_degraded_creates_risk_alert() -> None:
@@ -382,8 +550,8 @@ def _signal_change(
         category="SCORE",
         signal_key=signal_key,
         value_type="float",
-        old_value_json={"value": 7.0},
-        new_value_json={"value": 8.0},
+        old_value_json={"value": 6.5},
+        new_value_json={"value": 7.5},
         normalized_delta=normalized_delta,
         direction="higher_is_better",
         threshold_name="crossing_8",
@@ -393,7 +561,18 @@ def _signal_change(
         source_event_key=source_event_key,
         config_hash="hash",
         reason_codes_json=list(reason_codes),
-        evidence_json={"confidence_score": 90},
+        evidence_json={
+            "confidence_score": 90,
+            "sector_confidence": "HIGH",
+            "market_regime": "RISK_ON",
+            "velocity": {
+                "3": {
+                    "old_value": 6.5,
+                    "new_value": 7.5,
+                    "normalized_delta": "1.0",
+                }
+            },
+        },
     )
 
 

@@ -277,6 +277,38 @@ signals:
     direction: quality_order
     material_on_change: true
     missing_value_policy: warn
+  market_gate:
+    source: market_gate
+    type: boolean
+    category: MARKET
+    direction: true_is_better
+    material_on_change: true
+    missing_value_policy: warn
+  required_feature_coverage:
+    source: required_feature_coverage
+    type: float
+    category: DATA_QUALITY
+    direction: higher_is_better
+    unit: ratio
+    absolute_change: 0.10
+    crossings:
+      - 0.90
+      - 0.50
+    missing_value_policy: warn
+  freshness_status:
+    source: freshness_status
+    type: enum
+    category: DATA_QUALITY
+    direction: quality_order
+    material_on_change: true
+    missing_value_policy: warn
+  sector_confidence:
+    source: sector_confidence
+    type: enum
+    category: LEADERSHIP
+    direction: quality_order
+    material_on_change: true
+    missing_value_policy: ignore
   close_trigger_cross:
     source: close_above_trigger
     type: boolean
@@ -354,7 +386,14 @@ alerts:
       enabled: true
       severity: NOTABLE
       source: signal_change
-      signal_key: technical_score
+      signal_keys:
+        - technical_score
+        - setup_score
+      velocity_window: 3
+      minimum_normalized_delta: 0.5
+      tracking_thresholds:
+        technical_score: 7.0
+        setup_score: 5.5
       cooldown_sessions: 5
       minimum_confidence: 70
     SECTOR_ACCELERATION:
@@ -362,6 +401,8 @@ alerts:
       severity: NOTABLE
       source: signal_change
       signal_key: sector_rank
+      minimum_rank_improvement: 3
+      minimum_sector_confidence: NORMAL
       cooldown_sessions: 5
       minimum_confidence: 70
     GATE_BLOCKED:
@@ -375,7 +416,10 @@ alerts:
       enabled: true
       severity: RISK
       source: signal_change
-      signal_key: data_quality
+      signal_keys:
+        - data_quality
+        - required_feature_coverage
+        - freshness_status
       cooldown_sessions: 5
       minimum_confidence: 0
 

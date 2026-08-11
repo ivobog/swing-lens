@@ -69,7 +69,8 @@ def test_detector_handles_numeric_rank_enum_boolean_set_date_and_nullability_cha
 
     assert by_key["pct"].delta_numeric == Decimal("0.06")
     assert by_key["pct"].percentage_delta == Decimal("0.6")
-    assert by_key["rank"].rank_delta == -4
+    assert by_key["rank"].rank_delta == 4
+    assert by_key["rank"].normalized_delta == Decimal("4.0")
     assert by_key["rank"].normalized_delta == Decimal("4")
     assert by_key["enum"].reason_codes == ("ENUM_CHANGE",)
     assert by_key["bool"].normalized_delta == Decimal("1")

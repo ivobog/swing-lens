@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -76,6 +77,23 @@ def test_alerts_route_uses_status_query_alias(monkeypatch: pytest.MonkeyPatch) -
     assert query.filters.alert_severity == "RISK"
 
 
+def test_alerts_route_forwards_semantic_filters(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_service = FakeQueryService()
+    monkeypatch.setattr(routes, "SetupLifecycleQueryService", lambda: fake_service)
+
+    routes.setup_lifecycle_alerts(
+        db=object(),  # type: ignore[arg-type]
+        as_of=date(2026, 8, 1),
+        alert_type="SCORE_ACCELERATION",
+        source_type="SIGNAL_CHANGE_EVENT",
+    )
+
+    query = fake_service.last_alerts_query
+    assert query.filters.as_of_date == date(2026, 8, 1)
+    assert query.filters.alert_type == "SCORE_ACCELERATION"
+    assert query.filters.source_type == "SIGNAL_CHANGE_EVENT"
+
+
 def test_query_errors_are_mapped_to_http_errors() -> None:
     with pytest.raises(HTTPException) as exc:
         routes._query_or_http(  # noqa: SLF001
@@ -98,7 +116,8 @@ def test_export_routes_return_csv_and_json(monkeypatch: pytest.MonkeyPatch) -> N
     json_response = routes.export_setup_lifecycle_changes_json(db=object())  # type: ignore[arg-type]
 
     assert csv_response.media_type == "text/csv"
-    assert "id,ticker,effective_date" in csv_response.body.decode()
+    assert "id,source_type,lifecycle_event_id" in csv_response.body.decode()
+    assert "technical_score_delta" in csv_response.body.decode()
     assert json.loads(json_response.body)["total"] == 1
 
 
@@ -166,6 +185,18 @@ def test_market_changes_page_renders_full_data(monkeypatch: pytest.MonkeyPatch) 
     assert "Expand" in response.text
 
 
+def test_quick_filters_use_event_semantics_and_real_bounds() -> None:
+    assert routes._quick_filter_values("newly-ready") == {"transition": "TO_READY"}
+    assert routes._quick_filter_values("newly-triggered") == {
+        "transition": "TO_TRIGGERED"
+    }
+    assert routes._quick_filter_values("improving-fast") == {
+        "sort": "velocity",
+        "velocity_min": 0.5,
+    }
+    assert routes._quick_filter_values("low-confidence") == {"confidence_max": 69}
+
+
 def test_ticker_lifecycle_page_renders_timeline_and_source_links(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -204,6 +235,11 @@ def test_alert_center_renders_actions(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert response.status_code == 200
     assert "Alert Center" in response.text
+    assert "Alert Type" in response.text
+    assert "NEW_TRIGGER" in response.text
+    assert "NOTABLE" in response.text
+    assert "WARNING" not in response.text
+    assert "LIFECYCLE_EVENT" in response.text
     assert "Acknowledge" in response.text
     assert "data-slse-alert-action" in response.text
 
@@ -424,8 +460,17 @@ def _alerts_payload() -> dict:
                 "effective_date": "2026-08-01",
                 "event_key": "alert-key",
                 "source_event_key": "event-key",
+                "alert_type": "NEW_TRIGGER",
+                "review_status": "UNREAD",
                 "status": "UNREAD",
                 "severity": "ACTIONABLE",
+                "source_type": "LIFECYCLE_EVENT",
+                "episode_id": 12,
+                "lifecycle_state": "TRIGGERED",
+                "actionability": "ACTIONABLE",
+                "confidence": 86,
+                "blockers": [],
+                "source_url": "/setup-lifecycle/episodes/12",
                 "reason_codes": ["BECAME_ACTIONABLE"],
                 "evidence": {},
             }
@@ -436,6 +481,15 @@ def _alerts_payload() -> dict:
         "next_cursor": None,
         "sort": "latest_event_time",
         "direction": "desc",
+        "summary": {
+            "unread": 1,
+            "acknowledged": 0,
+            "dismissed": 0,
+            "info": 0,
+            "notable": 0,
+            "actionable": 1,
+            "risk": 0,
+        },
     }
 
 

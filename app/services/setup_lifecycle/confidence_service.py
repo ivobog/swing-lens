@@ -77,6 +77,8 @@ class SetupLifecycleConfidenceService:
 
 
 def _coverage(snapshot: NormalizedSnapshot) -> float:
+    if snapshot.required_feature_coverage is not None:
+        return max(0.0, min(1.0, float(snapshot.required_feature_coverage)))
     if not snapshot.signals:
         return 0.0
     present = sum(signal.raw_value is not None for signal in snapshot.signals.values())
