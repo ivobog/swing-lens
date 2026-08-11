@@ -1,3 +1,4 @@
+import hashlib
 import json
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
@@ -187,6 +188,8 @@ class TechnicalScoringOverlapCoordinator:
         settings: Settings | None = None,
         should_cancel: Callable[[], bool] | None = None,
         lease_guard: Callable[[], None] | None = None,
+        required_market_tickers: list[str] | tuple[str, ...] | None = None,
+        wait_for_market_events: bool = False,
     ) -> None:
         self.db = db
         self.run_id = run_id
@@ -202,6 +205,15 @@ class TechnicalScoringOverlapCoordinator:
         self._pending: set[str] = set()
         self._results: dict[str, PineReplicaScore | TechnicalScore] = {}
         self._futures: dict[Any, str] = {}
+        self._submitted_market_signatures: dict[str, str] = {}
+        self._required_market_tickers = {
+            ticker.strip().upper()
+            for ticker in (required_market_tickers or ())
+            if ticker.strip()
+        }
+        self._wait_for_market_events = bool(
+            wait_for_market_events and self._required_market_tickers
+        )
         self._closed = False
         self._refresh_run_level_inputs()
         self._executor = ProcessPoolExecutor(
@@ -211,9 +223,11 @@ class TechnicalScoringOverlapCoordinator:
     def on_ticker_ready(self, event: TickerReadyEvent) -> None:
         if self._closed:
             return
-        self._ready.add(event.ticker.upper())
-        self._pending.add(event.ticker.upper())
-        if event.ticker.upper() in {"SPY", "QQQ"}:
+        ticker = event.ticker.upper()
+        self._ready.add(ticker)
+        if ticker in self.symbols:
+            self._pending.add(ticker)
+        if ticker in {"SPY", "QQQ"}:
             self._refresh_run_level_inputs()
         self._submit_ready()
 
@@ -221,8 +235,18 @@ class TechnicalScoringOverlapCoordinator:
         try:
             self._ready.update(self.symbols)
             self._pending.update(self.symbols)
+            # Fetching has finished before finalize is called. Refresh once more and
+            # release the barrier even if a custom fetch executor omitted callbacks.
             self._refresh_run_level_inputs()
+            self._wait_for_market_events = False
             self._submit_ready()
+            while self._futures:
+                self._drain_one()
+            # A benchmark can change after work was submitted but before fetching
+            # finishes. Never persist a technical result calculated from a different
+            # SPY/QQQ input snapshot than the final run-level snapshot.
+            self._refresh_run_level_inputs()
+            self._resubmit_stale_market_results()
             while self._futures:
                 self._drain_one()
             for ticker in self.symbols:
@@ -255,10 +279,18 @@ class TechnicalScoringOverlapCoordinator:
         self._executor.shutdown(wait=False, cancel_futures=True)
 
     def _submit_ready(self) -> None:
-        if self._closed or not self._benchmark_price_available:
+        if (
+            self._closed
+            or not self._benchmark_price_available
+            or not self._market_inputs_ready
+        ):
             return
         for ticker in sorted(self._pending):
-            if ticker not in self.symbols or ticker in self._results:
+            if (
+                ticker not in self.symbols
+                or ticker in self._results
+                or ticker in self._futures.values()
+            ):
                 continue
             while len(self._futures) >= self._in_flight_limit:
                 self._drain_one()
@@ -290,6 +322,7 @@ class TechnicalScoringOverlapCoordinator:
                     else None
                 ),
             )
+            self._submitted_market_signatures[ticker] = self._market_input_signature
             future = self._executor.submit(execute_technical_work_item, item)
             self._futures[future] = ticker
         self._pending.difference_update(self.symbols)
@@ -330,13 +363,49 @@ class TechnicalScoringOverlapCoordinator:
         self._benchmark_price = _load_price_frame(self.db, "SPY")
         self._market_features = _market_features(self._benchmark_price, "SPY")
         self._sector_price = _sector_benchmark_price(self.db, self.pine_params)
-        self._qqq_market_features = _optional_market_features(
-            self.db, "QQQ", self.v4_params
+        market_regime_params = self.v4_params.get("market_regime_v4", {})
+        if market_regime_params.get("use_qqq", True):
+            self._qqq_market_price = _load_price_frame(self.db, "QQQ")
+            self._qqq_market_features = _market_features(
+                self._qqq_market_price,
+                "QQQ",
+            )
+        else:
+            self._qqq_market_price = pd.DataFrame()
+            self._qqq_market_features = {}
+        self._market_input_signature = _market_frames_signature(
+            self._benchmark_price,
+            self._qqq_market_price,
         )
+
+    def _resubmit_stale_market_results(self) -> None:
+        stale_tickers = [
+            ticker
+            for ticker in self.symbols
+            if ticker in self._results
+            and self._submitted_market_signatures.get(ticker)
+            != self._market_input_signature
+        ]
+        if not stale_tickers:
+            return
+        for ticker in stale_tickers:
+            self._results.pop(ticker, None)
+            self._pending.add(ticker)
+        operational_metrics.increment(
+            "swinglens_technical_overlap_market_rescore_total",
+            value=len(stale_tickers),
+        )
+        self._submit_ready()
 
     @property
     def _benchmark_price_available(self) -> bool:
         return not self._benchmark_price.empty
+
+    @property
+    def _market_inputs_ready(self) -> bool:
+        return not self._wait_for_market_events or self._required_market_tickers.issubset(
+            self._ready
+        )
 
     @property
     def _in_flight_limit(self) -> int:
@@ -942,6 +1011,25 @@ def _market_features(price: pd.DataFrame, ticker: str) -> dict[str, Any]:
     if price.empty:
         return {}
     return calculate_technical_features(price, ticker=ticker).latest
+
+
+def _market_frames_signature(spy_price: pd.DataFrame, qqq_price: pd.DataFrame) -> str:
+    digest = hashlib.sha256()
+    for symbol, frame in (("SPY", spy_price), ("QQQ", qqq_price)):
+        digest.update(symbol.encode("utf-8"))
+        if frame.empty:
+            digest.update(b"empty")
+            continue
+        columns = [
+            column
+            for column in ("date", "open", "high", "low", "close", "volume")
+            if column in frame.columns
+        ]
+        digest.update("|".join(columns).encode("utf-8"))
+        digest.update(
+            pd.util.hash_pandas_object(frame[columns], index=False).values.tobytes()
+        )
+    return digest.hexdigest()
 
 
 def _load_price_frame(db: Session, ticker: str) -> pd.DataFrame:

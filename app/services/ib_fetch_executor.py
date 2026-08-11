@@ -67,6 +67,7 @@ def execute_fetch_plan(
     notified_tickers: set[str] = set()
     for plan_item in plan.items:
         expected_by_ticker[plan_item.ticker.upper()] += 1
+    execution_items = _benchmark_first_items(plan.items, settings.ib_benchmark_symbols)
 
     try:
         ib.connect(
@@ -76,7 +77,7 @@ def execute_fetch_plan(
             timeout=settings.ib_timeout_seconds,
             readonly=True,
         )
-        for plan_item in plan.items:
+        for plan_item in execution_items:
             if should_cancel and should_cancel():
                 _mark_run_cancelled(fetch_run)
                 db.flush()
@@ -381,6 +382,17 @@ def _run_message(fetch_run: IBFetchRun) -> str:
 
 def _safe_message(message: str) -> str:
     return message.replace("\n", " ").strip()[:500]
+
+
+def _benchmark_first_items(
+    items: list[FetchPlanItem],
+    benchmark_symbols: tuple[str, ...],
+) -> list[FetchPlanItem]:
+    benchmarks = {symbol.strip().upper() for symbol in benchmark_symbols if symbol.strip()}
+    return sorted(
+        items,
+        key=lambda item: item.ticker.upper() not in benchmarks,
+    )
 
 
 def _record_ticker_completion(

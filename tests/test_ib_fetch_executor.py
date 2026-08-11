@@ -10,6 +10,19 @@ from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlan
 from app.settings import Settings
 
 
+def test_fetch_execution_orders_benchmarks_before_requested_tickers() -> None:
+    items = [
+        _plan_item("MSFT", FetchAction.SKIP, duration=None),
+        _plan_item("SPY", FetchAction.SKIP, duration=None),
+        _plan_item("AAPL", FetchAction.SKIP, duration=None),
+        _plan_item("QQQ", FetchAction.SKIP, duration=None),
+    ]
+
+    ordered = executor._benchmark_first_items(items, ("SPY", "QQQ"))
+
+    assert [item.ticker for item in ordered] == ["SPY", "QQQ", "MSFT", "AAPL"]
+
+
 def test_execute_fetch_plan_skips_and_fetches_items(monkeypatch) -> None:
     db = FakeDb()
     ib = FakeIB()
@@ -62,7 +75,7 @@ def test_execute_fetch_plan_skips_and_fetches_items(monkeypatch) -> None:
     assert db.commits >= 2
     assert limiter.waits == 1
     assert ib.connected is False
-    assert cache_calls == [{"fetch_run_id": fetch_run.id, "fetch_item_id": 3}]
+    assert cache_calls == [{"fetch_run_id": fetch_run.id, "fetch_item_id": 2}]
 
 
 def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
