@@ -298,3 +298,50 @@ This table supersedes the baseline “Actual” statements above; the original f
 | SLSE-DEF-025 | FIXED | transitions use from/to predicates; velocity is explicitly 3-session; quick filters have real event/bound semantics |
 
 No open item is silently classified as compliant. Release readiness remains FAIL until the PARTIAL/OPEN items required by the SRS definition of done are closed.
+
+## Second-pass forensic disposition (2026-08-11)
+
+This section supersedes any earlier statement that FR-031, FR-036, actionability, or freshness was fully compliant.
+
+### SLSE-DEF-026 - Undocumented transition-confidence blend
+
+- Verdict: CONFIRMED; severity HIGH.
+- Specification: SDD 10.2 defines the final score as the 30/25/20/15/10 weighted composition. Family evidence belongs inside signal agreement; no second 50/50 blend is authorized.
+- Root cause: `confidence_service.py` averaged the completed SDD score with `FamilyEvidence.confidence_score`.
+- Fix: removed the second-stage average. `weighted_confidence_score()` is now the single final-score function. Family evidence still contributes once through signal agreement and may rank candidate families, but does not transform the completed transition-confidence score again.
+- Proof: exact 85 example; weights sum to 1.0; adapter-confidence independence; persistence 0/1/2/3; 69/70 and 84/85 boundaries.
+- Historical impact: confidence, labels, actionability, lifecycle-event evidence, and alert eligibility produced by the prior version remain invalid.
+
+### SLSE-DEF-027 - Reduced market posture classified as LOW_CONFIDENCE
+
+- Verdict: CONFIRMED; severity HIGH.
+- Specification: SDD 10.1 separates market permission from evidence confidence. A reduced market posture is WATCH_ONLY or reduced ACTIONABLE, while LOW_CONFIDENCE is reserved for evidence/data problems.
+- Decision for the current configuration: `NEUTRAL`, `YELLOW`, `MIXED`, and `CAUTION` produce `WATCH_ONLY` with `MARKET_POLICY_REDUCED` and `market_posture=REDUCED`. A hard market block remains `BLOCKED`.
+- Fix: separate branches for hard blockers, evidence confidence, reduced posture, non-actionable lifecycle states, and actionable lifecycle states. Actionability metadata is persisted in episode metadata and lifecycle-event evidence.
+- Proof: READY 90 GREEN/NEUTRAL/YELLOW/BEARISH; READY 60 GREEN; stale GREEN; stale BEARISH; DEVELOPING; EXTENDED; FAILED.
+
+### SLSE-DEF-028 - Freshness used calendar days
+
+- Verdict: CONFIRMED; severity HIGH.
+- Specification: FR-014, AC-13, SDD 7.1 and 19.1 require completed US trading-session distance.
+- Fix: freshness uses the shared `us_trading_sessions_between()` calendar utility. Weekend and NYSE holiday dates add no age.
+- Proof: Friday-Monday, Friday-Tuesday, Friday-next-Friday, weekend-only, Good Friday/Easter, Independence Day, Thanksgiving, Christmas, and New Year.
+- Historical impact: snapshot freshness/data quality/confidence and DATA_DEGRADED eligibility around weekends and holidays require regeneration.
+
+### SLSE-DEF-029 - Terminal EXPIRED semantics and fabricated confidence
+
+- Verdict: CONFIRMED in the public pure-engine path; severity MEDIUM.
+- Reachability: `LifecycleEngine.evaluate(previous_state=EXPIRED)` is directly callable and is also relevant to replay/repair invariants even though normal active-episode processing closes expired episodes.
+- Fix: terminal `FAILED` remains `BLOCKED`; terminal `EXPIRED` is `WATCH_ONLY`. The decision preserves supplied prior evidence confidence and otherwise uses 0 instead of fabricating 100. Terminal-lock certainty is exposed separately as `terminal_locked=true`.
+- Proof: direct FAILED and EXPIRED tests plus the existing observation-gap close/no-repeat episode sequence.
+
+### SLSE-DEF-017 / FR-031 - Typed prior canonical history
+
+- Disposition: FIXED in the evaluation path.
+- Implementation: `LifecycleEvaluationInput.previous_snapshots` is a typed tuple; adapters receive it; the engine rejects unordered, over-window, current-date, or future history. The configured window is 10 sessions.
+- Retrieval: evaluation performs one bounded window-function query for all ticker/timeframe keys, then advances each chronological in-memory window as selected snapshots are evaluated. There is no per-ticker history query.
+- Evidence: lifecycle decisions record prior snapshot count/dates; tests prove ordering, point-in-time rejection, and one batched load with chronological roll-forward.
+
+## Second-pass current gate status
+
+Focused SLSE tests: 194 passed locally. The disposable PostgreSQL vertical test and six shared market-calendar tests also passed. Repository-wide non-E2E/non-external: 1,274 passed, 8 skipped, with one known unrelated CERI fake-DB test explicitly deselected after it failed in the unfiltered run. DEF-026/027/028/029 and FR-031 are corrected, but the 25-scenario full-layer golden corpus, natural multi-date real-source alert certification, historical rebuild, CI archive, scale measurements, and accessibility audit remain open. Market Changes and Alert Center therefore remain FAIL.

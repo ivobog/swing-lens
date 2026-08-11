@@ -189,6 +189,7 @@ def test_phase_12_golden_lifecycle_acceptance_fixtures(
         data_quality=fixture.data_quality,
         **fixture.snapshot_kwargs,
     )
+    normalized = replace(normalized, required_feature_coverage=1.0)
     if fixture.warning_flags:
         normalized = replace(normalized, warning_flags=fixture.warning_flags)
 

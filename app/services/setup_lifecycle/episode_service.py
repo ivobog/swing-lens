@@ -25,7 +25,7 @@ from app.services.setup_lifecycle.enums import (
 )
 from app.services.setup_lifecycle.lifecycle_engine import SetupLifecycleEngine
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
-from app.services.us_market_calendar import next_us_trading_day
+from app.services.us_market_calendar import us_trading_sessions_between
 
 
 @dataclass(frozen=True)
@@ -64,10 +64,16 @@ class SetupLifecycleEpisodeService:
         *,
         evaluation_run_id: int | None = None,
         completed_observation_sessions: int = 1,
+        prior_snapshots: tuple[NormalizedSnapshot, ...] = (),
     ) -> EpisodeEvaluationResult:
         normalized = normalized_snapshot_from_row(snapshot)
         first_pass = self.lifecycle_engine.evaluate(
-            _request(normalized, state_age_sessions=0, missing_observation_sessions=0)
+            _request(
+                normalized,
+                previous_snapshots=prior_snapshots,
+                state_age_sessions=0,
+                missing_observation_sessions=0,
+            )
         )
         active = self.repository.active_episode_for_update(
             db,
@@ -80,8 +86,10 @@ class SetupLifecycleEpisodeService:
             decision = self.lifecycle_engine.evaluate(
                 _request(
                     normalized,
+                    previous_snapshots=prior_snapshots,
                     previous_state=LifecycleState(active.current_state),
                     previous_phase=active.current_phase,
+                    previous_confidence_score=active.confidence_score,
                     state_age_sessions=active.state_age_sessions,
                     persistence_sessions=_persistence_sessions(active),
                     missing_observation_sessions=active.missing_observation_sessions,
@@ -243,7 +251,7 @@ class SetupLifecycleEpisodeService:
             confidence_score=decision.confidence_score,
             confidence_label=decision.confidence_label.value,
             reason_codes=_opening_reasons(decision),
-            evidence=decision.evidence,
+            evidence=_decision_evidence(decision, actionability),
             event_type="EPISODE_OPENED",
             immediate_transition=decision.immediate_transition,
         )
@@ -311,7 +319,7 @@ class SetupLifecycleEpisodeService:
                 confidence_score=decision.confidence_score,
                 confidence_label=decision.confidence_label.value,
                 reason_codes=decision.reason_codes,
-                evidence=decision.evidence,
+                evidence=_decision_evidence(decision, actionability),
                 event_type="STATE_TRANSITION"
                 if previous_state is not decision.proposed_state
                 else "PHASE_TRANSITION",
@@ -516,22 +524,16 @@ def select_primary_episodes(
 
 
 def trading_sessions_between(start_exclusive: date, end_inclusive: date) -> int:
-    if end_inclusive <= start_exclusive:
-        return 0
-    count = 0
-    current = start_exclusive
-    while True:
-        current = next_us_trading_day(current)
-        if current > end_inclusive:
-            return count
-        count += 1
+    return us_trading_sessions_between(start_exclusive, end_inclusive)
 
 
 def _request(
     snapshot: NormalizedSnapshot,
     *,
+    previous_snapshots: tuple[NormalizedSnapshot, ...] = (),
     previous_state: LifecycleState | None = None,
     previous_phase: str | None = None,
+    previous_confidence_score: int | None = None,
     state_age_sessions: int = 0,
     persistence_sessions: int = 0,
     missing_observation_sessions: int = 0,
@@ -540,8 +542,10 @@ def _request(
 
     return LifecycleEvaluationInput(
         snapshot=snapshot,
+        previous_snapshots=previous_snapshots,
         previous_state=previous_state,
         previous_phase=previous_phase,
+        previous_confidence_score=previous_confidence_score,
         state_age_sessions=state_age_sessions,
         persistence_sessions=persistence_sessions,
         missing_observation_sessions=missing_observation_sessions,
@@ -633,8 +637,23 @@ def _episode_metadata(
         "snapshot_id": snapshot.id,
         "reason_codes": list(decision.reason_codes),
         "actionability_reason_codes": list(actionability.reason_codes),
+        "actionability_metadata": dict(actionability.metadata),
         "blockers": list(actionability.blockers),
         "market_regime": _json_scalar((snapshot.signals_json or {}).get("market_regime")),
+    }
+
+
+def _decision_evidence(
+    decision: LifecycleDecision,
+    actionability: ActionabilityDecision,
+) -> dict[str, Any]:
+    return {
+        **decision.evidence,
+        "actionability": {
+            "reason_codes": list(actionability.reason_codes),
+            "blockers": list(actionability.blockers),
+            "metadata": dict(actionability.metadata),
+        },
     }
 
 

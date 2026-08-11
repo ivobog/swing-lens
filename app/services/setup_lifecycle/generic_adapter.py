@@ -21,6 +21,7 @@ class GenericAdapter:
         self,
         snapshot: NormalizedSnapshot,
         *,
+        history: tuple[NormalizedSnapshot, ...] = (),
         previous_state: object | None = None,
         state_age_sessions: int = 0,
     ) -> FamilyEvidence:

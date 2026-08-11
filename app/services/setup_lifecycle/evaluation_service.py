@@ -16,7 +16,10 @@ from app.services.setup_lifecycle.change_detector import (
 )
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.enums import EvaluationStatus
-from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeService
+from app.services.setup_lifecycle.episode_service import (
+    SetupLifecycleEpisodeService,
+    normalized_snapshot_from_row,
+)
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.snapshot_builder import (
     SetupLifecycleSnapshotCaptureService,
@@ -317,12 +320,37 @@ class SetupLifecycleEvaluationService:
     ) -> tuple[int, int]:
         transitions = 0
         alert_created = 0
-        for snapshot in self.repository.get_snapshots_by_ids(db, snapshot_ids):
+        snapshots = self.repository.get_snapshots_by_ids(db, snapshot_ids)
+        window = self.config.episodes.history_window_sessions
+        cutoffs: dict[tuple[str, str], Any] = {}
+        for snapshot in snapshots:
+            key = (snapshot.ticker, snapshot.timeframe)
+            cutoffs[key] = min(cutoffs.get(key, snapshot.data_as_of_date), snapshot.data_as_of_date)
+        history_loader = getattr(
+            self.repository,
+            "canonical_snapshot_histories_before",
+            None,
+        )
+        prior_rows = (
+            history_loader(db, cutoffs=cutoffs, limit=window)
+            if history_loader is not None
+            else {}
+        )
+        history_by_key = {
+            key: [normalized_snapshot_from_row(row) for row in rows]
+            for key, rows in prior_rows.items()
+        }
+
+        for snapshot in snapshots:
+            key = (snapshot.ticker, snapshot.timeframe)
+            history = history_by_key.setdefault(key, [])
             result = self.episode_service.apply_snapshot(
                 db,
                 snapshot,
                 evaluation_run_id=evaluation_run_id,
+                prior_snapshots=tuple(history[-window:]),
             )
+            history.append(normalized_snapshot_from_row(snapshot))
             if result.lifecycle_event is not None and not result.opened:
                 transitions += 1
             alerts = self.alert_service.evaluate_episode_result(

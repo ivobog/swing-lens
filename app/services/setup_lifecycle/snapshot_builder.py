@@ -20,6 +20,7 @@ from app.services.setup_lifecycle.source_loader import (
     SetupLifecycleSourceLoader,
     TickerSourceContext,
 )
+from app.services.us_market_calendar import us_trading_sessions_between
 
 REQUIRED_FEATURE_SOURCES = (
     "technical_score",
@@ -28,7 +29,7 @@ REQUIRED_FEATURE_SOURCES = (
     "close_price",
 )
 OPTIONAL_CONTEXT_SOURCES = ("market_regime", "sector_rotation")
-FRESH_BAR_GRACE_DAYS = 3
+FRESH_BAR_GRACE_SESSIONS = 3
 
 
 @dataclass(frozen=True)
@@ -373,10 +374,10 @@ class SetupLifecycleSnapshotBuilder:
     ) -> str:
         if not has_completed_bar:
             return "STALE"
-        age_days = (reference_date - as_of_date).days
-        if age_days <= FRESH_BAR_GRACE_DAYS:
+        age_sessions = us_trading_sessions_between(as_of_date, reference_date)
+        if age_sessions <= FRESH_BAR_GRACE_SESSIONS:
             return "FRESH"
-        if age_days <= FRESH_BAR_GRACE_DAYS * 2:
+        if age_sessions <= FRESH_BAR_GRACE_SESSIONS * 2:
             return "NEAR_STALE"
         return "STALE"
 

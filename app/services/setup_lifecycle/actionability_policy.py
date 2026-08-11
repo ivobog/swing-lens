@@ -62,15 +62,34 @@ class SetupLifecycleActionabilityPolicy:
 
         if snapshot.data_quality_label is DataQualityLabel.LOW or _has_stale_warning(snapshot):
             reasons.append("LOW_CONFIDENCE_SOURCE")
-        if lifecycle.confidence_score < self.config.actionability["minimum_actionable_confidence"]:
-            reasons.append("CONFIDENCE_BELOW_ACTIONABLE_MIN")
-        if market in {"caution", "yellow", "neutral", "mixed"}:
-            reasons.append("MARKET_POLICY_REDUCED")
 
         if reasons:
             return ActionabilityDecision(
                 actionability=Actionability.LOW_CONFIDENCE,
                 reason_codes=tuple(dict.fromkeys(reasons)),
+            )
+
+        if market in {"caution", "yellow", "neutral", "mixed"}:
+            return ActionabilityDecision(
+                actionability=Actionability.WATCH_ONLY,
+                reason_codes=("MARKET_POLICY_REDUCED",),
+                metadata={"market_posture": "REDUCED"},
+            )
+
+        if state not in {
+            LifecycleState.READY,
+            LifecycleState.TRIGGERED,
+            LifecycleState.CONFIRMED,
+        }:
+            return ActionabilityDecision(
+                actionability=Actionability.WATCH_ONLY,
+                reason_codes=(f"{state.value}_WATCH_ONLY",),
+            )
+
+        if lifecycle.confidence_score < self.config.actionability["minimum_actionable_confidence"]:
+            return ActionabilityDecision(
+                actionability=Actionability.LOW_CONFIDENCE,
+                reason_codes=("CONFIDENCE_BELOW_ACTIONABLE_MIN",),
             )
 
         if state in {

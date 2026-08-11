@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
+from datetime import UTC, date, datetime
 
 import pytest
 
-from app.models.tables import SetupLifecycleEvaluationRun
+from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
 from app.services.setup_lifecycle.canonicalization import CanonicalizationResult
 from app.services.setup_lifecycle.change_detector import SignalChangeDetectionResult
 from app.services.setup_lifecycle.config import load_setup_lifecycle_config
@@ -103,7 +103,8 @@ def test_evaluation_service_reuses_valid_capture_handoff_without_recapturing() -
     repository = FakeEvaluationRepository()
     config = load_setup_lifecycle_config()
     repository.snapshots = [
-        SimpleNamespace(
+        _snapshot(
+            10,
             run_id=7,
             config_hash=config.config_hash,
             engine_version=config.engine.version,
@@ -133,6 +134,36 @@ def test_evaluation_service_reuses_valid_capture_handoff_without_recapturing() -
     assert capture_service.calls == 0
 
 
+def test_evaluation_service_loads_prior_history_once_and_rolls_it_forward() -> None:
+    repository = FakeEvaluationRepository()
+    repository.snapshots = [
+        _snapshot(10, data_as_of_date=date(2026, 8, 4)),
+        _snapshot(11, data_as_of_date=date(2026, 8, 5)),
+    ]
+    repository.histories = {
+        ("MSFT", "1d"): [_snapshot(9, data_as_of_date=date(2026, 8, 1))]
+    }
+    episodes = FakeEpisodeService()
+    service = SetupLifecycleEvaluationService(
+        repository=repository,
+        episode_service=episodes,
+        alert_service=FakeAlertService(),
+        config=load_setup_lifecycle_config(),
+    )
+
+    service._evaluate_lifecycle_episodes(
+        db=object(),
+        evaluation_run_id=1,
+        snapshot_ids=(10, 11),
+    )
+
+    assert repository.history_load_calls == 1
+    assert episodes.prior_dates == [
+        [date(2026, 8, 1)],
+        [date(2026, 8, 1), date(2026, 8, 4)],
+    ]
+
+
 def test_evaluation_service_cancellation_finalizes_run_as_cancelled() -> None:
     repository = FakeEvaluationRepository()
     service = SetupLifecycleEvaluationService(
@@ -159,6 +190,8 @@ class FakeEvaluationRepository:
         self.completed: list[SetupLifecycleEvaluationRun] = []
         self.heartbeats: list[str] = []
         self.snapshots = None
+        self.histories = {}
+        self.history_load_calls = 0
 
     def create_evaluation_run(self, _db, **kwargs):
         run = SetupLifecycleEvaluationRun(id=1, **kwargs)
@@ -196,7 +229,11 @@ class FakeEvaluationRepository:
     def get_snapshots_by_ids(self, _db, snapshot_ids):
         if self.snapshots is not None:
             return self.snapshots
-        return [object() for _snapshot_id in snapshot_ids]
+        return [_snapshot(snapshot_id) for snapshot_id in snapshot_ids]
+
+    def canonical_snapshot_histories_before(self, _db, *, cutoffs, limit):
+        self.history_load_calls += 1
+        return self.histories
 
     def get_signal_change_events_by_ids(self, _db, event_ids):
         return [object() for _event_id in event_ids]
@@ -238,9 +275,18 @@ class FakeEpisodeService:
     def __init__(self, transitions: int = 0) -> None:
         self.transitions = transitions
         self.calls = 0
+        self.prior_dates: list[list[date]] = []
 
-    def apply_snapshot(self, _db, _snapshot, *, evaluation_run_id=None):
+    def apply_snapshot(
+        self,
+        _db,
+        _snapshot,
+        *,
+        evaluation_run_id=None,
+        prior_snapshots=(),
+    ):
         self.calls += 1
+        self.prior_dates.append([item.data_as_of_date for item in prior_snapshots])
         has_transition = self.calls <= self.transitions
         return type(
             "EpisodeResult",
@@ -265,3 +311,36 @@ class FakeAlertService:
 
     def evaluate_episode_result(self, _db, _result, *, evaluation_run_id=None):
         return type("AlertResult", (), {"created": self.episode_alerts, "suppressed": 0})()
+
+
+def _snapshot(
+    snapshot_id: int,
+    *,
+    run_id: int = 7,
+    data_as_of_date: date = date(2026, 8, 1),
+    config_hash: str = "hash",
+    engine_version: str = "slse-1.0.0",
+    evaluation_run_id: int | None = None,
+) -> SetupSignalSnapshot:
+    return SetupSignalSnapshot(
+        id=snapshot_id,
+        run_id=run_id,
+        evaluation_run_id=evaluation_run_id,
+        ticker="MSFT",
+        timeframe="1d",
+        data_as_of_date=data_as_of_date,
+        calculated_at=datetime(2026, 8, 1, 21, tzinfo=UTC),
+        origin_type="LIVE_RUN",
+        engine_version=engine_version,
+        config_version="v1",
+        config_hash=config_hash,
+        source_data_hash=f"source-{snapshot_id}",
+        schema_version="snapshot-v1",
+        data_quality_label="HIGH",
+        required_feature_coverage=1.0,
+        freshness_status="FRESH",
+        signals_json={},
+        warning_flags_json=[],
+        source_lineage_json={},
+        is_canonical=True,
+    )

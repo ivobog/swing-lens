@@ -1,8 +1,8 @@
 engine:
   enabled: false
-  version: slse-1.0.0
+  version: slse-1.1.0
   schema_version: slse-snapshot-1.0.0
-  config_version: 2026-07-31
+  config_version: 2026-08-11
   timeframe: 1d
   origin_mode: forward_only
   trigger_authority: COMPLETED_DAILY_CLOSE
@@ -142,6 +142,7 @@ families:
 
 episodes:
   one_active_per_family: true
+  history_window_sessions: 10
   default_max_age_sessions: 40
   observation_gap_sessions: 3
   failed_rearm_cooldown_sessions: 10

@@ -15,6 +15,7 @@ class FamilyAdapter(Protocol):
         self,
         snapshot: NormalizedSnapshot,
         *,
+        history: tuple[NormalizedSnapshot, ...] = (),
         previous_state: object | None = None,
         state_age_sessions: int = 0,
     ) -> FamilyEvidence:
@@ -25,6 +26,7 @@ def evaluate_family_candidates(
     snapshot: NormalizedSnapshot,
     *,
     config: SetupLifecycleConfig | None = None,
+    history: tuple[NormalizedSnapshot, ...] = (),
     previous_state: object | None = None,
     state_age_sessions: int = 0,
 ) -> tuple[FamilyEvidence, ...]:
@@ -44,6 +46,7 @@ def evaluate_family_candidates(
     evidences = [
         adapter.evaluate(
             snapshot,
+            history=history,
             previous_state=previous_state,
             state_age_sessions=state_age_sessions,
         )
@@ -64,6 +67,7 @@ def evaluate_family_candidates(
 
     generic = GenericAdapter(config).evaluate(
         snapshot,
+        history=history,
         previous_state=previous_state,
         state_age_sessions=state_age_sessions,
     )

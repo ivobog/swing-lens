@@ -37,8 +37,10 @@ NON_TERMINAL_STATES = {
 @dataclass(frozen=True)
 class LifecycleEvaluationInput:
     snapshot: NormalizedSnapshot
+    previous_snapshots: tuple[NormalizedSnapshot, ...] = ()
     previous_state: LifecycleState | None = None
     previous_phase: str | None = None
+    previous_confidence_score: int | None = None
     state_age_sessions: int = 0
     persistence_sessions: int = 0
     missing_observation_sessions: int = 0
@@ -57,12 +59,14 @@ class SetupLifecycleEngine:
         )
 
     def evaluate(self, request: LifecycleEvaluationInput) -> LifecycleDecision:
+        self._validate_history(request)
         if request.previous_state in {LifecycleState.FAILED, LifecycleState.EXPIRED}:
             return self._terminal_decision(request)
 
         candidates = evaluate_family_candidates(
             request.snapshot,
             config=self.config,
+            history=request.previous_snapshots,
             previous_state=request.previous_state,
             state_age_sessions=request.state_age_sessions,
         )
@@ -100,6 +104,10 @@ class SetupLifecycleEngine:
                 **evidence.evidence,
                 "confidence": confidence.components,
                 "candidate_reason_codes": list(evidence.reason_codes),
+                "prior_snapshot_count": len(request.previous_snapshots),
+                "prior_snapshot_dates": [
+                    item.data_as_of_date.isoformat() for item in request.previous_snapshots
+                ],
             },
             immediate_transition=evidence.hard_failure or _stronger_than(
                 proposed,
@@ -107,6 +115,24 @@ class SetupLifecycleEngine:
             ),
             terminal_reason="HARD_FAILURE" if proposed is LifecycleState.FAILED else None,
         )
+
+    def _validate_history(self, request: LifecycleEvaluationInput) -> None:
+        history = request.previous_snapshots
+        if len(history) > self.config.episodes.history_window_sessions:
+            raise ValueError("prior canonical snapshot history exceeds configured window")
+        dates = [item.data_as_of_date for item in history]
+        if dates != sorted(dates) or len(dates) != len(set(dates)):
+            raise ValueError("prior canonical snapshot history must be trading-date ordered")
+        if any(
+            item.ticker != request.snapshot.ticker
+            or item.timeframe != request.snapshot.timeframe
+            for item in history
+        ):
+            raise ValueError("prior canonical snapshot history must match ticker/timeframe")
+        if any(item.data_as_of_date >= request.snapshot.data_as_of_date for item in history):
+            raise ValueError(
+                "prior canonical snapshot history must not include current/future data"
+            )
 
     def _state_from_evidence(
         self,
@@ -164,16 +190,25 @@ class SetupLifecycleEngine:
 
     def _terminal_decision(self, request: LifecycleEvaluationInput) -> LifecycleDecision:
         state = request.previous_state or LifecycleState.EXPIRED
+        confidence_score = max(0, min(100, request.previous_confidence_score or 0))
         return LifecycleDecision(
             setup_family=_fallback_family(),
             phase_code=request.previous_phase or state.value,
             previous_state=request.previous_state,
             proposed_state=state,
-            actionability_candidate=Actionability.BLOCKED,
-            confidence_score=100,
-            confidence_label=self.confidence_service.label_for_score(100),
+            actionability_candidate=(
+                Actionability.BLOCKED
+                if state is LifecycleState.FAILED
+                else Actionability.WATCH_ONLY
+            ),
+            confidence_score=confidence_score,
+            confidence_label=self.confidence_service.label_for_score(confidence_score),
             reason_codes=("TERMINAL_STATE_LOCKED",),
-            evidence={"previous_state": state.value},
+            evidence={
+                "previous_state": state.value,
+                "terminal_locked": True,
+                "confidence_preserved": request.previous_confidence_score is not None,
+            },
             immediate_transition=False,
             terminal_reason=state.value,
         )
@@ -206,8 +241,10 @@ class SetupLifecycleEngine:
 def evaluate_lifecycle(
     snapshot: NormalizedSnapshot,
     *,
+    previous_snapshots: tuple[NormalizedSnapshot, ...] = (),
     previous_state: LifecycleState | None = None,
     previous_phase: str | None = None,
+    previous_confidence_score: int | None = None,
     state_age_sessions: int = 0,
     persistence_sessions: int = 0,
     missing_observation_sessions: int = 0,
@@ -216,8 +253,10 @@ def evaluate_lifecycle(
     return SetupLifecycleEngine(config=config).evaluate(
         LifecycleEvaluationInput(
             snapshot=snapshot,
+            previous_snapshots=previous_snapshots,
             previous_state=previous_state,
             previous_phase=previous_phase,
+            previous_confidence_score=previous_confidence_score,
             state_age_sessions=state_age_sessions,
             persistence_sessions=persistence_sessions,
             missing_observation_sessions=missing_observation_sessions,

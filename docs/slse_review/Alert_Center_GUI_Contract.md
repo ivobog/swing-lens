@@ -24,3 +24,7 @@ Default ordering: effective date descending, severity priority RISK > ACTIONABLE
 ## Export parity
 
 CSV/JSON preserve every visible semantic field and all source IDs. The same filter/sort query used by the page is used by exports. Missing lifecycle/actionability fields for signal-only alerts remain null rather than being inferred or filled with empty strings.
+
+## Second-pass actionability semantics
+
+Alert rows preserve the source actionability reason and metadata. Reduced market posture is `WATCH_ONLY` plus `MARKET_POLICY_REDUCED`, not `LOW_CONFIDENCE`; `GATE_BLOCKED` remains eligible only for ACTIONABLE/WATCH_ONLY to BLOCKED transitions. Evidence confidence and market posture must remain separately inspectable.

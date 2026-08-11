@@ -116,3 +116,19 @@ The row-by-row table above preserves the pre-repair forensic observation. Curren
 | AC-14 | NOT IMPLEMENTED | no measured 1,000-ticker ≤60s certification |
 
 Because AC-14 and required golden/adapter/operator/version-label work remain open, the overall specification compliance decision is **PARTIAL**, not PASS.
+
+## Second-pass compliance override (2026-08-11)
+
+The following rows supersede the earlier post-repair override where they conflict.
+
+| Requirement | Second-pass status | Direct evidence |
+|---|---|---|
+| FR-014 / AC-13 freshness | PASS | Snapshot freshness now counts completed US trading sessions; weekend and NYSE holiday boundary tests pass. |
+| FR-031 prior history | PASS | Typed, ordered, bounded, no-future prior canonical window reaches every family adapter through one batched retrieval plus chronological roll-forward. |
+| FR-036 confidence | PASS | Exact 30/25/20/15/10 score; no adapter-confidence blend; exact 85 and 69/70, 84/85 boundaries. |
+| FR-037 actionability orthogonality | PASS | Reduced market posture is WATCH_ONLY with metadata; hard market block is BLOCKED; evidence problems remain LOW_CONFIDENCE. |
+| FR-038 terminal closure | PASS for corrected semantics | FAILED is BLOCKED; EXPIRED is WATCH_ONLY; terminal confidence preserves prior evidence or is unavailable/0, never fabricated 100. |
+| AC-03 / AC-06 golden vertical sequences | PARTIAL | Component and episode sequences pass, but the required full 25-scenario snapshot-to-DTO corpus is not complete. |
+| NFR-002 / NFR-003 / NFR-009 / AC-14 | PARTIAL / NOT IMPLEMENTED | No new scale/accessibility certification was produced in this pass. |
+
+Current overall decision remains **PARTIAL**. The corrected semantic core does not by itself satisfy release certification.

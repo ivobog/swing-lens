@@ -4,6 +4,8 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
+import pytest
+
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
@@ -97,7 +99,7 @@ def test_stale_source_bars_produce_low_quality_freshness_warnings() -> None:
     upload = _upload_run(processed_at=datetime(2026, 8, 10, 21, 30, tzinfo=UTC))
     context = _ticker_context(
         upload_run=upload,
-        price_bars=(_bar(date(2026, 8, 1), close=101),),
+        price_bars=(_bar(date(2026, 7, 30), close=101),),
     )
 
     built = builder.build(context)
@@ -105,6 +107,30 @@ def test_stale_source_bars_produce_low_quality_freshness_warnings() -> None:
     assert built.freshness_status == "STALE"
     assert built.dto.data_quality_label == DataQualityLabel.INSUFFICIENT.value
     assert "STALE_PRICE_BAR" in built.dto.warning_flags
+
+
+@pytest.mark.parametrize(
+    ("as_of", "reference", "expected"),
+    [
+        (date(2026, 8, 7), date(2026, 8, 10), "FRESH"),  # Friday -> Monday
+        (date(2026, 8, 7), date(2026, 8, 11), "FRESH"),  # Friday -> Tuesday
+        (date(2026, 8, 7), date(2026, 8, 14), "NEAR_STALE"),
+        (date(2026, 8, 7), date(2026, 8, 9), "FRESH"),  # weekend only
+        (date(2026, 4, 2), date(2026, 4, 6), "FRESH"),  # Good Friday/Easter
+        (date(2026, 7, 2), date(2026, 7, 6), "FRESH"),  # Independence Day
+        (date(2026, 11, 25), date(2026, 11, 27), "FRESH"),  # Thanksgiving
+        (date(2026, 12, 24), date(2026, 12, 28), "FRESH"),  # Christmas
+        (date(2026, 12, 31), date(2027, 1, 4), "FRESH"),  # New Year
+    ],
+)
+def test_freshness_uses_completed_us_trading_sessions(
+    as_of: date,
+    reference: date,
+    expected: str,
+) -> None:
+    builder = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config())
+
+    assert builder._freshness_status(as_of, reference, True) == expected
 
 
 def test_snapshot_source_hash_changes_when_relevant_evidence_changes() -> None:

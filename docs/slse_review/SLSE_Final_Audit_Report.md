@@ -71,3 +71,17 @@ Read-only inspection found 8,210 false missing-close/0.75-coverage snapshots, 1,
 4. Complete operator scopes, timeline/version labels and remaining filters/DTO lineage fields.
 5. Certify 1,000-ticker/100k-row performance and accessibility.
 6. Rebuild dev/QA SLSE history; use versioned repair/supersession for retained history.
+
+## Second-pass executive addendum (2026-08-11)
+
+The second forensic review confirmed all four new semantic concerns. DEF-026, DEF-027, DEF-028, DEF-029 and FR-031 are now corrected in engine/config `slse-1.1.0` / `2026-08-11` and covered by focused regression tests. The authoritative decisions are: confidence equals the SDD weighted components only; cautious market posture is WATCH_ONLY with reduced-posture metadata; freshness counts completed US sessions; EXPIRED is WATCH_ONLY and terminal evidence confidence is preserved rather than fabricated; adapters receive bounded typed prior canonical history.
+
+Local second-pass results: 194 SLSE tests, one disposable-PostgreSQL vertical test, and six shared market-calendar tests passed. A repository-wide non-E2E/non-external run passed 1,274 tests with 8 skipped and the known unrelated CERI fake-DB failure deselected. This is local evidence, not independent CI certification.
+
+No historical derived SLSE row was mutated or rebuilt. The full 25-scenario, every-layer golden corpus and natural multi-date real-source certification are still incomplete, so their prerequisite gates are not met. Consequently:
+
+- Market Changes readiness: **FAIL**.
+- Alert Center readiness: **FAIL**.
+- Historical rebuild result: **NOT RUN - correctly blocked by unmet gates**.
+- CI evidence status: **NOT PRODUCED in this pass**.
+- Remaining ambiguities: no formula ambiguity remains; the configured choice for reduced market posture is WATCH_ONLY rather than reduced ACTIONABLE.

@@ -41,13 +41,10 @@ class SetupLifecycleConfidenceService:
             "freshness_and_lineage": freshness,
             "context_completeness": context,
         }
-        weighted = sum(
-            components[key] * self.config.confidence.weights.get(key, 0.0)
-            for key in components
+        score = weighted_confidence_score(
+            components,
+            self.config.confidence.weights,
         )
-        score = max(0, min(100, round(weighted * 100)))
-        if evidence.confidence_score:
-            score = round((score + evidence.confidence_score) / 2)
 
         reason_codes: list[str] = []
         if coverage < 0.5:
@@ -74,6 +71,15 @@ class SetupLifecycleConfidenceService:
         if score >= self.config.confidence.low_min:
             return ConfidenceLabel.LOW
         return ConfidenceLabel.INSUFFICIENT
+
+
+def weighted_confidence_score(
+    components: dict[str, float],
+    weights: dict[str, float],
+) -> int:
+    """Return the SDD 10.2 weighted explainability/data-quality score."""
+    weighted = sum(components[key] * weights.get(key, 0.0) for key in components)
+    return max(0, min(100, round(weighted * 100)))
 
 
 def _coverage(snapshot: NormalizedSnapshot) -> float:

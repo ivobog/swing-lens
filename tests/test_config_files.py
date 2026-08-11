@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -178,7 +179,9 @@ def test_sector_rotation_config_defines_v1_universe_defaults() -> None:
 def test_setup_lifecycle_config_defines_phase_1_defaults() -> None:
     config = yaml.safe_load(Path("config/setup_lifecycle.yaml").read_text(encoding="utf-8"))
 
-    assert config["engine"]["version"] == "slse-1.0.0"
+    assert config["engine"]["version"] == "slse-1.1.0"
+    assert config["engine"]["config_version"] == date(2026, 8, 11)
+    assert config["episodes"]["history_window_sessions"] == 10
     assert config["engine"]["trigger_authority"] == "COMPLETED_DAILY_CLOSE"
     assert config["families"]["generic_fallback"]["prevent_shadowing_supported_family"] is True
     assert set(config["data_quality_labels"]) == {"HIGH", "NORMAL", "LOW", "INSUFFICIENT"}

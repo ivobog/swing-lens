@@ -105,6 +105,7 @@ class FamiliesConfig:
 @dataclass(frozen=True)
 class EpisodesConfig:
     one_active_per_family: bool
+    history_window_sessions: int
     default_max_age_sessions: int
     observation_gap_sessions: int
     failed_rearm_cooldown_sessions: int
@@ -440,6 +441,10 @@ def _parse_family_policy(raw: dict[str, Any], family: SetupFamily) -> FamilyPoli
 def _parse_episodes(raw: dict[str, Any]) -> EpisodesConfig:
     return EpisodesConfig(
         one_active_per_family=_required_bool(raw, "episodes.one_active_per_family"),
+        history_window_sessions=_positive_int(
+            raw.get("history_window_sessions"),
+            "episodes.history_window_sessions",
+        ),
         default_max_age_sessions=_positive_int(raw.get("default_max_age_sessions"), "episodes"),
         observation_gap_sessions=_positive_int(raw.get("observation_gap_sessions"), "episodes"),
         failed_rearm_cooldown_sessions=_positive_int(

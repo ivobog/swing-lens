@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
 from lifecycle_helpers import snapshot
 
 from app.services.setup_lifecycle.actionability_policy import SetupLifecycleActionabilityPolicy
@@ -98,3 +99,63 @@ def test_explicit_market_gate_is_authoritative_over_regime_label() -> None:
     assert blocked.actionability is Actionability.BLOCKED
     assert blocked.blockers == ("MARKET_POLICY_BLOCK",)
     assert allowed.actionability is Actionability.ACTIONABLE
+
+
+@pytest.mark.parametrize("market_regime", ["NEUTRAL", "YELLOW", "MIXED", "CAUTION"])
+def test_reduced_market_posture_is_watch_only_not_low_confidence(
+    market_regime: str,
+) -> None:
+    normalized = snapshot(
+        setup_score=7.8,
+        classification="Breakout Base",
+        distance_to_pivot_pct=1.0,
+        market_regime=market_regime,
+    )
+    lifecycle = replace(evaluate_lifecycle(normalized), confidence_score=90)
+
+    decision = SetupLifecycleActionabilityPolicy().evaluate(lifecycle, normalized)
+
+    assert decision.actionability is Actionability.WATCH_ONLY
+    assert decision.reason_codes == ("MARKET_POLICY_REDUCED",)
+    assert decision.metadata == {"market_posture": "REDUCED"}
+
+
+def test_actionability_truth_table_keeps_evidence_and_market_gates_independent() -> None:
+    policy = SetupLifecycleActionabilityPolicy()
+    green = snapshot(
+        setup_score=7.8,
+        classification="Breakout Base",
+        distance_to_pivot_pct=1.0,
+        market_regime="GREEN",
+    )
+    ready_90 = replace(evaluate_lifecycle(green), confidence_score=90)
+    ready_60 = replace(ready_90, confidence_score=60)
+    stale = replace(
+        green,
+        data_quality_label=DataQualityLabel.LOW,
+        warning_flags=("STALE_PRICE_BAR",),
+    )
+    bearish_stale = replace(
+        snapshot(
+            setup_score=7.8,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            market_regime="BEARISH",
+        ),
+        data_quality_label=DataQualityLabel.LOW,
+        warning_flags=("STALE_PRICE_BAR",),
+    )
+    developing = snapshot(
+        setup_score=6.0,
+        classification="Breakout Base",
+        market_regime="GREEN",
+    )
+
+    assert policy.evaluate(ready_90, green).actionability is Actionability.ACTIONABLE
+    assert policy.evaluate(ready_60, green).actionability is Actionability.LOW_CONFIDENCE
+    assert policy.evaluate(ready_90, stale).actionability is Actionability.LOW_CONFIDENCE
+    assert policy.evaluate(ready_90, bearish_stale).actionability is Actionability.BLOCKED
+    assert (
+        policy.evaluate(evaluate_lifecycle(developing), developing).actionability
+        is Actionability.WATCH_ONLY
+    )

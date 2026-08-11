@@ -63,3 +63,13 @@
 ## Known lineage gaps requiring repair
 
 The repaired path now satisfies `close_price` coverage, confidence coverage, per-ticker context cutoff, Market Changes source union, joined Alert DTO, rank direction, explicit displayed velocity, full-scope counts, source IDs and v2 exports. Remaining gaps are confidence-component/version/hash projection on list DTOs, typed prior-snapshot history in family adapters, complete version/status labels, and the unfinished golden/performance/accessibility gates. These are tracked in `SLSE_Implementation_Audit.md`.
+
+## Second-pass lineage corrections (2026-08-11)
+
+- `confidence_score`: final value is exclusively `round(100 * sum(component * configured_weight))`; family adapter confidence is not a second-stage input. Family evidence strength is represented once inside `signal_agreement`.
+- `freshness`: age is `us_trading_sessions_between(data_as_of_date, reference_date)`. Saturdays, Sundays, and NYSE holidays do not increment age.
+- `actionability_metadata`: reduced market posture persists `{"market_posture": "REDUCED"}` with reason `MARKET_POLICY_REDUCED`; it does not alter confidence or lifecycle state.
+- `previous_snapshots`: ordered typed canonical DTOs strictly before the current data-as-of date, bounded to `episodes.history_window_sessions=10`. They are batch-loaded per evaluation and supplied to every family adapter.
+- `terminal_locked`: separate invariant flag. It does not imply confidence 100. Terminal confidence comes from the prior episode evidence when available.
+
+The prior statement that typed history remained a gap is superseded. Remaining lineage gaps are list-level confidence components/version hashes and incomplete record/version labels.
