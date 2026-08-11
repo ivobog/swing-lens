@@ -50,7 +50,7 @@ function bindSetupLifecycleAlertActions() {
         if (status) {
           status.setAttribute("role", "status");
           status.setAttribute("aria-live", "polite");
-          status.textContent = payload.status;
+          status.textContent = payload.review_status || payload.status;
         }
       } catch (_error) {
         if (status) {

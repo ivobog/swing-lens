@@ -13,8 +13,8 @@
     </div>
     <div class="actions">
       <a class="button-link secondary" href="/setup-lifecycle">Market Changes</a>
-      <a class="button-link secondary" href="/api/setup-lifecycle/alerts/export.csv">CSV</a>
-      <a class="button-link secondary" href="/api/setup-lifecycle/alerts/export.json">JSON</a>
+      <a class="button-link secondary" href="/api/setup-lifecycle/alerts/export.csv{% if export_query %}?{{ export_query }}{% endif %}">CSV</a>
+      <a class="button-link secondary" href="/api/setup-lifecycle/alerts/export.json{% if export_query %}?{{ export_query }}{% endif %}">JSON</a>
     </div>
   </div>
 </section>
@@ -23,6 +23,8 @@
   <div class="metric"><span>Unread</span><strong>{{ summary.unread }}</strong></div>
   <div class="metric"><span>Acknowledged</span><strong>{{ summary.acknowledged }}</strong></div>
   <div class="metric"><span>Dismissed</span><strong>{{ summary.dismissed }}</strong></div>
+  <div class="metric"><span>Info</span><strong>{{ summary.info or 0 }}</strong></div>
+  <div class="metric"><span>Notable</span><strong>{{ summary.notable or 0 }}</strong></div>
   <div class="metric"><span>Actionable</span><strong>{{ summary.actionable }}</strong></div>
   <div class="metric"><span>Risk</span><strong>{{ summary.risk }}</strong></div>
 </section>
@@ -30,7 +32,15 @@
 <section class="panel section-gap">
   <form class="setup-lifecycle-filter-grid" method="get">
     <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
-    <label><span>Status</span>
+    <label><span>Date</span><input name="as_of" type="date" value="{{ filters.as_of }}"></label>
+    <label><span>Alert Type</span>
+      <select name="alert_type"><option value="">Any</option>
+        {% for option in ["NEW_READY", "NEW_TRIGGER", "NEW_CONFIRMATION", "NEW_FAILURE", "NEW_EXTENSION", "SCORE_ACCELERATION", "SECTOR_ACCELERATION", "GATE_BLOCKED", "DATA_DEGRADED"] %}
+          <option value="{{ option }}" {{ "selected" if filters.alert_type == option else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Review Status</span>
       <select name="status">
         <option value="">Any</option>
         {% for option in ["UNREAD", "ACKNOWLEDGED", "DISMISSED"] %}
@@ -41,11 +51,19 @@
     <label><span>Severity</span>
       <select name="severity">
         <option value="">Any</option>
-        {% for option in ["ACTIONABLE", "RISK", "WARNING", "INFO"] %}
+        {% for option in ["INFO", "NOTABLE", "ACTIONABLE", "RISK"] %}
           <option value="{{ option }}" {{ "selected" if filters.severity == option else "" }}>{{ option }}</option>
         {% endfor %}
       </select>
     </label>
+    <label><span>Source Type</span>
+      <select name="source_type"><option value="">Any</option>
+        {% for option in ["LIFECYCLE_EVENT", "SIGNAL_CHANGE_EVENT", "ACTIONABILITY_CHANGE", "DATA_QUALITY_CHANGE"] %}
+          <option value="{{ option }}" {{ "selected" if filters.source_type == option else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Lifecycle State</span><input name="lifecycle_state" value="{{ filters.lifecycle_state }}"></label>
     <div class="actions setup-lifecycle-filter-actions">
       <button type="submit">Apply</button>
       <a class="button-link secondary" href="/setup-lifecycle/alerts?status=UNREAD">Unread</a>
@@ -61,20 +79,25 @@
     <div class="table-wrap section-gap">
       <table class="setup-lifecycle-table">
         <caption>Setup lifecycle alerts matching the selected filters.</caption>
-        <thead><tr><th scope="col">Ticker</th><th scope="col">Date</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Reasons</th><th scope="col">Actions</th></tr></thead>
+        <thead><tr><th scope="col">Ticker</th><th scope="col">Date</th><th scope="col">Alert Type</th><th scope="col">Severity</th><th scope="col">Lifecycle</th><th scope="col">Actionability</th><th scope="col">Confidence</th><th scope="col">Source Type</th><th scope="col">Review Status</th><th scope="col">Reasons / Blockers</th><th scope="col">Actions</th></tr></thead>
         <tbody>
           {% for alert in alerts %}
             <tr id="alert-{{ alert.id }}" data-slse-alert-row>
               <td><a href="/setup-lifecycle/ticker/{{ alert.ticker }}">{{ alert.ticker }}</a></td>
               <td>{{ alert.effective_date }}</td>
+              <td><strong>{{ alert.alert_type }}</strong></td>
               <td><span class="badge badge-{{ severity_tones.get(alert.severity, "muted") }}">{{ alert.severity }}</span></td>
-              <td><span class="badge badge-muted" data-slse-alert-status>{{ alert.status }}</span></td>
-              <td>{{ alert.reason_codes|join(", ") if alert.reason_codes else "None" }}</td>
+              <td>{{ alert.lifecycle_state or "&mdash;"|safe }}</td>
+              <td>{{ alert.actionability or "&mdash;"|safe }}</td>
+              <td>{{ alert.confidence if alert.confidence is not none else "&mdash;"|safe }}</td>
+              <td>{{ alert.source_type }}</td>
+              <td><span class="badge badge-muted" data-slse-alert-status>{{ alert.review_status }}</span></td>
+              <td>{{ alert.reason_codes|join(", ") if alert.reason_codes else "None" }}{% if alert.blockers %}<small>Blocked: {{ alert.blockers|join(", ") }}</small>{% endif %}</td>
               <td>
                 <div class="row-actions">
                   <button class="icon-button" type="button" data-slse-alert-action="/api/setup-lifecycle/alerts/{{ alert.id }}/acknowledge">Acknowledge</button>
                   <button class="icon-button" type="button" data-slse-alert-action="/api/setup-lifecycle/alerts/{{ alert.id }}/dismiss">Dismiss</button>
-                  {% if alert.lifecycle_event_id %}<a href="/api/setup-lifecycle/episodes/{{ alert.lifecycle_event_id }}">Source</a>{% endif %}
+                  {% if alert.source_url %}<a href="{{ alert.source_url }}">Source</a>{% endif %}
                 </div>
               </td>
             </tr>

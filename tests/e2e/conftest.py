@@ -18,6 +18,7 @@ from psycopg import sql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
+_LIVE_SERVER_DATABASE_URL: str | None = None
 
 
 @pytest.fixture(scope="session")
@@ -59,6 +60,8 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
 
     admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
     database_url = f"postgresql+psycopg://postgres:postgres@127.0.0.1:5432/{database_name}"
+    global _LIVE_SERVER_DATABASE_URL
+    _LIVE_SERVER_DATABASE_URL = database_url
     runtime_root = tmp_path_factory.mktemp("swinglens-browser")
     env = {
         **os.environ,
@@ -141,3 +144,12 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
             sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(database_name))
         )
         admin.close()
+        _LIVE_SERVER_DATABASE_URL = None
+
+
+@pytest.fixture(scope="session")
+def live_server_database_url(live_server_url: str) -> str:
+    del live_server_url
+    if _LIVE_SERVER_DATABASE_URL is None:
+        pytest.fail("browser database URL was not initialized")
+    return _LIVE_SERVER_DATABASE_URL

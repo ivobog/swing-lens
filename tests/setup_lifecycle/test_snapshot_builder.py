@@ -49,6 +49,27 @@ def test_snapshot_builder_normalizes_promoted_fields_signals_and_source_ids() ->
     assert built.dto.source_ids["technical_score_id"] == 301
     assert built.dto.source_ids["sector_rotation_snapshot_id"] == 701
     assert built.dto.source_lineage["latest_bar"]["data_hash"] == "MSFT-2026-08-01-101"
+    assert built.required_feature_coverage == 1.0
+    assert built.dto.promoted_fields["required_feature_coverage"] == Decimal("1.0")
+    assert "MISSING_REQUIRED_CLOSE_PRICE" not in built.dto.warning_flags
+
+
+def test_populated_close_is_counted_but_missing_close_remains_null_and_warns() -> None:
+    builder = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config())
+
+    populated = builder.build(_ticker_context())
+    missing = builder.build(
+        _ticker_context(
+            price_bars=(),
+            technical_score=_technical(),
+        )
+    )
+
+    assert populated.required_feature_coverage == 1.0
+    assert populated.dto.promoted_fields["close_price"] == Decimal("101")
+    assert missing.dto.promoted_fields["close_price"] is None
+    assert missing.required_feature_coverage == 0.75
+    assert "MISSING_REQUIRED_CLOSE_PRICE" in missing.dto.warning_flags
 
 
 def test_missing_optional_data_remains_null_and_adds_warnings() -> None:

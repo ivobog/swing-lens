@@ -552,6 +552,17 @@ def _parse_alert_rule(
     signal_key = raw.get("signal_key")
     if signal_key is not None and str(signal_key) not in registry:
         raise SetupLifecycleConfigError(f"alerts.rules.{rule_id} references unknown signal")
+    signal_keys = raw.get("signal_keys")
+    if signal_keys is not None:
+        parsed_signal_keys = _text_list(
+            signal_keys,
+            f"alerts.rules.{rule_id}.signal_keys",
+        )
+        unknown = sorted(set(parsed_signal_keys) - set(registry.keys()))
+        if unknown:
+            raise SetupLifecycleConfigError(
+                f"alerts.rules.{rule_id} references unknown signals: {', '.join(unknown)}"
+            )
     known_filters = {
         "enabled",
         "severity",

@@ -14,8 +14,8 @@
     <div class="actions">
       <a class="button-link secondary" href="/setup-lifecycle/alerts">Alert Center</a>
       <a class="button-link secondary" href="/setup-lifecycle/operations">Operations</a>
-      <a class="button-link secondary" href="/setup-lifecycle/export.csv">CSV</a>
-      <a class="button-link secondary" href="/setup-lifecycle/export.json">JSON</a>
+      <a class="button-link secondary" href="/api/setup-lifecycle/changes/export.csv{% if export_query %}?{{ export_query }}{% endif %}">CSV</a>
+      <a class="button-link secondary" href="/api/setup-lifecycle/changes/export.json{% if export_query %}?{{ export_query }}{% endif %}">JSON</a>
     </div>
   </div>
   <div class="run-meta">
@@ -44,10 +44,16 @@
 
 <section class="metric-grid section-gap setup-lifecycle-metrics" aria-label="Market change summary">
   <div class="metric"><span>Total Changes</span><strong>{{ summary.total }}</strong></div>
+  <div class="metric"><span>Newly Discovered</span><strong>{{ summary.newly_discovered or 0 }}</strong></div>
+  <div class="metric"><span>Tightening</span><strong>{{ summary.tightening or 0 }}</strong></div>
   <div class="metric"><span>Newly Ready</span><strong>{{ summary.newly_ready }}</strong></div>
   <div class="metric"><span>Newly Triggered</span><strong>{{ summary.newly_triggered }}</strong></div>
+  <div class="metric"><span>Confirmed</span><strong>{{ summary.confirmed or 0 }}</strong></div>
   <div class="metric"><span>Failed</span><strong>{{ summary.failed }}</strong></div>
   <div class="metric"><span>Extended</span><strong>{{ summary.extended }}</strong></div>
+  <div class="metric"><span>Material Changes</span><strong>{{ summary.material_changes or 0 }}</strong></div>
+  {% if summary.no_material_change %}<div class="metric"><span>No Material Change</span><strong>{{ summary.no_material_change }}</strong></div>{% endif %}
+  <div class="metric"><span>Major Risk</span><strong>{{ summary.major_risk_changes or 0 }}</strong></div>
   <div class="metric"><span>Low Confidence</span><strong>{{ "%.0f"|format((summary.low_confidence_share or 0) * 100) }}%</strong></div>
 </section>
 
@@ -64,12 +70,23 @@
   </div>
   <form class="setup-lifecycle-filter-grid section-gap" method="get">
     <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
+    <label><span>Data as of</span><input name="as_of" type="date" value="{{ filters.as_of }}"></label>
     <label><span>Sector</span><input name="sector" value="{{ filters.sector }}"></label>
     <label><span>Family</span><input name="setup_family" value="{{ filters.setup_family }}"></label>
     <label><span>State</span><input name="lifecycle_state" value="{{ filters.lifecycle_state }}"></label>
     <label><span>Transition</span><input name="transition" value="{{ filters.transition }}"></label>
     <label><span>Actionability</span><input name="actionability" value="{{ filters.actionability }}"></label>
+    <label><span>Source Type</span>
+      <select name="source_type">
+        <option value="">Any</option>
+        {% for option in ["LIFECYCLE_EVENT", "SIGNAL_CHANGE_EVENT"] %}
+          <option value="{{ option }}" {{ "selected" if filters.source_type == option else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <label><span>Min confidence</span><input name="confidence_min" type="number" min="0" max="100" value="{{ filters.confidence_min if filters.confidence_min is not none else '' }}"></label>
+    <label><span>Max confidence</span><input name="confidence_max" type="number" min="0" max="100" value="{{ filters.confidence_max if filters.confidence_max is not none else '' }}"></label>
+    <label><span>Min 3-session velocity</span><input name="velocity_min" type="number" step="0.01" value="{{ filters.velocity_min if filters.velocity_min is not none else '' }}"></label>
     <label><span>Sort</span>
       <select name="sort">
         {% for option in ["latest_event_time", "transition_priority", "confidence", "score", "velocity", "state_age", "trigger_distance", "sector_rank"] %}
@@ -105,37 +122,41 @@
             <th scope="col">Ticker</th>
             <th scope="col">Date</th>
             <th scope="col">Family</th>
+            <th scope="col">Source</th>
             <th scope="col">State</th>
             <th scope="col">Actionability</th>
             <th scope="col">Confidence</th>
             <th scope="col">Score</th>
             <th scope="col">Velocity</th>
+            <th scope="col">Trigger Distance</th>
             <th scope="col">Sector Rank</th>
             <th scope="col">Evidence</th>
           </tr>
         </thead>
         <tbody>
           {% for item in items %}
-            {% set evidence = item.evidence or {} %}
             <tr>
-              <td><a href="/setup-lifecycle/ticker/{{ item.ticker }}">{{ item.ticker }}</a><small>{{ item.to_phase }}</small></td>
-              <td>{{ item.effective_date }}</td>
-              <td>{{ item.setup_family }}</td>
-              <td><span class="badge badge-{{ state_tones.get(item.to_state, "muted") }}">{{ item.from_state or "New" }} to {{ item.to_state }}</span></td>
-              <td><span class="badge badge-{{ actionability_tones.get(item.actionability_after, "muted") }}">{{ item.actionability_after }}</span></td>
+              <td><a href="/setup-lifecycle/ticker/{{ item.ticker }}">{{ item.ticker }}</a><small>{{ item.company or "" }}</small></td>
+              <td>{{ item.data_as_of_date }}<small>vs {{ item.comparison_date or "First observation" }}</small></td>
+              <td>{{ item.setup_family }}<small>{{ item.phase or "&mdash;"|safe }}</small></td>
+              <td><span class="badge badge-muted">{{ item.source_type }}</span><small>{{ item.signal_key or item.event_type }}</small></td>
+              <td><span class="badge badge-{{ state_tones.get(item.current_state, "muted") }}">{{ item.previous_state or "New" }} to {{ item.current_state or "&mdash;"|safe }}</span><small>Age {{ item.state_age_sessions if item.state_age_sessions is not none else "&mdash;"|safe }} sessions</small></td>
+              <td><span class="badge badge-{{ actionability_tones.get(item.actionability, "muted") }}">{{ item.actionability or "&mdash;"|safe }}</span></td>
               <td><span class="badge badge-{{ confidence_tones.get(item.confidence_label, "muted") }}">{{ item.confidence_label }} {{ item.confidence_score }}</span></td>
-              <td>{{ "%.2f"|format(evidence.setup_score) if evidence.setup_score is number else evidence.setup_score or "" }}</td>
-              <td>{{ "%.2f"|format(evidence.velocity) if evidence.velocity is number else evidence.velocity or "" }}</td>
-              <td>{{ evidence.sector_rank or "" }}</td>
+              <td>{{ "%.2f"|format(item.technical_score) if item.technical_score is number else "&mdash;"|safe }}<small>Prev {{ "%.2f"|format(item.technical_score_previous) if item.technical_score_previous is number else "&mdash;"|safe }}{% if item.technical_score_delta is number %}; &Delta; {{ "%+.2f"|format(item.technical_score_delta) }}{% endif %}</small></td>
+              <td>{{ "%+.2f"|format(item.score_velocity_3d) if item.score_velocity_3d is number else "&mdash;"|safe }}</td>
+              <td>{{ "%+.2f%%"|format(item.trigger_distance_pct) if item.trigger_distance_pct is number else "&mdash;"|safe }}</td>
+              <td>{{ item.get("sector_rank") if item.get("sector_rank") is not none else "&mdash;"|safe }}<small>Prev {{ item.get("sector_rank_previous") if item.get("sector_rank_previous") is not none else "&mdash;"|safe }}{% if item.get("sector_rank_delta") is not none %}; &Delta; {{ "%+d"|format(item.get("sector_rank_delta")) }}{% endif %}</small></td>
               <td>
                 <div class="row-actions">
+                  {% if item.source_url %}<a href="{{ item.source_url }}">Source</a>{% endif %}
                   {% if item.episode_id %}<a href="/setup-lifecycle/episodes/{{ item.episode_id }}">Episode</a>{% endif %}
                   <button class="icon-button" type="button" data-slse-detail-url="/api/setup-lifecycle/episodes/{{ item.episode_id }}" data-slse-detail-target="slse-detail-{{ item.id }}" aria-expanded="false" {{ "disabled" if not item.episode_id else "" }}>Expand</button>
                 </div>
               </td>
             </tr>
             <tr id="slse-detail-{{ item.id }}" class="detail-row" hidden>
-              <td colspan="10">
+              <td colspan="12">
                 <div class="detail-grid">
                   <div>
                     <h3>Reasons</h3>
@@ -145,7 +166,15 @@
                   </div>
                   <div>
                     <h3>Evidence</h3>
-                    <pre>{{ evidence|tojson(indent=2) }}</pre>
+                    <pre>{{ item.evidence|tojson(indent=2) }}</pre>
+                  </div>
+                  <div>
+                    <h3>Quality and permission</h3>
+                    <p>Coverage {{ item.required_feature_coverage if item.required_feature_coverage is not none else "&mdash;"|safe }}; freshness {{ item.freshness or "&mdash;"|safe }}; quality {{ item.data_quality_label or "&mdash;"|safe }}.</p>
+                    <p>Market {{ item.market_regime or "&mdash;"|safe }}; gate {{ item.market_gate if item.market_gate is not none else "&mdash;"|safe }}; earnings {{ item.earnings_risk or "&mdash;"|safe }}; liquidity {{ item.liquidity_risk if item.liquidity_risk is not none else "&mdash;"|safe }}.</p>
+                    <p>Blockers: {{ item.blockers|join(", ") if item.blockers else "None" }}. Warnings: {{ item.warning_flags|join(", ") if item.warning_flags else "None" }}.</p>
+                    <p>Version: {{ item.engine_version }} / {{ item.config_version }} / {{ item.config_hash }}</p>
+                    {% if item.timeline_url %}<a href="{{ item.timeline_url }}">Ticker timeline</a>{% endif %}
                   </div>
                   <div data-slse-detail-content>
                     <h3>Episode</h3>

@@ -35,6 +35,8 @@ class NormalizedSnapshot:
     calculated_at: datetime
     signals: dict[str, SignalValue]
     data_quality_label: DataQualityLabel
+    required_feature_coverage: float | None = None
+    freshness_status: str | None = None
     warning_flags: tuple[str, ...] = ()
     source_ids: dict[str, int | None] = field(default_factory=dict)
     source_lineage: dict[str, Any] = field(default_factory=dict)

@@ -70,3 +70,31 @@ def test_failed_and_extended_are_not_actionable() -> None:
 
     assert failed.actionability is Actionability.BLOCKED
     assert extended.actionability is Actionability.WATCH_ONLY
+
+
+def test_explicit_market_gate_is_authoritative_over_regime_label() -> None:
+    blocked_snapshot = snapshot(
+        setup_score=7.8,
+        classification="Breakout Base",
+        distance_to_pivot_pct=1.0,
+        market_regime="NEUTRAL",
+        market_gate=False,
+    )
+    allowed_snapshot = snapshot(
+        setup_score=7.8,
+        classification="Breakout Base",
+        distance_to_pivot_pct=1.0,
+        market_regime="RISK_OFF",
+        market_gate=True,
+    )
+
+    blocked = SetupLifecycleActionabilityPolicy().evaluate(
+        evaluate_lifecycle(blocked_snapshot), blocked_snapshot
+    )
+    allowed = SetupLifecycleActionabilityPolicy().evaluate(
+        evaluate_lifecycle(allowed_snapshot), allowed_snapshot
+    )
+
+    assert blocked.actionability is Actionability.BLOCKED
+    assert blocked.blockers == ("MARKET_POLICY_BLOCK",)
+    assert allowed.actionability is Actionability.ACTIONABLE

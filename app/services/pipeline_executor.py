@@ -179,14 +179,6 @@ def execute_full_pipeline(
             result["uploaded_rows"] = upload_run.row_count or len(tickers)
 
         _raise_if_cancelled(should_cancel)
-        if _fetch_technical_overlap_enabled(dependencies):
-            overlap_coordinator = TechnicalScoringOverlapCoordinator(
-                db,
-                run_id=upload_run.id,
-                tickers=tickers,
-                should_cancel=should_cancel,
-                lease_guard=lease_guard,
-            )
         with _pipeline_step(
             db, pipeline, "SCORING_FUNDAMENTALS", lease_guard=lease_guard, performance=performance
         ):
@@ -205,6 +197,22 @@ def execute_full_pipeline(
                 what_to_show_values=DEFAULT_WHAT_TO_SHOW,
             )
             result["ib_planned_requests"] = plan.estimated_request_count
+            if _fetch_technical_overlap_enabled(dependencies):
+                settings = get_settings()
+                benchmark_tickers = [
+                    ticker
+                    for ticker in settings.ib_benchmark_symbols
+                    if ticker in plan.symbols_including_benchmarks
+                ]
+                overlap_coordinator = TechnicalScoringOverlapCoordinator(
+                    db,
+                    run_id=upload_run.id,
+                    tickers=tickers,
+                    should_cancel=should_cancel,
+                    lease_guard=lease_guard,
+                    required_market_tickers=benchmark_tickers,
+                    wait_for_market_events=bool(plan.estimated_request_count),
+                )
             fetch_run = None
             if plan.estimated_request_count:
                 fetch_kwargs: dict[str, Any] = {

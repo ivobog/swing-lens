@@ -168,7 +168,7 @@ class SetupLifecycleChangeDetector:
             reason_codes.append("THRESHOLD_CROSSED")
 
         if _data_quality_changed(definition, old_value, new_value):
-            reason_codes.append(_data_quality_reason(old_value, new_value))
+            reason_codes.append(_data_quality_reason(definition, old_value, new_value))
 
         if not self._is_material(
             definition,
@@ -206,6 +206,18 @@ class SetupLifecycleChangeDetector:
                 "velocity": velocity,
                 "missing_policy": definition.missing_value_policy,
                 "material_on_change": definition.material_on_change,
+                "confidence_score": current.confidence_score,
+                "confidence_label": current.confidence_label,
+                "required_feature_coverage": _json_value(
+                    current.required_feature_coverage
+                ),
+                "freshness_status": current.freshness_status,
+                "data_quality_label": current.data_quality_label,
+                "current_snapshot_id": current.id,
+                "origin_type": current.origin_type,
+                "sector_confidence": _snapshot_signal_value(current, "sector_confidence"),
+                "market_regime": _snapshot_signal_value(current, "market_regime"),
+                "setup_family": current.primary_setup_family,
             },
         )
 
@@ -409,7 +421,14 @@ def _rank_delta(
         return None
     if old_value is None or new_value is None:
         return None
-    return int(new_value) - int(old_value)
+    return int(old_value) - int(new_value)
+
+
+def _snapshot_signal_value(snapshot: SetupSignalSnapshot, key: str) -> Any:
+    raw = (snapshot.signals_json or {}).get(key)
+    if isinstance(raw, dict) and "value" in raw:
+        return raw.get("value")
+    return raw
 
 
 def _threshold_crossing(
@@ -435,12 +454,30 @@ def _data_quality_changed(
     old_value: Any,
     new_value: Any,
 ) -> bool:
-    return definition.key == "data_quality" and old_value != new_value
+    return definition.key in {
+        "data_quality",
+        "required_feature_coverage",
+        "freshness_status",
+    } and old_value != new_value
 
 
-def _data_quality_reason(old_value: Any, new_value: Any) -> str:
-    old_rank = QUALITY_ORDER.get(str(old_value).upper(), -1)
-    new_rank = QUALITY_ORDER.get(str(new_value).upper(), -1)
+def _data_quality_reason(
+    definition: SignalDefinition,
+    old_value: Any,
+    new_value: Any,
+) -> str:
+    if definition.key == "required_feature_coverage":
+        delta = definition.normalized_delta(old_value, new_value)
+        if delta is None:
+            return "DATA_QUALITY_CHANGED"
+        return "DATA_QUALITY_DEGRADED" if delta < 0 else "STALE_TO_FRESH_DATA_QUALITY"
+    order = (
+        {"STALE": 0, "NEAR_STALE": 1, "FRESH": 2}
+        if definition.key == "freshness_status"
+        else QUALITY_ORDER
+    )
+    old_rank = order.get(str(old_value).upper(), -1)
+    new_rank = order.get(str(new_value).upper(), -1)
     if new_rank > old_rank:
         return "STALE_TO_FRESH_DATA_QUALITY"
     if new_rank < old_rank:

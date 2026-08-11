@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from time import perf_counter
 
-from sqlalchemy import case, select
+from sqlalchemy import case, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -108,15 +108,56 @@ class SetupLifecycleSourceLoader:
             price_bars=price_bars,
         )
         context_started_at = perf_counter()
-        market_snapshot = self._latest_market_snapshot(db, run_id, context_cutoff)
-        sector_snapshot = self._latest_sector_snapshot(db, run_id, context_cutoff)
+        ticker_cutoffs = {
+            normalize_ticker(row.ticker): (
+                _ticker_context_cutoff_date(row, technical_scores, price_bars) or context_cutoff
+            )
+            for row in raw_rows
+            if row.ticker and row.ticker.strip()
+        }
+        latest_cutoff = max(ticker_cutoffs.values(), default=context_cutoff)
+        market_candidates = tuple(
+            db.scalars(
+                _latest_context_statement(MarketRegimeSnapshot, latest_cutoff)
+                .where(
+                    or_(
+                        MarketRegimeSnapshot.run_id == run_id,
+                        MarketRegimeSnapshot.run_id.is_(None),
+                    )
+                )
+                .where(MarketRegimeSnapshot.is_current_revision.is_(True))
+            )
+        )
+        sector_candidates = tuple(
+            db.scalars(
+                _latest_context_statement(SectorRotationSnapshot, latest_cutoff)
+                .where(
+                    or_(
+                        SectorRotationSnapshot.run_id == run_id,
+                        SectorRotationSnapshot.run_id.is_(None),
+                    )
+                )
+                .where(SectorRotationSnapshot.is_current_revision.is_(True))
+            )
+        )
+        market_by_ticker = {
+            ticker: _select_context_candidate(market_candidates, cutoff, run_id)
+            for ticker, cutoff in ticker_cutoffs.items()
+        }
+        sector_by_ticker = {
+            ticker: _select_context_candidate(sector_candidates, cutoff, run_id)
+            for ticker, cutoff in ticker_cutoffs.items()
+        }
+        market_snapshot = _select_context_candidate(market_candidates, latest_cutoff, run_id)
+        sector_snapshot = _select_context_candidate(sector_candidates, latest_cutoff, run_id)
+        sector_snapshot_ids = tuple(
+            snapshot.id for snapshot in sector_candidates if snapshot.id is not None
+        )
         sector_rows = tuple(
             db.scalars(
-                select(SectorRotationRow).where(
-                    SectorRotationRow.snapshot_id == sector_snapshot.id
-                )
+                select(SectorRotationRow).where(SectorRotationRow.snapshot_id.in_(sector_snapshot_ids))
             )
-        ) if sector_snapshot is not None else ()
+        ) if sector_snapshot_ids else ()
 
         context = build_run_source_context(
             upload_run=upload_run,
@@ -133,6 +174,8 @@ class SetupLifecycleSourceLoader:
             ),
             market_regime_snapshot=market_snapshot,
             sector_rotation_snapshot=sector_snapshot,
+            market_regime_snapshots_by_ticker=market_by_ticker,
+            sector_rotation_snapshots_by_ticker=sector_by_ticker,
             sector_rotation_rows=sector_rows,
             price_bars=price_bars,
         )
@@ -261,6 +304,8 @@ def build_run_source_context(
     ranking_results: tuple[RankingResult, ...] = (),
     market_regime_snapshot: MarketRegimeSnapshot | None = None,
     sector_rotation_snapshot: SectorRotationSnapshot | None = None,
+    market_regime_snapshots_by_ticker: dict[str, MarketRegimeSnapshot | None] | None = None,
+    sector_rotation_snapshots_by_ticker: dict[str, SectorRotationSnapshot | None] | None = None,
     sector_rotation_rows: tuple[SectorRotationRow, ...] = (),
     price_bars: tuple[PriceBar, ...] = (),
 ) -> RunSourceContext:
@@ -268,7 +313,9 @@ def build_run_source_context(
     technicals = _by_ticker(technical_scores)
     combined = _by_ticker(combined_results)
     rankings = _rankings_by_ticker(ranking_results)
-    sector_rows = _sector_rows_by_name(sector_rotation_rows)
+    sector_rows = _sector_rows_by_snapshot_and_name(sector_rotation_rows)
+    market_by_ticker = market_regime_snapshots_by_ticker or {}
+    rotation_by_ticker = sector_rotation_snapshots_by_ticker or {}
     bars = _price_bars_by_ticker(price_bars)
 
     return RunSourceContext(
@@ -286,10 +333,23 @@ def build_run_source_context(
                     ranking.ranking_profile: ranking
                     for ranking in rankings.get(normalize_ticker(row.ticker), ())
                 },
-                market_regime_snapshot=market_regime_snapshot,
-                sector_rotation_snapshot=sector_rotation_snapshot,
+                market_regime_snapshot=market_by_ticker.get(
+                    normalize_ticker(row.ticker), market_regime_snapshot
+                ),
+                sector_rotation_snapshot=rotation_by_ticker.get(
+                    normalize_ticker(row.ticker), sector_rotation_snapshot
+                ),
                 sector_rotation_row=sector_rows.get(
-                    _sector_key(row.sector_canonical or row.sector)
+                    (
+                        getattr(
+                            rotation_by_ticker.get(
+                                normalize_ticker(row.ticker), sector_rotation_snapshot
+                            ),
+                            "id",
+                            None,
+                        ),
+                        _sector_key(row.sector_canonical or row.sector),
+                    )
                 ),
                 price_bars=tuple(bars.get(normalize_ticker(row.ticker), ())),
             )
@@ -458,8 +518,28 @@ def _rankings_by_ticker(rows: tuple[RankingResult, ...]) -> dict[str, list[Ranki
     return grouped
 
 
-def _sector_rows_by_name(rows: tuple[SectorRotationRow, ...]) -> dict[str, SectorRotationRow]:
-    return {_sector_key(row.sector): row for row in rows}
+def _sector_rows_by_snapshot_and_name(
+    rows: tuple[SectorRotationRow, ...],
+) -> dict[tuple[int | None, str], SectorRotationRow]:
+    return {(row.snapshot_id, _sector_key(row.sector)): row for row in rows}
+
+
+def _select_context_candidate(rows, cutoff: date, run_id: int):
+    eligible = [row for row in rows if row.as_of_date <= cutoff]
+    if not eligible:
+        return None
+    run_rows = [row for row in eligible if row.run_id == run_id]
+    pool = run_rows or [row for row in eligible if row.run_id is None]
+    if not pool:
+        return None
+    return max(
+        pool,
+        key=lambda row: (
+            row.as_of_date,
+            row.created_at.timestamp() if row.created_at is not None else 0,
+            row.id or 0,
+        ),
+    )
 
 
 def _price_bars_by_ticker(rows: tuple[PriceBar, ...]) -> dict[str, list[PriceBar]]:

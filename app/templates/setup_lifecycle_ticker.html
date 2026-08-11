@@ -89,7 +89,7 @@
   {% if timeline %}
     <ol class="setup-timeline section-gap">
       {% for item in timeline %}
-        <li>
+        <li{% if item.anchor_id %} id="{{ item.anchor_id }}"{% endif %}>
           <strong>{{ item.date }} - {{ item.kind }}</strong>
           <span class="badge badge-muted">{{ item.state or "N/A" }}</span>
           <p>{{ item.title or "Untitled" }}{% if item.detail %}: {{ item.detail }}{% endif %}</p>

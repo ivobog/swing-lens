@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 from datetime import date
 from typing import Annotated, Any
 from urllib.parse import urlencode
@@ -60,14 +59,22 @@ def setup_lifecycle_page(
     transition: str | None = None,
     actionability: str | None = None,
     confidence_min: int | None = None,
+    confidence_max: int | None = None,
+    velocity_min: float | None = None,
     sort: str = "latest_event_time",
     direction: str = "desc",
     limit: int = 50,
     cursor: str | None = None,
+    as_of: date | None = None,
+    source_type: str | None = None,
 ) -> HTMLResponse:
     filter_values = _quick_filter_values(quick_filter)
+    diagnostics = setup_lifecycle_diagnostics(db=db)
+    selected_as_of = as_of or _date_value(diagnostics.get("latest_canonical_date"))
     payload = setup_lifecycle_changes(
         db=db,
+        as_of=selected_as_of,
+        source_type=source_type,
         ticker=ticker,
         sector=sector,
         setup_family=setup_family,
@@ -75,13 +82,14 @@ def setup_lifecycle_page(
         transition=filter_values.get("transition", transition),
         actionability=filter_values.get("actionability", actionability),
         confidence_min=filter_values.get("confidence_min", confidence_min),
+        confidence_max=filter_values.get("confidence_max", confidence_max),
+        velocity_min=filter_values.get("velocity_min", velocity_min),
         warning_flag=filter_values.get("warning_flag"),
         sort=filter_values.get("sort", sort),
         direction=direction,
         limit=limit,
         cursor=cursor,
     )
-    diagnostics = setup_lifecycle_diagnostics(db=db)
     return templates.TemplateResponse(
         request,
         "setup_lifecycle.html",
@@ -97,10 +105,14 @@ def setup_lifecycle_page(
                 "transition": filter_values.get("transition", transition) or "",
                 "actionability": filter_values.get("actionability", actionability) or "",
                 "confidence_min": filter_values.get("confidence_min", confidence_min),
+                "confidence_max": filter_values.get("confidence_max", confidence_max),
+                "velocity_min": filter_values.get("velocity_min", velocity_min),
                 "sort": filter_values.get("sort", sort),
                 "direction": direction,
                 "limit": limit,
                 "cursor": cursor or "",
+                "as_of": selected_as_of.isoformat() if selected_as_of else "",
+                "source_type": source_type or "",
             },
         ),
     )
@@ -152,6 +164,10 @@ def setup_lifecycle_alerts_page(
     direction: str = "desc",
     limit: int = 50,
     cursor: str | None = None,
+    as_of: date | None = None,
+    alert_type: str | None = None,
+    source_type: str | None = None,
+    lifecycle_state: str | None = None,
 ) -> HTMLResponse:
     payload = setup_lifecycle_alerts(
         db=db,
@@ -162,6 +178,10 @@ def setup_lifecycle_alerts_page(
         direction=direction,
         limit=limit,
         cursor=cursor,
+        as_of=as_of,
+        alert_type=alert_type,
+        source_type=source_type,
+        lifecycle_state=lifecycle_state,
     )
     return templates.TemplateResponse(
         request,
@@ -176,6 +196,10 @@ def setup_lifecycle_alerts_page(
                 "direction": direction,
                 "limit": limit,
                 "cursor": cursor or "",
+                "as_of": as_of.isoformat() if as_of else "",
+                "alert_type": alert_type or "",
+                "source_type": source_type or "",
+                "lifecycle_state": lifecycle_state or "",
             },
         ),
     )
@@ -278,6 +302,8 @@ def setup_lifecycle_changes(
     direction: str = "desc",
     limit: int = 50,
     cursor: str | None = None,
+    as_of: date | None = None,
+    source_type: str | None = None,
 ) -> dict[str, Any]:
     return _query_or_http(
         lambda: SetupLifecycleQueryService().changes(
@@ -304,6 +330,8 @@ def setup_lifecycle_changes(
                 velocity_max=velocity_max,
                 market_regime=market_regime,
                 warning_flag=warning_flag,
+                as_of=as_of,
+                source_type=source_type,
                 sort=sort,
                 direction=direction,
                 limit=limit,
@@ -346,6 +374,10 @@ def setup_lifecycle_alerts(
     direction: str = "desc",
     limit: int = 50,
     cursor: str | None = None,
+    as_of: date | None = None,
+    alert_type: str | None = None,
+    source_type: str | None = None,
+    lifecycle_state: str | None = None,
 ) -> dict[str, Any]:
     return _query_or_http(
         lambda: SetupLifecycleQueryService().alerts(
@@ -355,6 +387,10 @@ def setup_lifecycle_alerts(
                     ticker=ticker,
                     alert_status=status,
                     alert_severity=severity,
+                    as_of_date=as_of,
+                    alert_type=alert_type,
+                    source_type=source_type,
+                    lifecycle_state=lifecycle_state,
                 ),
                 sort=sort,
                 direction=direction,
@@ -378,7 +414,7 @@ def acknowledge_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str,
             detail={"code": "ALERT_NOT_FOUND", "message": "Alert was not found."},
         )
     db.commit()
-    return {"id": alert.id, "status": alert.status}
+    return {"id": alert.id, "review_status": alert.status, "status": alert.status}
 
 
 @router.post("/api/setup-lifecycle/alerts/{alert_id}/dismiss")
@@ -394,7 +430,7 @@ def dismiss_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str, Any
             detail={"code": "ALERT_NOT_FOUND", "message": "Alert was not found."},
         )
     db.commit()
-    return {"id": alert.id, "status": alert.status}
+    return {"id": alert.id, "review_status": alert.status, "status": alert.status}
 
 
 @router.post("/api/setup-lifecycle/run/{run_id}/evaluate")
@@ -523,8 +559,63 @@ def setup_lifecycle_diagnostics(db: DbSession) -> dict[str, Any]:
 
 
 @router.get("/api/setup-lifecycle/changes/export.csv")
-def export_setup_lifecycle_changes_csv(db: DbSession) -> Response:
-    payload = setup_lifecycle_changes(db=db, limit=500)
+def export_setup_lifecycle_changes_csv(
+    db: DbSession,
+    run_id: int | None = None,
+    as_of: date | None = None,
+    ticker: str | None = None,
+    sector: str | None = None,
+    setup_family: str | None = None,
+    lifecycle_state: str | None = None,
+    transition: str | None = None,
+    actionability: str | None = None,
+    confidence_min: int | None = None,
+    confidence_max: int | None = None,
+    state_age_min: int | None = None,
+    state_age_max: int | None = None,
+    setup_score_min: float | None = None,
+    setup_score_max: float | None = None,
+    trigger_distance_min: float | None = None,
+    trigger_distance_max: float | None = None,
+    sector_rank_min: int | None = None,
+    sector_rank_max: int | None = None,
+    velocity_min: float | None = None,
+    velocity_max: float | None = None,
+    market_regime: str | None = None,
+    warning_flag: str | None = None,
+    source_type: str | None = None,
+    sort: str = "latest_event_time",
+    direction: str = "desc",
+) -> Response:
+    payload = setup_lifecycle_changes(
+        db=db,
+        run_id=run_id,
+        as_of=as_of,
+        ticker=ticker,
+        sector=sector,
+        setup_family=setup_family,
+        lifecycle_state=lifecycle_state,
+        transition=transition,
+        actionability=actionability,
+        confidence_min=confidence_min,
+        confidence_max=confidence_max,
+        state_age_min=state_age_min,
+        state_age_max=state_age_max,
+        setup_score_min=setup_score_min,
+        setup_score_max=setup_score_max,
+        trigger_distance_min=trigger_distance_min,
+        trigger_distance_max=trigger_distance_max,
+        sector_rank_min=sector_rank_min,
+        sector_rank_max=sector_rank_max,
+        velocity_min=velocity_min,
+        velocity_max=velocity_max,
+        market_regime=market_regime,
+        warning_flag=warning_flag,
+        source_type=source_type,
+        sort=sort,
+        direction=direction,
+        limit=500,
+    )
     _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
     return attachment_response(
         export_changes_csv(payload),
@@ -534,8 +625,63 @@ def export_setup_lifecycle_changes_csv(db: DbSession) -> Response:
 
 
 @router.get("/api/setup-lifecycle/changes/export.json")
-def export_setup_lifecycle_changes_json(db: DbSession) -> Response:
-    payload = setup_lifecycle_changes(db=db, limit=500)
+def export_setup_lifecycle_changes_json(
+    db: DbSession,
+    run_id: int | None = None,
+    as_of: date | None = None,
+    ticker: str | None = None,
+    sector: str | None = None,
+    setup_family: str | None = None,
+    lifecycle_state: str | None = None,
+    transition: str | None = None,
+    actionability: str | None = None,
+    confidence_min: int | None = None,
+    confidence_max: int | None = None,
+    state_age_min: int | None = None,
+    state_age_max: int | None = None,
+    setup_score_min: float | None = None,
+    setup_score_max: float | None = None,
+    trigger_distance_min: float | None = None,
+    trigger_distance_max: float | None = None,
+    sector_rank_min: int | None = None,
+    sector_rank_max: int | None = None,
+    velocity_min: float | None = None,
+    velocity_max: float | None = None,
+    market_regime: str | None = None,
+    warning_flag: str | None = None,
+    source_type: str | None = None,
+    sort: str = "latest_event_time",
+    direction: str = "desc",
+) -> Response:
+    payload = setup_lifecycle_changes(
+        db=db,
+        run_id=run_id,
+        as_of=as_of,
+        ticker=ticker,
+        sector=sector,
+        setup_family=setup_family,
+        lifecycle_state=lifecycle_state,
+        transition=transition,
+        actionability=actionability,
+        confidence_min=confidence_min,
+        confidence_max=confidence_max,
+        state_age_min=state_age_min,
+        state_age_max=state_age_max,
+        setup_score_min=setup_score_min,
+        setup_score_max=setup_score_max,
+        trigger_distance_min=trigger_distance_min,
+        trigger_distance_max=trigger_distance_max,
+        sector_rank_min=sector_rank_min,
+        sector_rank_max=sector_rank_max,
+        velocity_min=velocity_min,
+        velocity_max=velocity_max,
+        market_regime=market_regime,
+        warning_flag=warning_flag,
+        source_type=source_type,
+        sort=sort,
+        direction=direction,
+        limit=500,
+    )
     _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
     return attachment_response(
         export_json(payload),
@@ -545,8 +691,31 @@ def export_setup_lifecycle_changes_json(db: DbSession) -> Response:
 
 
 @router.get("/api/setup-lifecycle/alerts/export.csv")
-def export_setup_lifecycle_alerts_csv(db: DbSession) -> Response:
-    payload = setup_lifecycle_alerts(db=db, limit=500)
+def export_setup_lifecycle_alerts_csv(
+    db: DbSession,
+    as_of: date | None = None,
+    ticker: str | None = None,
+    status: str | None = None,
+    severity: str | None = None,
+    alert_type: str | None = None,
+    source_type: str | None = None,
+    lifecycle_state: str | None = None,
+    sort: str = "latest_event_time",
+    direction: str = "desc",
+) -> Response:
+    payload = setup_lifecycle_alerts(
+        db=db,
+        as_of=as_of,
+        ticker=ticker,
+        status=status,
+        severity=severity,
+        alert_type=alert_type,
+        source_type=source_type,
+        lifecycle_state=lifecycle_state,
+        sort=sort,
+        direction=direction,
+        limit=500,
+    )
     _enforce_export_payload_rows(payload, resource="setup lifecycle alerts")
     return attachment_response(
         export_alerts_csv(payload),
@@ -556,8 +725,31 @@ def export_setup_lifecycle_alerts_csv(db: DbSession) -> Response:
 
 
 @router.get("/api/setup-lifecycle/alerts/export.json")
-def export_setup_lifecycle_alerts_json(db: DbSession) -> Response:
-    payload = setup_lifecycle_alerts(db=db, limit=500)
+def export_setup_lifecycle_alerts_json(
+    db: DbSession,
+    as_of: date | None = None,
+    ticker: str | None = None,
+    status: str | None = None,
+    severity: str | None = None,
+    alert_type: str | None = None,
+    source_type: str | None = None,
+    lifecycle_state: str | None = None,
+    sort: str = "latest_event_time",
+    direction: str = "desc",
+) -> Response:
+    payload = setup_lifecycle_alerts(
+        db=db,
+        as_of=as_of,
+        ticker=ticker,
+        status=status,
+        severity=severity,
+        alert_type=alert_type,
+        source_type=source_type,
+        lifecycle_state=lifecycle_state,
+        sort=sort,
+        direction=direction,
+        limit=500,
+    )
     _enforce_export_payload_rows(payload, resource="setup lifecycle alerts")
     return attachment_response(
         export_json(payload),
@@ -618,6 +810,8 @@ def _list_query(
     velocity_max: float | None,
     market_regime: str | None,
     warning_flag: str | None,
+    as_of: date | None,
+    source_type: str | None,
     sort: str,
     direction: str,
     limit: int,
@@ -646,6 +840,8 @@ def _list_query(
             velocity_max=velocity_max,
             market_regime=market_regime,
             warning_flag=warning_flag,
+            as_of_date=as_of,
+            source_type=source_type,
         ),
         sort=sort,
         direction=direction,
@@ -695,29 +891,35 @@ def _changes_template_context(
         {item.get("effective_date") for item in items if item.get("effective_date")},
         reverse=True,
     )
-    transition_counts = Counter(item.get("to_state") or item.get("event_type") for item in items)
+    aggregate = dict(payload.get("summary") or {})
+    export_query = urlencode(
+        {key: value for key, value in filters.items() if value not in (None, "", False, 0)}
+    )
+    summary = {
+        "selected_date": filters.get("as_of")
+        or (dates[0] if dates else diagnostics.get("latest_canonical_date")),
+        "comparison_date": next(
+            (item.get("comparison_date") for item in items if item.get("comparison_date")),
+            None,
+        ),
+        "missing_session_gap": diagnostics.get("stale_lease_count", 0),
+        "total": payload.get("total", 0),
+        **aggregate,
+    }
+    summary.setdefault("low_confidence_share", diagnostics.get("low_confidence_share", 0))
     return {
         "active_nav": "setup-lifecycle",
         "payload": payload,
         "items": items,
         "filters": filters,
         "diagnostics": diagnostics,
-        "summary": {
-            "selected_date": dates[0] if dates else diagnostics.get("latest_canonical_date"),
-            "comparison_date": dates[1] if len(dates) > 1 else None,
-            "missing_session_gap": diagnostics.get("stale_lease_count", 0),
-            "total": payload.get("total", 0),
-            "newly_ready": transition_counts.get("READY", 0),
-            "newly_triggered": transition_counts.get("TRIGGERED", 0),
-            "failed": transition_counts.get("FAILED", 0),
-            "extended": transition_counts.get("EXTENDED", 0),
-            "low_confidence_share": diagnostics.get("low_confidence_share", 0),
-        },
+        "summary": summary,
         "quick_filters": _quick_filters(filters.get("quick_filter", "")),
         "state_tones": _STATE_TONES,
         "actionability_tones": _ACTIONABILITY_TONES,
         "confidence_tones": _CONFIDENCE_TONES,
         "pagination": _pagination(payload, filters, "/setup-lifecycle"),
+        "export_query": export_query,
     }
 
 
@@ -762,22 +964,19 @@ def _alerts_template_context(
     filters: dict[str, Any],
 ) -> dict[str, Any]:
     items = list(payload.get("items", []))
-    status_counts = Counter(item.get("status") for item in items)
-    severity_counts = Counter(item.get("severity") for item in items)
+    aggregate = dict(payload.get("summary") or {})
+    export_query = urlencode(
+        {key: value for key, value in filters.items() if value not in (None, "", False, 0)}
+    )
     return {
         "active_nav": "setup-lifecycle-alerts",
         "payload": payload,
         "alerts": items,
         "filters": filters,
-        "summary": {
-            "unread": status_counts.get("UNREAD", 0),
-            "acknowledged": status_counts.get("ACKNOWLEDGED", 0),
-            "dismissed": status_counts.get("DISMISSED", 0),
-            "actionable": severity_counts.get("ACTIONABLE", 0),
-            "risk": severity_counts.get("RISK", 0),
-        },
+        "summary": aggregate,
         "severity_tones": _SEVERITY_TONES,
         "pagination": _pagination(payload, filters, "/setup-lifecycle/alerts"),
+        "export_query": export_query,
     }
 
 
@@ -805,19 +1004,19 @@ def _quick_filters(active: str) -> list[dict[str, str | bool]]:
 
 def _quick_filter_values(key: str) -> dict[str, Any]:
     if key == "newly-ready":
-        return {"lifecycle_state": "READY"}
+        return {"transition": "TO_READY"}
     if key == "newly-triggered":
-        return {"lifecycle_state": "TRIGGERED"}
+        return {"transition": "TO_TRIGGERED"}
     if key == "improving-fast":
-        return {"sort": "velocity"}
+        return {"sort": "velocity", "velocity_min": 0.5}
     if key == "failed-today":
-        return {"lifecycle_state": "FAILED"}
+        return {"transition": "TO_FAILED"}
     if key == "extended":
-        return {"lifecycle_state": "EXTENDED"}
+        return {"transition": "TO_EXTENDED"}
     if key == "gate-blocked":
         return {"actionability": "BLOCKED"}
     if key == "low-confidence":
-        return {"confidence_min": 0}
+        return {"confidence_max": 69}
     if key == "no-material-change":
         return {"transition": "NO_MATERIAL_CHANGE"}
     return {}
@@ -845,6 +1044,7 @@ def _ticker_timeline_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for event in payload.get("lifecycle_events") or []:
         rows.append(
             {
+                "anchor_id": f"lifecycle-event-{event.get('id')}",
                 "kind": "Lifecycle",
                 "date": event.get("effective_date"),
                 "title": event.get("event_type"),
@@ -856,6 +1056,7 @@ def _ticker_timeline_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for change in payload.get("signal_changes") or []:
         rows.append(
             {
+                "anchor_id": f"signal-change-{change.get('id')}",
                 "kind": "Signal",
                 "date": change.get("effective_date"),
                 "title": change.get("signal_key"),
@@ -867,6 +1068,7 @@ def _ticker_timeline_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for alert in payload.get("alerts") or []:
         rows.append(
             {
+                "anchor_id": f"alert-{alert.get('id')}",
                 "kind": "Alert",
                 "date": alert.get("effective_date"),
                 "title": alert.get("severity"),
@@ -890,7 +1092,7 @@ _ACTIONABILITY_TONES = {
     "ACTIONABLE": "success",
     "WATCH_ONLY": "muted",
     "BLOCKED": "danger",
-    "REDUCED": "warning",
+    "LOW_CONFIDENCE": "warning",
 }
 _CONFIDENCE_TONES = {
     "HIGH": "success",
@@ -902,7 +1104,7 @@ _SEVERITY_TONES = {
     "ACTIONABLE": "success",
     "RISK": "danger",
     "INFO": "muted",
-    "WARNING": "warning",
+    "NOTABLE": "warning",
 }
 
 
@@ -913,3 +1115,14 @@ def _require_run(db: Session, run_id: int) -> None:
             status_code=404,
             detail={"code": "RUN_LIFECYCLE_NOT_FOUND", "message": "Run was not found."},
         )
+
+
+def _date_value(value: Any) -> date | None:
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+    return None

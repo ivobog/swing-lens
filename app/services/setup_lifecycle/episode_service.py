@@ -495,6 +495,8 @@ def normalized_snapshot_from_row(snapshot: SetupSignalSnapshot) -> NormalizedSna
         calculated_at=snapshot.calculated_at,
         signals=signals,
         data_quality_label=_data_quality(snapshot.data_quality_label),
+        required_feature_coverage=_number(snapshot.required_feature_coverage),
+        freshness_status=snapshot.freshness_status,
         warning_flags=tuple(snapshot.warning_flags_json or ()),
         source_ids={
             "snapshot_id": snapshot.id,
@@ -632,6 +634,7 @@ def _episode_metadata(
         "reason_codes": list(decision.reason_codes),
         "actionability_reason_codes": list(actionability.reason_codes),
         "blockers": list(actionability.blockers),
+        "market_regime": _json_scalar((snapshot.signals_json or {}).get("market_regime")),
     }
 
 

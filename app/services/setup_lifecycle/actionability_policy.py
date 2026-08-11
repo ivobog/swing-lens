@@ -7,7 +7,7 @@ from app.services.setup_lifecycle.dtos import (
     NormalizedSnapshot,
 )
 from app.services.setup_lifecycle.enums import Actionability, DataQualityLabel, LifecycleState
-from app.services.setup_lifecycle.family_adapters import signal_bool, signal_text
+from app.services.setup_lifecycle.family_adapters import signal_bool, signal_text, signal_value
 
 
 class SetupLifecycleActionabilityPolicy:
@@ -47,7 +47,10 @@ class SetupLifecycleActionabilityPolicy:
             blockers.append("IMMINENT_EARNINGS")
 
         market = signal_text(snapshot, "market_regime").casefold()
-        if market in {"blocked", "risk_off", "red", "bearish"}:
+        market_gate = signal_value(snapshot, "market_gate")
+        if market_gate is False or (
+            market_gate is None and market in {"blocked", "risk_off", "red", "bearish"}
+        ):
             blockers.append("MARKET_POLICY_BLOCK")
 
         if blockers:

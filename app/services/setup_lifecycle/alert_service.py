@@ -7,6 +7,7 @@ from typing import Any
 
 from app.models.tables import (
     SetupLifecycleEvent,
+    SetupSignalSnapshot,
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
@@ -76,12 +77,14 @@ class SetupLifecycleAlertService:
         created = 0
         suppressed = 0
         event_ids: list[int | None] = []
+        warning_codes: list[str] = []
 
         if result.lifecycle_event is not None:
             lifecycle = self.evaluate_lifecycle_event(db, result.lifecycle_event)
             created += lifecycle.created
             suppressed += lifecycle.suppressed
             event_ids.extend(lifecycle.event_ids)
+            warning_codes.extend(lifecycle.warning_codes)
 
         if _became_blocked(result):
             gate = self._create_gate_blocked_alert(
@@ -92,11 +95,13 @@ class SetupLifecycleAlertService:
             created += gate.created
             suppressed += gate.suppressed
             event_ids.extend(gate.event_ids)
+            warning_codes.extend(gate.warning_codes)
 
         return AlertServiceResult(
             created=created,
             suppressed=suppressed,
             event_ids=tuple(event_ids),
+            warning_codes=tuple(dict.fromkeys(warning_codes)),
         )
 
     def evaluate_lifecycle_event(
@@ -107,6 +112,13 @@ class SetupLifecycleAlertService:
         created = 0
         suppressed = 0
         event_ids: list[int | None] = []
+        warning_codes: list[str] = []
+        snapshot = (
+            db.get(SetupSignalSnapshot, event.snapshot_id)
+            if event.snapshot_id and hasattr(db, "get")
+            else None
+        )
+        market_regime = _event_market_regime(event, snapshot)
         for rule in self._rules(db):
             if not _lifecycle_rule_matches(rule, event):
                 continue
@@ -128,16 +140,21 @@ class SetupLifecycleAlertService:
                     "to_state": event.to_state,
                     "to_phase": event.to_phase,
                     "actionability_after": event.actionability_after,
+                    "market_regime": market_regime,
+                    "setup_family": event.setup_family,
+                    "source_evidence": dict(event.evidence_json or {}),
                     "semantic_key": _lifecycle_semantic_key(rule, event),
                 },
             )
             created += outcome.created
             suppressed += outcome.suppressed
             event_ids.extend(outcome.event_ids)
+            warning_codes.extend(outcome.warning_codes)
         return AlertServiceResult(
             created=created,
             suppressed=suppressed,
             event_ids=tuple(event_ids),
+            warning_codes=tuple(dict.fromkeys(warning_codes)),
         )
 
     def evaluate_signal_change_events(
@@ -148,6 +165,7 @@ class SetupLifecycleAlertService:
         created = 0
         suppressed = 0
         event_ids: list[int | None] = []
+        warning_codes: list[str] = []
         for event in events:
             for rule in self._rules(db):
                 if not _signal_rule_matches(rule, event):
@@ -171,16 +189,26 @@ class SetupLifecycleAlertService:
                         "signal_key": event.signal_key,
                         "threshold_direction": event.threshold_direction,
                         "direction": event.direction,
+                        "market_regime": (event.evidence_json or {}).get("market_regime"),
+                        "setup_family": (event.evidence_json or {}).get("setup_family"),
+                        "old_value": dict(event.old_value_json or {}),
+                        "new_value": dict(event.new_value_json or {}),
+                        "normalized_delta": str(event.normalized_delta)
+                        if event.normalized_delta is not None
+                        else None,
+                        "source_evidence": dict(event.evidence_json or {}),
                         "semantic_key": semantic_key,
                     },
                 )
                 created += outcome.created
                 suppressed += outcome.suppressed
                 event_ids.extend(outcome.event_ids)
+                warning_codes.extend(outcome.warning_codes)
         return AlertServiceResult(
             created=created,
             suppressed=suppressed,
             event_ids=tuple(event_ids),
+            warning_codes=tuple(dict.fromkeys(warning_codes)),
         )
 
     def acknowledge_alert(self, db, alert_id: int) -> SignalAlertEvent | None:
@@ -229,6 +257,8 @@ class SetupLifecycleAlertService:
                 "semantic_key": f"GATE_BLOCKED:{episode.id}",
                 "actionability_after": result.actionability.actionability.value,
                 "blockers": list(result.actionability.blockers),
+                "market_regime": (episode.metadata_json or {}).get("market_regime"),
+                "setup_family": episode.setup_family,
             },
         )
 
@@ -252,6 +282,8 @@ class SetupLifecycleAlertService:
     ) -> AlertServiceResult:
         if _reconstructed_source(evidence):
             return AlertServiceResult(suppressed=1, warning_codes=("RECONSTRUCTED_SUPPRESSED",))
+        if not _market_restrictions_match(rule, evidence):
+            return AlertServiceResult(suppressed=1, warning_codes=("MARKET_RESTRICTION",))
         if not rule.enabled or source_confidence < rule.minimum_confidence:
             return AlertServiceResult(suppressed=1)
         if self._cooldown_active(
@@ -336,7 +368,21 @@ def _lifecycle_rule_matches(rule: SignalAlertRule, event: SetupLifecycleEvent) -
     if rule.setup_family is not None and rule.setup_family != event.setup_family:
         return False
     if rule.scope == "lifecycle_transition":
-        return condition.get("to_state") == event.to_state
+        if event.event_type != "STATE_TRANSITION":
+            return False
+        if event.from_state == event.to_state:
+            return False
+        if condition.get("to_state") != event.to_state:
+            return False
+        if rule.rule_id == "NEW_READY" and event.actionability_after == "BLOCKED":
+            return False
+        if rule.rule_id == "NEW_EXTENSION" and event.from_state not in {
+            "READY",
+            "TRIGGERED",
+            "CONFIRMED",
+        }:
+            return False
+        return True
     if rule.scope == "actionability_change":
         return (
             event.event_type == "ACTIONABILITY_CHANGE"
@@ -350,13 +396,57 @@ def _signal_rule_matches(rule: SignalAlertRule, event: SignalChangeEvent) -> boo
     condition = rule.condition_json or {}
     if rule.scope != "signal_change":
         return False
-    if condition.get("signal_key") != event.signal_key:
+    signal_keys = set(condition.get("signal_keys") or ())
+    configured_signal = condition.get("signal_key")
+    if signal_keys and event.signal_key not in signal_keys:
+        return False
+    if not signal_keys and configured_signal != event.signal_key:
         return False
     if rule.rule_id == "DATA_DEGRADED":
         return "DATA_QUALITY_DEGRADED" in set(event.reason_codes_json or ())
-    if rule.rule_id in {"SCORE_ACCELERATION", "SECTOR_ACCELERATION"}:
-        return _is_favorable_acceleration(event)
+    if rule.rule_id == "SCORE_ACCELERATION":
+        return _score_acceleration_matches(condition, event)
+    if rule.rule_id == "SECTOR_ACCELERATION":
+        return _sector_acceleration_matches(condition, event)
     return True
+
+
+def _score_acceleration_matches(
+    condition: dict[str, Any],
+    event: SignalChangeEvent,
+) -> bool:
+    if not _is_favorable_acceleration(event):
+        return False
+    window = str(condition.get("velocity_window", 3))
+    velocity = ((event.evidence_json or {}).get("velocity") or {}).get(window) or {}
+    improvement = _decimal_or_none(velocity.get("normalized_delta"))
+    minimum = _decimal_or_none(condition.get("minimum_normalized_delta"))
+    if improvement is None or minimum is None or improvement < minimum:
+        return False
+    thresholds = condition.get("tracking_thresholds") or {}
+    threshold = _decimal_or_none(thresholds.get(event.signal_key))
+    old_value = _decimal_or_none(velocity.get("old_value"))
+    new_value = _decimal_or_none(velocity.get("new_value"))
+    return (
+        threshold is not None
+        and old_value is not None
+        and new_value is not None
+        and old_value < threshold <= new_value
+    )
+
+
+def _sector_acceleration_matches(
+    condition: dict[str, Any],
+    event: SignalChangeEvent,
+) -> bool:
+    improvement = _decimal_or_none(event.normalized_delta)
+    minimum = _decimal_or_none(condition.get("minimum_rank_improvement"))
+    if improvement is None or minimum is None or improvement < minimum:
+        return False
+    confidence_order = {"LOW": 0, "NORMAL": 1, "HIGH": 2}
+    actual = str((event.evidence_json or {}).get("sector_confidence") or "").upper()
+    required = str(condition.get("minimum_sector_confidence") or "NORMAL").upper()
+    return confidence_order.get(actual, -1) >= confidence_order.get(required, 1)
 
 
 def _is_favorable_acceleration(event: SignalChangeEvent) -> bool:
@@ -380,6 +470,39 @@ def _signal_semantic_key(rule: SignalAlertRule, event: SignalChangeEvent) -> str
     return f"{rule.rule_id}:{event.signal_key}:{direction}"
 
 
+def _event_market_regime(
+    event: SetupLifecycleEvent,
+    snapshot: SetupSignalSnapshot | None,
+) -> str | None:
+    evidence_value = (event.evidence_json or {}).get("market_regime")
+    if evidence_value is not None:
+        return str(evidence_value)
+    raw = (getattr(snapshot, "signals_json", None) or {}).get("market_regime")
+    if isinstance(raw, dict):
+        raw = raw.get("value")
+    return str(raw) if raw is not None else None
+
+
+def _market_restrictions_match(rule: SignalAlertRule, evidence: dict[str, Any]) -> bool:
+    restrictions = dict(rule.market_restrictions_json or {})
+    if not restrictions:
+        return True
+    market = str(evidence.get("market_regime") or "").strip().upper()
+    allowed = {
+        str(value).strip().upper()
+        for value in restrictions.get("allowed_regimes", restrictions.get("include", ()))
+    }
+    blocked = {
+        str(value).strip().upper()
+        for value in restrictions.get("blocked_regimes", restrictions.get("exclude", ()))
+    }
+    if not market:
+        return False
+    if allowed and market not in allowed:
+        return False
+    return market not in blocked
+
+
 def _signed_direction(value: Any) -> str:
     number = _decimal_or_none(value)
     if number is None:
@@ -393,11 +516,11 @@ def _signed_direction(value: Any) -> str:
 
 def _source_confidence(event: SignalChangeEvent) -> int:
     evidence = event.evidence_json or {}
-    value = evidence.get("confidence_score", evidence.get("current_confidence_score", 100))
+    value = evidence.get("confidence_score", evidence.get("current_confidence_score"))
     try:
-        return int(value)
+        return max(0, min(100, int(value)))
     except (TypeError, ValueError):
-        return 100
+        return 0
 
 
 def _reconstructed_source(evidence: dict[str, Any]) -> bool:
@@ -408,7 +531,8 @@ def _reconstructed_source(evidence: dict[str, Any]) -> bool:
 def _became_blocked(result: EpisodeEvaluationResult) -> bool:
     return (
         result.actionability.actionability is Actionability.BLOCKED
-        and result.actionability_before != Actionability.BLOCKED.value
+        and result.actionability_before
+        in {Actionability.ACTIONABLE.value, Actionability.WATCH_ONLY.value}
         and "GATE_BLOCKED" in result.actionability.reason_codes
     )
 

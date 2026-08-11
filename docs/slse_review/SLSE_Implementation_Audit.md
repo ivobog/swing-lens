@@ -1,0 +1,300 @@
+# SLSE Implementation Audit and Defect Register
+
+## Audit method
+
+The review followed the required bottom-up order: migrations/schema; source loading; snapshot construction and coverage; point-in-time rules; canonicalization; registry and change detector; velocity; adapters/state machine/episodes; confidence/actionability; alert rules and persistence; query/API/export; Jinja/HTMX; tests. The SRS/SDD were read in full before code inspection. Existing tests initially reported `151 passed`; this baseline is not treated as compliance proof.
+
+## Defects
+
+### SLSE-DEF-001 — False missing-required close and capped coverage
+
+- Requirement: FR-005, FR-030, FR-036, AC-08.
+- Expected: a populated `close_price` counts toward required-feature coverage and creates no missing-required warning.
+- Actual: `_promoted_fields()` creates `close_price`, but `_source_values()` omits it while `REQUIRED_FEATURE_SOURCES` requires it. Coverage is capped at 0.75 and every ticker gets `MISSING_REQUIRED_CLOSE_PRICE`.
+- Root cause: split promoted/source maps without a single canonical field registry.
+- Affected layers: snapshot, confidence, actionability, alerts, query/UI, historical data.
+- Affected persisted data: snapshots and all dependent episodes/events/alerts produced by the faulty version.
+- Severity: CRITICAL.
+- Fix: insert canonical `close_price` into source values, persist it in `signals_json`, and add fully populated/missing-close regression tests.
+- Historical remediation: rebuild dev/QA SLSE-derived rows; retained history requires new evaluation/config version and superseding events.
+
+### SLSE-DEF-002 — Confidence component uses all signals as required coverage
+
+- Requirement: FR-036; SDD 10.2.
+- Expected: the 30% component is the snapshot’s required-feature coverage.
+- Actual: `_coverage()` counts every registered signal, including optional market/sector/risk/diagnostic values.
+- Root cause: `NormalizedSnapshot` omits the persisted required coverage field.
+- Affected layers: confidence, actionability, lifecycle, alerts.
+- Affected persisted data: confidence/actionability on snapshots, episodes, events, alerts.
+- Severity: HIGH.
+- Fix: add explicit coverage to the normalized DTO and score the component from it.
+- Regression tests: exact component and final-score tests for complete required evidence with missing optional context.
+- Historical remediation: replay from corrected snapshots/config version.
+
+### SLSE-DEF-003 — Initial or LOW_CONFIDENCE to BLOCKED can emit GATE_BLOCKED
+
+- Requirement: FR-050; SRS 6.6 GATE_BLOCKED truth table.
+- Expected: only `ACTIONABLE -> BLOCKED` and `WATCH_ONLY -> BLOCKED`.
+- Actual: `_became_blocked()` accepts every prior value except `BLOCKED`, including `None` and `LOW_CONFIDENCE`.
+- Root cause: inequality used instead of explicit allowed predecessor set.
+- Affected layers: alert evaluation/persistence/UI.
+- Affected persisted data: false `GATE_BLOCKED` alerts.
+- Severity: HIGH.
+- Fix: explicit predecessor set.
+- Regression tests: `None`, `BLOCKED`, `LOW_CONFIDENCE`, initial blocked episode, and the two positive transitions.
+- Historical remediation: identify and supersede/rebuild false alerts.
+
+### SLSE-DEF-004 — Signal-change confidence defaults to fabricated 100
+
+- Requirement: FR-036, FR-051; NFR-005.
+- Expected: use real current snapshot/lifecycle confidence; absence is not perfect evidence.
+- Actual: `_source_confidence()` defaults to 100 on missing or invalid evidence.
+- Root cause: permissive fallback added to satisfy alert minimum confidence.
+- Affected layers: change event, alert rule, alert persistence/UI.
+- Affected persisted data: acceleration alerts created with unsupported confidence.
+- Severity: HIGH.
+- Fix: persist current snapshot confidence in change evidence and use a non-fabricating nullable/zero fallback.
+- Regression tests: missing confidence never passes a 70 floor; actual 72 passes and is exposed.
+- Historical remediation: rebuild signal-derived alerts.
+
+### SLSE-DEF-005 — Acceleration rules do not implement configured window/crossing semantics
+
+- Requirement: FR-050; SRS 6.6.
+- Expected: configured 3-session rise by configured amount plus tracking-threshold crossing; sector rank uses positive normalized improvement and sufficient sector confidence.
+- Actual: any favorable technical-score or sector-rank material event can match; setup-score acceleration, exact window/amount/tracking crossing, and sector confidence are not enforced.
+- Root cause: alert matcher only checks signal key and positive normalized delta.
+- Affected layers: config, change evidence, alert evaluation.
+- Affected persisted data: false/missing NOTABLE alerts.
+- Severity: HIGH.
+- Fix: explicit rule filters (`signal_keys`, `velocity_window`, minimum delta, tracking threshold, sector confidence) and truth-table tests.
+- Historical remediation: rebuild signal-derived alerts.
+
+### SLSE-DEF-006 — Raw rank delta has the opposite business sign
+
+- Requirement: FR-020, FR-023; SDD 7.1.
+- Expected: `old_rank - new_rank`, positive means improvement.
+- Actual: `rank_delta` stores `new_rank - old_rank`; only `normalized_delta` is correct.
+- Root cause: duplicated delta logic.
+- Affected layers: event persistence, DTO, filters/sorts/exports.
+- Affected persisted data: signal change rank deltas.
+- Severity: HIGH.
+- Fix: make stored rank delta equal normalized rank improvement.
+- Regression tests: 9 -> 5 equals +4 everywhere.
+- Historical remediation: rebuild/supersede affected change events.
+
+### SLSE-DEF-007 — Alert DTO/UI hides Alert Type and source semantics
+
+- Requirement: FR-050, FR-055, NFR-005.
+- Expected: explicit `alert_type`, `severity`, `review_status`, `source_type`, lifecycle/actionability/confidence/blockers/source IDs.
+- Actual: payload exposes rule DB ID, ambiguous `status`, severity and opaque evidence only; UI has no Alert Type column.
+- Root cause: query does not join `signal_alert_rules` or source events.
+- Affected layers: query/API/template/export.
+- Affected persisted data: no schema loss, presentation contract loss.
+- Severity: HIGH.
+- Fix: joined stable Alert DTO and explicit columns/filters.
+- Regression tests: DTO/UI/CSV/JSON parity.
+- Historical remediation: none after code fix, except false alerts from other defects.
+
+### SLSE-DEF-008 — Canonical NOTABLE severity is absent from UI selector
+
+- Requirement: FR-024, FR-050.
+- Expected: INFO, NOTABLE, ACTIONABLE, RISK.
+- Actual: selector offers ACTIONABLE, RISK, WARNING, INFO.
+- Root cause: UI-local enum drift.
+- Affected layers: template/filter behavior.
+- Severity: HIGH.
+- Fix: source filter options from canonical enum and render NOTABLE.
+- Regression tests: template contains NOTABLE and no WARNING.
+
+### SLSE-DEF-009 — Summary counts are page-local
+
+- Requirement: FR-060, FR-067.
+- Expected: full filtered-scope counts, independent of visible page.
+- Actual: route template helpers count `payload.items` only.
+- Root cause: aggregate semantics implemented in presentation code.
+- Affected layers: query/API/page.
+- Severity: HIGH.
+- Fix: aggregate counts in query service before pagination and consume `payload.summary`.
+- Regression tests: > page size, filter + pagination, review-status mutation.
+
+### SLSE-DEF-010 — Same-date alert and transition ordering is semantically wrong
+
+- Requirement: FR-062.
+- Expected: deterministic priority with severity/business transition ranking and ID tie-break.
+- Actual: same-date alerts sort by descending ID; severity sort is lexicographic; transition priority maps to severity text.
+- Root cause: no explicit CASE priority.
+- Affected layers: query/UI/export order.
+- Severity: MEDIUM.
+- Fix: CASE expressions for RISK/ACTIONABLE/NOTABLE/INFO and lifecycle transition precedence, then date/ID tie-breakers.
+- Regression tests: mixed same-date severities/types.
+
+### SLSE-DEF-011 — Market Changes reads only lifecycle events
+
+- Requirement: FR-020–028, FR-060–065.
+- Expected: combined material signal changes and lifecycle transitions.
+- Actual: `changes()` selects only `SetupLifecycleEvent`.
+- Root cause: dashboard implemented as a lifecycle-event list.
+- Affected layers: repository/query/API/template/export.
+- Severity: CRITICAL.
+- Fix: union/merge both canonical event streams under a stable DTO with explicit `source_type` and current/previous values.
+- Regression tests: one lifecycle-only, one signal-only, and one same-snapshot pair all appear with correct total.
+- Historical remediation: none for valid rows; UI visibility changes.
+
+### SLSE-DEF-012 — Alert source link uses lifecycle-event ID as episode ID
+
+- Requirement: AC-10, NFR-005.
+- Expected: lifecycle source links resolve the event or its actual episode; signal source links resolve the change event.
+- Actual: `/api/setup-lifecycle/episodes/{alert.lifecycle_event_id}`.
+- Root cause: ID domains conflated in template.
+- Affected layers: DTO/template.
+- Severity: HIGH.
+- Fix: expose `episode_id`, `lifecycle_event_id`, `signal_change_event_id`, and a canonical `source_url`.
+- Regression tests: route ID/link target assertions.
+
+### SLSE-DEF-013 — CSV/export contracts are incomplete and lose filters
+
+- Requirement: FR-053, FR-066.
+- Expected: filtered GUI/API/JSON/CSV semantic parity.
+- Actual: alerts export six fields; changes export ten lifecycle-only fields; export routes ignore active filters and return at most 500 first-page rows.
+- Root cause: legacy narrow column tuples and unparameterized routes.
+- Affected layers: routes/export.
+- Severity: HIGH.
+- Fix: versioned expanded schemas, pass filter/sort parameters, and assert round-trip parity.
+
+### SLSE-DEF-014 — Market Changes DTO is not a stable business contract
+
+- Requirement: FR-023, FR-025, FR-060–065, NFR-005.
+- Expected: explicit identity, dates, previous/current state/value, deltas/velocities, quality, blockers, reasons and lineage.
+- Actual: lifecycle-event payload plus arbitrary evidence; template guesses score/velocity/sector rank from JSON.
+- Root cause: internal event model passed directly to presentation.
+- Affected layers: query/API/template/export.
+- Severity: HIGH.
+- Fix: dedicated DTO builder backed by snapshot/source events.
+
+### SLSE-DEF-015 — Run-level context cutoff is the oldest ticker date
+
+- Requirement: FR-001, point-in-time rules.
+- Expected: context is the latest available not newer than each ticker’s own as-of date.
+- Actual: one market/sector snapshot is selected using the minimum ticker cutoff and applied to all tickers.
+- Root cause: run-wide context loading before ticker-specific cutoff.
+- Affected layers: source loader/snapshot/confidence/actionability.
+- Severity: MEDIUM.
+- Fix: load bounded context candidates and select per ticker, or prove run dates are uniform.
+- Historical remediation: replay runs with mixed ticker as-of dates.
+
+### SLSE-DEF-016 — Alert/lifecycle truth tables are fragmented, not vertical
+
+- Requirement: AC-03, AC-06 and Phase 5 mission.
+- Expected: exact sequence tests from snapshot through event/alert, including negative boundaries.
+- Actual: unit tests cover individual methods but omit several initial/unchanged/blocked/min-confidence combinations.
+- Severity: HIGH.
+- Fix: table-driven truth tests plus persistence retry cases.
+
+### SLSE-DEF-017 — Prior canonical history is not supplied to family evaluation
+
+- Requirement: FR-031.
+- Expected: current snapshot, previous episode state, and prior canonical snapshots.
+- Actual: episode service supplies state/persistence counters but not prior snapshot DTOs.
+- Severity: MEDIUM.
+- Fix: extend lifecycle input/history and adapters where persistence/velocity evidence requires it.
+
+### SLSE-DEF-018 — DATA_DEGRADED is inferred only from quality-label change
+
+- Requirement: FR-028, FR-050.
+- Expected: direct configured threshold crossings for required coverage and freshness, with no repeat.
+- Actual: one `data_quality` enum event is the sole source.
+- Severity: MEDIUM.
+- Fix: register coverage/freshness signals or emit explicit data-quality changes with prior/current threshold evidence.
+
+### SLSE-DEF-019 — Alert market restrictions are stored but ignored
+
+- Requirement: FR-051.
+- Expected: optional market/family restrictions affect matching.
+- Actual: market restriction JSON is not evaluated.
+- Severity: MEDIUM.
+- Fix: enforce restrictions from source snapshot/evidence and test both allow/block cases.
+
+### SLSE-DEF-020 — Required alert and dashboard filters are missing
+
+- Requirement: FR-055, FR-061.
+- Expected: date/state/type/source and the complete dashboard filter set.
+- Actual: alerts only support ticker/status/severity; dashboard lacks selected date and several exact semantics.
+- Severity: MEDIUM.
+- Fix: extend filter DTO, validation, query, route, and UI options.
+
+### SLSE-DEF-021 — “No Material Change” quick filter cannot match persisted event rows
+
+- Requirement: SRS UI 8.1.
+- Expected: candidates observed for the selected date with no material change are available as a muted view.
+- Actual: filter compares lifecycle `event_type` to a value that is never emitted.
+- Severity: MEDIUM.
+- Fix: query canonical snapshots without material/lifecycle events for the selected date as explicit `NO_MATERIAL_CHANGE` DTO rows.
+
+### SLSE-DEF-022 — Administrative evaluation scopes are incomplete at API/UI boundary
+
+- Requirement: FR-070, FR-074.
+- Expected: run, ticker, date range, all eligible, and independent retry.
+- Actual: run evaluation and internal repair/replay services exist, but the full explicit operator contract is incomplete.
+- Severity: LOW.
+
+### SLSE-DEF-023 — Required PostgreSQL performance, accessibility, and real E2E proof is incomplete
+
+- Requirement: NFR-002/003/009/012, AC-14.
+- Expected: measured real PostgreSQL and Playwright evidence.
+- Actual: synthetic/index-contract tests and broad existing certification do not assert cell-by-cell specification equivalence for SLSE.
+- Severity: HIGH (release evidence).
+
+### SLSE-DEF-024 — Record-status/version labels and timeline pagination are incomplete
+
+- Requirement: FR-063, FR-068.
+- Expected: explicit reconstructed, stale, low-coverage, noncanonical, superseded labels and incremental timeline pagination.
+- Actual: payload/template expose only a subset and use fixed limits.
+- Severity: LOW.
+
+### SLSE-DEF-025 — Filter/sort names do not match business semantics
+
+- Requirement: FR-061/062.
+- Expected: transition means the actual from/to transition; velocity means an explicit configured window/value.
+- Actual: `transition` filters `event_type`; velocity reads a generic evidence key that is usually a nested map.
+- Severity: HIGH.
+
+## Existing test classification
+
+- Valid specification tests: canonical single-row selection, terminal immutability, family state reachability, hysteresis, hard failure, staleness-only LOW_CONFIDENCE, append-only retry keys, observation gaps, research-only boundary.
+- Partial tests: source mapping, confidence, alert rules, route rendering, export schemas, query filters, performance.
+- Implementation-locking tests: narrow CSV headers, lifecycle-only Market Changes payload assumptions, permissive score-acceleration match.
+- Missing integration coverage: disposable-PostgreSQL SLSE constraints/joins, combined change stream aggregates, alert joined DTO, filter/export parity, cell-level GUI/API/DB/source proof.
+
+## Post-repair disposition (2026-08-11)
+
+This table supersedes the baseline “Actual” statements above; the original findings are retained as forensic evidence.
+
+| Defect | Disposition | Verification |
+|---|---|---|
+| SLSE-DEF-001 | FIXED | populated/missing-close builder tests; required coverage 1.0 |
+| SLSE-DEF-002 | FIXED | confidence reads persisted required coverage; optional-context regression |
+| SLSE-DEF-003 | FIXED | table-driven predecessor truth table excludes `None`, `BLOCKED`, `LOW_CONFIDENCE` |
+| SLSE-DEF-004 | FIXED | change evidence carries actual confidence; missing confidence is 0/not eligible |
+| SLSE-DEF-005 | FIXED | configured 3-session velocity, amount, tracking crossing, rank improvement and sector confidence tests |
+| SLSE-DEF-006 | FIXED | 9→5 persists/displays/exports +4 |
+| SLSE-DEF-007 | FIXED | joined Alert DTO and explicit Alert Type/Source Type columns |
+| SLSE-DEF-008 | FIXED | INFO/NOTABLE/ACTIONABLE/RISK end-to-end; WARNING rejected |
+| SLSE-DEF-009 | FIXED | SQL full-filter aggregates before pagination; PostgreSQL test with limit 1 |
+| SLSE-DEF-010 | FIXED | explicit severity, alert-type and transition priority with deterministic keys |
+| SLSE-DEF-011 | FIXED | canonical material changes plus current lifecycle transitions; canonical-revision audit rows excluded |
+| SLSE-DEF-012 | FIXED | episode, lifecycle-event and signal-change IDs remain separate; signal anchor added |
+| SLSE-DEF-013 | FIXED | v2 CSV schemas and JSON use the same query filters/sorts and semantic DTOs |
+| SLSE-DEF-014 | PARTIAL | stable row DTO now covers visible fields and lineage IDs; confidence components and every version/hash remain evidence/detail-only |
+| SLSE-DEF-015 | FIXED | market/sector context selected per ticker cutoff from batched as-of-bounded candidates |
+| SLSE-DEF-016 | PARTIAL | alert boundaries and PostgreSQL/UI vertical fixtures added; the full 25-scenario golden sequence corpus remains incomplete |
+| SLSE-DEF-017 | OPEN | family adapters still receive current normalized snapshot plus counters, not a typed prior-snapshot window |
+| SLSE-DEF-018 | FIXED | coverage and freshness registered as direct quality signals; threshold/no-repeat tests |
+| SLSE-DEF-019 | FIXED | allowed/blocked market-regime restrictions enforced; missing restricted context suppresses |
+| SLSE-DEF-020 | PARTIAL | date/type/source/state and core dashboard filters added; actionability/blocker/date-range Alert UI filters remain incomplete |
+| SLSE-DEF-021 | FIXED | explicit selected-date canonical `SNAPSHOT_OBSERVATION` rows with no lifecycle/material event |
+| SLSE-DEF-022 | OPEN | ticker/date/all-eligible operator capture/retry contract remains incomplete |
+| SLSE-DEF-023 | PARTIAL | disposable PostgreSQL and two Playwright paths pass; 1,000-ticker/100k-row performance and dedicated accessibility audit remain open |
+| SLSE-DEF-024 | OPEN | complete version labels and cursor-paginated ticker timeline remain incomplete |
+| SLSE-DEF-025 | FIXED | transitions use from/to predicates; velocity is explicitly 3-session; quick filters have real event/bound semantics |
+
+No open item is silently classified as compliant. Release readiness remains FAIL until the PARTIAL/OPEN items required by the SRS definition of done are closed.

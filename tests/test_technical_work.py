@@ -208,6 +208,168 @@ def test_overlap_coordinator_submits_ready_ticker_and_finalizes(monkeypatch) -> 
     assert rows[0].technical_confidence != "error"
 
 
+def test_overlap_waits_for_current_spy_and_qqq_before_submitting(monkeypatch) -> None:
+    frames = {
+        "AAA": _synthetic_frame(),
+        "SPY": _synthetic_frame(),
+        "QQQ": _synthetic_frame().iloc[:-1].copy(),
+    }
+    _install_immediate_overlap_executor(monkeypatch)
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, ticker: (frames[ticker.upper()], frames[ticker.upper()]),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "_market_features",
+        lambda frame, ticker: _market_features_for_test(
+            ticker,
+            qqq_distribution=4 if len(frame) < 320 else 3,
+        ),
+    )
+
+    coordinator = TechnicalScoringOverlapCoordinator(
+        _FakeTechnicalDb(),
+        run_id=7,
+        tickers=["AAA"],
+        settings=Settings(_env_file=None, technical_worker_processes=1),
+        required_market_tickers=["SPY", "QQQ"],
+        wait_for_market_events=True,
+    )
+
+    coordinator.on_ticker_ready(_ready_event("AAA"))
+    assert coordinator._futures == {}
+    coordinator.on_ticker_ready(_ready_event("SPY"))
+    assert coordinator._futures == {}
+
+    frames["QQQ"] = _synthetic_frame()
+    coordinator.on_ticker_ready(_ready_event("QQQ"))
+    assert list(coordinator._futures.values()) == ["AAA"]
+
+    rows = coordinator.finalize()
+
+    assert rows[0].market_regime == "Bull trend"
+    assert "market_risk_off" not in (rows[0].warning_flags_json or [])
+
+
+def test_overlap_rescores_result_when_final_market_signature_changes(monkeypatch) -> None:
+    frames = {
+        "AAA": _synthetic_frame(),
+        "SPY": _synthetic_frame(),
+        "QQQ": _synthetic_frame().iloc[:-1].copy(),
+    }
+    execution_count = {"value": 0}
+    real_execute = technical_score_service.execute_technical_work_item
+    _install_immediate_overlap_executor(monkeypatch)
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, ticker: (frames[ticker.upper()], frames[ticker.upper()]),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "_market_features",
+        lambda frame, ticker: _market_features_for_test(
+            ticker,
+            qqq_distribution=4 if len(frame) < 320 else 3,
+        ),
+    )
+
+    def execute_and_count(item):
+        execution_count["value"] += 1
+        return real_execute(item)
+
+    monkeypatch.setattr(
+        technical_score_service,
+        "execute_technical_work_item",
+        execute_and_count,
+    )
+
+    coordinator = TechnicalScoringOverlapCoordinator(
+        _FakeTechnicalDb(),
+        run_id=7,
+        tickers=["AAA"],
+        settings=Settings(_env_file=None, technical_worker_processes=1),
+    )
+    coordinator.on_ticker_ready(_ready_event("AAA"))
+
+    frames["QQQ"] = _synthetic_frame()
+    rows = coordinator.finalize()
+
+    assert execution_count["value"] == 2
+    assert rows[0].market_regime == "Bull trend"
+    assert "market_risk_off" not in (rows[0].warning_flags_json or [])
+
+
+class _FakeTechnicalDb:
+    def execute(self, _statement):
+        pass
+
+    def add_all(self, rows):
+        self.rows = rows
+
+    def flush(self):
+        pass
+
+
+def _ready_event(ticker: str) -> TickerReadyEvent:
+    return TickerReadyEvent(
+        ticker=ticker,
+        statuses=("SUCCESS",),
+        failed=False,
+        completed_at=datetime.now(UTC),
+    )
+
+
+def _market_features_for_test(ticker: str, *, qqq_distribution: int) -> dict:
+    return {
+        "close": 120.0,
+        "sma50": 110.0,
+        "sma200": 100.0,
+        "sma50_slope_pct": 2.0,
+        "roc21": 3.0,
+        "roc63": 8.0,
+        "distribution_count": qqq_distribution if ticker.upper() == "QQQ" else 0,
+        "donchian_20_breakout": False,
+    }
+
+
+def _install_immediate_overlap_executor(monkeypatch) -> None:
+    class ImmediateFuture:
+        def __init__(self, fn, *args):
+            self._fn = fn
+            self._args = args
+            self._resolved = False
+            self._value = None
+
+        def result(self):
+            if not self._resolved:
+                self._value = self._fn(*self._args)
+                self._resolved = True
+            return self._value
+
+        def cancel(self):
+            return False
+
+    class ImmediateExecutor:
+        def __init__(self, max_workers):
+            self.max_workers = max_workers
+
+        def submit(self, fn, *args):
+            return ImmediateFuture(fn, *args)
+
+        def shutdown(self, wait=True, cancel_futures=False):
+            pass
+
+    monkeypatch.setattr(technical_score_service, "ProcessPoolExecutor", ImmediateExecutor)
+    monkeypatch.setattr(
+        technical_score_service,
+        "wait",
+        lambda futures, return_when=None: ({next(iter(futures))}, set()),
+    )
+
+
 def _synthetic_frame() -> pd.DataFrame:
     dates = pd.date_range("2020-01-01", periods=320, freq="D")
     close = np.linspace(100.0, 180.0, len(dates))

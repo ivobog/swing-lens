@@ -116,6 +116,8 @@ class SetupLifecycleSnapshotBuilder:
             stale_beyond_hard_limit=freshness == "STALE",
         )
         source_values["data_quality_label"] = data_quality.value
+        source_values["required_feature_coverage"] = Decimal(str(round(coverage, 6)))
+        source_values["freshness_status"] = freshness
         promoted["data_quality_label"] = data_quality.value
         promoted["required_feature_coverage"] = Decimal(str(round(coverage, 6)))
         promoted["freshness_status"] = freshness
@@ -307,14 +309,17 @@ class SetupLifecycleSnapshotBuilder:
                 getattr(market, "regime", None),
                 getattr(technical, "market_regime", None),
             ),
+            "market_gate": getattr(market, "gate_ok", None),
             "earnings_risk": _first_value(
                 getattr(combined, "earnings_risk_level", None),
                 _raw_value(context.raw_row, "earnings_risk_level"),
             ),
             "liquidity": _liquidity_risk_flag(getattr(fundamental, "liquidity_risk_score", None)),
+            "close_price": promoted.get("close_price"),
             "close_trigger_cross": promoted.get("close_above_trigger"),
             "intraday_high_trigger_cross_diagnostic": promoted.get("high_above_trigger"),
             "distance_to_pivot_pct": promoted.get("distance_to_pivot_pct"),
+            "sector_confidence": getattr(sector_row, "confidence", None),
         }
         for definition in self.config.signal_registry.definitions():
             values.setdefault(definition.key, promoted.get(definition.source))

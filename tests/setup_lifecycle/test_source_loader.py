@@ -21,6 +21,7 @@ from app.services.setup_lifecycle.source_loader import (
     SetupLifecycleSourceLoader,
     _latest_price_bars_statement,
     _run_context_cutoff_date,
+    _select_context_candidate,
     build_run_source_context,
     compare_latest_bar_selection,
     latest_completed_bar,
@@ -109,6 +110,31 @@ def test_run_context_cutoff_uses_earliest_ticker_source_date() -> None:
     )
 
     assert cutoff == date(2026, 7, 29)
+
+
+def test_point_in_time_context_is_selected_per_ticker_cutoff() -> None:
+    older = _market_snapshot()
+    older.id = 601
+    older.as_of_date = date(2026, 7, 29)
+    older.regime = "NEUTRAL"
+    newer = _market_snapshot()
+    newer.id = 602
+    newer.as_of_date = date(2026, 8, 1)
+    newer.regime = "RISK_ON"
+
+    assert _select_context_candidate((older, newer), date(2026, 7, 29), 7) is older
+    assert _select_context_candidate((older, newer), date(2026, 8, 1), 7) is newer
+
+    rows = (_raw_row("OLD"), _raw_row("NEW"))
+    context = build_run_source_context(
+        upload_run=_upload_run(),
+        raw_rows=rows,
+        market_regime_snapshot=newer,
+        market_regime_snapshots_by_ticker={"OLD": older, "NEW": newer},
+    )
+
+    assert context.tickers[0].market_regime_snapshot.regime == "NEUTRAL"
+    assert context.tickers[1].market_regime_snapshot.regime == "RISK_ON"
 
 
 def test_source_loader_market_and_sector_context_queries_are_asof_bounded() -> None:
