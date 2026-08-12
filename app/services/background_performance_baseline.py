@@ -57,8 +57,7 @@ def capture_background_performance_baseline(
         "queue": _queue_report(db, observed_at),
         "technical_artifacts": _technical_artifact_report(db),
         "workloads": [
-            _workload_report(db, ticker_count=int(size), now=observed_at)
-            for size in target_sizes
+            _workload_report(db, ticker_count=int(size), now=observed_at) for size in target_sizes
         ],
         "investigated_ib_fetch_runs": [
             _ib_fetch_run_report(db, db.get(IBFetchRun, int(fetch_run_id)))
@@ -96,6 +95,9 @@ def _runtime_flags(settings: Settings) -> dict[str, Any]:
         "technical_artifact_cache_shadow_read_enabled",
         "fetch_technical_overlap_enabled",
         "market_data_prewarm_enabled",
+        "market_data_prewarm_config_version",
+        "market_data_prewarm_cancel_bound_seconds",
+        "market_data_prewarm_resume_delay_seconds",
     )
     return {name: getattr(settings, name) for name in names}
 
@@ -110,9 +112,7 @@ def _queue_report(db: Session, now: datetime) -> dict[str, Any]:
             )
         )
     )
-    running = list(
-        db.scalars(select(BackgroundJob).where(BackgroundJob.status == "RUNNING"))
-    )
+    running = list(db.scalars(select(BackgroundJob).where(BackgroundJob.status == "RUNNING")))
     oldest = min((job.created_at for job in ready), default=None)
     return {
         "ready_depth": len(ready),
@@ -120,8 +120,7 @@ def _queue_report(db: Session, now: datetime) -> dict[str, Any]:
         "oldest_ready_job_age_seconds": _elapsed_seconds(oldest, now),
         "ready_by_job_type": dict(sorted(Counter(job.job_type for job in ready).items())),
         "ready_by_priority": {
-            str(key): value
-            for key, value in sorted(Counter(job.priority for job in ready).items())
+            str(key): value for key, value in sorted(Counter(job.priority for job in ready).items())
         },
         "stale_running_count": sum(
             bool(job.lease_expires_at and job.lease_expires_at <= now) for job in running
@@ -259,6 +258,7 @@ def _ib_fetch_run_report(
         "status": fetch_run.status,
         "duration_ms": _elapsed_ms(fetch_run.started_at, fetch_run.completed_at),
         "planned_request_count": fetch_run.planned_request_count,
+        "decision_counts": fetch_run.decision_counts_json,
         "executed_request_count": fetch_run.executed_request_count,
         "skipped_count": fetch_run.skipped_count,
         "force_refresh": fetch_run.force_refresh,
@@ -287,6 +287,7 @@ def _ib_fetch_run_report(
                 "stored_bar_count_before": item.current_bar_count,
                 "attempt_count": item.attempt_count,
                 "status": item.status,
+                "decision_metadata": item.decision_metadata_json,
             }
             for item in executed
         ],
@@ -312,9 +313,7 @@ def _ceri_report(db: Session, upload_run_id: int, now: datetime) -> dict[str, An
     all_terminal = all(job.status in terminal_statuses for job in jobs)
     request_key_counts = Counter(job.request_key for job in jobs if job.request_key)
     queue_delays = [
-        value
-        for job in jobs
-        if (value := _elapsed_ms(job.created_at, job.started_at)) is not None
+        value for job in jobs if (value := _elapsed_ms(job.created_at, job.started_at)) is not None
     ]
     snapshot_ids = select(CeriScoreSnapshot.id).where(CeriScoreSnapshot.run_id == upload_run_id)
     change_ids = select(CeriChangeEvent.id).where(CeriChangeEvent.to_snapshot_id.in_(snapshot_ids))
@@ -362,11 +361,7 @@ def _distribution(values: list[float]) -> dict[str, float | int | None]:
         return {"count": 0, "min": None, "median": None, "max": None}
     ordered = sorted(values)
     middle = len(ordered) // 2
-    median = (
-        ordered[middle]
-        if len(ordered) % 2
-        else (ordered[middle - 1] + ordered[middle]) / 2
-    )
+    median = ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
     return {
         "count": len(ordered),
         "min": round(ordered[0], 3),

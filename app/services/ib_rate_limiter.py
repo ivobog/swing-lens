@@ -26,39 +26,82 @@ class IbHistoricalRateLimiter:
         self._request_times: deque[float] = deque()
         self._last_request_at: float | None = None
 
-    def wait_before_request(self) -> None:
+    def wait_before_request(
+        self,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> bool:
         now = self._monotonic()
-        self._sleep_for_minimum_gap(now)
+        if not self._sleep_for_minimum_gap(now, should_cancel):
+            return False
         now = self._monotonic()
-        self._sleep_for_minute_window(now)
+        if not self._sleep_for_minute_window(now, should_cancel):
+            return False
         now = self._monotonic()
         self._request_times.append(now)
         self._last_request_at = now
+        return True
 
-    def backoff_after_error(self, error: Exception, attempt: int) -> None:
+    def backoff_after_error(
+        self,
+        error: Exception,
+        attempt: int,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> bool:
         if attempt <= 0:
             attempt = 1
         multiplier = min(attempt, max(self.config.max_retries, 1))
-        self._sleep(self.config.backoff_seconds * multiplier)
+        return self._sleep_interruptibly(
+            self.config.backoff_seconds * multiplier,
+            should_cancel,
+        )
 
-    def _sleep_for_minimum_gap(self, now: float) -> None:
+    def _sleep_for_minimum_gap(
+        self,
+        now: float,
+        should_cancel: Callable[[], bool] | None,
+    ) -> bool:
         if self._last_request_at is None:
-            return
+            return True
         elapsed = now - self._last_request_at
         remaining = self.config.min_seconds_between_requests - elapsed
         if remaining > 0:
-            self._sleep(remaining)
+            return self._sleep_interruptibly(remaining, should_cancel)
+        return True
 
-    def _sleep_for_minute_window(self, now: float) -> None:
+    def _sleep_for_minute_window(
+        self,
+        now: float,
+        should_cancel: Callable[[], bool] | None,
+    ) -> bool:
         if self.config.requests_per_minute <= 0:
-            return
+            return True
         while self._request_times and now - self._request_times[0] >= 60:
             self._request_times.popleft()
         if len(self._request_times) < self.config.requests_per_minute:
-            return
+            return True
         wait_seconds = 60 - (now - self._request_times[0])
         if wait_seconds > 0:
-            self._sleep(wait_seconds)
+            return self._sleep_interruptibly(wait_seconds, should_cancel)
+        return True
+
+    def _sleep_interruptibly(
+        self,
+        seconds: float,
+        should_cancel: Callable[[], bool] | None,
+    ) -> bool:
+        if seconds <= 0:
+            return not (should_cancel and should_cancel())
+        if should_cancel is None:
+            self._sleep(seconds)
+            return True
+        deadline = self._monotonic() + seconds
+        while True:
+            if should_cancel():
+                return False
+            remaining = deadline - self._monotonic()
+            if remaining <= 0:
+                return True
+            self._sleep(min(0.25, remaining))
 
 
 def rate_limit_config_from_settings(settings) -> IbRateLimitConfig:

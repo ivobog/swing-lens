@@ -6,6 +6,8 @@ from app.services.ib_fetch_plan_service import (
     FetchPlanItem,
     _build_plan_item,
     _contract_status_for_plan,
+    _dependency_roles,
+    _incremental_request_window,
     _latest_date_current,
     _plan_action,
     fetch_plan_to_dict,
@@ -296,3 +298,117 @@ def test_latest_date_current_requires_latest_completed_trading_day(monkeypatch) 
 
     assert _latest_date_current(date(2026, 7, 3), stale_after_days=3) is True
     assert _latest_date_current(date(2026, 7, 2), stale_after_days=3) is False
+
+
+def test_completed_full_backfill_prevents_repeated_full_fetch_for_limited_history() -> None:
+    settings = Settings(_env_file=None, ib_top_up_duration="10 D")
+
+    stale = _plan_action(
+        "MIAX",
+        "RESOLVED",
+        "TRADES",
+        current_bar_count=247,
+        required_bars=252,
+        latest_current=False,
+        force_refresh=False,
+        force_full_backfill=False,
+        settings=settings,
+        full_backfill_completed=True,
+        top_up_duration="8 D",
+    )
+    current = _plan_action(
+        "MIAX",
+        "RESOLVED",
+        "TRADES",
+        current_bar_count=247,
+        required_bars=252,
+        latest_current=True,
+        force_refresh=False,
+        force_full_backfill=False,
+        settings=settings,
+        full_backfill_completed=True,
+    )
+    unverified = _plan_action(
+        "MIAX",
+        "RESOLVED",
+        "TRADES",
+        current_bar_count=247,
+        required_bars=252,
+        latest_current=True,
+        force_refresh=False,
+        force_full_backfill=False,
+        settings=settings,
+        full_backfill_completed=False,
+    )
+
+    assert stale[:2] == (FetchAction.TOP_UP_RECENT, "8 D")
+    assert "limited listed" in stale[2]
+    assert current[:2] == (FetchAction.SKIP, None)
+    assert unverified[:2] == (FetchAction.FULL_BACKFILL, "3 Y")
+
+
+def test_incremental_window_covers_missing_session_and_revision_overlap() -> None:
+    duration, request_start = _incremental_request_window(
+        date(2026, 8, 10),
+        date(2026, 8, 11),
+        revision_sessions=5,
+        fallback_duration="10 D",
+    )
+
+    assert request_start == date(2026, 8, 4)
+    assert duration == "8 D"
+
+
+def test_dependency_roles_distinguish_requested_benchmark_and_sector() -> None:
+    assert _dependency_roles(
+        "QQQ",
+        requested_tickers=["MSFT"],
+        benchmark_symbols=("SPY", "QQQ"),
+        sector_symbol="QQQ",
+    ) == ("BENCHMARK", "SECTOR")
+
+
+def test_build_plan_item_classifies_stale_benchmark_and_data_type() -> None:
+    settings = Settings(_env_file=None, ib_revision_window_sessions=5)
+    coverage = OhlcvCoverageSummary(
+        total_tickers=1,
+        ready_count=0,
+        insufficient_count=0,
+        missing_count=0,
+        benchmark_spy_ready=False,
+        benchmark_qqq_ready=False,
+        required_rows=252,
+        items=[],
+    )
+    item = OhlcvCoverageItem(
+        ticker="SPY",
+        adjusted_bars=300,
+        trades_bars=300,
+        has_price=True,
+        has_volume=True,
+        sufficient_history=True,
+        status="stale",
+        first_adjusted_date=date(2025, 1, 1),
+        latest_adjusted_date=date(2026, 8, 10),
+    )
+
+    plan_item = _build_plan_item(
+        coverage_item=item,
+        contract_status="RESOLVED",
+        what_to_show="ADJUSTED_LAST",
+        coverage=coverage,
+        settings=settings,
+        force_refresh=False,
+        force_full_backfill=False,
+        full_backfill_completed=True,
+        is_benchmark=True,
+        freshness_threshold=date(2026, 8, 11),
+    )
+
+    assert plan_item.action == FetchAction.TOP_UP_RECENT
+    assert plan_item.data_role == "BENCHMARK"
+    assert plan_item.coverage_state == "STALE"
+    assert plan_item.missing_start_date == date(2026, 8, 11)
+    assert plan_item.missing_end_date == date(2026, 8, 11)
+    assert plan_item.request_start_date == date(2026, 8, 4)
+    assert plan_item.decision_category == "REQUESTED_INCREMENTAL"

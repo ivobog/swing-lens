@@ -2,6 +2,7 @@ import hashlib
 import json
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import asdict, replace
 from decimal import Decimal
 from time import perf_counter
@@ -211,6 +212,7 @@ class TechnicalScoringOverlapCoordinator:
         self._ready: set[str] = set()
         self._pending: set[str] = set()
         self._results: dict[str, PineReplicaScore | TechnicalScore] = {}
+        self._work_results: dict[str, TechnicalWorkResult] = {}
         self._futures: dict[Any, str] = {}
         self._submitted_market_signatures: dict[str, str] = {}
         self._required_market_tickers = {
@@ -222,42 +224,73 @@ class TechnicalScoringOverlapCoordinator:
             wait_for_market_events and self._required_market_tickers
         )
         self._closed = False
+        self._fetch_active = True
+        self._completed_during_fetch = 0
+        self._fallback_reason: str | None = None
+        self._cancelled = False
         self._refresh_run_level_inputs()
         _record_technical_duration("input_load", input_started, run_id=self.run_id)
         self._worker_started_at = perf_counter()
-        self._executor = ProcessPoolExecutor(
-            max_workers=_technical_worker_count(self.settings)
-        )
+        self._executor: ProcessPoolExecutor | None = None
+        try:
+            self._executor = ProcessPoolExecutor(
+                max_workers=_technical_worker_count(self.settings)
+            )
+        except Exception as exc:
+            self._activate_sequential_fallback(exc)
 
     def on_ticker_ready(self, event: TickerReadyEvent) -> None:
-        if self._closed:
+        if self._closed or self._fallback_reason is not None:
             return
-        ticker = event.ticker.upper()
-        self._ready.add(ticker)
-        if ticker in self.symbols:
-            self._pending.add(ticker)
-        if ticker in {"SPY", "QQQ"}:
-            self._refresh_run_level_inputs()
-        self._submit_ready()
+        try:
+            ticker = event.ticker.upper()
+            self._ready.add(ticker)
+            if ticker in self.symbols:
+                self._pending.add(ticker)
+            if ticker in self._required_market_tickers or ticker in {"SPY", "QQQ"}:
+                self._refresh_run_level_inputs()
+            self._submit_ready(block_when_full=False)
+        except Exception as exc:
+            self._activate_sequential_fallback(exc)
+
+    def mark_fetch_complete(self) -> None:
+        if self._fallback_reason is None:
+            try:
+                self._drain_completed(block=False)
+            except Exception as exc:
+                self._activate_sequential_fallback(exc)
+        self._fetch_active = False
 
     def finalize(self) -> list[TechnicalScore]:
         try:
+            self.mark_fetch_complete()
+            self.lease_guard()
+            if self.should_cancel() or self._cancelled:
+                raise TechnicalScoringError("Technical overlap was cancelled.")
+            if self._fallback_reason is not None:
+                return self._finalize_sequential_fallback()
             self._ready.update(self.symbols)
             self._pending.update(self.symbols)
             # Fetching has finished before finalize is called. Refresh once more and
             # release the barrier even if a custom fetch executor omitted callbacks.
             self._refresh_run_level_inputs()
             self._wait_for_market_events = False
-            self._submit_ready()
+            self._submit_ready(block_when_full=True)
             while self._futures:
                 self._drain_one()
+                self._submit_ready(block_when_full=True)
+            if self._fallback_reason is not None:
+                return self._finalize_sequential_fallback()
             # A benchmark can change after work was submitted but before fetching
             # finishes. Never persist a technical result calculated from a different
-            # SPY/QQQ input snapshot than the final run-level snapshot.
+            # market-wide input snapshot than the final run-level snapshot.
             self._refresh_run_level_inputs()
             self._resubmit_stale_market_results()
             while self._futures:
                 self._drain_one()
+                self._submit_ready(block_when_full=True)
+            if self._fallback_reason is not None:
+                return self._finalize_sequential_fallback()
             for ticker in self.symbols:
                 if ticker not in self._results:
                     self._results[ticker] = unavailable_technical_score(
@@ -267,6 +300,7 @@ class TechnicalScoringOverlapCoordinator:
                         v4_params=self.v4_params,
                     )
             ordered = [self._results[ticker] for ticker in self.symbols]
+            self._persist_completed_artifacts()
             _record_technical_duration(
                 "worker_span", self._worker_started_at, run_id=self.run_id
             )
@@ -282,7 +316,8 @@ class TechnicalScoringOverlapCoordinator:
             return scores
         finally:
             self._closed = True
-            self._executor.shutdown(wait=True, cancel_futures=True)
+            if self._executor is not None:
+                self._executor.shutdown(wait=True, cancel_futures=True)
 
     def abort(self) -> None:
         if self._closed:
@@ -291,26 +326,36 @@ class TechnicalScoringOverlapCoordinator:
         for future in self._futures:
             future.cancel()
         self._futures.clear()
-        self._executor.shutdown(wait=False, cancel_futures=True)
+        if self._executor is not None:
+            self._executor.shutdown(wait=False, cancel_futures=True)
 
-    def _submit_ready(self) -> None:
+    def _submit_ready(self, *, block_when_full: bool) -> None:
         if (
             self._closed
+            or self._fallback_reason is not None
+            or self._executor is None
             or not self._benchmark_price_available
             or not self._market_inputs_ready
         ):
             return
-        for ticker in sorted(self._pending):
+        self._drain_completed(block=False)
+        for ticker in sorted(tuple(self._pending)):
             if (
                 ticker not in self.symbols
                 or ticker in self._results
                 or ticker in self._futures.values()
             ):
+                self._pending.discard(ticker)
                 continue
-            while len(self._futures) >= self._in_flight_limit:
+            if len(self._futures) >= self._in_flight_limit:
+                if not block_when_full:
+                    break
                 self._drain_one()
+                if self._fallback_reason is not None:
+                    return
             self.lease_guard()
             if self.should_cancel():
+                self._cancelled = True
                 return
             input_started = perf_counter()
             price, trades = load_preferred_ohlcv_frames(self.db, ticker)
@@ -345,36 +390,36 @@ class TechnicalScoringOverlapCoordinator:
             )
             _record_technical_duration("input_load", input_started, run_id=self.run_id)
             self._submitted_market_signatures[ticker] = self._market_input_signature
-            future = self._executor.submit(execute_technical_work_item, item)
+            try:
+                future = self._executor.submit(execute_technical_work_item, item)
+            except Exception as exc:
+                self._activate_sequential_fallback(exc)
+                return
             self._futures[future] = ticker
-        self._pending.difference_update(self.symbols)
+            self._pending.discard(ticker)
 
     def _drain_one(self) -> None:
-        completed, _ = wait(self._futures, return_when=FIRST_COMPLETED)
-        for future in completed:
+        self._drain_completed(block=True)
+
+    def _drain_completed(self, *, block: bool) -> None:
+        if not self._futures:
+            return
+        completed, _ = wait(
+            self._futures,
+            timeout=None if block else 0,
+            return_when=FIRST_COMPLETED,
+        )
+        for future in sorted(completed, key=lambda item: self._futures[item]):
             ticker = self._futures.pop(future)
             try:
                 work_result = future.result()
                 self._results[ticker] = _score_from_work_result(work_result)
-                _persist_local_artifact(
-                    self.db,
-                    work_result,
-                    artifact_key := (
-                        LocalArtifactKey(**work_result.artifact_key)
-                        if work_result.artifact_key
-                        else None
-                    ),
-                    enabled=self.settings.technical_artifact_cache_writes_enabled,
-                )
-                _record_shadow_validation(
-                    self.db,
-                    work_result,
-                    artifact_key,
-                    run_id=self.run_id,
-                    enabled=(
-                        self.settings.technical_artifact_cache_shadow_validation_enabled
-                    ),
-                )
+                self._work_results[ticker] = work_result
+                if self._fetch_active:
+                    self._completed_during_fetch += 1
+            except BrokenProcessPool as exc:
+                self._activate_sequential_fallback(exc)
+                return
             except Exception as exc:
                 self._results[ticker] = unavailable_technical_score(
                     self.run_id,
@@ -384,15 +429,107 @@ class TechnicalScoringOverlapCoordinator:
                 )
             self.lease_guard()
             if self.should_cancel():
+                self._cancelled = True
                 for outstanding in self._futures:
                     outstanding.cancel()
                 self._futures.clear()
                 return
 
+    def _persist_completed_artifacts(self) -> None:
+        for ticker in self.symbols:
+            work_result = self._work_results.get(ticker)
+            if work_result is None:
+                continue
+            self.lease_guard()
+            if self.should_cancel():
+                self._cancelled = True
+                raise TechnicalScoringError("Technical overlap was cancelled.")
+            artifact_key = (
+                LocalArtifactKey(**work_result.artifact_key)
+                if work_result.artifact_key
+                else None
+            )
+            _persist_local_artifact(
+                self.db,
+                work_result,
+                artifact_key,
+                enabled=self.settings.technical_artifact_cache_writes_enabled,
+            )
+            _record_shadow_validation(
+                self.db,
+                work_result,
+                artifact_key,
+                run_id=self.run_id,
+                enabled=self.settings.technical_artifact_cache_shadow_validation_enabled,
+            )
+
+    def _activate_sequential_fallback(self, exc: Exception) -> None:
+        if self._fallback_reason is not None:
+            return
+        self._fallback_reason = type(exc).__name__
+        operational_metrics.increment(
+            "swinglens_pipeline_optimized_fallback_total",
+            component="technical_overlap",
+            reason=self._fallback_reason,
+        )
+        for future in self._futures:
+            future.cancel()
+        self._futures.clear()
+        self._results.clear()
+        self._work_results.clear()
+        if self._executor is not None:
+            self._executor.shutdown(wait=False, cancel_futures=True)
+            self._executor = None
+
+    def _finalize_sequential_fallback(self) -> list[TechnicalScore]:
+        self.lease_guard()
+        if self.should_cancel() or self._cancelled:
+            raise TechnicalScoringError("Technical overlap was cancelled.")
+        self._refresh_run_level_inputs()
+        results = _score_tickers_pure_sequential(
+            db=self.db,
+            symbols=self.symbols,
+            benchmark_price=self._benchmark_price,
+            sector_price=self._sector_price,
+            market_features=self._market_features,
+            qqq_market_features=self._qqq_market_features,
+            pine_params=self.pine_params,
+            v4_params=self.v4_params,
+            shadow_compare=False,
+            run_id=self.run_id,
+            settings=self.settings,
+            indicator_config_hash=self.indicator_config_hash,
+            scoring_config_hash=self.scoring_config_hash,
+        )
+        _record_technical_duration(
+            "worker_span",
+            self._worker_started_at,
+            run_id=self.run_id,
+        )
+        self.lease_guard()
+        if self.should_cancel():
+            raise TechnicalScoringError("Technical overlap was cancelled.")
+        finalize_started = perf_counter()
+        scores = finalize_technical_scores(
+            self.db,
+            self.run_id,
+            results,
+            symbols=self.symbols,
+            v4_params=self.v4_params,
+        )
+        _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
+        return scores
+
     def _refresh_run_level_inputs(self) -> None:
         self._benchmark_price = _load_price_frame(self.db, "SPY")
         self._market_features = _market_features(self._benchmark_price, "SPY")
         self._sector_price = _sector_benchmark_price(self.db, self.pine_params)
+        market_rs = self.pine_params.get("market_rs", {})
+        self._sector_ticker = (
+            str(market_rs.get("sectorSymbol") or "").strip().upper()
+            if market_rs.get("useSectorBenchmark", False)
+            else ""
+        )
         market_regime_params = self.v4_params.get("market_regime_v4", {})
         if market_regime_params.get("use_qqq", True):
             self._qqq_market_price = _load_price_frame(self.db, "QQQ")
@@ -406,6 +543,8 @@ class TechnicalScoringOverlapCoordinator:
         self._market_input_signature = _market_frames_signature(
             self._benchmark_price,
             self._qqq_market_price,
+            sector_ticker=self._sector_ticker,
+            sector_price=self._sector_price,
         )
 
     def _resubmit_stale_market_results(self) -> None:
@@ -420,12 +559,21 @@ class TechnicalScoringOverlapCoordinator:
             return
         for ticker in stale_tickers:
             self._results.pop(ticker, None)
+            self._work_results.pop(ticker, None)
             self._pending.add(ticker)
         operational_metrics.increment(
             "swinglens_technical_overlap_market_rescore_total",
             value=len(stale_tickers),
         )
-        self._submit_ready()
+        self._submit_ready(block_when_full=True)
+
+    @property
+    def completed_during_fetch(self) -> int:
+        return self._completed_during_fetch
+
+    @property
+    def fallback_reason(self) -> str | None:
+        return self._fallback_reason
 
     @property
     def _benchmark_price_available(self) -> bool:
@@ -1148,9 +1296,23 @@ def _market_features(price: pd.DataFrame, ticker: str) -> dict[str, Any]:
     return calculate_technical_features(price, ticker=ticker).latest
 
 
-def _market_frames_signature(spy_price: pd.DataFrame, qqq_price: pd.DataFrame) -> str:
+def _market_frames_signature(
+    spy_price: pd.DataFrame,
+    qqq_price: pd.DataFrame,
+    *,
+    sector_ticker: str = "",
+    sector_price: pd.DataFrame | None = None,
+) -> str:
     digest = hashlib.sha256()
-    for symbol, frame in (("SPY", spy_price), ("QQQ", qqq_price)):
+    frames = [("SPY", spy_price), ("QQQ", qqq_price)]
+    if sector_ticker:
+        frames.append(
+            (
+                f"SECTOR:{sector_ticker}",
+                sector_price if sector_price is not None else pd.DataFrame(),
+            )
+        )
+    for symbol, frame in frames:
         digest.update(symbol.encode("utf-8"))
         if frame.empty:
             digest.update(b"empty")

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from app.services import technical_score_service
 from app.services.ib_fetch_executor import TickerReadyEvent
@@ -468,6 +469,241 @@ def test_overlap_rescores_result_when_final_market_signature_changes(monkeypatch
     assert "market_risk_off" not in (rows[0].warning_flags_json or [])
 
 
+def test_overlap_dependency_signature_includes_sector_benchmark() -> None:
+    frame = _synthetic_frame()
+
+    initial = technical_score_service._market_frames_signature(
+        frame,
+        frame,
+        sector_ticker="XLK",
+        sector_price=frame,
+    )
+    changed = technical_score_service._market_frames_signature(
+        frame,
+        frame,
+        sector_ticker="XLK",
+        sector_price=frame.iloc[:-1].copy(),
+    )
+
+    assert changed != initial
+
+
+def test_overlap_submission_is_bounded_without_blocking_fetch_callback(monkeypatch) -> None:
+    frame = _synthetic_frame()
+
+    class PendingFuture:
+        def cancel(self):
+            return True
+
+    class PendingExecutor:
+        def __init__(self, max_workers):
+            self.submitted = []
+
+        def submit(self, _fn, item):
+            self.submitted.append(item.ticker)
+            return PendingFuture()
+
+        def shutdown(self, wait=True, cancel_futures=False):
+            pass
+
+    executor = PendingExecutor(1)
+    monkeypatch.setattr(
+        technical_score_service,
+        "ProcessPoolExecutor",
+        lambda max_workers: executor,
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "wait",
+        lambda futures, timeout=None, return_when=None: (set(), set(futures)),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+
+    coordinator = TechnicalScoringOverlapCoordinator(
+        _FakeTechnicalDb(),
+        run_id=7,
+        tickers=["AAA", "BBB", "CCC"],
+        settings=Settings(
+            _env_file=None,
+            technical_worker_processes=1,
+            technical_max_in_flight=2,
+        ),
+    )
+    coordinator.on_ticker_ready(_ready_event("AAA"))
+    coordinator.on_ticker_ready(_ready_event("BBB"))
+    coordinator.on_ticker_ready(_ready_event("CCC"))
+
+    assert executor.submitted == ["AAA", "BBB"]
+    assert coordinator._pending == {"CCC"}
+    assert len(coordinator._futures) == 2
+    coordinator.abort()
+
+
+def test_overlap_process_creation_failure_falls_back_to_sequential(monkeypatch) -> None:
+    frame = _synthetic_frame()
+    monkeypatch.setattr(
+        technical_score_service,
+        "ProcessPoolExecutor",
+        lambda **_kwargs: (_ for _ in ()).throw(OSError("process creation failed")),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+
+    coordinator = TechnicalScoringOverlapCoordinator(
+        _FakeTechnicalDb(),
+        run_id=7,
+        tickers=["AAA"],
+        settings=Settings(_env_file=None, technical_worker_processes=1),
+    )
+    rows = coordinator.finalize()
+
+    assert coordinator.fallback_reason == "OSError"
+    assert [row.ticker for row in rows] == ["AAA"]
+    assert rows[0].technical_confidence != "error"
+
+
+def test_overlap_callback_error_falls_back_to_sequential(monkeypatch) -> None:
+    frame = _synthetic_frame()
+    first_load = {"value": True}
+    _install_immediate_overlap_executor(monkeypatch)
+
+    def load_frames(_db, ticker):
+        if ticker.upper() == "AAA" and first_load["value"]:
+            first_load["value"] = False
+            raise RuntimeError("callback read failed")
+        return frame, frame
+
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        load_frames,
+    )
+    coordinator = TechnicalScoringOverlapCoordinator(
+        _FakeTechnicalDb(),
+        run_id=7,
+        tickers=["AAA"],
+        settings=Settings(_env_file=None, technical_worker_processes=1),
+    )
+    coordinator.on_ticker_ready(_ready_event("AAA"))
+    rows = coordinator.finalize()
+
+    assert coordinator.fallback_reason == "RuntimeError"
+    assert rows[0].technical_confidence != "error"
+
+
+def test_overlap_broken_worker_pool_falls_back_to_sequential(monkeypatch) -> None:
+    frame = _synthetic_frame()
+
+    class BrokenFuture:
+        def result(self):
+            raise technical_score_service.BrokenProcessPool("worker exited")
+
+        def cancel(self):
+            return False
+
+    class BrokenExecutor:
+        def __init__(self, max_workers):
+            pass
+
+        def submit(self, _fn, _item):
+            return BrokenFuture()
+
+        def shutdown(self, wait=True, cancel_futures=False):
+            pass
+
+    monkeypatch.setattr(technical_score_service, "ProcessPoolExecutor", BrokenExecutor)
+    monkeypatch.setattr(
+        technical_score_service,
+        "wait",
+        lambda futures, timeout=None, return_when=None: (set(futures), set()),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+    coordinator = TechnicalScoringOverlapCoordinator(
+        _FakeTechnicalDb(),
+        run_id=7,
+        tickers=["AAA"],
+        settings=Settings(_env_file=None, technical_worker_processes=1),
+    )
+    coordinator.on_ticker_ready(_ready_event("AAA"))
+    rows = coordinator.finalize()
+
+    assert coordinator.fallback_reason == "BrokenProcessPool"
+    assert rows[0].technical_confidence != "error"
+
+
+def test_overlap_cancellation_never_persists_partial_scores(monkeypatch) -> None:
+    frame = _synthetic_frame()
+    cancelled = {"value": False}
+    _install_immediate_overlap_executor(monkeypatch)
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+    db = _FakeTechnicalDb()
+    coordinator = TechnicalScoringOverlapCoordinator(
+        db,
+        run_id=7,
+        tickers=["AAA"],
+        settings=Settings(_env_file=None, technical_worker_processes=1),
+        should_cancel=lambda: cancelled["value"],
+    )
+    coordinator.on_ticker_ready(_ready_event("AAA"))
+    cancelled["value"] = True
+
+    with pytest.raises(technical_score_service.TechnicalScoringError, match="cancelled"):
+        coordinator.finalize()
+
+    assert not hasattr(db, "rows")
+
+
+def test_overlap_matches_pure_sequential_and_persists_input_order(monkeypatch) -> None:
+    frame = _synthetic_frame()
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "get_settings",
+        lambda: Settings(_env_file=None, technical_pure_boundary_enabled=True),
+    )
+    sequential = technical_score_service.score_run_technicals(
+        _FakeTechnicalDb(),
+        run_id=7,
+        tickers=["BBB", "AAA"],
+    )
+
+    _install_immediate_overlap_executor(monkeypatch)
+    coordinator = TechnicalScoringOverlapCoordinator(
+        _FakeTechnicalDb(),
+        run_id=7,
+        tickers=["BBB", "AAA"],
+        settings=Settings(_env_file=None, technical_worker_processes=1),
+    )
+    coordinator.on_ticker_ready(_ready_event("AAA"))
+    coordinator.on_ticker_ready(_ready_event("BBB"))
+    overlapped = coordinator.finalize()
+
+    assert [row.ticker for row in overlapped] == ["BBB", "AAA"]
+    assert coordinator.completed_during_fetch == 2
+    assert [_technical_fingerprint(row) for row in overlapped] == [
+        _technical_fingerprint(row) for row in sequential
+    ]
+
+
 class _FakeTechnicalDb:
     def execute(self, _statement):
         pass
@@ -477,6 +713,14 @@ class _FakeTechnicalDb:
 
     def flush(self):
         pass
+
+
+def _technical_fingerprint(row) -> dict:
+    return {
+        column.name: getattr(row, column.name)
+        for column in row.__table__.columns
+        if column.name not in {"id", "created_at"}
+    }
 
 
 def _ready_event(ticker: str) -> TickerReadyEvent:
@@ -532,7 +776,7 @@ def _install_immediate_overlap_executor(monkeypatch) -> None:
     monkeypatch.setattr(
         technical_score_service,
         "wait",
-        lambda futures, return_when=None: ({next(iter(futures))}, set()),
+        lambda futures, timeout=None, return_when=None: ({next(iter(futures))}, set()),
     )
 
 

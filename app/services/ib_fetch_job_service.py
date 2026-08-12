@@ -43,6 +43,7 @@ def create_queued_fetch_run(
         include_benchmarks=options.include_benchmarks,
         force_refresh=options.force_refresh,
         force_full_backfill=options.force_full_backfill,
+        decision_counts_json=plan.decision_counts,
         planned_request_count=plan.estimated_request_count,
         status="QUEUED",
         message="IB fetch is queued.",
@@ -156,6 +157,7 @@ def fetch_progress(fetch_run: IBFetchRun, cancel_requested: bool = False) -> dic
         "completed_items": completed_items,
         "total_items": total_items,
         "planned_request_count": fetch_run.planned_request_count,
+        "decision_counts": getattr(fetch_run, "decision_counts_json", {}),
         "executed_request_count": fetch_run.executed_request_count,
         "success_count": fetch_run.success_count,
         "failure_count": fetch_run.failure_count,
@@ -179,6 +181,7 @@ def fetch_progress(fetch_run: IBFetchRun, cancel_requested: bool = False) -> dic
                 "unchanged": item.unchanged,
                 "attempt_count": item.attempt_count,
                 "error_message": item.error_message,
+                "decision_metadata": getattr(item, "decision_metadata_json", {}),
             }
             for item in sorted(items, key=lambda item: (item.ticker, item.what_to_show))
         ],

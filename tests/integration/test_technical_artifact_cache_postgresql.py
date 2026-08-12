@@ -3,11 +3,16 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 
+import numpy as np
+import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.models.tables import TechnicalFeatureArtifact
+from app.models.tables import TechnicalFeatureArtifact, TechnicalScore, UploadRun
+from app.services import technical_score_service
+from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.operational_metrics import operational_metrics
 from app.services.technical_artifact_cache import (
     SHADOW_MATCH,
@@ -18,6 +23,8 @@ from app.services.technical_artifact_cache import (
     record_local_artifact_shadow_validation,
     upsert_local_artifact,
 )
+from app.services.technical_score_service import TechnicalScoringOverlapCoordinator
+from app.settings import Settings
 
 
 def test_only_shadow_certified_artifacts_can_be_active_hits(
@@ -102,6 +109,51 @@ def test_only_shadow_certified_artifacts_can_be_active_hits(
     engine.dispose()
 
 
+def test_overlap_workers_publish_final_scores_only_in_parent_postgresql_session(
+    disposable_postgres_database: str,
+    monkeypatch,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    frame = _synthetic_frame()
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+    with Session(engine) as db:
+        run = UploadRun(filename="phase8-overlap.csv", row_count=2, status="COMPLETED")
+        db.add(run)
+        db.commit()
+        run_id = run.id
+
+        coordinator = TechnicalScoringOverlapCoordinator(
+            db,
+            run_id=run_id,
+            tickers=["BBB", "AAA"],
+            settings=Settings(
+                _env_file=None,
+                technical_process_pool_enabled=True,
+                technical_worker_processes=1,
+                technical_max_in_flight=2,
+            ),
+        )
+        coordinator.on_ticker_ready(_ready_event("AAA"))
+        coordinator.on_ticker_ready(_ready_event("BBB"))
+
+        # Workers return database-free values; no score row exists until the
+        # parent session performs deterministic finalization.
+        assert db.query(TechnicalScore).filter_by(run_id=run_id).count() == 0
+        scores = coordinator.finalize()
+        db.commit()
+
+        assert [score.ticker for score in scores] == ["BBB", "AAA"]
+        persisted = db.query(TechnicalScore).filter_by(run_id=run_id).all()
+        assert {score.ticker for score in persisted} == {"AAA", "BBB"}
+        assert all(score.technical_confidence != "error" for score in persisted)
+    engine.dispose()
+
+
 def _upgrade(database_url: str) -> None:
     env = {**os.environ, "DATABASE_URL": database_url}
     subprocess.run(
@@ -111,4 +163,28 @@ def _upgrade(database_url: str) -> None:
         env=env,
         capture_output=True,
         text=True,
+    )
+
+
+def _ready_event(ticker: str) -> TickerReadyEvent:
+    return TickerReadyEvent(
+        ticker=ticker,
+        statuses=("SUCCESS", "SUCCESS"),
+        failed=False,
+        completed_at=datetime.now(UTC),
+    )
+
+
+def _synthetic_frame() -> pd.DataFrame:
+    dates = pd.date_range("2020-01-01", periods=320, freq="D")
+    close = np.linspace(100.0, 180.0, len(dates))
+    return pd.DataFrame(
+        {
+            "date": dates,
+            "open": close - 1.0,
+            "high": close + 2.0,
+            "low": close - 2.0,
+            "close": close,
+            "volume": np.linspace(100_000.0, 120_000.0, len(dates)),
+        }
     )

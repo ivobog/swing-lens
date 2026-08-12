@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -66,6 +66,11 @@ def queue_market_data_prewarm(
         "tickers": list(universe.tickers),
         "include_benchmarks": universe.include_benchmarks,
         "freshness_date": universe.freshness_date.isoformat(),
+        "effective_session": universe.effective_session.isoformat(),
+        "bar_size": universe.bar_size,
+        "data_types": list(universe.data_types),
+        "config_version": universe.config_version,
+        "config_fingerprint": universe.config_fingerprint,
         "status_url": f"/api/market-data/prewarm/{job.id}",
     }
 
@@ -75,6 +80,14 @@ def market_data_prewarm_status(job_id: int, db: DbSession) -> dict[str, object]:
     job = db.get(BackgroundJob, job_id)
     if job is None or job.job_type != "MARKET_DATA_PREWARM":
         raise HTTPException(status_code=404, detail="Market-data prewarm job not found.")
+    prewarm_age_seconds = (
+        max(0.0, (datetime.now(UTC) - job.completed_at.astimezone(UTC)).total_seconds())
+        if job.completed_at is not None
+        else None
+    )
+    result = dict(job.result_json or {})
+    if result:
+        result["prewarm_age_seconds"] = prewarm_age_seconds
     return {
         "job_id": job.id,
         "job_type": job.job_type,
@@ -82,7 +95,8 @@ def market_data_prewarm_status(job_id: int, db: DbSession) -> dict[str, object]:
         "request_key": job.request_key,
         "requested_cancel": job.requested_cancel,
         "payload": job.payload_json,
-        "result": job.result_json,
+        "result": result or None,
+        "prewarm_age_seconds": prewarm_age_seconds,
         "error_message": job.error_message,
         "created_at": job.created_at,
         "started_at": job.started_at,

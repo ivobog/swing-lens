@@ -7,6 +7,7 @@ from app.services.us_market_calendar import (
     latest_completed_us_trading_day,
     next_us_trading_day,
     nth_us_trading_day_from_entry,
+    subtract_us_trading_sessions,
 )
 
 NY = ZoneInfo("America/New_York")
@@ -50,6 +51,10 @@ def test_latest_completed_day_skips_weekends_and_observed_holidays() -> None:
 
 def test_next_us_trading_day_skips_weekends() -> None:
     assert next_us_trading_day(date(2026, 7, 31)) == date(2026, 8, 3)
+
+
+def test_subtract_us_trading_sessions_skips_weekends_and_holidays() -> None:
+    assert subtract_us_trading_sessions(date(2026, 7, 6), 1) == date(2026, 7, 2)
 
 
 def test_nth_us_trading_day_counts_entry_session_as_session_one() -> None:

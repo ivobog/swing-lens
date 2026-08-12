@@ -74,9 +74,7 @@ class PipelinePerformanceTracker:
             "setup_evaluation_ms": self.component_metrics.get("setup_evaluation_ms"),
             "technical_input_load_ms": self.component_metrics.get("technical_input_load_ms"),
             "technical_worker_span_ms": self.component_metrics.get("technical_worker_span_ms"),
-            "technical_cache_hits": int(
-                self.component_metrics.get("technical_cache_hits") or 0
-            ),
+            "technical_cache_hits": int(self.component_metrics.get("technical_cache_hits") or 0),
             "technical_cache_misses": int(
                 self.component_metrics.get("technical_cache_misses") or 0
             ),
@@ -92,17 +90,23 @@ class PipelinePerformanceTracker:
             "technical_cache_shadow_mismatches": int(
                 self.component_metrics.get("technical_cache_shadow_mismatches") or 0
             ),
-            "technical_worker_processes": self.component_metrics.get(
-                "technical_worker_processes"
-            ),
+            "technical_worker_processes": self.component_metrics.get("technical_worker_processes"),
             "technical_max_in_flight": self.component_metrics.get("technical_max_in_flight"),
-            "technical_tickers_completed_during_fetch": 0,
+            "technical_tickers_completed_during_fetch": int(
+                self.component_metrics.get("technical_tickers_completed_during_fetch") or 0
+            ),
             "technical_finalize_ms": self.component_metrics.get("technical_finalize_ms"),
             "ib_pacing_wait_ms": self.component_metrics.get("ib_pacing_wait_ms"),
             "ib_network_ms": self.component_metrics.get("ib_network_ms"),
             "bar_cache_write_ms": self.component_metrics.get("bar_cache_write_ms"),
-            "prewarm_age_seconds": None,
-            "prewarm_covered_tickers": 0,
+            "prewarm_age_seconds": self.component_metrics.get("prewarm_age_seconds"),
+            "prewarm_covered_tickers": int(
+                self.component_metrics.get("prewarm_covered_tickers") or 0
+            ),
+            "prewarm_reused_tickers": int(
+                self.component_metrics.get("prewarm_reused_tickers") or 0
+            ),
+            "prewarm_job_id": self.component_metrics.get("prewarm_job_id"),
             "fallbacks": sorted(self.fallbacks),
         }
 

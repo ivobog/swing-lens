@@ -29,7 +29,11 @@ from app.services.ceri.job_handlers import CERI_PROVIDER_INGEST
 from app.services.combined_decision import refresh_combined_results
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
-from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan
+from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, build_fetch_plan
+from app.services.market_data_prewarm_service import (
+    record_pipeline_prewarm_reuse,
+    resolve_pipeline_prewarm_context,
+)
 from app.services.market_regime_command_center import MarketRegimeCommandCenterService
 from app.services.market_regime_dtos import MarketRegimeCommandCenterDto
 from app.services.operational_metrics import operational_metrics
@@ -46,6 +50,7 @@ from app.services.setup_lifecycle.constants import (
     SLSE_PIPELINE_EVALUATION_STEP,
 )
 from app.services.technical_score_service import (
+    TechnicalScoringError,
     TechnicalScoringOverlapCoordinator,
     score_run_technicals,
 )
@@ -225,14 +230,45 @@ def execute_full_pipeline(
                 include_benchmarks=True,
                 what_to_show_values=DEFAULT_WHAT_TO_SHOW,
             )
+            prewarm_context = resolve_pipeline_prewarm_context(db, tickers)
+            prewarm_skipped_tickers = {
+                ticker
+                for ticker in prewarm_context.covered_tickers
+                if _plan_skips_ticker(plan, ticker)
+            }
+            prewarm_reused_tickers = sorted(
+                prewarm_skipped_tickers.intersection(prewarm_context.fetched_tickers)
+            )
+            performance.set_metric("prewarm_age_seconds", prewarm_context.age_seconds)
+            performance.set_metric(
+                "prewarm_covered_tickers",
+                len(prewarm_context.covered_tickers),
+            )
+            performance.set_metric(
+                "prewarm_reused_tickers",
+                len(prewarm_reused_tickers),
+            )
+            performance.set_metric("prewarm_job_id", prewarm_context.job_id)
+            if prewarm_context.job_id is not None:
+                record_pipeline_prewarm_reuse(
+                    db,
+                    prewarm_context,
+                    pipeline_run_id=pipeline.id,
+                    reused_tickers=prewarm_reused_tickers,
+                )
             result["ib_planned_requests"] = plan.estimated_request_count
-            if _fetch_technical_overlap_enabled(dependencies):
-                settings = get_settings()
-                benchmark_tickers = [
-                    ticker
-                    for ticker in settings.ib_benchmark_symbols
-                    if ticker in plan.symbols_including_benchmarks
-                ]
+            overlap_callback_supported = _accepts_keyword(
+                dependencies.execute_fetch_plan,
+                "on_ticker_ready",
+            )
+            if _fetch_technical_overlap_enabled(dependencies) and overlap_callback_supported:
+                benchmark_tickers = sorted(
+                    {
+                        item.ticker
+                        for item in plan.items
+                        if {"BENCHMARK", "SECTOR"}.intersection(item.dependency_roles)
+                    }
+                )
                 overlap_coordinator = TechnicalScoringOverlapCoordinator(
                     db,
                     run_id=upload_run.id,
@@ -242,6 +278,13 @@ def execute_full_pipeline(
                     required_market_tickers=benchmark_tickers,
                     wait_for_market_events=bool(plan.estimated_request_count),
                 )
+            elif _fetch_technical_overlap_enabled(dependencies):
+                performance.add_fallback("technical_overlap_callback_unsupported")
+                operational_metrics.increment(
+                    "swinglens_pipeline_optimized_fallback_total",
+                    component="technical_overlap",
+                    reason="callback_unsupported",
+                )
             fetch_run = None
             if plan.estimated_request_count:
                 fetch_kwargs: dict[str, Any] = {
@@ -250,9 +293,7 @@ def execute_full_pipeline(
                     "include_benchmarks": True,
                     "should_cancel": should_cancel,
                 }
-                if overlap_coordinator is not None and _accepts_keyword(
-                    dependencies.execute_fetch_plan, "on_ticker_ready"
-                ):
+                if overlap_coordinator is not None:
                     fetch_kwargs["on_ticker_ready"] = overlap_coordinator.on_ticker_ready
                 fetch_run = dependencies.execute_fetch_plan(**fetch_kwargs)
                 _apply_fetch_result(result, fetch_run)
@@ -261,27 +302,40 @@ def execute_full_pipeline(
                     raise PipelineCancelled("Pipeline cancelled during market data fetch.")
             else:
                 result["ib_skipped_count"] = plan.estimated_skips
+            if overlap_coordinator is not None:
+                overlap_coordinator.mark_fetch_complete()
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
             db, pipeline, "SCORING_TECHNICALS", lease_guard=lease_guard, performance=performance
         ):
             if overlap_coordinator is not None:
-                technical_scores = overlap_coordinator.finalize()
+                try:
+                    technical_scores = overlap_coordinator.finalize()
+                except TechnicalScoringError as exc:
+                    if should_cancel():
+                        raise PipelineCancelled(
+                            "Pipeline cancelled during overlapped technical scoring."
+                        ) from exc
+                    raise
+                performance.set_metric(
+                    "technical_tickers_completed_during_fetch",
+                    overlap_coordinator.completed_during_fetch,
+                )
+                if overlap_coordinator.fallback_reason is not None:
+                    performance.add_fallback(
+                        f"technical_overlap:{overlap_coordinator.fallback_reason}"
+                    )
             else:
                 technical_scores = dependencies.score_technicals(db, upload_run.id)
             performance.set_metric(
                 "technical_cache_hits",
-                operational_metrics.total(
-                    "swinglens_technical_artifact_cache_total", result="hit"
-                )
+                operational_metrics.total("swinglens_technical_artifact_cache_total", result="hit")
                 - cache_hits_before,
             )
             performance.set_metric(
                 "technical_cache_misses",
-                operational_metrics.total(
-                    "swinglens_technical_artifact_cache_total", result="miss"
-                )
+                operational_metrics.total("swinglens_technical_artifact_cache_total", result="miss")
                 - cache_misses_before,
             )
             performance.set_metric(
@@ -708,6 +762,11 @@ def _apply_fetch_result(result: dict[str, Any], fetch_run: IBFetchRun) -> None:
     result["fetch_failed"] = int(fetch_run.status in {"FAILED", "PARTIAL"})
 
 
+def _plan_skips_ticker(plan: FetchPlan, ticker: str) -> bool:
+    items = [item for item in plan.items if item.ticker == ticker]
+    return bool(items) and all(item.action == FetchAction.SKIP for item in items)
+
+
 def _apply_fetch_performance(
     performance: PipelinePerformanceTracker,
     fetch_run: IBFetchRun,
@@ -933,8 +992,7 @@ def _ceri_provider_ingest_enabled(dependencies: PipelineExecutionDependencies) -
         return dependencies.ceri_provider_ingest_enabled
     settings = get_settings()
     return ceri_flags().provider_ingest and bool(
-        settings.ceri_legacy_pipeline_scheduling_enabled
-        or settings.ceri_batched_workflow_enabled
+        settings.ceri_legacy_pipeline_scheduling_enabled or settings.ceri_batched_workflow_enabled
     )
 
 

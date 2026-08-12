@@ -46,6 +46,18 @@ def next_us_trading_day(day: date) -> date:
     return candidate
 
 
+def previous_us_trading_day(day: date) -> date:
+    return _previous_us_trading_day(day)
+
+
+def subtract_us_trading_sessions(day: date, sessions: int) -> date:
+    """Move backward by a bounded number of US equity sessions."""
+    candidate = day
+    for _ in range(max(0, sessions)):
+        candidate = _previous_us_trading_day(candidate)
+    return candidate
+
+
 def us_trading_sessions_between(start_exclusive: date, end_inclusive: date) -> int:
     """Count completed US equity sessions in ``(start, end]``.
 

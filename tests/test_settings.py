@@ -82,6 +82,9 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.market_data_prewarm_enabled is False
     assert settings.market_data_prewarm_max_tickers == 1000
     assert settings.market_data_prewarm_watchlist == ""
+    assert settings.market_data_prewarm_config_version == "market-data-prewarm-v2"
+    assert settings.market_data_prewarm_cancel_bound_seconds == 45
+    assert settings.market_data_prewarm_resume_delay_seconds == 30
     assert settings.setup_lifecycle_alerts_enabled is False
     assert settings.setup_lifecycle_replay_enabled is False
     assert settings.setup_lifecycle_reconstruction_enabled is False
@@ -115,12 +118,18 @@ def test_technical_artifact_cache_mode_maps_one_legacy_flag() -> None:
         technical_artifact_cache_shadow_read_enabled=True,
     )
 
-    assert (
-        settings.technical_artifact_cache_mode
-        == TechnicalArtifactCacheMode.SHADOW_VALIDATE
-    )
+    assert settings.technical_artifact_cache_mode == TechnicalArtifactCacheMode.SHADOW_VALIDATE
     assert settings.technical_artifact_cache_shadow_validation_enabled is True
     assert settings.technical_artifact_cache_active_reads_enabled is False
+
+
+def test_fetch_technical_overlap_requires_process_pool() -> None:
+    with pytest.raises(ValidationError, match="requires technical_process_pool_enabled"):
+        Settings(
+            _env_file=None,
+            fetch_technical_overlap_enabled=True,
+            technical_process_pool_enabled=False,
+        )
 
 
 def test_technical_artifact_cache_rejects_contradictory_legacy_flags() -> None:
@@ -133,11 +142,32 @@ def test_technical_artifact_cache_rejects_contradictory_legacy_flags() -> None:
         )
 
 
+def test_technical_artifact_cache_accepts_legacy_active_read_write_pair() -> None:
+    settings = Settings(
+        _env_file=None,
+        technical_series_version_maintenance_enabled=True,
+        technical_artifact_cache_enabled=True,
+        technical_artifact_cache_write_enabled=True,
+    )
+
+    assert settings.technical_artifact_cache_mode == TechnicalArtifactCacheMode.ACTIVE
+
+
 def test_technical_artifact_cache_rejects_mode_without_series_versions() -> None:
     with pytest.raises(ValidationError, match="requires series-version maintenance"):
         Settings(
             _env_file=None,
             technical_artifact_cache_mode=TechnicalArtifactCacheMode.ACTIVE,
+        )
+
+
+def test_prewarm_cancel_bound_covers_one_broker_request() -> None:
+    with pytest.raises(ValidationError, match="must cover one IB timeout"):
+        Settings(
+            _env_file=None,
+            ib_timeout_seconds=30,
+            ib_min_seconds_between_requests=3,
+            market_data_prewarm_cancel_bound_seconds=32,
         )
 
 

@@ -70,6 +70,26 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     assert pipeline.result_json == {"background_job_id": job.id}
 
 
+def test_new_pipeline_requests_running_prewarm_preemption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upload_run = UploadRun(id=7, filename="sample.csv", status="COMPLETED")
+    db = FakeDb(upload_runs={7: upload_run})
+    calls = []
+    monkeypatch.setattr(
+        "app.services.pipeline_service.request_active_prewarm_preemption",
+        lambda db, *, pipeline_run_id: calls.append(pipeline_run_id) or [91],
+    )
+
+    pipeline = start_pipeline(db, upload_run_id=7, requested_by="local-user")
+
+    assert calls == [pipeline.id]
+    assert pipeline.result_json == {
+        "background_job_id": 1,
+        "preempted_prewarm_job_ids": [91],
+    }
+
+
 def test_start_pipeline_coalesces_matching_active_pipeline_request() -> None:
     upload_run = UploadRun(id=7, filename="sample.csv", status="COMPLETED")
     existing_pipeline = PipelineRun(

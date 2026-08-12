@@ -332,9 +332,7 @@ class TechnicalFeatureArtifact(Base):
         default=0,
         server_default="0",
     )
-    last_shadow_validated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
+    last_shadow_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_shadow_mismatch_json: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
@@ -1107,6 +1105,12 @@ class IBFetchRun(Base):
         default=False,
         server_default="false",
     )
+    decision_counts_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
     planned_request_count: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
@@ -1193,6 +1197,12 @@ class IBFetchItem(Base):
     )
     status: Mapped[str] = mapped_column(Text, nullable=False)
     reason: Mapped[str | None] = mapped_column(Text)
+    decision_metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
     current_bar_count: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
@@ -1438,9 +1448,7 @@ class BackgroundJob(Base):
             "job_type",
             "request_key",
             unique=True,
-            postgresql_where=text(
-                "workflow_key IS NOT NULL AND request_key IS NOT NULL"
-            ),
+            postgresql_where=text("workflow_key IS NOT NULL AND request_key IS NOT NULL"),
         ),
         Index(
             "uq_background_jobs_active_request_key",
