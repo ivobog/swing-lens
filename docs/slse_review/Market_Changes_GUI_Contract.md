@@ -32,3 +32,7 @@ Sorts: transition priority, confidence, current technical score, explicit score 
 ## Source links
 
 `episode_id` links to episode detail; `lifecycle_event_id` links to a lifecycle-event detail/API anchor; `signal_change_event_id` links to signal-change detail/API; `snapshot_id`, `previous_snapshot_id`, `source_run_id` and context source IDs are never interchanged.
+
+## Second-pass actionability semantics
+
+Market posture and evidence confidence are independent. `NEUTRAL`, `YELLOW`, `MIXED`, or `CAUTION` displays `WATCH_ONLY` with reason `MARKET_POLICY_REDUCED` and metadata `market_posture=REDUCED`; it must not display `LOW_CONFIDENCE` unless an independent evidence/data condition exists. A hard market-policy prohibition displays `BLOCKED`.

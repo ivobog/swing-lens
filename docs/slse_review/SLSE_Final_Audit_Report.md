@@ -1,5 +1,28 @@
 # SLSE Final Audit Report
 
+## Final closure execution override (2026-08-12)
+
+This is the newest authoritative disposition. Functional closure, the 25-scenario production-stack golden corpus, PostgreSQL persistence, natural multi-date source evaluation, dev/QA history rebuild, rebuilt GUI/API/DB/export certification, and accessibility all pass. DEF-030 through DEF-034 and the previously open functional defects are closed.
+
+Release status remains **FAIL** for one measured mandatory gate: the worst compound Market Changes filter is P95 1,183.523ms at 110,000 snapshots / 100,000 combined change rows against the 500ms target. Ordinary first/deep/No Material Change/timeline/common-filter cases pass, and the real 1,000-ticker evaluator passes at 57.210395 seconds. No performance exception has been approved.
+
+Independent GitHub Actions, merge, and activation were therefore not performed. Engine YAML and local runtime/pipeline flags remain disabled. See `SLSE_Closure_Certification_Report.md` and `evidence/` for the final evidence inventory.
+
+## Superseded pre-closure status (retained as forensic history)
+
+This historical table is superseded by the final closure execution override above. It is retained only to show the findings and intermediate disposition that preceded final certification.
+
+| Item | Original finding | First-pass disposition | Second-pass disposition | Status recorded before final closure |
+|---|---|---|---|---|
+| DEF-030 production family inputs | Not registered | Not audited | Not audited | **FIXED** — every adapter input is covered by an executable source/derivation catalog; no unregistered or prohibited magic input remains. |
+| DEF-031 / FR-031 semantic history | History absent | PARTIAL | Typed history supplied and marked PASS | **FIXED / PASS** — all five family adapters use bounded prior canonical history where the SRS/SDD rule is temporal; same-current/different-history tests prove different evidence or decisions. |
+| DEF-032 confidence semantics | Not registered | Five top-level weights repaired | Exact freshness/lineage internals not proven | **FIXED** — 30/25/20/15/10 remains the only final formula; agreement is trend/contraction/RS/classification, and freshness/lineage independently scores bar freshness, source-run success, and lineage consistency. |
+| DEF-033 compound actionability | Not registered | Isolated cases repaired | Reduced market posture repaired | **FIXED** — one explicit precedence table covers terminal states, hard gates, evidence quality/staleness/confidence, reduced posture, lifecycle posture, earnings, and liquidity. |
+| DEF-034 stale audit statements | Conflicting historical statements | Addenda added | Older claims still easy to misread | **FIXED** — this current-status table is authoritative; older sections are retained only as dated forensic evidence. |
+| Release certification | FAIL | FAIL | FAIL | **FAIL** — functional closure, 25-scenario golden, PostgreSQL/natural-run, rebuild, E2E, scale, accessibility, and CI gates remain pending. Engine is disabled and history is untouched. |
+
+Current behavior identity is engine `slse-1.2.0`, config `2026-08-12`, snapshot schema `slse-snapshot-1.0.0`. Focused semantic proof: 206 tests and Ruff pass locally.
+
 ## 1. Executive summary
 
 The SRS/SDD-first review confirmed systemic defects in snapshot coverage, point-in-time context, confidence, alert truth tables, event sourcing, DTOs, filters, counts, links and exports. The repaired core path now passes focused unit/integration tests, real PostgreSQL DTO/count/export proof, a populated browser contract, and an isolated eight-ticker real SwingLens source run. Strict release readiness is still FAIL because the complete golden corpus, typed prior-snapshot adapter input, operator scopes, timeline/version-label work, scale targets and a second natural alert-producing source run remain open.
@@ -71,3 +94,17 @@ Read-only inspection found 8,210 false missing-close/0.75-coverage snapshots, 1,
 4. Complete operator scopes, timeline/version labels and remaining filters/DTO lineage fields.
 5. Certify 1,000-ticker/100k-row performance and accessibility.
 6. Rebuild dev/QA SLSE history; use versioned repair/supersession for retained history.
+
+## Second-pass executive addendum (2026-08-11)
+
+The second forensic review confirmed all four new semantic concerns. DEF-026, DEF-027, DEF-028, DEF-029 and FR-031 are now corrected in engine/config `slse-1.1.0` / `2026-08-11` and covered by focused regression tests. The authoritative decisions are: confidence equals the SDD weighted components only; cautious market posture is WATCH_ONLY with reduced-posture metadata; freshness counts completed US sessions; EXPIRED is WATCH_ONLY and terminal evidence confidence is preserved rather than fabricated; adapters receive bounded typed prior canonical history.
+
+Local second-pass results: 194 SLSE tests, one disposable-PostgreSQL vertical test, and six shared market-calendar tests passed. A repository-wide non-E2E/non-external run passed 1,274 tests with 8 skipped and the known unrelated CERI fake-DB failure deselected. This is local evidence, not independent CI certification.
+
+No historical derived SLSE row was mutated or rebuilt. The full 25-scenario, every-layer golden corpus and natural multi-date real-source certification are still incomplete, so their prerequisite gates are not met. Consequently:
+
+- Market Changes readiness: **FAIL**.
+- Alert Center readiness: **FAIL**.
+- Historical rebuild result: **NOT RUN - correctly blocked by unmet gates**.
+- CI evidence status: **NOT PRODUCED in this pass**.
+- Remaining ambiguities: no formula ambiguity remains; the configured choice for reduced market posture is WATCH_ONLY rather than reduced ACTIONABLE.

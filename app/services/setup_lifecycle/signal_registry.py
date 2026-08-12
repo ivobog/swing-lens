@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from app.services.setup_lifecycle.enums import SignalCategory, SignalValueType
@@ -56,11 +57,11 @@ class SignalDefinition:
                 return None
             return old_number - new_number
         if self.value_type in {SignalValueType.FLOAT, SignalValueType.PERCENTAGE}:
-            old_number = _number_or_none(old_value)
-            new_number = _number_or_none(new_value)
+            old_number = _decimal_or_none(old_value)
+            new_number = _decimal_or_none(new_value)
             if old_number is None or new_number is None:
                 return None
-            delta = new_number - old_number
+            delta = float(new_number - old_number)
             if self.direction in {
                 "lower_is_better",
                 "lower_is_better_until_trigger",
@@ -242,6 +243,13 @@ def _number_or_none(value: Any) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        return None
+
+
+def _decimal_or_none(value: Any) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
         return None
 
 

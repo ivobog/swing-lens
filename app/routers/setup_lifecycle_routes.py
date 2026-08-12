@@ -28,7 +28,11 @@ from app.services.setup_lifecycle.export_service import (
     export_episodes_csv,
     export_json,
 )
-from app.services.setup_lifecycle.job_handlers import SETUP_LIFECYCLE_EVALUATE_RUN
+from app.services.setup_lifecycle.job_handlers import (
+    SETUP_LIFECYCLE_EVALUATE_RUN,
+    SETUP_LIFECYCLE_REPAIR_TICKER,
+    SETUP_LIFECYCLE_REPLAY,
+)
 from app.services.setup_lifecycle.query_service import (
     SetupLifecycleFilters,
     SetupLifecycleListQuery,
@@ -39,12 +43,20 @@ from app.services.setup_lifecycle.replay_service import (
     SetupLifecycleReplayRequest,
     SetupLifecycleReplayService,
 )
+from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.settings import get_settings
 from app.templates import templates
 
 router = APIRouter(tags=["setup-lifecycle"])
 DbSession = Annotated[Session, Depends(get_db)]
 REPLAY_CONFIRMATION_PHRASE = "PERSIST_SETUP_LIFECYCLE_REPLAY"
+EVALUATION_SCOPES = {
+    "RUN",
+    "TICKER",
+    "DATE_RANGE",
+    "ALL_ELIGIBLE",
+    "SINGLE_TICKER_RETRY",
+}
 
 
 @router.get("/setup-lifecycle", response_class=HTMLResponse)
@@ -60,7 +72,22 @@ def setup_lifecycle_page(
     actionability: str | None = None,
     confidence_min: int | None = None,
     confidence_max: int | None = None,
+    state_age_min: int | None = None,
+    state_age_max: int | None = None,
+    setup_score_min: float | None = None,
+    setup_score_max: float | None = None,
+    trigger_distance_min: float | None = None,
+    trigger_distance_max: float | None = None,
+    sector_rank_min: int | None = None,
+    sector_rank_max: int | None = None,
+    sector_rank_change_min: int | None = None,
+    sector_rank_change_max: int | None = None,
+    velocity_window: int = 3,
     velocity_min: float | None = None,
+    velocity_max: float | None = None,
+    market_regime: str | None = None,
+    blocker: str | None = None,
+    warning_flag: str | None = None,
     sort: str = "latest_event_time",
     direction: str = "desc",
     limit: int = 50,
@@ -83,8 +110,22 @@ def setup_lifecycle_page(
         actionability=filter_values.get("actionability", actionability),
         confidence_min=filter_values.get("confidence_min", confidence_min),
         confidence_max=filter_values.get("confidence_max", confidence_max),
+        state_age_min=state_age_min,
+        state_age_max=state_age_max,
+        setup_score_min=setup_score_min,
+        setup_score_max=setup_score_max,
+        trigger_distance_min=trigger_distance_min,
+        trigger_distance_max=trigger_distance_max,
+        sector_rank_min=sector_rank_min,
+        sector_rank_max=sector_rank_max,
+        sector_rank_change_min=sector_rank_change_min,
+        sector_rank_change_max=sector_rank_change_max,
+        velocity_window=velocity_window,
         velocity_min=filter_values.get("velocity_min", velocity_min),
-        warning_flag=filter_values.get("warning_flag"),
+        velocity_max=velocity_max,
+        market_regime=market_regime,
+        blocker=blocker,
+        warning_flag=filter_values.get("warning_flag", warning_flag),
         sort=filter_values.get("sort", sort),
         direction=direction,
         limit=limit,
@@ -106,7 +147,22 @@ def setup_lifecycle_page(
                 "actionability": filter_values.get("actionability", actionability) or "",
                 "confidence_min": filter_values.get("confidence_min", confidence_min),
                 "confidence_max": filter_values.get("confidence_max", confidence_max),
+                "state_age_min": state_age_min,
+                "state_age_max": state_age_max,
+                "setup_score_min": setup_score_min,
+                "setup_score_max": setup_score_max,
+                "trigger_distance_min": trigger_distance_min,
+                "trigger_distance_max": trigger_distance_max,
+                "sector_rank_min": sector_rank_min,
+                "sector_rank_max": sector_rank_max,
+                "sector_rank_change_min": sector_rank_change_min,
+                "sector_rank_change_max": sector_rank_change_max,
+                "velocity_window": velocity_window,
                 "velocity_min": filter_values.get("velocity_min", velocity_min),
+                "velocity_max": velocity_max,
+                "market_regime": market_regime or "",
+                "blocker": blocker or "",
+                "warning_flag": filter_values.get("warning_flag", warning_flag) or "",
                 "sort": filter_values.get("sort", sort),
                 "direction": direction,
                 "limit": limit,
@@ -125,12 +181,14 @@ def setup_lifecycle_ticker_page(
     db: DbSession,
     timeframe: str = "1d",
     limit: int = 100,
+    cursor: str | None = None,
 ) -> HTMLResponse:
     payload = setup_lifecycle_ticker_timeline(
         ticker=ticker,
         db=db,
         timeframe=timeframe,
         limit=limit,
+        cursor=cursor,
     )
     return templates.TemplateResponse(
         request,
@@ -165,9 +223,13 @@ def setup_lifecycle_alerts_page(
     limit: int = 50,
     cursor: str | None = None,
     as_of: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     alert_type: str | None = None,
     source_type: str | None = None,
     lifecycle_state: str | None = None,
+    actionability: str | None = None,
+    blocker: str | None = None,
 ) -> HTMLResponse:
     payload = setup_lifecycle_alerts(
         db=db,
@@ -179,9 +241,13 @@ def setup_lifecycle_alerts_page(
         limit=limit,
         cursor=cursor,
         as_of=as_of,
+        date_from=date_from,
+        date_to=date_to,
         alert_type=alert_type,
         source_type=source_type,
         lifecycle_state=lifecycle_state,
+        actionability=actionability,
+        blocker=blocker,
     )
     return templates.TemplateResponse(
         request,
@@ -197,9 +263,13 @@ def setup_lifecycle_alerts_page(
                 "limit": limit,
                 "cursor": cursor or "",
                 "as_of": as_of.isoformat() if as_of else "",
+                "date_from": date_from.isoformat() if date_from else "",
+                "date_to": date_to.isoformat() if date_to else "",
                 "alert_type": alert_type or "",
                 "source_type": source_type or "",
                 "lifecycle_state": lifecycle_state or "",
+                "actionability": actionability or "",
+                "blocker": blocker or "",
             },
         ),
     )
@@ -255,7 +325,13 @@ def run_setup_lifecycle(run_id: int, request: Request, db: DbSession) -> HTMLRes
 @router.get("/setup-lifecycle/export.csv")
 def export_setup_lifecycle_csv(db: DbSession) -> Response:
     payload = setup_lifecycle_changes(db=db, limit=500)
-    _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
+    payload = _collect_export_pages(
+        payload,
+        lambda next_cursor: setup_lifecycle_changes(
+            db=db, limit=500, cursor=next_cursor
+        ),
+        resource="setup lifecycle changes",
+    )
     return attachment_response(
         export_changes_csv(payload),
         media_type="text/csv",
@@ -266,7 +342,13 @@ def export_setup_lifecycle_csv(db: DbSession) -> Response:
 @router.get("/setup-lifecycle/export.json")
 def export_setup_lifecycle_json(db: DbSession) -> Response:
     payload = setup_lifecycle_changes(db=db, limit=500)
-    _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
+    payload = _collect_export_pages(
+        payload,
+        lambda next_cursor: setup_lifecycle_changes(
+            db=db, limit=500, cursor=next_cursor
+        ),
+        resource="setup lifecycle changes",
+    )
     return attachment_response(
         export_json(payload),
         media_type="application/json",
@@ -294,15 +376,21 @@ def setup_lifecycle_changes(
     trigger_distance_max: float | None = None,
     sector_rank_min: int | None = None,
     sector_rank_max: int | None = None,
+    sector_rank_change_min: int | None = None,
+    sector_rank_change_max: int | None = None,
+    velocity_window: int = 3,
     velocity_min: float | None = None,
     velocity_max: float | None = None,
     market_regime: str | None = None,
+    blocker: str | None = None,
     warning_flag: str | None = None,
     sort: str = "latest_event_time",
     direction: str = "desc",
     limit: int = 50,
     cursor: str | None = None,
     as_of: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     source_type: str | None = None,
 ) -> dict[str, Any]:
     return _query_or_http(
@@ -326,11 +414,17 @@ def setup_lifecycle_changes(
                 trigger_distance_max=trigger_distance_max,
                 sector_rank_min=sector_rank_min,
                 sector_rank_max=sector_rank_max,
+                sector_rank_change_min=sector_rank_change_min,
+                sector_rank_change_max=sector_rank_change_max,
+                velocity_window=velocity_window,
                 velocity_min=velocity_min,
                 velocity_max=velocity_max,
                 market_regime=market_regime,
+                blocker=blocker,
                 warning_flag=warning_flag,
                 as_of=as_of,
+                date_from=date_from,
+                date_to=date_to,
                 source_type=source_type,
                 sort=sort,
                 direction=direction,
@@ -348,6 +442,7 @@ def setup_lifecycle_ticker_timeline(
     db: DbSession,
     timeframe: str = "1d",
     limit: int = 100,
+    cursor: str | None = None,
 ) -> dict[str, Any]:
     return _query_or_http(
         lambda: SetupLifecycleQueryService().ticker_timeline(
@@ -355,6 +450,7 @@ def setup_lifecycle_ticker_timeline(
             ticker=ticker,
             timeframe=timeframe,
             limit=limit,
+            cursor=cursor,
         )
     )
 
@@ -375,9 +471,13 @@ def setup_lifecycle_alerts(
     limit: int = 50,
     cursor: str | None = None,
     as_of: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     alert_type: str | None = None,
     source_type: str | None = None,
     lifecycle_state: str | None = None,
+    actionability: str | None = None,
+    blocker: str | None = None,
 ) -> dict[str, Any]:
     return _query_or_http(
         lambda: SetupLifecycleQueryService().alerts(
@@ -388,9 +488,13 @@ def setup_lifecycle_alerts(
                     alert_status=status,
                     alert_severity=severity,
                     as_of_date=as_of,
+                    date_from=date_from,
+                    date_to=date_to,
                     alert_type=alert_type,
                     source_type=source_type,
                     lifecycle_state=lifecycle_state,
+                    actionability=actionability,
+                    blocker=blocker,
                 ),
                 sort=sort,
                 direction=direction,
@@ -476,6 +580,105 @@ def evaluate_setup_lifecycle_run(
     return result.as_dict()
 
 
+@router.post("/api/setup-lifecycle/evaluations")
+@unsafe_route(
+    ROUTE_CLASS_LOCAL_ADMIN,
+    reason="queues explicitly scoped setup lifecycle evaluation or repair work",
+    local_admin_required=True,
+)
+def queue_setup_lifecycle_evaluation(
+    db: DbSession,
+    scope: str,
+    requester: str,
+    reason: str,
+    run_id: int | None = None,
+    ticker: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    as_of_date: date | None = None,
+) -> JSONResponse:
+    normalized_scope = scope.strip().upper()
+    if normalized_scope not in EVALUATION_SCOPES:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_SCOPE", "message": "Unsupported evaluation scope."},
+        )
+    if not requester.strip() or not reason.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_CONFIGURATION",
+                "message": "requester and reason are required.",
+            },
+        )
+    job_type, payload, request_key, safety = _evaluation_scope_job(
+        scope=normalized_scope,
+        requester=requester.strip(),
+        reason=reason.strip(),
+        run_id=run_id,
+        ticker=ticker,
+        date_from=date_from,
+        date_to=date_to,
+        as_of_date=as_of_date,
+    )
+    if run_id is not None:
+        _require_run(db, run_id)
+    config = SetupLifecycleQueryService().config
+    payload.update(
+        {
+            "engine_version": config.engine.version,
+            "config_version": config.engine.config_version,
+            "config_hash": config.config_hash,
+            "scope": normalized_scope,
+            "safety_classification": safety,
+        }
+    )
+    job = enqueue_job(
+        db,
+        job_type,
+        payload,
+        related_run_id=run_id,
+        request_key=request_key,
+    )
+    SetupLifecycleRepository(config=config).write_admin_audit_event(
+        db,
+        event_type="EVALUATION_QUEUED",
+        requester=requester.strip(),
+        reason=reason.strip(),
+        scope={
+            "scope": normalized_scope,
+            "run_id": run_id,
+            "ticker": payload.get("ticker"),
+            "date_from": payload.get("date_from"),
+            "date_to": payload.get("date_to"),
+            "as_of_date": payload.get("as_of_date"),
+        },
+        after={
+            "job_id": job.id,
+            "job_type": job_type,
+            "status": job.status,
+            "engine_version": config.engine.version,
+            "config_version": config.engine.config_version,
+            "config_hash": config.config_hash,
+        },
+    )
+    db.commit()
+    return JSONResponse(
+        {
+            "job_id": job.id,
+            "job_type": job_type,
+            "status": job.status,
+            "scope": normalized_scope,
+            "safety_classification": safety,
+            "request_key": request_key,
+            "engine_version": config.engine.version,
+            "config_version": str(config.engine.config_version),
+            "config_hash": config.config_hash,
+        },
+        status_code=http_status.HTTP_202_ACCEPTED,
+    )
+
+
 @router.post("/api/setup-lifecycle/replay")
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
@@ -538,6 +741,89 @@ def _require_persisted_replay_confirmation(
         )
 
 
+def _evaluation_scope_job(
+    *,
+    scope: str,
+    requester: str,
+    reason: str,
+    run_id: int | None,
+    ticker: str | None,
+    date_from: date | None,
+    date_to: date | None,
+    as_of_date: date | None,
+) -> tuple[str, dict[str, Any], str, str]:
+    normalized_ticker = ticker.strip().upper() if ticker else None
+    common = {"requester": requester, "reason": reason}
+    if scope == "RUN":
+        if run_id is None or run_id <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "INVALID_SCOPE", "message": "RUN requires run_id."},
+            )
+        return (
+            SETUP_LIFECYCLE_EVALUATE_RUN,
+            {**common, "run_id": run_id},
+            f"setup-lifecycle:evaluate-run:{run_id}",
+            "PERSIST_DERIVED_CURRENT_VERSION",
+        )
+    if scope == "SINGLE_TICKER_RETRY":
+        if not normalized_ticker:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_SCOPE",
+                    "message": "SINGLE_TICKER_RETRY requires ticker.",
+                },
+            )
+        payload = {**common, "ticker": normalized_ticker}
+        if as_of_date is not None:
+            payload["as_of_date"] = as_of_date.isoformat()
+        return (
+            SETUP_LIFECYCLE_REPAIR_TICKER,
+            payload,
+            f"setup-lifecycle:retry:{normalized_ticker}:{as_of_date or 'latest'}",
+            "TARGETED_IDEMPOTENT_REPAIR",
+        )
+    if scope == "TICKER" and not normalized_ticker:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_SCOPE", "message": "TICKER requires ticker."},
+        )
+    if scope == "DATE_RANGE" and (date_from is None or date_to is None):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_SCOPE",
+                "message": "DATE_RANGE requires date_from and date_to.",
+            },
+        )
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_DATE", "message": "date_from exceeds date_to."},
+        )
+    payload = {
+        **common,
+        "ticker": normalized_ticker if scope == "TICKER" else None,
+        "date_from": date_from.isoformat() if date_from else None,
+        "date_to": date_to.isoformat() if date_to else None,
+        "persist": False,
+    }
+    scope_key = (
+        normalized_ticker
+        if scope == "TICKER"
+        else f"{date_from}:{date_to}"
+        if scope == "DATE_RANGE"
+        else "all"
+    )
+    return (
+        SETUP_LIFECYCLE_REPLAY,
+        payload,
+        f"setup-lifecycle:dry-evaluate:{scope.lower()}:{scope_key}",
+        "READ_ONLY_DRY_RUN",
+    )
+
+
 @router.get("/api/setup-lifecycle/evaluations/{evaluation_id}")
 def setup_lifecycle_evaluation(evaluation_id: int, db: DbSession) -> dict[str, Any]:
     return _query_or_http(lambda: SetupLifecycleQueryService().evaluation_run(db, evaluation_id))
@@ -563,6 +849,8 @@ def export_setup_lifecycle_changes_csv(
     db: DbSession,
     run_id: int | None = None,
     as_of: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     ticker: str | None = None,
     sector: str | None = None,
     setup_family: str | None = None,
@@ -579,9 +867,13 @@ def export_setup_lifecycle_changes_csv(
     trigger_distance_max: float | None = None,
     sector_rank_min: int | None = None,
     sector_rank_max: int | None = None,
+    sector_rank_change_min: int | None = None,
+    sector_rank_change_max: int | None = None,
+    velocity_window: int = 3,
     velocity_min: float | None = None,
     velocity_max: float | None = None,
     market_regime: str | None = None,
+    blocker: str | None = None,
     warning_flag: str | None = None,
     source_type: str | None = None,
     sort: str = "latest_event_time",
@@ -591,6 +883,8 @@ def export_setup_lifecycle_changes_csv(
         db=db,
         run_id=run_id,
         as_of=as_of,
+        date_from=date_from,
+        date_to=date_to,
         ticker=ticker,
         sector=sector,
         setup_family=setup_family,
@@ -607,16 +901,29 @@ def export_setup_lifecycle_changes_csv(
         trigger_distance_max=trigger_distance_max,
         sector_rank_min=sector_rank_min,
         sector_rank_max=sector_rank_max,
+        sector_rank_change_min=sector_rank_change_min,
+        sector_rank_change_max=sector_rank_change_max,
+        velocity_window=velocity_window,
         velocity_min=velocity_min,
         velocity_max=velocity_max,
         market_regime=market_regime,
+        blocker=blocker,
         warning_flag=warning_flag,
         source_type=source_type,
         sort=sort,
         direction=direction,
         limit=500,
     )
-    _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
+    export_params = {
+        key: value for key, value in locals().items() if key not in {"db", "payload"}
+    }
+    payload = _collect_export_pages(
+        payload,
+        lambda next_cursor: setup_lifecycle_changes(
+            db=db, limit=500, cursor=next_cursor, **export_params
+        ),
+        resource="setup lifecycle changes",
+    )
     return attachment_response(
         export_changes_csv(payload),
         media_type="text/csv",
@@ -629,6 +936,8 @@ def export_setup_lifecycle_changes_json(
     db: DbSession,
     run_id: int | None = None,
     as_of: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     ticker: str | None = None,
     sector: str | None = None,
     setup_family: str | None = None,
@@ -645,9 +954,13 @@ def export_setup_lifecycle_changes_json(
     trigger_distance_max: float | None = None,
     sector_rank_min: int | None = None,
     sector_rank_max: int | None = None,
+    sector_rank_change_min: int | None = None,
+    sector_rank_change_max: int | None = None,
+    velocity_window: int = 3,
     velocity_min: float | None = None,
     velocity_max: float | None = None,
     market_regime: str | None = None,
+    blocker: str | None = None,
     warning_flag: str | None = None,
     source_type: str | None = None,
     sort: str = "latest_event_time",
@@ -657,6 +970,8 @@ def export_setup_lifecycle_changes_json(
         db=db,
         run_id=run_id,
         as_of=as_of,
+        date_from=date_from,
+        date_to=date_to,
         ticker=ticker,
         sector=sector,
         setup_family=setup_family,
@@ -673,16 +988,29 @@ def export_setup_lifecycle_changes_json(
         trigger_distance_max=trigger_distance_max,
         sector_rank_min=sector_rank_min,
         sector_rank_max=sector_rank_max,
+        sector_rank_change_min=sector_rank_change_min,
+        sector_rank_change_max=sector_rank_change_max,
+        velocity_window=velocity_window,
         velocity_min=velocity_min,
         velocity_max=velocity_max,
         market_regime=market_regime,
+        blocker=blocker,
         warning_flag=warning_flag,
         source_type=source_type,
         sort=sort,
         direction=direction,
         limit=500,
     )
-    _enforce_export_payload_rows(payload, resource="setup lifecycle changes")
+    export_params = {
+        key: value for key, value in locals().items() if key not in {"db", "payload"}
+    }
+    payload = _collect_export_pages(
+        payload,
+        lambda next_cursor: setup_lifecycle_changes(
+            db=db, limit=500, cursor=next_cursor, **export_params
+        ),
+        resource="setup lifecycle changes",
+    )
     return attachment_response(
         export_json(payload),
         media_type="application/json",
@@ -694,29 +1022,46 @@ def export_setup_lifecycle_changes_json(
 def export_setup_lifecycle_alerts_csv(
     db: DbSession,
     as_of: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     ticker: str | None = None,
     status: str | None = None,
     severity: str | None = None,
     alert_type: str | None = None,
     source_type: str | None = None,
     lifecycle_state: str | None = None,
+    actionability: str | None = None,
+    blocker: str | None = None,
     sort: str = "latest_event_time",
     direction: str = "desc",
 ) -> Response:
     payload = setup_lifecycle_alerts(
         db=db,
         as_of=as_of,
+        date_from=date_from,
+        date_to=date_to,
         ticker=ticker,
         status=status,
         severity=severity,
         alert_type=alert_type,
         source_type=source_type,
         lifecycle_state=lifecycle_state,
+        actionability=actionability,
+        blocker=blocker,
         sort=sort,
         direction=direction,
         limit=500,
     )
-    _enforce_export_payload_rows(payload, resource="setup lifecycle alerts")
+    export_params = {
+        key: value for key, value in locals().items() if key not in {"db", "payload"}
+    }
+    payload = _collect_export_pages(
+        payload,
+        lambda next_cursor: setup_lifecycle_alerts(
+            db=db, limit=500, cursor=next_cursor, **export_params
+        ),
+        resource="setup lifecycle alerts",
+    )
     return attachment_response(
         export_alerts_csv(payload),
         media_type="text/csv",
@@ -728,29 +1073,46 @@ def export_setup_lifecycle_alerts_csv(
 def export_setup_lifecycle_alerts_json(
     db: DbSession,
     as_of: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     ticker: str | None = None,
     status: str | None = None,
     severity: str | None = None,
     alert_type: str | None = None,
     source_type: str | None = None,
     lifecycle_state: str | None = None,
+    actionability: str | None = None,
+    blocker: str | None = None,
     sort: str = "latest_event_time",
     direction: str = "desc",
 ) -> Response:
     payload = setup_lifecycle_alerts(
         db=db,
         as_of=as_of,
+        date_from=date_from,
+        date_to=date_to,
         ticker=ticker,
         status=status,
         severity=severity,
         alert_type=alert_type,
         source_type=source_type,
         lifecycle_state=lifecycle_state,
+        actionability=actionability,
+        blocker=blocker,
         sort=sort,
         direction=direction,
         limit=500,
     )
-    _enforce_export_payload_rows(payload, resource="setup lifecycle alerts")
+    export_params = {
+        key: value for key, value in locals().items() if key not in {"db", "payload"}
+    }
+    payload = _collect_export_pages(
+        payload,
+        lambda next_cursor: setup_lifecycle_alerts(
+            db=db, limit=500, cursor=next_cursor, **export_params
+        ),
+        resource="setup lifecycle alerts",
+    )
     return attachment_response(
         export_json(payload),
         media_type="application/json",
@@ -806,11 +1168,17 @@ def _list_query(
     trigger_distance_max: float | None,
     sector_rank_min: int | None,
     sector_rank_max: int | None,
+    sector_rank_change_min: int | None,
+    sector_rank_change_max: int | None,
+    velocity_window: int,
     velocity_min: float | None,
     velocity_max: float | None,
     market_regime: str | None,
+    blocker: str | None,
     warning_flag: str | None,
     as_of: date | None,
+    date_from: date | None,
+    date_to: date | None,
     source_type: str | None,
     sort: str,
     direction: str,
@@ -836,11 +1204,17 @@ def _list_query(
             trigger_distance_max=trigger_distance_max,
             sector_rank_min=sector_rank_min,
             sector_rank_max=sector_rank_max,
+            sector_rank_change_min=sector_rank_change_min,
+            sector_rank_change_max=sector_rank_change_max,
+            velocity_window=velocity_window,
             velocity_min=velocity_min,
             velocity_max=velocity_max,
             market_regime=market_regime,
+            blocker=blocker,
             warning_flag=warning_flag,
             as_of_date=as_of,
+            date_from=date_from,
+            date_to=date_to,
             source_type=source_type,
         ),
         sort=sort,
@@ -860,9 +1234,49 @@ def _query_or_http(factory):
         ) from exc
 
 
+def _collect_export_pages(
+    first_payload: dict[str, Any],
+    page_factory,
+    *,
+    resource: str,
+) -> dict[str, Any]:
+    _enforce_export_payload_rows(first_payload, resource=resource)
+    combined = dict(first_payload)
+    items = list(first_payload.get("items") or [])
+    cursor = first_payload.get("next_cursor")
+    seen_cursors: set[str] = set()
+    while cursor:
+        cursor_text = str(cursor)
+        if cursor_text in seen_cursors:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "code": "EXPORT_PAGINATION_LOOP",
+                    "message": "Export pagination returned a repeated cursor.",
+                },
+            )
+        seen_cursors.add(cursor_text)
+        page = page_factory(cursor_text)
+        items.extend(page.get("items") or [])
+        cursor = page.get("next_cursor")
+    combined["items"] = items
+    combined["page_item_count"] = len(items)
+    combined["cursor"] = None
+    combined["next_cursor"] = None
+    if len(items) != int(combined.get("total", len(items))):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "EXPORT_INCOMPLETE",
+                "message": "Export pagination did not return the full filtered result set.",
+            },
+        )
+    return combined
+
+
 def _enforce_export_payload_rows(payload: dict[str, Any], *, resource: str) -> None:
     settings = get_settings()
-    row_count = len(payload.get("items") or [])
+    row_count = int(payload.get("total", len(payload.get("items") or [])))
     try:
         enforce_row_limit(
             row_count,
@@ -941,6 +1355,18 @@ def _ticker_template_context(payload: dict[str, Any]) -> dict[str, Any]:
         "state_tones": _STATE_TONES,
         "actionability_tones": _ACTIONABILITY_TONES,
         "confidence_tones": _CONFIDENCE_TONES,
+        "timeline_next_url": (
+            f"/setup-lifecycle/ticker/{payload['ticker']}?"
+            + urlencode(
+                {
+                    "timeframe": payload.get("timeframe", "1d"),
+                    "limit": payload.get("limit", 100),
+                    "cursor": payload["next_cursor"],
+                }
+            )
+            if payload.get("next_cursor")
+            else None
+        ),
     }
 
 

@@ -1,0 +1,58 @@
+{
+  "status": "PASS",
+  "database": "rebuilt local dev/QA PostgreSQL",
+  "engine_gate": {
+    "yaml_enabled": false,
+    "runtime_enabled": false,
+    "pipeline_step_enabled": false,
+    "alerts_feature_enabled": false,
+    "replay_enabled": false,
+    "reconstruction_enabled": false,
+    "purge_enabled": false
+  },
+  "database_counts": {
+    "evaluation_runs": 97,
+    "snapshots": 15347,
+    "canonical_snapshots": 7651,
+    "episodes": 2888,
+    "lifecycle_events": 17236,
+    "signal_changes": 65512,
+    "alerts": 1598
+  },
+  "integrity": {
+    "engine_config_versions": [["slse-1.2.0", "2026-08-12"]],
+    "old_version_snapshots": 0,
+    "canonical_duplicates": 0,
+    "active_episode_duplicates": 0,
+    "false_missing_required_close_price": 0,
+    "fabricated_perfect_confidence": 0,
+    "missing_change_confidence_evidence": 0,
+    "incorrect_rank_direction": 0,
+    "initial_gate_blocked": 0
+  },
+  "browser": {
+    "market_changes": "PASS",
+    "no_material_change": "PASS",
+    "ticker_timeline": "PASS",
+    "alert_center": "PASS",
+    "acknowledged_alert": {"id": 3400, "status": "ACKNOWLEDGED"},
+    "dismissed_alert": {"id": 3446, "status": "DISMISSED"},
+    "screenshots": [
+      "output/playwright/slse-rebuilt-market-changes.png",
+      "output/playwright/slse-rebuilt-no-material-change.png",
+      "output/playwright/slse-rebuilt-ticker-GMED.png",
+      "output/playwright/slse-rebuilt-alerts.png",
+      "output/playwright/slse-rebuilt-keyboard-focus.png"
+    ]
+  },
+  "exports": {
+    "filtered_alert_api_total": 1598,
+    "json_rows": 1598,
+    "csv_rows": 1598,
+    "first_row_id_api_json_csv": 3400,
+    "version": "slse-1.2.0",
+    "config_version": "2026-08-12",
+    "result": "PASS"
+  },
+  "post_rebuild_run_96_note": "Two pipeline evaluations occurred before local runtime feature flags were realigned to the disabled release gate. They were retained as valid versioned evaluations; all runtime and YAML activation flags are now false."
+}

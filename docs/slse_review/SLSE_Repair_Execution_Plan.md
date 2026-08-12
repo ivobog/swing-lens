@@ -1,5 +1,18 @@
 # SLSE Repair Execution Plan
 
+## Current authoritative status (2026-08-12)
+
+| Work item | Original finding | First-pass disposition | Second-pass disposition | Current authoritative status |
+|---|---|---|---|---|
+| DEF-030 / WP-1 | No complete production-input proof | Not started | Not started | **COMPLETE** — executable adapter coverage audit passes. |
+| DEF-031 / WP-2 / FR-031 | No typed history | PARTIAL | History transported | **COMPLETE** — temporal family behavior now consumes history and paired-history tests pass. |
+| DEF-032 / WP-3 confidence | Conflated confidence evidence | PARTIAL | Top-level blend repaired | **COMPLETE** — exact agreement and freshness/lineage semantics pass. |
+| DEF-033 / WP-3 actionability | Incomplete precedence | PARTIAL | Reduced posture repaired | **COMPLETE** — compound precedence truth table passes. |
+| DEF-034 / WP-0 governance | Stale status prose | Addenda | Addenda | **COMPLETE** — current tables are authoritative. |
+| WP-4 onward | Multiple functional/certification gaps | PARTIAL | PARTIAL | **IN PROGRESS / BLOCKED FOR RELEASE** — engine stays disabled; rebuild stays prohibited until golden and natural-run gates pass. |
+
+Current identity: engine `slse-1.2.0`, config `2026-08-12`, schema `slse-snapshot-1.0.0`. Focused semantic gate: 206 tests and Ruff pass.
+
 ## Completed
 
 - Read the full audit plan, SRS, and SDD.
@@ -33,3 +46,16 @@
 - Complete operator scopes, timeline pagination/version labels, Alert blocker/actionability/date-range filters and the remaining DTO version/hash fields.
 - Execute the chosen development/QA rebuild and document before/after counts.
 - Meet or document the 1,000-ticker/100k-row performance targets and dedicated accessibility audit.
+
+## Second-pass amendment (2026-08-11)
+
+Completed in specification order:
+
+1. Confirmed and fixed DEF-026; removed the unauthorized second-stage confidence averaging and added exact formula/boundary tests.
+2. Confirmed and fixed DEF-027; reduced market posture is now WATCH_ONLY with explicit metadata, independent of LOW_CONFIDENCE and BLOCKED.
+3. Confirmed and fixed DEF-028; freshness now uses completed US trading sessions and holiday-aware tests.
+4. Confirmed and fixed DEF-029 in the reachable pure-engine/replay contract; FAILED/EXPIRED actionability differs correctly and prior confidence is preserved instead of set to 100.
+5. Completed FR-031 typed prior canonical history with a configured 10-session bound, point-in-time validation, one batched query, and chronological roll-forward.
+6. Bumped behavior/config identity to engine `slse-1.1.0`, config `2026-08-11`; snapshot schema remains `slse-snapshot-1.0.0`.
+
+Safety disposition: historical SLSE tables were not purged, replayed, repaired, superseded, or rebuilt. The next permitted step is the complete full-layer golden corpus. Only after that and a natural multi-date source certification pass may dev/QA history be rebuilt.

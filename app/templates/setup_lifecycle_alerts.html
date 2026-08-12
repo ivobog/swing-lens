@@ -32,7 +32,9 @@
 <section class="panel section-gap">
   <form class="setup-lifecycle-filter-grid" method="get">
     <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
-    <label><span>Date</span><input name="as_of" type="date" value="{{ filters.as_of }}"></label>
+    <label><span>Exact date</span><input name="as_of" type="date" value="{{ filters.as_of }}"></label>
+    <label><span>Date from</span><input name="date_from" type="date" value="{{ filters.date_from }}"></label>
+    <label><span>Date to</span><input name="date_to" type="date" value="{{ filters.date_to }}"></label>
     <label><span>Alert Type</span>
       <select name="alert_type"><option value="">Any</option>
         {% for option in ["NEW_READY", "NEW_TRIGGER", "NEW_CONFIRMATION", "NEW_FAILURE", "NEW_EXTENSION", "SCORE_ACCELERATION", "SECTOR_ACCELERATION", "GATE_BLOCKED", "DATA_DEGRADED"] %}
@@ -64,6 +66,8 @@
       </select>
     </label>
     <label><span>Lifecycle State</span><input name="lifecycle_state" value="{{ filters.lifecycle_state }}"></label>
+    <label><span>Actionability</span><select name="actionability"><option value="">Any</option>{% for option in ["ACTIONABLE", "WATCH_ONLY", "BLOCKED", "LOW_CONFIDENCE"] %}<option value="{{ option }}" {{ "selected" if filters.actionability == option else "" }}>{{ option }}</option>{% endfor %}</select></label>
+    <label><span>Blocker</span><input name="blocker" value="{{ filters.blocker }}"></label>
     <div class="actions setup-lifecycle-filter-actions">
       <button type="submit">Apply</button>
       <a class="button-link secondary" href="/setup-lifecycle/alerts?status=UNREAD">Unread</a>
@@ -92,7 +96,7 @@
               <td>{{ alert.confidence if alert.confidence is not none else "&mdash;"|safe }}</td>
               <td>{{ alert.source_type }}</td>
               <td><span class="badge badge-muted" data-slse-alert-status>{{ alert.review_status }}</span></td>
-              <td>{{ alert.reason_codes|join(", ") if alert.reason_codes else "None" }}{% if alert.blockers %}<small>Blocked: {{ alert.blockers|join(", ") }}</small>{% endif %}</td>
+              <td>{{ alert.reason_codes|join(", ") if alert.reason_codes else "None" }}{% if alert.blockers %}<small>Blocked: {{ alert.blockers|join(", ") }}</small>{% endif %}<small>{{ alert.record_status }} · {{ alert.engine_version or "N/A" }} / {{ alert.config_version or "N/A" }}</small></td>
               <td>
                 <div class="row-actions">
                   <button class="icon-button" type="button" data-slse-alert-action="/api/setup-lifecycle/alerts/{{ alert.id }}/acknowledge">Acknowledge</button>

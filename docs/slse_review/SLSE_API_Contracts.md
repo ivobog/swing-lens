@@ -92,3 +92,19 @@ For compatibility, mutations and list items may temporarily include deprecated a
 ## Validation
 
 Invalid dates, enums, thresholds, cursors and sorts return HTTP 400 with stable SLSE error codes. Missing source records return 404. JSON preserves nulls. List/export endpoints accept the same filter and sort parameters; CSV is a projection of the same DTO set and declares a versioned schema ID.
+
+## Second-pass semantic fields
+
+Lifecycle/timeline evidence may include:
+
+```json
+{
+  "actionability_reason_codes": ["MARKET_POLICY_REDUCED"],
+  "actionability_metadata": {"market_posture": "REDUCED"},
+  "prior_snapshot_count": 2,
+  "prior_snapshot_dates": ["2026-08-07", "2026-08-10"],
+  "terminal_locked": false
+}
+```
+
+These fields do not redefine `confidence`. Final transition confidence is the documented weighted component score only. A locked EXPIRED response is WATCH_ONLY and preserves prior evidence confidence when available; it never reports 100 merely because the state is terminal.

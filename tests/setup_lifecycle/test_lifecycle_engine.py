@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import date
+
+import pytest
 from lifecycle_helpers import snapshot
 
 from app.services.setup_lifecycle.config import load_setup_lifecycle_config
@@ -15,8 +19,13 @@ from app.services.setup_lifecycle.lifecycle_engine import evaluate_lifecycle
 def test_every_lifecycle_state_can_be_reached_through_breakout_sequence() -> None:
     discovered = evaluate_lifecycle(snapshot(setup_score=None, classification=None))
     developing = evaluate_lifecycle(snapshot(setup_score=6.2, classification="Breakout Base"))
+    prior_contraction = replace(
+        snapshot(setup_score=6.2, classification="Breakout Base", range_contraction=True),
+        data_as_of_date=date(2026, 7, 31),
+    )
     tightening = evaluate_lifecycle(
-        snapshot(setup_score=6.8, classification="Breakout Base", range_contraction=True)
+        snapshot(setup_score=6.8, classification="Breakout Base", range_contraction=True),
+        previous_snapshots=(prior_contraction,),
     )
     ready = evaluate_lifecycle(
         snapshot(setup_score=7.8, classification="Breakout Base", distance_to_pivot_pct=1.0)
@@ -30,14 +39,23 @@ def test_every_lifecycle_state_can_be_reached_through_breakout_sequence() -> Non
         ),
         previous_state=LifecycleState.READY,
     )
+    prior_trigger = replace(
+        snapshot(
+            setup_score=7.8,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            close_trigger_cross=True,
+        ),
+        data_as_of_date=date(2026, 7, 31),
+    )
     confirmed = evaluate_lifecycle(
         snapshot(
             setup_score=7.8,
             classification="Breakout Base",
             distance_to_pivot_pct=1.0,
             close_trigger_cross=True,
-            follow_through_sessions=2,
         ),
+        previous_snapshots=(prior_trigger,),
         previous_state=LifecycleState.TRIGGERED,
         persistence_sessions=2,
     )
@@ -47,7 +65,9 @@ def test_every_lifecycle_state_can_be_reached_through_breakout_sequence() -> Non
             classification="Breakout Base",
             distance_to_pivot_pct=1.0,
             close_trigger_cross=True,
-            extended_atr_from_trigger=3.0,
+            close_price=110.0,
+            trigger_price=100.0,
+            atr_value=3.0,
         ),
         previous_state=LifecycleState.CONFIRMED,
     )
@@ -100,14 +120,23 @@ def test_failed_breakout_transitions_immediately_to_failed() -> None:
 
 
 def test_triggered_follow_through_requires_configured_persistence() -> None:
+    prior_trigger = replace(
+        snapshot(
+            setup_score=8.0,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            close_trigger_cross=True,
+        ),
+        data_as_of_date=date(2026, 7, 31),
+    )
     early = evaluate_lifecycle(
         snapshot(
             setup_score=8.0,
             classification="Breakout Base",
             distance_to_pivot_pct=1.0,
             close_trigger_cross=True,
-            follow_through_sessions=2,
         ),
+        previous_snapshots=(prior_trigger,),
         previous_state=LifecycleState.TRIGGERED,
         persistence_sessions=1,
     )
@@ -117,14 +146,41 @@ def test_triggered_follow_through_requires_configured_persistence() -> None:
             classification="Breakout Base",
             distance_to_pivot_pct=1.0,
             close_trigger_cross=True,
-            follow_through_sessions=2,
         ),
+        previous_snapshots=(prior_trigger,),
         previous_state=LifecycleState.TRIGGERED,
         persistence_sessions=2,
     )
 
     assert early.proposed_state is LifecycleState.TRIGGERED
     assert confirmed.proposed_state is LifecycleState.CONFIRMED
+
+
+def test_confirmed_follow_through_does_not_reapply_entry_persistence() -> None:
+    prior_trigger = replace(
+        snapshot(
+            setup_score=8.0,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            close_trigger_cross=True,
+        ),
+        data_as_of_date=date(2026, 7, 31),
+    )
+
+    retained = evaluate_lifecycle(
+        snapshot(
+            setup_score=8.0,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            close_trigger_cross=True,
+        ),
+        previous_snapshots=(prior_trigger,),
+        previous_state=LifecycleState.CONFIRMED,
+        persistence_sessions=0,
+    )
+
+    assert retained.proposed_state is LifecycleState.CONFIRMED
+    assert "NO_STATE_CHANGE" in retained.reason_codes
 
 
 def test_missing_required_evidence_keeps_state_and_lowers_confidence() -> None:
@@ -153,6 +209,47 @@ def test_terminal_states_never_reopen() -> None:
 
     assert decision.proposed_state is LifecycleState.FAILED
     assert decision.reason_codes == ("TERMINAL_STATE_LOCKED",)
+    assert decision.actionability_candidate is Actionability.BLOCKED
+    assert decision.confidence_score == 0
+
+
+def test_terminal_expired_preserves_confidence_and_is_watch_only() -> None:
+    decision = evaluate_lifecycle(
+        snapshot(setup_score=9.0, classification="Breakout Base"),
+        previous_state=LifecycleState.EXPIRED,
+        previous_phase="EXPIRED",
+        previous_confidence_score=73,
+    )
+
+    assert decision.proposed_state is LifecycleState.EXPIRED
+    assert decision.actionability_candidate is Actionability.WATCH_ONLY
+    assert decision.confidence_score == 73
+    assert decision.evidence["terminal_locked"] is True
+    assert decision.evidence["confidence_preserved"] is True
+
+
+def test_prior_snapshot_history_is_ordered_bounded_and_point_in_time_safe() -> None:
+    current = replace(
+        snapshot(setup_score=8.0, classification="Breakout Base"),
+        data_as_of_date=date(2026, 8, 5),
+    )
+    first = replace(current, data_as_of_date=date(2026, 8, 3))
+    second = replace(current, data_as_of_date=date(2026, 8, 4))
+
+    decision = evaluate_lifecycle(current, previous_snapshots=(first, second))
+
+    assert decision.evidence["prior_snapshot_count"] == 2
+    assert decision.evidence["prior_snapshot_dates"] == ["2026-08-03", "2026-08-04"]
+
+    with pytest.raises(ValueError, match="trading-date ordered"):
+        evaluate_lifecycle(current, previous_snapshots=(second, first))
+    with pytest.raises(ValueError, match="current/future"):
+        evaluate_lifecycle(current, previous_snapshots=(first, current))
+    with pytest.raises(ValueError, match="ticker/timeframe"):
+        evaluate_lifecycle(
+            current,
+            previous_snapshots=(replace(first, ticker="AAPL"),),
+        )
 
 
 def test_generated_transition_invariants_cover_terminal_and_state_age_boundaries() -> None:

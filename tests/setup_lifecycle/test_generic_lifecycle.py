@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import date
+
 from lifecycle_helpers import snapshot
 
 from app.services.setup_lifecycle.enums import LifecycleState, SetupFamily
@@ -11,7 +14,14 @@ def test_generic_adapter_maps_candidate_improving_ready_and_triggered() -> None:
     adapter = GenericAdapter()
 
     weak = adapter.evaluate(snapshot(setup_score=4.0, classification="Constructive Candidate"))
-    improving = adapter.evaluate(snapshot(setup_score=6.0, classification="Constructive Candidate"))
+    prior = replace(
+        snapshot(setup_score=5.2, classification="Constructive Candidate"),
+        data_as_of_date=date(2026, 7, 31),
+    )
+    improving = adapter.evaluate(
+        snapshot(setup_score=6.0, classification="Constructive Candidate"),
+        history=(prior,),
+    )
     ready = adapter.evaluate(snapshot(setup_score=7.2, classification="Constructive Candidate"))
     triggered = adapter.evaluate(
         snapshot(

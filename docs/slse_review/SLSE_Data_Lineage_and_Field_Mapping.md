@@ -1,5 +1,30 @@
 # SLSE Data Lineage and Field Mapping
 
+## Current authoritative status (2026-08-12)
+
+| Area | Original finding | First-pass disposition | Second-pass disposition | Current authoritative status |
+|---|---|---|---|---|
+| DEF-030 adapter inputs | Incomplete source proof | PARTIAL | Not revisited | **PASS** — `adapter_input_audit.py` is the executable catalog for every literal adapter signal and classification input. |
+| DEF-031 prior history | Not supplied | PARTIAL | Typed bounded history supplied | **PASS** — temporal evidence consumes ordered prior canonical snapshots in every applicable family. |
+| DEF-032 confidence lineage | Quality label conflated evidence | PARTIAL | Top-level formula corrected | **PASS** — freshness, run success, and lineage consistency are independent fields and scored independently. |
+| DEF-033 actionability lineage | Branch order implicit | PARTIAL | Reduced posture separated | **PASS** — precedence and selected reason/blocker/metadata are persisted in decision evidence. |
+| DEF-034 document status | Old and new claims conflicted | PARTIAL | Dated correction | **PASS** — this table is authoritative. |
+| Public DTO/version/hash projection | Incomplete | PARTIAL | PARTIAL | **OPEN** — closure work continues; release remains FAIL. |
+
+Behavior identity is engine `slse-1.2.0`, config `2026-08-12`, schema `slse-snapshot-1.0.0`. Engine is disabled and retained history is unchanged.
+
+### Authoritative confidence derivation
+
+- Final score: `round(100 × (0.30 coverage + 0.25 signal_agreement + 0.20 persistence + 0.15 freshness_and_lineage + 0.10 context_completeness))`.
+- Signal agreement: configured weighted mean of `trend`, `contraction`, `relative_strength`, and `classification`; the current version assigns each 0.25.
+- Freshness and lineage: configured weighted mean of `completed_bar_freshness`, `source_run_success`, and `lineage_consistency`; the current weights are 0.333333, 0.333333, and 0.333334.
+- Lineage consistency requires explicit integrity evidence, engine/config/schema versions, configuration/source hashes, and consistent source identifiers. Missing evidence is never treated as success.
+- Adapter confidence is not blended into the final score a second time.
+
+### Authoritative adapter-input catalog
+
+`app/services/setup_lifecycle/adapter_input_audit.py` records, for every adapter input, the adapter(s), signal key, business meaning, governing rule, persisted source entity/debug path and effective date, snapshot-builder mapping, stored JSON key, required/null behavior, point-in-time derivation, and prior-history use. `tests/setup_lifecycle/test_adapter_input_coverage.py` parses adapter source and fails if a literal signal/classification input is not both registered and cataloged, or if a prohibited fixture-only magic key is reintroduced.
+
 ## Conventions
 
 - Effective date is the latest completed daily bar unless a context source explicitly carries an earlier `as_of_date`; context must never be newer than ticker data-as-of.
@@ -63,3 +88,13 @@
 ## Known lineage gaps requiring repair
 
 The repaired path now satisfies `close_price` coverage, confidence coverage, per-ticker context cutoff, Market Changes source union, joined Alert DTO, rank direction, explicit displayed velocity, full-scope counts, source IDs and v2 exports. Remaining gaps are confidence-component/version/hash projection on list DTOs, typed prior-snapshot history in family adapters, complete version/status labels, and the unfinished golden/performance/accessibility gates. These are tracked in `SLSE_Implementation_Audit.md`.
+
+## Second-pass lineage corrections (2026-08-11)
+
+- `confidence_score`: final value is exclusively `round(100 * sum(component * configured_weight))`; family adapter confidence is not a second-stage input. Family evidence strength is represented once inside `signal_agreement`.
+- `freshness`: age is `us_trading_sessions_between(data_as_of_date, reference_date)`. Saturdays, Sundays, and NYSE holidays do not increment age.
+- `actionability_metadata`: reduced market posture persists `{"market_posture": "REDUCED"}` with reason `MARKET_POLICY_REDUCED`; it does not alter confidence or lifecycle state.
+- `previous_snapshots`: ordered typed canonical DTOs strictly before the current data-as-of date, bounded to `episodes.history_window_sessions=10`. They are batch-loaded per evaluation and supplied to every family adapter.
+- `terminal_locked`: separate invariant flag. It does not imply confidence 100. Terminal confidence comes from the prior episode evidence when available.
+
+The prior statement that typed history remained a gap is superseded. Remaining lineage gaps are list-level confidence components/version hashes and incomplete record/version labels.

@@ -6,8 +6,12 @@ from app.services.setup_lifecycle.enums import SetupFamily
 from app.services.setup_lifecycle.family_adapters import (
     _confidence_from_score,
     _number,
+    numeric_history_is_improving,
+    relative_strength_agreement,
     signal_bool,
+    signal_text,
     signal_value,
+    trend_agreement,
 )
 
 
@@ -21,6 +25,7 @@ class GenericAdapter:
         self,
         snapshot: NormalizedSnapshot,
         *,
+        history: tuple[NormalizedSnapshot, ...] = (),
         previous_state: object | None = None,
         state_age_sessions: int = 0,
     ) -> FamilyEvidence:
@@ -32,6 +37,12 @@ class GenericAdapter:
         ready = trackable and score >= policy.ready_score_min
         triggered = ready and signal_bool(snapshot, "close_trigger_cross")
         expired = state_age_sessions >= policy.max_age_sessions
+        improving = numeric_history_is_improving(
+            snapshot,
+            history,
+            "technical_score",
+            lower_is_better=False,
+        )
 
         if expired:
             phase = "EXPIRED"
@@ -42,8 +53,11 @@ class GenericAdapter:
         elif ready:
             phase = "READY"
             reasons = ("GENERIC_READY",)
-        elif trackable:
+        elif trackable and improving:
             phase = "IMPROVING"
+            reasons = ("GENERIC_SCORE_IMPROVING",)
+        elif trackable:
+            phase = "CANDIDATE"
             reasons = ("GENERIC_FALLBACK",)
         else:
             phase = "CANDIDATE"
@@ -63,6 +77,13 @@ class GenericAdapter:
             reason_codes=reasons,
             evidence={
                 "technical_score": score,
+                "score_improving": improving,
                 "state_age_sessions": state_age_sessions,
+            },
+            agreement_components={
+                "trend": trend_agreement(snapshot),
+                "contraction": 0.5,
+                "relative_strength": relative_strength_agreement(snapshot),
+                "classification": 1.0 if signal_text(snapshot, "classification") else 0.5,
             },
         )

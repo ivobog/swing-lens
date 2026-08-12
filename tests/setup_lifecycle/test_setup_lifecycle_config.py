@@ -21,7 +21,7 @@ def test_valid_default_setup_lifecycle_yaml_loads() -> None:
     config = load_setup_lifecycle_config()
 
     assert config.engine.enabled is False
-    assert config.engine.version == "slse-1.0.0"
+    assert config.engine.version == "slse-1.2.0"
     assert config.engine.schema_version == "slse-snapshot-1.0.0"
     assert config.engine.trigger_authority == "COMPLETED_DAILY_CLOSE"
     assert config.engine.diagnostic_high_cross_enabled is True

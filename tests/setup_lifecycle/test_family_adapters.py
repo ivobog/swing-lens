@@ -36,3 +36,35 @@ def test_generic_family_is_used_when_supported_family_evidence_is_absent() -> No
 
     assert len(candidates) == 1
     assert candidates[0].setup_family is SetupFamily.GENERIC
+
+
+def test_pivot_metadata_does_not_shadow_an_explicit_pullback_family() -> None:
+    candidates = evaluate_family_candidates(
+        snapshot(
+            setup_score=7.8,
+            classification="Pullback Uptrend",
+            distance_to_pivot_pct=1.0,
+            held_near_support=True,
+        )
+    )
+
+    primary = select_primary_family(candidates)
+
+    assert primary is not None
+    assert primary.setup_family is SetupFamily.PULLBACK
+
+
+def test_incidental_declining_volume_does_not_shadow_explicit_vcp_family() -> None:
+    candidates = evaluate_family_candidates(
+        snapshot(
+            setup_score=7.8,
+            classification="VCP",
+            contraction_count=2,
+            volume_percentile_252=30,
+        )
+    )
+
+    primary = select_primary_family(candidates)
+
+    assert primary is not None
+    assert primary.setup_family is SetupFamily.VCP

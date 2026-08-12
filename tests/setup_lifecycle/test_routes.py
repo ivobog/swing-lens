@@ -38,9 +38,13 @@ def test_changes_route_forwards_dashboard_filters(monkeypatch: pytest.MonkeyPatc
         trigger_distance_max=3,
         sector_rank_min=1,
         sector_rank_max=10,
+        sector_rank_change_min=-2,
+        sector_rank_change_max=4,
+        velocity_window=5,
         velocity_min=0.1,
         velocity_max=2,
         market_regime="RISK_ON",
+        blocker="MARKET_GATE_BLOCKED",
         warning_flag="MISSING_SECTOR_ROTATION",
         sort="score",
         direction="asc",
@@ -55,6 +59,9 @@ def test_changes_route_forwards_dashboard_filters(monkeypatch: pytest.MonkeyPatc
     assert query.filters.setup_score_min == 7.5
     assert query.filters.trigger_distance_max == 3
     assert query.filters.velocity_min == 0.1
+    assert query.filters.velocity_window == 5
+    assert query.filters.sector_rank_change_max == 4
+    assert query.filters.blocker == "MARKET_GATE_BLOCKED"
     assert query.sort == "score"
     assert query.direction == "asc"
     assert query.limit == 25
@@ -86,12 +93,36 @@ def test_alerts_route_forwards_semantic_filters(monkeypatch: pytest.MonkeyPatch)
         as_of=date(2026, 8, 1),
         alert_type="SCORE_ACCELERATION",
         source_type="SIGNAL_CHANGE_EVENT",
+        date_from=date(2026, 7, 1),
+        date_to=date(2026, 8, 1),
+        actionability="ACTIONABLE",
+        blocker="EARNINGS_BLOCKED",
     )
 
     query = fake_service.last_alerts_query
     assert query.filters.as_of_date == date(2026, 8, 1)
     assert query.filters.alert_type == "SCORE_ACCELERATION"
     assert query.filters.source_type == "SIGNAL_CHANGE_EVENT"
+    assert query.filters.date_from == date(2026, 7, 1)
+    assert query.filters.actionability == "ACTIONABLE"
+    assert query.filters.blocker == "EARNINGS_BLOCKED"
+
+
+def test_export_page_collection_follows_all_cursors() -> None:
+    pages = {
+        "1": {"items": [{"id": 2}], "total": 3, "next_cursor": "2"},
+        "2": {"items": [{"id": 3}], "total": 3, "next_cursor": None},
+    }
+    first = {"items": [{"id": 1}], "total": 3, "next_cursor": "1"}
+
+    payload = routes._collect_export_pages(  # noqa: SLF001
+        first,
+        lambda cursor: pages[cursor],
+        resource="test rows",
+    )
+
+    assert [item["id"] for item in payload["items"]] == [1, 2, 3]
+    assert payload["next_cursor"] is None
 
 
 def test_query_errors_are_mapped_to_http_errors() -> None:
@@ -190,6 +221,78 @@ def test_quick_filters_use_event_semantics_and_real_bounds() -> None:
     assert routes._quick_filter_values("newly-triggered") == {
         "transition": "TO_TRIGGERED"
     }
+
+
+@pytest.mark.parametrize(
+    ("scope", "kwargs", "expected_job", "expected_safety"),
+    [
+        (
+            "RUN",
+            {"run_id": 7},
+            routes.SETUP_LIFECYCLE_EVALUATE_RUN,
+            "PERSIST_DERIVED_CURRENT_VERSION",
+        ),
+        (
+            "TICKER",
+            {"ticker": "msft"},
+            routes.SETUP_LIFECYCLE_REPLAY,
+            "READ_ONLY_DRY_RUN",
+        ),
+        (
+            "DATE_RANGE",
+            {"date_from": date(2026, 7, 1), "date_to": date(2026, 8, 1)},
+            routes.SETUP_LIFECYCLE_REPLAY,
+            "READ_ONLY_DRY_RUN",
+        ),
+        (
+            "ALL_ELIGIBLE",
+            {},
+            routes.SETUP_LIFECYCLE_REPLAY,
+            "READ_ONLY_DRY_RUN",
+        ),
+        (
+            "SINGLE_TICKER_RETRY",
+            {"ticker": "msft"},
+            routes.SETUP_LIFECYCLE_REPAIR_TICKER,
+            "TARGETED_IDEMPOTENT_REPAIR",
+        ),
+    ],
+)
+def test_operator_evaluation_scopes_are_explicit_and_versionable(
+    scope: str,
+    kwargs: dict,
+    expected_job: str,
+    expected_safety: str,
+) -> None:
+    job_type, payload, request_key, safety = routes._evaluation_scope_job(  # noqa: SLF001
+        scope=scope,
+        requester="operator",
+        reason="closure test",
+        run_id=kwargs.get("run_id"),
+        ticker=kwargs.get("ticker"),
+        date_from=kwargs.get("date_from"),
+        date_to=kwargs.get("date_to"),
+        as_of_date=None,
+    )
+
+    assert job_type == expected_job
+    assert safety == expected_safety
+    assert request_key.startswith("setup-lifecycle:")
+    assert payload["requester"] == "operator"
+
+
+def test_operator_scope_rejects_unsafe_ambiguity() -> None:
+    with pytest.raises(HTTPException, match="DATE_RANGE"):
+        routes._evaluation_scope_job(  # noqa: SLF001
+            scope="DATE_RANGE",
+            requester="operator",
+            reason="closure test",
+            run_id=None,
+            ticker=None,
+            date_from=None,
+            date_to=None,
+            as_of_date=None,
+        )
     assert routes._quick_filter_values("improving-fast") == {
         "sort": "velocity",
         "velocity_min": 0.5,
@@ -254,6 +357,8 @@ def test_operations_page_renders_replay_form(monkeypatch: pytest.MonkeyPatch) ->
     assert response.status_code == 200
     assert "Setup Lifecycle Operations" in response.text
     assert 'action="/api/setup-lifecycle/replay"' in response.text
+    assert 'action="/api/setup-lifecycle/evaluations"' in response.text
+    assert "SINGLE_TICKER_RETRY" in response.text
     assert "slse-1.0.0" in response.text
 
 
@@ -288,7 +393,15 @@ class FakeQueryService:
     def diagnostics(self, _db):
         return _diagnostics_payload()
 
-    def ticker_timeline(self, _db, *, ticker: str, timeframe: str = "1d", limit: int = 100):
+    def ticker_timeline(
+        self,
+        _db,
+        *,
+        ticker: str,
+        timeframe: str = "1d",
+        limit: int = 100,
+        cursor: str | None = None,
+    ):
         return _ticker_payload(ticker)
 
     def episode_detail(self, _db, episode_id: int):

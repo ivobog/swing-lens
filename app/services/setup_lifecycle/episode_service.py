@@ -25,7 +25,7 @@ from app.services.setup_lifecycle.enums import (
 )
 from app.services.setup_lifecycle.lifecycle_engine import SetupLifecycleEngine
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
-from app.services.us_market_calendar import next_us_trading_day
+from app.services.us_market_calendar import us_trading_sessions_between
 
 
 @dataclass(frozen=True)
@@ -64,10 +64,16 @@ class SetupLifecycleEpisodeService:
         *,
         evaluation_run_id: int | None = None,
         completed_observation_sessions: int = 1,
+        prior_snapshots: tuple[NormalizedSnapshot, ...] = (),
     ) -> EpisodeEvaluationResult:
         normalized = normalized_snapshot_from_row(snapshot)
         first_pass = self.lifecycle_engine.evaluate(
-            _request(normalized, state_age_sessions=0, missing_observation_sessions=0)
+            _request(
+                normalized,
+                previous_snapshots=prior_snapshots,
+                state_age_sessions=0,
+                missing_observation_sessions=0,
+            )
         )
         active = self.repository.active_episode_for_update(
             db,
@@ -80,8 +86,10 @@ class SetupLifecycleEpisodeService:
             decision = self.lifecycle_engine.evaluate(
                 _request(
                     normalized,
+                    previous_snapshots=prior_snapshots,
                     previous_state=LifecycleState(active.current_state),
                     previous_phase=active.current_phase,
+                    previous_confidence_score=active.confidence_score,
                     state_age_sessions=active.state_age_sessions,
                     persistence_sessions=_persistence_sessions(active),
                     missing_observation_sessions=active.missing_observation_sessions,
@@ -99,6 +107,11 @@ class SetupLifecycleEpisodeService:
                 evaluation_run_id=evaluation_run_id,
             )
 
+        effective_observation_sessions = (
+            0
+            if snapshot.data_as_of_date <= active.last_observed_on
+            else completed_observation_sessions
+        )
         return self._update_episode(
             db,
             active,
@@ -106,7 +119,7 @@ class SetupLifecycleEpisodeService:
             decision,
             actionability,
             evaluation_run_id=evaluation_run_id,
-            completed_observation_sessions=completed_observation_sessions,
+            completed_observation_sessions=effective_observation_sessions,
         )
 
     def apply_observation_gap(
@@ -132,7 +145,10 @@ class SetupLifecycleEpisodeService:
         if missing_sessions <= 0:
             return EpisodeApplyResult(episode_id=episode.id, updated=False)
 
-        episode.missing_observation_sessions += missing_sessions
+        episode.missing_observation_sessions = max(
+            episode.missing_observation_sessions,
+            missing_sessions,
+        )
         episode.current_as_of_date = observed_on
         threshold = self.config.families.policies[setup_family].observation_gap_sessions
         if episode.missing_observation_sessions <= threshold:
@@ -243,7 +259,7 @@ class SetupLifecycleEpisodeService:
             confidence_score=decision.confidence_score,
             confidence_label=decision.confidence_label.value,
             reason_codes=_opening_reasons(decision),
-            evidence=decision.evidence,
+            evidence=_decision_evidence(decision, actionability),
             event_type="EPISODE_OPENED",
             immediate_transition=decision.immediate_transition,
         )
@@ -311,7 +327,7 @@ class SetupLifecycleEpisodeService:
                 confidence_score=decision.confidence_score,
                 confidence_label=decision.confidence_label.value,
                 reason_codes=decision.reason_codes,
-                evidence=decision.evidence,
+                evidence=_decision_evidence(decision, actionability),
                 event_type="STATE_TRANSITION"
                 if previous_state is not decision.proposed_state
                 else "PHASE_TRANSITION",
@@ -501,8 +517,23 @@ def normalized_snapshot_from_row(snapshot: SetupSignalSnapshot) -> NormalizedSna
         source_ids={
             "snapshot_id": snapshot.id,
             "run_id": snapshot.run_id,
+            "raw_row_id": snapshot.raw_row_id,
+            "fundamental_score_id": snapshot.fundamental_score_id,
+            "technical_score_id": snapshot.technical_score_id,
+            "combined_result_id": snapshot.combined_result_id,
+            "ranking_result_id": snapshot.ranking_result_id,
+            "market_regime_snapshot_id": snapshot.market_regime_snapshot_id,
+            "sector_rotation_snapshot_id": snapshot.sector_rotation_snapshot_id,
         },
         source_lineage=dict(snapshot.source_lineage_json or {}),
+        engine_version=snapshot.engine_version,
+        config_version=snapshot.config_version,
+        schema_version=snapshot.schema_version,
+        config_hash=snapshot.config_hash,
+        source_data_hash=snapshot.source_data_hash,
+        origin_type=snapshot.origin_type,
+        is_canonical=snapshot.is_canonical,
+        superseded_by_snapshot_id=snapshot.superseded_by_snapshot_id,
     )
 
 
@@ -516,22 +547,16 @@ def select_primary_episodes(
 
 
 def trading_sessions_between(start_exclusive: date, end_inclusive: date) -> int:
-    if end_inclusive <= start_exclusive:
-        return 0
-    count = 0
-    current = start_exclusive
-    while True:
-        current = next_us_trading_day(current)
-        if current > end_inclusive:
-            return count
-        count += 1
+    return us_trading_sessions_between(start_exclusive, end_inclusive)
 
 
 def _request(
     snapshot: NormalizedSnapshot,
     *,
+    previous_snapshots: tuple[NormalizedSnapshot, ...] = (),
     previous_state: LifecycleState | None = None,
     previous_phase: str | None = None,
+    previous_confidence_score: int | None = None,
     state_age_sessions: int = 0,
     persistence_sessions: int = 0,
     missing_observation_sessions: int = 0,
@@ -540,8 +565,10 @@ def _request(
 
     return LifecycleEvaluationInput(
         snapshot=snapshot,
+        previous_snapshots=previous_snapshots,
         previous_state=previous_state,
         previous_phase=previous_phase,
+        previous_confidence_score=previous_confidence_score,
         state_age_sessions=state_age_sessions,
         persistence_sessions=persistence_sessions,
         missing_observation_sessions=missing_observation_sessions,
@@ -557,7 +584,8 @@ def _signal_values(snapshot: SetupSignalSnapshot) -> dict[str, Any]:
             signals[key] = raw
     for key, value in {
         "setup_score": snapshot.setup_score,
-        "technical_score": snapshot.trend_score or snapshot.dual_score,
+        "technical_score": snapshot.dual_score,
+        "trend_score": snapshot.trend_score,
         "classification": snapshot.technical_classification,
         "stage": snapshot.stage,
         "distance_to_pivot_pct": snapshot.distance_to_pivot_pct,
@@ -590,6 +618,8 @@ def _value_type(value: Any) -> SignalValueType:
         return SignalValueType.BOOLEAN
     if isinstance(value, int | float | Decimal):
         return SignalValueType.FLOAT
+    if isinstance(value, (list, tuple, set)):
+        return SignalValueType.SET
     if value is None:
         return SignalValueType.NULLABILITY
     return SignalValueType.ENUM
@@ -633,8 +663,23 @@ def _episode_metadata(
         "snapshot_id": snapshot.id,
         "reason_codes": list(decision.reason_codes),
         "actionability_reason_codes": list(actionability.reason_codes),
+        "actionability_metadata": dict(actionability.metadata),
         "blockers": list(actionability.blockers),
         "market_regime": _json_scalar((snapshot.signals_json or {}).get("market_regime")),
+    }
+
+
+def _decision_evidence(
+    decision: LifecycleDecision,
+    actionability: ActionabilityDecision,
+) -> dict[str, Any]:
+    return {
+        **decision.evidence,
+        "actionability": {
+            "reason_codes": list(actionability.reason_codes),
+            "blockers": list(actionability.blockers),
+            "metadata": dict(actionability.metadata),
+        },
     }
 
 

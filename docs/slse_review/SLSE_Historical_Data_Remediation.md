@@ -45,3 +45,9 @@ Database `swinglens` was inspected without mutation:
 | change events without `confidence_score` evidence | 7,244 |
 
 All 8,217 snapshots use engine `slse-1.0.0`, config `2026-07-31`. Alert distribution is 1,213 `GATE_BLOCKED/RISK` and 521 `SCORE_ACCELERATION/NOTABLE`. Therefore the existing derived history is invalid for release decisions and requires a clean dev/QA rebuild or versioned retained-history repair. No delete, rewrite, supersession or replay was executed during this audit.
+
+## Second-pass hold (2026-08-11)
+
+DEF-026/027/028/029 and FR-031 are corrected under engine `slse-1.1.0`, config `2026-08-11`, but the full golden corpus and natural multi-date certification have not passed. Historical rebuild is therefore **NOT RUN**. All five derived tables remain untouched, and the read-only counts above remain the last recorded baseline. Rebuild authorization begins only after those semantic certification gates pass.
+
+A post-test read-only recheck matched the baseline exactly: 8,217 snapshots, 1,213 episodes, 9,134 lifecycle events, 7,244 signal-change events, and 1,734 alert events. All snapshots remain `slse-1.0.0` / `2026-07-31`; no `slse-1.1.0` derived history exists yet.

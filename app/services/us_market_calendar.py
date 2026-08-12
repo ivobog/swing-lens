@@ -46,6 +46,24 @@ def next_us_trading_day(day: date) -> date:
     return candidate
 
 
+def us_trading_sessions_between(start_exclusive: date, end_inclusive: date) -> int:
+    """Count completed US equity sessions in ``(start, end]``.
+
+    Calendar-only elapsed time (weekends and exchange holidays) contributes
+    zero sessions.  Callers use this common definition for freshness, state
+    age, observation gaps, and alert cooldowns.
+    """
+    if end_inclusive <= start_exclusive:
+        return 0
+    count = 0
+    current = start_exclusive
+    while True:
+        current = next_us_trading_day(current)
+        if current > end_inclusive:
+            return count
+        count += 1
+
+
 def nth_us_trading_day_from_entry(entry_day: date, horizon_sessions: int) -> date:
     if horizon_sessions <= 0:
         raise ValueError("horizon_sessions must be positive")

@@ -56,3 +56,21 @@ Each versioned fixture is a sequence of original source values by trading date. 
 ## Execution status
 
 Implemented automated coverage includes the mandatory close/coverage cases, GATE_BLOCKED predecessor table, NEW_READY/NEW_EXTENSION boundaries, score and sector acceleration, DATA_DEGRADED crossings, canonical revisions, retry/idempotency, family state sequences, observation gaps, PostgreSQL DTO/count/export parity, and populated browser interactions. The complete versioned per-trading-date fixture data for every row above is not yet implemented; this matrix is therefore a release plan, not a claim that the golden-fixture gate has passed.
+
+## Second-pass mandatory cases and current evidence
+
+| Case | Concrete expectation | Automated status |
+|---|---|---|
+| exact confidence weighting | `1.00/.80/.50/1.00/1.00` at `30/25/20/15/10` = 85 | PASS (pure formula) |
+| no double weighting | changing only adapter `confidence_score` does not change final transition confidence | PASS |
+| confidence labels | 69 LOW; 70 NORMAL; 84 NORMAL; 85 HIGH | PASS |
+| persistence component | bounded monotonic values for sessions 0/1/2/3 | PASS |
+| reduced market posture | READY, confidence 90, NEUTRAL/YELLOW/MIXED/CAUTION = WATCH_ONLY + reduced metadata | PASS |
+| hard market block | READY with explicit/derived bearish block = BLOCKED | PASS |
+| trading freshness | Friday-Monday/Tuesday, weekend-only, Good Friday, Independence Day, Thanksgiving, Christmas, New Year | PASS |
+| Friday-next-Friday | five completed sessions = NEAR_STALE under the configured 3-session grace | PASS |
+| terminal EXPIRED | locked EXPIRED remains WATCH_ONLY and preserves supplied prior confidence | PASS |
+| terminal FAILED | locked FAILED remains BLOCKED; missing prior confidence is 0, never 100 | PASS |
+| typed prior history | ordered/bounded/no-future; batch loaded once and rolled chronologically | PASS |
+
+These regressions correct the semantic core but do not complete the release corpus. The 25 named fixtures still lack concrete source-to-snapshot-to-event-to-alert-to-Market/Alert DTO assertions for every trading date. Golden corpus gate: **FAIL / INCOMPLETE**.

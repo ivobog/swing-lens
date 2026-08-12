@@ -7,7 +7,8 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, delete, func, select, tuple_, update
+from sqlalchemy import Select, and_, delete, func, or_, select, tuple_, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -198,7 +199,7 @@ class SetupLifecycleRepository:
             source_data_hash=dto.source_data_hash,
         )
         if snapshot is None:
-            snapshot = SetupSignalSnapshot(
+            candidate = SetupSignalSnapshot(
                 run_id=dto.run_id,
                 ticker=self.normalize_ticker(dto.ticker),
                 timeframe=dto.timeframe,
@@ -212,7 +213,25 @@ class SetupLifecycleRepository:
                 schema_version=dto.schema_version,
                 data_quality_label=dto.data_quality_label,
             )
-            db.add(snapshot)
+            self._apply_snapshot_fields(candidate, dto)
+            try:
+                with db.begin_nested():
+                    db.add(candidate)
+                    db.flush()
+                snapshot = candidate
+            except IntegrityError:
+                snapshot = self.find_snapshot_by_identity(
+                    db,
+                    run_id=dto.run_id,
+                    ticker=dto.ticker,
+                    timeframe=dto.timeframe,
+                    data_as_of_date=dto.data_as_of_date,
+                    engine_version=dto.engine_version,
+                    config_hash=dto.config_hash,
+                    source_data_hash=dto.source_data_hash,
+                )
+                if snapshot is None:
+                    raise
 
         self._apply_snapshot_fields(snapshot, dto)
         db.flush()
@@ -340,6 +359,63 @@ class SetupLifecycleRepository:
                 .limit(safe_limit)
             )
         )
+
+    def canonical_snapshot_histories_before(
+        self,
+        db: Session,
+        *,
+        cutoffs: dict[tuple[str, str], date],
+        limit: int = 10,
+    ) -> dict[tuple[str, str], list[SetupSignalSnapshot]]:
+        """Load a bounded prior-canonical window for many ticker keys in one query."""
+        if not cutoffs:
+            return {}
+        safe_limit = max(1, min(int(limit), 50))
+        normalized_cutoffs = {
+            (self.normalize_ticker(ticker), timeframe): cutoff
+            for (ticker, timeframe), cutoff in cutoffs.items()
+        }
+        cutoff_predicates = [
+            and_(
+                SetupSignalSnapshot.ticker == ticker,
+                SetupSignalSnapshot.timeframe == timeframe,
+                SetupSignalSnapshot.data_as_of_date < cutoff,
+            )
+            for (ticker, timeframe), cutoff in normalized_cutoffs.items()
+        ]
+        history_rank = func.row_number().over(
+            partition_by=(SetupSignalSnapshot.ticker, SetupSignalSnapshot.timeframe),
+            order_by=(
+                SetupSignalSnapshot.data_as_of_date.desc(),
+                SetupSignalSnapshot.id.desc(),
+            ),
+        ).label("history_rank")
+        ranked = (
+            select(
+                SetupSignalSnapshot.id.label("snapshot_id"),
+                history_rank,
+            )
+            .where(SetupSignalSnapshot.is_canonical.is_(True))
+            .where(or_(*cutoff_predicates))
+            .subquery()
+        )
+        rows = list(
+            db.scalars(
+                select(SetupSignalSnapshot)
+                .join(ranked, ranked.c.snapshot_id == SetupSignalSnapshot.id)
+                .where(ranked.c.history_rank <= safe_limit)
+                .order_by(
+                    SetupSignalSnapshot.ticker,
+                    SetupSignalSnapshot.timeframe,
+                    SetupSignalSnapshot.data_as_of_date,
+                    SetupSignalSnapshot.id,
+                )
+            )
+        )
+        result = {key: [] for key in normalized_cutoffs}
+        for row in rows:
+            result[(row.ticker, row.timeframe)].append(row)
+        return result
 
     def get_snapshots_by_ids(
         self,

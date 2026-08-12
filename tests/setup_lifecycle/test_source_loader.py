@@ -74,11 +74,15 @@ def test_latest_completed_bar_prefers_latest_trade_bar() -> None:
 
 
 def test_latest_price_bar_projection_query_is_one_row_per_ticker() -> None:
-    statement = _latest_price_bars_statement(("MSFT", "AAPL"))
+    statement = _latest_price_bars_statement(
+        ("MSFT", "AAPL"),
+        cutoff=date(2026, 8, 1),
+    )
     rendered = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "DISTINCT ON (price_bars.ticker)" in rendered
     assert "price_bars.close IS NOT NULL" in rendered
+    assert "price_bars.bar_date <=" in rendered
     assert "price_bars.bar_date DESC" in rendered
     assert "CASE WHEN (price_bars.what_to_show =" in rendered
 

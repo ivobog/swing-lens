@@ -1,5 +1,18 @@
 # SLSE Implementation Audit and Defect Register
 
+## Current authoritative status (2026-08-12)
+
+| Item | Original finding | First-pass disposition | Second-pass disposition | Current authoritative status |
+|---|---|---|---|---|
+| DEF-030 | Adapter inputs were not traced to production evidence | Not registered | Not registered | **FIXED** — executable catalog and AST audit cover every adapter input and reject obsolete magic keys. |
+| DEF-031 / FR-031 | Prior canonical history did not reach adapters | PARTIAL | Typed history reached adapters but semantic use was overclaimed | **FIXED / PASS** — temporal rules consume bounded canonical history in BREAKOUT, PULLBACK, VCP, CONTINUATION, and GENERIC; paired-history tests prove material effect. |
+| DEF-032 | Freshness/lineage and signal agreement were not decomposed | Not registered | Top-level confidence blend fixed | **FIXED** — exact deterministic subcomponents and contradictory-evidence tests are implemented. |
+| DEF-033 | Compound actionability relied on branch order | Not registered | Reduced-posture case fixed alone | **FIXED** — explicit precedence and full mandatory compound truth table pass. |
+| DEF-034 | Dated audit prose contained stale status claims | Addenda only | Still ambiguous | **FIXED** — the current table governs; dated text below remains forensic history. |
+| Overall release | FAIL | FAIL | FAIL | **FAIL** pending every remaining mandatory closure gate. No rebuild or activation is authorized. |
+
+Behavior identity: engine `slse-1.2.0`, config `2026-08-12`, schema `slse-snapshot-1.0.0`. Current local focused result: 206 passed; Ruff passed.
+
 ## Audit method
 
 The review followed the required bottom-up order: migrations/schema; source loading; snapshot construction and coverage; point-in-time rules; canonicalization; registry and change detector; velocity; adapters/state machine/episodes; confidence/actionability; alert rules and persistence; query/API/export; Jinja/HTMX; tests. The SRS/SDD were read in full before code inspection. Existing tests initially reported `151 passed`; this baseline is not treated as compliance proof.
@@ -298,3 +311,86 @@ This table supersedes the baseline “Actual” statements above; the original f
 | SLSE-DEF-025 | FIXED | transitions use from/to predicates; velocity is explicitly 3-session; quick filters have real event/bound semantics |
 
 No open item is silently classified as compliant. Release readiness remains FAIL until the PARTIAL/OPEN items required by the SRS definition of done are closed.
+
+## Second-pass forensic disposition (2026-08-11)
+
+This section supersedes any earlier statement that FR-031, FR-036, actionability, or freshness was fully compliant.
+
+### SLSE-DEF-026 - Undocumented transition-confidence blend
+
+- Verdict: CONFIRMED; severity HIGH.
+- Specification: SDD 10.2 defines the final score as the 30/25/20/15/10 weighted composition. Family evidence belongs inside signal agreement; no second 50/50 blend is authorized.
+- Root cause: `confidence_service.py` averaged the completed SDD score with `FamilyEvidence.confidence_score`.
+- Fix: removed the second-stage average. `weighted_confidence_score()` is now the single final-score function. Family evidence still contributes once through signal agreement and may rank candidate families, but does not transform the completed transition-confidence score again.
+- Proof: exact 85 example; weights sum to 1.0; adapter-confidence independence; persistence 0/1/2/3; 69/70 and 84/85 boundaries.
+- Historical impact: confidence, labels, actionability, lifecycle-event evidence, and alert eligibility produced by the prior version remain invalid.
+
+### SLSE-DEF-027 - Reduced market posture classified as LOW_CONFIDENCE
+
+- Verdict: CONFIRMED; severity HIGH.
+- Specification: SDD 10.1 separates market permission from evidence confidence. A reduced market posture is WATCH_ONLY or reduced ACTIONABLE, while LOW_CONFIDENCE is reserved for evidence/data problems.
+- Decision for the current configuration: `NEUTRAL`, `YELLOW`, `MIXED`, and `CAUTION` produce `WATCH_ONLY` with `MARKET_POLICY_REDUCED` and `market_posture=REDUCED`. A hard market block remains `BLOCKED`.
+- Fix: separate branches for hard blockers, evidence confidence, reduced posture, non-actionable lifecycle states, and actionable lifecycle states. Actionability metadata is persisted in episode metadata and lifecycle-event evidence.
+- Proof: READY 90 GREEN/NEUTRAL/YELLOW/BEARISH; READY 60 GREEN; stale GREEN; stale BEARISH; DEVELOPING; EXTENDED; FAILED.
+
+### SLSE-DEF-028 - Freshness used calendar days
+
+- Verdict: CONFIRMED; severity HIGH.
+- Specification: FR-014, AC-13, SDD 7.1 and 19.1 require completed US trading-session distance.
+- Fix: freshness uses the shared `us_trading_sessions_between()` calendar utility. Weekend and NYSE holiday dates add no age.
+- Proof: Friday-Monday, Friday-Tuesday, Friday-next-Friday, weekend-only, Good Friday/Easter, Independence Day, Thanksgiving, Christmas, and New Year.
+- Historical impact: snapshot freshness/data quality/confidence and DATA_DEGRADED eligibility around weekends and holidays require regeneration.
+
+### SLSE-DEF-029 - Terminal EXPIRED semantics and fabricated confidence
+
+- Verdict: CONFIRMED in the public pure-engine path; severity MEDIUM.
+- Reachability: `LifecycleEngine.evaluate(previous_state=EXPIRED)` is directly callable and is also relevant to replay/repair invariants even though normal active-episode processing closes expired episodes.
+- Fix: terminal `FAILED` remains `BLOCKED`; terminal `EXPIRED` is `WATCH_ONLY`. The decision preserves supplied prior evidence confidence and otherwise uses 0 instead of fabricating 100. Terminal-lock certainty is exposed separately as `terminal_locked=true`.
+- Proof: direct FAILED and EXPIRED tests plus the existing observation-gap close/no-repeat episode sequence.
+
+### SLSE-DEF-017 / FR-031 - Typed prior canonical history
+
+- Disposition: FIXED in the evaluation path.
+- Implementation: `LifecycleEvaluationInput.previous_snapshots` is a typed tuple; adapters receive it; the engine rejects unordered, over-window, current-date, or future history. The configured window is 10 sessions.
+- Retrieval: evaluation performs one bounded window-function query for all ticker/timeframe keys, then advances each chronological in-memory window as selected snapshots are evaluated. There is no per-ticker history query.
+- Evidence: lifecycle decisions record prior snapshot count/dates; tests prove ordering, point-in-time rejection, and one batched load with chronological roll-forward.
+
+## Second-pass current gate status
+
+Focused SLSE tests: 194 passed locally. The disposable PostgreSQL vertical test and six shared market-calendar tests also passed. Repository-wide non-E2E/non-external: 1,274 passed, 8 skipped, with one known unrelated CERI fake-DB test explicitly deselected after it failed in the unfiltered run. DEF-026/027/028/029 and FR-031 are corrected, but the 25-scenario full-layer golden corpus, natural multi-date real-source alert certification, historical rebuild, CI archive, scale measurements, and accessibility audit remain open. Market Changes and Alert Center therefore remain FAIL.
+
+## Closure-pass defect disposition (2026-08-12)
+
+### SLSE-DEF-030 — Family adapters depended on inputs not proven in production snapshots
+
+- Severity: CRITICAL / release blocker.
+- Root cause: test fixtures supplied convenient signal keys without a complete persisted-source or point-in-time derivation contract.
+- Fix: `adapter_input_audit.py` provides a machine-checkable catalog for adapter, signal key, business meaning, SRS/SDD rule, source entity/path/effective date, snapshot-builder mapping, JSON key, required/null semantics, derivation, and history use. Snapshot construction now maps the required persisted technical evidence and immutable debug fields. The AST audit rejects any literal adapter input absent from the signal registry/catalog and rejects obsolete magic inputs.
+- Proof: adapter-input coverage tests and the full 206-test focused suite pass.
+- Historical impact: prior family decisions remain invalid until the gated rebuild.
+
+### SLSE-DEF-031 — Prior canonical history did not affect family evidence
+
+- Severity: HIGH / release blocker.
+- Root cause: typed history transport existed, but family decisions still read only the current snapshot.
+- Fix: history now drives multi-session contraction/tightness, decreasing volume, close-above-trigger persistence/follow-through, pullback progression/support evidence, VCP contraction count, and generic improving-score phase evidence. Only genuinely temporal SRS/SDD rules use history.
+- Proof: for every family, the same current snapshot with history A and history B produces different evidence, phase, or lifecycle decision as appropriate.
+- Disposition: **FIXED; FR-031 PASS at the semantic-core layer**.
+
+### SLSE-DEF-032 — Confidence freshness/lineage and agreement were underspecified
+
+- Severity: HIGH.
+- Root cause: `data_quality_label` was used as a proxy for several independent facts and agreement was not tied to the four specified evidence dimensions.
+- Fix: final confidence is exactly `100 × (0.30 coverage + 0.25 agreement + 0.20 persistence + 0.15 freshness_and_lineage + 0.10 context)`; agreement is the configured weighted mean of trend, contraction, relative-strength, and classification alignment; freshness/lineage is the configured weighted mean of completed-bar freshness, successful source run, and consistent lineage/version/hash evidence.
+- Proof: each freshness/lineage dimension is varied independently; high setup evidence with contradictory agreement is covered; thresholds and prior DEF-026 cases remain green.
+
+### SLSE-DEF-033 — Compound actionability precedence was incomplete
+
+- Severity: HIGH.
+- Fix order: terminal FAILED; terminal EXPIRED; hard blockers (required data, market, earnings, liquidity); insufficient/low/stale evidence; reduced market posture; lifecycle posture; actionable state. Lifecycle state is never rewritten by the actionability policy.
+- Proof: mandatory READY+60+NEUTRAL, stale+neutral, stale+bearish, 60+earnings, DEVELOPING+low confidence, EXTENDED+stale, EXPIRED+stale, and FAILED combinations assert actionability, reasons, blockers, and metadata.
+
+### SLSE-DEF-034 — Stale pre-second-pass status statements
+
+- Severity: MEDIUM / governance.
+- Fix: each required audit document now begins with an authoritative four-stage disposition table. Older findings remain dated and are not release authority.

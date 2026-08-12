@@ -86,7 +86,22 @@
     </label>
     <label><span>Min confidence</span><input name="confidence_min" type="number" min="0" max="100" value="{{ filters.confidence_min if filters.confidence_min is not none else '' }}"></label>
     <label><span>Max confidence</span><input name="confidence_max" type="number" min="0" max="100" value="{{ filters.confidence_max if filters.confidence_max is not none else '' }}"></label>
-    <label><span>Min 3-session velocity</span><input name="velocity_min" type="number" step="0.01" value="{{ filters.velocity_min if filters.velocity_min is not none else '' }}"></label>
+    <label><span>Min state age</span><input name="state_age_min" type="number" min="0" value="{{ filters.state_age_min if filters.state_age_min is not none else '' }}"></label>
+    <label><span>Max state age</span><input name="state_age_max" type="number" min="0" value="{{ filters.state_age_max if filters.state_age_max is not none else '' }}"></label>
+    <label><span>Min setup score</span><input name="setup_score_min" type="number" step="0.01" value="{{ filters.setup_score_min if filters.setup_score_min is not none else '' }}"></label>
+    <label><span>Max setup score</span><input name="setup_score_max" type="number" step="0.01" value="{{ filters.setup_score_max if filters.setup_score_max is not none else '' }}"></label>
+    <label><span>Min trigger distance</span><input name="trigger_distance_min" type="number" step="0.01" value="{{ filters.trigger_distance_min if filters.trigger_distance_min is not none else '' }}"></label>
+    <label><span>Max trigger distance</span><input name="trigger_distance_max" type="number" step="0.01" value="{{ filters.trigger_distance_max if filters.trigger_distance_max is not none else '' }}"></label>
+    <label><span>Min sector rank</span><input name="sector_rank_min" type="number" value="{{ filters.sector_rank_min if filters.sector_rank_min is not none else '' }}"></label>
+    <label><span>Max sector rank</span><input name="sector_rank_max" type="number" value="{{ filters.sector_rank_max if filters.sector_rank_max is not none else '' }}"></label>
+    <label><span>Min sector rank change</span><input name="sector_rank_change_min" type="number" value="{{ filters.sector_rank_change_min if filters.sector_rank_change_min is not none else '' }}"></label>
+    <label><span>Max sector rank change</span><input name="sector_rank_change_max" type="number" value="{{ filters.sector_rank_change_max if filters.sector_rank_change_max is not none else '' }}"></label>
+    <label><span>Velocity window</span><select name="velocity_window">{% for option in [1, 3, 5, 10] %}<option value="{{ option }}" {{ "selected" if filters.velocity_window == option else "" }}>{{ option }} sessions</option>{% endfor %}</select></label>
+    <label><span>Min velocity</span><input name="velocity_min" type="number" step="0.01" value="{{ filters.velocity_min if filters.velocity_min is not none else '' }}"></label>
+    <label><span>Max velocity</span><input name="velocity_max" type="number" step="0.01" value="{{ filters.velocity_max if filters.velocity_max is not none else '' }}"></label>
+    <label><span>Market regime</span><input name="market_regime" value="{{ filters.market_regime }}"></label>
+    <label><span>Blocker</span><input name="blocker" value="{{ filters.blocker }}"></label>
+    <label><span>Warning flag</span><input name="warning_flag" value="{{ filters.warning_flag }}"></label>
     <label><span>Sort</span>
       <select name="sort">
         {% for option in ["latest_event_time", "transition_priority", "confidence", "score", "velocity", "state_age", "trigger_distance", "sector_rank"] %}
@@ -173,7 +188,8 @@
                     <p>Coverage {{ item.required_feature_coverage if item.required_feature_coverage is not none else "&mdash;"|safe }}; freshness {{ item.freshness or "&mdash;"|safe }}; quality {{ item.data_quality_label or "&mdash;"|safe }}.</p>
                     <p>Market {{ item.market_regime or "&mdash;"|safe }}; gate {{ item.market_gate if item.market_gate is not none else "&mdash;"|safe }}; earnings {{ item.earnings_risk or "&mdash;"|safe }}; liquidity {{ item.liquidity_risk if item.liquidity_risk is not none else "&mdash;"|safe }}.</p>
                     <p>Blockers: {{ item.blockers|join(", ") if item.blockers else "None" }}. Warnings: {{ item.warning_flags|join(", ") if item.warning_flags else "None" }}.</p>
-                    <p>Version: {{ item.engine_version }} / {{ item.config_version }} / {{ item.config_hash }}</p>
+                    <p>Status: {{ item.record_status }}; origin {{ item.origin_type or "N/A" }}; canonical {{ item.is_canonical if item.is_canonical is not none else "N/A" }}.</p>
+                    <p>Version: {{ item.engine_version }} / {{ item.config_version }} / {{ item.schema_version }} / {{ item.config_hash }}</p>
                     {% if item.timeline_url %}<a href="{{ item.timeline_url }}">Ticker timeline</a>{% endif %}
                   </div>
                   <div data-slse-detail-content>

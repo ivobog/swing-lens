@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.dtos import FamilyEvidence, NormalizedSnapshot
-from app.services.setup_lifecycle.enums import LifecycleState, SetupFamily
+from app.services.setup_lifecycle.enums import SetupFamily
 from app.services.setup_lifecycle.family_adapters import (
+    classification_agreement,
     classification_contains,
+    consecutive_true_sessions,
+    derived_atr_from_trigger,
+    numeric_history_is_improving,
     policy_parameter,
+    relative_strength_agreement,
     signal_bool,
     signal_number,
+    signal_optional_number,
+    trend_agreement,
 )
 
 
@@ -21,30 +28,41 @@ class PullbackAdapter:
         self,
         snapshot: NormalizedSnapshot,
         *,
+        history: tuple[NormalizedSnapshot, ...] = (),
         previous_state: object | None = None,
         state_age_sessions: int = 0,
     ) -> FamilyEvidence:
         policy = self.config.families.policies[self.setup_family]
         setup_score = signal_number(snapshot, "setup_score")
         trend_score = signal_number(snapshot, "technical_score")
-        support_distance_atr = signal_number(snapshot, "support_distance_atr", default=999.0)
-        declining_volume = signal_bool(snapshot, "declining_volume") or classification_contains(
-            snapshot, "declining volume", "selling pressure declining"
+        declining_volume = signal_bool(snapshot, "red_volume_declining") or (
+            numeric_history_is_improving(
+                snapshot,
+                history,
+                "volume_percentile_252",
+                lower_is_better=True,
+            )
         )
-        reversal_ready = signal_bool(snapshot, "reversal_ready") or signal_number(
-            snapshot, "distance_to_pivot_pct",
-            default=999.0,
-        ) <= 1.0
+        shrinking_ranges = numeric_history_is_improving(
+            snapshot,
+            history,
+            "range_percentile_252",
+            lower_is_better=True,
+        )
+        support_held = signal_bool(snapshot, "held_near_support") or classification_contains(
+            snapshot,
+            "support test",
+            "support hold",
+        )
         reversal_trigger = signal_bool(snapshot, "close_trigger_cross")
-        follow_through = signal_number(snapshot, "follow_through_sessions")
-        support_break = signal_bool(snapshot, "support_break") or signal_bool(
-            snapshot, "failed_pullback"
+        follow_through = consecutive_true_sessions(snapshot, history, "close_trigger_cross")
+        support_break = (
+            signal_bool(snapshot, "heavy_mid_ma_break")
+            or signal_bool(snapshot, "failed_breakout")
+            or classification_contains(snapshot, "distribution risk", "failed pullback")
         )
-        extended_atr = signal_number(snapshot, "extended_atr_from_trigger")
+        extended_atr = derived_atr_from_trigger(snapshot)
 
-        support_limit = float(
-            policy_parameter(self.config, self.setup_family, "support_distance_atr", 1.0)
-        )
         confirmed_sessions = int(
             policy_parameter(self.config, self.setup_family, "confirmed_hold_sessions", 2)
         )
@@ -55,20 +73,39 @@ class PullbackAdapter:
         reasons: list[str] = []
         pullback_like = (
             classification_contains(snapshot, "uptrend", "pullback", "support")
-            or support_distance_atr != 999.0
             or declining_volume
-            or reversal_ready
+            or support_held
             or support_break
         )
-        prior_uptrend = pullback_like and (
-            trend_score >= policy.tracking_score_min
-            or classification_contains(snapshot, "uptrend", "pullback")
+        prior_uptrend = any(
+            signal_number(item, "trend_score", default=signal_number(item, "technical_score"))
+            >= policy.tracking_score_min
+            or classification_contains(item, "uptrend", "stage 2", "pullback")
+            for item in history
+        ) or (
+            trend_agreement(snapshot) == 1.0
+            and classification_contains(snapshot, "uptrend", "pullback", "stage 2")
         )
-        support_approach = support_distance_atr <= support_limit
-        ready = setup_score >= policy.ready_score_min and support_approach and reversal_ready
+        support_approach = support_held or classification_contains(
+            snapshot,
+            "support approach",
+            "support test",
+        )
+        ready = setup_score >= policy.ready_score_min and support_approach and support_held
         triggered = ready and reversal_trigger
-        confirmed = triggered and follow_through >= confirmed_sessions
-        extended = triggered and extended_atr >= extended_limit
+        confirmed = (
+            triggered
+            and follow_through >= confirmed_sessions
+            and (
+                relative_strength_agreement(snapshot) >= 0.5
+                or signal_number(snapshot, "volume_ratio") >= 1.0
+            )
+        )
+        extended = (
+            triggered
+            and extended_atr is not None
+            and extended_atr >= extended_limit
+        )
         expired = state_age_sessions >= policy.max_age_sessions
 
         if support_break:
@@ -92,7 +129,7 @@ class PullbackAdapter:
         elif support_approach:
             phase = "SUPPORT_TEST"
             reasons.append("SUPPORT_TEST")
-        elif declining_volume:
+        elif declining_volume and shrinking_ranges:
             phase = "SELLING_PRESSURE_DECLINING"
             reasons.append("SELLING_PRESSURE_DECLINING")
         elif prior_uptrend and setup_score >= policy.tracking_score_min:
@@ -101,9 +138,7 @@ class PullbackAdapter:
         else:
             phase = "PULLBACK_STARTED"
 
-        failed = support_break or (
-            previous_state is LifecycleState.TRIGGERED and not reversal_trigger
-        )
+        failed = support_break
         trackable = pullback_like and prior_uptrend and setup_score >= policy.tracking_score_min
         return FamilyEvidence(
             setup_family=self.setup_family,
@@ -120,11 +155,32 @@ class PullbackAdapter:
             evidence={
                 "setup_score": setup_score,
                 "trend_score": trend_score,
-                "support_distance_atr": support_distance_atr,
+                "support_held": support_held,
                 "declining_volume": declining_volume,
+                "shrinking_ranges": shrinking_ranges,
+                "prior_uptrend": prior_uptrend,
+                "pullback_depth_pct": signal_optional_number(
+                    snapshot,
+                    "pullback_depth_pct",
+                ),
                 "reversal_trigger": reversal_trigger,
                 "follow_through_sessions": follow_through,
+                "extended_atr_from_trigger": extended_atr,
                 "state_age_sessions": state_age_sessions,
                 "pullback_like": pullback_like,
+            },
+            agreement_components={
+                "trend": trend_agreement(snapshot),
+                "contraction": (
+                    1.0 if declining_volume and shrinking_ranges else 0.5
+                    if declining_volume or shrinking_ranges else 0.0
+                ),
+                "relative_strength": relative_strength_agreement(snapshot),
+                "classification": classification_agreement(
+                    snapshot,
+                    "pullback",
+                    "support",
+                    "uptrend",
+                ),
             },
         )

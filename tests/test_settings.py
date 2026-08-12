@@ -49,7 +49,7 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.winner_probability_admin_enabled is False
     assert settings.setup_lifecycle_enabled is False
     assert settings.setup_lifecycle_pipeline_step_enabled is False
-    assert settings.setup_latest_bar_projection_enabled is False
+    assert settings.setup_latest_bar_projection_enabled is True
     assert settings.setup_latest_bar_projection_shadow_compare_enabled is False
     assert settings.setup_capture_handoff_enabled is False
     assert settings.technical_pure_boundary_enabled is False

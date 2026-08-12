@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   bindSetupLifecycleDetailButtons();
   bindSetupLifecycleAlertActions();
+  bindSetupLifecycleOperationForms();
 });
 
 function bindSetupLifecycleDetailButtons() {
@@ -29,6 +30,40 @@ function bindSetupLifecycleDetailButtons() {
       } catch (_error) {
         content.setAttribute("role", "alert");
         content.innerHTML = "<h3>Episode</h3><p>Episode evidence could not be loaded. Use the Episode link or try Expand again.</p>";
+      }
+    });
+  });
+}
+
+function bindSetupLifecycleOperationForms() {
+  document.querySelectorAll("[data-slse-operation-form]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const status = document.querySelector("[data-slse-operation-status]");
+      const button = form.querySelector("button[type='submit']");
+      const params = new URLSearchParams();
+      new FormData(form).forEach((value, key) => {
+        if (String(value).trim()) params.set(key, String(value));
+      });
+      if (button) button.disabled = true;
+      if (status) status.textContent = "Queueing scoped evaluation...";
+      try {
+        const response = await fetch(`${form.action}?${params.toString()}`, {
+          method: "POST",
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail?.message || `HTTP ${response.status}`);
+        if (status) {
+          status.textContent = `Queued job ${payload.job_id}: ${payload.scope} (${payload.safety_classification}).`;
+        }
+      } catch (error) {
+        if (status) {
+          status.setAttribute("role", "alert");
+          status.textContent = `Evaluation was not queued: ${error.message}`;
+        }
+      } finally {
+        if (button) button.disabled = false;
       }
     });
   });
