@@ -21,21 +21,22 @@ def test_feature_rebuild_persists_windows_and_acceleration() -> None:
     )
 
     rows = db.rows[CeriRevisionFeature]
-    assert result.features == 4
+    assert result.features == 16
     assert result.processed_companies == 1
-    assert len(rows) == 4
+    assert len(rows) == 16
     assert {row.window_days for row in rows} == {7, 90}
     assert rows[0].acceleration == Decimal("0.10") or rows[1].acceleration == Decimal("0.10")
     assert any(row.feature_family == "confidence" for row in db.rows[CeriDerivedFeature])
 
 
 class StubRevisionService:
-    def calculate_windows(self, _db, *, company_id, metric, cutoff_at, mode):
+    def calculate_windows(self, _db, *, company_id, metric, period_slot, cutoff_at, mode):
         return [
             CeriRevisionFeature(
                 company_id=company_id,
                 metric=metric,
-                period_key=f"{metric}:current",
+                period_key=f"{metric}:{period_slot}:current",
+                period_slot=period_slot,
                 as_of_session=cutoff_at.date(),
                 window_days=window,
                 actual_elapsed_days=window,

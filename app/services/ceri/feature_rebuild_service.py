@@ -92,24 +92,33 @@ class CeriFeatureRebuildService:
             try:
                 company_features: list[CeriRevisionFeature] = []
                 for metric in (metric.value for metric in self.config.metrics.required):
-                    calculated = self.revisions.calculate_windows(
-                        db, company_id=company.id, metric=metric, cutoff_at=cutoff_at, mode=mode
-                    )
-                    self._add_acceleration(calculated, calculated)
-                    for feature in calculated:
-                        if request.from_session and feature.as_of_session < request.from_session:
-                            continue
-                        existing = self._existing_feature(db, feature)
-                        if existing is not None:
-                            company_features.append(existing)
-                            _copy_revision_derived(existing, feature)
-                            deduped += 1
-                            continue
-                        db.add(feature)
-                        db.flush()
-                        company_features.append(feature)
-                        features += 1
-                        warnings += len(feature.warnings_json or [])
+                    for period_slot in self.config.metrics.period_types:
+                        calculated = self.revisions.calculate_windows(
+                            db,
+                            company_id=company.id,
+                            metric=metric,
+                            period_slot=period_slot.value,
+                            cutoff_at=cutoff_at,
+                            mode=mode,
+                        )
+                        self._add_acceleration(calculated, calculated)
+                        for feature in calculated:
+                            if (
+                                request.from_session
+                                and feature.as_of_session < request.from_session
+                            ):
+                                continue
+                            existing = self._existing_feature(db, feature)
+                            if existing is not None:
+                                company_features.append(existing)
+                                _copy_revision_derived(existing, feature)
+                                deduped += 1
+                                continue
+                            db.add(feature)
+                            db.flush()
+                            company_features.append(feature)
+                            features += 1
+                            warnings += len(feature.warnings_json or [])
                 estimates = [
                     row for row in _load(db, CeriEstimateSnapshot) if row.company_id == company.id
                 ]
@@ -385,11 +394,15 @@ def _copy_revision_derived(target: CeriRevisionFeature, source: CeriRevisionFeat
     target.actual_elapsed_days = source.actual_elapsed_days
     target.absolute_change = source.absolute_change
     target.pct_change = source.pct_change
+    target.pct_change_unit = source.pct_change_unit
+    target.period_slot = source.period_slot
     target.upward_count = source.upward_count
     target.downward_count = source.downward_count
     target.net_breadth = source.net_breadth
     target.dispersion = source.dispersion
     target.acceleration = source.acceleration
+    target.acceleration_unit = source.acceleration_unit
+    target.baseline_origin = source.baseline_origin
     target.revision_confidence_score = source.revision_confidence_score
     target.revision_confidence_label = source.revision_confidence_label
     target.warnings_json = source.warnings_json

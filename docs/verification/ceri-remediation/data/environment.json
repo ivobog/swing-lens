@@ -1,0 +1,15 @@
+{
+  "config": {
+    "calculation_version": "ceri-1.1.0",
+    "config_hash": "aff83bb918fee7febe22dc35c66489178bbacce9d41cb9e88fc5a31f9434d677",
+    "config_version": "2026-08-12-remediation-r3",
+    "minimum_opportunity_coverage_pct": 60.0,
+    "period_weights": {
+      "CURRENT_FISCAL_YEAR": 0.2,
+      "CURRENT_QUARTER": 0.35,
+      "NEXT_FISCAL_YEAR": 0.15,
+      "NEXT_QUARTER": 0.3
+    }
+  },
+  "head": "ab59913c635f76433494655d6aebfd50a38482de"
+}

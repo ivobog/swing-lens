@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -7,7 +8,9 @@ from fastapi.testclient import TestClient
 
 from app.db import get_db
 from app.main import create_app
+from app.models.ceri_tables import CeriScoreSnapshot
 from app.routers import ceri_routes
+from app.services.ceri.query_service import _score_snapshot_payload
 from app.settings import Settings
 
 
@@ -72,6 +75,10 @@ def test_ceri_ticker_detail_renders_provenance_and_warnings(
     assert "Revision 1" in response.text
     assert "Review Needs Review" in response.text
     assert "Cutoff 2026-08-02T12:00:00+00:00" in response.text
+    assert "RAISED" in response.text
+    assert "No guidance" not in response.text
+    assert "No event" not in response.text
+    assert "Earnings Risk</span><strong>N/A" in response.text
 
 
 def test_ceri_changes_render_groups_and_alert_actions(
@@ -282,6 +289,22 @@ class FakeCeriQueryService:
                     },
                 }
             ],
+            "guidance": {
+                "status": "AVAILABLE",
+                "selected": {
+                    "action": "RAISED",
+                    "metric": "EPS_DILUTED",
+                    "period": "CURRENT_FISCAL_YEAR",
+                    "confidence": "High",
+                },
+            },
+            "source_freshness": {
+                "estimates": {
+                    "age_days": None,
+                    "status": "UNAVAILABLE",
+                    "timestamp_quality": None,
+                }
+            },
             "alerts": [],
         }
 
@@ -397,27 +420,44 @@ class EmptyCeriQueryService(FakeCeriQueryService):
 
 
 def _snapshot():
-    return {
-        "id": 1,
-        "run_id": 7,
-        "ticker": "MSFT",
-        "as_of_session": "2026-08-02",
-        "cutoff_at": "2026-08-02T12:00:00+00:00",
-        "opportunity_score": 8.2,
-        "event_risk_score": 2.5,
-        "data_confidence": "Low",
-        "coverage_pct": 80.0,
-        "posture": "Positive",
-        "earnings_proximity_risk": None,
-        "components": {
-            "eps_revision_30d": 5.0,
-            "revision_breadth": 0.71,
-            "guidance_direction": "Raised",
-            "next_event": "FDA decision",
+    snapshot = CeriScoreSnapshot(
+        id=1,
+        run_id=7,
+        source_run_id_text="7",
+        company_id=1,
+        ticker="MSFT",
+        as_of_session=date(2026, 8, 2),
+        cutoff_at=datetime(2026, 8, 2, 12, tzinfo=UTC),
+        opportunity_score=8.2,
+        opportunity_coverage_pct=80.0,
+        event_risk_score=2.5,
+        data_confidence="Low",
+        coverage_pct=80.0,
+        posture="Positive",
+        earnings_proximity_risk=None,
+        opportunity_ledger_json={
+            "rated": True,
+            "score": 8.2,
+            "coverage_pct": 80.0,
+            "minimum_required_coverage_pct": 60.0,
+            "components": [
+                {
+                    "name": "revision_magnitude",
+                    "value": 5.0,
+                    "available": True,
+                    "unavailable_reason": None,
+                }
+            ],
         },
-        "top_positive_contributors": [{"label": "EPS revision", "value": 2.1}],
-        "top_negative_contributors": [{"label": "Binary risk", "value": -1.4}],
-        "warnings": ["estimate_data_stale"],
-        "config_version": "2026-07-31",
-        "evidence_hash": "evidence-MSFT",
-    }
+        confidence_ledger_json={"score": 6.2, "gates": [], "caps": []},
+        event_risk_ledger_json={"dominant_component": "binary_event_risk"},
+        top_positive_contributors_json=[{"label": "EPS revision", "value": 2.1}],
+        top_negative_contributors_json=[{"label": "Binary risk", "value": -1.4}],
+        warnings_json=["estimate_data_stale"],
+        config_version="2026-08-12-remediation",
+        config_hash="config-hash",
+        calculation_version="ceri-1.1.0",
+        evidence_hash="evidence-MSFT",
+        hash_schema_version="ceri-canonical-json-v2",
+    )
+    return _score_snapshot_payload(snapshot)

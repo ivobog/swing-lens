@@ -29,7 +29,21 @@ class CeriEarningsNormalizer:
             source_date=_date(payload.get("source_date")),
         )
         warnings = list(session.warnings)
-        actual = decimal_or_none(payload.get("actual_value") or payload.get("actual"))
+        actual = decimal_or_none(
+            payload.get("actual_value")
+            if payload.get("actual_value") is not None
+            else payload.get("actual")
+        )
+        provider_consensus = decimal_or_none(
+            payload.get("estimate")
+            if payload.get("estimate") is not None
+            else payload.get("consensus_at_report")
+        )
+        provider_surprise = decimal_or_none(
+            payload.get("surprise_percent")
+            if payload.get("surprise_percent") is not None
+            else payload.get("surprise_pct")
+        )
         if actual is None:
             warnings.append("actual_missing")
         return CeriEarningsActual(
@@ -41,6 +55,8 @@ class CeriEarningsNormalizer:
             report_at=session.effective_at,
             report_session=session.effective_session,
             actual_value=actual,
+            provider_consensus_value=provider_consensus,
+            provider_surprise_pct=provider_surprise,
             quality_warnings_json=warnings or None,
         )
 

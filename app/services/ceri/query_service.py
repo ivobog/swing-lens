@@ -17,6 +17,9 @@ from app.models.ceri_tables import (
     CeriCatalystEventRevision,
     CeriChangeEvent,
     CeriCompany,
+    CeriEarningsActual,
+    CeriEstimateSnapshot,
+    CeriGuidanceEvent,
     CeriIngestionRun,
     CeriProcessingRun,
     CeriPurgeAudit,
@@ -25,8 +28,18 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.models.tables import UploadRun
+from app.services.ceri.api_dtos import (
+    CeriConfidenceDto,
+    CeriDashboardRowDto,
+    CeriOpportunityDto,
+    CeriRiskDto,
+    CeriTickerDetailDto,
+)
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import CeriDataset, HistoricalViewMode
+from app.services.ceri.feature_flags import ceri_flags
+from app.services.ceri.guidance_normalizer import guidance_eligibility_reason
+from app.services.ceri.snapshot_service import CeriSnapshotService
 
 PURGE_INVALIDATION_FLAG = "provider_license_purge_invalidated"
 
@@ -95,7 +108,7 @@ class CeriQueryService:
             if current is None or _snapshot_sort_tuple(snapshot) > _snapshot_sort_tuple(current):
                 latest_by_ticker[snapshot.ticker.upper()] = snapshot
         return self._page(
-            [_score_snapshot_payload(snapshot) for snapshot in latest_by_ticker.values()],
+            [_score_snapshot_payload(snapshot, db=db) for snapshot in latest_by_ticker.values()],
             query=query,
             sort_aliases={
                 "opportunity_score": "opportunity_score",
@@ -129,31 +142,34 @@ class CeriQueryService:
             )
         latest = max(snapshots, key=_snapshot_sort_tuple)
         company_id = latest.company_id
-        return {
-            "ticker": ticker,
-            "latest": _score_snapshot_payload(latest),
-            "revision_features": [
+        company_revision_features = _rows_for_company(db, CeriRevisionFeature, company_id)
+        company_earnings = _rows_for_company(db, CeriEarningsActual, company_id)
+        return CeriTickerDetailDto(
+            ticker=ticker,
+            latest=_score_snapshot_payload(latest, db=db),
+            revision_features=[
                 _revision_feature_payload(feature)
-                for feature in _load(db, CeriRevisionFeature)
-                if feature.company_id == company_id
+                for feature in company_revision_features
+                if feature.as_of_session == latest.as_of_session
+                and feature.calculation_version == latest.calculation_version
             ],
-            "events": self.events(
-                db,
-                CeriListQuery(
-                    filters=CeriQueryFilters(ticker=ticker),
-                    sort="event_date",
-                    limit=100,
-                ),
-            )["items"],
-            "alerts": self.alerts(
-                db,
-                CeriListQuery(
-                    filters=CeriQueryFilters(ticker=ticker),
-                    sort="created_at",
-                    limit=25,
-                ),
-            )["items"],
-        }
+            revision_history=[
+                _revision_feature_payload(feature)
+                for feature in company_revision_features
+                if not (
+                    feature.as_of_session == latest.as_of_session
+                    and feature.calculation_version == latest.calculation_version
+                )
+            ],
+            earnings_surprise_history=[
+                _earnings_payload(row)
+                for row in company_earnings
+            ],
+            guidance=_guidance_summary(db, company_id, latest.cutoff_at.date()),
+            source_freshness=_snapshot_freshness(db, latest),
+            events=_event_timeline_for_company(db, company_id, ticker)[:100],
+            alerts=_alerts_for_ticker(db, ticker)[:25],
+        ).to_dict()
 
     def ticker_history(self, db: Session, ticker: str, query: CeriListQuery) -> dict[str, Any]:
         filters = query.filters
@@ -173,7 +189,7 @@ class CeriQueryService:
         if filters.as_of is not None:
             snapshots = [snapshot for snapshot in snapshots if snapshot.cutoff_at <= filters.as_of]
         payload = self._page(
-            [_score_snapshot_payload(snapshot) for snapshot in snapshots],
+            [_score_snapshot_payload(snapshot, db=db) for snapshot in snapshots],
             query=query,
             sort_aliases={
                 "cutoff_at": "cutoff_at",
@@ -415,7 +431,112 @@ class CeriQueryService:
         processing_runs = _load(db, CeriProcessingRun)
         source_records = _load(db, CeriSourceRecord)
         purge_audits = _load(db, CeriPurgeAudit)
+        estimates = _load(db, CeriEstimateSnapshot)
+        revisions = _load(db, CeriRevisionFeature)
+        snapshots = _load(db, CeriScoreSnapshot)
+        guidance = _load(db, CeriGuidanceEvent)
+        catalyst_revisions = _load(db, CeriCatalystEventRevision)
+        current_revisions = [
+            row
+            for row in revisions
+            if row.config_hash == self.config.config_hash
+            and row.calculation_version == self.config.engine.calculation_version
+        ]
+        current_snapshots = [
+            row
+            for row in snapshots
+            if row.config_hash == self.config.config_hash
+            and row.calculation_version == self.config.engine.calculation_version
+        ]
+        flags = ceri_flags()
+        snapshot_service = CeriSnapshotService(config=self.config)
+        reproduction_failures = sum(
+            1 for snapshot in snapshots if not snapshot_service.reproduce_snapshot(snapshot).matches
+        )
+        comparable_estimates = sum(
+            1
+            for estimate in estimates
+            if estimate.canonical_currency is not None
+            and estimate.canonical_scale is not None
+            and estimate.currency_verified is True
+        )
         return {
+            "effective_configuration": {
+                "enabled": flags.enabled,
+                "enabled_source": "CERI_ENABLED_RUNTIME_SETTING",
+                "yaml_engine_enabled": self.config.engine.enabled,
+                "yaml_engine_enabled_deprecated": True,
+                "child_flags": {
+                    "provider_ingest": flags.provider_ingest,
+                    "run_capture": flags.run_capture,
+                    "ui": flags.ui,
+                    "alerts": flags.alerts,
+                    "admin": flags.admin,
+                    "backfill": flags.backfill,
+                },
+                "calculation_version": self.config.engine.calculation_version,
+                "config_version": self.config.engine.config_version,
+                "config_hash": self.config.config_hash,
+            },
+            "quality_metrics": {
+                "ceri_estimate_comparable_pct": (
+                    100.0 * comparable_estimates / len(estimates) if estimates else 0.0
+                ),
+                "ceri_estimate_currency_missing_pct": (
+                    100.0
+                    * sum(1 for estimate in estimates if estimate.canonical_currency is None)
+                    / len(estimates)
+                    if estimates
+                    else 0.0
+                ),
+                "ceri_period_slot_ambiguous_count": sum(
+                    1 for estimate in estimates if estimate.canonical_period_slot is None
+                ),
+                "ceri_revision_available_pct": (
+                    100.0
+                    * sum(1 for revision in current_revisions if revision.pct_change is not None)
+                    / len(current_revisions)
+                    if current_revisions
+                    else 0.0
+                ),
+                "ceri_opportunity_rated_pct": (
+                    100.0
+                    * sum(
+                        1
+                        for snapshot in current_snapshots
+                        if snapshot.opportunity_score is not None
+                    )
+                    / len(current_snapshots)
+                    if current_snapshots
+                    else 0.0
+                ),
+                "ceri_confidence_insufficient_pct": (
+                    100.0
+                    * sum(
+                        1
+                        for snapshot in current_snapshots
+                        if snapshot.data_confidence == "Insufficient"
+                    )
+                    / len(current_snapshots)
+                    if current_snapshots
+                    else 0.0
+                ),
+                "ceri_guidance_rejected_count": sum(
+                    1 for row in guidance if guidance_eligibility_reason(row) is not None
+                ),
+                "ceri_catalyst_relevance_rejected_count": sum(
+                    1 for row in catalyst_revisions if row.issuer_relevance is not True
+                ),
+                "ceri_catalyst_unclassified_count": sum(
+                    1
+                    for row in catalyst_revisions
+                    if row.issuer_relevance is None or row.binary_eligible is None
+                ),
+                "ceri_event_risk_ceiling_count": sum(
+                    1 for snapshot in current_snapshots if snapshot.event_risk_score == 10.0
+                ),
+                "ceri_snapshot_reproduction_failure_count": reproduction_failures,
+            },
             "dataset_freshness": self._dataset_freshness(source_records),
             "ingestion_status": dict(Counter(run.status for run in ingestion_runs)),
             "processing_status": dict(Counter(run.status for run in processing_runs)),
@@ -516,6 +637,16 @@ class CeriQueryService:
     def _filtered_snapshots(
         self, db: Session, filters: CeriQueryFilters
     ) -> list[CeriScoreSnapshot]:
+        if filters.ticker and not _uses_fixture_collections(db):
+            snapshot_rows = list(
+                db.scalars(
+                    select(CeriScoreSnapshot).where(
+                        CeriScoreSnapshot.ticker == _ticker(filters.ticker)
+                    )
+                ).all()
+            )
+        else:
+            snapshot_rows = _load(db, CeriScoreSnapshot)
         snapshots = []
         catalyst_company_ids: set[int] | None = None
         if filters.catalyst_category:
@@ -532,7 +663,7 @@ class CeriQueryService:
             catalyst_company_ids = {
                 event.company_id for event in events if event.id in current_event_ids
             }
-        for snapshot in _load(db, CeriScoreSnapshot):
+        for snapshot in snapshot_rows:
             if filters.run_id is not None and snapshot.run_id != filters.run_id:
                 continue
             if filters.ticker and snapshot.ticker.upper() != _ticker(filters.ticker):
@@ -669,36 +800,99 @@ class CeriQueryService:
         return rows
 
 
-def _score_snapshot_payload(snapshot: CeriScoreSnapshot) -> dict[str, Any]:
-    return {
-        "id": snapshot.id,
-        "run_id": snapshot.run_id,
-        "source_run_id_text": snapshot.source_run_id_text,
-        "company_id": snapshot.company_id,
-        "ticker": snapshot.ticker,
-        "as_of_session": _value(snapshot.as_of_session),
-        "cutoff_at": _value(snapshot.cutoff_at),
-        "opportunity_score": snapshot.opportunity_score,
-        "event_risk_score": snapshot.event_risk_score,
-        "data_confidence": snapshot.data_confidence,
-        "coverage_pct": snapshot.coverage_pct,
-        "posture": snapshot.posture,
-        "earnings_proximity_risk": snapshot.earnings_proximity_risk,
-        "alignment_flags": snapshot.alignment_flags_json,
-        "alignment_context": snapshot.alignment_context_json,
-        "evidence_lineage": snapshot.evidence_lineage_json,
-        "top_positive_contributors": snapshot.top_positive_contributors_json,
-        "top_negative_contributors": snapshot.top_negative_contributors_json,
-        "components": snapshot.component_json,
-        "reasons": snapshot.reasons_json,
-        "warnings": snapshot.warnings_json,
-        "config_version": snapshot.config_version,
-        "config_hash": snapshot.config_hash,
-        "calculation_version": snapshot.calculation_version,
-        "evidence_hash": snapshot.evidence_hash,
-        "invalidated_by_purge": _is_invalidated(snapshot.warnings_json),
-        "purge_invalidation": (snapshot.alignment_flags_json or {}).get("purge_invalidation"),
-    }
+def _score_snapshot_payload(
+    snapshot: CeriScoreSnapshot,
+    *,
+    db: Session | None = None,
+) -> dict[str, Any]:
+    cutoff_date = (
+        snapshot.cutoff_at.date()
+        if snapshot.cutoff_at is not None
+        else (snapshot.as_of_session or date.min)
+    )
+    opportunity_ledger = snapshot.opportunity_ledger_json or {}
+    confidence_ledger = snapshot.confidence_ledger_json or {}
+    risk_ledger = snapshot.event_risk_ledger_json or {}
+    opportunity_coverage = (
+        snapshot.opportunity_coverage_pct
+        if snapshot.opportunity_coverage_pct is not None
+        else opportunity_ledger.get("coverage_pct")
+    )
+    opportunity = CeriOpportunityDto(
+        score=snapshot.opportunity_score,
+        rated=bool(
+            snapshot.opportunity_score is not None
+            and snapshot.opportunity_unrated_reason is None
+        ),
+        coverage_pct=opportunity_coverage,
+        minimum_required_coverage_pct=opportunity_ledger.get(
+            "minimum_required_coverage_pct"
+        ),
+        unrated_reason=snapshot.opportunity_unrated_reason,
+        reweighted=opportunity_ledger.get("reweighted", False),
+    )
+    event_risk = CeriRiskDto(
+        score=snapshot.event_risk_score,
+        dominant_reason=risk_ledger.get("dominant_component"),
+    )
+    confidence = CeriConfidenceDto(
+        label=snapshot.data_confidence,
+        score=confidence_ledger.get("score"),
+        coverage_pct=snapshot.coverage_pct,
+        gates=confidence_ledger.get("gates") or [],
+        caps=confidence_ledger.get("caps") or [],
+    )
+    return CeriDashboardRowDto(
+        id=snapshot.id,
+        run_id=snapshot.run_id,
+        source_run_id_text=snapshot.source_run_id_text,
+        company_id=snapshot.company_id,
+        ticker=snapshot.ticker,
+        as_of_session=_value(snapshot.as_of_session),
+        cutoff_at=_value(snapshot.cutoff_at),
+        opportunity_score=snapshot.opportunity_score,
+        opportunity=opportunity,
+        event_risk_score=snapshot.event_risk_score,
+        event_risk=event_risk,
+        data_confidence=snapshot.data_confidence,
+        confidence=confidence,
+        coverage_pct=snapshot.coverage_pct,
+        posture=snapshot.posture,
+        earnings_proximity_risk=snapshot.earnings_proximity_risk,
+        alignment_flags=snapshot.alignment_flags_json,
+        alignment_context=snapshot.alignment_context_json,
+        evidence_lineage=snapshot.evidence_lineage_json,
+        top_positive_contributors=snapshot.top_positive_contributors_json,
+        top_negative_contributors=snapshot.top_negative_contributors_json,
+        ledgers={
+            "opportunity": opportunity_ledger,
+            "confidence": confidence_ledger,
+            "event_risk": risk_ledger,
+        },
+        guidance=(
+            _guidance_summary(db, snapshot.company_id, cutoff_date)
+            if db is not None
+            else {"status": "UNAVAILABLE", "reason": "DTO_CONTEXT_UNAVAILABLE"}
+        ),
+        revision_evidence=(
+            _current_revision_summary(db, snapshot) if db is not None else {}
+        ),
+        next_event=(
+            _next_event_summary(db, snapshot.company_id, cutoff_date)
+            if db is not None
+            else {"status": "UNAVAILABLE", "reason": "DTO_CONTEXT_UNAVAILABLE"}
+        ),
+        freshness=_snapshot_freshness(db, snapshot) if db is not None else {},
+        reasons=snapshot.reasons_json,
+        warnings=snapshot.warnings_json,
+        config_version=snapshot.config_version,
+        config_hash=snapshot.config_hash,
+        calculation_version=snapshot.calculation_version,
+        evidence_hash=snapshot.evidence_hash,
+        hash_schema_version=snapshot.hash_schema_version,
+        invalidated_by_purge=_is_invalidated(snapshot.warnings_json),
+        purge_invalidation=(snapshot.alignment_flags_json or {}).get("purge_invalidation"),
+    ).to_dict()
 
 
 def _revision_feature_payload(
@@ -712,6 +906,7 @@ def _revision_feature_payload(
         "ticker": ticker,
         "metric": feature.metric,
         "period_key": feature.period_key,
+        "period_slot": feature.period_slot,
         "as_of_session": _value(feature.as_of_session),
         "window_days": feature.window_days,
         "baseline_snapshot_id": feature.baseline_snapshot_id,
@@ -719,6 +914,7 @@ def _revision_feature_payload(
         "actual_elapsed_days": feature.actual_elapsed_days,
         "absolute_change": _value(feature.absolute_change),
         "pct_change": _value(feature.pct_change),
+        "pct_change_unit": feature.pct_change_unit,
         "upward_count": feature.upward_count,
         "downward_count": feature.downward_count,
         "raw_breadth_counts": {
@@ -728,6 +924,8 @@ def _revision_feature_payload(
         "net_breadth": _value(feature.net_breadth),
         "dispersion": _value(feature.dispersion),
         "acceleration": _value(feature.acceleration),
+        "acceleration_unit": feature.acceleration_unit,
+        "baseline_origin": feature.baseline_origin,
         "revision_confidence_score": feature.revision_confidence_score,
         "revision_confidence_label": feature.revision_confidence_label,
         "warnings": feature.warnings_json,
@@ -792,6 +990,9 @@ def _catalyst_revision_payload(revision: CeriCatalystEventRevision) -> dict[str,
         "operational_values": revision.operational_values_json,
         "conflict_flags": revision.conflict_flags_json,
         "review_state": revision.review_state,
+        "issuer_relevance": revision.issuer_relevance,
+        "relevance_reason": revision.relevance_reason,
+        "binary_eligible": revision.binary_eligible,
         "created_at": _value(revision.created_at),
         "invalidated_by_purge": _is_invalidated(revision.conflict_flags_json),
         "lineage": {
@@ -800,6 +1001,208 @@ def _catalyst_revision_payload(revision: CeriCatalystEventRevision) -> dict[str,
             "outcome_revision_id": revision.outcome_revision_id,
         },
     }
+
+
+def _earnings_payload(row: CeriEarningsActual) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "metric": row.metric,
+        "period_type": row.period_type,
+        "fiscal_period_end": _value(row.fiscal_period_end),
+        "report_at": _value(row.report_at),
+        "actual": _value(row.actual_value),
+        "provider_consensus_at_report": _value(row.provider_consensus_value),
+        "provider_surprise_pct": _value(row.provider_surprise_pct),
+        "consensus_snapshot_id": row.consensus_snapshot_id,
+        "consensus_selection_reason": row.consensus_selection_reason,
+        "surprise_absolute": _value(row.surprise_absolute),
+        "surprise_pct": _value(row.surprise_pct),
+        "warnings": row.quality_warnings_json or [],
+    }
+
+
+def _current_revision_summary(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, Any]:
+    features = [
+        feature
+        for feature in _rows_for_company(db, CeriRevisionFeature, snapshot.company_id)
+        if feature.as_of_session == snapshot.as_of_session
+        and feature.calculation_version == snapshot.calculation_version
+    ]
+    result: dict[str, Any] = {}
+    for feature in features:
+        if feature.metric is None:
+            continue
+        metric = "eps" if feature.metric == "EPS_DILUTED" else feature.metric.lower()
+        key = f"{metric}_{feature.period_slot or 'unresolved'}_{feature.window_days}d"
+        result[key] = {
+            "value": _value(feature.pct_change),
+            "unit": feature.pct_change_unit,
+            "available": feature.pct_change is not None,
+            "reason": feature.unavailable_reason,
+            "upward_count": feature.upward_count,
+            "downward_count": feature.downward_count,
+            "breadth": _value(feature.net_breadth),
+        }
+    return result
+
+
+def _guidance_summary(db: Session, company_id: int, cutoff: date) -> dict[str, Any]:
+    rows = [
+        row
+        for row in _rows_for_company(db, CeriGuidanceEvent, company_id)
+        if row.effective_session is None or row.effective_session <= cutoff
+    ]
+    accepted = [row for row in rows if row.accepted_for_scoring is True]
+    rejected = [
+        {"id": row.id, "reason": guidance_eligibility_reason(row)}
+        for row in rows
+        if row.accepted_for_scoring is not True
+    ]
+    if not accepted:
+        return {
+            "status": "UNAVAILABLE" if not rows else "REJECTED",
+            "reason": "NO_ACCEPTED_CURRENT_GUIDANCE",
+            "selected": None,
+            "rejected": rejected,
+        }
+    selected = max(
+        accepted,
+        key=lambda row: (
+            row.effective_at.isoformat()
+            if row.effective_at is not None
+            else (row.effective_session.isoformat() if row.effective_session else ""),
+            row.id or 0,
+        ),
+    )
+    return {
+        "status": "AVAILABLE",
+        "reason": None,
+        "selected": {
+            "id": selected.id,
+            "action": selected.action,
+            "metric": selected.metric,
+            "period": selected.period_type or selected.period_label,
+            "confidence": selected.confidence,
+            "effective_date": _value(selected.effective_session),
+        },
+        "rejected": rejected,
+    }
+
+
+def _next_event_summary(db: Session, company_id: int, cutoff: date) -> dict[str, Any]:
+    events = {
+        event.id: event for event in _rows_for_company(db, CeriCatalystEvent, company_id)
+    }
+    if _uses_fixture_collections(db):
+        revisions = [
+            revision
+            for revision in _load(db, CeriCatalystEventRevision)
+            if revision.is_current and revision.catalyst_event_id in events
+        ]
+    elif events:
+        revisions = list(
+            db.scalars(
+                select(CeriCatalystEventRevision).where(
+                    CeriCatalystEventRevision.is_current.is_(True),
+                    CeriCatalystEventRevision.catalyst_event_id.in_(events),
+                )
+            ).all()
+        )
+    else:
+        revisions = []
+    accepted = [
+        revision
+        for revision in revisions
+        if revision.issuer_relevance is True
+        and revision.binary_eligible is True
+        and revision.status not in {"COMPLETED", "CANCELLED", "OUTCOME_KNOWN", "RESOLVED"}
+        and (revision.expected_date is None or revision.expected_date >= cutoff)
+    ]
+    rejected = [
+        {
+            "event_id": revision.catalyst_event_id,
+            "reason": revision.relevance_reason
+            or ("BINARY_INELIGIBLE" if revision.binary_eligible is not True else "RESOLVED"),
+        }
+        for revision in revisions
+        if revision not in accepted
+    ]
+    if not accepted:
+        return {
+            "status": "UNAVAILABLE" if not revisions else "NONE_FOUND",
+            "reason": "NO_ACCEPTED_PENDING_BINARY_EVENT",
+            "selected": None,
+            "rejected": rejected,
+        }
+    selected = min(
+        accepted,
+        key=lambda row: (row.expected_date is None, row.expected_date or date.max, row.id or 0),
+    )
+    event = events[selected.catalyst_event_id]
+    return {
+        "status": "AVAILABLE",
+        "reason": None,
+        "selected": {
+            "event_id": event.id,
+            "category": event.category,
+            "subtype": event.subtype,
+            "expected_date": _value(selected.expected_date),
+            "date_confidence": selected.date_confidence,
+            "status": selected.status,
+        },
+        "rejected": rejected,
+    }
+
+
+def _snapshot_freshness(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, Any]:
+    if snapshot.cutoff_at is None:
+        return {
+            dataset.value: {"status": "UNAVAILABLE", "age_days": None}
+            for dataset in CeriDataset
+        }
+    source_ids = set((snapshot.component_json or {}).get("source_ids") or [])
+    if _uses_fixture_collections(db):
+        sources = [source for source in _load(db, CeriSourceRecord) if source.id in source_ids]
+    elif source_ids:
+        sources = list(
+            db.scalars(
+                select(CeriSourceRecord).where(CeriSourceRecord.id.in_(source_ids))
+            ).all()
+        )
+    else:
+        sources = []
+    result: dict[str, Any] = {}
+    for dataset in CeriDataset:
+        matching = [source for source in sources if source.dataset == dataset.value]
+        if not matching:
+            result[dataset.value] = {"status": "UNAVAILABLE", "age_days": None}
+            continue
+        latest = max(
+            matching,
+            key=lambda source: source.retrieved_at
+            or source.observed_at
+            or source.published_at
+            or source.ingested_at,
+        )
+        stamp = (
+            latest.retrieved_at
+            or latest.observed_at
+            or latest.published_at
+            or latest.ingested_at
+        )
+        age = max(0, (snapshot.cutoff_at.date() - stamp.date()).days)
+        threshold = load_ceri_config().datasets[dataset].max_stale_days
+        result[dataset.value] = {
+            "status": "AVAILABLE" if age <= threshold else "STALE",
+            "age_days": age,
+            "known_at": _value(stamp),
+            "timestamp_quality": (
+                "RETRIEVAL_ONLY"
+                if latest.source_timestamp is None and latest.published_at is None
+                else "SOURCE_TIMESTAMP"
+            ),
+        }
+    return result
 
 
 def _change_payload(change: CeriChangeEvent, *, ticker: str | None) -> dict[str, Any]:
@@ -925,6 +1328,72 @@ def _load(db: Session, model):
         return []
     result = scalars(select(model))
     return list(result.all() if hasattr(result, "all") else result)
+
+
+def _uses_fixture_collections(db: Session) -> bool:
+    return isinstance(getattr(db, "collections", None), dict)
+
+
+def _rows_for_company(db: Session, model, company_id: int):
+    if _uses_fixture_collections(db):
+        return [row for row in _load(db, model) if row.company_id == company_id]
+    return list(db.scalars(select(model).where(model.company_id == company_id)).all())
+
+
+def _event_timeline_for_company(
+    db: Session,
+    company_id: int,
+    ticker: str,
+) -> list[dict[str, Any]]:
+    events = _rows_for_company(db, CeriCatalystEvent, company_id)
+    event_ids = {event.id for event in events if event.id is not None}
+    if _uses_fixture_collections(db):
+        revisions = [
+            revision
+            for revision in _load(db, CeriCatalystEventRevision)
+            if revision.is_current and revision.catalyst_event_id in event_ids
+        ]
+    elif event_ids:
+        revisions = list(
+            db.scalars(
+                select(CeriCatalystEventRevision).where(
+                    CeriCatalystEventRevision.is_current.is_(True),
+                    CeriCatalystEventRevision.catalyst_event_id.in_(event_ids),
+                )
+            ).all()
+        )
+    else:
+        revisions = []
+    current_by_event = {revision.catalyst_event_id: revision for revision in revisions}
+    payloads = [
+        _event_payload(
+            event,
+            ticker=ticker,
+            current_revision=current_by_event.get(event.id),
+        )
+        for event in events
+    ]
+    return sorted(
+        payloads,
+        key=lambda item: (
+            item.get("expected_date") is None,
+            item.get("expected_date") or "9999-12-31",
+            item.get("id") or 0,
+        ),
+    )
+
+
+def _alerts_for_ticker(db: Session, ticker: str) -> list[dict[str, Any]]:
+    if _uses_fixture_collections(db):
+        rows = [row for row in _load(db, CeriAlertEvent) if row.ticker == ticker]
+    else:
+        rows = list(
+            db.scalars(
+                select(CeriAlertEvent).where(CeriAlertEvent.ticker == ticker)
+            ).all()
+        )
+    rows.sort(key=lambda row: (row.created_at or datetime.min.replace(tzinfo=UTC)), reverse=True)
+    return [_alert_payload(row) for row in rows]
 
 
 def _stable_hash(payload: dict[str, Any]) -> str:

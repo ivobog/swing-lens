@@ -103,6 +103,8 @@ class RevisionConfig:
     minimum_analyst_count: int
     minimum_component_coverage_pct: float
     baseline_tolerance_days: int
+    pct_change_unit: str
+    period_weights: dict[CeriPeriodType, float]
 
 
 @dataclass(frozen=True)
@@ -418,6 +420,23 @@ def _parse_revision(raw: dict[str, Any]) -> RevisionConfig:
         raw.get("minimum_component_coverage_pct"),
         "revision.minimum_component_coverage_pct",
     )
+    period_weights = {
+        CeriPeriodType(key): value
+        for key, value in _parse_weights(
+            _mapping(raw, "period_weights"), "revision.period_weights"
+        ).items()
+    }
+    required_slots = {
+        CeriPeriodType.CURRENT_QUARTER,
+        CeriPeriodType.NEXT_QUARTER,
+        CeriPeriodType.CURRENT_FISCAL_YEAR,
+        CeriPeriodType.NEXT_FISCAL_YEAR,
+    }
+    if set(period_weights) != required_slots:
+        raise CeriConfigError("revision.period_weights must define exactly CQ/NQ/CFY/NFY")
+    pct_change_unit = _required_text(raw, "revision.pct_change_unit")
+    if pct_change_unit != "PERCENTAGE_POINTS":
+        raise CeriConfigError("revision.pct_change_unit must be PERCENTAGE_POINTS")
     return RevisionConfig(
         windows_days=windows,
         near_zero_threshold=near_zero,
@@ -430,6 +449,8 @@ def _parse_revision(raw: dict[str, Any]) -> RevisionConfig:
             raw.get("baseline_tolerance_days"),
             "revision.baseline_tolerance_days",
         ),
+        pct_change_unit=pct_change_unit,
+        period_weights=period_weights,
     )
 
 

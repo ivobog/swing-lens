@@ -1,0 +1,4 @@
+ticker,snapshot_id,opportunity_score,opportunity_coverage_pct,confidence,event_risk_score,posture,evidence_hash
+NWE,1993,,0.0,Insufficient,0.0,Unrated,204d0fef40eb40ad1b9b51980c5c8c4fd607d57a1a7c140c1b08e6cc8fa80787
+OMC,1994,,0.0,Insufficient,0.0,Unrated,a033f05fcb59db06b1ca07f4555dc13063679c6e6a03fc7cc721e8dcb4d0635a
+NVDA,1995,,15.0,Insufficient,1.5,Unrated,da793abe908df7da32259302cad179689008bfbf1cf80ba2c83a9373bc71b0c1

@@ -12,6 +12,7 @@ def test_high_staleness_prevents_high_confidence() -> None:
     result = CeriConfidenceService().calculate(
         as_of_session=date(2026, 8, 1),
         revision_features=[feature],
+        dataset_freshness_days={"estimates": 31},
     )
 
     assert result.label.value != "High"
@@ -26,7 +27,7 @@ def test_sparse_analyst_coverage_lowers_confidence() -> None:
         revision_features=[feature],
     )
 
-    assert result.label.value in {"Low", "Normal"}
+    assert result.label.value == "Insufficient"
     assert "analyst_sample_sparse" in result.warnings
 
 
@@ -43,7 +44,8 @@ def _feature(
         as_of_session=as_of_session,
         window_days=30,
         actual_elapsed_days=30,
-        pct_change=0.1,
+        pct_change=1.0,
+        period_slot="CURRENT_QUARTER",
         upward_count=upward_count,
         downward_count=downward_count,
         config_version="2026-07-31",

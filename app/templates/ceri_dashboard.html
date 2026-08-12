@@ -94,23 +94,34 @@
         </thead>
         <tbody>
           {% for item in items %}
-            {% set components = item.components or {} %}
+            {% set opportunity = item.opportunity if item.opportunity is defined else {'score': item.opportunity_score, 'rated': item.opportunity_score is number, 'coverage_pct': none, 'minimum_required_coverage_pct': 60} %}
+            {% set risk = item.event_risk if item.event_risk is defined else {'score': item.event_risk_score, 'dominant_reason': none} %}
+            {% set guidance = item.guidance or {} %}
+            {% set next_event = item.next_event or {} %}
             <tr>
               <td><a href="/ceri/ticker/{{ item.ticker }}">{{ item.ticker }}</a><small>Run {{ item.run_id or "N/A" }}</small></td>
-              <td>{{ "%.2f"|format(item.opportunity_score) if item.opportunity_score is number else "Unavailable" }}</td>
-              <td>{{ "%.2f"|format(item.event_risk_score) if item.event_risk_score is number else "Unavailable" }}</td>
+              <td>
+                {% if opportunity.rated %}
+                  {{ "%.2f"|format(opportunity.score) }}
+                {% else %}
+                  Unrated
+                  <span class="muted-line">Coverage {{ "%.0f"|format(opportunity.coverage_pct) if opportunity.coverage_pct is number else "N/A" }}% / {{ "%.0f"|format(opportunity.minimum_required_coverage_pct) if opportunity.minimum_required_coverage_pct is number else "60" }}% required</span>
+                {% endif %}
+              </td>
+              <td>{{ "%.2f"|format(risk.score) if risk.score is number else "Unavailable" }}<span class="muted-line">{{ risk.dominant_reason or "Dominant risk unavailable" }}</span></td>
               <td><span class="badge badge-{{ 'success' if item.data_confidence == 'High' else 'warning' if item.data_confidence in ['Low', 'Insufficient'] else 'muted' }}">{{ item.data_confidence }}</span></td>
               <td>{{ item.posture }}</td>
               <td>
-                <span>EPS {{ components.eps_revision_30d if components.eps_revision_30d is defined else "N/A" }}</span>
-                <span class="muted-line">Breadth {{ components.revision_breadth if components.revision_breadth is defined else "N/A" }}</span>
+                {% set eps30 = item.revision_evidence.get('eps_CURRENT_QUARTER_30d') if item.revision_evidence is defined else none %}
+                <span>EPS CQ 30d {{ eps30.value if eps30 and eps30.available else "N/A" }}</span>
+                <span class="muted-line">Breadth {{ eps30.breadth if eps30 and eps30.breadth is not none else "N/A" }}</span>
               </td>
               <td>
-                <span>{{ components.guidance_direction if components.guidance_direction is defined else "No guidance signal" }}</span>
-                <span class="muted-line">{{ components.next_event if components.next_event is defined else "No dated binary event" }}</span>
+                <span>{% if guidance.status == 'AVAILABLE' %}{{ guidance.selected.action }} · {{ guidance.selected.confidence }}{% elif guidance.status == 'REJECTED' %}Guidance rejected / unavailable{% else %}Guidance unavailable{% endif %}</span>
+                <span class="muted-line">{% if next_event.status == 'AVAILABLE' %}{{ next_event.selected.category }} · {{ next_event.selected.expected_date or "date unknown" }}{% elif next_event.status == 'NONE_FOUND' %}No accepted pending binary event{% else %}Event evidence unavailable{% endif %}</span>
               </td>
               <td>
-                <span>{{ item.as_of_session }}</span>
+                {% for dataset, state in ((item.freshness if item.freshness is defined else {}) or {}).items() %}<span>{{ dataset|title }}: {{ state.age_days if state.age_days is not none else "N/A" }}d · {{ state.status|lower }}</span>{% endfor %}
                 {% if item.warnings %}<span class="badge badge-warning">Warnings present</span>{% else %}<span class="badge badge-success">No warnings</span>{% endif %}
               </td>
             </tr>

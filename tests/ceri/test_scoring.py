@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from app.models.ceri_tables import CeriGuidanceEvent, CeriRevisionFeature
+from app.models.ceri_tables import CeriGuidanceEvent, CeriRevisionFeature, CeriScoreSnapshot
 from app.services.ceri.catalyst_feature_service import CatalystFeature
 from app.services.ceri.confidence_service import ConfidenceResult
 from app.services.ceri.config import load_ceri_config
@@ -31,6 +31,10 @@ def test_positive_opportunity_and_high_risk_are_simultaneously_visible() -> None
         binary_risk_score=6.0,
         conflict_penalty=0.0,
         date_confidence="EXACT_DATE",
+        selected=True,
+        issuer_relevance=True,
+        binary_eligible=True,
+        risk_component="regulatory_binary_risk",
     )
     opportunity = CeriOpportunityScoreService().calculate(
         revision_features=[revision],
@@ -143,6 +147,41 @@ def test_score_reproduction_succeeds_from_stored_snapshot_inputs() -> None:
     assert snapshot.component_json["source_ids"] == [1, 2, 3]
     assert snapshot.alignment_context_json["fundamentals"]["score"] == 8.0
     assert snapshot.evidence_lineage_json["price_bar_ids"] == [9, 10]
+
+
+def test_legacy_snapshot_reproduction_is_read_only() -> None:
+    snapshot = CeriScoreSnapshot(
+        id=99,
+        run_id=96,
+        source_run_id_text="96",
+        company_id=42,
+        ticker="NWE",
+        as_of_session=date(2026, 8, 1),
+        cutoff_at=datetime(2026, 8, 1, 21, tzinfo=UTC),
+        opportunity_score=8.0,
+        event_risk_score=10.0,
+        data_confidence="Low",
+        coverage_pct=0.0,
+        posture="Binary Risk",
+        component_json={"components": [], "source_ids": [1, 2]},
+        config_version="2026-07-31",
+        config_hash="legacy-config",
+        calculation_version="ceri-1.0.0",
+        evidence_hash="immutable-stored-hash",
+    )
+    before = {
+        "opportunity_score": snapshot.opportunity_score,
+        "event_risk_score": snapshot.event_risk_score,
+        "component_json": dict(snapshot.component_json),
+        "evidence_hash": snapshot.evidence_hash,
+    }
+
+    CeriSnapshotService().reproduce_snapshot(snapshot)
+
+    assert snapshot.opportunity_score == before["opportunity_score"]
+    assert snapshot.event_risk_score == before["event_risk_score"]
+    assert snapshot.component_json == before["component_json"]
+    assert snapshot.evidence_hash == before["evidence_hash"]
 
 
 def _revision_feature(

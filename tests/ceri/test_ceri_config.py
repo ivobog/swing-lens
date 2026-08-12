@@ -26,7 +26,8 @@ def test_valid_default_ceri_yaml_loads() -> None:
     config = load_ceri_config()
 
     assert config.engine.enabled is False
-    assert config.engine.calculation_version == "ceri-1.0.0"
+    assert config.engine.calculation_version == "ceri-1.1.0"
+    assert config.revision.pct_change_unit == "PERCENTAGE_POINTS"
     assert config.engine.timezone == "America/New_York"
     assert config.engine.daily_cutoff_time.hour == 16
     assert config.engine.daily_cutoff_time.minute == 15

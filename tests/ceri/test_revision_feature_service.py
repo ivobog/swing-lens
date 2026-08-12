@@ -35,7 +35,8 @@ def test_comparable_eps_snapshots_calculate_absolute_and_percentage_revision() -
     )
 
     assert feature.absolute_change == Decimal("2.00")
-    assert feature.pct_change == Decimal("0.2")
+    assert feature.pct_change == Decimal("20.0")
+    assert feature.pct_change_unit == "PERCENTAGE_POINTS"
     assert feature.net_breadth == Decimal("0.5")
     assert feature.dispersion == Decimal("0.1666666666666666666666666667")
     assert feature.actual_elapsed_days == 31
@@ -133,7 +134,8 @@ def test_acceleration_uses_actual_elapsed_days() -> None:
 
     updated = service.with_acceleration(recent, longer)
 
-    assert updated.acceleration == Decimal("0.1")
+    assert updated.acceleration == Decimal("2.0")
+    assert updated.acceleration_unit == "PERCENTAGE_POINTS_PER_DAY"
 
 
 def test_revision_confidence_and_reproduction_are_deterministic() -> None:
@@ -167,6 +169,22 @@ def test_revision_confidence_and_reproduction_are_deterministic() -> None:
     assert first.revision_confidence_label == "Low"
     assert first.evidence_hash == second.evidence_hash
     assert service.reproduce_evidence_hash(first) == first.evidence_hash
+
+
+def test_multi_period_aggregation_reweights_only_available_period_slots() -> None:
+    service = _service([])
+    current_quarter = _feature(absolute_change=Decimal("1"), actual_elapsed_days=30)
+    current_quarter.period_slot = "CURRENT_QUARTER"
+    current_quarter.pct_change = Decimal("10")
+    next_quarter = _feature(absolute_change=Decimal("-0.2"), actual_elapsed_days=30)
+    next_quarter.period_slot = "NEXT_QUARTER"
+    next_quarter.pct_change = Decimal("-2")
+
+    aggregate = service.aggregate_revision_strength([current_quarter, next_quarter])
+
+    assert aggregate.coverage_pct == 65.0
+    assert aggregate.strength == Decimal("4.461538461538461538461538462")
+    assert aggregate.warnings == ()
 
 
 def _service(snapshots: list[CeriEstimateSnapshot]) -> CeriRevisionFeatureService:

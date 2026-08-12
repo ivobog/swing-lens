@@ -1,0 +1,14 @@
+{
+  "ceri_catalyst_relevance_rejected_count": 2,
+  "ceri_catalyst_unclassified_count": 2,
+  "ceri_confidence_insufficient_pct": 100.0,
+  "ceri_estimate_comparable_pct": 0.0,
+  "ceri_estimate_currency_missing_pct": 100.0,
+  "ceri_event_risk_ceiling_count": 0,
+  "ceri_guidance_rejected_count": 122,
+  "ceri_opportunity_rated_pct": 0.0,
+  "ceri_period_slot_ambiguous_count": 192,
+  "ceri_revision_available_pct": 0.0,
+  "ceri_snapshot_reproduction_failure_count": 0,
+  "scope": "Run 96 r3 snapshots/revisions: NWE, OMC, NVDA; estimate/guidance/catalyst vertical metrics: NWE"
+}

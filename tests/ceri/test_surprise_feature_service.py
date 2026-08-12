@@ -25,7 +25,7 @@ def test_earnings_surprise_uses_consensus_immediately_before_report() -> None:
     assert earnings.consensus_selection_reason == "latest_consensus_before_report_at"
     assert feature.consensus_snapshot_id == 2
     assert earnings.surprise_absolute == Decimal("1.00")
-    assert earnings.surprise_pct == Decimal("0.1")
+    assert earnings.surprise_pct == Decimal("10.0")
     assert feature.direction == "positive"
 
 

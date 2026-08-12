@@ -25,7 +25,10 @@ from app.services.ceri.earnings_normalizer import CeriEarningsNormalizer
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.estimate_normalizer import CeriEstimateNormalizer
 from app.services.ceri.guidance_comparison_service import compare_guidance
-from app.services.ceri.guidance_normalizer import CeriGuidanceNormalizer
+from app.services.ceri.guidance_normalizer import (
+    CeriGuidanceNormalizer,
+    apply_guidance_eligibility,
+)
 from app.services.ceri.identity_resolver import CeriIdentityResolver
 
 
@@ -199,6 +202,7 @@ class CeriNormalizationService:
                     | set(comparison.warnings)
                     | ({"manual_review_required"} if comparison.action == "UNKNOWN" else set())
                 )
+                apply_guidance_eligibility(guidance)
             return 1
         if dataset is CeriDataset.CATALYSTS:
             record = self.catalyst_taxonomy.normalize(source_record, company_id=company_id)
@@ -266,7 +270,14 @@ class CeriNormalizationService:
                     materiality=record.materiality,
                     date_confidence=record.date_confidence.value,
                     source_confidence=record.confidence.value,
-                    operational_values_json={"subject_key": record.subject_key},
+                    operational_values_json={
+                        "subject_key": record.subject_key,
+                        "issuer_relevance": record.issuer_relevance,
+                        "relevance_reason": record.relevance_reason,
+                    },
+                    issuer_relevance=record.issuer_relevance,
+                    relevance_reason=record.relevance_reason,
+                    binary_eligible=None,
                     conflict_flags_json=list(record.conflict_flags) or None,
                 )
                 db.add(revision)
@@ -305,7 +316,14 @@ class CeriNormalizationService:
                 materiality=record.materiality,
                 date_confidence=record.date_confidence.value,
                 source_confidence=record.confidence.value,
-                operational_values_json={"subject_key": record.subject_key},
+                operational_values_json={
+                    "subject_key": record.subject_key,
+                    "issuer_relevance": record.issuer_relevance,
+                    "relevance_reason": record.relevance_reason,
+                },
+                issuer_relevance=record.issuer_relevance,
+                relevance_reason=record.relevance_reason,
+                binary_eligible=None,
                 conflict_flags_json=list(record.conflict_flags) or None,
             )
             db.add(revision)

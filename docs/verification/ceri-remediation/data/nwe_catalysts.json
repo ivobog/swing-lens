@@ -1,0 +1,26 @@
+[
+  {
+    "binary_eligible": false,
+    "binary_risk_score": 0.0,
+    "category": "REGULATORY",
+    "event_id": 642,
+    "issuer_relevance": null,
+    "rejection_reason": "ISSUER_RELEVANCE_UNVERIFIED",
+    "revision_id": 642,
+    "selected": false,
+    "status": "ANNOUNCED",
+    "subject_key": "northwestern-energy-group-nwe-following-reaffirmed-guidance-and-q2-gains-looks-about-right"
+  },
+  {
+    "binary_eligible": false,
+    "binary_risk_score": 0.0,
+    "category": "REGULATORY",
+    "event_id": 643,
+    "issuer_relevance": null,
+    "rejection_reason": "ISSUER_RELEVANCE_UNVERIFIED",
+    "revision_id": 643,
+    "selected": false,
+    "status": "ANNOUNCED",
+    "subject_key": "black-hills-corp-bkh-q2-2026-earnings-call-highlights-reaffirms-guidance-and-advances-3-gw"
+  }
+]

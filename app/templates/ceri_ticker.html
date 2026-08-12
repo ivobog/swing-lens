@@ -30,11 +30,12 @@
 </section>
 
 {% if latest %}
+  {% set opportunity = latest.opportunity if latest.opportunity is defined else {'score': latest.opportunity_score, 'rated': latest.opportunity_score is number, 'coverage_pct': none, 'minimum_required_coverage_pct': 60} %}
   <section class="metric-grid section-gap ceri-metrics" aria-label="Ticker CERI summary">
-    <div class="metric"><span>Opportunity</span><strong>{{ "%.2f"|format(latest.opportunity_score) if latest.opportunity_score is number else "N/A" }}</strong></div>
+    <div class="metric"><span>Opportunity</span><strong>{{ "%.2f"|format(opportunity.score) if opportunity.rated else "Unrated" }}</strong><span>Coverage {{ "%.0f"|format(opportunity.coverage_pct) if opportunity.coverage_pct is number else "N/A" }}% / {{ "%.0f"|format(opportunity.minimum_required_coverage_pct) if opportunity.minimum_required_coverage_pct is number else "60" }}% required</span></div>
     <div class="metric"><span>Event Risk</span><strong>{{ "%.2f"|format(latest.event_risk_score) if latest.event_risk_score is number else "N/A" }}</strong></div>
     <div class="metric"><span>Confidence</span><strong>{{ latest.data_confidence }}</strong></div>
-    <div class="metric"><span>Coverage</span><strong>{{ "%.0f"|format(latest.coverage_pct or 0) }}%</strong></div>
+    <div class="metric"><span>Coverage</span><strong>{{ "%.0f"|format(latest.coverage_pct) if latest.coverage_pct is number else "N/A" }}%</strong></div>
     <div class="metric"><span>Posture</span><strong>{{ latest.posture }}</strong></div>
     <div class="metric"><span>Earnings Risk</span><strong>{{ "%.2f"|format(latest.earnings_proximity_risk) if latest.earnings_proximity_risk is number else "N/A" }}</strong></div>
   </section>
@@ -43,8 +44,8 @@
     <div class="panel">
       <div class="panel-header compact-header"><div><h2>Score Components</h2></div></div>
       <div class="component-list section-gap">
-        {% for key, value in (latest.components or {}).items() %}
-          <div class="component-row"><span>{{ key|replace("_", " ")|title }}</span><strong>{{ value }}</strong></div>
+        {% for component in ((latest.ledgers.opportunity.components if latest.ledgers is defined else []) or []) %}
+          <div class="component-row"><span>{{ component.name|replace("_", " ")|title }}</span><strong>{{ component.value if component.available else "Unavailable · " ~ component.unavailable_reason }}</strong></div>
         {% else %}
           <p>No component values are available.</p>
         {% endfor %}
@@ -92,11 +93,11 @@
             {% for row in payload.revision_features %}
               <tr>
                 <td>{{ row.metric }}</td>
-                <td>{{ row.period_key }}</td>
-                <td>{{ row.window_days }} days<span class="muted-line">elapsed {{ row.actual_elapsed_days or "N/A" }}</span></td>
-                <td>{{ row.pct_change if row.pct_change is not none else "N/A" }}</td>
-                <td>{{ row.net_breadth if row.net_breadth is not none else "N/A" }}<span class="muted-line">Up {{ row.raw_breadth_counts.upward_count or 0 }} / Down {{ row.raw_breadth_counts.downward_count or 0 }}</span></td>
-                <td>{{ (row.raw_breadth_counts.upward_count or 0) + (row.raw_breadth_counts.downward_count or 0) }}</td>
+                <td>{{ row.period_slot or row.period_key }}</td>
+                <td>{{ row.window_days }} days<span class="muted-line">elapsed {{ row.actual_elapsed_days if row.actual_elapsed_days is not none else "N/A" }}</span></td>
+                <td>{{ row.pct_change if row.pct_change is not none else "N/A" }}{% if row.pct_change is not none %}%{% endif %}</td>
+                <td>{{ row.net_breadth if row.net_breadth is not none else "N/A" }}<span class="muted-line">Up {{ row.raw_breadth_counts.upward_count if row.raw_breadth_counts.upward_count is not none else "N/A" }} / Down {{ row.raw_breadth_counts.downward_count if row.raw_breadth_counts.downward_count is not none else "N/A" }}</span></td>
+                <td>{% if row.raw_breadth_counts.upward_count is not none and row.raw_breadth_counts.downward_count is not none %}{{ row.raw_breadth_counts.upward_count + row.raw_breadth_counts.downward_count }}{% else %}N/A{% endif %}</td>
                 <td>{{ row.dispersion if row.dispersion is not none else "N/A" }}</td>
                 <td>{{ row.revision_confidence_label or "Unavailable" }}</td>
                 <td><code>{{ row.source_observation_ids|tojson }}</code></td>
@@ -108,6 +109,11 @@
     {% else %}
       <div class="empty-state section-gap"><strong>No revision history is available for this ticker.</strong></div>
     {% endif %}
+  </section>
+
+  <section class="split-grid section-gap">
+    <div class="panel"><div class="panel-header compact-header"><div><h2>Guidance State</h2></div></div>{% if payload.guidance is defined and payload.guidance.status == 'AVAILABLE' %}<p>{{ payload.guidance.selected.action }} · {{ payload.guidance.selected.metric }} · {{ payload.guidance.selected.period }} · {{ payload.guidance.selected.confidence }}</p>{% else %}<p>Guidance unavailable{% if payload.guidance is defined %}: {{ payload.guidance.reason }}{% endif %}</p>{% endif %}</div>
+    <div class="panel"><div class="panel-header compact-header"><div><h2>Source Freshness</h2></div></div>{% for dataset, state in ((payload.source_freshness if payload.source_freshness is defined else {}) or {}).items() %}<p>{{ dataset|title }}: {{ state.age_days if state.age_days is not none else "N/A" }} days · {{ state.status }}{% if state.timestamp_quality %} · {{ state.timestamp_quality }}{% endif %}</p>{% endfor %}</div>
   </section>
 
   <section class="panel section-gap">

@@ -1,0 +1,54 @@
+[
+  {
+    "actual": null,
+    "consensus_selection_reason": "pre_report_consensus_unavailable",
+    "consensus_snapshot_id": null,
+    "id": 519,
+    "provider_consensus_at_report": null,
+    "provider_surprise_pct": null,
+    "report_at": "2025-09-30T23:00:00+02:00",
+    "surprise_pct": null,
+    "warnings": [
+      "actual_missing"
+    ]
+  },
+  {
+    "actual": null,
+    "consensus_selection_reason": "pre_report_consensus_unavailable",
+    "consensus_snapshot_id": null,
+    "id": 520,
+    "provider_consensus_at_report": null,
+    "provider_surprise_pct": null,
+    "report_at": "2025-12-31T22:00:00+01:00",
+    "surprise_pct": null,
+    "warnings": [
+      "actual_missing"
+    ]
+  },
+  {
+    "actual": null,
+    "consensus_selection_reason": "pre_report_consensus_unavailable",
+    "consensus_snapshot_id": null,
+    "id": 521,
+    "provider_consensus_at_report": null,
+    "provider_surprise_pct": null,
+    "report_at": "2026-03-31T23:00:00+02:00",
+    "surprise_pct": null,
+    "warnings": [
+      "actual_missing"
+    ]
+  },
+  {
+    "actual": null,
+    "consensus_selection_reason": "pre_report_consensus_unavailable",
+    "consensus_snapshot_id": null,
+    "id": 522,
+    "provider_consensus_at_report": null,
+    "provider_surprise_pct": null,
+    "report_at": "2026-06-30T23:00:00+02:00",
+    "surprise_pct": null,
+    "warnings": [
+      "actual_missing"
+    ]
+  }
+]
