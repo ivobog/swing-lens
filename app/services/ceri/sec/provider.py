@@ -129,7 +129,10 @@ class SecCeriProvider:
                     "low_value": extraction.low_value,
                     "high_value": extraction.high_value,
                     "point_value": extraction.point_value,
-                    "unit": _unit_from_text(extraction.matched_text),
+                    "unit": _unit_from_text(
+                        extraction.matched_text,
+                        metric=extraction.metric,
+                    ),
                     "confidence": extraction.confidence,
                     "extraction_confidence": extraction.confidence,
                     "comparison_confidence": extraction.comparison_confidence,
@@ -177,8 +180,12 @@ def _date_time(value: Any) -> datetime:
     return datetime.fromisoformat(str(value)[:10]).replace(tzinfo=UTC)
 
 
-def _unit_from_text(text: str) -> str | None:
+def _unit_from_text(text: str, *, metric: str | None = None) -> str | None:
     lowered = text.lower()
+    if metric == "EPS_DILUTED" and any(
+        token in lowered for token in ("per share", "diluted share", "eps")
+    ):
+        return "PER_SHARE"
     for unit in ("billion", "million", "%"):
         if unit in lowered:
             return unit

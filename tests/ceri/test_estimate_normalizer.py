@@ -63,6 +63,28 @@ def test_provider_zero_is_distinguishable_from_missing() -> None:
     assert "consensus_missing" in missing.quality_flags_json
 
 
+def test_missing_currency_is_not_inferred_from_us_ticker_suffix() -> None:
+    estimate = CeriEstimateNormalizer().normalize(
+        _source(
+            {
+                "ticker": "NWE.US",
+                "metric": "EPS_DILUTED",
+                "period_type": "ANNUAL",
+                "fiscal_year": 2026,
+                "consensus": "4.25",
+                "source_date": "2026-08-03",
+            }
+        ),
+        company_id=42,
+    )
+
+    assert estimate.consensus is None
+    assert estimate.source_currency is None
+    assert estimate.canonical_currency is None
+    assert estimate.currency_verified is False
+    assert "currency_missing" in estimate.quality_flags_json
+
+
 def test_verified_currency_conversion_is_traceable() -> None:
     source = _source(
         {

@@ -20,6 +20,7 @@ from app.services.ceri.query_service import (
     CeriQueryError,
     CeriQueryFilters,
     CeriQueryService,
+    _score_snapshot_payload,
 )
 
 NOW = datetime(2026, 8, 2, 12, tzinfo=UTC)
@@ -55,6 +56,40 @@ def test_latest_filters_sorts_pages_and_preserves_nulls() -> None:
     aapl = next(item for item in all_payload["items"] if item["ticker"] == "AAPL")
     assert aapl["opportunity_score"] is None
     assert aapl["event_risk_score"] is None
+
+
+def test_production_dto_does_not_expose_raw_component_storage_json() -> None:
+    snapshot = _snapshot(1, "MSFT", opportunity=None, risk=0.0, confidence="Insufficient")
+    snapshot.opportunity_coverage_pct = 0.0
+    snapshot.opportunity_unrated_reason = "INSUFFICIENT_COMPONENT_COVERAGE"
+    snapshot.component_json = {"private_storage_shape": {"should_not_render": True}}
+    snapshot.opportunity_ledger_json = {
+        "coverage_pct": 0.0,
+        "minimum_required_coverage_pct": 60.0,
+        "components": [],
+    }
+    snapshot.confidence_ledger_json = {
+        "score": 0.0,
+        "gates": ["ZERO_USABLE_CORE_REVISION_COVERAGE"],
+    }
+    snapshot.event_risk_ledger_json = {
+        "score": 0.0,
+        "dominant_component": "earnings_proximity_risk",
+    }
+
+    payload = _score_snapshot_payload(snapshot)
+
+    assert "component_json" not in payload
+    assert "components" not in payload
+    assert payload["opportunity"] == {
+        "score": None,
+        "rated": False,
+        "coverage_pct": 0.0,
+        "minimum_required_coverage_pct": 60.0,
+        "unrated_reason": "INSUFFICIENT_COMPONENT_COVERAGE",
+        "reweighted": False,
+    }
+    assert payload["confidence"]["gates"] == ["ZERO_USABLE_CORE_REVISION_COVERAGE"]
 
 
 def test_ticker_history_requires_stored_snapshot_mode_and_as_of_cutoff() -> None:

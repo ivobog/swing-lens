@@ -1,0 +1,14 @@
+{
+  "additive_columns_remain_null": {
+    "confidence_ledger_json": null,
+    "event_risk_ledger_json": null,
+    "hash_schema_version": null,
+    "opportunity_coverage_pct": null,
+    "opportunity_ledger_json": null,
+    "opportunity_unrated_reason": null
+  },
+  "forensic_fields_compared": 26,
+  "mismatches": [],
+  "snapshot_id": 1948,
+  "unchanged": true
+}

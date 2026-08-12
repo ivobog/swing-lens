@@ -25,6 +25,8 @@ def test_catalyst_feature_calculates_materiality_binary_risk_and_conflicts() -> 
         date_confidence="DATE_RANGE",
         source_confidence="Normal",
         conflict_flags_json=["conflicting_event_dates"],
+        issuer_relevance=True,
+        relevance_reason="PROVIDER_RELATED_TICKER_MATCH",
     )
 
     feature = CeriCatalystFeatureService().calculate(

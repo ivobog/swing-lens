@@ -60,7 +60,10 @@ class CeriEstimateNormalizer:
         )
         canonical_currency = _currency(payload.get("canonical_currency")) or source_currency
         canonical_scale = decimal_or_none(payload.get("canonical_scale")) or source_scale
-        conversion_source = _text(payload.get("conversion_source"))
+        currency_basis = _text(payload.get("currency_basis"))
+        if currency_basis is None and source_currency is not None:
+            currency_basis = "provider_reported"
+        conversion_source = _text(payload.get("conversion_source")) or currency_basis
         conversion_effective_at = _datetime(payload.get("conversion_effective_at"))
         conversion_source_record_id = int_or_none(payload.get("conversion_source_record_id"))
         conversion_rate = decimal_or_none(payload.get("conversion_rate"))
@@ -78,8 +81,24 @@ class CeriEstimateNormalizer:
             conversion_effective_at=conversion_effective_at,
         )
         quality_flags = [*session_warnings, *consensus_conversion.warnings]
+        if source_currency is None:
+            quality_flags.append("currency_missing")
         if consensus is None:
             quality_flags.append("consensus_missing")
+
+        baseline_origin = _text(payload.get("baseline_origin"))
+        retrieved_at = source_record.retrieved_at or source_record.ingested_at
+        provider_reference_at = (
+            _datetime(payload.get("provider_observation_at"))
+            or _datetime(payload.get("provider_observed_at"))
+            or source_record.source_timestamp
+        )
+        reference_at = _datetime(payload.get("reference_at")) or effective_at
+        known_at = (
+            retrieved_at
+            if baseline_origin in {"PROVIDER_RELATIVE_WINDOW", "PROVIDER_RETROSPECTIVE_WINDOW"}
+            else provider_reference_at or effective_at or retrieved_at
+        )
 
         return CeriEstimateSnapshot(
             source_record_id=source_record.id,
@@ -87,6 +106,7 @@ class CeriEstimateNormalizer:
             metric=CeriMetric(str(payload.get("metric") or "EPS_DILUTED")).value,
             fiscal_period_end=period.fiscal_period_end,
             period_type=period.period_type.value,
+            canonical_period_slot=period.period_type.value,
             fiscal_year=period.fiscal_year,
             fiscal_quarter=period.fiscal_quarter,
             consensus=consensus_conversion.canonical_value,
@@ -112,11 +132,19 @@ class CeriEstimateNormalizer:
             source_currency=source_currency,
             source_scale=source_scale,
             canonical_currency=consensus_conversion.canonical_currency,
+            currency_basis=currency_basis,
+            currency_verified=(
+                consensus_conversion.canonical_currency is not None
+                and currency_basis in self.currency_conversion.config.allowed_sources
+            ),
             canonical_scale=consensus_conversion.canonical_scale,
             conversion_rate=consensus_conversion.conversion_rate,
             conversion_source_record_id=consensus_conversion.conversion_source_record_id,
             conversion_effective_at=consensus_conversion.conversion_effective_at,
             effective_at=effective_at,
+            reference_at=reference_at,
+            known_at=known_at,
+            retrieved_at=retrieved_at,
             effective_session=effective_session,
             provider_observed_at=(
                 _datetime(payload.get("provider_observed_at"))
@@ -129,7 +157,7 @@ class CeriEstimateNormalizer:
                 if payload.get("trend_baseline_window_days") is not None
                 else payload.get("trend_baseline_days")
             ),
-            baseline_origin=_text(payload.get("baseline_origin")),
+            baseline_origin=baseline_origin,
             current_observation_reference=_text(payload.get("current_observation_reference")),
             canonical_observation_key=canonical_estimate_key(
                 company_id=company_id,
@@ -142,6 +170,7 @@ class CeriEstimateNormalizer:
             ),
             original_fields_json=payload,
             quality_flags_json=quality_flags or None,
+            normalization_version="ceri-normalization-1.1.0",
         )
 
     def _convert_value(
@@ -160,7 +189,11 @@ class CeriEstimateNormalizer:
             canonical_currency=canonical_currency,
             canonical_scale=canonical_scale,
             conversion_rate=decimal_or_none(payload.get("conversion_rate")),
-            conversion_source=_text(payload.get("conversion_source")),
+            conversion_source=(
+                _text(payload.get("conversion_source"))
+                or _text(payload.get("currency_basis"))
+                or ("provider_reported" if source_currency is not None else None)
+            ),
             conversion_source_record_id=int_or_none(payload.get("conversion_source_record_id")),
             conversion_effective_at=_datetime(payload.get("conversion_effective_at")),
         )

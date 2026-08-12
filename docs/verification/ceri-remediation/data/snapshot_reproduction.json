@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "calculation_version": "ceri-1.0.0",
+      "cutoff_at": "2026-08-12T01:53:49.997862+00:00",
+      "matches": true,
+      "reproduced_hash": "530fb0d8e3719e04efb5225c42924616867c3b1eb73f8adbdcd5ae382e46293a",
+      "snapshot_id": 1948,
+      "stored_hash": "530fb0d8e3719e04efb5225c42924616867c3b1eb73f8adbdcd5ae382e46293a",
+      "timezone": "UTC"
+    },
+    {
+      "calculation_version": "ceri-1.1.0",
+      "cutoff_at": "2026-08-12T01:53:49.997862+00:00",
+      "matches": true,
+      "reproduced_hash": "204d0fef40eb40ad1b9b51980c5c8c4fd607d57a1a7c140c1b08e6cc8fa80787",
+      "snapshot_id": 1993,
+      "stored_hash": "204d0fef40eb40ad1b9b51980c5c8c4fd607d57a1a7c140c1b08e6cc8fa80787",
+      "timezone": "UTC"
+    },
+    {
+      "calculation_version": "ceri-1.1.0",
+      "cutoff_at": "2026-08-12T01:53:49.997862+00:00",
+      "matches": true,
+      "reproduced_hash": "a033f05fcb59db06b1ca07f4555dc13063679c6e6a03fc7cc721e8dcb4d0635a",
+      "snapshot_id": 1994,
+      "stored_hash": "a033f05fcb59db06b1ca07f4555dc13063679c6e6a03fc7cc721e8dcb4d0635a",
+      "timezone": "UTC"
+    },
+    {
+      "calculation_version": "ceri-1.1.0",
+      "cutoff_at": "2026-08-12T01:53:49.997862+00:00",
+      "matches": true,
+      "reproduced_hash": "da793abe908df7da32259302cad179689008bfbf1cf80ba2c83a9373bc71b0c1",
+      "snapshot_id": 1995,
+      "stored_hash": "da793abe908df7da32259302cad179689008bfbf1cf80ba2c83a9373bc71b0c1",
+      "timezone": "UTC"
+    },
+    {
+      "calculation_version": "ceri-1.0.0",
+      "cutoff_at": "2026-08-12T03:53:49.997862+02:00",
+      "matches": true,
+      "reproduced_hash": "530fb0d8e3719e04efb5225c42924616867c3b1eb73f8adbdcd5ae382e46293a",
+      "snapshot_id": 1948,
+      "stored_hash": "530fb0d8e3719e04efb5225c42924616867c3b1eb73f8adbdcd5ae382e46293a",
+      "timezone": "Europe/Berlin"
+    },
+    {
+      "calculation_version": "ceri-1.1.0",
+      "cutoff_at": "2026-08-12T03:53:49.997862+02:00",
+      "matches": true,
+      "reproduced_hash": "204d0fef40eb40ad1b9b51980c5c8c4fd607d57a1a7c140c1b08e6cc8fa80787",
+      "snapshot_id": 1993,
+      "stored_hash": "204d0fef40eb40ad1b9b51980c5c8c4fd607d57a1a7c140c1b08e6cc8fa80787",
+      "timezone": "Europe/Berlin"
+    },
+    {
+      "calculation_version": "ceri-1.1.0",
+      "cutoff_at": "2026-08-12T03:53:49.997862+02:00",
+      "matches": true,
+      "reproduced_hash": "a033f05fcb59db06b1ca07f4555dc13063679c6e6a03fc7cc721e8dcb4d0635a",
+      "snapshot_id": 1994,
+      "stored_hash": "a033f05fcb59db06b1ca07f4555dc13063679c6e6a03fc7cc721e8dcb4d0635a",
+      "timezone": "Europe/Berlin"
+    },
+    {
+      "calculation_version": "ceri-1.1.0",
+      "cutoff_at": "2026-08-12T03:53:49.997862+02:00",
+      "matches": true,
+      "reproduced_hash": "da793abe908df7da32259302cad179689008bfbf1cf80ba2c83a9373bc71b0c1",
+      "snapshot_id": 1995,
+      "stored_hash": "da793abe908df7da32259302cad179689008bfbf1cf80ba2c83a9373bc71b0c1",
+      "timezone": "Europe/Berlin"
+    }
+  ],
+  "failure_count": 0
+}

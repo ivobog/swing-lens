@@ -163,6 +163,8 @@ class NormalizedCatalystRecord:
     effective_session: date | None = None
     canonical_text: str | None = None
     conflict_flags: tuple[str, ...] = ()
+    issuer_relevance: bool | None = None
+    relevance_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -191,6 +193,9 @@ class ScoreComponent:
     value: float | None
     weight: float
     contribution: float | None
+    available: bool = True
+    unavailable_reason: str | None = None
+    evidence_ids: tuple[int, ...] = ()
     reasons: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
 

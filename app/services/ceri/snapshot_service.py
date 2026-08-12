@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -55,6 +57,34 @@ class CeriSnapshotService:
             event_risk.earnings_proximity.level,
         )
         components = [asdict(component) for component in opportunity.components]
+        opportunity_ledger = {
+            "rated": opportunity.rated,
+            "score": opportunity.score,
+            "coverage_pct": opportunity.coverage_pct,
+            "available_weight": opportunity.available_weight,
+            "minimum_required_coverage_pct": opportunity.minimum_required_coverage_pct,
+            "reweighted": opportunity.reweighted,
+            "unrated_reason": opportunity.unrated_reason,
+            "components": components,
+            "penalties": list(opportunity.penalties),
+        }
+        confidence_ledger = {
+            "score": confidence.score,
+            "label": confidence.label.value,
+            "coverage_pct": confidence.coverage_pct,
+            "subscores": [asdict(entry) for entry in confidence.ledger],
+            "gates": list(confidence.gates),
+            "caps": list(confidence.caps),
+        }
+        event_risk_ledger = {
+            "score": event_risk.score,
+            "dominant_component": event_risk.dominant_component,
+            "components": [asdict(entry) for entry in event_risk.ledger],
+            "selected_event_ids": list(event_risk.selected_event_ids),
+            "rejected_event_ids": list(event_risk.rejected_event_ids),
+            "rejected_events": list(event_risk.rejected_events),
+            "penalties": list(event_risk.penalties),
+        }
         earnings_risk = event_risk.earnings_proximity.risk_score
         reasons = [*opportunity.reasons, *event_risk.reasons, *confidence.reasons]
         warnings = [*opportunity.warnings, *event_risk.warnings, *confidence.warnings]
@@ -62,13 +92,16 @@ class CeriSnapshotService:
             "company_id": company_id,
             "ticker": ticker,
             "as_of_session": as_of_session.isoformat(),
-            "cutoff_at": cutoff_at.isoformat(),
+            "cutoff_at": cutoff_at,
             "opportunity_score": opportunity.score,
             "event_risk_score": event_risk.score,
             "data_confidence": confidence.label.value,
             "coverage_pct": confidence.coverage_pct,
             "posture": posture,
             "components": components,
+            "opportunity_ledger": opportunity_ledger,
+            "confidence_ledger": confidence_ledger,
+            "event_risk_ledger": event_risk_ledger,
             "source_ids": sorted(source_ids),
             "config_hash": self.config.config_hash,
             "calculation_version": self.config.engine.calculation_version,
@@ -83,6 +116,8 @@ class CeriSnapshotService:
             as_of_session=as_of_session,
             cutoff_at=cutoff_at,
             opportunity_score=opportunity.score,
+            opportunity_coverage_pct=opportunity.coverage_pct,
+            opportunity_unrated_reason=opportunity.unrated_reason,
             event_risk_score=event_risk.score,
             data_confidence=confidence.label.value,
             coverage_pct=confidence.coverage_pct,
@@ -103,12 +138,16 @@ class CeriSnapshotService:
                 "alignment_context": alignment_context or {},
                 "evidence_lineage": evidence_lineage or {},
             },
+            opportunity_ledger_json=opportunity_ledger,
+            confidence_ledger_json=confidence_ledger,
+            event_risk_ledger_json=event_risk_ledger,
             reasons_json=reasons or None,
             warnings_json=warnings or None,
             config_version=self.config.engine.config_version,
             config_hash=self.config.config_hash,
             calculation_version=self.config.engine.calculation_version,
             evidence_hash=score_evidence_hash(payload),
+            hash_schema_version="ceri-canonical-json-v2",
         )
         return snapshot
 
@@ -119,17 +158,30 @@ class CeriSnapshotService:
 
     def reproduce_snapshot(self, snapshot: CeriScoreSnapshot) -> SnapshotReproductionResult:
         component_json = snapshot.component_json or {}
+        if snapshot.calculation_version == "ceri-1.0.0":
+            payload = _legacy_reproduction_payload(snapshot, component_json)
+            reproduced = _legacy_evidence_hash(payload)
+            differences = () if reproduced == snapshot.evidence_hash else ("evidence_hash",)
+            return SnapshotReproductionResult(
+                stored_hash=snapshot.evidence_hash,
+                reproduced_hash=reproduced,
+                matches=reproduced == snapshot.evidence_hash,
+                differences=differences,
+            )
         payload = {
             "company_id": snapshot.company_id,
             "ticker": snapshot.ticker,
             "as_of_session": snapshot.as_of_session.isoformat(),
-            "cutoff_at": snapshot.cutoff_at.isoformat(),
+            "cutoff_at": snapshot.cutoff_at,
             "opportunity_score": snapshot.opportunity_score,
             "event_risk_score": snapshot.event_risk_score,
             "data_confidence": snapshot.data_confidence,
             "coverage_pct": snapshot.coverage_pct,
             "posture": snapshot.posture,
             "components": component_json.get("components") or [],
+            "opportunity_ledger": snapshot.opportunity_ledger_json or {},
+            "confidence_ledger": snapshot.confidence_ledger_json or {},
+            "event_risk_ledger": snapshot.event_risk_ledger_json or {},
             "source_ids": component_json.get("source_ids") or [],
             "config_hash": snapshot.config_hash,
             "calculation_version": snapshot.calculation_version,
@@ -177,6 +229,64 @@ def derive_alignment_flags(inputs: dict[str, bool], earnings_level: str) -> dict
 
 
 def score_evidence_hash(payload: dict[str, Any]) -> str:
+    encoded = canonical_json_dumps(payload)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def canonical_json_dumps(value: Any) -> str:
+    return json.dumps(
+        _canonical_json_value(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+
+
+def _canonical_json_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        normalized = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        return normalized.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return format(value.normalize(), "f")
+    if isinstance(value, Enum):
+        return _canonical_json_value(value.value)
+    if isinstance(value, dict):
+        return {str(key): _canonical_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_json_value(item) for item in value]
+    return value
+
+
+def _legacy_reproduction_payload(
+    snapshot: CeriScoreSnapshot,
+    component_json: dict[str, Any],
+) -> dict[str, Any]:
+    cutoff_at = snapshot.cutoff_at
+    if cutoff_at.tzinfo is None:
+        cutoff_at = cutoff_at.replace(tzinfo=UTC)
+    return {
+        "company_id": snapshot.company_id,
+        "ticker": snapshot.ticker,
+        "as_of_session": snapshot.as_of_session.isoformat(),
+        "cutoff_at": cutoff_at.astimezone(UTC).isoformat(),
+        "opportunity_score": snapshot.opportunity_score,
+        "event_risk_score": snapshot.event_risk_score,
+        "data_confidence": snapshot.data_confidence,
+        "coverage_pct": snapshot.coverage_pct,
+        "posture": snapshot.posture,
+        "components": component_json.get("components") or [],
+        "source_ids": component_json.get("source_ids") or [],
+        "config_hash": snapshot.config_hash,
+        "calculation_version": snapshot.calculation_version,
+        "alignment_context": snapshot.alignment_context_json or {},
+        "evidence_lineage": snapshot.evidence_lineage_json or {},
+    }
+
+
+def _legacy_evidence_hash(payload: dict[str, Any]) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 

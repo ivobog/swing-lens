@@ -39,7 +39,7 @@ class CeriGuidanceNormalizer:
             timestamp=announced_at or source_record.published_at,
             source_date=_date(payload.get("source_date")),
         )
-        return CeriGuidanceEvent(
+        event = CeriGuidanceEvent(
             source_record_id=source_record.id,
             company_id=company_id,
             action=normalize_guidance_action(payload.get("action")).value,
@@ -74,7 +74,10 @@ class CeriGuidanceNormalizer:
             ),
             filing_accession=_text(payload.get("filing_accession") or payload.get("accession")),
             quality_warnings_json=list(session.warnings) or None,
+            normalization_version="ceri-guidance-1.1.0",
         )
+        apply_guidance_eligibility(event, payload=payload)
+        return event
 
 
 def normalize_guidance_action(value: Any) -> GuidanceAction:
@@ -82,6 +85,44 @@ def normalize_guidance_action(value: Any) -> GuidanceAction:
         return GuidanceAction.UNKNOWN
     normalized = str(value).strip().upper().replace("-", "_").replace(" ", "_")
     return ACTION_ALIASES.get(normalized, GuidanceAction.UNKNOWN)
+
+
+def apply_guidance_eligibility(
+    event: CeriGuidanceEvent,
+    *,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    payload = payload or {}
+    reason = guidance_eligibility_reason(event, payload=payload)
+    event.accepted_for_scoring = reason is None
+    event.rejection_reason = reason
+    if reason is not None:
+        event.quality_warnings_json = sorted(
+            set(event.quality_warnings_json or []) | {reason.lower()}
+        )
+
+
+def guidance_eligibility_reason(
+    event: CeriGuidanceEvent,
+    *,
+    payload: dict[str, Any] | None = None,
+) -> str | None:
+    payload = payload or {}
+    if event.action == GuidanceAction.UNKNOWN.value:
+        return "GUIDANCE_ACTION_UNKNOWN"
+    if str(event.confidence).upper() not in {"HIGH", "NORMAL"}:
+        return "GUIDANCE_CONFIDENCE_INSUFFICIENT"
+    if event.metric is None:
+        return "GUIDANCE_METRIC_UNRESOLVED"
+    if event.period_type is None:
+        return "GUIDANCE_PERIOD_UNRESOLVED"
+    if bool(payload.get("manual_review_required")):
+        return "GUIDANCE_REQUIRES_REVIEW"
+    if event.metric == CeriMetric.EPS_DILUTED.value and event.unit == "%":
+        return "GUIDANCE_UNIT_INCOMPATIBLE"
+    if event.accepted_for_scoring is False:
+        return event.rejection_reason or "GUIDANCE_NOT_ACCEPTED"
+    return None
 
 
 def _confidence(value: Any) -> CeriConfidenceLabel:

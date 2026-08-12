@@ -1,0 +1,11 @@
+{
+  "api_status": 200,
+  "confidence_matches": true,
+  "guidance_status_explicit": true,
+  "null_rendered_as_zero": false,
+  "null_revision_rendered_as_na": true,
+  "opportunity_coverage_matches": true,
+  "opportunity_unrated": true,
+  "raw_component_json_exposed": false,
+  "ui_status": 200
+}

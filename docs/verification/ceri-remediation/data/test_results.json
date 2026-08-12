@@ -1,0 +1,26 @@
+{
+  "combined_final": {
+    "command": "python -m pytest tests/ceri tests/integration/test_ceri_batched_workflow_v2.py tests/test_ceri_backlog_cleanup.py -q",
+    "result": "222 passed in 66.63s"
+  },
+  "baseline": {
+    "command": "python -m pytest tests/ceri -q",
+    "result": "196 passed in 47.36s"
+  },
+  "focused_final": {
+    "command": "python -m pytest tests/ceri -q",
+    "result": "215 passed in 28.59s"
+  },
+  "integration_final": {
+    "command": "python -m pytest tests/integration/test_ceri_batched_workflow_v2.py tests/test_ceri_backlog_cleanup.py -q",
+    "result": "7 passed in 47.55s"
+  },
+  "migration": {
+    "command": "alembic current",
+    "result": "0040_ceri_remediation_ledgers (head)"
+  },
+  "static": {
+    "command": "python -m ruff check app/services/ceri app/models/ceri_tables.py tests/ceri --output-format concise",
+    "result": "All checks passed!"
+  }
+}

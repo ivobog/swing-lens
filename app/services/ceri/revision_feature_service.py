@@ -44,6 +44,7 @@ class CeriRevisionFeatureService:
         metric: str,
         cutoff_at: datetime,
         window_days: int,
+        period_slot: str | None = None,
         mode: HistoricalViewMode = HistoricalViewMode.AS_KNOWN,
     ) -> CeriRevisionFeature:
         current = self.query.current_snapshot(
@@ -51,6 +52,7 @@ class CeriRevisionFeatureService:
             company_id=company_id,
             metric=metric,
             cutoff_at=cutoff_at,
+            period_slot=period_slot,
             mode=mode,
         )
         selection = self.query.select_baseline(
@@ -60,6 +62,7 @@ class CeriRevisionFeatureService:
             metric=metric,
             cutoff_at=cutoff_at,
             window_days=window_days,
+            period_slot=period_slot,
             mode=mode,
         )
         return self._feature_from_selection(
@@ -68,6 +71,7 @@ class CeriRevisionFeatureService:
             metric=metric,
             cutoff_at=cutoff_at,
             window_days=window_days,
+            period_slot=period_slot,
         )
 
     def calculate_windows(
@@ -77,6 +81,7 @@ class CeriRevisionFeatureService:
         company_id: int,
         metric: str,
         cutoff_at: datetime,
+        period_slot: str | None = None,
         mode: HistoricalViewMode = HistoricalViewMode.AS_KNOWN,
     ) -> list[CeriRevisionFeature]:
         return [
@@ -86,6 +91,7 @@ class CeriRevisionFeatureService:
                 metric=metric,
                 cutoff_at=cutoff_at,
                 window_days=window,
+                period_slot=period_slot,
                 mode=mode,
             )
             for window in self.config.revision.windows_days
@@ -107,13 +113,32 @@ class CeriRevisionFeatureService:
                 coverage_pct=0.0,
                 warnings=("revision_strength_unavailable",),
             )
-        strength = sum((feature.pct_change for feature in available), Decimal("0"))
-        strength = strength / Decimal(str(len(available)))
-        coverage = 100.0 * len(available) / len(features)
-        warnings = ()
-        if coverage < self.config.revision.minimum_component_coverage_pct:
-            warnings = ("revision_component_coverage_low",)
-        return RevisionAggregate(strength=strength, coverage_pct=coverage, warnings=warnings)
+        by_slot: dict[str, list[Decimal]] = {}
+        for feature in available:
+            if feature.period_slot is not None:
+                by_slot.setdefault(feature.period_slot, []).append(feature.pct_change)
+        available_weight = sum(
+            (Decimal(str(weight))
+            for slot, weight in self.config.revision.period_weights.items()
+            if slot.value in by_slot),
+            Decimal("0"),
+        )
+        coverage = float(Decimal("100") * available_weight)
+        if coverage + 1e-9 < self.config.revision.minimum_component_coverage_pct:
+            return RevisionAggregate(
+                strength=None,
+                coverage_pct=coverage,
+                warnings=("revision_component_coverage_low",),
+            )
+        weighted = Decimal("0")
+        for slot, weight in self.config.revision.period_weights.items():
+            values = by_slot.get(slot.value)
+            if not values:
+                continue
+            slot_value = sum(values, Decimal("0")) / Decimal(len(values))
+            weighted += slot_value * Decimal(str(weight))
+        strength = weighted / available_weight
+        return RevisionAggregate(strength=strength, coverage_pct=coverage, warnings=())
 
     def reproduce_evidence_hash(self, feature: CeriRevisionFeature) -> str:
         return revision_evidence_hash(
@@ -144,6 +169,7 @@ class CeriRevisionFeatureService:
         metric: str,
         cutoff_at: datetime,
         window_days: int,
+        period_slot: str | None,
     ) -> CeriRevisionFeature:
         current = selection.current
         baseline = selection.baseline
@@ -177,7 +203,7 @@ class CeriRevisionFeatureService:
         period_key = (
             canonical_estimate_key(current)
             if current is not None
-            else f"{company_id}:{metric}:unavailable"
+            else f"{company_id}:{metric}:{period_slot or 'unresolved'}:unavailable"
         )
         source_ids = [
             source_id
@@ -191,6 +217,7 @@ class CeriRevisionFeatureService:
             company_id=company_id,
             metric=metric,
             period_key=period_key,
+            period_slot=period_slot,
             as_of_session=cutoff_at.date(),
             window_days=window_days,
             baseline_snapshot_id=baseline.id if baseline is not None else None,
@@ -198,11 +225,14 @@ class CeriRevisionFeatureService:
             actual_elapsed_days=selection.actual_elapsed_days,
             absolute_change=absolute_change,
             pct_change=pct_change,
+            pct_change_unit="PERCENTAGE_POINTS",
             upward_count=current.upward_count if current is not None else None,
             downward_count=current.downward_count if current is not None else None,
             net_breadth=net_breadth,
             dispersion=dispersion,
             acceleration=None,
+            acceleration_unit="PERCENTAGE_POINTS_PER_DAY",
+            baseline_origin=baseline.baseline_origin if baseline is not None else None,
             revision_confidence_score=confidence_score,
             revision_confidence_label=confidence_label.value,
             warnings_json=warnings or None,
@@ -222,8 +252,8 @@ class CeriRevisionFeatureService:
         longer: CeriRevisionFeature,
     ) -> CeriRevisionFeature:
         if (
-            recent.absolute_change is None
-            or longer.absolute_change is None
+            recent.pct_change is None
+            or longer.pct_change is None
             or recent.actual_elapsed_days in (None, 0)
             or longer.actual_elapsed_days in (None, 0)
         ):
@@ -232,9 +262,10 @@ class CeriRevisionFeatureService:
             warnings.add("acceleration_unavailable")
             recent.warnings_json = sorted(warnings)
             return recent
-        recent_rate = recent.absolute_change / Decimal(recent.actual_elapsed_days)
-        longer_rate = longer.absolute_change / Decimal(longer.actual_elapsed_days)
+        recent_rate = recent.pct_change / Decimal(recent.actual_elapsed_days)
+        longer_rate = longer.pct_change / Decimal(longer.actual_elapsed_days)
         recent.acceleration = recent_rate - longer_rate
+        recent.acceleration_unit = "PERCENTAGE_POINTS_PER_DAY"
         recent.evidence_hash = self.reproduce_evidence_hash(recent)
         return recent
 
@@ -248,7 +279,7 @@ class CeriRevisionFeatureService:
             return None, ["pct_change_unavailable_near_zero_baseline"]
         if (current > 0 > baseline) or (current < 0 < baseline):
             return None, ["pct_change_unavailable_sign_change"]
-        return (current - baseline) / abs(baseline), []
+        return (current - baseline) / abs(baseline) * Decimal("100"), []
 
     def _dispersion(self, current: CeriEstimateSnapshot) -> tuple[Decimal | None, str | None]:
         threshold = Decimal(str(self.config.revision.near_zero_threshold))

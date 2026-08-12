@@ -246,6 +246,7 @@ class CeriEstimateSnapshot(Base):
     metric: Mapped[str] = mapped_column(String(64), nullable=False)
     fiscal_period_end: Mapped[date] = mapped_column(Date, nullable=False)
     period_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_period_slot: Mapped[str | None] = mapped_column(String(64))
     fiscal_year: Mapped[int | None] = mapped_column(Integer)
     fiscal_quarter: Mapped[int | None] = mapped_column(Integer)
     consensus: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
@@ -257,6 +258,8 @@ class CeriEstimateSnapshot(Base):
     source_currency: Mapped[str | None] = mapped_column(String(16))
     source_scale: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     canonical_currency: Mapped[str | None] = mapped_column(String(16))
+    currency_basis: Mapped[str | None] = mapped_column(Text)
+    currency_verified: Mapped[bool | None] = mapped_column(Boolean)
     canonical_scale: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     conversion_rate: Mapped[Decimal | None] = mapped_column(Numeric(20, 10))
     conversion_source_record_id: Mapped[int | None] = mapped_column(
@@ -264,6 +267,9 @@ class CeriEstimateSnapshot(Base):
     )
     conversion_effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reference_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    known_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     effective_session: Mapped[date | None] = mapped_column(Date)
     provider_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -273,6 +279,7 @@ class CeriEstimateSnapshot(Base):
     canonical_observation_key: Mapped[str] = mapped_column(Text, nullable=False)
     original_fields_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     quality_flags_json: Mapped[list[str] | None] = mapped_column(JSONB)
+    normalization_version: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
         UniqueConstraint(
@@ -324,6 +331,8 @@ class CeriEarningsActual(Base):
     report_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     report_session: Mapped[date | None] = mapped_column(Date)
     actual_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
+    provider_consensus_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
+    provider_surprise_pct: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     consensus_snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("ceri_estimate_snapshots.id", ondelete="SET NULL")
     )
@@ -375,6 +384,9 @@ class CeriGuidanceEvent(Base):
         ForeignKey("ceri_guidance_events.id", ondelete="SET NULL")
     )
     quality_warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)
+    accepted_for_scoring: Mapped[bool | None] = mapped_column(Boolean)
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    normalization_version: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
         Index("ix_ceri_guidance_events_company_effective", "company_id", "effective_session"),
@@ -447,6 +459,9 @@ class CeriCatalystEventRevision(Base):
     operational_values_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     conflict_flags_json: Mapped[list[str] | None] = mapped_column(JSONB)
     review_state: Mapped[str | None] = mapped_column(String(64))
+    issuer_relevance: Mapped[bool | None] = mapped_column(Boolean)
+    relevance_reason: Mapped[str | None] = mapped_column(Text)
+    binary_eligible: Mapped[bool | None] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -511,6 +526,7 @@ class CeriRevisionFeature(Base):
     )
     metric: Mapped[str] = mapped_column(String(64), nullable=False)
     period_key: Mapped[str] = mapped_column(Text, nullable=False)
+    period_slot: Mapped[str | None] = mapped_column(String(64))
     as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
     baseline_snapshot_id: Mapped[int | None] = mapped_column(
@@ -522,11 +538,14 @@ class CeriRevisionFeature(Base):
     actual_elapsed_days: Mapped[int | None] = mapped_column(Integer)
     absolute_change: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
     pct_change: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
+    pct_change_unit: Mapped[str | None] = mapped_column(String(32))
     upward_count: Mapped[int | None] = mapped_column(Integer)
     downward_count: Mapped[int | None] = mapped_column(Integer)
     net_breadth: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
     dispersion: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
     acceleration: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
+    acceleration_unit: Mapped[str | None] = mapped_column(String(64))
+    baseline_origin: Mapped[str | None] = mapped_column(String(64))
     revision_confidence_score: Mapped[float | None] = mapped_column(Float)
     revision_confidence_label: Mapped[str | None] = mapped_column(String(32))
     warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)
@@ -623,6 +642,8 @@ class CeriScoreSnapshot(Base):
     as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
     cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     opportunity_score: Mapped[float | None] = mapped_column(Float)
+    opportunity_coverage_pct: Mapped[float | None] = mapped_column(Float)
+    opportunity_unrated_reason: Mapped[str | None] = mapped_column(Text)
     event_risk_score: Mapped[float | None] = mapped_column(Float)
     data_confidence: Mapped[str] = mapped_column(String(32), nullable=False)
     coverage_pct: Mapped[float] = mapped_column(Float, nullable=False)
@@ -634,12 +655,16 @@ class CeriScoreSnapshot(Base):
     top_positive_contributors_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     top_negative_contributors_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     component_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    opportunity_ledger_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    confidence_ledger_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    event_risk_ledger_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     reasons_json: Mapped[list[str] | None] = mapped_column(JSONB)
     warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)
     config_version: Mapped[str] = mapped_column(Text, nullable=False)
     config_hash: Mapped[str] = mapped_column(Text, nullable=False)
     calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    hash_schema_version: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

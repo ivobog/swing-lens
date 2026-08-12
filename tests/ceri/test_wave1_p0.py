@@ -142,7 +142,7 @@ def test_pipeline_child_overrides_remain_gated_by_master(monkeypatch: pytest.Mon
     assert "CERI_PROVIDER_INGEST" not in pipeline_step_names(ceri_provider_ingest_enabled=True)
 
 
-def test_zero_elapsed_days_is_a_valid_freshness_input() -> None:
+def test_revision_elapsed_days_does_not_fabricate_dataset_freshness() -> None:
     feature = _feature(warnings=[])
     feature.as_of_session = date(2026, 8, 3)
     feature.actual_elapsed_days = 0
@@ -150,7 +150,8 @@ def test_zero_elapsed_days_is_a_valid_freshness_input() -> None:
         as_of_session=date(2026, 8, 3),
         revision_features=[feature],
     )
-    assert result.score > 4.0
+    assert result.label.value == "Insufficient"
+    assert "dataset_freshness_unavailable" in result.warnings
 
 
 def test_catalyst_materiality_preserves_zero_and_missing() -> None:
@@ -208,10 +209,11 @@ def test_eodhd_trend_baselines_use_provider_observation_time_not_future_fiscal_e
         for row in records
         if "trend_baseline_days" in row.payload
     }
-    assert baselines[7].observed_at == observed - timedelta(days=7)
-    assert baselines[30].observed_at == observed - timedelta(days=30)
-    assert baselines[60].observed_at == observed - timedelta(days=60)
-    assert baselines[90].observed_at == observed - timedelta(days=90)
+    assert all(row.observed_at == observed for row in baselines.values())
+    assert baselines[7].payload["reference_at"] == (observed - timedelta(days=7)).isoformat()
+    assert baselines[30].payload["reference_at"] == (observed - timedelta(days=30)).isoformat()
+    assert baselines[60].payload["reference_at"] == (observed - timedelta(days=60)).isoformat()
+    assert baselines[90].payload["reference_at"] == (observed - timedelta(days=90)).isoformat()
     assert all(row.payload["fiscal_period_end"] == "2026-12-31" for row in baselines.values())
     assert all(row.retrieved_at is not None for row in records)
 
@@ -308,7 +310,7 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
 
     class Snapshot:
         config = SimpleNamespace(
-            config_hash="config", engine=SimpleNamespace(calculation_version="v1")
+            config_hash="1", engine=SimpleNamespace(calculation_version="1")
         )
 
         def build_snapshot(self, **kwargs):

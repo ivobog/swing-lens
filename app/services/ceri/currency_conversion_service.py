@@ -52,7 +52,32 @@ class CeriCurrencyConversionService:
 
         source_currency = _currency(source_currency)
         canonical_currency = _currency(canonical_currency) or source_currency
+        if source_currency is None or canonical_currency is None:
+            return CurrencyConversionResult(
+                canonical_value=None,
+                canonical_currency=None,
+                canonical_scale=None,
+                conversion_rate=None,
+                conversion_source_record_id=None,
+                conversion_effective_at=None,
+                comparable=False,
+                warnings=("currency_basis_unavailable",),
+            )
         if source_currency == canonical_currency:
+            if (
+                self.config.require_verified_basis
+                and conversion_source not in self.config.allowed_sources
+            ):
+                return CurrencyConversionResult(
+                    canonical_value=None,
+                    canonical_currency=None,
+                    canonical_scale=None,
+                    conversion_rate=None,
+                    conversion_source_record_id=None,
+                    conversion_effective_at=None,
+                    comparable=False,
+                    warnings=("currency_basis_unverified",),
+                )
             return CurrencyConversionResult(
                 canonical_value=(value * source_scale / canonical_scale),
                 canonical_currency=canonical_currency,

@@ -65,6 +65,8 @@ class CeriCatalystTaxonomy:
             effective_session=session.effective_session,
             canonical_text=subject,
             conflict_flags=tuple(session.warnings),
+            issuer_relevance=_optional_bool(payload.get("issuer_relevance")),
+            relevance_reason=_subject_text(payload.get("issuer_relevance_reason")),
         )
 
     def normalize_category(self, payload: dict[str, Any]) -> CatalystCategory:
@@ -117,6 +119,14 @@ def _optional_float(value: Any) -> float | None:
     if value in (None, ""):
         return None
     return float(value)
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes"}
 
 
 def _enum_or_default(value: Any, enum_type, default):

@@ -39,6 +39,28 @@ class CeriSurpriseFeatureService:
         earnings: CeriEarningsActual,
         estimates: list[CeriEstimateSnapshot],
     ) -> SurpriseFeature:
+        if earnings.provider_consensus_value is not None:
+            earnings.consensus_snapshot_id = None
+            earnings.consensus_selection_reason = "provider_consensus_at_report"
+            if earnings.actual_value is None:
+                earnings.surprise_absolute = None
+                earnings.surprise_pct = None
+                return _feature(earnings, None, ["surprise_actual_unavailable"])
+            earnings.surprise_absolute = (
+                earnings.actual_value - earnings.provider_consensus_value
+            )
+            threshold = Decimal(str(self.config.revision.near_zero_threshold))
+            if abs(earnings.provider_consensus_value) <= threshold:
+                earnings.surprise_pct = None
+                warnings = ["surprise_pct_unavailable_near_zero_consensus"]
+            else:
+                earnings.surprise_pct = (
+                    earnings.surprise_absolute
+                    / abs(earnings.provider_consensus_value)
+                    * Decimal("100")
+                )
+                warnings = []
+            return _feature(earnings, None, warnings)
         consensus = self._consensus_before_report(earnings, estimates)
         warnings: list[str] = []
         if consensus is None:
@@ -63,7 +85,9 @@ class CeriSurpriseFeatureService:
             earnings.surprise_pct = None
             warnings.append("surprise_pct_unavailable_near_zero_consensus")
         else:
-            earnings.surprise_pct = earnings.surprise_absolute / abs(consensus.consensus)
+            earnings.surprise_pct = (
+                earnings.surprise_absolute / abs(consensus.consensus) * Decimal("100")
+            )
         return _feature(earnings, consensus, warnings)
 
     def summarize(
@@ -111,6 +135,7 @@ class CeriSurpriseFeatureService:
             and snapshot.consensus is not None
             and snapshot.effective_at is not None
             and snapshot.effective_at < earnings.report_at
+            and _known_at(snapshot) < earnings.report_at
         ]
         if not candidates:
             return None
@@ -151,3 +176,14 @@ def _consistency(positive: int, negative: int, total: int) -> str:
     if negative > positive:
         return "mixed_negative"
     return "mixed"
+
+
+def _known_at(snapshot: CeriEstimateSnapshot) -> datetime:
+    return (
+        snapshot.known_at
+        or snapshot.provider_observed_at
+        or snapshot.source_timestamp
+        or snapshot.retrieved_at
+        or snapshot.effective_at
+        or datetime.max
+    )

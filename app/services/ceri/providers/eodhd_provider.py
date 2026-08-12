@@ -219,6 +219,9 @@ class EodhdCeriProvider:
                                 observed_at.isoformat() if observed_at is not None else None
                             ),
                             "observed_at": (
+                                observed_at.isoformat() if observed_at is not None else None
+                            ),
+                            "reference_at": (
                                 baseline_at.isoformat() if baseline_at is not None else None
                             ),
                             "effective_at": (
@@ -226,7 +229,7 @@ class EodhdCeriProvider:
                             ),
                             "trend_baseline_days": days,
                             "trend_baseline_window_days": days,
-                            "baseline_origin": "PROVIDER_RELATIVE_WINDOW",
+                            "baseline_origin": "PROVIDER_RETROSPECTIVE_WINDOW",
                             "current_observation_reference": (
                                 f"{symbol}:{ptype}:{fiscal_end}:EPS_DILUTED"
                             ),
@@ -293,6 +296,11 @@ class EodhdCeriProvider:
             title = str(row.get("title") or row.get("headline") or "").strip()
             text = f"{title} {row.get('content') or row.get('text') or ''}"
             category, subtype, confidence = _classify_news(text)
+            issuer_relevance, relevance_reason = _issuer_relevance(
+                symbol.split(".")[0],
+                row.get("relatedTickers") or row.get("symbols"),
+                title,
+            )
             payload = {
                 "ticker": symbol.split(".")[0],
                 "provider_company_id": symbol,
@@ -312,6 +320,8 @@ class EodhdCeriProvider:
                 "materiality": 0.0,
                 "tags": row.get("tags") or row.get("categories"),
                 "related_tickers": row.get("relatedTickers") or row.get("symbols"),
+                "issuer_relevance": issuer_relevance,
+                "issuer_relevance_reason": relevance_reason,
                 "sentiment": row.get("sentiment") or row.get("sentimentScore"),
             }
             provider_id = str(
@@ -431,18 +441,55 @@ def _report_at(row: dict[str, Any], report_date: date) -> datetime:
 def _classify_news(text: str) -> tuple[str, str, str]:
     lowered = text.lower()
     rules = (
-        ("REGULATORY", ("approval", "fda", "regulator", "investigation", "review"), "NORMAL"),
+        ("GUIDANCE", ("guidance", "outlook", "forecast"), "NORMAL"),
+        ("EARNINGS", ("earnings", "quarterly results", "earnings call", "eps"), "NORMAL"),
         ("LEGAL", ("lawsuit", "ruling", "settlement", "injunction"), "NORMAL"),
+        (
+            "REGULATORY",
+            ("fda decision", "regulatory decision", "regulator", "investigation"),
+            "NORMAL",
+        ),
         ("FINANCING", ("offering", "debt", "refinanc", "covenant"), "NORMAL"),
         ("CAPITAL_ALLOCATION", ("buyback", "dividend", "repurchase"), "NORMAL"),
         ("CONTRACT", ("contract", "award", "partnership", "renewal"), "LOW"),
-        ("PRODUCT", ("launch", "product", "milestone", "recall"), "LOW"),
+        ("PRODUCT", ("fda approval", "launch", "product", "milestone", "recall"), "LOW"),
         ("ANALYST_ACTION", ("upgrade", "downgrade", "price target", "analyst"), "LOW"),
-        ("EARNINGS", ("earnings", "quarterly results", "eps", "revenue"), "NORMAL"),
-        ("GUIDANCE", ("guidance", "outlook", "forecast"), "LOW"),
     )
     for category, words, confidence in rules:
         for word in words:
             if word in lowered:
                 return category, re.sub(r"[^a-z0-9]+", "_", word), confidence
     return "ANALYST_ACTION", "news", "LOW"
+
+
+def _issuer_relevance(
+    requested_ticker: str,
+    related_tickers: Any,
+    title: str,
+) -> tuple[bool | None, str]:
+    requested = requested_ticker.upper()
+    related: set[str] = set()
+    if isinstance(related_tickers, str):
+        related = {
+            token.split(".")[0].upper()
+            for token in re.split(r"[,;\s]+", related_tickers)
+            if token
+        }
+    elif isinstance(related_tickers, (list, tuple, set)):
+        related = {
+            str(token).split(".")[0].upper()
+            for token in related_tickers
+            if token not in (None, "")
+        }
+    if related:
+        if requested in related:
+            return True, "PROVIDER_RELATED_TICKER_MATCH"
+        return False, "ISSUER_RELEVANCE_MISMATCH"
+    headline_tickers = {
+        match.upper() for match in re.findall(r"\(([A-Z][A-Z0-9.-]{0,9})\)", title)
+    }
+    if requested in headline_tickers:
+        return True, "HEADLINE_TICKER_MATCH"
+    if headline_tickers and requested not in headline_tickers:
+        return False, "ISSUER_RELEVANCE_MISMATCH"
+    return None, "ISSUER_RELEVANCE_UNVERIFIED"

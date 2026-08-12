@@ -1,0 +1,1289 @@
+{
+  "confidence": {
+    "caps": [],
+    "coverage_pct": 0.0,
+    "gates": [
+      "ZERO_USABLE_CORE_REVISION_COVERAGE"
+    ],
+    "label": "Insufficient",
+    "score": 2.4000000000000004,
+    "subscores": [
+      {
+        "basis": "accepted_revision_feature_quality",
+        "contribution": 0.0,
+        "name": "source_quality",
+        "unavailable_reason": "SOURCE_QUALITY_UNAVAILABLE",
+        "value": null,
+        "weight": 0.25
+      },
+      {
+        "basis": "dataset_known_or_retrieved_age",
+        "contribution": 1.4000000000000001,
+        "name": "freshness",
+        "unavailable_reason": null,
+        "value": 7.0,
+        "weight": 0.2
+      },
+      {
+        "basis": "required_metric_period_window_slots",
+        "contribution": 0.0,
+        "name": "estimate_coverage",
+        "unavailable_reason": null,
+        "value": 0.0,
+        "weight": 0.2
+      },
+      {
+        "basis": "accepted_estimate_revision_counts",
+        "contribution": 0.0,
+        "name": "analyst_sample",
+        "unavailable_reason": "ANALYST_SAMPLE_UNAVAILABLE",
+        "value": null,
+        "weight": 0.15
+      },
+      {
+        "basis": "accepted_evidence_timestamp_provenance",
+        "contribution": 0.0,
+        "name": "timestamp_quality",
+        "unavailable_reason": "TIMESTAMP_QUALITY_UNAVAILABLE",
+        "value": null,
+        "weight": 0.1
+      },
+      {
+        "basis": "accepted_evidence_conflicts",
+        "contribution": 1.0,
+        "name": "conflict_free_score",
+        "unavailable_reason": null,
+        "value": 10.0,
+        "weight": 0.1
+      }
+    ]
+  },
+  "event_risk": {
+    "components": [
+      {
+        "component": "earnings_proximity_risk",
+        "event_ids": [],
+        "reason": "earnings_proximity:clear",
+        "score": 0.0
+      }
+    ],
+    "dominant_component": "earnings_proximity_risk",
+    "penalties": [],
+    "rejected_event_ids": [
+      642,
+      643
+    ],
+    "rejected_events": [
+      {
+        "event_id": 642,
+        "reason": "ISSUER_RELEVANCE_UNVERIFIED",
+        "revision_id": 642
+      },
+      {
+        "event_id": 643,
+        "reason": "ISSUER_RELEVANCE_UNVERIFIED",
+        "revision_id": 643
+      }
+    ],
+    "score": 0.0,
+    "selected_event_ids": []
+  },
+  "evidence_lineage": {
+    "catalyst_event_ids": [
+      642,
+      643
+    ],
+    "catalyst_rejected": [
+      {
+        "event_id": 642,
+        "reason": "ISSUER_RELEVANCE_UNVERIFIED",
+        "revision_id": 642
+      },
+      {
+        "event_id": 643,
+        "reason": "ISSUER_RELEVANCE_UNVERIFIED",
+        "revision_id": 643
+      }
+    ],
+    "catalyst_rejected_event_ids": [
+      642,
+      643
+    ],
+    "catalyst_revision_ids": [
+      642,
+      643
+    ],
+    "catalyst_selected_event_ids": [],
+    "catalyst_source_ids": [
+      1360,
+      1361
+    ],
+    "earnings_ids": [
+      519,
+      520,
+      521,
+      522
+    ],
+    "earnings_source_ids": [
+      55200,
+      55201,
+      55202,
+      55203
+    ],
+    "guidance_ids": [
+      23653,
+      23654,
+      23655,
+      23656,
+      23652,
+      23649,
+      23633,
+      23634,
+      23635,
+      23636,
+      23637,
+      23638,
+      23639,
+      23640,
+      23641,
+      23642,
+      23643,
+      23644,
+      23645,
+      23646,
+      23647,
+      23648,
+      23650,
+      23651,
+      23632,
+      23629,
+      23628,
+      23631,
+      23630,
+      23627,
+      23620,
+      23624,
+      23625,
+      23626,
+      23623,
+      23615,
+      23617,
+      23618,
+      23619,
+      23621,
+      23622,
+      23616,
+      23614,
+      23583,
+      23592,
+      23595,
+      23596,
+      23597,
+      23598,
+      23599,
+      23600,
+      23601,
+      23602,
+      23603,
+      23604,
+      23605,
+      23606,
+      23607,
+      23608,
+      23609,
+      23610,
+      23611,
+      23612,
+      23613,
+      23591,
+      23593,
+      23594,
+      23586,
+      23587,
+      23589,
+      23590,
+      23585,
+      23588,
+      23582,
+      23574,
+      23575,
+      23576,
+      23577,
+      23578,
+      23579,
+      23580,
+      23581,
+      23584,
+      23573,
+      23570,
+      23536,
+      23547,
+      23548,
+      23549,
+      23550,
+      23551,
+      23552,
+      23553,
+      23554,
+      23555,
+      23556,
+      23557,
+      23558,
+      23559,
+      23560,
+      23561,
+      23562,
+      23563,
+      23564,
+      23565,
+      23566,
+      23567,
+      23568,
+      23569,
+      23571,
+      23572,
+      23535,
+      23541,
+      23542,
+      23546,
+      23545,
+      23540,
+      23544,
+      23537,
+      23538,
+      23539,
+      23543
+    ],
+    "guidance_rejected": [
+      {
+        "id": 23653,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23654,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23655,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23656,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23652,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23649,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23633,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23634,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23635,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23636,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23637,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23638,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23639,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23640,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23641,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23642,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23643,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23644,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23645,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23646,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23647,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23648,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23650,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23651,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23632,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23629,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23628,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23631,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23630,
+        "reason": "GUIDANCE_METRIC_UNRESOLVED"
+      },
+      {
+        "id": 23627,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23620,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23624,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23625,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23626,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23623,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23615,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23617,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23618,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23619,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23621,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23622,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23616,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23614,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23583,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23592,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23595,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23596,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23597,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23598,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23599,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23600,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23601,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23602,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23603,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23604,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23605,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23606,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23607,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23608,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23609,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23610,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23611,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23612,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23613,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23591,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23593,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23594,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23586,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23587,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23589,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23590,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23585,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23588,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23582,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23574,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23575,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23576,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23577,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23578,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23579,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23580,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23581,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23584,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23573,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23570,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23536,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23547,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23548,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23549,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23550,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23551,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23552,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23553,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23554,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23555,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23556,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23557,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23558,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23559,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23560,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23561,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23562,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23563,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23564,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23565,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23566,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23567,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23568,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23569,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23571,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23572,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23535,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23541,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23542,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23546,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23545,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23540,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23544,
+        "reason": "GUIDANCE_METRIC_UNRESOLVED"
+      },
+      {
+        "id": 23537,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23538,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23539,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      },
+      {
+        "id": 23543,
+        "reason": "GUIDANCE_ACTION_UNKNOWN"
+      }
+    ],
+    "guidance_selected_ids": [],
+    "guidance_source_ids": [
+      63931,
+      63930,
+      63932,
+      63933,
+      63929,
+      63928,
+      63911,
+      63913,
+      63910,
+      63912,
+      63914,
+      63916,
+      63918,
+      63915,
+      63917,
+      63919,
+      63921,
+      63923,
+      63920,
+      63922,
+      63924,
+      63926,
+      63925,
+      63927,
+      63909,
+      63908,
+      63906,
+      63907,
+      63905,
+      63904,
+      63900,
+      63901,
+      63903,
+      63902,
+      63899,
+      63893,
+      63894,
+      63896,
+      63898,
+      63895,
+      63897,
+      63892,
+      63891,
+      63872,
+      63870,
+      63871,
+      63873,
+      63875,
+      63874,
+      63876,
+      63878,
+      63880,
+      63882,
+      63877,
+      63879,
+      63881,
+      63883,
+      63885,
+      63884,
+      63886,
+      63888,
+      63890,
+      63887,
+      63889,
+      63868,
+      63867,
+      63869,
+      63863,
+      63865,
+      63864,
+      63866,
+      63861,
+      63862,
+      63860,
+      63852,
+      63851,
+      63853,
+      63855,
+      63857,
+      63854,
+      63856,
+      63858,
+      63859,
+      63850,
+      63849,
+      63824,
+      63823,
+      63825,
+      63827,
+      63829,
+      63826,
+      63828,
+      63830,
+      63832,
+      63834,
+      63831,
+      63833,
+      63835,
+      63837,
+      63839,
+      63841,
+      63836,
+      63838,
+      63840,
+      63842,
+      63844,
+      63843,
+      63845,
+      63847,
+      63846,
+      63848,
+      63822,
+      63819,
+      63821,
+      63820,
+      63818,
+      63817,
+      63816,
+      63812,
+      63813,
+      63815,
+      63814
+    ],
+    "ib_short_pressure_feature_ids": [],
+    "ib_volatility_feature_ids": [],
+    "price_bar_ids": [
+      1968260,
+      1968270,
+      1973649,
+      1973650,
+      1996361,
+      1996362,
+      1996607,
+      1996608
+    ],
+    "price_response_feature_ids": [
+      1025
+    ],
+    "revision_feature_ids": [
+      8810,
+      8811,
+      8812,
+      8813,
+      8814,
+      8815,
+      8816,
+      8817,
+      8818,
+      8819,
+      8820,
+      8821,
+      8822,
+      8823,
+      8824,
+      8825,
+      8826,
+      8827,
+      8828,
+      8829,
+      8830,
+      8831,
+      8832,
+      8833
+    ],
+    "revision_pairs": [
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8810,
+        "metric": "EPS_DILUTED",
+        "period_slot": "CURRENT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 7
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8811,
+        "metric": "EPS_DILUTED",
+        "period_slot": "CURRENT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 30
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8812,
+        "metric": "EPS_DILUTED",
+        "period_slot": "CURRENT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 90
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8813,
+        "metric": "EPS_DILUTED",
+        "period_slot": "NEXT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 7
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8814,
+        "metric": "EPS_DILUTED",
+        "period_slot": "NEXT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 30
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8815,
+        "metric": "EPS_DILUTED",
+        "period_slot": "NEXT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 90
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8816,
+        "metric": "EPS_DILUTED",
+        "period_slot": "CURRENT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 7
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8817,
+        "metric": "EPS_DILUTED",
+        "period_slot": "CURRENT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 30
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8818,
+        "metric": "EPS_DILUTED",
+        "period_slot": "CURRENT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 90
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8819,
+        "metric": "EPS_DILUTED",
+        "period_slot": "NEXT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 7
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8820,
+        "metric": "EPS_DILUTED",
+        "period_slot": "NEXT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 30
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8821,
+        "metric": "EPS_DILUTED",
+        "period_slot": "NEXT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 90
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8822,
+        "metric": "REVENUE",
+        "period_slot": "CURRENT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 7
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8823,
+        "metric": "REVENUE",
+        "period_slot": "CURRENT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 30
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8824,
+        "metric": "REVENUE",
+        "period_slot": "CURRENT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 90
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8825,
+        "metric": "REVENUE",
+        "period_slot": "NEXT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 7
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8826,
+        "metric": "REVENUE",
+        "period_slot": "NEXT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 30
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8827,
+        "metric": "REVENUE",
+        "period_slot": "NEXT_QUARTER",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 90
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8828,
+        "metric": "REVENUE",
+        "period_slot": "CURRENT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 7
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8829,
+        "metric": "REVENUE",
+        "period_slot": "CURRENT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 30
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8830,
+        "metric": "REVENUE",
+        "period_slot": "CURRENT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 90
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8831,
+        "metric": "REVENUE",
+        "period_slot": "NEXT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 7
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8832,
+        "metric": "REVENUE",
+        "period_slot": "NEXT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 30
+      },
+      {
+        "available": false,
+        "baseline_origin": null,
+        "baseline_snapshot_id": null,
+        "current_snapshot_id": null,
+        "feature_id": 8833,
+        "metric": "REVENUE",
+        "period_slot": "NEXT_FISCAL_YEAR",
+        "unavailable_reason": "current_snapshot_unavailable",
+        "window_days": 90
+      }
+    ],
+    "revision_source_ids": [],
+    "warnings": [
+      "acceleration_unavailable",
+      "current_snapshot_unavailable"
+    ]
+  },
+  "opportunity": {
+    "available_weight": 0,
+    "components": [
+      {
+        "available": false,
+        "contribution": null,
+        "evidence_ids": [],
+        "name": "revision_magnitude",
+        "reasons": [],
+        "unavailable_reason": "REVISION_MAGNITUDE_UNAVAILABLE",
+        "value": null,
+        "warnings": [
+          "revision_magnitude_unavailable"
+        ],
+        "weight": 0.25
+      },
+      {
+        "available": false,
+        "contribution": null,
+        "evidence_ids": [],
+        "name": "revision_breadth",
+        "reasons": [],
+        "unavailable_reason": "REVISION_BREADTH_UNAVAILABLE",
+        "value": null,
+        "warnings": [
+          "revision_breadth_unavailable"
+        ],
+        "weight": 0.15
+      },
+      {
+        "available": false,
+        "contribution": null,
+        "evidence_ids": [],
+        "name": "revision_acceleration",
+        "reasons": [],
+        "unavailable_reason": "REVISION_ACCELERATION_UNAVAILABLE",
+        "value": null,
+        "warnings": [
+          "revision_acceleration_unavailable"
+        ],
+        "weight": 0.1
+      },
+      {
+        "available": false,
+        "contribution": null,
+        "evidence_ids": [],
+        "name": "surprise_trend",
+        "reasons": [],
+        "unavailable_reason": "SURPRISE_TREND_UNAVAILABLE",
+        "value": null,
+        "warnings": [
+          "surprise_trend_unavailable"
+        ],
+        "weight": 0.15
+      },
+      {
+        "available": false,
+        "contribution": null,
+        "evidence_ids": [],
+        "name": "guidance",
+        "reasons": [],
+        "unavailable_reason": "GUIDANCE_UNAVAILABLE",
+        "value": null,
+        "warnings": [
+          "guidance_rows_rejected",
+          "guidance_unavailable"
+        ],
+        "weight": 0.15
+      },
+      {
+        "available": false,
+        "contribution": null,
+        "evidence_ids": [],
+        "name": "catalysts",
+        "reasons": [],
+        "unavailable_reason": "CATALYSTS_UNAVAILABLE",
+        "value": null,
+        "warnings": [
+          "catalysts_unavailable"
+        ],
+        "weight": 0.15
+      },
+      {
+        "available": false,
+        "contribution": null,
+        "evidence_ids": [],
+        "name": "price_response",
+        "reasons": [],
+        "unavailable_reason": "PARENT_EVENT_INELIGIBLE",
+        "value": null,
+        "warnings": [
+          "price_response_unavailable"
+        ],
+        "weight": 0.05
+      }
+    ],
+    "coverage_pct": 0.0,
+    "minimum_required_coverage_pct": 60.0,
+    "penalties": [],
+    "rated": false,
+    "reweighted": false,
+    "score": null,
+    "unrated_reason": "INSUFFICIENT_COMPONENT_COVERAGE"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "calculation_version": "ceri-1.1.0",
+  "config_version": "2026-08-12-remediation-r3",
+  "opportunity_coverage_pct": 100.0,
+  "proof_test": "tests/ceri/test_ceri_remediation.py::test_clean_complete_evidence_fixture_is_rated_and_reproducible",
+  "rated": true,
+  "snapshot_reproduction": true,
+  "ticker": "CLEAN"
+}

@@ -41,19 +41,30 @@ class CeriPointInTimeQuery:
         company_id: int,
         metric: str,
         cutoff_at: datetime,
+        period_type: str | None = None,
+        fiscal_period_end: date | None = None,
         mode: HistoricalViewMode = HistoricalViewMode.AS_KNOWN,
     ) -> list[CeriEstimateSnapshot]:
         snapshots = [
             snapshot
-            for snapshot in self._load_snapshots(db)
+            for snapshot in self._load_snapshots(db, company_id=company_id, metric=metric)
             if snapshot.company_id == company_id
             and snapshot.metric == metric
+            and (period_type is None or snapshot.period_type == period_type)
+            and (
+                fiscal_period_end is None
+                or snapshot.fiscal_period_end == fiscal_period_end
+            )
             and _comparable(snapshot)
             and _is_current_observation(snapshot)
         ]
         if mode is HistoricalViewMode.AS_KNOWN:
             return sorted(
-                [snapshot for snapshot in snapshots if _effective_at(snapshot) <= cutoff_at],
+                [
+                    snapshot
+                    for snapshot in snapshots
+                    if _effective_at(snapshot) <= cutoff_at and _known_at(snapshot) <= cutoff_at
+                ],
                 key=_snapshot_sort,
             )
         if mode is HistoricalViewMode.LATEST_CORRECTED:
@@ -70,6 +81,8 @@ class CeriPointInTimeQuery:
         company_id: int,
         metric: str,
         cutoff_at: datetime,
+        period_slot: str | None = None,
+        fiscal_period_end: date | None = None,
         mode: HistoricalViewMode = HistoricalViewMode.AS_KNOWN,
     ) -> CeriEstimateSnapshot | None:
         eligible = self.eligible_estimates(
@@ -77,8 +90,14 @@ class CeriPointInTimeQuery:
             company_id=company_id,
             metric=metric,
             cutoff_at=cutoff_at,
+            fiscal_period_end=fiscal_period_end,
             mode=mode,
         )
+        if period_slot is not None and fiscal_period_end is None:
+            target_end = _target_period_end(eligible, period_slot, cutoff_at.date())
+            eligible = [
+                snapshot for snapshot in eligible if snapshot.fiscal_period_end == target_end
+            ]
         return eligible[-1] if eligible else None
 
     def select_baseline(
@@ -90,6 +109,7 @@ class CeriPointInTimeQuery:
         metric: str,
         cutoff_at: datetime,
         window_days: int,
+        period_slot: str | None = None,
         mode: HistoricalViewMode = HistoricalViewMode.AS_KNOWN,
     ) -> BaselineSelection:
         target_date = cutoff_at.date() - timedelta(days=window_days)
@@ -104,7 +124,7 @@ class CeriPointInTimeQuery:
         key = canonical_estimate_key(current)
         semantic_baselines = [
             snapshot
-            for snapshot in self._load_snapshots(db)
+            for snapshot in self._load_snapshots(db, company_id=company_id, metric=metric)
             if snapshot.company_id == company_id
             and snapshot.metric == metric
             and snapshot is not current
@@ -112,6 +132,8 @@ class CeriPointInTimeQuery:
             and snapshot.current_observation_reference
             == current.current_observation_reference
             and _comparable(snapshot)
+            and canonical_estimate_key(snapshot) == key
+            and _known_at(snapshot) <= cutoff_at
         ]
         if semantic_baselines:
             baseline = max(semantic_baselines, key=_snapshot_sort)
@@ -128,6 +150,7 @@ class CeriPointInTimeQuery:
                 company_id=company_id,
                 metric=metric,
                 cutoff_at=cutoff_at,
+                fiscal_period_end=current.fiscal_period_end,
                 mode=mode,
             )
             if snapshot is not current and canonical_estimate_key(snapshot) == key
@@ -165,13 +188,29 @@ class CeriPointInTimeQuery:
             return get(CeriSourceRecord, source_record_id)
         return None
 
-    def _load_snapshots(self, db: Session) -> list[CeriEstimateSnapshot]:
+    def _load_snapshots(
+        self,
+        db: Session,
+        *,
+        company_id: int | None = None,
+        metric: str | None = None,
+    ) -> list[CeriEstimateSnapshot]:
         if self._snapshots is not None:
-            return self._snapshots
+            return [
+                snapshot
+                for snapshot in self._snapshots
+                if (company_id is None or snapshot.company_id == company_id)
+                and (metric is None or snapshot.metric == metric)
+            ]
         scalars = getattr(db, "scalars", None)
         if not callable(scalars):
             return []
-        result = scalars(select(CeriEstimateSnapshot))
+        statement = select(CeriEstimateSnapshot)
+        if company_id is not None:
+            statement = statement.where(CeriEstimateSnapshot.company_id == company_id)
+        if metric is not None:
+            statement = statement.where(CeriEstimateSnapshot.metric == metric)
+        result = scalars(statement)
         return list(result.all() if hasattr(result, "all") else result)
 
     def _latest_corrected_estimates(
@@ -252,6 +291,50 @@ def _effective_at(snapshot: CeriEstimateSnapshot) -> datetime:
             return datetime.min.replace(tzinfo=UTC)
         return datetime.combine(snapshot.effective_session, datetime.min.time(), tzinfo=UTC)
     return snapshot.effective_at
+
+
+def _known_at(snapshot: CeriEstimateSnapshot) -> datetime:
+    value = (
+        snapshot.known_at
+        or snapshot.provider_observed_at
+        or snapshot.source_timestamp
+        or snapshot.retrieved_at
+        or snapshot.effective_at
+    )
+    if value is None:
+        return datetime.max.replace(tzinfo=UTC)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _target_period_end(
+    snapshots: list[CeriEstimateSnapshot],
+    period_slot: str,
+    as_of: date,
+) -> date | None:
+    quarterly = {"CURRENT_QUARTER", "NEXT_QUARTER", "QUARTERLY"}
+    annual = {"CURRENT_FISCAL_YEAR", "NEXT_FISCAL_YEAR", "ANNUAL"}
+    if period_slot in {"CURRENT_QUARTER", "NEXT_QUARTER"}:
+        candidates = sorted(
+            {
+                snapshot.fiscal_period_end
+                for snapshot in snapshots
+                if snapshot.period_type in quarterly and snapshot.fiscal_period_end >= as_of
+            }
+        )
+        index = 0 if period_slot == "CURRENT_QUARTER" else 1
+    elif period_slot in {"CURRENT_FISCAL_YEAR", "NEXT_FISCAL_YEAR"}:
+        candidates = sorted(
+            {
+                snapshot.fiscal_period_end
+                for snapshot in snapshots
+                if snapshot.period_type in annual and snapshot.fiscal_period_end >= as_of
+            }
+        )
+        index = 0 if period_slot == "CURRENT_FISCAL_YEAR" else 1
+    else:
+        candidates = sorted({snapshot.fiscal_period_end for snapshot in snapshots})
+        index = 0
+    return candidates[index] if len(candidates) > index else None
 
 
 def _snapshot_sort(snapshot: CeriEstimateSnapshot) -> tuple[Any, ...]:

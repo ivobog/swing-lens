@@ -86,7 +86,7 @@ def test_eodhd_trend_baselines_are_relative_to_provider_observation_time() -> No
         current=current,
         company_id=42,
         metric="EPS_DILUTED",
-        cutoff_at=observed_at,
+        cutoff_at=datetime(2026, 8, 5, 16, 0, tzinfo=UTC),
         window_days=30,
     )
     assert selection.baseline is baselines[30]
