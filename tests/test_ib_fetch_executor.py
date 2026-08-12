@@ -76,6 +76,12 @@ def test_execute_fetch_plan_skips_and_fetches_items(monkeypatch) -> None:
     assert limiter.waits == 1
     assert ib.connected is False
     assert cache_calls == [{"fetch_run_id": fetch_run.id, "fetch_item_id": 2}]
+    assert set(fetch_run._performance) == {
+        "bar_cache_write_ms",
+        "ib_network_ms",
+        "ib_pacing_wait_ms",
+    }
+    assert all(value >= 0 for value in fetch_run._performance.values())
 
 
 def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:

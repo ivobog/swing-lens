@@ -130,6 +130,13 @@ class Settings(BaseSettings):
     setup_lifecycle_replay_promotion_requires_confirmation: bool = True
     ceri_enabled: bool = False
     ceri_provider_ingest_enabled: bool = False
+    ceri_legacy_pipeline_scheduling_enabled: bool = True
+    ceri_batched_workflow_enabled: bool = False
+    ceri_provider_batch_size: int = 25
+    ceri_normalization_batch_size: int = 50
+    ceri_feature_batch_size: int = 50
+    ceri_batch_checkpoint_interval: int = 5
+    ceri_barrier_retry_seconds: int = 5
     ceri_run_capture_enabled: bool = False
     ceri_ui_enabled: bool = False
     ceri_alerts_enabled: bool = False
@@ -197,6 +204,22 @@ class Settings(BaseSettings):
             raise ValueError("technical_worker_processes must be between 1 and 8")
         if self.technical_max_in_flight < 1:
             raise ValueError("technical_max_in_flight must be positive")
+        for name in (
+            "ceri_provider_batch_size",
+            "ceri_normalization_batch_size",
+            "ceri_feature_batch_size",
+            "ceri_batch_checkpoint_interval",
+            "ceri_barrier_retry_seconds",
+        ):
+            if int(getattr(self, name)) < 1:
+                raise ValueError(f"{name} must be positive")
+        if (
+            self.ceri_legacy_pipeline_scheduling_enabled
+            and self.ceri_batched_workflow_enabled
+        ):
+            raise ValueError(
+                "legacy and batched CERI pipeline scheduling cannot both be enabled"
+            )
         return self
 
 

@@ -77,6 +77,8 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.setup_lifecycle_replay_promotion_requires_confirmation is True
     assert settings.ceri_enabled is False
     assert settings.ceri_provider_ingest_enabled is False
+    assert settings.ceri_legacy_pipeline_scheduling_enabled is True
+    assert settings.ceri_batched_workflow_enabled is False
     assert settings.ceri_run_capture_enabled is False
     assert settings.ceri_ui_enabled is False
     assert settings.ceri_alerts_enabled is False
@@ -117,6 +119,8 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     monkeypatch.setenv("SETUP_LIFECYCLE_REPLAY_PROMOTION_REQUIRES_CONFIRMATION", "false")
     monkeypatch.setenv("CERI_ENABLED", "true")
     monkeypatch.setenv("CERI_PROVIDER_INGEST_ENABLED", "true")
+    monkeypatch.setenv("CERI_LEGACY_PIPELINE_SCHEDULING_ENABLED", "false")
+    monkeypatch.setenv("CERI_BATCHED_WORKFLOW_ENABLED", "true")
     monkeypatch.setenv("CERI_RUN_CAPTURE_ENABLED", "true")
     monkeypatch.setenv("CERI_UI_ENABLED", "true")
     monkeypatch.setenv("CERI_ALERTS_ENABLED", "true")
@@ -157,6 +161,8 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     assert settings.setup_lifecycle_replay_promotion_requires_confirmation is False
     assert settings.ceri_enabled is True
     assert settings.ceri_provider_ingest_enabled is True
+    assert settings.ceri_legacy_pipeline_scheduling_enabled is False
+    assert settings.ceri_batched_workflow_enabled is True
     assert settings.ceri_run_capture_enabled is True
     assert settings.ceri_ui_enabled is True
     assert settings.ceri_alerts_enabled is True

@@ -25,7 +25,15 @@ def _disable_optional_pipeline_flags(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.pipeline_service.get_settings",
-        lambda: type("SettingsStub", (), {"setup_lifecycle_pipeline_step_enabled": False})(),
+        lambda: type(
+            "SettingsStub",
+            (),
+            {
+                "setup_lifecycle_pipeline_step_enabled": False,
+                "ceri_legacy_pipeline_scheduling_enabled": True,
+                "ceri_batched_workflow_enabled": False,
+            },
+        )(),
     )
 
 
@@ -127,6 +135,32 @@ def test_pipeline_step_names_insert_ceri_before_setup_lifecycle_and_winner() -> 
         *CERI_PIPELINE_STEPS,
         *SLSE_PIPELINE_STEPS,
     )
+
+
+def test_pipeline_step_names_can_pause_only_legacy_ceri_scheduling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.pipeline_service.ceri_flags",
+        lambda: CeriFeatureFlags(True, True, True, False, True, False, False),
+    )
+    monkeypatch.setattr(
+        "app.services.pipeline_service.get_settings",
+        lambda: type(
+            "SettingsStub",
+            (),
+            {
+                "setup_lifecycle_pipeline_step_enabled": False,
+                "ceri_legacy_pipeline_scheduling_enabled": False,
+                "ceri_batched_workflow_enabled": False,
+            },
+        )(),
+    )
+
+    steps = pipeline_step_names()
+
+    assert "CERI_PROVIDER_INGEST" not in steps
+    assert CERI_PIPELINE_STEPS == steps[7:-1]
 
 
 def test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled() -> None:

@@ -9,7 +9,10 @@ from app.models.ceri_tables import (
     CeriGuidanceEvent,
     CeriScoreSnapshot,
 )
-from app.services.ceri.change_detection_service import CeriChangeDetectionService
+from app.services.ceri.change_detection_service import (
+    CeriChangeDetectionService,
+    change_dedup_key,
+)
 
 UTC = ZoneInfo("UTC")
 
@@ -27,6 +30,24 @@ def test_score_change_detection_is_idempotent_for_same_snapshot_pair() -> None:
     assert first.changes == 3
     assert second.duplicates == 3
     assert len([row for row in db.added if isinstance(row, CeriChangeEvent)]) == 3
+
+
+def test_change_business_identity_does_not_depend_on_orchestration_scope() -> None:
+    parts = {
+        "company_id": 42,
+        "change_type": "OPPORTUNITY_UPGRADED",
+        "effective_session": date(2026, 8, 12),
+        "from_snapshot_id": None,
+        "to_snapshot_id": 10,
+        "catalyst_revision_id": None,
+        "config_hash": "hash",
+        "calculation_version": "ceri-1.0.0",
+    }
+
+    assert change_dedup_key(**parts, scope="run:7") == change_dedup_key(
+        **parts,
+        scope="standalone",
+    )
 
 
 def test_catalyst_revision_change_emits_stable_binary_event() -> None:

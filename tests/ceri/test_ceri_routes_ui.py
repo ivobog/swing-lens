@@ -168,6 +168,7 @@ def test_run_detail_renders_ceri_status_when_snapshots_exist(
         ),
     )
     monkeypatch.setattr("app.routers.run_routes.latest_ib_fetch_for_run", lambda *_args: None)
+    monkeypatch.setattr("app.routers.run_routes.latest_features", lambda *_args: [])
     monkeypatch.setattr("app.routers.run_routes._pipeline_status_for_run", lambda *_args: None)
     monkeypatch.setattr("app.routers.run_routes._latest_run_market_snapshot", lambda *_args: None)
     monkeypatch.setattr(

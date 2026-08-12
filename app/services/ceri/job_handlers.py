@@ -60,6 +60,8 @@ CeriJobHandler = Callable[[Session, BackgroundJob], dict[str, Any] | None]
 
 
 def implemented_ceri_job_handlers() -> dict[str, CeriJobHandler]:
+    from app.services.ceri.batched_job_handlers import implemented_batched_ceri_job_handlers
+
     return {
         CERI_PROVIDER_INGEST: execute_provider_ingest_job,
         CERI_NORMALIZE: execute_normalize_job,
@@ -69,6 +71,7 @@ def implemented_ceri_job_handlers() -> dict[str, CeriJobHandler]:
         CERI_BACKFILL: execute_backfill_job,
         CERI_ALERT_REBUILD: execute_alert_rebuild_job,
         CERI_PURGE_LICENSED_DATA: execute_purge_licensed_data_job,
+        **implemented_batched_ceri_job_handlers(),
     }
 
 
@@ -313,7 +316,7 @@ def execute_capture_run_job(
     )
     change_job_id = (
         _enqueue_change_after_capture(db, job=job, run_id=run_id)
-        if processing.status == "COMPLETED"
+        if processing.status == "COMPLETED" or bool(job.workflow_key)
         else None
     )
     if change_job_id is not None:
@@ -378,7 +381,7 @@ def execute_change_detection_job(
     }
     alert_job_id = (
         _enqueue_alert_after_change(db, job=job, payload=payload)
-        if result.changes and processing.status == "COMPLETED"
+        if (result.changes or job.workflow_key) and processing.status == "COMPLETED"
         else None
     )
     if alert_job_id is not None:
@@ -782,15 +785,24 @@ def _enqueue_capture_after_features(
 
 
 def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: int) -> int | None:
-    request_key = f"ceri:change-rebuild:run:{run_id}"
+    request_key = (
+        f"{job.workflow_key}:change"
+        if job.workflow_key
+        else f"ceri:change-rebuild:run:{run_id}"
+    )
     change_job = enqueue_job(
         db,
         CERI_CHANGE_DETECTION,
-        {"request_key": request_key, "run_id": run_id},
+        {
+            "request_key": request_key,
+            "run_id": run_id,
+            "workflow_key": job.workflow_key,
+        },
         related_run_id=run_id,
         priority=_child_priority(job),
         max_retries=job.max_retries or 3,
         request_key=request_key,
+        workflow_key=job.workflow_key,
     )
     return change_job.id
 
@@ -801,15 +813,24 @@ def _enqueue_alert_after_change(
     if not ceri_flags().alerts:
         return None
     upstream_id = payload.get("run_id") or job.related_run_id or job.id
-    request_key = f"ceri:alert-rebuild:upstream:{upstream_id}"
+    request_key = (
+        f"{job.workflow_key}:alert"
+        if job.workflow_key
+        else f"ceri:alert-rebuild:upstream:{upstream_id}"
+    )
     alert_job = enqueue_job(
         db,
         CERI_ALERT_REBUILD,
-        {"request_key": request_key, "run_id": payload.get("run_id")},
+        {
+            "request_key": request_key,
+            "run_id": payload.get("run_id"),
+            "workflow_key": job.workflow_key,
+        },
         related_run_id=job.related_run_id,
         priority=_child_priority(job),
         max_retries=job.max_retries or 3,
         request_key=request_key,
+        workflow_key=job.workflow_key,
     )
     return alert_job.id
 

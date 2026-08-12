@@ -1308,6 +1308,14 @@ class BackgroundJob(Base):
     job_type: Mapped[str] = mapped_column(Text, nullable=False)
     related_run_id: Mapped[int | None] = mapped_column(BigInteger)
     request_key: Mapped[str | None] = mapped_column(Text)
+    # Deferred + NULL server default keeps pre-migration, v2-disabled web
+    # processes able to read/enqueue legacy jobs while a long transaction
+    # temporarily prevents the additive migration from taking its table lock.
+    workflow_key: Mapped[str | None] = mapped_column(
+        Text,
+        deferred=True,
+        server_default=text("NULL"),
+    )
     status: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[int] = mapped_column(
         Integer,
@@ -1379,6 +1387,22 @@ class BackgroundJob(Base):
         Index("idx_background_jobs_lease_expires_at", "lease_expires_at"),
         Index("idx_background_jobs_execution_token", "execution_token"),
         Index("idx_background_jobs_request_key", "request_key"),
+        Index(
+            "idx_background_jobs_workflow_type_status",
+            "workflow_key",
+            "job_type",
+            "status",
+        ),
+        Index(
+            "uq_background_jobs_workflow_stage",
+            "workflow_key",
+            "job_type",
+            "request_key",
+            unique=True,
+            postgresql_where=text(
+                "workflow_key IS NOT NULL AND request_key IS NOT NULL"
+            ),
+        ),
         Index(
             "uq_background_jobs_active_request_key",
             "job_type",

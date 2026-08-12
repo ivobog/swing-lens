@@ -126,6 +126,14 @@ def test_job_and_export_paths_emit_operational_metrics() -> None:
         in prometheus
     )
     assert 'swinglens_export_rows_total{schema_id="swinglens.test.export.v1"} 1' in prometheus
+    assert operational_metrics.total("swinglens_jobs_finished_total") == 1
+    assert (
+        operational_metrics.total(
+            "swinglens_jobs_finished_total",
+            status="COMPLETED",
+        )
+        == 1
+    )
 
 
 def _readiness_engine(*, alembic_revision: str):

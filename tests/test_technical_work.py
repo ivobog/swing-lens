@@ -6,6 +6,7 @@ import pandas as pd
 
 from app.services import technical_score_service
 from app.services.ib_fetch_executor import TickerReadyEvent
+from app.services.operational_metrics import operational_metrics
 from app.services.technical_indicators import load_pine_defaults
 from app.services.technical_score_service import TechnicalScoringOverlapCoordinator
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
@@ -81,6 +82,7 @@ def test_technical_work_item_matches_legacy_ticker_calculation(monkeypatch) -> N
 
 
 def test_process_pool_mode_returns_scores_in_input_order(monkeypatch) -> None:
+    operational_metrics.reset()
     frame = _synthetic_frame()
 
     class FakeDb:
@@ -117,6 +119,15 @@ def test_process_pool_mode_returns_scores_in_input_order(monkeypatch) -> None:
 
     assert [row.ticker for row in rows] == ["BBB", "AAA"]
     assert len(db.rows) == 2
+    assert operational_metrics.total(
+        "swinglens_technical_input_load_ms_total", run_id=7
+    ) > 0
+    assert operational_metrics.total(
+        "swinglens_technical_worker_span_ms_total", run_id=7
+    ) > 0
+    assert operational_metrics.total(
+        "swinglens_technical_finalize_ms_total", run_id=7
+    ) > 0
 
 
 def test_artifact_write_mode_persists_local_work_result(monkeypatch) -> None:

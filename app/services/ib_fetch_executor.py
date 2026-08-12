@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from time import perf_counter
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -65,6 +66,11 @@ def execute_fetch_plan(
     completed_by_ticker: dict[str, list[IBFetchItem]] = defaultdict(list)
     expected_by_ticker: dict[str, int] = defaultdict(int)
     notified_tickers: set[str] = set()
+    performance: dict[str, float] = {
+        "ib_pacing_wait_ms": 0.0,
+        "ib_network_ms": 0.0,
+        "bar_cache_write_ms": 0.0,
+    }
     for plan_item in plan.items:
         expected_by_ticker[plan_item.ticker.upper()] += 1
     execution_items = _benchmark_first_items(plan.items, settings.ib_benchmark_symbols)
@@ -95,6 +101,7 @@ def execute_fetch_plan(
                 settings=settings,
                 force_refresh=force_refresh,
                 force_full_backfill=force_full_backfill,
+                performance=performance,
             )
             _refresh_run_totals(fetch_run)
             db.commit()
@@ -124,6 +131,9 @@ def execute_fetch_plan(
         db.flush()
         db.commit()
 
+    fetch_run._performance = {key: round(value, 3) for key, value in performance.items()}
+    for name, value in fetch_run._performance.items():
+        operational_metrics.increment(f"swinglens_{name}_total", value=value)
     return fetch_run
 
 
@@ -195,7 +205,9 @@ def _execute_plan_item(
     settings: Settings,
     force_refresh: bool,
     force_full_backfill: bool,
+    performance: dict[str, float] | None = None,
 ) -> None:
+    performance = performance if performance is not None else {}
     fetch_item.started_at = datetime.now(UTC)
     fetch_item.status = "RUNNING"
     db.flush()
@@ -235,21 +247,32 @@ def _execute_plan_item(
     for attempt in range(1, settings.ib_max_retries + 1):
         fetch_item.attempt_count = attempt
         try:
+            pacing_started = perf_counter()
             rate_limiter.wait_before_request()
-            bars = fetch_daily_bars(
-                ib,
-                resolution.contract,
-                plan_item.what_to_show,
-                settings=settings,
-                duration=duration,
-                bar_size=plan_item.bar_size,
-            )
-            upsert = cache_bars(
-                db,
-                bars,
-                fetch_run_id=fetch_item.fetch_run_id or getattr(fetch_item.fetch_run, "id", None),
-                fetch_item_id=fetch_item.id,
-            )
+            _add_duration(performance, "ib_pacing_wait_ms", pacing_started)
+            network_started = perf_counter()
+            try:
+                bars = fetch_daily_bars(
+                    ib,
+                    resolution.contract,
+                    plan_item.what_to_show,
+                    settings=settings,
+                    duration=duration,
+                    bar_size=plan_item.bar_size,
+                )
+            finally:
+                _add_duration(performance, "ib_network_ms", network_started)
+            cache_started = perf_counter()
+            try:
+                upsert = cache_bars(
+                    db,
+                    bars,
+                    fetch_run_id=fetch_item.fetch_run_id
+                    or getattr(fetch_item.fetch_run, "id", None),
+                    fetch_item_id=fetch_item.id,
+                )
+            finally:
+                _add_duration(performance, "bar_cache_write_ms", cache_started)
             fetch_item.fetched = len(bars)
             fetch_item.inserted = upsert.inserted
             fetch_item.updated = upsert.updated
@@ -264,6 +287,12 @@ def _execute_plan_item(
                 _mark_failed(fetch_item, str(exc))
                 return
             rate_limiter.backoff_after_error(exc, attempt)
+
+
+def _add_duration(performance: dict[str, float], name: str, started_at: float) -> None:
+    performance[name] = performance.get(name, 0.0) + max(
+        0.0, (perf_counter() - started_at) * 1000
+    )
 
 
 def _execution_action(

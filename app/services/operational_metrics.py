@@ -31,6 +31,17 @@ class OperationalMetricRegistry:
             ]
         return sorted(rows, key=lambda sample: (sample.name, sorted(sample.labels.items())))
 
+    def total(self, name: str, **labels: Any) -> float:
+        """Return a counter total, optionally matching a subset of labels."""
+        expected = {str(key): str(value) for key, value in labels.items()}
+        with self._lock:
+            return sum(
+                value
+                for (metric_name, metric_labels), value in self._counters.items()
+                if metric_name == name
+                and all(dict(metric_labels).get(key) == value for key, value in expected.items())
+            )
+
     def as_prometheus(self) -> str:
         lines: list[str] = []
         for sample in self.samples():

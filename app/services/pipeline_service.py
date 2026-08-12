@@ -203,6 +203,12 @@ def pipeline_step_names(
         if ceri_provider_ingest_enabled is None
         else effective_flags.enabled and bool(ceri_provider_ingest_enabled)
     )
+    if provider_ingest_enabled and ceri_provider_ingest_enabled is None:
+        settings = get_settings()
+        provider_ingest_enabled = bool(
+            settings.ceri_legacy_pipeline_scheduling_enabled
+            or settings.ceri_batched_workflow_enabled
+        )
     if not ceri_enabled and not provider_ingest_enabled and not setup_enabled:
         return PIPELINE_STEP_NAMES
     optional_steps: tuple[str, ...] = ()

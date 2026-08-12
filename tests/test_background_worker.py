@@ -2,7 +2,12 @@ import pytest
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
-from app.services.background_worker import CancelRequested, execute_job, run_worker_once
+from app.services.background_worker import (
+    CancelRequested,
+    JobDeferred,
+    execute_job,
+    run_worker_once,
+)
 
 
 def test_execute_job_dispatches_to_registered_handler() -> None:
@@ -121,6 +126,53 @@ def test_worker_rolls_back_failed_transaction_before_marking_job_failed(
     assert calls == ["heartbeat", "marked_failed"]
     assert db.commit_count == 3
     assert db.closed is True
+
+
+def test_worker_defers_barrier_without_consuming_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    job = BackgroundJob(
+        id=1,
+        job_type="TEST_JOB",
+        status=JobStatus.RUNNING,
+        execution_token="token",
+        retry_count=2,
+    )
+    db = FakeWorkerDb()
+    calls = []
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: job,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_job",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def mark_deferred(_db, _job, *, delay, reason, execution_token):
+        calls.append((delay.total_seconds(), reason, execution_token, _job.retry_count))
+
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_job_deferred",
+        mark_deferred,
+    )
+
+    ran = run_worker_once(
+        worker_id="worker-a",
+        stale_after_seconds=60,
+        session_factory=lambda: db,
+        handlers={
+            "TEST_JOB": lambda *_args: (_ for _ in ()).throw(
+                JobDeferred("upstream pending", delay_seconds=7)
+            )
+        },
+    )
+
+    assert ran is True
+    assert calls == [(7.0, "upstream pending", "token", 2)]
+    assert db.rollback_count == 0
 
 
 class FakeWorkerDb:

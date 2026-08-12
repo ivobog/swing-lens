@@ -220,7 +220,13 @@ class CeriChangeDetectionService:
 
 
 def change_dedup_key(**parts: Any) -> str:
-    encoded = "|".join(f"{key}={parts[key]}" for key in sorted(parts))
+    # Scope describes which orchestration path found the change; it is not
+    # part of the business identity. Capture and standalone rebuild stages can
+    # observe the same transition and must converge on one durable event.
+    canonical_parts = {key: value for key, value in parts.items() if key != "scope"}
+    encoded = "|".join(
+        f"{key}={canonical_parts[key]}" for key in sorted(canonical_parts)
+    )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 

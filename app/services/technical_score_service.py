@@ -4,6 +4,7 @@ from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import asdict, replace
 from decimal import Decimal
+from time import perf_counter
 from typing import Any
 
 import pandas as pd
@@ -59,6 +60,7 @@ def score_run_technicals(
     tickers: list[str] | None = None,
     benchmark_ticker: str = "SPY",
 ) -> list[TechnicalScore]:
+    input_started = perf_counter()
     symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
     v4_params = load_technical_scoring_v4_config()
     pine_params = load_pine_defaults()
@@ -75,6 +77,8 @@ def score_run_technicals(
         or settings.technical_artifact_cache_write_enabled
         or settings.technical_artifact_cache_shadow_read_enabled
     )
+    _record_technical_duration("input_load", input_started, run_id=run_id)
+    worker_started = perf_counter()
     if settings.technical_process_pool_enabled:
         score_results = _score_tickers_process_pool(
             db=db,
@@ -121,14 +125,18 @@ def score_run_technicals(
             v4_params=v4_params,
             run_id=run_id,
         )
+    _record_technical_duration("worker_span", worker_started, run_id=run_id)
 
-    return finalize_technical_scores(
+    finalize_started = perf_counter()
+    scores = finalize_technical_scores(
         db,
         run_id,
         score_results,
         symbols=symbols,
         v4_params=v4_params,
     )
+    _record_technical_duration("finalize", finalize_started, run_id=run_id)
+    return scores
 
 
 def finalize_technical_scores(
@@ -191,6 +199,7 @@ class TechnicalScoringOverlapCoordinator:
         required_market_tickers: list[str] | tuple[str, ...] | None = None,
         wait_for_market_events: bool = False,
     ) -> None:
+        input_started = perf_counter()
         self.db = db
         self.run_id = run_id
         self.symbols = _normalize_tickers(tickers)
@@ -216,6 +225,8 @@ class TechnicalScoringOverlapCoordinator:
         )
         self._closed = False
         self._refresh_run_level_inputs()
+        _record_technical_duration("input_load", input_started, run_id=self.run_id)
+        self._worker_started_at = perf_counter()
         self._executor = ProcessPoolExecutor(
             max_workers=_technical_worker_count(self.settings)
         )
@@ -258,13 +269,19 @@ class TechnicalScoringOverlapCoordinator:
                         v4_params=self.v4_params,
                     )
             ordered = [self._results[ticker] for ticker in self.symbols]
-            return finalize_technical_scores(
+            _record_technical_duration(
+                "worker_span", self._worker_started_at, run_id=self.run_id
+            )
+            finalize_started = perf_counter()
+            scores = finalize_technical_scores(
                 self.db,
                 self.run_id,
                 ordered,
                 symbols=self.symbols,
                 v4_params=self.v4_params,
             )
+            _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
+            return scores
         finally:
             self._closed = True
             self._executor.shutdown(wait=True, cancel_futures=True)
@@ -297,6 +314,7 @@ class TechnicalScoringOverlapCoordinator:
             self.lease_guard()
             if self.should_cancel():
                 return
+            input_started = perf_counter()
             price, trades = load_preferred_ohlcv_frames(self.db, ticker)
             artifact_key, cached_artifact = _artifact_cache_context(
                 db=self.db,
@@ -322,6 +340,7 @@ class TechnicalScoringOverlapCoordinator:
                     else None
                 ),
             )
+            _record_technical_duration("input_load", input_started, run_id=self.run_id)
             self._submitted_market_signatures[ticker] = self._market_input_signature
             future = self._executor.submit(execute_technical_work_item, item)
             self._futures[future] = ticker
@@ -682,6 +701,14 @@ def _score_tickers_process_pool(
         )
         for index, result in enumerate(results)
     ]
+
+
+def _record_technical_duration(name: str, started_at: float, *, run_id: int) -> None:
+    operational_metrics.increment(
+        f"swinglens_technical_{name}_ms_total",
+        value=max(0.0, (perf_counter() - started_at) * 1000),
+        run_id=run_id,
+    )
 
 
 def _build_work_item(

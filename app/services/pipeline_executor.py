@@ -163,11 +163,27 @@ def execute_full_pipeline(
     upload_run = _require_upload_run(db, pipeline.upload_run_id)
     should_cancel = should_cancel or (lambda: False)
     performance = PipelinePerformanceTracker()
+    cache_hits_before = operational_metrics.total(
+        "swinglens_technical_artifact_cache_total", result="hit"
+    )
+    cache_misses_before = operational_metrics.total(
+        "swinglens_technical_artifact_cache_total", result="miss"
+    )
+    technical_durations_before = {
+        name: operational_metrics.total(
+            f"swinglens_technical_{name}_ms_total", run_id=upload_run.id
+        )
+        for name in ("input_load", "worker_span", "finalize")
+    }
 
     result = _empty_result(pipeline, upload_run)
     overlap_coordinator: TechnicalScoringOverlapCoordinator | None = None
     try:
         _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
+        performance.set_metric(
+            "pipeline_queue_delay_ms",
+            _duration_ms(pipeline.created_at, pipeline.started_at),
+        )
         _raise_if_cancelled(should_cancel)
 
         with _pipeline_step(
@@ -227,6 +243,7 @@ def execute_full_pipeline(
                     fetch_kwargs["on_ticker_ready"] = overlap_coordinator.on_ticker_ready
                 fetch_run = dependencies.execute_fetch_plan(**fetch_kwargs)
                 _apply_fetch_result(result, fetch_run)
+                _apply_fetch_performance(performance, fetch_run)
                 if fetch_run.status == "CANCELLED":
                     raise PipelineCancelled("Pipeline cancelled during market data fetch.")
             else:
@@ -240,6 +257,42 @@ def execute_full_pipeline(
                 technical_scores = overlap_coordinator.finalize()
             else:
                 technical_scores = dependencies.score_technicals(db, upload_run.id)
+            performance.set_metric(
+                "technical_cache_hits",
+                operational_metrics.total(
+                    "swinglens_technical_artifact_cache_total", result="hit"
+                )
+                - cache_hits_before,
+            )
+            performance.set_metric(
+                "technical_cache_misses",
+                operational_metrics.total(
+                    "swinglens_technical_artifact_cache_total", result="miss"
+                )
+                - cache_misses_before,
+            )
+            for metric_name, performance_name in (
+                ("input_load", "technical_input_load_ms"),
+                ("worker_span", "technical_worker_span_ms"),
+                ("finalize", "technical_finalize_ms"),
+            ):
+                performance.set_metric(
+                    performance_name,
+                    operational_metrics.total(
+                        f"swinglens_technical_{metric_name}_ms_total",
+                        run_id=upload_run.id,
+                    )
+                    - technical_durations_before[metric_name],
+                )
+            settings = get_settings()
+            performance.set_metric(
+                "technical_worker_processes",
+                getattr(settings, "technical_worker_processes", None),
+            )
+            performance.set_metric(
+                "technical_max_in_flight",
+                getattr(settings, "technical_max_in_flight", None),
+            )
             _raise_if_cancelled(should_cancel)
             result["technical_scores"] = len(technical_scores)
             result["technical_error_count"] = _technical_error_count(technical_scores)
@@ -612,6 +665,15 @@ def _apply_fetch_result(result: dict[str, Any], fetch_run: IBFetchRun) -> None:
     result["fetch_failed"] = int(fetch_run.status in {"FAILED", "PARTIAL"})
 
 
+def _apply_fetch_performance(
+    performance: PipelinePerformanceTracker,
+    fetch_run: IBFetchRun,
+) -> None:
+    values = getattr(fetch_run, "_performance", {}) or {}
+    for name in ("ib_pacing_wait_ms", "ib_network_ms", "bar_cache_write_ms"):
+        performance.set_metric(name, values.get(name))
+
+
 def _technical_error_count(scores: list[Any]) -> int:
     return sum(
         bool(getattr(score, "insufficient_data", False))
@@ -826,11 +888,22 @@ def _ceri_provider_ingest_enabled(dependencies: PipelineExecutionDependencies) -
         return False
     if dependencies.ceri_provider_ingest_enabled is not None:
         return dependencies.ceri_provider_ingest_enabled
-    return ceri_flags().provider_ingest
+    settings = get_settings()
+    return ceri_flags().provider_ingest and bool(
+        settings.ceri_legacy_pipeline_scheduling_enabled
+        or settings.ceri_batched_workflow_enabled
+    )
 
 
 def _schedule_ceri_provider_ingest(db: Session, run_id: int) -> int:
     """Queue provider-specific ingestion jobs for the current SwingLens run."""
+    settings = get_settings()
+    if getattr(settings, "ceri_batched_workflow_enabled", False):
+        from app.services.ceri.batched_workflow import schedule_ceri_batched_workflow
+
+        return schedule_ceri_batched_workflow(db, run_id).provider_batches
+    if not getattr(settings, "ceri_legacy_pipeline_scheduling_enabled", True):
+        return 0
     from app.models.ceri_tables import CeriCompany
     from app.services.ceri.enums import CeriDataset
     from app.services.ceri.provider_registry import CeriProviderRegistry
@@ -1061,3 +1134,13 @@ def _apply_setup_lifecycle_evaluation_result(
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _duration_ms(started_at: datetime | None, completed_at: datetime | None) -> float | None:
+    if started_at is None or completed_at is None:
+        return None
+    if started_at.tzinfo is None and completed_at.tzinfo is not None:
+        started_at = started_at.replace(tzinfo=completed_at.tzinfo)
+    if completed_at.tzinfo is None and started_at.tzinfo is not None:
+        completed_at = completed_at.replace(tzinfo=started_at.tzinfo)
+    return round(max(0.0, (completed_at - started_at).total_seconds() * 1000), 3)

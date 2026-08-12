@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -50,6 +51,10 @@ class CeriNormalizationResult:
         }
 
 
+class CeriNormalizationCancelled(RuntimeError):
+    pass
+
+
 class CeriNormalizationService:
     def __init__(
         self,
@@ -73,43 +78,67 @@ class CeriNormalizationService:
         processing_run: CeriProcessingRun,
         ingestion_run_id: int | None = None,
         source_records: list[CeriSourceRecord] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+        checkpoint_interval: int = 5,
+        checkpoint_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> CeriNormalizationResult:
         records = (
             source_records if source_records is not None else _source_records(db, ingestion_run_id)
         )
-        read = normalized = quarantined = failed = warning_count = 0
-        errors: list[dict[str, Any]] = []
+        checkpoint = processing_run.checkpoint_json or {}
+        last_source_record_id = int(checkpoint.get("last_source_record_id") or 0)
+        records = [
+            record
+            for record in records
+            if record.id is None or int(record.id) > last_source_record_id
+        ]
+        read = int(processing_run.read_count or 0)
+        normalized = int(processing_run.normalized_count or 0)
+        quarantined = int((processing_run.counts_json or {}).get("quarantined") or 0)
+        failed = int(processing_run.failed_count or 0)
+        warning_count = int(processing_run.warning_count or 0)
+        errors: list[dict[str, Any]] = list((processing_run.errors_json or {}).get("records") or [])
 
         for index, source_record in enumerate(records, start=1):
+            if callable(should_cancel) and should_cancel():
+                raise CeriNormalizationCancelled("CERI normalization cancelled.")
             read += 1
             if source_record.quarantine_reason:
                 quarantined += 1
-                continue
-            try:
-                resolution = self.identity_resolver.resolve_source_record(db, source_record)
-                if not resolution.resolved:
-                    quarantined += 1
-                    continue
-                created = self._normalize_record(
-                    db,
-                    source_record,
-                    company_id=resolution.company_id,
-                )
-                _persist_sec_identity(db, source_record, resolution.company_id)
-                normalized += created
-                warning_count += _warning_count_for_last(db)
-                processing_run.checkpoint_json = {
-                    "last_source_record_id": source_record.id,
-                    "last_record_index": index,
-                }
-            except Exception as exc:
-                failed += 1
-                errors.append(
-                    {
-                        "source_record_id": source_record.id,
-                        "error": str(exc).replace("\n", " ")[:500],
-                    }
-                )
+            else:
+                try:
+                    resolution = self.identity_resolver.resolve_source_record(db, source_record)
+                    if not resolution.resolved:
+                        quarantined += 1
+                    else:
+                        created = self._normalize_record(
+                            db,
+                            source_record,
+                            company_id=resolution.company_id,
+                        )
+                        _persist_sec_identity(db, source_record, resolution.company_id)
+                        normalized += created
+                        warning_count += _warning_count_for_last(db)
+                except Exception as exc:
+                    failed += 1
+                    errors.append(
+                        {
+                            "source_record_id": source_record.id,
+                            "error": str(exc).replace("\n", " ")[:500],
+                        }
+                    )
+            processing_run.checkpoint_json = {
+                "last_source_record_id": source_record.id,
+                "last_record_index": index,
+            }
+            processing_run.read_count = read
+            processing_run.normalized_count = normalized
+            processing_run.failed_count = failed
+            processing_run.warning_count = warning_count
+            processing_run.errors_json = {"records": errors} if errors else None
+            processing_run.counts_json = {"quarantined": quarantined}
+            if callable(checkpoint_callback) and index % max(1, checkpoint_interval) == 0:
+                checkpoint_callback(dict(processing_run.checkpoint_json))
 
         status = "COMPLETED" if failed == 0 and quarantined == 0 else "PARTIAL"
         processing_run.status = status
@@ -301,6 +330,7 @@ def _source_records(db: Session, ingestion_run_id: int | None) -> list[CeriSourc
     statement = select(CeriSourceRecord)
     if ingestion_run_id is not None:
         statement = statement.where(CeriSourceRecord.ingestion_run_id == ingestion_run_id)
+    statement = statement.order_by(CeriSourceRecord.id.asc())
     result = scalars(statement)
     return list(result.all() if hasattr(result, "all") else result)
 

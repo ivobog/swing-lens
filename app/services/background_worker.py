@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Mapping
+from datetime import timedelta
 from threading import Event
 from typing import Any
 
@@ -17,6 +18,7 @@ from app.services.background_job_service import (
     heartbeat_job,
     mark_job_cancelled,
     mark_job_completed,
+    mark_job_deferred,
     mark_job_failed_or_retry,
     mark_job_partial,
     recover_stale_jobs,
@@ -30,6 +32,13 @@ JobHandler = Callable[[Session, BackgroundJob], dict[str, Any] | None]
 
 class CancelRequested(Exception):
     pass
+
+
+class JobDeferred(Exception):
+    def __init__(self, reason: str, *, delay_seconds: int = 5) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.delay_seconds = max(1, int(delay_seconds))
 
 
 def run_worker(
@@ -99,6 +108,18 @@ def run_worker_once(
             else:
                 mark_job_completed(db, job, result, execution_token=execution_token)
             logger.info("job.completed", extra={"job_id": job.id, "job_type": job.job_type})
+        except JobDeferred as exc:
+            mark_job_deferred(
+                db,
+                job,
+                delay=timedelta(seconds=exc.delay_seconds),
+                reason=exc.reason,
+                execution_token=execution_token,
+            )
+            logger.info(
+                "job.deferred",
+                extra={"job_id": job.id, "job_type": job.job_type},
+            )
         except CancelRequested:
             mark_job_cancelled(db, job, execution_token=execution_token)
             logger.info("job.cancelled", extra={"job_id": job.id, "job_type": job.job_type})
