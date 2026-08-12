@@ -1,8 +1,16 @@
+from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class TechnicalArtifactCacheMode(StrEnum):
+    OFF = "OFF"
+    WRITE_ONLY = "WRITE_ONLY"
+    SHADOW_VALIDATE = "SHADOW_VALIDATE"
+    ACTIVE = "ACTIVE"
 
 
 class Settings(BaseSettings):
@@ -97,6 +105,10 @@ class Settings(BaseSettings):
     technical_worker_processes: int = 4
     technical_max_in_flight: int = 8
     technical_series_version_maintenance_enabled: bool = False
+    technical_artifact_cache_mode: TechnicalArtifactCacheMode = (
+        TechnicalArtifactCacheMode.OFF
+    )
+    # Compatibility aliases for one release. New configuration must use the mode.
     technical_artifact_cache_enabled: bool = False
     technical_artifact_cache_write_enabled: bool = False
     technical_artifact_cache_shadow_read_enabled: bool = False
@@ -105,10 +117,15 @@ class Settings(BaseSettings):
     market_data_prewarm_max_tickers: int = 1000
     market_data_prewarm_watchlist: str = ""
 
-    job_worker_enabled: bool = True
+    job_worker_enabled: bool = False
     job_poll_interval_seconds: float = 2.0
     job_stale_after_seconds: int = 900
+    job_worker_heartbeat_interval_seconds: float = 5.0
+    job_worker_heartbeat_timeout_seconds: int = 30
     job_worker_id: str = "local-worker-1"
+    queue_fairness_enabled: bool = False
+    job_max_consecutive_interactive_claims: int = 4
+    job_age_promotion_seconds: int = 300
     winner_probability_enabled: bool = False
     winner_probability_capture_in_pipeline: bool = False
     winner_probability_config_path: Path = Field(default=Path("config/winner_probability.yaml"))
@@ -165,6 +182,28 @@ class Settings(BaseSettings):
             symbol.strip().upper() for symbol in self.ib_benchmarks.split(",") if symbol.strip()
         )
 
+    @property
+    def technical_artifact_cache_reads_enabled(self) -> bool:
+        return self.technical_artifact_cache_mode in {
+            TechnicalArtifactCacheMode.SHADOW_VALIDATE,
+            TechnicalArtifactCacheMode.ACTIVE,
+        }
+
+    @property
+    def technical_artifact_cache_writes_enabled(self) -> bool:
+        return self.technical_artifact_cache_mode != TechnicalArtifactCacheMode.OFF
+
+    @property
+    def technical_artifact_cache_active_reads_enabled(self) -> bool:
+        return self.technical_artifact_cache_mode == TechnicalArtifactCacheMode.ACTIVE
+
+    @property
+    def technical_artifact_cache_shadow_validation_enabled(self) -> bool:
+        return (
+            self.technical_artifact_cache_mode
+            == TechnicalArtifactCacheMode.SHADOW_VALIDATE
+        )
+
     def ensure_local_dirs(self) -> None:
         for directory in (self.upload_dir, self.export_dir, self.cache_dir):
             directory.mkdir(parents=True, exist_ok=True)
@@ -204,15 +243,55 @@ class Settings(BaseSettings):
             raise ValueError("technical_worker_processes must be between 1 and 8")
         if self.technical_max_in_flight < 1:
             raise ValueError("technical_max_in_flight must be positive")
+        legacy_cache_modes = []
+        if self.technical_artifact_cache_enabled:
+            legacy_cache_modes.append(TechnicalArtifactCacheMode.ACTIVE)
+        if self.technical_artifact_cache_write_enabled:
+            legacy_cache_modes.append(TechnicalArtifactCacheMode.WRITE_ONLY)
+        if self.technical_artifact_cache_shadow_read_enabled:
+            legacy_cache_modes.append(TechnicalArtifactCacheMode.SHADOW_VALIDATE)
+        if len(legacy_cache_modes) > 1:
+            raise ValueError(
+                "legacy technical artifact cache flags select contradictory modes"
+            )
+        if legacy_cache_modes:
+            legacy_mode = legacy_cache_modes[0]
+            if (
+                "technical_artifact_cache_mode" in self.model_fields_set
+                and self.technical_artifact_cache_mode != legacy_mode
+            ):
+                raise ValueError(
+                    "TECHNICAL_ARTIFACT_CACHE_MODE contradicts legacy cache flags"
+                )
+            self.technical_artifact_cache_mode = legacy_mode
+        if (
+            self.technical_artifact_cache_mode != TechnicalArtifactCacheMode.OFF
+            and not self.technical_series_version_maintenance_enabled
+        ):
+            raise ValueError(
+                "technical artifact caching requires series-version maintenance"
+            )
         for name in (
             "ceri_provider_batch_size",
             "ceri_normalization_batch_size",
             "ceri_feature_batch_size",
             "ceri_batch_checkpoint_interval",
             "ceri_barrier_retry_seconds",
+            "job_worker_heartbeat_timeout_seconds",
+            "job_max_consecutive_interactive_claims",
+            "job_age_promotion_seconds",
         ):
             if int(getattr(self, name)) < 1:
                 raise ValueError(f"{name} must be positive")
+        if self.job_worker_heartbeat_interval_seconds <= 0:
+            raise ValueError("job_worker_heartbeat_interval_seconds must be positive")
+        if (
+            self.job_worker_heartbeat_interval_seconds
+            >= self.job_worker_heartbeat_timeout_seconds
+        ):
+            raise ValueError(
+                "job_worker_heartbeat_interval_seconds must be less than the timeout"
+            )
         if (
             self.ceri_legacy_pipeline_scheduling_enabled
             and self.ceri_batched_workflow_enabled

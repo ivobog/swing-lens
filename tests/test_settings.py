@@ -1,4 +1,8 @@
+import os
 from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
 
 from app.services.ceri.constants import (
     CERI_ADMIN_CSRF_REQUIRED,
@@ -30,7 +34,14 @@ from app.services.setup_lifecycle.constants import (
     SLSE_RUN_DELETION_POLICY,
     SLSE_TRIGGER_AUTHORITY,
 )
-from app.settings import Settings
+from app.settings import Settings, TechnicalArtifactCacheMode
+
+
+def test_numerical_library_threads_are_bounded_for_worker_processes() -> None:
+    assert os.environ["OMP_NUM_THREADS"] == "1"
+    assert os.environ["MKL_NUM_THREADS"] == "1"
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "1"
+    assert os.environ["NUMEXPR_NUM_THREADS"] == "1"
 
 
 def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
@@ -39,10 +50,15 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.app_host == "127.0.0.1"
     assert settings.database_connect_timeout_seconds == 3
     assert settings.use_durable_pipeline is True
-    assert settings.job_worker_enabled is True
+    assert settings.job_worker_enabled is False
     assert settings.job_poll_interval_seconds == 2.0
     assert settings.job_stale_after_seconds == 900
+    assert settings.job_worker_heartbeat_interval_seconds == 5.0
+    assert settings.job_worker_heartbeat_timeout_seconds == 30
     assert settings.job_worker_id == "local-worker-1"
+    assert settings.queue_fairness_enabled is False
+    assert settings.job_max_consecutive_interactive_claims == 4
+    assert settings.job_age_promotion_seconds == 300
     assert settings.winner_probability_enabled is False
     assert settings.winner_probability_capture_in_pipeline is False
     assert settings.winner_probability_config_path == Path("config/winner_probability.yaml")
@@ -58,6 +74,7 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.technical_worker_processes == 4
     assert settings.technical_max_in_flight == 8
     assert settings.technical_series_version_maintenance_enabled is False
+    assert settings.technical_artifact_cache_mode == TechnicalArtifactCacheMode.OFF
     assert settings.technical_artifact_cache_enabled is False
     assert settings.technical_artifact_cache_write_enabled is False
     assert settings.technical_artifact_cache_shadow_read_enabled is False
@@ -89,6 +106,39 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.runs_default_page_size == 25
     assert settings.history_default_page_size == 50
     assert settings.history_max_page_size == 200
+
+
+def test_technical_artifact_cache_mode_maps_one_legacy_flag() -> None:
+    settings = Settings(
+        _env_file=None,
+        technical_series_version_maintenance_enabled=True,
+        technical_artifact_cache_shadow_read_enabled=True,
+    )
+
+    assert (
+        settings.technical_artifact_cache_mode
+        == TechnicalArtifactCacheMode.SHADOW_VALIDATE
+    )
+    assert settings.technical_artifact_cache_shadow_validation_enabled is True
+    assert settings.technical_artifact_cache_active_reads_enabled is False
+
+
+def test_technical_artifact_cache_rejects_contradictory_legacy_flags() -> None:
+    with pytest.raises(ValidationError, match="contradictory modes"):
+        Settings(
+            _env_file=None,
+            technical_series_version_maintenance_enabled=True,
+            technical_artifact_cache_enabled=True,
+            technical_artifact_cache_shadow_read_enabled=True,
+        )
+
+
+def test_technical_artifact_cache_rejects_mode_without_series_versions() -> None:
+    with pytest.raises(ValidationError, match="requires series-version maintenance"):
+        Settings(
+            _env_file=None,
+            technical_artifact_cache_mode=TechnicalArtifactCacheMode.ACTIVE,
+        )
 
 
 def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> None:

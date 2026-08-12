@@ -25,8 +25,10 @@ from app.services.relative_leadership import calculate_beta_adjusted_rs, rank_te
 from app.services.technical_artifact_cache import (
     LocalArtifactKey,
     build_local_artifact_key,
+    canonical_json,
     config_hash,
     get_local_artifact,
+    record_local_artifact_shadow_validation,
     upsert_local_artifact,
 )
 from app.services.technical_explainability import add_leadership_to_explainability
@@ -72,11 +74,7 @@ def score_run_technicals(
     settings = get_settings()
     indicator_config_hash = config_hash(pine_params)
     scoring_config_hash = config_hash(v4_params)
-    artifact_cache_active = (
-        settings.technical_artifact_cache_enabled
-        or settings.technical_artifact_cache_write_enabled
-        or settings.technical_artifact_cache_shadow_read_enabled
-    )
+    artifact_cache_active = settings.technical_artifact_cache_writes_enabled
     _record_technical_duration("input_load", input_started, run_id=run_id)
     worker_started = perf_counter()
     if settings.technical_process_pool_enabled:
@@ -336,7 +334,12 @@ class TechnicalScoringOverlapCoordinator:
                 artifact_key=artifact_key,
                 cached_local_artifact=(
                     cached_artifact
-                    if self.settings.technical_artifact_cache_enabled
+                    if self.settings.technical_artifact_cache_active_reads_enabled
+                    else None
+                ),
+                shadow_local_artifact=(
+                    cached_artifact
+                    if self.settings.technical_artifact_cache_shadow_validation_enabled
                     else None
                 ),
             )
@@ -356,12 +359,20 @@ class TechnicalScoringOverlapCoordinator:
                 _persist_local_artifact(
                     self.db,
                     work_result,
-                    LocalArtifactKey(**work_result.artifact_key)
-                    if work_result.artifact_key
-                    else None,
+                    artifact_key := (
+                        LocalArtifactKey(**work_result.artifact_key)
+                        if work_result.artifact_key
+                        else None
+                    ),
+                    enabled=self.settings.technical_artifact_cache_writes_enabled,
+                )
+                _record_shadow_validation(
+                    self.db,
+                    work_result,
+                    artifact_key,
+                    run_id=self.run_id,
                     enabled=(
-                        self.settings.technical_artifact_cache_enabled
-                        or self.settings.technical_artifact_cache_write_enabled
+                        self.settings.technical_artifact_cache_shadow_validation_enabled
                     ),
                 )
             except Exception as exc:
@@ -510,23 +521,17 @@ def _score_tickers_pure_sequential(
                 artifact_key=artifact_key,
                 cached_local_artifact=(
                     cached_artifact
-                    if settings.technical_artifact_cache_enabled and not shadow_compare
+                    if settings.technical_artifact_cache_active_reads_enabled
+                    else None
+                ),
+                shadow_local_artifact=(
+                    cached_artifact
+                    if settings.technical_artifact_cache_shadow_validation_enabled
                     else None
                 ),
             )
             pure_result = execute_technical_work_item(item)
             pure_score = _score_from_work_result(pure_result)
-            if shadow_compare and cached_artifact is not None:
-                cached_result = execute_technical_work_item(
-                    replace(item, cached_local_artifact=cached_artifact)
-                )
-                cached_score = _score_from_work_result(cached_result)
-                if _technical_score_fingerprint(pure_score) != _technical_score_fingerprint(
-                    cached_score
-                ):
-                    operational_metrics.increment(
-                        "swinglens_technical_artifact_cache_shadow_mismatches_total"
-                    )
             if shadow_compare:
                 legacy_score = _legacy_score_or_error(
                     db=db,
@@ -549,10 +554,14 @@ def _score_tickers_pure_sequential(
                 db,
                 pure_result,
                 artifact_key,
-                enabled=(
-                    settings.technical_artifact_cache_enabled
-                    or settings.technical_artifact_cache_write_enabled
-                ),
+                enabled=settings.technical_artifact_cache_writes_enabled,
+            )
+            _record_shadow_validation(
+                db,
+                pure_result,
+                artifact_key,
+                run_id=run_id,
+                enabled=settings.technical_artifact_cache_shadow_validation_enabled,
             )
             results.append(pure_score)
         except Exception as exc:
@@ -609,8 +618,12 @@ def _score_tickers_process_pool(
                         artifact_key=artifact_key,
                         cached_local_artifact=(
                             cached_artifact
-                            if settings.technical_artifact_cache_enabled
-                            and not settings.technical_artifact_cache_shadow_read_enabled
+                            if settings.technical_artifact_cache_active_reads_enabled
+                            else None
+                        ),
+                        shadow_local_artifact=(
+                            cached_artifact
+                            if settings.technical_artifact_cache_shadow_validation_enabled
                             else None
                         ),
                     ),
@@ -644,12 +657,20 @@ def _score_tickers_process_pool(
                         _persist_local_artifact(
                             db,
                             work_result,
-                            LocalArtifactKey(**work_result.artifact_key)
-                            if work_result.artifact_key
-                            else None,
+                            artifact_key := (
+                                LocalArtifactKey(**work_result.artifact_key)
+                                if work_result.artifact_key
+                                else None
+                            ),
+                            enabled=settings.technical_artifact_cache_writes_enabled,
+                        )
+                        _record_shadow_validation(
+                            db,
+                            work_result,
+                            artifact_key,
+                            run_id=run_id,
                             enabled=(
-                                settings.technical_artifact_cache_enabled
-                                or settings.technical_artifact_cache_write_enabled
+                                settings.technical_artifact_cache_shadow_validation_enabled
                             ),
                         )
                     except Exception as exc:
@@ -724,6 +745,7 @@ def _build_work_item(
     v4_params: dict[str, Any],
     artifact_key: LocalArtifactKey | None = None,
     cached_local_artifact: dict[str, Any] | None = None,
+    shadow_local_artifact: dict[str, Any] | None = None,
 ) -> TechnicalWorkItem:
     return build_technical_work_item(
         ticker=ticker,
@@ -739,6 +761,7 @@ def _build_work_item(
         input_signature=artifact_key.input_signature if artifact_key else "",
         artifact_key=asdict(artifact_key) if artifact_key else None,
         cached_local_artifact=cached_local_artifact,
+        shadow_local_artifact=shadow_local_artifact,
     )
 
 
@@ -750,14 +773,8 @@ def _artifact_cache_context(
     indicator_config_hash: str,
     scoring_config_hash: str,
 ) -> tuple[LocalArtifactKey | None, dict[str, Any] | None]:
-    cache_reads = (
-        settings.technical_artifact_cache_enabled
-        or settings.technical_artifact_cache_shadow_read_enabled
-    )
-    cache_writes = (
-        settings.technical_artifact_cache_enabled
-        or settings.technical_artifact_cache_write_enabled
-    )
+    cache_reads = settings.technical_artifact_cache_reads_enabled
+    cache_writes = settings.technical_artifact_cache_writes_enabled
     if not cache_reads and not cache_writes:
         return None, None
     versions = load_series_versions(db, ticker)
@@ -773,7 +790,15 @@ def _artifact_cache_context(
     )
     if not cache_reads:
         return key, None
-    artifact = get_local_artifact(db, key)
+    artifact = get_local_artifact(
+        db,
+        key,
+        usage=(
+            "shadow"
+            if settings.technical_artifact_cache_shadow_validation_enabled
+            else "active"
+        ),
+    )
     return key, artifact.artifact_json if artifact is not None else None
 
 
@@ -794,6 +819,46 @@ def _persist_local_artifact(
             "htf_features": result.htf_features,
         },
         warning_flags=result.warnings,
+    )
+
+
+def _record_shadow_validation(
+    db: Session,
+    result: TechnicalWorkResult,
+    key: LocalArtifactKey | None,
+    *,
+    run_id: int,
+    enabled: bool,
+) -> None:
+    if (
+        not enabled
+        or key is None
+        or result.score is None
+        or (result.shadow_score is None and result.shadow_error is None)
+    ):
+        return
+    fresh_fingerprint = _technical_score_digest(result.score)
+    cached_fingerprint = (
+        _technical_score_digest(result.shadow_score)
+        if result.shadow_score is not None
+        else None
+    )
+    record_local_artifact_shadow_validation(
+        db,
+        key,
+        matched=(
+            result.shadow_error is None
+            and cached_fingerprint == fresh_fingerprint
+        ),
+        fresh_fingerprint=fresh_fingerprint,
+        cached_fingerprint=cached_fingerprint,
+        run_id=run_id,
+        error=result.shadow_error,
+        differences=(
+            _technical_score_differences(result.score, result.shadow_score)
+            if result.shadow_score is not None
+            else {}
+        ),
     )
 
 
@@ -829,8 +894,14 @@ def _legacy_score_or_error(
 
 
 def _technical_score_fingerprint(score: PineReplicaScore | TechnicalScore) -> str:
+    return json.dumps(_technical_score_payload(score), default=str, sort_keys=True)
+
+
+def _technical_score_payload(
+    score: PineReplicaScore | TechnicalScore,
+) -> dict[str, Any]:
     if isinstance(score, TechnicalScore):
-        payload = {
+        return {
             key: getattr(score, key)
             for key in (
                 "ticker",
@@ -875,9 +946,46 @@ def _technical_score_fingerprint(score: PineReplicaScore | TechnicalScore) -> st
                 "debug_json",
             )
         }
-    else:
-        payload = asdict(score)
-    return json.dumps(payload, default=str, sort_keys=True)
+    return asdict(score)
+
+
+def _technical_score_digest(score: PineReplicaScore | TechnicalScore) -> str:
+    return hashlib.sha256(_technical_score_fingerprint(score).encode("utf-8")).hexdigest()
+
+
+def _technical_score_differences(
+    fresh: PineReplicaScore | TechnicalScore,
+    cached: PineReplicaScore | TechnicalScore,
+) -> dict[str, Any]:
+    fresh_payload = _technical_score_payload(fresh)
+    cached_payload = _technical_score_payload(cached)
+    differing_fields = sorted(
+        key
+        for key in fresh_payload.keys() | cached_payload.keys()
+        if canonical_json(fresh_payload.get(key)) != canonical_json(cached_payload.get(key))
+    )
+    return {
+        "differing_fields": differing_fields,
+        "value_preview": {
+            key: {
+                "fresh": _diagnostic_preview(fresh_payload.get(key)),
+                "cached": _diagnostic_preview(cached_payload.get(key)),
+            }
+            for key in differing_fields[:20]
+        },
+    }
+
+
+def _diagnostic_preview(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:500]
+    if isinstance(value, (list, tuple)) and len(value) <= 20:
+        return value
+    if isinstance(value, dict) and len(value) <= 20:
+        return value
+    return f"<{type(value).__name__}>"
 
 
 def _technical_worker_count(settings: Settings) -> int:

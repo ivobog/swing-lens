@@ -7,6 +7,7 @@ import pandas as pd
 from app.services import technical_score_service
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.operational_metrics import operational_metrics
+from app.services.technical_artifact_cache import build_local_artifact_key
 from app.services.technical_indicators import load_pine_defaults
 from app.services.technical_score_service import TechnicalScoringOverlapCoordinator
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
@@ -14,7 +15,7 @@ from app.services.technical_work import (
     build_technical_work_item,
     execute_technical_work_item,
 )
-from app.settings import Settings
+from app.settings import Settings, TechnicalArtifactCacheMode
 
 
 def test_technical_work_item_is_database_free_and_produces_a_score() -> None:
@@ -79,6 +80,159 @@ def test_technical_work_item_matches_legacy_ticker_calculation(monkeypatch) -> N
 
     assert pure_result.score is not None
     assert asdict(pure_result.score) == asdict(legacy_score)
+
+
+def test_shadow_artifact_matches_fresh_with_current_benchmark_and_sector_inputs() -> None:
+    frame = _synthetic_frame()
+    pine_config = load_pine_defaults()
+    technical_config = load_technical_scoring_v4_config()
+    initial = execute_technical_work_item(
+        build_technical_work_item(
+            ticker="test",
+            price=frame,
+            trades=frame,
+            benchmark_price=frame,
+            sector_price=frame,
+            technical_config=technical_config,
+            pine_config=pine_config,
+            relative_config=technical_config.get("relative_leadership", {}),
+            market_features={},
+        )
+    )
+    assert initial.score is not None
+    artifact = {
+        "feature_result": initial.feature_result,
+        "htf_features": initial.htf_features,
+    }
+    changed_dependency = _declining_frame()
+
+    shadow = execute_technical_work_item(
+        build_technical_work_item(
+            ticker="test",
+            price=frame,
+            trades=frame,
+            benchmark_price=changed_dependency,
+            sector_price=changed_dependency,
+            technical_config=technical_config,
+            pine_config=pine_config,
+            relative_config=technical_config.get("relative_leadership", {}),
+            market_features={},
+            shadow_local_artifact=artifact,
+        )
+    )
+
+    assert shadow.score is not None
+    assert shadow.shadow_score is not None
+    assert shadow.shadow_error is None
+    assert asdict(shadow.score) == asdict(shadow.shadow_score)
+    assert shadow.relative_strength_features != initial.relative_strength_features
+
+
+def test_shadow_artifact_decode_failure_never_replaces_fresh_result() -> None:
+    frame = _synthetic_frame()
+    result = execute_technical_work_item(
+        build_technical_work_item(
+            ticker="test",
+            price=frame,
+            trades=frame,
+            benchmark_price=frame,
+            sector_price=None,
+            technical_config=load_technical_scoring_v4_config(),
+            pine_config=load_pine_defaults(),
+            relative_config={},
+            market_features={},
+            shadow_local_artifact={"feature_result": {}, "htf_features": {}},
+        )
+    )
+
+    assert result.score is not None
+    assert result.error is None
+    assert result.shadow_score is None
+    assert result.shadow_error
+
+
+def test_process_pool_shadow_mode_returns_fresh_score_and_validation_candidate(
+    monkeypatch,
+) -> None:
+    frame = _synthetic_frame()
+    pine_config = load_pine_defaults()
+    technical_config = load_technical_scoring_v4_config()
+    fresh = execute_technical_work_item(
+        build_technical_work_item(
+            ticker="AAA",
+            price=frame,
+            trades=frame,
+            benchmark_price=frame,
+            sector_price=None,
+            technical_config=technical_config,
+            pine_config=pine_config,
+            relative_config=technical_config.get("relative_leadership", {}),
+            market_features={},
+        )
+    )
+    key = build_local_artifact_key(
+        ticker="AAA",
+        adjusted_series_version=1,
+        trades_series_version=1,
+        indicator_config_hash="indicator",
+        scoring_config_hash="scoring",
+        technical_engine_version="3.2.0",
+    )
+    validations = []
+    monkeypatch.setattr(
+        technical_score_service,
+        "load_preferred_ohlcv_frames",
+        lambda _db, _ticker: (frame, frame),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "_artifact_cache_context",
+        lambda **_kwargs: (
+            key,
+            {
+                "feature_result": fresh.feature_result,
+                "htf_features": fresh.htf_features,
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "_persist_local_artifact",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        technical_score_service,
+        "_record_shadow_validation",
+        lambda _db, result, *_args, **_kwargs: validations.append(result),
+    )
+    settings = Settings(
+        _env_file=None,
+        technical_process_pool_enabled=True,
+        technical_worker_processes=1,
+        technical_series_version_maintenance_enabled=True,
+        technical_artifact_cache_mode=TechnicalArtifactCacheMode.SHADOW_VALIDATE,
+    )
+
+    rows = technical_score_service._score_tickers_process_pool(
+        db=object(),
+        symbols=["AAA"],
+        benchmark_price=frame,
+        sector_price=None,
+        market_features={},
+        qqq_market_features={},
+        pine_params=pine_config,
+        v4_params=technical_config,
+        settings=settings,
+        run_id=7,
+        indicator_config_hash="indicator",
+        scoring_config_hash="scoring",
+    )
+
+    assert rows[0].ticker == "AAA"
+    assert len(validations) == 1
+    assert validations[0].score is not None
+    assert validations[0].shadow_score is not None
+    assert asdict(validations[0].score) == asdict(validations[0].shadow_score)
 
 
 def test_process_pool_mode_returns_scores_in_input_order(monkeypatch) -> None:
@@ -164,6 +318,7 @@ def test_artifact_write_mode_persists_local_work_result(monkeypatch) -> None:
         "get_settings",
         lambda: Settings(
             _env_file=None,
+            technical_series_version_maintenance_enabled=True,
             technical_artifact_cache_write_enabled=True,
         ),
     )
@@ -392,5 +547,20 @@ def _synthetic_frame() -> pd.DataFrame:
             "low": close - 2.0,
             "close": close,
             "volume": np.linspace(100_000.0, 120_000.0, len(dates)),
+        }
+    )
+
+
+def _declining_frame() -> pd.DataFrame:
+    dates = pd.date_range("2020-01-01", periods=320, freq="D")
+    close = np.linspace(180.0, 80.0, len(dates))
+    return pd.DataFrame(
+        {
+            "date": dates,
+            "open": close + 1.0,
+            "high": close + 2.0,
+            "low": close - 2.0,
+            "close": close,
+            "volume": np.linspace(120_000.0, 100_000.0, len(dates)),
         }
     )

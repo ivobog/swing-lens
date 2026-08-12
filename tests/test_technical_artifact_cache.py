@@ -2,6 +2,8 @@ from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from app.db import Base
 from app.services.price_series_version_service import maintain_price_series_versions
 from app.services.technical_artifact_cache import (
@@ -48,6 +50,39 @@ def test_local_artifact_signature_is_canonical_and_revision_aware() -> None:
     assert first.input_versions["adjusted_series_version"] == 12
     assert canonical_json({"b": 2, "a": 1}) == '{"a":1,"b":2}'
     assert ARTIFACT_SCHEMA_VERSION == "1"
+
+
+@pytest.mark.parametrize(
+    ("changed_field", "changed_value"),
+    [
+        ("adjusted_series_version", 13),
+        ("trades_series_version", 16),
+        ("indicator_config_hash", "indicator-b"),
+        ("scoring_config_hash", "scoring-b"),
+        ("technical_engine_version", "3.3.0"),
+        ("artifact_schema_version", "2"),
+        ("timeframe", "1 hour"),
+    ],
+)
+def test_local_artifact_signature_invalidates_every_local_dependency(
+    changed_field: str,
+    changed_value: object,
+) -> None:
+    inputs = {
+        "ticker": "MSFT",
+        "timeframe": "1 day",
+        "adjusted_series_version": 12,
+        "trades_series_version": 15,
+        "indicator_config_hash": "indicator-a",
+        "scoring_config_hash": "scoring-a",
+        "technical_engine_version": "3.2.0",
+    }
+    baseline = build_local_artifact_key(**inputs)
+    inputs[changed_field] = changed_value
+
+    changed = build_local_artifact_key(**inputs)
+
+    assert changed.input_signature != baseline.input_signature
 
 
 def test_series_version_maintenance_is_a_noop_without_changed_series() -> None:

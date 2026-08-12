@@ -169,6 +169,19 @@ def execute_full_pipeline(
     cache_misses_before = operational_metrics.total(
         "swinglens_technical_artifact_cache_total", result="miss"
     )
+    cache_shadow_candidates_before = operational_metrics.total(
+        "swinglens_technical_artifact_cache_total", result="shadow_candidate"
+    )
+    cache_shadow_misses_before = operational_metrics.total(
+        "swinglens_technical_artifact_cache_total", result="shadow_miss"
+    )
+    cache_shadow_validations_before = operational_metrics.total(
+        "swinglens_technical_artifact_cache_shadow_validations_total"
+    )
+    cache_shadow_mismatches_before = operational_metrics.total(
+        "swinglens_technical_artifact_cache_shadow_validations_total",
+        result="mismatch",
+    )
     technical_durations_before = {
         name: operational_metrics.total(
             f"swinglens_technical_{name}_ms_total", run_id=upload_run.id
@@ -270,6 +283,36 @@ def execute_full_pipeline(
                     "swinglens_technical_artifact_cache_total", result="miss"
                 )
                 - cache_misses_before,
+            )
+            performance.set_metric(
+                "technical_cache_shadow_candidates",
+                operational_metrics.total(
+                    "swinglens_technical_artifact_cache_total",
+                    result="shadow_candidate",
+                )
+                - cache_shadow_candidates_before,
+            )
+            performance.set_metric(
+                "technical_cache_shadow_misses",
+                operational_metrics.total(
+                    "swinglens_technical_artifact_cache_total", result="shadow_miss"
+                )
+                - cache_shadow_misses_before,
+            )
+            performance.set_metric(
+                "technical_cache_shadow_validations",
+                operational_metrics.total(
+                    "swinglens_technical_artifact_cache_shadow_validations_total"
+                )
+                - cache_shadow_validations_before,
+            )
+            performance.set_metric(
+                "technical_cache_shadow_mismatches",
+                operational_metrics.total(
+                    "swinglens_technical_artifact_cache_shadow_validations_total",
+                    result="mismatch",
+                )
+                - cache_shadow_mismatches_before,
             )
             for metric_name, performance_name in (
                 ("input_load", "technical_input_load_ms"),

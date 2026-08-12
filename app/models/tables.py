@@ -314,6 +314,33 @@ class TechnicalFeatureArtifact(Base):
         default=list,
         server_default=text("'[]'::jsonb"),
     )
+    shadow_validation_status: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="UNVALIDATED",
+        server_default="UNVALIDATED",
+    )
+    shadow_validation_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    shadow_mismatch_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    last_shadow_validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    last_shadow_mismatch_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -336,6 +363,10 @@ class TechnicalFeatureArtifact(Base):
         CheckConstraint(
             "artifact_kind IN ('LOCAL', 'RELATIVE')",
             name="ck_technical_feature_artifacts_kind",
+        ),
+        CheckConstraint(
+            "shadow_validation_status IN ('UNVALIDATED', 'MATCH', 'MISMATCH')",
+            name="ck_technical_feature_artifacts_shadow_status",
         ),
         Index("idx_technical_feature_artifacts_last_used", "last_used_at"),
     )
@@ -1388,6 +1419,14 @@ class BackgroundJob(Base):
         Index("idx_background_jobs_execution_token", "execution_token"),
         Index("idx_background_jobs_request_key", "request_key"),
         Index(
+            "idx_background_jobs_queue_claim",
+            "status",
+            "job_type",
+            "run_after",
+            "created_at",
+            "priority",
+        ),
+        Index(
             "idx_background_jobs_workflow_type_status",
             "workflow_key",
             "job_type",
@@ -1411,6 +1450,33 @@ class BackgroundJob(Base):
             postgresql_where=text("request_key IS NOT NULL AND status IN ('QUEUED', 'RUNNING')"),
         ),
     )
+
+
+class BackgroundWorker(Base):
+    __tablename__ = "background_workers"
+
+    worker_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    queues_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    hostname: Mapped[str | None] = mapped_column(Text)
+    process_id: Mapped[int | None] = mapped_column(Integer)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    stopping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (Index("idx_background_workers_heartbeat", "heartbeat_at"),)
 
 
 class PredictionEligibility:

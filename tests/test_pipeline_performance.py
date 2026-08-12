@@ -18,6 +18,9 @@ def test_pipeline_performance_tracker_records_step_and_contract_metrics() -> Non
     tracker.set_metric("pipeline_queue_delay_ms", 1_000.0)
     tracker.set_metric("technical_cache_hits", 7)
     tracker.set_metric("technical_cache_misses", 2)
+    tracker.set_metric("technical_cache_shadow_candidates", 6)
+    tracker.set_metric("technical_cache_shadow_validations", 6)
+    tracker.set_metric("technical_cache_shadow_mismatches", 0)
     tracker.set_metric("ib_pacing_wait_ms", 125.0)
     tracker.add_fallback("sequential_technicals")
 
@@ -32,6 +35,9 @@ def test_pipeline_performance_tracker_records_step_and_contract_metrics() -> Non
     assert snapshot["pipeline_wall_ms"] == snapshot["pipeline_execution_ms"]
     assert snapshot["technical_cache_hits"] == 7
     assert snapshot["technical_cache_misses"] == 2
+    assert snapshot["technical_cache_shadow_candidates"] == 6
+    assert snapshot["technical_cache_shadow_validations"] == 6
+    assert snapshot["technical_cache_shadow_mismatches"] == 0
     assert snapshot["ib_pacing_wait_ms"] == 125.0
     assert snapshot["prewarm_age_seconds"] is None
     assert snapshot["fallbacks"] == ["sequential_technicals"]

@@ -90,6 +90,7 @@ def _runtime_flags(settings: Settings) -> dict[str, Any]:
         "technical_process_pool_enabled",
         "technical_worker_processes",
         "technical_max_in_flight",
+        "technical_artifact_cache_mode",
         "technical_artifact_cache_enabled",
         "technical_artifact_cache_write_enabled",
         "technical_artifact_cache_shadow_read_enabled",
@@ -151,10 +152,27 @@ def _technical_artifact_report(db: Session) -> dict[str, Any]:
             TechnicalFeatureArtifact.artifact_kind,
         )
     ).all()
+    shadow_rows = db.execute(
+        select(
+            TechnicalFeatureArtifact.shadow_validation_status,
+            func.count(TechnicalFeatureArtifact.id),
+            func.sum(TechnicalFeatureArtifact.shadow_validation_count),
+            func.sum(TechnicalFeatureArtifact.shadow_mismatch_count),
+        ).group_by(TechnicalFeatureArtifact.shadow_validation_status)
+    ).all()
     return {
         "counts": [
             {"status": status, "artifact_kind": kind, "count": int(count)}
             for status, kind, count in rows
+        ],
+        "shadow_validation": [
+            {
+                "status": status,
+                "artifact_count": int(count),
+                "validation_count": int(validation_count or 0),
+                "mismatch_count": int(mismatch_count or 0),
+            }
+            for status, count, validation_count, mismatch_count in shadow_rows
         ],
         "historical_cache_hit_count": None,
         "historical_cache_miss_count": None,

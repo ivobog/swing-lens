@@ -75,6 +75,43 @@ def test_readiness_degrades_for_storage_failure_and_redacts_error(tmp_path, monk
     assert "Ivica" not in str(report.response_checks())
 
 
+def test_readiness_uses_live_external_worker_heartbeat_even_when_embedded_is_disabled(
+    tmp_path, monkeypatch
+) -> None:
+    now = datetime(2026, 8, 12, 13, tzinfo=UTC)
+    engine = _readiness_engine(alembic_revision="head", worker_heartbeat_at=now)
+    monkeypatch.setattr(
+        "app.services.readiness_service._repository_alembic_heads",
+        lambda: ["head"],
+    )
+    settings = _settings(tmp_path)
+    settings.job_worker_enabled = False
+
+    report = ReadinessService(engine=engine, settings=settings, now=now).report()
+
+    assert report.checks["worker"].ok is True
+    assert report.checks["worker"].message == "live:test-worker"
+
+
+def test_readiness_degrades_for_stale_external_worker_heartbeat(
+    tmp_path, monkeypatch
+) -> None:
+    now = datetime(2026, 8, 12, 13, tzinfo=UTC)
+    engine = _readiness_engine(
+        alembic_revision="head",
+        worker_heartbeat_at=now - timedelta(seconds=31),
+    )
+    monkeypatch.setattr(
+        "app.services.readiness_service._repository_alembic_heads",
+        lambda: ["head"],
+    )
+
+    report = ReadinessService(engine=engine, settings=_settings(tmp_path), now=now).report()
+
+    assert report.checks["worker"].ok is False
+    assert report.checks["worker"].message == "no live durable worker heartbeat"
+
+
 def test_readiness_short_circuits_database_dependent_checks_when_unavailable(
     tmp_path, monkeypatch
 ) -> None:
@@ -136,8 +173,13 @@ def test_job_and_export_paths_emit_operational_metrics() -> None:
     )
 
 
-def _readiness_engine(*, alembic_revision: str):
+def _readiness_engine(
+    *,
+    alembic_revision: str,
+    worker_heartbeat_at: datetime | None = None,
+):
     engine = create_engine("sqlite+pysqlite:///:memory:")
+    heartbeat_at = worker_heartbeat_at or datetime.now(UTC)
     with engine.begin() as connection:
         connection.execute(text("create table alembic_version (version_num text not null)"))
         connection.execute(
@@ -146,6 +188,22 @@ def _readiness_engine(*, alembic_revision: str):
         )
         connection.execute(
             text("create table background_jobs (status text, lease_expires_at timestamp)")
+        )
+        connection.execute(
+            text(
+                "create table background_workers ("
+                "worker_id text primary key, queues_json text not null, hostname text, "
+                "process_id integer, started_at timestamp not null, "
+                "heartbeat_at timestamp not null, stopping_at timestamp)"
+            )
+        )
+        connection.execute(
+            text(
+                "insert into background_workers "
+                "(worker_id, queues_json, started_at, heartbeat_at) "
+                "values ('test-worker', '[]', :started_at, :heartbeat_at)"
+            ),
+            {"started_at": heartbeat_at, "heartbeat_at": heartbeat_at},
         )
     return engine
 

@@ -80,6 +80,18 @@ class PipelinePerformanceTracker:
             "technical_cache_misses": int(
                 self.component_metrics.get("technical_cache_misses") or 0
             ),
+            "technical_cache_shadow_candidates": int(
+                self.component_metrics.get("technical_cache_shadow_candidates") or 0
+            ),
+            "technical_cache_shadow_misses": int(
+                self.component_metrics.get("technical_cache_shadow_misses") or 0
+            ),
+            "technical_cache_shadow_validations": int(
+                self.component_metrics.get("technical_cache_shadow_validations") or 0
+            ),
+            "technical_cache_shadow_mismatches": int(
+                self.component_metrics.get("technical_cache_shadow_mismatches") or 0
+            ),
             "technical_worker_processes": self.component_metrics.get(
                 "technical_worker_processes"
             ),

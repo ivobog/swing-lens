@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
+from app.services.background_queue import QueueClaimGroup, worker_queue_filter
 from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 
@@ -222,18 +223,19 @@ def claim_next_job(
     db: Session,
     worker_id: str,
     lease_seconds: int = DEFAULT_LEASE_SECONDS,
+    queues: Iterable[str] | None = None,
+    claim_groups: Iterable[QueueClaimGroup] | None = None,
 ) -> BackgroundJob | None:
-    job_id = db.scalar(
-        select(BackgroundJob.id)
-        .where(BackgroundJob.status == JobStatus.QUEUED)
-        .where(BackgroundJob.run_after <= _utcnow())
-        .order_by(
-            BackgroundJob.priority.asc(),
-            BackgroundJob.created_at.asc(),
-        )
-        .with_for_update(skip_locked=True)
-        .limit(1)
+    groups = (
+        tuple(claim_groups)
+        if claim_groups is not None
+        else (QueueClaimGroup(tuple(queues)) if queues is not None else QueueClaimGroup(()),)
     )
+    job_id = None
+    for group in groups:
+        job_id = _claim_ready_job_id(db, group)
+        if job_id is not None:
+            break
     if job_id is None:
         return None
 
@@ -265,6 +267,26 @@ def claim_next_job(
     )
     db.flush()
     return job
+
+
+def _claim_ready_job_id(db: Session, group: QueueClaimGroup) -> int | None:
+    query = select(BackgroundJob.id).where(BackgroundJob.status == JobStatus.QUEUED)
+    query = query.where(BackgroundJob.run_after <= _utcnow())
+    if group.queues:
+        queue_filter = worker_queue_filter(group.queues)
+        if queue_filter is not None:
+            query = query.where(queue_filter)
+    if group.created_before is not None:
+        query = query.where(BackgroundJob.created_at <= group.created_before).order_by(
+            BackgroundJob.created_at.asc(),
+            BackgroundJob.priority.asc(),
+        )
+    else:
+        query = query.order_by(
+            BackgroundJob.priority.asc(),
+            BackgroundJob.created_at.asc(),
+        )
+    return db.scalar(query.with_for_update(skip_locked=True).limit(1))
 
 
 def mark_job_completed(

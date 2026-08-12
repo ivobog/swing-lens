@@ -10,6 +10,18 @@ from app.services.background_worker import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _stub_worker_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.background_worker.register_worker",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_worker",
+        lambda *_args, **_kwargs: None,
+    )
+
+
 def test_execute_job_dispatches_to_registered_handler() -> None:
     job = BackgroundJob(id=1, job_type="TEST_JOB", status=JobStatus.RUNNING)
     calls = {}
