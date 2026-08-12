@@ -13,9 +13,7 @@ def _legacy_scoring_settings() -> SimpleNamespace:
         technical_process_pool_enabled=False,
         technical_pure_boundary_enabled=False,
         technical_pure_boundary_shadow_compare_enabled=False,
-        technical_artifact_cache_enabled=False,
-        technical_artifact_cache_write_enabled=False,
-        technical_artifact_cache_shadow_read_enabled=False,
+        technical_artifact_cache_writes_enabled=False,
     )
 
 

@@ -1,5 +1,5 @@
 engine:
-  enabled: false
+  enabled: true
   calculation_version: ibmi-1.0.0
   config_version: 2026-08-09
   source_version: ibkr-tws-flex-v1
@@ -24,7 +24,7 @@ freshness:
   histogram_max_age_days: 5
 
 liquidity:
-  enabled: false
+  enabled: true
   lookback_sessions: 20
   short_window_sessions: 5
   percentile_window_sessions: 60
@@ -37,7 +37,7 @@ liquidity:
     poor_max: 1.00
 
 short_pressure:
-  enabled: false
+  enabled: true
   fee_rate_lookback_sessions: 60
   live_shortable_shares: true
   high_fee_rate_pct: 10
@@ -46,7 +46,7 @@ short_pressure:
   very_low_availability_shares: 25000
 
 volatility:
-  enabled: false
+  enabled: true
   lookback_sessions: 252
   iv_hv_high_ratio: 1.50
   iv_hv_extreme_ratio: 2.00
@@ -54,7 +54,7 @@ volatility:
   ceri_risk_max_contribution: 1.5
 
 options_activity:
-  enabled: false
+  enabled: true
   shortlist_only: true
   generic_ticks: [100, 101, 105]
   call_heavy_ratio_max: 0.7
@@ -62,7 +62,7 @@ options_activity:
   abnormal_activity_multiple: 2.0
 
 scanner:
-  enabled: false
+  enabled: true
   max_active_scans: 10
   max_results: 50
   presets:
@@ -100,7 +100,7 @@ scanner:
         - {tag: priceAbove, value: "5"}
 
 histogram:
-  enabled: false
+  enabled: true
   period: "20 days"
   use_rth: true
   shortlist_only: true
@@ -108,7 +108,7 @@ histogram:
   low_activity_percentile: 0.20
 
 flex:
-  enabled: false
+  enabled: true
   import_trade_confirmations: true
   import_activity_daily: true
   mask_account_id: true

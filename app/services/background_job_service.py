@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import insert, select, update
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
+from app.services.background_queue import QueueClaimGroup, worker_queue_filter
 from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 
@@ -46,8 +48,15 @@ def enqueue_job(
     max_retries: int = 3,
     run_after: datetime | None = None,
     request_key: str | None = None,
+    workflow_key: str | None = None,
     coalesce: bool = True,
 ) -> BackgroundJob:
+    if workflow_key and request_key and coalesce:
+        existing = workflow_stage_job(db, workflow_key, job_type, request_key)
+        if existing is not None:
+            existing._coalesced = True
+            operational_metrics.increment("swinglens_jobs_coalesced_total", job_type=job_type)
+            return existing
     if request_key and coalesce:
         existing = active_job_for_request_key(db, job_type, request_key)
         if existing is not None:
@@ -55,16 +64,31 @@ def enqueue_job(
             operational_metrics.increment("swinglens_jobs_coalesced_total", job_type=job_type)
             return existing
 
-    job = BackgroundJob(
-        job_type=job_type,
-        related_run_id=related_run_id,
-        request_key=request_key,
-        status=JobStatus.QUEUED,
-        priority=priority,
-        payload_json=payload,
-        max_retries=max_retries,
-        run_after=run_after or _utcnow(),
-    )
+    if workflow_key is None and not _database_has_workflow_column(db):
+        return _enqueue_pre_migration_job(
+            db,
+            job_type=job_type,
+            payload=payload,
+            related_run_id=related_run_id,
+            priority=priority,
+            max_retries=max_retries,
+            run_after=run_after,
+            request_key=request_key,
+        )
+
+    job_values: dict[str, Any] = {
+        "job_type": job_type,
+        "related_run_id": related_run_id,
+        "request_key": request_key,
+        "status": JobStatus.QUEUED,
+        "priority": priority,
+        "payload_json": payload,
+        "max_retries": max_retries,
+        "run_after": run_after or _utcnow(),
+    }
+    if workflow_key is not None:
+        job_values["workflow_key"] = workflow_key
+    job = BackgroundJob(**job_values)
     try:
         begin_nested = getattr(db, "begin_nested", None)
         if request_key and coalesce and callable(begin_nested):
@@ -75,12 +99,91 @@ def enqueue_job(
             db.add(job)
             db.flush()
     except IntegrityError:
-        existing = active_job_for_request_key(db, job_type, request_key)
+        existing = (
+            workflow_stage_job(db, workflow_key, job_type, request_key)
+            if workflow_key and request_key
+            else active_job_for_request_key(db, job_type, request_key)
+        )
         if existing is None:
             raise
         existing._coalesced = True
         operational_metrics.increment("swinglens_jobs_coalesced_total", job_type=job_type)
         return existing
+    operational_metrics.increment("swinglens_jobs_enqueued_total", job_type=job_type)
+    return job
+
+
+def workflow_stage_job(
+    db: Session,
+    workflow_key: str | None,
+    job_type: str,
+    request_key: str | None,
+) -> BackgroundJob | None:
+    if not workflow_key or not request_key:
+        return None
+    local_job = _workflow_job_from_local_store(db, workflow_key, job_type, request_key)
+    if local_job is not None:
+        return local_job
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return None
+    rows = scalars(
+        select(BackgroundJob)
+        .where(BackgroundJob.workflow_key == workflow_key)
+        .where(BackgroundJob.job_type == job_type)
+        .where(BackgroundJob.request_key == request_key)
+        .order_by(BackgroundJob.created_at.asc(), BackgroundJob.id.asc())
+        .limit(1)
+    )
+    values = rows.all() if hasattr(rows, "all") else list(rows)
+    return next((row for row in values if isinstance(row, BackgroundJob)), None)
+
+
+def _database_has_workflow_column(db: Session) -> bool:
+    get_bind = getattr(db, "get_bind", None)
+    if not callable(get_bind):
+        return True
+    bind = get_bind()
+    try:
+        return any(
+            column["name"] == "workflow_key"
+            for column in sa_inspect(bind).get_columns("background_jobs")
+        )
+    except Exception:
+        return True
+
+
+def _enqueue_pre_migration_job(
+    db: Session,
+    *,
+    job_type: str,
+    payload: dict[str, Any],
+    related_run_id: int | None,
+    priority: int,
+    max_retries: int,
+    run_after: datetime | None,
+    request_key: str | None,
+) -> BackgroundJob:
+    job_id = db.scalar(
+        insert(BackgroundJob.__table__)
+        .values(
+            job_type=job_type,
+            related_run_id=related_run_id,
+            request_key=request_key,
+            status=JobStatus.QUEUED,
+            priority=priority,
+            payload_json=payload,
+            retry_count=0,
+            max_retries=max_retries,
+            requested_cancel=False,
+            run_after=run_after or _utcnow(),
+            operational_metadata_json={},
+        )
+        .returning(BackgroundJob.id)
+    )
+    job = db.scalar(select(BackgroundJob).where(BackgroundJob.id == job_id))
+    if job is None:
+        raise RuntimeError("Background job insert did not return a row.")
     operational_metrics.increment("swinglens_jobs_enqueued_total", job_type=job_type)
     return job
 
@@ -120,18 +223,19 @@ def claim_next_job(
     db: Session,
     worker_id: str,
     lease_seconds: int = DEFAULT_LEASE_SECONDS,
+    queues: Iterable[str] | None = None,
+    claim_groups: Iterable[QueueClaimGroup] | None = None,
 ) -> BackgroundJob | None:
-    job_id = db.scalar(
-        select(BackgroundJob.id)
-        .where(BackgroundJob.status == JobStatus.QUEUED)
-        .where(BackgroundJob.run_after <= _utcnow())
-        .order_by(
-            BackgroundJob.priority.asc(),
-            BackgroundJob.created_at.asc(),
-        )
-        .with_for_update(skip_locked=True)
-        .limit(1)
+    groups = (
+        tuple(claim_groups)
+        if claim_groups is not None
+        else (QueueClaimGroup(tuple(queues)) if queues is not None else QueueClaimGroup(()),)
     )
+    job_id = None
+    for group in groups:
+        job_id = _claim_ready_job_id(db, group)
+        if job_id is not None:
+            break
     if job_id is None:
         return None
 
@@ -150,15 +254,39 @@ def claim_next_job(
     job.lease_expires_at = _lease_expiry(now, lease_seconds)
     job.started_at = job.started_at or now
     job.error_message = None
-    job.operational_metadata_json = _with_lease_event(
-        job.operational_metadata_json,
-        event_type="CLAIMED",
-        occurred_at=now,
-        worker_id=worker_id,
-        execution_token=execution_token,
+    job.operational_metadata_json = _with_attempt_started(
+        _with_lease_event(
+            job.operational_metadata_json,
+            event_type="CLAIMED",
+            occurred_at=now,
+            worker_id=worker_id,
+            execution_token=execution_token,
+        ),
+        job=job,
+        started_at=now,
     )
     db.flush()
     return job
+
+
+def _claim_ready_job_id(db: Session, group: QueueClaimGroup) -> int | None:
+    query = select(BackgroundJob.id).where(BackgroundJob.status == JobStatus.QUEUED)
+    query = query.where(BackgroundJob.run_after <= _utcnow())
+    if group.queues:
+        queue_filter = worker_queue_filter(group.queues)
+        if queue_filter is not None:
+            query = query.where(queue_filter)
+    if group.created_before is not None:
+        query = query.where(BackgroundJob.created_at <= group.created_before).order_by(
+            BackgroundJob.created_at.asc(),
+            BackgroundJob.priority.asc(),
+        )
+    else:
+        query = query.order_by(
+            BackgroundJob.priority.asc(),
+            BackgroundJob.created_at.asc(),
+        )
+    return db.scalar(query.with_for_update(skip_locked=True).limit(1))
 
 
 def mark_job_completed(
@@ -209,6 +337,11 @@ def mark_job_failed_or_retry(
         "worker_id": None,
         "lease_owner": None,
         "execution_token": None,
+        "operational_metadata_json": _with_attempt_finished(
+            job.operational_metadata_json,
+            finished_at=now,
+            status="RETRYING" if retry_count <= job.max_retries else JobStatus.FAILED,
+        ),
     }
     if retry_count <= job.max_retries:
         values["status"] = JobStatus.QUEUED
@@ -227,6 +360,39 @@ def mark_job_failed_or_retry(
         metric_name,
         job_type=job.job_type,
         status=str(values["status"]),
+    )
+
+
+def mark_job_deferred(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    delay: timedelta,
+    reason: str,
+    execution_token: str | None = None,
+) -> None:
+    expected_token = _expected_execution_token(job, execution_token)
+    now = _utcnow()
+    values: dict[str, Any] = {
+        "status": JobStatus.QUEUED,
+        "run_after": now + delay,
+        "error_message": _safe_error(reason),
+        "locked_at": None,
+        "heartbeat_at": None,
+        "lease_expires_at": None,
+        "worker_id": None,
+        "lease_owner": None,
+        "execution_token": None,
+        "operational_metadata_json": _with_attempt_finished(
+            job.operational_metadata_json,
+            finished_at=now,
+            status="DEFERRED",
+        ),
+    }
+    _apply_running_job_update(db, job, expected_token, values)
+    operational_metrics.increment(
+        "swinglens_jobs_deferred_total",
+        job_type=job.job_type,
     )
 
 
@@ -305,14 +471,23 @@ def recover_stale_jobs(db: Session, stale_after_seconds: int) -> int:
         else:
             job.status = JobStatus.STALE
             job.completed_at = now
-        job.operational_metadata_json = _with_lease_event(
-            job.operational_metadata_json,
-            event_type="RECOVERED",
-            occurred_at=now,
-            worker_id=old_worker_id,
-            execution_token=old_execution_token,
+        job.operational_metadata_json = _with_attempt_finished(
+            _with_lease_event(
+                job.operational_metadata_json,
+                event_type="RECOVERED",
+                occurred_at=now,
+                worker_id=old_worker_id,
+                execution_token=old_execution_token,
+            ),
+            finished_at=now,
+            status="STALE_RECOVERED",
         )
         recovered_count += 1
+
+    if recovered_count:
+        operational_metrics.increment(
+            "swinglens_jobs_stale_recovered_total", value=recovered_count
+        )
 
     db.flush()
     return recovered_count
@@ -343,6 +518,11 @@ def _finish_job(
         "lease_owner": None,
         "execution_token": None,
         "completed_at": now,
+        "operational_metadata_json": _with_attempt_finished(
+            job.operational_metadata_json,
+            finished_at=now,
+            status=status,
+        ),
     }
     if status == JobStatus.CANCELLED:
         values["requested_cancel"] = True
@@ -434,6 +614,29 @@ def _active_job_from_local_store(
     return None
 
 
+def _workflow_job_from_local_store(
+    db: Session,
+    workflow_key: str,
+    job_type: str,
+    request_key: str,
+) -> BackgroundJob | None:
+    for attr_name in ("background_jobs", "jobs", "stale_jobs"):
+        rows = getattr(db, attr_name, None)
+        if rows is None:
+            continue
+        candidates = rows.values() if isinstance(rows, dict) else rows
+        for row in candidates:
+            if not isinstance(row, BackgroundJob):
+                continue
+            if (
+                row.workflow_key == workflow_key
+                and row.job_type == job_type
+                and row.request_key == request_key
+            ):
+                return row
+    return None
+
+
 def _with_lease_event(
     metadata: dict[str, Any] | None,
     *,
@@ -454,6 +657,66 @@ def _with_lease_event(
     )
     updated["lease_events"] = events[-LEASE_EVENT_MAX_COUNT:]
     return updated
+
+
+def _with_attempt_started(
+    metadata: dict[str, Any] | None,
+    *,
+    job: BackgroundJob,
+    started_at: datetime,
+) -> dict[str, Any]:
+    updated = dict(metadata or {})
+    attempt_count = int(updated.get("attempt_count") or 0) + 1
+    updated["attempt_count"] = attempt_count
+    updated["current_attempt"] = {
+        "attempt_number": attempt_count,
+        "started_at": started_at.isoformat(),
+        "queue_delay_ms": _duration_ms(job.run_after or job.created_at, started_at),
+        "original_queue_delay_ms": _duration_ms(job.created_at, started_at),
+        "retry_count_at_start": int(job.retry_count or 0),
+    }
+    return updated
+
+
+def _with_attempt_finished(
+    metadata: dict[str, Any] | None,
+    *,
+    finished_at: datetime,
+    status: str,
+) -> dict[str, Any]:
+    updated = dict(metadata or {})
+    attempt = dict(updated.pop("current_attempt", {}) or {})
+    started_at = _parse_datetime(attempt.get("started_at"))
+    attempt.update(
+        {
+            "finished_at": finished_at.isoformat(),
+            "execution_duration_ms": _duration_ms(started_at, finished_at),
+            "status": status,
+        }
+    )
+    updated["last_attempt"] = attempt
+    return updated
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _duration_ms(started_at: datetime | None, completed_at: datetime | None) -> float | None:
+    if started_at is None or completed_at is None:
+        return None
+    if started_at.tzinfo is None and completed_at.tzinfo is not None:
+        started_at = started_at.replace(tzinfo=completed_at.tzinfo)
+    if completed_at.tzinfo is None and started_at.tzinfo is not None:
+        completed_at = completed_at.replace(tzinfo=started_at.tzinfo)
+    return round(max(0.0, (completed_at - started_at).total_seconds() * 1000), 3)
 
 
 def _safe_error(error: str | Exception) -> str:

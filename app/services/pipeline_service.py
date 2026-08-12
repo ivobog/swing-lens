@@ -15,6 +15,7 @@ from app.services.background_job_service import (
 )
 from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import ceri_flags
+from app.services.market_data_prewarm_service import request_active_prewarm_preemption
 from app.services.operational_metrics import operational_metrics
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 from app.settings import get_settings
@@ -174,6 +175,15 @@ def start_pipeline(
             return existing_pipeline
 
     pipeline.result_json = {"background_job_id": job.id}
+    preempted_prewarm_jobs = request_active_prewarm_preemption(
+        db,
+        pipeline_run_id=pipeline.id,
+    )
+    if preempted_prewarm_jobs:
+        pipeline.result_json = {
+            **pipeline.result_json,
+            "preempted_prewarm_job_ids": preempted_prewarm_jobs,
+        }
     db.flush()
     operational_metrics.increment(
         "swinglens_pipelines_started_total",
@@ -203,6 +213,12 @@ def pipeline_step_names(
         if ceri_provider_ingest_enabled is None
         else effective_flags.enabled and bool(ceri_provider_ingest_enabled)
     )
+    if provider_ingest_enabled and ceri_provider_ingest_enabled is None:
+        settings = get_settings()
+        provider_ingest_enabled = bool(
+            settings.ceri_legacy_pipeline_scheduling_enabled
+            or settings.ceri_batched_workflow_enabled
+        )
     if not ceri_enabled and not provider_ingest_enabled and not setup_enabled:
         return PIPELINE_STEP_NAMES
     optional_steps: tuple[str, ...] = ()

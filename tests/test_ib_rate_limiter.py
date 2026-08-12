@@ -40,6 +40,30 @@ def test_rate_limiter_applies_retry_backoff() -> None:
     assert clock.sleeps == [20]
 
 
+def test_rate_limiter_cancels_during_long_retry_backoff() -> None:
+    clock = FakeClock()
+    limiter = IbHistoricalRateLimiter(
+        IbRateLimitConfig(
+            requests_per_minute=20,
+            min_seconds_between_requests=3,
+            backoff_seconds=90,
+            max_retries=3,
+            conservative_mode=True,
+        ),
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    )
+
+    completed = limiter.backoff_after_error(
+        RuntimeError("pacing"),
+        attempt=1,
+        should_cancel=lambda: clock.now >= 0.5,
+    )
+
+    assert completed is False
+    assert clock.now == 0.5
+
+
 class FakeClock:
     def __init__(self) -> None:
         self.now = 0.0

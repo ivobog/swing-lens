@@ -314,6 +314,31 @@ class TechnicalFeatureArtifact(Base):
         default=list,
         server_default=text("'[]'::jsonb"),
     )
+    shadow_validation_status: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="UNVALIDATED",
+        server_default="UNVALIDATED",
+    )
+    shadow_validation_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    shadow_mismatch_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    last_shadow_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_shadow_mismatch_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -336,6 +361,10 @@ class TechnicalFeatureArtifact(Base):
         CheckConstraint(
             "artifact_kind IN ('LOCAL', 'RELATIVE')",
             name="ck_technical_feature_artifacts_kind",
+        ),
+        CheckConstraint(
+            "shadow_validation_status IN ('UNVALIDATED', 'MATCH', 'MISMATCH')",
+            name="ck_technical_feature_artifacts_shadow_status",
         ),
         Index("idx_technical_feature_artifacts_last_used", "last_used_at"),
     )
@@ -1076,6 +1105,12 @@ class IBFetchRun(Base):
         default=False,
         server_default="false",
     )
+    decision_counts_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
     planned_request_count: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
@@ -1162,6 +1197,12 @@ class IBFetchItem(Base):
     )
     status: Mapped[str] = mapped_column(Text, nullable=False)
     reason: Mapped[str | None] = mapped_column(Text)
+    decision_metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
     current_bar_count: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
@@ -1308,6 +1349,14 @@ class BackgroundJob(Base):
     job_type: Mapped[str] = mapped_column(Text, nullable=False)
     related_run_id: Mapped[int | None] = mapped_column(BigInteger)
     request_key: Mapped[str | None] = mapped_column(Text)
+    # Deferred + NULL server default keeps pre-migration, v2-disabled web
+    # processes able to read/enqueue legacy jobs while a long transaction
+    # temporarily prevents the additive migration from taking its table lock.
+    workflow_key: Mapped[str | None] = mapped_column(
+        Text,
+        deferred=True,
+        server_default=text("NULL"),
+    )
     status: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[int] = mapped_column(
         Integer,
@@ -1380,6 +1429,28 @@ class BackgroundJob(Base):
         Index("idx_background_jobs_execution_token", "execution_token"),
         Index("idx_background_jobs_request_key", "request_key"),
         Index(
+            "idx_background_jobs_queue_claim",
+            "status",
+            "job_type",
+            "run_after",
+            "created_at",
+            "priority",
+        ),
+        Index(
+            "idx_background_jobs_workflow_type_status",
+            "workflow_key",
+            "job_type",
+            "status",
+        ),
+        Index(
+            "uq_background_jobs_workflow_stage",
+            "workflow_key",
+            "job_type",
+            "request_key",
+            unique=True,
+            postgresql_where=text("workflow_key IS NOT NULL AND request_key IS NOT NULL"),
+        ),
+        Index(
             "uq_background_jobs_active_request_key",
             "job_type",
             "request_key",
@@ -1387,6 +1458,33 @@ class BackgroundJob(Base):
             postgresql_where=text("request_key IS NOT NULL AND status IN ('QUEUED', 'RUNNING')"),
         ),
     )
+
+
+class BackgroundWorker(Base):
+    __tablename__ = "background_workers"
+
+    worker_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    queues_json: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+    hostname: Mapped[str | None] = mapped_column(Text)
+    process_id: Mapped[int | None] = mapped_column(Integer)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    stopping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (Index("idx_background_workers_heartbeat", "heartbeat_at"),)
 
 
 class PredictionEligibility:

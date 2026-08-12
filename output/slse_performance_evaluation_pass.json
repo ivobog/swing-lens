@@ -1,0 +1,137 @@
+{
+  "certification": "SLSE Phase 12 performance",
+  "database": "disposable PostgreSQL",
+  "evaluation": [
+    {
+      "capture_metrics": {
+        "setup_context_build_ms": 80.638,
+        "setup_latest_bar_query_ms": 14.848
+      },
+      "capture_query_count": 409,
+      "capture_seconds": 1.270972,
+      "post_capture_seconds": 3.291229,
+      "query_count": 1941,
+      "result": {
+        "active_episodes": 100,
+        "alerted": 0,
+        "alerts": 0,
+        "canonical": 100,
+        "canonical_changed": 100,
+        "canonical_snapshots": 100,
+        "captured": 100,
+        "change_events": 0,
+        "changed": 0,
+        "evaluation_run_id": 1,
+        "failed": 0,
+        "lifecycle_transitions": 0,
+        "low_confidence": 0,
+        "snapshots_captured": 100,
+        "status": "COMPLETED",
+        "transitioned": 0,
+        "warning": 300
+      },
+      "rss_after_bytes": 209100800,
+      "rss_before_bytes": 198348800,
+      "rss_delta_bytes": 10752000,
+      "ticker_count": 100,
+      "total_seconds": 4.562201
+    },
+    {
+      "capture_metrics": {
+        "setup_context_build_ms": 466.108,
+        "setup_latest_bar_query_ms": 34.162
+      },
+      "capture_query_count": 2009,
+      "capture_seconds": 5.285582,
+      "post_capture_seconds": 19.088907,
+      "query_count": 9532,
+      "result": {
+        "active_episodes": 600,
+        "alerted": 0,
+        "alerts": 0,
+        "canonical": 500,
+        "canonical_changed": 500,
+        "canonical_snapshots": 500,
+        "captured": 500,
+        "change_events": 0,
+        "changed": 0,
+        "evaluation_run_id": 2,
+        "failed": 0,
+        "lifecycle_transitions": 0,
+        "low_confidence": 0,
+        "snapshots_captured": 500,
+        "status": "COMPLETED",
+        "transitioned": 0,
+        "warning": 1500
+      },
+      "rss_after_bytes": 231636992,
+      "rss_before_bytes": 209108992,
+      "rss_delta_bytes": 22528000,
+      "ticker_count": 500,
+      "total_seconds": 24.374489
+    },
+    {
+      "capture_metrics": {
+        "setup_context_build_ms": 1363.859,
+        "setup_latest_bar_query_ms": 46.629
+      },
+      "capture_query_count": 4009,
+      "capture_seconds": 11.356755,
+      "post_capture_seconds": 45.85364,
+      "query_count": 19032,
+      "result": {
+        "active_episodes": 1600,
+        "alerted": 0,
+        "alerts": 0,
+        "canonical": 1000,
+        "canonical_changed": 1000,
+        "canonical_snapshots": 1000,
+        "captured": 1000,
+        "change_events": 0,
+        "changed": 0,
+        "evaluation_run_id": 3,
+        "failed": 0,
+        "lifecycle_transitions": 0,
+        "low_confidence": 0,
+        "snapshots_captured": 1000,
+        "status": "COMPLETED",
+        "transitioned": 0,
+        "warning": 3000
+      },
+      "rss_after_bytes": 265670656,
+      "rss_before_bytes": 231792640,
+      "rss_delta_bytes": 33878016,
+      "ticker_count": 1000,
+      "total_seconds": 57.210395
+    }
+  ],
+  "fixture": {
+    "combined_change_count": 103200,
+    "snapshot_count": 111600,
+    "synthetic_scope": "performance-only manufactured history"
+  },
+  "generated_at": "2026-08-12T01:14:00.961715+00:00",
+  "queries": {
+    "market_changes_first_page": {
+      "item_count_max": 50,
+      "item_count_min": 50,
+      "max_ms": 676.478,
+      "min_ms": 404.42,
+      "p50_ms": 466.951,
+      "p95_ms": 572.746,
+      "p99_ms": 676.478,
+      "query_count_max": 7,
+      "query_count_min": 7,
+      "rss_after_bytes": 291155968,
+      "rss_before_bytes": 290992128,
+      "rss_delta_bytes": 163840,
+      "samples": 20
+    }
+  },
+  "status": "FAIL",
+  "targets": {
+    "evaluation_1000_tickers_seconds": 60,
+    "minimum_snapshot_history": 100000,
+    "query_p95_ms": 500
+  }
+}

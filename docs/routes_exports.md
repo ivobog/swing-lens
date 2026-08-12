@@ -127,6 +127,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/api/setup-lifecycle/episodes/{episode_id}/export.json` | `export_setup_lifecycle_episode_json` |
 | POST | `/api/setup-lifecycle/evaluate` | `evaluate_setup_lifecycle_run` |
 | POST | `/api/setup-lifecycle/evaluate-run` | `evaluate_setup_lifecycle_run` |
+| POST | `/api/setup-lifecycle/evaluations` | `queue_setup_lifecycle_evaluation` |
 | GET | `/api/setup-lifecycle/evaluations/{evaluation_id}` | `setup_lifecycle_evaluation` |
 | GET | `/api/setup-lifecycle/filter-options` | `setup_lifecycle_filter_options` |
 | GET | `/api/setup-lifecycle/operations` | `setup_lifecycle_operations` |

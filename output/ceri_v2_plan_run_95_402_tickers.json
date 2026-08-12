@@ -1,0 +1,696 @@
+{
+  "expected_total_job_count": 117,
+  "feature_batches": 9,
+  "initial_job_count": 114,
+  "jobs": [
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0001",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0002",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0003",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0004",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0005",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0006",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0007",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0008",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0009",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0010",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0011",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0012",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0013",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0014",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0015",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0016",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 80,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:estimates:0017",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0001",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0002",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0003",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0004",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0005",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0006",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0007",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0008",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 81,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:estimates:0009",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0001",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0002",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0003",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0004",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0005",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0006",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0007",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0008",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0009",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0010",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0011",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0012",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0013",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0014",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0015",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0016",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 90,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:earnings:0017",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0001",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0002",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0003",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0004",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0005",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0006",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0007",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0008",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 91,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:earnings:0009",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0001",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0002",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0003",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0004",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0005",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0006",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0007",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0008",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0009",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0010",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0011",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0012",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0013",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0014",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0015",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0016",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 100,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:eodhd:catalysts:0017",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0001",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0002",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0003",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0004",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0005",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0006",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0007",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0008",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 101,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:eodhd:catalysts:0009",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0001",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0002",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0003",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0004",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0005",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0006",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0007",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0008",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0009",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0010",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0011",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0012",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0013",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0014",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0015",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0016",
+      "ticker_count": 25
+    },
+    {
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "priority": 120,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:provider:sec:guidance:0017",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0001",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0002",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0003",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0004",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0005",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0006",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0007",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0008",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "priority": 121,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:normalize:sec:guidance:0009",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0001",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0002",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0003",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0004",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0005",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0006",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0007",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0008",
+      "ticker_count": 50
+    },
+    {
+      "job_type": "CERI_FEATURE_BATCH",
+      "priority": 130,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:feature:0009",
+      "ticker_count": 2
+    },
+    {
+      "job_type": "CERI_RUN_FINALIZE",
+      "priority": 140,
+      "request_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160:finalize",
+      "ticker_count": 0
+    }
+  ],
+  "normalization_batches": 36,
+  "provider_batches": 68,
+  "run_id": 95,
+  "ticker_count": 402,
+  "workflow_key": "ceri:pipeline:95:26e9bf1d65e2dbbe4aacdd608188219ed92f9971fbaa25ae6e1407fd9ec98160"
+}

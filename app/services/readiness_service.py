@@ -15,6 +15,7 @@ from sqlalchemy.pool import NullPool
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
 from app.services.redaction import redact_text
+from app.services.worker_registry import live_workers
 from app.settings import Settings
 
 
@@ -58,15 +59,17 @@ class ReadinessService:
         if database.ok:
             migrations = self._migration_check()
             jobs = self._jobs_check()
+            worker = self._worker_check()
         else:
             dependency_message = "skipped: database unavailable"
             migrations = ReadinessCheck(False, dependency_message)
             jobs = ReadinessCheck(False, dependency_message)
+            worker = ReadinessCheck(False, dependency_message)
         checks = {
             "database": database,
             "migrations": migrations,
             "storage": self._storage_check(),
-            "worker": self._worker_check(),
+            "worker": worker,
             "jobs": jobs,
         }
         status = "ok" if all(check.ok for check in checks.values()) else "degraded"
@@ -126,9 +129,21 @@ class ReadinessService:
     def _worker_check(self) -> ReadinessCheck:
         if not self.settings.use_durable_pipeline:
             return ReadinessCheck(True, "not required")
-        if not self.settings.job_worker_enabled:
-            return ReadinessCheck(False, "durable pipeline worker is disabled")
-        return ReadinessCheck(True, f"configured:{self.settings.job_worker_id}")
+        try:
+            with Session(self.engine) as session:
+                workers = live_workers(
+                    session,
+                    heartbeat_timeout_seconds=(
+                        self.settings.job_worker_heartbeat_timeout_seconds
+                    ),
+                    now=self.now,
+                )
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        if not workers:
+            return ReadinessCheck(False, "no live durable worker heartbeat")
+        worker_ids = ",".join(worker.worker_id for worker in workers)
+        return ReadinessCheck(True, f"live:{worker_ids}")
 
     def _jobs_check(self) -> ReadinessCheck:
         try:

@@ -84,6 +84,28 @@ def test_ceri_provider_schedule_prioritizes_score_inputs_before_sec_guidance(
     assert added[0].current_provider_ids_json == {"eodhd": "MSFT.US"}
 
 
+def test_ceri_provider_schedule_routes_exclusively_to_batched_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+    monkeypatch.setattr(
+        pipeline_executor,
+        "get_settings",
+        lambda: SimpleNamespace(
+            ceri_batched_workflow_enabled=True,
+            ceri_legacy_pipeline_scheduling_enabled=False,
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.ceri.batched_workflow.schedule_ceri_batched_workflow",
+        lambda _db, run_id: calls.append(run_id)
+        or SimpleNamespace(provider_batches=68),
+    )
+
+    assert _schedule_ceri_provider_ingest(object(), run_id=95) == 68
+    assert calls == [95]
+
+
 def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
     calls = []
@@ -133,6 +155,11 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
     assert db.pipeline.result_json["sector_rotation_warning_count"] == 0
     assert db.pipeline.result_json["performance"]["phase"] == 1
     assert "SCORING_TECHNICALS" in db.pipeline.result_json["performance"]["step_durations_ms"]
+    assert "pipeline_queue_delay_ms" in db.pipeline.result_json["performance"]
+    assert db.pipeline.result_json["performance"]["pipeline_execution_ms"] >= 0
+    assert "pipeline_total_wall_ms" in db.pipeline.result_json["performance"]
+    assert "technical_worker_processes" in db.pipeline.result_json["performance"]
+    assert "technical_cache_hits" in db.pipeline.result_json["performance"]
     assert result.performance["phase"] == 1
     assert {step.status for step in db.steps} == {PipelineStepStatus.COMPLETED}
 

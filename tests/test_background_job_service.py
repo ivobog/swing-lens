@@ -13,6 +13,7 @@ from app.services.background_job_service import (
     is_cancel_requested,
     mark_job_cancelled,
     mark_job_completed,
+    mark_job_deferred,
     mark_job_failed_or_retry,
     mark_job_partial,
     recover_stale_jobs,
@@ -67,7 +68,14 @@ def test_enqueue_job_coalesces_matching_active_request_key() -> None:
 
 
 def test_claim_next_job_marks_job_running() -> None:
-    job = BackgroundJob(id=11, job_type="FULL_PIPELINE", status=JobStatus.QUEUED)
+    created_at = datetime.now(UTC) - timedelta(seconds=3)
+    job = BackgroundJob(
+        id=11,
+        job_type="FULL_PIPELINE",
+        status=JobStatus.QUEUED,
+        created_at=created_at,
+        run_after=created_at,
+    )
     db = FakeDb(existing=job, scalar_result=11)
 
     claimed = claim_next_job(db, worker_id="worker-a")
@@ -86,7 +94,34 @@ def test_claim_next_job_marks_job_running() -> None:
     assert "execution_token" not in lease_event
     assert lease_event["execution_token_hash"]
     assert lease_event["execution_token_suffix"] == job.execution_token[-6:]
+    attempt = job.operational_metadata_json["current_attempt"]
+    assert attempt["attempt_number"] == 1
+    assert attempt["queue_delay_ms"] >= 3_000
+    assert attempt["original_queue_delay_ms"] >= 3_000
     assert db.flushes == 1
+
+
+def test_job_attempt_metadata_distinguishes_queue_and_execution_time() -> None:
+    created_at = datetime.now(UTC) - timedelta(seconds=4)
+    job = BackgroundJob(
+        id=11,
+        job_type="FULL_PIPELINE",
+        status=JobStatus.QUEUED,
+        created_at=created_at,
+        run_after=created_at,
+    )
+    db = FakeDb(existing=job, scalar_result=job.id)
+
+    claim_next_job(db, worker_id="worker-a")
+    token = job.execution_token
+    mark_job_completed(db, job, {"ok": True}, execution_token=token)
+
+    metadata = job.operational_metadata_json
+    assert "current_attempt" not in metadata
+    assert metadata["attempt_count"] == 1
+    assert metadata["last_attempt"]["queue_delay_ms"] >= 4_000
+    assert metadata["last_attempt"]["execution_duration_ms"] >= 0
+    assert metadata["last_attempt"]["status"] == JobStatus.COMPLETED
 
 
 def test_claim_next_job_returns_none_when_queue_is_empty() -> None:
@@ -213,6 +248,32 @@ def test_failed_job_error_message_redacts_sensitive_details() -> None:
     assert "secret-token" not in job.error_message
     assert r"C:\Users\Ivica" not in job.error_message
     assert "<restricted:path>" in job.error_message
+
+
+def test_deferred_job_preserves_retry_budget_and_releases_lease() -> None:
+    job = _running_job(retry_count=2, max_retries=3)
+    job.operational_metadata_json = {
+        "current_attempt": {
+            "attempt_number": 1,
+            "started_at": (datetime.now(UTC) - timedelta(seconds=2)).isoformat(),
+        }
+    }
+    db = FakeDb(existing=job)
+
+    mark_job_deferred(
+        db,
+        job,
+        delay=timedelta(seconds=7),
+        reason="upstream batches pending",
+        execution_token=job.execution_token,
+    )
+
+    assert job.status == JobStatus.QUEUED
+    assert job.retry_count == 2
+    assert job.execution_token is None
+    assert job.lease_owner is None
+    assert job.run_after > datetime.now(UTC)
+    assert job.operational_metadata_json["last_attempt"]["status"] == "DEFERRED"
 
 
 def test_request_job_cancel_cancels_queued_job_immediately() -> None:

@@ -25,7 +25,15 @@ def _disable_optional_pipeline_flags(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.pipeline_service.get_settings",
-        lambda: type("SettingsStub", (), {"setup_lifecycle_pipeline_step_enabled": False})(),
+        lambda: type(
+            "SettingsStub",
+            (),
+            {
+                "setup_lifecycle_pipeline_step_enabled": False,
+                "ceri_legacy_pipeline_scheduling_enabled": True,
+                "ceri_batched_workflow_enabled": False,
+            },
+        )(),
     )
 
 
@@ -60,6 +68,26 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     assert job.status == JobStatus.QUEUED
     assert job.payload_json == {"pipeline_run_id": pipeline.id}
     assert pipeline.result_json == {"background_job_id": job.id}
+
+
+def test_new_pipeline_requests_running_prewarm_preemption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upload_run = UploadRun(id=7, filename="sample.csv", status="COMPLETED")
+    db = FakeDb(upload_runs={7: upload_run})
+    calls = []
+    monkeypatch.setattr(
+        "app.services.pipeline_service.request_active_prewarm_preemption",
+        lambda db, *, pipeline_run_id: calls.append(pipeline_run_id) or [91],
+    )
+
+    pipeline = start_pipeline(db, upload_run_id=7, requested_by="local-user")
+
+    assert calls == [pipeline.id]
+    assert pipeline.result_json == {
+        "background_job_id": 1,
+        "preempted_prewarm_job_ids": [91],
+    }
 
 
 def test_start_pipeline_coalesces_matching_active_pipeline_request() -> None:
@@ -127,6 +155,32 @@ def test_pipeline_step_names_insert_ceri_before_setup_lifecycle_and_winner() -> 
         *CERI_PIPELINE_STEPS,
         *SLSE_PIPELINE_STEPS,
     )
+
+
+def test_pipeline_step_names_can_pause_only_legacy_ceri_scheduling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.pipeline_service.ceri_flags",
+        lambda: CeriFeatureFlags(True, True, True, False, True, False, False),
+    )
+    monkeypatch.setattr(
+        "app.services.pipeline_service.get_settings",
+        lambda: type(
+            "SettingsStub",
+            (),
+            {
+                "setup_lifecycle_pipeline_step_enabled": False,
+                "ceri_legacy_pipeline_scheduling_enabled": False,
+                "ceri_batched_workflow_enabled": False,
+            },
+        )(),
+    )
+
+    steps = pipeline_step_names()
+
+    assert "CERI_PROVIDER_INGEST" not in steps
+    assert CERI_PIPELINE_STEPS == steps[7:-1]
 
 
 def test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled() -> None:

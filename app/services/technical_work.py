@@ -34,6 +34,7 @@ class TechnicalWorkItem:
     input_signature: str = ""
     artifact_key: dict[str, Any] | None = None
     cached_local_artifact: dict[str, Any] | None = None
+    shadow_local_artifact: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,8 @@ class TechnicalWorkResult:
     score: PineReplicaScore | None
     error: str | None
     artifact_key: dict[str, Any] | None = None
+    shadow_score: PineReplicaScore | None = None
+    shadow_error: str | None = None
 
 
 def build_technical_work_item(
@@ -66,6 +69,7 @@ def build_technical_work_item(
     input_signature: str = "",
     artifact_key: dict[str, Any] | None = None,
     cached_local_artifact: dict[str, Any] | None = None,
+    shadow_local_artifact: dict[str, Any] | None = None,
 ) -> TechnicalWorkItem:
     return TechnicalWorkItem(
         ticker=ticker.upper(),
@@ -81,6 +85,7 @@ def build_technical_work_item(
         input_signature=input_signature,
         artifact_key=artifact_key,
         cached_local_artifact=cached_local_artifact,
+        shadow_local_artifact=shadow_local_artifact,
     )
 
 
@@ -111,10 +116,9 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
             )
             htf_features = calculate_htf_trend_features(price, params=item.pine_config)
         else:
-            feature_result = TechnicalFeatureResult(
-                **item.cached_local_artifact["feature_result"]
+            feature_result, htf_features = _artifact_features(
+                item.cached_local_artifact
             )
-            htf_features = dict(item.cached_local_artifact["htf_features"])
         relative_strength_features = _relative_strength_features(
             price,
             benchmark,
@@ -131,6 +135,24 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
             params=item.pine_config,
             v4_params=item.technical_config,
         )
+        shadow_score = None
+        shadow_error = None
+        if item.shadow_local_artifact is not None:
+            try:
+                shadow_features, shadow_htf_features = _artifact_features(
+                    item.shadow_local_artifact
+                )
+                shadow_score = score_from_feature_result(
+                    shadow_features,
+                    htf_features=shadow_htf_features,
+                    relative_strength_features=relative_strength_features,
+                    market_features=item.market_features,
+                    qqq_market_features=item.qqq_market_features,
+                    params=item.pine_config,
+                    v4_params=item.technical_config,
+                )
+            except Exception as exc:
+                shadow_error = str(exc)
         return TechnicalWorkResult(
             ticker=item.ticker,
             input_signature=item.input_signature,
@@ -141,6 +163,8 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
             score=score,
             error=None,
             artifact_key=item.artifact_key,
+            shadow_score=shadow_score,
+            shadow_error=shadow_error,
         )
     except Exception as exc:
         return TechnicalWorkResult(
@@ -153,7 +177,18 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
             score=None,
             error=str(exc),
             artifact_key=item.artifact_key,
+            shadow_score=None,
+            shadow_error=None,
         )
+
+
+def _artifact_features(
+    artifact: dict[str, Any],
+) -> tuple[TechnicalFeatureResult, dict[str, Any]]:
+    return (
+        TechnicalFeatureResult(**artifact["feature_result"]),
+        dict(artifact["htf_features"]),
+    )
 
 
 def _relative_strength_features(

@@ -161,6 +161,64 @@ def test_normalization_service_reuses_existing_catalyst_event_for_duplicate_sour
     assert sources[0].catalyst_event_id == 99
 
 
+def test_normalization_resume_starts_after_durable_checkpoint() -> None:
+    db = FakeDb()
+    processing_run = CeriProcessingRun(
+        id=8,
+        job_type="CERI_NORMALIZE_BATCH",
+        status="RUNNING",
+        deterministic_request_key="normalize-resume",
+        checkpoint_json={"last_source_record_id": 3, "last_record_index": 3},
+        read_count=3,
+        normalized_count=3,
+        failed_count=0,
+        warning_count=0,
+        counts_json={"quarantined": 0},
+        started_at=datetime(2026, 8, 9),
+    )
+    records = [
+        CeriSourceRecord(
+            id=index,
+            provider="manual",
+            dataset="estimates",
+            provider_record_id=f"est-{index}",
+            company_hint_json={"ticker": "MSFT"},
+            raw_json={
+                "ticker": "MSFT",
+                "metric": "EPS_DILUTED",
+                "period_type": "ANNUAL",
+                "fiscal_year": 2026 + index,
+                "consensus": "10.0",
+                "currency": "USD",
+            },
+            content_hash=f"hash-{index}",
+            idempotency_key=f"key-{index}",
+        )
+        for index in range(1, 9)
+    ]
+    checkpoints = []
+    service = CeriNormalizationService(
+        identity_resolver=CeriIdentityResolver(
+            companies=[CeriCompany(id=42, ticker="MSFT")]
+        )
+    )
+
+    result = service.normalize(
+        db,
+        processing_run=processing_run,
+        source_records=records,
+        checkpoint_interval=2,
+        checkpoint_callback=lambda checkpoint: checkpoints.append(checkpoint),
+    )
+
+    estimates = [row for row in db.added if isinstance(row, CeriEstimateSnapshot)]
+    assert [row.source_record_id for row in estimates] == [4, 5, 6, 7, 8]
+    assert result.read == 8
+    assert result.normalized == 8
+    assert [checkpoint["last_source_record_id"] for checkpoint in checkpoints] == [5, 7]
+    assert processing_run.checkpoint_json["last_source_record_id"] == 8
+
+
 class FakeDb:
     def __init__(self, scalar_queue=None) -> None:
         self.scalar_queue = list(scalar_queue or [])

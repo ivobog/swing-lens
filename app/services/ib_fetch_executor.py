@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from time import perf_counter
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,7 +13,14 @@ from app.services.ib_api import IB
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_data_fetcher import fetch_daily_bars
-from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
+from app.services.ib_fetch_plan_service import (
+    FetchAction,
+    FetchPlan,
+    FetchPlanItem,
+    _decision_category,
+    _incremental_request_window,
+    _plan_action,
+)
 from app.services.ib_rate_limiter import (
     IbHistoricalRateLimiter,
     rate_limit_config_from_settings,
@@ -61,15 +69,28 @@ def execute_fetch_plan(
         force_full_backfill=force_full_backfill,
         fetch_run_id=fetch_run_id,
     )
+    for decision, count in plan.decision_counts.items():
+        operational_metrics.increment(
+            "swinglens_ib_fetch_decisions_total",
+            value=count,
+            decision=decision,
+        )
     ib = ib_client_factory() if ib_client_factory else create_ib_client()
     completed_by_ticker: dict[str, list[IBFetchItem]] = defaultdict(list)
     expected_by_ticker: dict[str, int] = defaultdict(int)
     notified_tickers: set[str] = set()
+    performance: dict[str, float] = {
+        "ib_pacing_wait_ms": 0.0,
+        "ib_network_ms": 0.0,
+        "bar_cache_write_ms": 0.0,
+    }
     for plan_item in plan.items:
         expected_by_ticker[plan_item.ticker.upper()] += 1
     execution_items = _benchmark_first_items(plan.items, settings.ib_benchmark_symbols)
 
     try:
+        if hasattr(ib, "RequestTimeout"):
+            ib.RequestTimeout = settings.ib_timeout_seconds
         ib.connect(
             settings.ib_host,
             settings.ib_port,
@@ -95,8 +116,13 @@ def execute_fetch_plan(
                 settings=settings,
                 force_refresh=force_refresh,
                 force_full_backfill=force_full_backfill,
+                performance=performance,
+                should_cancel=should_cancel,
             )
+            cancel_after_item = bool(should_cancel and should_cancel())
             _refresh_run_totals(fetch_run)
+            if cancel_after_item:
+                _mark_run_cancelled(fetch_run)
             db.commit()
             _record_ticker_completion(
                 fetch_item=fetch_item,
@@ -105,6 +131,8 @@ def execute_fetch_plan(
                 notified_tickers=notified_tickers,
                 on_ticker_ready=on_ticker_ready,
             )
+            if cancel_after_item:
+                break
     except Exception as exc:
         fetch_run.status = "FAILED"
         fetch_run.completed_at = datetime.now(UTC)
@@ -124,6 +152,9 @@ def execute_fetch_plan(
         db.flush()
         db.commit()
 
+    fetch_run._performance = {key: round(value, 3) for key, value in performance.items()}
+    for name, value in fetch_run._performance.items():
+        operational_metrics.increment(f"swinglens_{name}_total", value=value)
     return fetch_run
 
 
@@ -145,6 +176,7 @@ def _start_fetch_run(
         fetch_run.include_benchmarks = include_benchmarks
         fetch_run.force_refresh = force_refresh
         fetch_run.force_full_backfill = force_full_backfill
+        fetch_run.decision_counts_json = plan.decision_counts
         fetch_run.planned_request_count = plan.estimated_request_count
         fetch_run.status = "RUNNING"
         fetch_run.message = None
@@ -158,6 +190,7 @@ def _start_fetch_run(
         include_benchmarks=include_benchmarks,
         force_refresh=force_refresh,
         force_full_backfill=force_full_backfill,
+        decision_counts_json=plan.decision_counts,
         planned_request_count=plan.estimated_request_count,
         status="RUNNING",
     )
@@ -176,6 +209,7 @@ def _create_fetch_item(fetch_run: IBFetchRun, plan_item: FetchPlanItem) -> IBFet
         bar_size=plan_item.bar_size,
         status="PLANNED",
         reason=plan_item.reason,
+        decision_metadata_json=_decision_metadata(plan_item),
         current_bar_count=plan_item.current_bar_count,
         fetched=0,
         inserted=0,
@@ -195,7 +229,10 @@ def _execute_plan_item(
     settings: Settings,
     force_refresh: bool,
     force_full_backfill: bool,
+    performance: dict[str, float] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> None:
+    performance = performance if performance is not None else {}
     fetch_item.started_at = datetime.now(UTC)
     fetch_item.status = "RUNNING"
     db.flush()
@@ -225,6 +262,11 @@ def _execute_plan_item(
     fetch_item.action = action.value
     fetch_item.duration = duration
     fetch_item.reason = reason
+    fetch_item.decision_metadata_json = _decision_metadata(
+        plan_item,
+        action=action,
+        duration=duration,
+    )
     if action == FetchAction.SKIP:
         _mark_skipped(fetch_item, reason)
         return
@@ -235,21 +277,39 @@ def _execute_plan_item(
     for attempt in range(1, settings.ib_max_retries + 1):
         fetch_item.attempt_count = attempt
         try:
-            rate_limiter.wait_before_request()
-            bars = fetch_daily_bars(
-                ib,
-                resolution.contract,
-                plan_item.what_to_show,
-                settings=settings,
-                duration=duration,
-                bar_size=plan_item.bar_size,
-            )
-            upsert = cache_bars(
-                db,
-                bars,
-                fetch_run_id=fetch_item.fetch_run_id or getattr(fetch_item.fetch_run, "id", None),
-                fetch_item_id=fetch_item.id,
-            )
+            pacing_started = perf_counter()
+            if isinstance(rate_limiter, IbHistoricalRateLimiter):
+                pacing_ready = rate_limiter.wait_before_request(should_cancel)
+            else:
+                rate_limiter.wait_before_request()
+                pacing_ready = True
+            _add_duration(performance, "ib_pacing_wait_ms", pacing_started)
+            if not pacing_ready:
+                _mark_skipped(fetch_item, "Cancellation requested during IB pacing wait.")
+                return
+            network_started = perf_counter()
+            try:
+                bars = fetch_daily_bars(
+                    ib,
+                    resolution.contract,
+                    plan_item.what_to_show,
+                    settings=settings,
+                    duration=duration,
+                    bar_size=plan_item.bar_size,
+                )
+            finally:
+                _add_duration(performance, "ib_network_ms", network_started)
+            cache_started = perf_counter()
+            try:
+                upsert = cache_bars(
+                    db,
+                    bars,
+                    fetch_run_id=fetch_item.fetch_run_id
+                    or getattr(fetch_item.fetch_run, "id", None),
+                    fetch_item_id=fetch_item.id,
+                )
+            finally:
+                _add_duration(performance, "bar_cache_write_ms", cache_started)
             fetch_item.fetched = len(bars)
             fetch_item.inserted = upsert.inserted
             fetch_item.updated = upsert.updated
@@ -263,7 +323,25 @@ def _execute_plan_item(
             if attempt >= settings.ib_max_retries:
                 _mark_failed(fetch_item, str(exc))
                 return
-            rate_limiter.backoff_after_error(exc, attempt)
+            if should_cancel and should_cancel():
+                _mark_skipped(fetch_item, "Cancellation requested before IB retry.")
+                return
+            if isinstance(rate_limiter, IbHistoricalRateLimiter):
+                backoff_completed = rate_limiter.backoff_after_error(
+                    exc,
+                    attempt,
+                    should_cancel,
+                )
+            else:
+                rate_limiter.backoff_after_error(exc, attempt)
+                backoff_completed = True
+            if not backoff_completed:
+                _mark_skipped(fetch_item, "Cancellation requested during IB retry backoff.")
+                return
+
+
+def _add_duration(performance: dict[str, float], name: str, started_at: float) -> None:
+    performance[name] = performance.get(name, 0.0) + max(0.0, (perf_counter() - started_at) * 1000)
 
 
 def _execution_action(
@@ -281,46 +359,32 @@ def _execution_action(
     }:
         return plan_item.action, plan_item.duration, plan_item.reason
 
-    if force_full_backfill:
-        return (
-            FetchAction.FORCE_REFRESH,
-            settings.ib_full_backfill_duration,
-            "Force full refresh was requested after contract resolution.",
-        )
-
-    if plan_item.what_to_show not in {"ADJUSTED_LAST", "TRADES"}:
-        return (
-            FetchAction.UNSUPPORTED,
-            None,
-            f"{plan_item.what_to_show} is not supported.",
-        )
-
-    if plan_item.current_bar_count == 0 or plan_item.current_bar_count < plan_item.required_bars:
-        return (
-            FetchAction.FULL_BACKFILL,
-            settings.ib_full_backfill_duration,
-            f"{plan_item.ticker} needs a full backfill after contract resolution.",
-        )
-
-    if force_refresh:
-        return (
-            FetchAction.REFRESH_RECENT,
-            settings.ib_refresh_duration,
-            "Recent refresh was requested after contract resolution.",
-        )
-
-    if not _latest_date_current(plan_item.latest_bar_date, settings.ib_daily_bar_stale_after_days):
-        return (
-            FetchAction.TOP_UP_RECENT,
-            settings.ib_top_up_duration,
-            f"{plan_item.ticker} needs a top-up after contract resolution.",
-        )
-
-    return (
-        FetchAction.SKIP,
-        None,
-        f"{plan_item.ticker} has current cached bars after contract resolution.",
+    latest_current = _latest_date_current(
+        plan_item.latest_bar_date,
+        settings.ib_daily_bar_stale_after_days,
     )
+    top_up_duration, _ = _incremental_request_window(
+        plan_item.latest_bar_date,
+        plan_item.freshness_threshold_date or date.today(),
+        revision_sessions=settings.ib_revision_window_sessions,
+        fallback_duration=settings.ib_top_up_duration,
+    )
+    action, duration, reason = _plan_action(
+        ticker=plan_item.ticker,
+        contract_status="RESOLVED",
+        what_to_show=plan_item.what_to_show,
+        current_bar_count=plan_item.current_bar_count,
+        required_bars=plan_item.required_bars,
+        latest_current=latest_current,
+        force_refresh=force_refresh,
+        force_full_backfill=force_full_backfill,
+        settings=settings,
+        full_backfill_completed=plan_item.full_backfill_completed,
+        top_up_duration=top_up_duration,
+    )
+    if plan_item.action == FetchAction.CONTRACT_RESOLUTION_REQUIRED:
+        reason = f"{reason.rstrip('.')} after contract resolution."
+    return action, duration, reason
 
 
 def _latest_date_current(latest: date | None, stale_after_days: int) -> bool:
@@ -382,6 +446,40 @@ def _run_message(fetch_run: IBFetchRun) -> str:
 
 def _safe_message(message: str) -> str:
     return message.replace("\n", " ").strip()[:500]
+
+
+def _decision_metadata(
+    plan_item: FetchPlanItem,
+    *,
+    action: FetchAction | None = None,
+    duration: str | None = None,
+) -> dict[str, object]:
+    effective_action = action or plan_item.action
+    latest_current = _latest_date_current(plan_item.latest_bar_date, stale_after_days=0)
+    return {
+        "data_role": plan_item.data_role,
+        "dependency_roles": list(plan_item.dependency_roles),
+        "coverage_state": plan_item.coverage_state,
+        "existing_coverage_reused": plan_item.existing_coverage_reused,
+        "full_backfill_completed": plan_item.full_backfill_completed,
+        "freshness_threshold_date": _iso_date(plan_item.freshness_threshold_date),
+        "freshness_lag_sessions": plan_item.freshness_lag_sessions,
+        "missing_start_date": _iso_date(plan_item.missing_start_date),
+        "missing_end_date": _iso_date(plan_item.missing_end_date),
+        "request_start_date": _iso_date(plan_item.request_start_date),
+        "request_end_date": _iso_date(plan_item.request_end_date),
+        "decision_category": _decision_category(
+            effective_action,
+            latest_current=latest_current,
+        ),
+        "action": effective_action.value,
+        "duration": duration if action is not None else plan_item.duration,
+        "bar_size": plan_item.bar_size,
+    }
+
+
+def _iso_date(value: date | None) -> str | None:
+    return value.isoformat() if value is not None else None
 
 
 def _benchmark_first_items(

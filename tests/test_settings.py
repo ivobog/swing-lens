@@ -1,4 +1,8 @@
+import os
 from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
 
 from app.services.ceri.constants import (
     CERI_ADMIN_CSRF_REQUIRED,
@@ -30,7 +34,14 @@ from app.services.setup_lifecycle.constants import (
     SLSE_RUN_DELETION_POLICY,
     SLSE_TRIGGER_AUTHORITY,
 )
-from app.settings import Settings
+from app.settings import Settings, TechnicalArtifactCacheMode
+
+
+def test_numerical_library_threads_are_bounded_for_worker_processes() -> None:
+    assert os.environ["OMP_NUM_THREADS"] == "1"
+    assert os.environ["MKL_NUM_THREADS"] == "1"
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "1"
+    assert os.environ["NUMEXPR_NUM_THREADS"] == "1"
 
 
 def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
@@ -39,10 +50,15 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.app_host == "127.0.0.1"
     assert settings.database_connect_timeout_seconds == 3
     assert settings.use_durable_pipeline is True
-    assert settings.job_worker_enabled is True
+    assert settings.job_worker_enabled is False
     assert settings.job_poll_interval_seconds == 2.0
     assert settings.job_stale_after_seconds == 900
+    assert settings.job_worker_heartbeat_interval_seconds == 5.0
+    assert settings.job_worker_heartbeat_timeout_seconds == 30
     assert settings.job_worker_id == "local-worker-1"
+    assert settings.queue_fairness_enabled is False
+    assert settings.job_max_consecutive_interactive_claims == 4
+    assert settings.job_age_promotion_seconds == 300
     assert settings.winner_probability_enabled is False
     assert settings.winner_probability_capture_in_pipeline is False
     assert settings.winner_probability_config_path == Path("config/winner_probability.yaml")
@@ -58,6 +74,7 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.technical_worker_processes == 4
     assert settings.technical_max_in_flight == 8
     assert settings.technical_series_version_maintenance_enabled is False
+    assert settings.technical_artifact_cache_mode == TechnicalArtifactCacheMode.OFF
     assert settings.technical_artifact_cache_enabled is False
     assert settings.technical_artifact_cache_write_enabled is False
     assert settings.technical_artifact_cache_shadow_read_enabled is False
@@ -65,6 +82,9 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.market_data_prewarm_enabled is False
     assert settings.market_data_prewarm_max_tickers == 1000
     assert settings.market_data_prewarm_watchlist == ""
+    assert settings.market_data_prewarm_config_version == "market-data-prewarm-v2"
+    assert settings.market_data_prewarm_cancel_bound_seconds == 45
+    assert settings.market_data_prewarm_resume_delay_seconds == 30
     assert settings.setup_lifecycle_alerts_enabled is False
     assert settings.setup_lifecycle_replay_enabled is False
     assert settings.setup_lifecycle_reconstruction_enabled is False
@@ -77,6 +97,8 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.setup_lifecycle_replay_promotion_requires_confirmation is True
     assert settings.ceri_enabled is False
     assert settings.ceri_provider_ingest_enabled is False
+    assert settings.ceri_legacy_pipeline_scheduling_enabled is True
+    assert settings.ceri_batched_workflow_enabled is False
     assert settings.ceri_run_capture_enabled is False
     assert settings.ceri_ui_enabled is False
     assert settings.ceri_alerts_enabled is False
@@ -87,6 +109,66 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.runs_default_page_size == 25
     assert settings.history_default_page_size == 50
     assert settings.history_max_page_size == 200
+
+
+def test_technical_artifact_cache_mode_maps_one_legacy_flag() -> None:
+    settings = Settings(
+        _env_file=None,
+        technical_series_version_maintenance_enabled=True,
+        technical_artifact_cache_shadow_read_enabled=True,
+    )
+
+    assert settings.technical_artifact_cache_mode == TechnicalArtifactCacheMode.SHADOW_VALIDATE
+    assert settings.technical_artifact_cache_shadow_validation_enabled is True
+    assert settings.technical_artifact_cache_active_reads_enabled is False
+
+
+def test_fetch_technical_overlap_requires_process_pool() -> None:
+    with pytest.raises(ValidationError, match="requires technical_process_pool_enabled"):
+        Settings(
+            _env_file=None,
+            fetch_technical_overlap_enabled=True,
+            technical_process_pool_enabled=False,
+        )
+
+
+def test_technical_artifact_cache_rejects_contradictory_legacy_flags() -> None:
+    with pytest.raises(ValidationError, match="contradictory modes"):
+        Settings(
+            _env_file=None,
+            technical_series_version_maintenance_enabled=True,
+            technical_artifact_cache_enabled=True,
+            technical_artifact_cache_shadow_read_enabled=True,
+        )
+
+
+def test_technical_artifact_cache_accepts_legacy_active_read_write_pair() -> None:
+    settings = Settings(
+        _env_file=None,
+        technical_series_version_maintenance_enabled=True,
+        technical_artifact_cache_enabled=True,
+        technical_artifact_cache_write_enabled=True,
+    )
+
+    assert settings.technical_artifact_cache_mode == TechnicalArtifactCacheMode.ACTIVE
+
+
+def test_technical_artifact_cache_rejects_mode_without_series_versions() -> None:
+    with pytest.raises(ValidationError, match="requires series-version maintenance"):
+        Settings(
+            _env_file=None,
+            technical_artifact_cache_mode=TechnicalArtifactCacheMode.ACTIVE,
+        )
+
+
+def test_prewarm_cancel_bound_covers_one_broker_request() -> None:
+    with pytest.raises(ValidationError, match="must cover one IB timeout"):
+        Settings(
+            _env_file=None,
+            ib_timeout_seconds=30,
+            ib_min_seconds_between_requests=3,
+            market_data_prewarm_cancel_bound_seconds=32,
+        )
 
 
 def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> None:
@@ -117,6 +199,8 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     monkeypatch.setenv("SETUP_LIFECYCLE_REPLAY_PROMOTION_REQUIRES_CONFIRMATION", "false")
     monkeypatch.setenv("CERI_ENABLED", "true")
     monkeypatch.setenv("CERI_PROVIDER_INGEST_ENABLED", "true")
+    monkeypatch.setenv("CERI_LEGACY_PIPELINE_SCHEDULING_ENABLED", "false")
+    monkeypatch.setenv("CERI_BATCHED_WORKFLOW_ENABLED", "true")
     monkeypatch.setenv("CERI_RUN_CAPTURE_ENABLED", "true")
     monkeypatch.setenv("CERI_UI_ENABLED", "true")
     monkeypatch.setenv("CERI_ALERTS_ENABLED", "true")
@@ -157,6 +241,8 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     assert settings.setup_lifecycle_replay_promotion_requires_confirmation is False
     assert settings.ceri_enabled is True
     assert settings.ceri_provider_ingest_enabled is True
+    assert settings.ceri_legacy_pipeline_scheduling_enabled is False
+    assert settings.ceri_batched_workflow_enabled is True
     assert settings.ceri_run_capture_enabled is True
     assert settings.ceri_ui_enabled is True
     assert settings.ceri_alerts_enabled is True

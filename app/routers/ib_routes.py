@@ -167,6 +167,7 @@ def fetch_bars(
         "force_full_backfill": force_full_backfill,
         "symbols_including_benchmarks": fetch_run.symbols_including_benchmarks,
         "planned_request_count": fetch_run.planned_request_count,
+        "decision_counts": getattr(fetch_run, "decision_counts_json", {}),
         "executed_request_count": fetch_run.executed_request_count,
         "fetched": fetch_run.fetched_count,
         "inserted": fetch_run.inserted_count,
@@ -195,6 +196,7 @@ def fetch_bars(
                 "action": item.action,
                 "duration": item.duration,
                 "reason": item.reason,
+                "decision_metadata": getattr(item, "decision_metadata_json", {}),
             }
             for item in fetch_run.items
         ],

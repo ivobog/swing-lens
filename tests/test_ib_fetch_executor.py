@@ -75,7 +75,19 @@ def test_execute_fetch_plan_skips_and_fetches_items(monkeypatch) -> None:
     assert db.commits >= 2
     assert limiter.waits == 1
     assert ib.connected is False
+    assert ib.RequestTimeout == 30
     assert cache_calls == [{"fetch_run_id": fetch_run.id, "fetch_item_id": 2}]
+    assert set(fetch_run._performance) == {
+        "bar_cache_write_ms",
+        "ib_network_ms",
+        "ib_pacing_wait_ms",
+    }
+    assert all(value >= 0 for value in fetch_run._performance.values())
+    assert fetch_run.decision_counts_json == {}
+    metadata_by_ticker = {item.ticker: item.decision_metadata_json for item in fetch_run.items}
+    assert metadata_by_ticker["MSFT"]["decision_category"] == "SKIPPED_FRESH"
+    assert metadata_by_ticker["SPY"]["action"] == "TOP_UP_RECENT"
+    assert metadata_by_ticker["SPY"]["existing_coverage_reused"] is True
 
 
 def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
@@ -440,6 +452,7 @@ def _plan_item(
         required_bars=252,
         reason=f"{action.value} reason",
         estimated_request_count=0 if action == FetchAction.SKIP else 1,
+        existing_coverage_reused=True,
     )
 
 
@@ -486,6 +499,7 @@ class FakeDb:
 class FakeIB:
     def __init__(self) -> None:
         self.connected = False
+        self.RequestTimeout = 0
 
     def connect(self, *args, **kwargs) -> None:
         self.connected = True

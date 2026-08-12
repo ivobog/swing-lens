@@ -15,6 +15,18 @@ def test_pipeline_performance_tracker_records_step_and_contract_metrics() -> Non
 
     tracker.start_step("SCORING_TECHNICALS")
     duration = tracker.finish_step("SCORING_TECHNICALS", "COMPLETED")
+    tracker.set_metric("pipeline_queue_delay_ms", 1_000.0)
+    tracker.set_metric("technical_cache_hits", 7)
+    tracker.set_metric("technical_cache_misses", 2)
+    tracker.set_metric("technical_cache_shadow_candidates", 6)
+    tracker.set_metric("technical_cache_shadow_validations", 6)
+    tracker.set_metric("technical_cache_shadow_mismatches", 0)
+    tracker.set_metric("ib_pacing_wait_ms", 125.0)
+    tracker.set_metric("prewarm_age_seconds", 42.0)
+    tracker.set_metric("prewarm_covered_tickers", 5)
+    tracker.set_metric("prewarm_reused_tickers", 3)
+    tracker.set_metric("prewarm_job_id", 17)
+    tracker.set_metric("technical_tickers_completed_during_fetch", 4)
     tracker.add_fallback("sequential_technicals")
 
     snapshot = tracker.snapshot()
@@ -22,8 +34,21 @@ def test_pipeline_performance_tracker_records_step_and_contract_metrics() -> Non
     assert duration == 250.0
     assert snapshot["phase"] == 1
     assert snapshot["step_durations_ms"] == {"SCORING_TECHNICALS": 250.0}
-    assert snapshot["technical_cache_hits"] == 0
-    assert snapshot["prewarm_age_seconds"] is None
+    assert snapshot["pipeline_queue_delay_ms"] == 1_000.0
+    assert snapshot["pipeline_execution_ms"] == 600.0
+    assert snapshot["pipeline_total_wall_ms"] == 1_600.0
+    assert snapshot["pipeline_wall_ms"] == snapshot["pipeline_execution_ms"]
+    assert snapshot["technical_cache_hits"] == 7
+    assert snapshot["technical_cache_misses"] == 2
+    assert snapshot["technical_cache_shadow_candidates"] == 6
+    assert snapshot["technical_cache_shadow_validations"] == 6
+    assert snapshot["technical_cache_shadow_mismatches"] == 0
+    assert snapshot["ib_pacing_wait_ms"] == 125.0
+    assert snapshot["prewarm_age_seconds"] == 42.0
+    assert snapshot["prewarm_covered_tickers"] == 5
+    assert snapshot["prewarm_reused_tickers"] == 3
+    assert snapshot["prewarm_job_id"] == 17
+    assert snapshot["technical_tickers_completed_during_fetch"] == 4
     assert snapshot["fallbacks"] == ["sequential_technicals"]
 
 
@@ -63,12 +88,14 @@ def test_write_sequential_parity_fixture_normalizes_only_surrogate_fields(tmp_pa
 
     write_sequential_parity_fixture(
         path,
-        [{
-            "id": 10,
-            "ticker": "MSFT",
-            "price_bar_id": 42,
-            "created_at": "now",
-        }],
+        [
+            {
+                "id": 10,
+                "ticker": "MSFT",
+                "price_bar_id": 42,
+                "created_at": "now",
+            }
+        ],
         metadata={"run": 78},
     )
 
