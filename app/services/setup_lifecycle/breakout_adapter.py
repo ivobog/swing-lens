@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.dtos import FamilyEvidence, NormalizedSnapshot
-from app.services.setup_lifecycle.enums import LifecycleState, SetupFamily
+from app.services.setup_lifecycle.enums import SetupFamily
 from app.services.setup_lifecycle.family_adapters import (
+    classification_agreement,
     classification_contains,
+    consecutive_family_condition_sessions,
+    consecutive_true_sessions,
+    derived_atr_from_trigger,
+    numeric_history_is_improving,
     policy_parameter,
+    relative_strength_agreement,
     signal_bool,
     signal_number,
+    signal_optional_number,
+    trend_agreement,
 )
 
 
@@ -29,24 +37,53 @@ class BreakoutAdapter:
         setup_score = signal_number(snapshot, "setup_score")
         distance = signal_number(snapshot, "distance_to_pivot_pct", default=999.0)
         close_cross = signal_bool(snapshot, "close_trigger_cross")
-        follow_through = signal_number(snapshot, "follow_through_sessions")
+        follow_through = consecutive_true_sessions(snapshot, history, "close_trigger_cross")
         dry_up = signal_bool(snapshot, "volume_dry_up") or classification_contains(
             snapshot, "dry", "vdu"
         )
-        contraction = signal_bool(snapshot, "range_contraction") or classification_contains(
-            snapshot, "contraction", "tight"
+        volume_percentile = signal_optional_number(snapshot, "volume_percentile_252")
+        dry_up = dry_up or (volume_percentile is not None and volume_percentile <= 35) or (
+            numeric_history_is_improving(
+                snapshot,
+                history,
+                "volume_percentile_252",
+                lower_is_better=True,
+            )
+        )
+        def contraction_observation(item: NormalizedSnapshot) -> bool:
+            return (
+                signal_bool(item, "range_contraction")
+                or signal_number(item, "tightness_score") >= 6.0
+                or classification_contains(item, "contraction", "tight")
+            )
+        contraction_sessions = consecutive_family_condition_sessions(
+            snapshot,
+            history,
+            contraction_observation,
+        )
+        contraction_min_sessions = int(
+            policy_parameter(self.config, self.setup_family, "contraction_sessions_min", 2)
+        )
+        contraction = contraction_sessions >= contraction_min_sessions or (
+            numeric_history_is_improving(
+                snapshot,
+                history,
+                "range_percentile_252",
+                lower_is_better=True,
+            )
         )
         breakout_like = (
             classification_contains(snapshot, "breakout", "base", "pivot", "cup")
-            or dry_up
-            or contraction
-            or distance != 999.0
+            or signal_bool(snapshot, "fresh_breakout")
+            or signal_bool(snapshot, "failed_breakout")
+            or signal_bool(snapshot, "box_failure")
         )
-        explicit_failed = signal_bool(snapshot, "failed_breakout")
-        failed = explicit_failed or (
-            breakout_like and previous_state is LifecycleState.TRIGGERED and not close_cross
+        failed = (
+            signal_bool(snapshot, "failed_breakout")
+            or signal_bool(snapshot, "box_failure")
+            or classification_contains(snapshot, "failed breakout", "breakout failure")
         )
-        extended_atr = signal_number(snapshot, "extended_atr_from_trigger")
+        extended_atr = derived_atr_from_trigger(snapshot)
         expired = state_age_sessions >= policy.max_age_sessions
 
         ready_distance = float(
@@ -69,7 +106,11 @@ class BreakoutAdapter:
         ready = setup_score >= policy.ready_score_min and distance <= ready_distance
         triggered = ready and close_cross
         confirmed = triggered and follow_through >= confirmed_sessions
-        extended = triggered and extended_atr >= extended_limit
+        extended = (
+            triggered
+            and extended_atr is not None
+            and extended_atr >= extended_limit
+        )
 
         if failed:
             phase = "BREAKOUT_FAILED"
@@ -117,7 +158,21 @@ class BreakoutAdapter:
                 "close_trigger_cross": close_cross,
                 "follow_through_sessions": follow_through,
                 "extended_atr_from_trigger": extended_atr,
+                "contraction_sessions": contraction_sessions,
+                "volume_percentile_252": volume_percentile,
                 "state_age_sessions": state_age_sessions,
                 "breakout_like": breakout_like,
+            },
+            agreement_components={
+                "trend": trend_agreement(snapshot),
+                "contraction": 1.0 if contraction or dry_up else 0.0,
+                "relative_strength": relative_strength_agreement(snapshot),
+                "classification": classification_agreement(
+                    snapshot,
+                    "breakout",
+                    "base",
+                    "pivot",
+                    "cup",
+                ),
             },
         )

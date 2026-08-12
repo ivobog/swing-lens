@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import date
+
 from lifecycle_helpers import snapshot
 
 from app.services.setup_lifecycle.enums import LifecycleState, SetupFamily
@@ -11,46 +14,66 @@ def test_pullback_adapter_maps_retreat_support_ready_triggered_and_confirmed() -
     adapter = PullbackAdapter()
 
     started = adapter.evaluate(snapshot(setup_score=5.8, classification="Pullback Uptrend"))
+    prior_pullback = replace(
+        snapshot(
+            setup_score=6.0,
+            classification="Pullback Uptrend",
+            trend_score=7.0,
+            volume_percentile_252=60,
+            range_percentile_252=60,
+        ),
+        data_as_of_date=date(2026, 7, 31),
+    )
     declining = adapter.evaluate(
         snapshot(
             setup_score=6.4,
             classification="Pullback Uptrend",
-            declining_volume=True,
-        )
+            trend_score=7.0,
+            red_volume_declining=True,
+            volume_percentile_252=40,
+            range_percentile_252=40,
+        ),
+        history=(prior_pullback,),
     )
     support_test = adapter.evaluate(
         snapshot(
             setup_score=6.8,
             classification="Pullback Uptrend",
-            support_distance_atr=0.8,
+            held_near_support=True,
         )
     )
     ready = adapter.evaluate(
         snapshot(
             setup_score=7.8,
             classification="Pullback Uptrend",
-            support_distance_atr=0.8,
-            reversal_ready=True,
+            held_near_support=True,
         )
     )
     triggered = adapter.evaluate(
         snapshot(
             setup_score=7.8,
             classification="Pullback Uptrend",
-            support_distance_atr=0.8,
-            reversal_ready=True,
+            held_near_support=True,
             close_trigger_cross=True,
         )
+    )
+    prior_trigger = replace(
+        snapshot(
+            setup_score=7.8,
+            classification="Pullback Uptrend",
+            held_near_support=True,
+            close_trigger_cross=True,
+        ),
+        data_as_of_date=date(2026, 7, 31),
     )
     confirmed = adapter.evaluate(
         snapshot(
             setup_score=7.8,
             classification="Pullback Uptrend",
-            support_distance_atr=0.8,
-            reversal_ready=True,
+            held_near_support=True,
             close_trigger_cross=True,
-            follow_through_sessions=2,
-        )
+        ),
+        history=(prior_trigger,),
     )
 
     assert started.setup_family is SetupFamily.PULLBACK
@@ -67,8 +90,8 @@ def test_pullback_support_break_fails_immediately() -> None:
         snapshot(
             setup_score=7.8,
             classification="Pullback Uptrend",
-            support_distance_atr=0.8,
-            support_break=True,
+            held_near_support=True,
+            heavy_mid_ma_break=True,
         ),
         previous_state=LifecycleState.READY,
     )

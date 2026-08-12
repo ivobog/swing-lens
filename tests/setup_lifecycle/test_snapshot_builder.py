@@ -47,10 +47,18 @@ def test_snapshot_builder_normalizes_promoted_fields_signals_and_source_ids() ->
     assert built.dto.promoted_fields["high_above_trigger"] is True
     assert built.dto.signals["technical_score"]["value"] == "8.2"
     assert built.dto.signals["close_trigger_cross"]["value"] is True
+    assert built.dto.signals["volume_dry_up"]["value"] is True
+    assert built.dto.signals["range_contraction"]["value"] is True
+    assert built.dto.signals["failed_breakout"]["value"] is False
+    assert built.dto.signals["vcp_score"]["value"] == "7.4"
+    assert built.dto.signals["volume_percentile_252"]["value"] == "30"
+    assert built.dto.signals["feature_flags"]["value"] == ["vcp_detected", "volume_dry_up"]
     assert built.dto.source_ids["raw_row_id"] == 101
     assert built.dto.source_ids["technical_score_id"] == 301
     assert built.dto.source_ids["sector_rotation_snapshot_id"] == 701
     assert built.dto.source_lineage["latest_bar"]["data_hash"] == "MSFT-2026-08-01-101"
+    assert built.dto.source_lineage["source_run_successful"] is True
+    assert built.dto.source_lineage["lineage_integrity"] is True
     assert built.required_feature_coverage == 1.0
     assert built.dto.promoted_fields["required_feature_coverage"] == Decimal("1.0")
     assert "MISSING_REQUIRED_CLOSE_PRICE" not in built.dto.warning_flags
@@ -338,6 +346,34 @@ def _technical(
         technical_confidence="high",
         data_quality_score=Decimal("9.0"),
         relative_strength_score=Decimal("8.4"),
+        leadership_score=Decimal("8.1"),
+        vcp_score=Decimal("7.4"),
+        box_tightness_score=Decimal("7.2"),
+        atr_percentile_252=Decimal("25"),
+        volume_percentile_252=Decimal("30"),
+        range_percentile_252=Decimal("28"),
+        extension_percentile_252=Decimal("40"),
+        feature_flags_json=["vcp_detected", "volume_dry_up"],
+        warning_flags_json=[],
+        v4_debug_json={
+            "contraction": {"range_contraction": True},
+            "box": {"box_failure": False},
+        },
+        debug_json={
+            "derived": {
+                "atr": 2.0,
+                "atr_pct": 2.0,
+                "extension_mid_pct": 3.0,
+                "volume_ratio": 0.8,
+                "volume_dry_up": True,
+                "red_vol_declining": True,
+                "held_near_support": True,
+                "pullback_depth_pct": 8.0,
+                "failed_breakout": False,
+                "heavy_mid_ma_break": False,
+                "fresh_breakout": True,
+            }
+        },
     )
 
 

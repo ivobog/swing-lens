@@ -1,8 +1,8 @@
 engine:
   enabled: false
-  version: slse-1.1.0
+  version: slse-1.2.0
   schema_version: slse-snapshot-1.0.0
-  config_version: 2026-08-11
+  config_version: 2026-08-12
   timeframe: 1d
   origin_mode: forward_only
   trigger_authority: COMPLETED_DAILY_CLOSE
@@ -99,6 +99,7 @@ families:
     ready_score_min: 7.5
     ready_pivot_distance_enter_pct: 2.0
     ready_pivot_distance_exit_pct: 3.0
+    contraction_sessions_min: 2
     confirmed_hold_sessions: 2
     extended_atr_from_trigger: 2.5
     observation_gap_sessions: 3
@@ -128,6 +129,7 @@ families:
     tracking_score_min: 5.5
     ready_score_min: 7.5
     tight_range_percentile_max: 40
+    tight_range_sessions_min: 2
     extended_atr_from_trigger: 2.5
     observation_gap_sessions: 2
     max_age_sessions: 20
@@ -157,6 +159,15 @@ confidence:
     persistence: 0.20
     freshness_and_lineage: 0.15
     context_completeness: 0.10
+  agreement_weights:
+    trend: 0.25
+    contraction: 0.25
+    relative_strength: 0.25
+    classification: 0.25
+  freshness_and_lineage_weights:
+    freshness: 0.333333
+    source_run_success: 0.333333
+    lineage_integrity: 0.333334
 
 data_quality_labels:
   HIGH:
@@ -340,6 +351,196 @@ signals:
       - 2.0
       - 1.0
       - 0.0
+    missing_value_policy: ignore
+  trend_score:
+    source: technical_scores.trend_score
+    type: float
+    category: TREND
+    direction: higher_is_better
+    unit: points
+    absolute_change: 0.5
+    crossings: [5.5, 7.0]
+    missing_value_policy: warn
+  feature_flags:
+    source: technical_scores.feature_flags_json
+    type: set
+    category: SETUP
+    direction: neutral
+    material_on_change: true
+    missing_value_policy: ignore
+  warning_flags:
+    source: technical_scores.warning_flags_json
+    type: set
+    category: RISK
+    direction: risk_decrease
+    material_on_change: true
+    missing_value_policy: ignore
+  leadership_score:
+    source: technical_scores.leadership_score
+    type: float
+    category: LEADERSHIP
+    direction: higher_is_better
+    unit: points
+    absolute_change: 0.5
+    crossings: [5.5, 7.0]
+    missing_value_policy: ignore
+  close_price:
+    source: price_bars.close
+    type: float
+    category: SETUP
+    direction: neutral
+    unit: price
+    missing_value_policy: warn
+  trigger_price:
+    source: setup_signal_snapshots.trigger_price
+    type: float
+    category: SETUP
+    direction: neutral
+    unit: price
+    missing_value_policy: ignore
+  atr_value:
+    source: technical_scores.debug_json.derived.atr
+    type: float
+    category: VOLATILITY_VOLUME
+    direction: neutral
+    unit: price
+    missing_value_policy: ignore
+  atr_pct:
+    source: technical_scores.debug_json.derived.atr_pct
+    type: percentage
+    category: VOLATILITY_VOLUME
+    direction: lower_is_better_until_trigger
+    unit: pct
+    absolute_change: 0.5
+    missing_value_policy: ignore
+  atr_percentile_252:
+    source: technical_scores.atr_percentile_252
+    type: float
+    category: VOLATILITY_VOLUME
+    direction: lower_is_better_until_trigger
+    unit: percentile
+    absolute_change: 10
+    missing_value_policy: ignore
+  range_percentile_252:
+    source: technical_scores.range_percentile_252
+    type: float
+    category: VOLATILITY_VOLUME
+    direction: lower_is_better_until_trigger
+    unit: percentile
+    absolute_change: 10
+    missing_value_policy: ignore
+  volume_percentile_252:
+    source: technical_scores.volume_percentile_252
+    type: float
+    category: VOLATILITY_VOLUME
+    direction: lower_is_better_until_trigger
+    unit: percentile
+    absolute_change: 10
+    missing_value_policy: ignore
+  extension_percentile_252:
+    source: technical_scores.extension_percentile_252
+    type: float
+    category: RISK
+    direction: lower_is_better
+    unit: percentile
+    absolute_change: 10
+    missing_value_policy: ignore
+  extension_mid_pct:
+    source: technical_scores.debug_json.derived.extension_mid_pct
+    type: percentage
+    category: RISK
+    direction: lower_is_better
+    unit: pct
+    absolute_change: 2
+    missing_value_policy: ignore
+  volume_ratio:
+    source: technical_scores.debug_json.derived.volume_ratio
+    type: float
+    category: VOLATILITY_VOLUME
+    direction: neutral
+    unit: ratio
+    absolute_change: 0.25
+    missing_value_policy: ignore
+  vcp_score:
+    source: technical_scores.vcp_score
+    type: float
+    category: SETUP
+    direction: higher_is_better
+    unit: points
+    absolute_change: 0.5
+    crossings: [5.5, 7.0]
+    missing_value_policy: ignore
+  tightness_score:
+    source: technical_scores.box_tightness_score
+    type: float
+    category: VOLATILITY_VOLUME
+    direction: higher_is_better
+    unit: points
+    absolute_change: 0.5
+    missing_value_policy: ignore
+  volume_dry_up:
+    source: technical_scores.debug_json.derived.volume_dry_up
+    type: boolean
+    category: VOLATILITY_VOLUME
+    direction: true_is_better
+    material_on_change: true
+    missing_value_policy: ignore
+  range_contraction:
+    source: technical_scores.v4_debug_json.contraction.range_contraction
+    type: boolean
+    category: VOLATILITY_VOLUME
+    direction: true_is_better
+    material_on_change: true
+    missing_value_policy: ignore
+  red_volume_declining:
+    source: technical_scores.debug_json.derived.red_vol_declining
+    type: boolean
+    category: VOLATILITY_VOLUME
+    direction: true_is_better
+    material_on_change: true
+    missing_value_policy: ignore
+  held_near_support:
+    source: technical_scores.debug_json.derived.held_near_support
+    type: boolean
+    category: TREND
+    direction: true_is_better
+    material_on_change: true
+    missing_value_policy: ignore
+  pullback_depth_pct:
+    source: technical_scores.debug_json.derived.pullback_depth_pct
+    type: percentage
+    category: SETUP
+    direction: neutral
+    unit: pct
+    absolute_change: 2
+    missing_value_policy: ignore
+  failed_breakout:
+    source: technical_scores.debug_json.derived.failed_breakout
+    type: boolean
+    category: RISK
+    direction: false_is_better
+    material_on_change: true
+    missing_value_policy: ignore
+  box_failure:
+    source: technical_scores.v4_debug_json.box.box_failure
+    type: boolean
+    category: RISK
+    direction: false_is_better
+    material_on_change: true
+    missing_value_policy: ignore
+  heavy_mid_ma_break:
+    source: technical_scores.debug_json.derived.heavy_mid_ma_break
+    type: boolean
+    category: RISK
+    direction: false_is_better
+    material_on_change: true
+    missing_value_policy: ignore
+  fresh_breakout:
+    source: technical_scores.debug_json.derived.fresh_breakout
+    type: boolean
+    category: SETUP
+    direction: true_is_better
+    material_on_change: true
     missing_value_policy: ignore
 
 alerts:

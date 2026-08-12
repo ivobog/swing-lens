@@ -50,6 +50,7 @@ def test_normalized_delta_honors_signal_direction() -> None:
     assert registry.require("sector_rank").normalized_delta(10, 7) == 3.0
     assert registry.require("liquidity").normalized_delta(False, True) == -1.0
     assert registry.require("close_trigger_cross").normalized_delta(False, True) == 1.0
+    assert registry.require("technical_score").normalized_delta(6.5, 7.2) == 0.7
 
     risk_increase = SignalDefinitionRegistry.from_config(
         {

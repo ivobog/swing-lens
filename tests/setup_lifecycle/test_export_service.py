@@ -52,7 +52,7 @@ def test_export_changes_csv_uses_stable_columns() -> None:
     assert rows[0]["technical_score_delta"] == "0.5"
     assert json.loads(rows[0]["reason_codes"]) == ["CLOSE_ABOVE_TRIGGER"]
     assert rows[0]["source_event_key"] == "source-1"
-    assert rows[0]["export_schema_id"] == "swinglens.setup-lifecycle.changes.v2"
+    assert rows[0]["export_schema_id"] == "swinglens.setup-lifecycle.changes.v3"
 
 
 def test_export_episodes_and_alerts_csv_include_headers_when_empty() -> None:

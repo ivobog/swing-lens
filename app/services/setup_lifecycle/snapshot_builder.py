@@ -299,12 +299,26 @@ class SetupLifecycleSnapshotBuilder:
         combined = context.combined_result
         sector_row = context.sector_rotation_row
         market = context.market_regime_snapshot
+        derived = _nested_mapping(getattr(technical, "debug_json", None), "derived")
+        explainability = _technical_explainability(technical)
+        contraction = _nested_mapping(explainability, "contraction")
+        box = _nested_mapping(explainability, "box")
+        technical_feature_flags = tuple(
+            str(item) for item in (getattr(technical, "feature_flags_json", None) or ())
+        )
+        technical_warning_flags = tuple(
+            str(item) for item in (getattr(technical, "warning_flags_json", None) or ())
+        )
         values = {
             "technical_score": promoted.get("dual_score"),
+            "trend_score": promoted.get("trend_score"),
             "setup_score": promoted.get("setup_score"),
             "classification": promoted.get("technical_classification"),
             "stage": promoted.get("stage"),
+            "feature_flags": technical_feature_flags,
+            "warning_flags": technical_warning_flags,
             "relative_strength": getattr(technical, "relative_strength_score", None),
+            "leadership_score": getattr(technical, "leadership_score", None),
             "sector_rank": getattr(sector_row, "current_rank", None),
             "market_regime": _first_value(
                 getattr(market, "regime", None),
@@ -317,10 +331,30 @@ class SetupLifecycleSnapshotBuilder:
             ),
             "liquidity": _liquidity_risk_flag(getattr(fundamental, "liquidity_risk_score", None)),
             "close_price": promoted.get("close_price"),
+            "trigger_price": promoted.get("trigger_price"),
             "close_trigger_cross": promoted.get("close_above_trigger"),
             "intraday_high_trigger_cross_diagnostic": promoted.get("high_above_trigger"),
             "distance_to_pivot_pct": promoted.get("distance_to_pivot_pct"),
             "sector_confidence": getattr(sector_row, "confidence", None),
+            "atr_value": derived.get("atr"),
+            "atr_pct": derived.get("atr_pct"),
+            "atr_percentile_252": getattr(technical, "atr_percentile_252", None),
+            "range_percentile_252": getattr(technical, "range_percentile_252", None),
+            "volume_percentile_252": getattr(technical, "volume_percentile_252", None),
+            "extension_percentile_252": getattr(technical, "extension_percentile_252", None),
+            "extension_mid_pct": derived.get("extension_mid_pct"),
+            "volume_ratio": derived.get("volume_ratio"),
+            "vcp_score": getattr(technical, "vcp_score", None),
+            "tightness_score": getattr(technical, "box_tightness_score", None),
+            "volume_dry_up": derived.get("volume_dry_up"),
+            "range_contraction": contraction.get("range_contraction"),
+            "red_volume_declining": derived.get("red_vol_declining"),
+            "held_near_support": derived.get("held_near_support"),
+            "pullback_depth_pct": derived.get("pullback_depth_pct"),
+            "failed_breakout": derived.get("failed_breakout"),
+            "box_failure": box.get("box_failure"),
+            "heavy_mid_ma_break": derived.get("heavy_mid_ma_break"),
+            "fresh_breakout": derived.get("fresh_breakout"),
         }
         for definition in self.config.signal_registry.definitions():
             values.setdefault(definition.key, promoted.get(definition.source))
@@ -440,9 +474,17 @@ class SetupLifecycleSnapshotBuilder:
         latest_bar,
         as_of_date: date,
     ) -> dict[str, Any]:
+        run = context.raw_row.run
+        run_status = str(getattr(run, "status", "") or "").upper() or None
+        context_not_future = not _future_dated_context(context, as_of_date)
+        required_source_ids_present = all(
+            source_ids.get(key) is not None for key in ("raw_row_id", "technical_score_id")
+        )
         return {
             "source_ids": dict(source_ids),
             "run_id": context.raw_row.run_id,
+            "source_run_status": run_status,
+            "source_run_successful": run_status == "COMPLETED",
             "ticker": context.ticker,
             "data_as_of_date": as_of_date.isoformat(),
             "latest_bar": _bar_lineage(latest_bar),
@@ -453,6 +495,13 @@ class SetupLifecycleSnapshotBuilder:
             "sector_rotation_as_of": _date_or_none(
                 getattr(context.sector_rotation_snapshot, "as_of_date", None)
             ),
+            "lineage_integrity": bool(context_not_future and required_source_ids_present),
+            "lineage_integrity_checks": {
+                "required_source_ids_present": required_source_ids_present,
+                "context_not_future": context_not_future,
+                "completed_bar_identified": latest_bar is not None,
+            },
+            "source_hash_algorithm": "sha256-canonical-json-v1",
         }
 
     def _signals_json(self, source_values: dict[str, Any]) -> dict[str, Any]:
@@ -682,6 +731,23 @@ def _primary_setup_family(technical) -> str | None:
     return None
 
 
+def _nested_mapping(value: Any, key: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    nested = value.get(key)
+    return dict(nested) if isinstance(nested, dict) else {}
+
+
+def _technical_explainability(technical: Any) -> dict[str, Any]:
+    if technical is None:
+        return {}
+    explicit = getattr(technical, "v4_debug_json", None)
+    if isinstance(explicit, dict):
+        return dict(explicit)
+    debug = getattr(technical, "debug_json", None)
+    return _nested_mapping(debug, "explainability")
+
+
 def _future_dated_context(context: TickerSourceContext, as_of_date: date) -> bool:
     related_dates = [
         getattr(context.market_regime_snapshot, "as_of_date", None),
@@ -711,4 +777,6 @@ def _json_value(value):
         return str(value)
     if isinstance(value, date):
         return value.isoformat()
+    if isinstance(value, (tuple, set)):
+        return [_json_value(item) for item in value]
     return value

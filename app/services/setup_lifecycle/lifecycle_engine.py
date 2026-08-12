@@ -103,6 +103,7 @@ class SetupLifecycleEngine:
             evidence={
                 **evidence.evidence,
                 "confidence": confidence.components,
+                "confidence_component_details": confidence.component_details,
                 "candidate_reason_codes": list(evidence.reason_codes),
                 "prior_snapshot_count": len(request.previous_snapshots),
                 "prior_snapshot_dates": [
@@ -184,7 +185,11 @@ class SetupLifecycleEngine:
             margin = evidence.confidence_score - self.config.confidence.normal_min
             if previous in {LifecycleState.READY, LifecycleState.TRIGGERED} and margin >= -5:
                 return previous
-        if proposed is LifecycleState.CONFIRMED and request.persistence_sessions < 2:
+        if (
+            proposed is LifecycleState.CONFIRMED
+            and previous is not LifecycleState.CONFIRMED
+            and request.persistence_sessions < 2
+        ):
             return LifecycleState.TRIGGERED
         return proposed
 

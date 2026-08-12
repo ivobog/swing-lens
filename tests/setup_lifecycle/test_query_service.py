@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 
+import app.services.setup_lifecycle.query_service as query_module
 from app.models.tables import (
     SetupLifecycleEpisode,
     SetupLifecycleEvent,
@@ -16,6 +17,8 @@ from app.services.setup_lifecycle.query_service import (
     SetupLifecycleListQuery,
     SetupLifecycleQueryError,
     SetupLifecycleQueryService,
+    _encode_timeline_cursor,
+    _timeline_cursor_key,
     alert_payload,
     episode_payload,
     lifecycle_event_payload,
@@ -65,7 +68,51 @@ def test_payload_helpers_serialize_dates_decimals_and_json_defaults() -> None:
     )
 
     assert lifecycle_event_payload(event)["reason_codes"] == ["PRICE_TRIGGER_CONFIRMED"]
-    assert snapshot_payload(snapshot)["setup_score"] == 8.25
+    event_payload = lifecycle_event_payload(event)
+    serialized_snapshot = snapshot_payload(snapshot)
+    assert event_payload["record_status"] == "CURRENT"
+    assert event_payload["config_hash"] == "hash"
+    assert serialized_snapshot["setup_score"] == 8.25
+    assert serialized_snapshot["record_status"] == "CURRENT_CANONICAL"
+    assert serialized_snapshot["source_data_hash"] == "source"
+
+
+def test_change_summary_cache_reuses_same_revision_and_invalidates_on_advance(
+    monkeypatch,
+) -> None:
+    query_module._CHANGE_SUMMARY_CACHE.clear()
+    calls: list[int] = []
+
+    class _Result:
+        def __init__(self, revisions):
+            self.revisions = revisions
+
+        def one(self):
+            return self.revisions
+
+    class _Database:
+        revisions = (10, 20)
+
+        def execute(self, _statement):
+            return _Result(self.revisions)
+
+        def get_bind(self):
+            return type("Bind", (), {"url": type("Url", (), {"database": "cache-test"})()})()
+
+    def _summary(*_args):
+        calls.append(1)
+        return ({"material_changes": 2}, 1, 2)
+
+    monkeypatch.setattr(query_module, "_changes_summary", _summary)
+    db = _Database()
+    filters = SetupLifecycleFilters()
+    first = query_module._cached_changes_summary(db, object(), object(), filters=filters)
+    second = query_module._cached_changes_summary(db, object(), object(), filters=filters)
+    db.revisions = (11, 20)
+    third = query_module._cached_changes_summary(db, object(), object(), filters=filters)
+
+    assert first == second == third == ({"material_changes": 2}, 1, 2)
+    assert len(calls) == 2
 
 
 def test_episode_and_alert_payloads_are_dashboard_ready() -> None:
@@ -128,6 +175,8 @@ def test_invalid_cursor_fails_before_database_access() -> None:
         SetupLifecycleFilters(confidence_min=101),
         SetupLifecycleFilters(confidence_min=80, confidence_max=70),
         SetupLifecycleFilters(state_age_min=-1),
+        SetupLifecycleFilters(velocity_window=2),
+        SetupLifecycleFilters(date_from=date(2026, 8, 2), date_to=date(2026, 8, 1)),
     ],
 )
 def test_invalid_semantic_filters_fail_before_database_access(
@@ -138,3 +187,12 @@ def test_invalid_semantic_filters_fail_before_database_access(
             object(),  # type: ignore[arg-type]
             SetupLifecycleListQuery(filters=filters),
         )
+
+
+def test_timeline_cursor_is_opaque_deterministic_and_validated() -> None:
+    cursor = _encode_timeline_cursor(date(2026, 8, 1), 2, 99)
+
+    assert cursor != "2026-08-01:2:99"
+    assert _timeline_cursor_key(cursor) == (date(2026, 8, 1), 2, 99)
+    with pytest.raises(SetupLifecycleQueryError, match="timeline cursor"):
+        _timeline_cursor_key("not-a-valid-cursor")

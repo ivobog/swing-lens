@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
 from lifecycle_helpers import snapshot
 
 from app.services.setup_lifecycle.confidence_service import (
@@ -115,3 +116,91 @@ def test_confidence_label_boundaries_are_exact() -> None:
     assert service.label_for_score(70) is ConfidenceLabel.NORMAL
     assert service.label_for_score(84) is ConfidenceLabel.NORMAL
     assert service.label_for_score(85) is ConfidenceLabel.HIGH
+
+
+def test_freshness_and_lineage_dimensions_are_scored_independently() -> None:
+    normalized = snapshot(setup_score=8.0, classification="Breakout Base")
+    evidence = FamilyEvidence(
+        setup_family=SetupFamily.BREAKOUT,
+        phase_code="PIVOT_READY",
+        evidence_score=8.0,
+        confidence_score=80,
+        trackable=True,
+        ready=True,
+        agreement_components={
+            "trend": 1.0,
+            "contraction": 1.0,
+            "relative_strength": 1.0,
+            "classification": 1.0,
+        },
+    )
+    service = SetupLifecycleConfidenceService()
+
+    complete = service.score(normalized, evidence)
+    stale = service.score(replace(normalized, freshness_status="STALE"), evidence)
+    failed_run = service.score(
+        replace(
+            normalized,
+            source_lineage={
+                **normalized.source_lineage,
+                "source_run_status": "FAILED",
+                "source_run_successful": False,
+            },
+        ),
+        evidence,
+    )
+    inconsistent = service.score(
+        replace(
+            normalized,
+            source_lineage={
+                **normalized.source_lineage,
+                "lineage_integrity": False,
+            },
+        ),
+        evidence,
+    )
+    missing_lineage = service.score(
+        replace(normalized, source_lineage={}, source_ids={}),
+        evidence,
+    )
+
+    assert complete.components["freshness_and_lineage"] == 1.0
+    assert stale.components["freshness_and_lineage"] == pytest.approx(0.666667)
+    assert failed_run.components["freshness_and_lineage"] == pytest.approx(0.666667)
+    assert inconsistent.components["freshness_and_lineage"] == pytest.approx(0.666666)
+    assert missing_lineage.components["freshness_and_lineage"] == pytest.approx(0.333333)
+
+
+def test_high_setup_score_does_not_hide_contradictory_signal_agreement() -> None:
+    normalized = snapshot(setup_score=9.5, classification="Breakout Base")
+    contradictory = FamilyEvidence(
+        setup_family=SetupFamily.BREAKOUT,
+        phase_code="PIVOT_READY",
+        evidence_score=9.5,
+        confidence_score=95,
+        trackable=True,
+        ready=True,
+        agreement_components={
+            "trend": 0.0,
+            "contraction": 0.0,
+            "relative_strength": 0.0,
+            "classification": 0.0,
+        },
+    )
+    aligned = replace(
+        contradictory,
+        agreement_components={
+            "trend": 1.0,
+            "contraction": 1.0,
+            "relative_strength": 1.0,
+            "classification": 1.0,
+        },
+    )
+    service = SetupLifecycleConfidenceService()
+
+    contradictory_result = service.score(normalized, contradictory)
+    aligned_result = service.score(normalized, aligned)
+
+    assert contradictory_result.components["signal_agreement"] == 0.0
+    assert aligned_result.components["signal_agreement"] == 1.0
+    assert contradictory_result.score < aligned_result.score

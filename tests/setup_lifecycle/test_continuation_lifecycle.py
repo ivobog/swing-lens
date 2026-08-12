@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import date
+
 from lifecycle_helpers import snapshot
 
 from app.services.setup_lifecycle.continuation_adapter import ContinuationAdapter
@@ -19,12 +22,21 @@ def test_continuation_adapter_maps_pause_flag_tight_ready_triggered_and_extended
             range_percentile_252=30,
         )
     )
+    prior_tight = replace(
+        snapshot(
+            setup_score=6.8,
+            classification="Continuation Pause",
+            range_percentile_252=35,
+        ),
+        data_as_of_date=date(2026, 7, 31),
+    )
     ready = adapter.evaluate(
         snapshot(
             setup_score=7.8,
             classification="Continuation Pause",
             range_percentile_252=30,
-        )
+        ),
+        history=(prior_tight,),
     )
     triggered = adapter.evaluate(
         snapshot(
@@ -32,7 +44,8 @@ def test_continuation_adapter_maps_pause_flag_tight_ready_triggered_and_extended
             classification="Continuation Pause",
             range_percentile_252=30,
             close_trigger_cross=True,
-        )
+        ),
+        history=(prior_tight,),
     )
     extended = adapter.evaluate(
         snapshot(
@@ -40,8 +53,11 @@ def test_continuation_adapter_maps_pause_flag_tight_ready_triggered_and_extended
             classification="Continuation Pause",
             range_percentile_252=30,
             close_trigger_cross=True,
-            extended_atr_from_trigger=3.0,
-        )
+            close_price=110.0,
+            trigger_price=100.0,
+            atr_value=3.0,
+        ),
+        history=(prior_tight,),
     )
 
     assert pause.setup_family is SetupFamily.CONTINUATION
@@ -59,7 +75,7 @@ def test_continuation_failure_and_expiry_map_to_terminal_states() -> None:
             setup_score=7.8,
             classification="Continuation Pause",
             range_percentile_252=30,
-            failed_continuation=True,
+            heavy_mid_ma_break=True,
         ),
         previous_state=LifecycleState.READY,
     )

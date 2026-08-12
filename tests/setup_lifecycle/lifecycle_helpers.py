@@ -38,10 +38,26 @@ def snapshot(
             for key, value in values.items()
         },
         data_quality_label=data_quality,
+        required_feature_coverage=(
+            1.0 if setup_score is not None and classification is not None else 0.0
+        ),
+        freshness_status="FRESH",
+        source_ids={"raw_row_id": 1, "technical_score_id": 2},
         source_lineage={
             "market_regime_as_of": "2026-08-01",
             "sector_rotation_as_of": "2026-08-01",
+            "source_run_status": "COMPLETED",
+            "source_run_successful": True,
+            "lineage_integrity": True,
+            "source_ids": {"raw_row_id": 1, "technical_score_id": 2},
         },
+        engine_version="slse-test",
+        config_version="test-config",
+        schema_version="slse-snapshot-test",
+        config_hash="config-hash",
+        source_data_hash="source-hash",
+        origin_type="LIVE_RUN",
+        is_canonical=True,
     )
 
 

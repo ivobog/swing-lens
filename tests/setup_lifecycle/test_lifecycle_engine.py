@@ -19,8 +19,13 @@ from app.services.setup_lifecycle.lifecycle_engine import evaluate_lifecycle
 def test_every_lifecycle_state_can_be_reached_through_breakout_sequence() -> None:
     discovered = evaluate_lifecycle(snapshot(setup_score=None, classification=None))
     developing = evaluate_lifecycle(snapshot(setup_score=6.2, classification="Breakout Base"))
+    prior_contraction = replace(
+        snapshot(setup_score=6.2, classification="Breakout Base", range_contraction=True),
+        data_as_of_date=date(2026, 7, 31),
+    )
     tightening = evaluate_lifecycle(
-        snapshot(setup_score=6.8, classification="Breakout Base", range_contraction=True)
+        snapshot(setup_score=6.8, classification="Breakout Base", range_contraction=True),
+        previous_snapshots=(prior_contraction,),
     )
     ready = evaluate_lifecycle(
         snapshot(setup_score=7.8, classification="Breakout Base", distance_to_pivot_pct=1.0)
@@ -34,14 +39,23 @@ def test_every_lifecycle_state_can_be_reached_through_breakout_sequence() -> Non
         ),
         previous_state=LifecycleState.READY,
     )
+    prior_trigger = replace(
+        snapshot(
+            setup_score=7.8,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            close_trigger_cross=True,
+        ),
+        data_as_of_date=date(2026, 7, 31),
+    )
     confirmed = evaluate_lifecycle(
         snapshot(
             setup_score=7.8,
             classification="Breakout Base",
             distance_to_pivot_pct=1.0,
             close_trigger_cross=True,
-            follow_through_sessions=2,
         ),
+        previous_snapshots=(prior_trigger,),
         previous_state=LifecycleState.TRIGGERED,
         persistence_sessions=2,
     )
@@ -51,7 +65,9 @@ def test_every_lifecycle_state_can_be_reached_through_breakout_sequence() -> Non
             classification="Breakout Base",
             distance_to_pivot_pct=1.0,
             close_trigger_cross=True,
-            extended_atr_from_trigger=3.0,
+            close_price=110.0,
+            trigger_price=100.0,
+            atr_value=3.0,
         ),
         previous_state=LifecycleState.CONFIRMED,
     )
@@ -104,14 +120,23 @@ def test_failed_breakout_transitions_immediately_to_failed() -> None:
 
 
 def test_triggered_follow_through_requires_configured_persistence() -> None:
+    prior_trigger = replace(
+        snapshot(
+            setup_score=8.0,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            close_trigger_cross=True,
+        ),
+        data_as_of_date=date(2026, 7, 31),
+    )
     early = evaluate_lifecycle(
         snapshot(
             setup_score=8.0,
             classification="Breakout Base",
             distance_to_pivot_pct=1.0,
             close_trigger_cross=True,
-            follow_through_sessions=2,
         ),
+        previous_snapshots=(prior_trigger,),
         previous_state=LifecycleState.TRIGGERED,
         persistence_sessions=1,
     )
@@ -121,14 +146,41 @@ def test_triggered_follow_through_requires_configured_persistence() -> None:
             classification="Breakout Base",
             distance_to_pivot_pct=1.0,
             close_trigger_cross=True,
-            follow_through_sessions=2,
         ),
+        previous_snapshots=(prior_trigger,),
         previous_state=LifecycleState.TRIGGERED,
         persistence_sessions=2,
     )
 
     assert early.proposed_state is LifecycleState.TRIGGERED
     assert confirmed.proposed_state is LifecycleState.CONFIRMED
+
+
+def test_confirmed_follow_through_does_not_reapply_entry_persistence() -> None:
+    prior_trigger = replace(
+        snapshot(
+            setup_score=8.0,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            close_trigger_cross=True,
+        ),
+        data_as_of_date=date(2026, 7, 31),
+    )
+
+    retained = evaluate_lifecycle(
+        snapshot(
+            setup_score=8.0,
+            classification="Breakout Base",
+            distance_to_pivot_pct=1.0,
+            close_trigger_cross=True,
+        ),
+        previous_snapshots=(prior_trigger,),
+        previous_state=LifecycleState.CONFIRMED,
+        persistence_sessions=0,
+    )
+
+    assert retained.proposed_state is LifecycleState.CONFIRMED
+    assert "NO_STATE_CHANGE" in retained.reason_codes
 
 
 def test_missing_required_evidence_keeps_state_and_lowers_confidence() -> None:

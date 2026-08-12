@@ -1,0 +1,27 @@
+{
+  "status": "PASS",
+  "automated_command": "python -m pytest tests/e2e/test_slse_populated_browser.py tests/e2e/test_browser_smoke.py -q",
+  "automated_result": "19 passed in 79.37s",
+  "covered_checks": [
+    "one main landmark and one H1",
+    "named primary navigation",
+    "accessible names for visible controls",
+    "table headers",
+    "color-independent status text",
+    "WCAG-style contrast check",
+    "keyboard focus",
+    "responsive layout",
+    "browser console errors"
+  ],
+  "manual_keyboard_result": {
+    "first_tab_target": "Skip to main content",
+    "enter_target": "main#main-content",
+    "focus_retained": true
+  },
+  "semantic_snapshot_result": "Market Changes, ticker timeline, and Alert Center expose headings, labels, captions, column headers, statuses, and named actions in the accessibility tree.",
+  "evidence": [
+    "output/playwright/slse-rebuilt-keyboard-focus.png",
+    "output/playwright/slse-rebuilt-alerts.png",
+    "output/playwright/slse-rebuilt-ticker-GMED.png"
+  ]
+}

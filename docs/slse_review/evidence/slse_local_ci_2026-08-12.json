@@ -1,0 +1,17 @@
+{
+  "status": "LOCAL_PASS_INDEPENDENT_CI_NOT_RUN",
+  "branch": "codex/ibmi-phase1-correctness",
+  "base_commit": "42fa338d8b81efdd77014c3600998bef1e445075",
+  "checks": {
+    "ruff_app_tests_scripts": "PASS",
+    "git_diff_check": "PASS",
+    "alembic_head": "0034_slse_dashboard_indexes",
+    "alembic_current": "0034_slse_dashboard_indexes",
+    "alembic_metadata_check": "PASS",
+    "slse_core_postgres_golden": "236 passed in 134.71s",
+    "browser_accessibility": "19 passed in 79.37s"
+  },
+  "workflow_added": ".github/workflows/slse-closure.yml",
+  "independent_github_actions": "NOT_RUN",
+  "reason": "The performance gate is FAIL and the closure plan forbids PR/merge/activation until mandatory gates pass or an exception is approved."
+}

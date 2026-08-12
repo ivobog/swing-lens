@@ -40,6 +40,14 @@ class NormalizedSnapshot:
     warning_flags: tuple[str, ...] = ()
     source_ids: dict[str, int | None] = field(default_factory=dict)
     source_lineage: dict[str, Any] = field(default_factory=dict)
+    engine_version: str | None = None
+    config_version: str | None = None
+    schema_version: str | None = None
+    config_hash: str | None = None
+    source_data_hash: str | None = None
+    origin_type: str | None = None
+    is_canonical: bool | None = None
+    superseded_by_snapshot_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +79,7 @@ class FamilyEvidence:
     hard_failure: bool = False
     reason_codes: tuple[str, ...] = ()
     evidence: dict[str, Any] = field(default_factory=dict)
+    agreement_components: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

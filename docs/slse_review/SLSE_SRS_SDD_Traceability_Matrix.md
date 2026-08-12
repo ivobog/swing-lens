@@ -1,5 +1,44 @@
 # SLSE SRS/SDD Traceability Matrix
 
+## Closure certification override (2026-08-12, final execution)
+
+This table is the newest authoritative status and supersedes every older row or prose disposition below it. The detailed matrix remains as forensic history of the findings that drove the closure work.
+
+| Requirement group | Current status | Direct evidence |
+|---|---|---|
+| Snapshot, PIT lineage, canonicalization, version/hash DTOs | **PASS** | 25-scenario golden; 236-test PostgreSQL closure suite; natural certification |
+| Change detection, exact deltas, velocities, materiality, missing/freshness changes | **PASS** | Golden corpus; semantic/unit suite; rebuilt-history defect signatures all zero |
+| Five-family lifecycle, semantic history, confidence, compound actionability | **PASS** | DEF-030..034 tests and production-stack golden sequences |
+| Alert rules, filters, review actions, DTOs and full CSV/JSON export | **PASS** | Rebuilt E2E; 1,598 API/JSON/CSV rows; alert 3400 acknowledged and 3446 dismissed |
+| Market Changes filters, combined streams, totals, sorts, keyset pagination, exports | **FUNCTIONAL PASS** | 236 closure tests; rebuilt Playwright/API/DB checks |
+| Operator scopes, replay, audit and repair | **PASS** | Route/service closure suite and operations UI |
+| Natural multi-date real-source certification | **PASS** | `evidence/slse_natural_certification_2026-08-12.json` |
+| Dev/QA derived-history remediation | **PASS** | `evidence/slse_dev_rebuild_2026-08-12.json`; recoverable pre-rebuild dump |
+| NFR-002 / 1,000-ticker evaluation <=60s | **PASS** | 57.210395 seconds on disposable PostgreSQL |
+| NFR-003 / ordinary dashboard and timeline P95 <=500ms at >=100k snapshots | **PASS** | First page 307.075ms; deep cursor 250.431ms; No Material Change 170.688ms; timeline 23.561ms |
+| NFR-003 / worst compound filter P95 <=500ms | **FAIL** | 1,183.523ms at 110,000 snapshots / 100,000 changes; no exception approved |
+| NFR-009 accessibility | **PASS** | 19 Playwright tests plus keyboard/semantic snapshot evidence |
+| Closure workflow | **IMPLEMENTED, NOT INDEPENDENTLY RUN** | `.github/workflows/slse-closure.yml`; local equivalent green except performance |
+| Merge / activation | **BLOCKED** | Mandatory performance gate is red; engine and runtime flags remain disabled |
+| Overall specification/release | **FAIL** | One mandatory performance criterion, independent CI, merge and activation remain open |
+
+Current identity: engine `slse-1.2.0`, config `2026-08-12`, snapshot schema `slse-snapshot-1.0.0`, migration head `0034_slse_dashboard_indexes`.
+
+## Superseded pre-closure status (retained as forensic history)
+
+The table and detailed matrix below are superseded by the closure certification override above. They are retained only as the dated audit trail that motivated the implementation.
+
+| Requirement/defect | Original finding | First-pass disposition | Second-pass disposition | Status recorded before final closure |
+|---|---|---|---|---|
+| DEF-030 / production adapter lineage | Not traced | Not assessed | Not assessed | **PASS** — executable input catalog plus AST/registry enforcement. |
+| DEF-031 / FR-031 | History absent | PARTIAL | Transport PASS | **PASS** — semantic history use proven for all five families. |
+| DEF-032 / FR-036 | Confidence inputs conflated | PARTIAL | Top-level formula PASS | **PASS** — exact agreement and freshness/lineage subcomponents proven independently. |
+| DEF-033 / FR-037 | Compound precedence implicit | PARTIAL | Reduced posture PASS | **PASS** — canonical compound truth table passes. |
+| DEF-034 / documentation | Conflicting status prose | PARTIAL | Addenda | **PASS** — this table supersedes dated dispositions. |
+| Overall specification | PARTIAL | PARTIAL | PARTIAL | **PARTIAL / RELEASE FAIL** — remaining functional and certification rows are still open. |
+
+Engine/config identity: `slse-1.2.0` / `2026-08-12`; snapshot schema: `slse-snapshot-1.0.0`. Engine activation and history rebuild remain blocked.
+
 Authoritative inputs: SRS 1.0 and SDD 1.0 dated 31 July 2026. Review date: 11 August 2026. `PASS` means the requirement is supported by direct implementation and test evidence; existing green tests alone are not sufficient.
 
 | Requirement ID | Expected behavior | SDD design | Implementation path | DB mapping | API mapping | GUI mapping | Tests | Observed behavior | PASS / FAIL / PARTIAL / NOT IMPLEMENTED | Defect ID |

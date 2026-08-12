@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import Select, and_, delete, func, or_, select, tuple_, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -198,7 +199,7 @@ class SetupLifecycleRepository:
             source_data_hash=dto.source_data_hash,
         )
         if snapshot is None:
-            snapshot = SetupSignalSnapshot(
+            candidate = SetupSignalSnapshot(
                 run_id=dto.run_id,
                 ticker=self.normalize_ticker(dto.ticker),
                 timeframe=dto.timeframe,
@@ -212,7 +213,25 @@ class SetupLifecycleRepository:
                 schema_version=dto.schema_version,
                 data_quality_label=dto.data_quality_label,
             )
-            db.add(snapshot)
+            self._apply_snapshot_fields(candidate, dto)
+            try:
+                with db.begin_nested():
+                    db.add(candidate)
+                    db.flush()
+                snapshot = candidate
+            except IntegrityError:
+                snapshot = self.find_snapshot_by_identity(
+                    db,
+                    run_id=dto.run_id,
+                    ticker=dto.ticker,
+                    timeframe=dto.timeframe,
+                    data_as_of_date=dto.data_as_of_date,
+                    engine_version=dto.engine_version,
+                    config_hash=dto.config_hash,
+                    source_data_hash=dto.source_data_hash,
+                )
+                if snapshot is None:
+                    raise
 
         self._apply_snapshot_fields(snapshot, dto)
         db.flush()

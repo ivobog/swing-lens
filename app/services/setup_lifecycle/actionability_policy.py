@@ -29,10 +29,11 @@ class SetupLifecycleActionabilityPolicy:
                 reason_codes=("FAILED_STATE_BLOCKED",),
                 blockers=("FAILED",),
             )
-        if state in {LifecycleState.EXPIRED, LifecycleState.EXTENDED}:
+        if state is LifecycleState.EXPIRED:
             return ActionabilityDecision(
                 actionability=Actionability.WATCH_ONLY,
                 reason_codes=(f"{state.value}_WATCH_ONLY",),
+                metadata={"precedence": "TERMINAL_STATE"},
             )
 
         if _has_hard_required_absence(snapshot):
@@ -58,22 +59,29 @@ class SetupLifecycleActionabilityPolicy:
                 actionability=Actionability.BLOCKED,
                 reason_codes=tuple(dict.fromkeys((*reasons, "GATE_BLOCKED"))),
                 blockers=tuple(dict.fromkeys(blockers)),
+                metadata={"precedence": "HARD_BLOCKER"},
             )
 
         if snapshot.data_quality_label is DataQualityLabel.LOW or _has_stale_warning(snapshot):
             reasons.append("LOW_CONFIDENCE_SOURCE")
+        if lifecycle.confidence_score < self.config.actionability["minimum_actionable_confidence"]:
+            reasons.append("CONFIDENCE_BELOW_ACTIONABLE_MIN")
 
         if reasons:
             return ActionabilityDecision(
                 actionability=Actionability.LOW_CONFIDENCE,
                 reason_codes=tuple(dict.fromkeys(reasons)),
+                metadata={"precedence": "EVIDENCE_CONFIDENCE"},
             )
 
         if market in {"caution", "yellow", "neutral", "mixed"}:
             return ActionabilityDecision(
                 actionability=Actionability.WATCH_ONLY,
                 reason_codes=("MARKET_POLICY_REDUCED",),
-                metadata={"market_posture": "REDUCED"},
+                metadata={
+                    "market_posture": "REDUCED",
+                    "precedence": "REDUCED_MARKET_POSTURE",
+                },
             )
 
         if state not in {
@@ -84,12 +92,7 @@ class SetupLifecycleActionabilityPolicy:
             return ActionabilityDecision(
                 actionability=Actionability.WATCH_ONLY,
                 reason_codes=(f"{state.value}_WATCH_ONLY",),
-            )
-
-        if lifecycle.confidence_score < self.config.actionability["minimum_actionable_confidence"]:
-            return ActionabilityDecision(
-                actionability=Actionability.LOW_CONFIDENCE,
-                reason_codes=("CONFIDENCE_BELOW_ACTIONABLE_MIN",),
+                metadata={"precedence": "LIFECYCLE_POSTURE"},
             )
 
         if state in {
@@ -100,6 +103,7 @@ class SetupLifecycleActionabilityPolicy:
             return ActionabilityDecision(
                 actionability=Actionability.ACTIONABLE,
                 reason_codes=("ACTIONABILITY_GATES_PASS",),
+                metadata={"precedence": "ACTIONABLE_GATES_PASS"},
             )
 
         return ActionabilityDecision(

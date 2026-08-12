@@ -1,0 +1,165 @@
+name: SLSE Closure Certification
+
+on:
+  pull_request:
+    paths:
+      - "app/**/setup_lifecycle*"
+      - "app/services/setup_lifecycle/**"
+      - "config/setup_lifecycle.yaml"
+      - "alembic/versions/*slse*"
+      - "tests/**/slse*"
+      - "tests/setup_lifecycle/**"
+      - ".github/workflows/slse-closure.yml"
+  workflow_dispatch:
+    inputs:
+      run_performance:
+        description: "Run the dedicated 1,000 ticker / 100k snapshot performance gate"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: slse-closure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semantic-postgres-golden:
+    name: Semantic, PostgreSQL, Golden, and Migration Gates
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra dev
+      - run: uv run ruff check app tests scripts
+      - run: uv run alembic heads
+      - run: uv run alembic upgrade head
+      - run: uv run alembic check
+      - name: Run SLSE closure suite
+        run: >-
+          uv run pytest -q
+          tests/setup_lifecycle
+          tests/integration/test_slse_market_alert_vertical.py
+          tests/integration/test_slse_golden_corpus.py
+          tests/test_config_files.py
+          --junitxml=test-results/slse-closure.xml
+      - name: Publish closure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slse-closure-core
+          path: |
+            test-results/
+            docs/slse_review/evidence/
+          if-no-files-found: warn
+
+  browser-accessibility:
+    name: Browser and Accessibility Gates
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra dev
+      - run: uv run playwright install --with-deps chromium firefox
+      - name: Run populated SLSE and accessibility tests
+        run: >-
+          uv run pytest -q
+          tests/e2e/test_slse_populated_browser.py
+          tests/e2e/test_browser_smoke.py
+          --browser chromium --browser firefox
+          --junitxml=test-results/slse-browser-accessibility.xml
+      - name: Publish browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slse-browser-accessibility
+          path: |
+            test-results/
+            output/playwright/
+          if-no-files-found: warn
+
+  performance:
+    name: 1,000 Ticker and 100k Snapshot Gate
+    if: github.event_name == 'workflow_dispatch' && inputs.run_performance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      RUN_SLSE_PERFORMANCE_CERTIFICATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - run: >-
+          uv run pytest -q
+          tests/integration/test_slse_performance_certification.py
+          --junitxml=test-results/slse-performance.xml
+      - name: Publish performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slse-performance
+          path: |
+            test-results/
+            docs/slse_review/evidence/slse_performance_certification_2026-08-12.json
+          if-no-files-found: warn

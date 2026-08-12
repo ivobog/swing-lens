@@ -3,6 +3,7 @@
 {% block title %}Setup Lifecycle Operations{% endblock %}
 
 {% block content %}
+<script src="{{ url_for('static', path='/setup_lifecycle.js') }}" defer></script>
 <section class="panel setup-lifecycle-hero">
   <div class="panel-header run-header">
     <div>
@@ -20,6 +21,22 @@
     <span>Pending jobs {{ diagnostics.pending_jobs }}</span>
     {% if diagnostics.stale_system_warning %}<span class="badge badge-warning">Stale-system warning active</span>{% endif %}
   </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-header compact-header"><div><h2>Scoped Evaluation</h2><p>Queue an audited run, dry-run scope, or targeted retry.</p></div></div>
+  <form class="setup-lifecycle-filter-grid section-gap" data-slse-operation-form method="post" action="/api/setup-lifecycle/evaluations">
+    <label><span>Scope</span><select name="scope" required>{% for option in ["RUN", "TICKER", "DATE_RANGE", "ALL_ELIGIBLE", "SINGLE_TICKER_RETRY"] %}<option value="{{ option }}">{{ option }}</option>{% endfor %}</select></label>
+    <label><span>Run ID</span><input name="run_id" type="number" min="1"></label>
+    <label><span>Ticker</span><input name="ticker"></label>
+    <label><span>From</span><input name="date_from" type="date"></label>
+    <label><span>To</span><input name="date_to" type="date"></label>
+    <label><span>Retry as of</span><input name="as_of_date" type="date"></label>
+    <label><span>Requester</span><input name="requester" required></label>
+    <label><span>Reason</span><input name="reason" required></label>
+    <div class="actions setup-lifecycle-filter-actions"><button type="submit">Queue scoped evaluation</button></div>
+  </form>
+  <p data-slse-operation-status role="status" aria-live="polite"></p>
 </section>
 
 <section class="panel section-gap">

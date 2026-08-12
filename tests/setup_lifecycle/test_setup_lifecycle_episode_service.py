@@ -190,6 +190,38 @@ def test_observation_gap_expires_once_after_family_threshold_without_failure() -
     assert len(repository.events) == 1
 
 
+def test_daily_observation_gap_aging_does_not_double_count_prior_sessions() -> None:
+    repository = FakeEpisodeRepository()
+    active = _episode(
+        episode_id=1,
+        state=LifecycleState.READY,
+        phase="PIVOT_READY",
+        state_age_sessions=1,
+        last_observed_on=date(2026, 8, 3),
+    )
+    repository.active[("MSFT", "1d", SetupFamily.BREAKOUT.value)] = active
+    service = SetupLifecycleEpisodeService(repository=repository)
+
+    service.apply_observation_gap(
+        db=object(),
+        ticker="MSFT",
+        timeframe="1d",
+        setup_family=SetupFamily.BREAKOUT,
+        observed_on=date(2026, 8, 4),
+    )
+    service.apply_observation_gap(
+        db=object(),
+        ticker="MSFT",
+        timeframe="1d",
+        setup_family=SetupFamily.BREAKOUT,
+        observed_on=date(2026, 8, 5),
+    )
+
+    assert active.missing_observation_sessions == 2
+    assert active.status == "ACTIVE"
+    assert repository.events == []
+
+
 def test_rearm_cooldown_blocks_duplicate_episode_until_fresh_ready_evidence() -> None:
     repository = FakeEpisodeRepository()
     repository.closed.append(

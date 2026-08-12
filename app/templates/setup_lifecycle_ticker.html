@@ -96,6 +96,9 @@
         </li>
       {% endfor %}
     </ol>
+    {% if timeline_next_url %}
+      <div class="pagination-actions"><a class="button-link secondary" href="{{ timeline_next_url }}">Older timeline entries</a></div>
+    {% endif %}
   {% else %}
     <div class="empty-state section-gap"><strong>No timeline items yet.</strong></div>
   {% endif %}

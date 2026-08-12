@@ -1,5 +1,18 @@
 # SLSE Repair Execution Plan
 
+## Current authoritative status (2026-08-12)
+
+| Work item | Original finding | First-pass disposition | Second-pass disposition | Current authoritative status |
+|---|---|---|---|---|
+| DEF-030 / WP-1 | No complete production-input proof | Not started | Not started | **COMPLETE** — executable adapter coverage audit passes. |
+| DEF-031 / WP-2 / FR-031 | No typed history | PARTIAL | History transported | **COMPLETE** — temporal family behavior now consumes history and paired-history tests pass. |
+| DEF-032 / WP-3 confidence | Conflated confidence evidence | PARTIAL | Top-level blend repaired | **COMPLETE** — exact agreement and freshness/lineage semantics pass. |
+| DEF-033 / WP-3 actionability | Incomplete precedence | PARTIAL | Reduced posture repaired | **COMPLETE** — compound precedence truth table passes. |
+| DEF-034 / WP-0 governance | Stale status prose | Addenda | Addenda | **COMPLETE** — current tables are authoritative. |
+| WP-4 onward | Multiple functional/certification gaps | PARTIAL | PARTIAL | **IN PROGRESS / BLOCKED FOR RELEASE** — engine stays disabled; rebuild stays prohibited until golden and natural-run gates pass. |
+
+Current identity: engine `slse-1.2.0`, config `2026-08-12`, schema `slse-snapshot-1.0.0`. Focused semantic gate: 206 tests and Ruff pass.
+
 ## Completed
 
 - Read the full audit plan, SRS, and SDD.

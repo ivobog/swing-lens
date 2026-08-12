@@ -1384,9 +1384,7 @@ class BackgroundJob(Base):
             "job_type",
             "request_key",
             unique=True,
-            postgresql_where=text(
-                "request_key IS NOT NULL AND status IN ('QUEUED', 'RUNNING')"
-            ),
+            postgresql_where=text("request_key IS NOT NULL AND status IN ('QUEUED', 'RUNNING')"),
         ),
     )
 
@@ -2392,9 +2390,7 @@ class SetupLifecycleEvaluationRun(Base):
     upload_run: Mapped[UploadRun | None] = relationship(
         back_populates="setup_lifecycle_evaluation_runs"
     )
-    snapshots: Mapped[list["SetupSignalSnapshot"]] = relationship(
-        back_populates="evaluation_run"
-    )
+    snapshots: Mapped[list["SetupSignalSnapshot"]] = relationship(back_populates="evaluation_run")
 
     __table_args__ = (
         Index("idx_setup_lifecycle_eval_runs_status", "status", "created_at"),
@@ -2522,9 +2518,7 @@ class SetupSignalSnapshot(Base):
         back_populates="snapshots"
     )
     run: Mapped[UploadRun | None] = relationship(back_populates="setup_signal_snapshots")
-    superseded_by_snapshot: Mapped["SetupSignalSnapshot | None"] = relationship(
-        remote_side=[id]
-    )
+    superseded_by_snapshot: Mapped["SetupSignalSnapshot | None"] = relationship(remote_side=[id])
 
     __table_args__ = (
         UniqueConstraint(
@@ -2543,6 +2537,23 @@ class SetupSignalSnapshot(Base):
         Index("idx_setup_signal_snapshots_quality", "data_quality_label"),
         Index("idx_setup_signal_snapshots_source_hash", "source_data_hash"),
         Index("idx_setup_signal_snapshots_eval_run", "evaluation_run_id"),
+        Index(
+            "idx_setup_signal_snapshots_canonical_date_id",
+            "data_as_of_date",
+            "id",
+            postgresql_where=text("is_canonical"),
+        ),
+        Index(
+            "idx_setup_signal_snapshots_dashboard_compound",
+            "sector",
+            "primary_setup_family",
+            "lifecycle_state_candidate",
+            "actionability_candidate",
+            "confidence_score",
+            "setup_score",
+            "id",
+            postgresql_where=text("is_canonical"),
+        ),
         Index(
             "uq_setup_signal_snapshots_canonical_day",
             "ticker",
@@ -2613,12 +2624,8 @@ class SetupLifecycleEpisode(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    lifecycle_events: Mapped[list["SetupLifecycleEvent"]] = relationship(
-        back_populates="episode"
-    )
-    signal_change_events: Mapped[list["SignalChangeEvent"]] = relationship(
-        back_populates="episode"
-    )
+    lifecycle_events: Mapped[list["SetupLifecycleEvent"]] = relationship(back_populates="episode")
+    signal_change_events: Mapped[list["SignalChangeEvent"]] = relationship(back_populates="episode")
 
     __table_args__ = (
         Index("idx_setup_lifecycle_episodes_ticker_status", "ticker", "status"),
@@ -2708,6 +2715,36 @@ class SetupLifecycleEvent(Base):
         Index("idx_setup_lifecycle_events_ticker_date", "ticker", "effective_date"),
         Index("idx_setup_lifecycle_events_type", "event_type"),
         Index("idx_setup_lifecycle_events_current", "is_current_version"),
+        Index(
+            "idx_setup_lifecycle_events_dashboard_order",
+            "effective_date",
+            "id",
+            postgresql_where=text(
+                "is_current_version AND event_type IN "
+                "('EPISODE_OPENED', 'STATE_TRANSITION', 'PHASE_TRANSITION')"
+            ),
+        ),
+        Index(
+            "idx_setup_lifecycle_events_confidence_order",
+            "confidence_score",
+            "id",
+            postgresql_where=text(
+                "is_current_version AND event_type IN "
+                "('EPISODE_OPENED', 'STATE_TRANSITION', 'PHASE_TRANSITION')"
+            ),
+        ),
+        Index(
+            "idx_setup_lifecycle_events_dashboard_compound",
+            "setup_family",
+            "to_state",
+            "actionability_after",
+            "effective_date",
+            "id",
+            postgresql_where=text(
+                "is_current_version AND event_type IN "
+                "('EPISODE_OPENED', 'STATE_TRANSITION', 'PHASE_TRANSITION')"
+            ),
+        ),
     )
 
 
@@ -2771,6 +2808,12 @@ class SignalChangeEvent(Base):
         Index("idx_signal_change_events_signal", "signal_key"),
         Index("idx_signal_change_events_category_severity", "category", "severity"),
         Index("idx_signal_change_events_eval_run", "evaluation_run_id"),
+        Index(
+            "idx_signal_change_events_dashboard_order",
+            "effective_date",
+            "id",
+        ),
+        Index("idx_signal_change_events_current_snapshot", "current_snapshot_id"),
     )
 
 

@@ -107,6 +107,11 @@ class SetupLifecycleEpisodeService:
                 evaluation_run_id=evaluation_run_id,
             )
 
+        effective_observation_sessions = (
+            0
+            if snapshot.data_as_of_date <= active.last_observed_on
+            else completed_observation_sessions
+        )
         return self._update_episode(
             db,
             active,
@@ -114,7 +119,7 @@ class SetupLifecycleEpisodeService:
             decision,
             actionability,
             evaluation_run_id=evaluation_run_id,
-            completed_observation_sessions=completed_observation_sessions,
+            completed_observation_sessions=effective_observation_sessions,
         )
 
     def apply_observation_gap(
@@ -140,7 +145,10 @@ class SetupLifecycleEpisodeService:
         if missing_sessions <= 0:
             return EpisodeApplyResult(episode_id=episode.id, updated=False)
 
-        episode.missing_observation_sessions += missing_sessions
+        episode.missing_observation_sessions = max(
+            episode.missing_observation_sessions,
+            missing_sessions,
+        )
         episode.current_as_of_date = observed_on
         threshold = self.config.families.policies[setup_family].observation_gap_sessions
         if episode.missing_observation_sessions <= threshold:
@@ -509,8 +517,23 @@ def normalized_snapshot_from_row(snapshot: SetupSignalSnapshot) -> NormalizedSna
         source_ids={
             "snapshot_id": snapshot.id,
             "run_id": snapshot.run_id,
+            "raw_row_id": snapshot.raw_row_id,
+            "fundamental_score_id": snapshot.fundamental_score_id,
+            "technical_score_id": snapshot.technical_score_id,
+            "combined_result_id": snapshot.combined_result_id,
+            "ranking_result_id": snapshot.ranking_result_id,
+            "market_regime_snapshot_id": snapshot.market_regime_snapshot_id,
+            "sector_rotation_snapshot_id": snapshot.sector_rotation_snapshot_id,
         },
         source_lineage=dict(snapshot.source_lineage_json or {}),
+        engine_version=snapshot.engine_version,
+        config_version=snapshot.config_version,
+        schema_version=snapshot.schema_version,
+        config_hash=snapshot.config_hash,
+        source_data_hash=snapshot.source_data_hash,
+        origin_type=snapshot.origin_type,
+        is_canonical=snapshot.is_canonical,
+        superseded_by_snapshot_id=snapshot.superseded_by_snapshot_id,
     )
 
 
@@ -561,7 +584,8 @@ def _signal_values(snapshot: SetupSignalSnapshot) -> dict[str, Any]:
             signals[key] = raw
     for key, value in {
         "setup_score": snapshot.setup_score,
-        "technical_score": snapshot.trend_score or snapshot.dual_score,
+        "technical_score": snapshot.dual_score,
+        "trend_score": snapshot.trend_score,
         "classification": snapshot.technical_classification,
         "stage": snapshot.stage,
         "distance_to_pivot_pct": snapshot.distance_to_pivot_pct,
@@ -594,6 +618,8 @@ def _value_type(value: Any) -> SignalValueType:
         return SignalValueType.BOOLEAN
     if isinstance(value, int | float | Decimal):
         return SignalValueType.FLOAT
+    if isinstance(value, (list, tuple, set)):
+        return SignalValueType.SET
     if value is None:
         return SignalValueType.NULLABILITY
     return SignalValueType.ENUM

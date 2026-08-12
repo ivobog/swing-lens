@@ -117,6 +117,8 @@ class ConfidenceConfig:
     normal_min: int
     low_min: int
     weights: dict[str, float]
+    agreement_weights: dict[str, float]
+    freshness_and_lineage_weights: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -467,7 +469,49 @@ def _parse_confidence(raw: dict[str, Any]) -> ConfidenceConfig:
     total = round(sum(weights.values()), 6)
     if total != 1.0:
         raise SetupLifecycleConfigError(f"confidence.weights must sum to 1.0, got {total}")
-    return ConfidenceConfig(high_min=high, normal_min=normal, low_min=low, weights=weights)
+    agreement_weights = _normalized_component_weights(
+        raw,
+        "agreement_weights",
+        required_keys={"trend", "contraction", "relative_strength", "classification"},
+    )
+    freshness_and_lineage_weights = _normalized_component_weights(
+        raw,
+        "freshness_and_lineage_weights",
+        required_keys={"freshness", "source_run_success", "lineage_integrity"},
+    )
+    return ConfidenceConfig(
+        high_min=high,
+        normal_min=normal,
+        low_min=low,
+        weights=weights,
+        agreement_weights=agreement_weights,
+        freshness_and_lineage_weights=freshness_and_lineage_weights,
+    )
+
+
+def _normalized_component_weights(
+    raw: dict[str, Any],
+    key: str,
+    *,
+    required_keys: set[str],
+) -> dict[str, float]:
+    values = {
+        name: _nonnegative_number(value, f"confidence.{key}.{name}")
+        for name, value in _mapping(raw, key).items()
+    }
+    if set(values) != required_keys:
+        missing = sorted(required_keys - set(values))
+        extra = sorted(set(values) - required_keys)
+        details = []
+        if missing:
+            details.append(f"missing {', '.join(missing)}")
+        if extra:
+            details.append(f"unknown {', '.join(extra)}")
+        raise SetupLifecycleConfigError(f"confidence.{key}: {'; '.join(details)}")
+    total = round(sum(values.values()), 6)
+    if total != 1.0:
+        raise SetupLifecycleConfigError(f"confidence.{key} must sum to 1.0, got {total}")
+    return values
 
 
 def _parse_data_quality_labels(

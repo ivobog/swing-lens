@@ -92,7 +92,8 @@ class SetupLifecycleSourceLoader:
             )
         )
         tickers = tuple(row.ticker.upper() for row in raw_rows if row.ticker)
-        price_bars = self._load_price_bars(db, tickers)
+        source_cutoff = _upload_run_cutoff_date(upload_run)
+        price_bars = self._load_price_bars(db, tickers, cutoff=source_cutoff)
         operational_metrics.increment(
             "swinglens_setup_price_rows_materialized_total",
             len(price_bars),
@@ -184,7 +185,13 @@ class SetupLifecycleSourceLoader:
         )
         return context
 
-    def _load_price_bars(self, db: Session, tickers: tuple[str, ...]) -> tuple[PriceBar, ...]:
+    def _load_price_bars(
+        self,
+        db: Session,
+        tickers: tuple[str, ...],
+        *,
+        cutoff: date,
+    ) -> tuple[PriceBar, ...]:
         if not tickers:
             self.last_metrics["setup_latest_bar_query_ms"] = 0.0
             return ()
@@ -195,10 +202,12 @@ class SetupLifecycleSourceLoader:
 
         if self.latest_bar_projection_enabled or self.shadow_compare_enabled:
             projected_price_bars = tuple(
-                db.scalars(_latest_price_bars_statement(tickers))
+                db.scalars(_latest_price_bars_statement(tickers, cutoff=cutoff))
             )
         if not self.latest_bar_projection_enabled or self.shadow_compare_enabled:
-            legacy_price_bars = tuple(db.scalars(_legacy_price_bars_statement(tickers)))
+            legacy_price_bars = tuple(
+                db.scalars(_legacy_price_bars_statement(tickers, cutoff=cutoff))
+            )
 
         if self.shadow_compare_enabled:
             assert legacy_price_bars is not None
@@ -379,22 +388,24 @@ def latest_completed_bar(price_bars: tuple[PriceBar, ...]) -> PriceBar | None:
     )
 
 
-def _legacy_price_bars_statement(tickers: tuple[str, ...]):
+def _legacy_price_bars_statement(tickers: tuple[str, ...], *, cutoff: date):
     return (
         select(PriceBar)
         .where(PriceBar.ticker.in_(tickers))
         .where(PriceBar.timeframe.in_(DAILY_PRICE_TIMEFRAMES))
         .where(PriceBar.what_to_show.in_(PRICE_BAR_SOURCE_ORDER))
+        .where(PriceBar.bar_date <= cutoff)
         .order_by(PriceBar.ticker, PriceBar.bar_date)
     )
 
 
-def _latest_price_bars_statement(tickers: tuple[str, ...]):
+def _latest_price_bars_statement(tickers: tuple[str, ...], *, cutoff: date):
     return (
         select(PriceBar)
         .where(PriceBar.ticker.in_(tickers))
         .where(PriceBar.timeframe.in_(DAILY_PRICE_TIMEFRAMES))
         .where(PriceBar.what_to_show.in_(PRICE_BAR_SOURCE_ORDER))
+        .where(PriceBar.bar_date <= cutoff)
         .where(PriceBar.close.is_not(None))
         .distinct(PriceBar.ticker)
         .order_by(
@@ -466,6 +477,13 @@ def _run_context_cutoff_date(
     if timestamp is not None:
         return timestamp.date()
     return date.today()
+
+
+def _upload_run_cutoff_date(upload_run: UploadRun) -> date:
+    timestamp = upload_run.processed_at or upload_run.uploaded_at
+    if timestamp is None:
+        raise ValueError("completed upload run requires a processed or uploaded timestamp")
+    return timestamp.date()
 
 
 def _ticker_context_cutoff_date(
