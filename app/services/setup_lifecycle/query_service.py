@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from functools import cmp_to_key
 from threading import Lock
 from typing import Any
@@ -41,6 +43,11 @@ class SetupLifecycleQueryError(ValueError):
         self.code = code
         self.message = message
         self.status_code = status_code
+
+
+class SetupLifecycleViewScope(StrEnum):
+    CURRENT_MARKET = "CURRENT_MARKET"
+    HISTORICAL_RUN = "HISTORICAL_RUN"
 
 
 _CHANGE_SUMMARY_CACHE: dict[tuple[Any, ...], tuple[dict[str, Any], int, int]] = {}
@@ -91,6 +98,7 @@ class SetupLifecycleListQuery:
     direction: str = "desc"
     limit: int = 50
     cursor: str | None = None
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET
 
 
 class SetupLifecycleQueryService:
@@ -114,12 +122,15 @@ class SetupLifecycleQueryService:
                 SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id,
             )
             .where(
-                SetupLifecycleEvent.is_current_version.is_(True),
                 SetupLifecycleEvent.event_type.in_(
                     ("EPISODE_OPENED", "STATE_TRANSITION", "PHASE_TRANSITION")
-                ),
+                )
             )
         )
+        if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
+            lifecycle_statement = lifecycle_statement.where(
+                SetupLifecycleEvent.is_current_version.is_(True)
+            )
         lifecycle_statement = _apply_event_filters(lifecycle_statement, query.filters)
         signal_statement = (
             select(SignalChangeEvent)
@@ -127,8 +138,11 @@ class SetupLifecycleQueryService:
                 SetupSignalSnapshot,
                 SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id,
             )
-            .where(SetupSignalSnapshot.is_canonical.is_(True))
         )
+        if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
+            signal_statement = signal_statement.where(
+                SetupSignalSnapshot.is_canonical.is_(True)
+            )
         signal_statement = _apply_signal_change_filters(signal_statement, query.filters)
 
         cursor_metadata = _decode_change_cursor(query.cursor, query=query)
@@ -142,6 +156,7 @@ class SetupLifecycleQueryService:
                 lifecycle_statement,
                 signal_statement,
                 filters=query.filters,
+                view_scope=query.view_scope,
             )
         selected_rows, last_page_key = _combined_change_page_rows(
             db,
@@ -165,7 +180,12 @@ class SetupLifecycleQueryService:
         )
         lifecycle_rows = list(lifecycle_by_id.values())
         signal_rows = list(signal_by_id.values())
-        payload_context = _prime_market_change_payload_context(db, lifecycle_rows, signal_rows)
+        payload_context = _prime_market_change_payload_context(
+            db,
+            lifecycle_rows,
+            signal_rows,
+            view_scope=query.view_scope,
+        )
         items = [
             *[
                 market_change_payload(db, lifecycle_event=row, context=payload_context)
@@ -202,7 +222,6 @@ class SetupLifecycleQueryService:
         has_lifecycle_event = (
             select(SetupLifecycleEvent.id)
             .where(SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id)
-            .where(SetupLifecycleEvent.is_current_version.is_(True))
             .where(
                 SetupLifecycleEvent.event_type.in_(
                     ("EPISODE_OPENED", "STATE_TRANSITION", "PHASE_TRANSITION")
@@ -210,17 +229,22 @@ class SetupLifecycleQueryService:
             )
             .exists()
         )
+        if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
+            has_lifecycle_event = has_lifecycle_event.where(
+                SetupLifecycleEvent.is_current_version.is_(True)
+            )
         has_signal_change = (
             select(SignalChangeEvent.id)
             .where(SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id)
             .exists()
         )
         statement = select(SetupSignalSnapshot).where(
-            SetupSignalSnapshot.is_canonical.is_(True),
             SetupSignalSnapshot.data_as_of_date == query.filters.as_of_date,
             ~has_lifecycle_event,
             ~has_signal_change,
         )
+        if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
+            statement = statement.where(SetupSignalSnapshot.is_canonical.is_(True))
         statement = _apply_snapshot_filters(statement, query.filters)
         total = _count(db, statement)
         low_confidence = _count(db, statement.where(SetupSignalSnapshot.confidence_score < 70))
@@ -691,6 +715,8 @@ def _prime_market_change_payload_context(
     db: Session,
     lifecycle_events: list[SetupLifecycleEvent],
     signal_changes: list[SignalChangeEvent],
+    *,
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET,
 ) -> _MarketChangePayloadContext:
     current_ids = {row.snapshot_id for row in lifecycle_events if row.snapshot_id} | {
         row.current_snapshot_id for row in signal_changes if row.current_snapshot_id
@@ -706,12 +732,16 @@ def _prime_market_change_payload_context(
         row.current_snapshot_id for row in signal_changes if row.current_snapshot_id
     }
     if signal_snapshot_ids:
-        related = db.scalars(
+        related_statement = (
             select(SetupLifecycleEvent)
             .where(SetupLifecycleEvent.snapshot_id.in_(signal_snapshot_ids))
-            .where(SetupLifecycleEvent.is_current_version.is_(True))
             .order_by(SetupLifecycleEvent.id.desc())
-        ).all()
+        )
+        if view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
+            related_statement = related_statement.where(
+                SetupLifecycleEvent.is_current_version.is_(True)
+            )
+        related = db.scalars(related_statement).all()
         for row in related:
             if row.snapshot_id:
                 lifecycle_by_snapshot.setdefault(row.snapshot_id, row)
@@ -1396,6 +1426,14 @@ def _validate_query(query: SetupLifecycleListQuery) -> SetupLifecycleListQuery:
     if query.direction not in {"asc", "desc"}:
         raise SetupLifecycleQueryError("INVALID_SORT", "direction must be asc or desc")
     filters = query.filters
+    if (
+        query.view_scope == SetupLifecycleViewScope.HISTORICAL_RUN
+        and filters.run_id is None
+    ):
+        raise SetupLifecycleQueryError(
+            "INVALID_CONFIGURATION",
+            "HISTORICAL_RUN scope requires run_id",
+        )
     _validate_enum("setup_family", filters.setup_family, {item.value for item in SetupFamily})
     _validate_enum(
         "lifecycle_state", filters.lifecycle_state, {item.value for item in LifecycleState}
@@ -1967,6 +2005,8 @@ def _encode_change_cursor(
         "offset": next_offset,
         "sort": query.sort,
         "direction": query.direction,
+        "view_scope": query.view_scope.value,
+        "filters_hash": _change_filters_hash(query.filters),
         "primary": str(primary) if primary is not None else None,
         "effective_date": effective_date.isoformat(),
         "severity": severity,
@@ -1978,6 +2018,10 @@ def _encode_change_cursor(
     }
     raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     return "k1." + base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _change_filters_hash(filters: SetupLifecycleFilters) -> str:
+    return hashlib.sha256(repr(filters).encode("utf-8")).hexdigest()
 
 
 def _decode_change_cursor(
@@ -1993,6 +2037,8 @@ def _decode_change_cursor(
             payload.get("v") != 1
             or payload.get("sort") != query.sort
             or payload.get("direction") != query.direction
+            or payload.get("view_scope") != query.view_scope.value
+            or payload.get("filters_hash") != _change_filters_hash(query.filters)
         ):
             raise ValueError
         primary = payload.get("primary")
@@ -2158,6 +2204,7 @@ def _page(
         "next_cursor": str(next_offset) if next_offset < total else None,
         "sort": query.sort,
         "direction": query.direction,
+        "view_scope": query.view_scope.value,
         "selected_date": _date_or_none(query.filters.as_of_date),
         "summary": dict(summary or {}),
     }
@@ -2447,6 +2494,7 @@ def _cached_changes_summary(
     signal_statement,
     *,
     filters: SetupLifecycleFilters,
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET,
 ) -> tuple[dict[str, Any], int, int]:
     lifecycle_revision, signal_revision = db.execute(
         select(
@@ -2461,6 +2509,7 @@ def _cached_changes_summary(
         int(lifecycle_revision or 0),
         int(signal_revision or 0),
         filters,
+        view_scope,
     )
     with _CHANGE_SUMMARY_CACHE_LOCK:
         cached = _CHANGE_SUMMARY_CACHE.get(cache_key)

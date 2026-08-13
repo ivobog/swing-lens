@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +18,7 @@ from app.models.tables import (
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
+    UploadRun,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -30,9 +32,9 @@ def test_populated_market_changes_and_alert_center_contract(
 ) -> None:
     engine = create_engine(live_server_database_url)
     with Session(engine) as db:
-        _seed_vertical_fixture(db)
+        run_id, current_snapshot_id, lifecycle_event_id = _seed_vertical_fixture(db)
 
-    page.goto(f"{live_server_url}/setup-lifecycle?as_of=2026-08-10")
+    page.goto(f"{live_server_url}/setup-lifecycle")
     expect(page.get_by_role("heading", name="Market Changes")).to_be_visible()
     expect(page.get_by_text("LIFECYCLE_EVENT", exact=True).last).to_be_visible()
     expect(page.get_by_text("SIGNAL_CHANGE_EVENT", exact=True).last).to_be_visible()
@@ -40,10 +42,52 @@ def test_populated_market_changes_and_alert_center_contract(
     expect(
         page.locator(".metric", has_text="Total Changes").get_by_text("2", exact=True)
     ).to_be_visible()
+    expect(page.locator('input[name="as_of"]')).to_have_value("")
     page.screenshot(
         path=REPO_ROOT / "output" / "playwright" / "slse-market-changes-populated.png",
         full_page=True,
     )
+
+    page.goto(f"{live_server_url}/setup-lifecycle?as_of=2026-08-11")
+    expect(page.get_by_text("No lifecycle changes match this view.")).to_be_visible()
+
+    with Session(engine) as db:
+        db.get(SetupSignalSnapshot, current_snapshot_id).is_canonical = False
+        db.get(SetupLifecycleEvent, lifecycle_event_id).is_current_version = False
+        db.commit()
+
+    page.goto(
+        f"{live_server_url}/runs/{run_id}/setup-lifecycle"
+        "?ticker=FIX&sort=score&direction=asc&limit=1"
+    )
+    expect(page.get_by_text(f"Run {run_id} · Historical evidence", exact=True)).to_be_visible()
+    expect(page.locator("tbody tr:not(.detail-row)")).to_have_count(1)
+    first_source = page.locator("tbody tr").first.get_by_role("cell").nth(3).inner_text()
+    next_link = page.get_by_role("link", name="Next page")
+    expect(next_link).to_have_attribute(
+        "href", re.compile(f"^/runs/{run_id}/setup-lifecycle\\?")
+    )
+    expect(page.get_by_role("link", name="Clear")).to_have_attribute(
+        "href", f"/runs/{run_id}/setup-lifecycle"
+    )
+    expect(page.get_by_role("link", name="Newly Ready")).to_have_attribute(
+        "href", f"/runs/{run_id}/setup-lifecycle?quick_filter=newly-ready"
+    )
+    expect(page.get_by_role("link", name="CSV")).to_have_attribute(
+        "href", re.compile(f"run_id={run_id}.*view_scope=HISTORICAL_RUN")
+    )
+    next_link.click()
+    expect(page).to_have_url(re.compile(f"/runs/{run_id}/setup-lifecycle\\?"))
+    second_source = page.locator("tbody tr").first.get_by_role("cell").nth(3).inner_text()
+    assert first_source != second_source
+    historical_export = page.request.get(
+        f"{live_server_url}/api/setup-lifecycle/changes/export.json"
+        f"?run_id={run_id}&view_scope=HISTORICAL_RUN"
+    ).json()
+    assert historical_export["total"] == 2
+    assert page.request.get(
+        f"{live_server_url}/api/setup-lifecycle/changes?run_id={run_id}"
+    ).json()["total"] == 0
 
     page.goto(f"{live_server_url}/setup-lifecycle/alerts")
     expect(page.get_by_role("heading", name="Alert Center")).to_be_visible()
@@ -90,8 +134,16 @@ def test_populated_market_changes_and_alert_center_contract(
     engine.dispose()
 
 
-def _seed_vertical_fixture(db: Session) -> None:
+def _seed_vertical_fixture(db: Session) -> tuple[int, int, int]:
+    source_run = UploadRun(
+        filename="slse-browser-fixture.csv",
+        status="COMPLETED",
+        row_count=2,
+    )
+    db.add(source_run)
+    db.flush()
     evaluation = SetupLifecycleEvaluationRun(
+        source_run_id=source_run.id,
         mode="LIVE",
         status="COMPLETED",
         engine_version="slse-test",
@@ -100,8 +152,12 @@ def _seed_vertical_fixture(db: Session) -> None:
     )
     db.add(evaluation)
     db.flush()
-    previous = _snapshot(date(2026, 8, 7), Decimal("7.6"), 9, evaluation.id, 1)
-    current = _snapshot(date(2026, 8, 10), Decimal("8.1"), 5, evaluation.id, 2)
+    previous = _snapshot(
+        date(2026, 8, 7), Decimal("7.6"), 9, evaluation.id, 1, source_run.id
+    )
+    current = _snapshot(
+        date(2026, 8, 10), Decimal("8.1"), 5, evaluation.id, 2, source_run.id
+    )
     db.add_all([previous, current])
     db.flush()
     episode = SetupLifecycleEpisode(
@@ -201,16 +257,36 @@ def _seed_vertical_fixture(db: Session) -> None:
             ),
         ]
     )
+    db.add(
+        _snapshot(
+            date(2026, 8, 11),
+            Decimal("8.0"),
+            7,
+            evaluation.id,
+            3,
+            None,
+            ticker="QUIET",
+        )
+    )
     db.commit()
+    return source_run.id, current.id, lifecycle.id
 
 
 def _snapshot(
-    as_of: date, score: Decimal, sector_rank: int, evaluation_id: int, identity: int
+    as_of: date,
+    score: Decimal,
+    sector_rank: int,
+    evaluation_id: int,
+    identity: int,
+    run_id: int | None,
+    *,
+    ticker: str = "FIX",
 ) -> SetupSignalSnapshot:
     return SetupSignalSnapshot(
         evaluation_run_id=evaluation_id,
+        run_id=run_id,
         source_run_id_text="fixture-run",
-        ticker="FIX",
+        ticker=ticker,
         company_name="Example Inc.",
         sector="Industrials",
         timeframe="1d",
