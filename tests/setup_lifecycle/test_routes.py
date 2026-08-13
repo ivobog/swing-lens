@@ -12,7 +12,10 @@ from fastapi.testclient import TestClient
 from app.db import get_db
 from app.main import create_app
 from app.routers import setup_lifecycle_routes as routes
-from app.services.setup_lifecycle.query_service import SetupLifecycleQueryError
+from app.services.setup_lifecycle.query_service import (
+    SetupLifecycleQueryError,
+    SetupLifecycleViewScope,
+)
 from app.settings import Settings
 
 
@@ -214,6 +217,61 @@ def test_market_changes_page_renders_full_data(monkeypatch: pytest.MonkeyPatch) 
     assert "MSFT" in response.text
     assert "Stale-system warning active" in response.text
     assert "Expand" in response.text
+
+
+def test_global_changes_page_does_not_inject_latest_snapshot_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_service = FakeQueryService(changes_payload=_changes_payload())
+    monkeypatch.setattr(routes, "SetupLifecycleQueryService", lambda: fake_service)
+    app = create_app(Settings(_env_file=None, job_worker_enabled=False))
+    app.dependency_overrides[get_db] = lambda: object()
+
+    response = TestClient(app).get(
+        "/setup-lifecycle?date_from=2026-07-01&date_to=2026-08-10"
+    )
+
+    assert response.status_code == 200
+    query = fake_service.last_changes_query
+    assert query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET
+    assert query.filters.as_of_date is None
+    assert query.filters.date_from == date(2026, 7, 1)
+    assert query.filters.date_to == date(2026, 8, 10)
+    assert 'name="as_of" type="date" value=""' in response.text
+
+
+def test_run_changes_page_forwards_filters_and_keeps_run_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {**_changes_payload(), "next_cursor": "next-token"}
+    fake_service = FakeQueryService(changes_payload=payload)
+    monkeypatch.setattr(routes, "SetupLifecycleQueryService", lambda: fake_service)
+    monkeypatch.setattr(routes, "_require_run", lambda _db, _run_id: None)
+    app = create_app(Settings(_env_file=None, job_worker_enabled=False))
+    app.dependency_overrides[get_db] = lambda: object()
+
+    response = TestClient(app).get(
+        "/runs/101/setup-lifecycle?run_id=999&ticker=fix&sort=score"
+        "&direction=asc&limit=1&date_from=2026-08-01&date_to=2026-08-10"
+    )
+
+    assert response.status_code == 200
+    query = fake_service.last_changes_query
+    assert query.view_scope == SetupLifecycleViewScope.HISTORICAL_RUN
+    assert query.filters.run_id == 101
+    assert query.filters.ticker == "fix"
+    assert query.filters.date_from == date(2026, 8, 1)
+    assert query.filters.date_to == date(2026, 8, 10)
+    assert query.sort == "score"
+    assert query.direction == "asc"
+    assert query.limit == 1
+    assert "/runs/101/setup-lifecycle?" in response.text
+    assert "/runs/101/setup-lifecycle?quick_filter=newly-ready" in response.text
+    assert 'href="/runs/101/setup-lifecycle">Clear</a>' in response.text
+    assert "run_id=101" in response.text
+    assert "view_scope=HISTORICAL_RUN" in response.text
+    assert "run_id=999" not in response.text
+    assert "Historical evidence" in response.text
 
 
 def test_quick_filters_use_event_semantics_and_real_bounds() -> None:

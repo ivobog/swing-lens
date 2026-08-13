@@ -21,12 +21,14 @@ from app.models.tables import (
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
+    UploadRun,
 )
 from app.services.setup_lifecycle.export_service import export_alerts_csv, export_changes_csv
 from app.services.setup_lifecycle.query_service import (
     SetupLifecycleFilters,
     SetupLifecycleListQuery,
     SetupLifecycleQueryService,
+    SetupLifecycleViewScope,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -49,7 +51,15 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
     engine = create_engine(disposable_postgres_database)
 
     with Session(engine) as db:
+        source_run = UploadRun(
+            filename="slse-historical-fixture.csv",
+            status="COMPLETED",
+            row_count=27,
+        )
+        db.add(source_run)
+        db.flush()
         evaluation = SetupLifecycleEvaluationRun(
+            source_run_id=source_run.id,
             mode="LIVE",
             status="COMPLETED",
             engine_version="slse-test",
@@ -58,8 +68,12 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
         )
         db.add(evaluation)
         db.flush()
-        previous = _snapshot(1, date(2026, 8, 7), Decimal("7.6"), 9, evaluation.id)
-        current = _snapshot(2, date(2026, 8, 10), Decimal("8.1"), 5, evaluation.id)
+        previous = _snapshot(
+            1, date(2026, 8, 7), Decimal("7.6"), 9, evaluation.id, source_run.id
+        )
+        current = _snapshot(
+            2, date(2026, 8, 10), Decimal("8.1"), 5, evaluation.id, source_run.id
+        )
         db.add_all([previous, current])
         db.flush()
         episode = SetupLifecycleEpisode(
@@ -173,7 +187,15 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
                 ),
             ]
         )
-        quiet = _snapshot(3, date(2026, 8, 11), Decimal("8.1"), 5, evaluation.id)
+        quiet = _snapshot(
+            3,
+            date(2026, 8, 11),
+            Decimal("8.1"),
+            5,
+            evaluation.id,
+            None,
+            ticker="QUIET",
+        )
         db.add(quiet)
         db.commit()
 
@@ -257,6 +279,128 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
         assert no_change["items"][0]["source_type"] == "SNAPSHOT_OBSERVATION"
         assert no_change["items"][0]["transition"] == "NO_MATERIAL_CHANGE"
 
+        current.is_canonical = False
+        lifecycle.is_current_version = False
+        historical_keys = {
+            ("LIFECYCLE_EVENT", lifecycle.id),
+            ("SIGNAL_CHANGE_EVENT", change.id),
+        }
+        for index in range(25):
+            ticker = f"HIST{index:02d}"
+            snapshot = _snapshot(
+                index + 4,
+                date(2026, 8, 10),
+                Decimal("7.0") + Decimal(index) / 10,
+                index + 1,
+                evaluation.id,
+                source_run.id,
+                ticker=ticker,
+                is_canonical=False,
+            )
+            db.add(snapshot)
+            db.flush()
+            historical_lifecycle = SetupLifecycleEvent(
+                evaluation_run_id=evaluation.id,
+                snapshot_id=snapshot.id,
+                ticker=ticker,
+                timeframe="1d",
+                setup_family="BREAKOUT",
+                effective_date=date(2026, 8, 10),
+                event_type="STATE_TRANSITION",
+                from_state="READY",
+                to_state="TRIGGERED",
+                from_phase="PIVOT_READY",
+                to_phase="BREAKOUT",
+                state_age_before=index,
+                actionability_before="WATCH_ONLY",
+                actionability_after="ACTIONABLE",
+                confidence_score=70 + index,
+                confidence_label="NORMAL",
+                severity="NOTABLE",
+                source_event_key=f"historical-lifecycle-{index}",
+                is_current_version=False,
+                engine_version="slse-test",
+                config_version="test-v2",
+                config_hash="config-hash",
+                reason_codes_json=["HISTORICAL_FIXTURE"],
+                evidence_json={"velocity": {"3": {"normalized_delta": index / 10}}},
+            )
+            historical_change = SignalChangeEvent(
+                evaluation_run_id=evaluation.id,
+                current_snapshot_id=snapshot.id,
+                ticker=ticker,
+                timeframe="1d",
+                effective_date=date(2026, 8, 10),
+                category="SCORE",
+                signal_key="technical_score",
+                value_type="float",
+                old_value_json={"value": 6.0},
+                new_value_json={"value": float(snapshot.dual_score)},
+                delta_numeric=Decimal("1.0"),
+                normalized_delta=Decimal(index) / 10,
+                direction="higher_is_better",
+                severity="NOTABLE",
+                signal_definition_version="test-v2",
+                source_event_key=f"historical-change-{index}",
+                config_hash="config-hash",
+                reason_codes_json=["HISTORICAL_FIXTURE"],
+                evidence_json={"velocity": {"3": {"normalized_delta": index / 10}}},
+            )
+            db.add_all([historical_lifecycle, historical_change])
+            db.flush()
+            historical_keys.update(
+                {
+                    ("LIFECYCLE_EVENT", historical_lifecycle.id),
+                    ("SIGNAL_CHANGE_EVENT", historical_change.id),
+                }
+            )
+        db.commit()
+
+        current_market = service.changes(
+            db,
+            SetupLifecycleListQuery(filters=SetupLifecycleFilters()),
+        )
+        assert current_market["total"] == 0
+
+        for sort in (
+            "latest_event_time",
+            "transition_priority",
+            "confidence",
+            "score",
+            "setup_score",
+            "velocity",
+            "state_age",
+            "trigger_distance",
+            "sector_rank",
+        ):
+            for direction in ("asc", "desc"):
+                cursor = None
+                observed: list[tuple[str, int]] = []
+                page_count = 0
+                while True:
+                    page = service.changes(
+                        db,
+                        SetupLifecycleListQuery(
+                            filters=SetupLifecycleFilters(run_id=source_run.id),
+                            sort=sort,
+                            direction=direction,
+                            limit=13,
+                            cursor=cursor,
+                            view_scope=SetupLifecycleViewScope.HISTORICAL_RUN,
+                        ),
+                    )
+                    assert page["view_scope"] == "HISTORICAL_RUN"
+                    assert page["total"] == 52
+                    observed.extend((row["source_type"], row["id"]) for row in page["items"])
+                    page_count += 1
+                    cursor = page["next_cursor"]
+                    if cursor is None:
+                        break
+                    assert cursor.startswith("k1.")
+                assert page_count == 4
+                assert len(observed) == len(set(observed)) == 52
+                assert set(observed) == historical_keys
+
 
 def _snapshot(
     identity: int,
@@ -264,11 +408,16 @@ def _snapshot(
     score: Decimal,
     sector_rank: int,
     evaluation_id: int,
+    run_id: int | None,
+    *,
+    ticker: str = "FIX",
+    is_canonical: bool = True,
 ) -> SetupSignalSnapshot:
     return SetupSignalSnapshot(
         evaluation_run_id=evaluation_id,
+        run_id=run_id,
         source_run_id_text="fixture-run",
-        ticker="FIX",
+        ticker=ticker,
         company_name="Example Inc.",
         sector="Industrials",
         timeframe="1d",
@@ -280,7 +429,7 @@ def _snapshot(
         config_hash="config-hash",
         source_data_hash=f"source-{identity}",
         schema_version="v2",
-        is_canonical=True,
+        is_canonical=is_canonical,
         primary_setup_family="BREAKOUT",
         primary_phase="PIVOT_READY" if identity == 1 else "BREAKOUT",
         lifecycle_state_candidate="READY" if identity == 1 else "TRIGGERED",

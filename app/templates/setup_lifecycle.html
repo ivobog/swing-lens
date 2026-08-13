@@ -9,7 +9,7 @@
   <div class="panel-header run-header">
     <div>
       <h1>Market Changes</h1>
-      <p>Daily lifecycle changes from completed signal sessions. Research evidence only; rankings and orders are not changed here.</p>
+      <p>{% if view_scope == "HISTORICAL_RUN" %}Immutable lifecycle evidence attributed to this completed run.{% else %}Current lifecycle changes from completed signal sessions.{% endif %} Research evidence only; rankings and orders are not changed here.</p>
     </div>
     <div class="actions">
       <a class="button-link secondary" href="/setup-lifecycle/alerts">Alert Center</a>
@@ -27,7 +27,7 @@
     {% else %}
       <span class="badge badge-success">Lifecycle system current</span>
     {% endif %}
-    {% if filters.run_id %}<span>Run {{ filters.run_id }}</span>{% endif %}
+    {% if filters.run_id %}<span class="badge badge-muted">Run {{ filters.run_id }} · Historical evidence</span>{% endif %}
   </div>
   {% set disclaimer_context = "setup lifecycle state, actionability, alerts, and evidence changes" %}
   {% include "partials/_research_disclaimer.html" %}
@@ -35,7 +35,7 @@
     "mode": "decision_time",
     "source_cutoff": summary.selected_date or "N/A",
     "freshness": "stale_system_warning" if diagnostics.stale_system_warning else "current",
-    "correction_state": "canonical",
+    "correction_state": "historical_run" if view_scope == "HISTORICAL_RUN" else "canonical",
     "config_version": "setup lifecycle",
     "confidence": "row_level"
   } %}
@@ -71,6 +71,8 @@
   <form class="setup-lifecycle-filter-grid section-gap" method="get">
     <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
     <label><span>Data as of</span><input name="as_of" type="date" value="{{ filters.as_of }}"></label>
+    <label><span>Date from</span><input name="date_from" type="date" value="{{ filters.date_from }}"></label>
+    <label><span>Date to</span><input name="date_to" type="date" value="{{ filters.date_to }}"></label>
     <label><span>Sector</span><input name="sector" value="{{ filters.sector }}"></label>
     <label><span>Family</span><input name="setup_family" value="{{ filters.setup_family }}"></label>
     <label><span>State</span><input name="lifecycle_state" value="{{ filters.lifecycle_state }}"></label>
@@ -104,7 +106,7 @@
     <label><span>Warning flag</span><input name="warning_flag" value="{{ filters.warning_flag }}"></label>
     <label><span>Sort</span>
       <select name="sort">
-        {% for option in ["latest_event_time", "transition_priority", "confidence", "score", "velocity", "state_age", "trigger_distance", "sector_rank"] %}
+        {% for option in ["latest_event_time", "transition_priority", "confidence", "score", "setup_score", "velocity", "state_age", "trigger_distance", "sector_rank"] %}
           <option value="{{ option }}" {{ "selected" if filters.sort == option else "" }}>{{ option|replace("_", " ")|title }}</option>
         {% endfor %}
       </select>
@@ -117,7 +119,7 @@
     </label>
     <div class="actions setup-lifecycle-filter-actions">
       <button type="submit">Apply</button>
-      <a class="button-link secondary" href="/setup-lifecycle">Clear</a>
+      <a class="button-link secondary" href="{{ clear_url }}">Clear</a>
     </div>
   </form>
 </section>

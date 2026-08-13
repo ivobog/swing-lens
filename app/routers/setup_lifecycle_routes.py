@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from typing import Annotated, Any
 from urllib.parse import urlencode
@@ -7,11 +8,11 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import status as http_status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models.tables import UploadRun
+from app.models.tables import SetupSignalSnapshot, UploadRun
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.background_job_service import enqueue_job
@@ -38,6 +39,7 @@ from app.services.setup_lifecycle.query_service import (
     SetupLifecycleListQuery,
     SetupLifecycleQueryError,
     SetupLifecycleQueryService,
+    SetupLifecycleViewScope,
 )
 from app.services.setup_lifecycle.replay_service import (
     SetupLifecycleReplayRequest,
@@ -59,10 +61,44 @@ EVALUATION_SCOPES = {
 }
 
 
-@router.get("/setup-lifecycle", response_class=HTMLResponse)
-def setup_lifecycle_page(
-    request: Request,
-    db: DbSession,
+@dataclass(frozen=True)
+class _ChangesPageParams:
+    quick_filter: str = ""
+    ticker: str | None = None
+    sector: str | None = None
+    setup_family: str | None = None
+    lifecycle_state: str | None = None
+    transition: str | None = None
+    actionability: str | None = None
+    confidence_min: int | None = None
+    confidence_max: int | None = None
+    state_age_min: int | None = None
+    state_age_max: int | None = None
+    setup_score_min: float | None = None
+    setup_score_max: float | None = None
+    trigger_distance_min: float | None = None
+    trigger_distance_max: float | None = None
+    sector_rank_min: int | None = None
+    sector_rank_max: int | None = None
+    sector_rank_change_min: int | None = None
+    sector_rank_change_max: int | None = None
+    velocity_window: int = 3
+    velocity_min: float | None = None
+    velocity_max: float | None = None
+    market_regime: str | None = None
+    blocker: str | None = None
+    warning_flag: str | None = None
+    sort: str = "latest_event_time"
+    direction: str = "desc"
+    limit: int = 50
+    cursor: str | None = None
+    as_of: date | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+    source_type: str | None = None
+
+
+def _changes_page_params(
     quick_filter: str = "",
     ticker: str | None = None,
     sector: str | None = None,
@@ -93,23 +129,20 @@ def setup_lifecycle_page(
     limit: int = 50,
     cursor: str | None = None,
     as_of: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     source_type: str | None = None,
-) -> HTMLResponse:
-    filter_values = _quick_filter_values(quick_filter)
-    diagnostics = setup_lifecycle_diagnostics(db=db)
-    selected_as_of = as_of or _date_value(diagnostics.get("latest_canonical_date"))
-    payload = setup_lifecycle_changes(
-        db=db,
-        as_of=selected_as_of,
-        source_type=source_type,
+) -> _ChangesPageParams:
+    return _ChangesPageParams(
+        quick_filter=quick_filter,
         ticker=ticker,
         sector=sector,
         setup_family=setup_family,
-        lifecycle_state=filter_values.get("lifecycle_state", lifecycle_state),
-        transition=filter_values.get("transition", transition),
-        actionability=filter_values.get("actionability", actionability),
-        confidence_min=filter_values.get("confidence_min", confidence_min),
-        confidence_max=filter_values.get("confidence_max", confidence_max),
+        lifecycle_state=lifecycle_state,
+        transition=transition,
+        actionability=actionability,
+        confidence_min=confidence_min,
+        confidence_max=confidence_max,
         state_age_min=state_age_min,
         state_age_max=state_age_max,
         setup_score_min=setup_score_min,
@@ -121,56 +154,37 @@ def setup_lifecycle_page(
         sector_rank_change_min=sector_rank_change_min,
         sector_rank_change_max=sector_rank_change_max,
         velocity_window=velocity_window,
-        velocity_min=filter_values.get("velocity_min", velocity_min),
+        velocity_min=velocity_min,
         velocity_max=velocity_max,
         market_regime=market_regime,
         blocker=blocker,
-        warning_flag=filter_values.get("warning_flag", warning_flag),
-        sort=filter_values.get("sort", sort),
+        warning_flag=warning_flag,
+        sort=sort,
         direction=direction,
         limit=limit,
         cursor=cursor,
+        as_of=as_of,
+        date_from=date_from,
+        date_to=date_to,
+        source_type=source_type,
     )
-    return templates.TemplateResponse(
-        request,
-        "setup_lifecycle.html",
-        _changes_template_context(
-            payload=payload,
-            diagnostics=diagnostics,
-            filters={
-                "quick_filter": quick_filter,
-                "ticker": ticker or "",
-                "sector": sector or "",
-                "setup_family": setup_family or "",
-                "lifecycle_state": filter_values.get("lifecycle_state", lifecycle_state) or "",
-                "transition": filter_values.get("transition", transition) or "",
-                "actionability": filter_values.get("actionability", actionability) or "",
-                "confidence_min": filter_values.get("confidence_min", confidence_min),
-                "confidence_max": filter_values.get("confidence_max", confidence_max),
-                "state_age_min": state_age_min,
-                "state_age_max": state_age_max,
-                "setup_score_min": setup_score_min,
-                "setup_score_max": setup_score_max,
-                "trigger_distance_min": trigger_distance_min,
-                "trigger_distance_max": trigger_distance_max,
-                "sector_rank_min": sector_rank_min,
-                "sector_rank_max": sector_rank_max,
-                "sector_rank_change_min": sector_rank_change_min,
-                "sector_rank_change_max": sector_rank_change_max,
-                "velocity_window": velocity_window,
-                "velocity_min": filter_values.get("velocity_min", velocity_min),
-                "velocity_max": velocity_max,
-                "market_regime": market_regime or "",
-                "blocker": blocker or "",
-                "warning_flag": filter_values.get("warning_flag", warning_flag) or "",
-                "sort": filter_values.get("sort", sort),
-                "direction": direction,
-                "limit": limit,
-                "cursor": cursor or "",
-                "as_of": selected_as_of.isoformat() if selected_as_of else "",
-                "source_type": source_type or "",
-            },
-        ),
+
+
+ChangesPageParams = Annotated[_ChangesPageParams, Depends(_changes_page_params)]
+
+
+@router.get("/setup-lifecycle", response_class=HTMLResponse)
+def setup_lifecycle_page(
+    request: Request,
+    db: DbSession,
+    params: ChangesPageParams,
+) -> HTMLResponse:
+    return _changes_page_response(
+        request=request,
+        db=db,
+        params=params,
+        base_path="/setup-lifecycle",
+        view_scope=SetupLifecycleViewScope.CURRENT_MARKET,
     )
 
 
@@ -289,35 +303,136 @@ def setup_lifecycle_operations_page(request: Request, db: DbSession) -> HTMLResp
 
 
 @router.get("/runs/{run_id}/setup-lifecycle", response_class=HTMLResponse)
-def run_setup_lifecycle(run_id: int, request: Request, db: DbSession) -> HTMLResponse:
+def run_setup_lifecycle(
+    run_id: int,
+    request: Request,
+    db: DbSession,
+    params: ChangesPageParams,
+) -> HTMLResponse:
     _require_run(db, run_id)
-    filters = SetupLifecycleFilters(run_id=run_id)
-    payload = SetupLifecycleQueryService().changes(
-        db,
-        SetupLifecycleListQuery(filters=filters),
+    return _changes_page_response(
+        request=request,
+        db=db,
+        params=params,
+        base_path=f"/runs/{run_id}/setup-lifecycle",
+        view_scope=SetupLifecycleViewScope.HISTORICAL_RUN,
+        run_id=run_id,
     )
+
+
+def _changes_page_response(
+    *,
+    request: Request,
+    db: Session,
+    params: _ChangesPageParams,
+    base_path: str,
+    view_scope: SetupLifecycleViewScope,
+    run_id: int | None = None,
+) -> HTMLResponse:
+    filter_values = _quick_filter_values(params.quick_filter)
+    diagnostics = setup_lifecycle_diagnostics(db=db)
+    lifecycle_state = filter_values.get("lifecycle_state", params.lifecycle_state)
+    transition = filter_values.get("transition", params.transition)
+    actionability = filter_values.get("actionability", params.actionability)
+    confidence_min = filter_values.get("confidence_min", params.confidence_min)
+    confidence_max = filter_values.get("confidence_max", params.confidence_max)
+    velocity_min = filter_values.get("velocity_min", params.velocity_min)
+    warning_flag = filter_values.get("warning_flag", params.warning_flag)
+    sort = filter_values.get("sort", params.sort)
+    selected_as_of = params.as_of
+    if transition == "NO_MATERIAL_CHANGE" and selected_as_of is None:
+        if view_scope == SetupLifecycleViewScope.HISTORICAL_RUN:
+            selected_as_of = db.scalar(
+                select(func.max(SetupSignalSnapshot.data_as_of_date)).where(
+                    SetupSignalSnapshot.run_id == run_id
+                )
+            )
+        else:
+            selected_as_of = _date_value(diagnostics.get("latest_canonical_date"))
+
+    payload = setup_lifecycle_changes(
+        db=db,
+        view_scope=view_scope,
+        run_id=run_id,
+        ticker=params.ticker,
+        sector=params.sector,
+        setup_family=params.setup_family,
+        lifecycle_state=lifecycle_state,
+        transition=transition,
+        actionability=actionability,
+        confidence_min=confidence_min,
+        confidence_max=confidence_max,
+        state_age_min=params.state_age_min,
+        state_age_max=params.state_age_max,
+        setup_score_min=params.setup_score_min,
+        setup_score_max=params.setup_score_max,
+        trigger_distance_min=params.trigger_distance_min,
+        trigger_distance_max=params.trigger_distance_max,
+        sector_rank_min=params.sector_rank_min,
+        sector_rank_max=params.sector_rank_max,
+        sector_rank_change_min=params.sector_rank_change_min,
+        sector_rank_change_max=params.sector_rank_change_max,
+        velocity_window=params.velocity_window,
+        velocity_min=velocity_min,
+        velocity_max=params.velocity_max,
+        market_regime=params.market_regime,
+        blocker=params.blocker,
+        warning_flag=warning_flag,
+        sort=sort,
+        direction=params.direction,
+        limit=params.limit,
+        cursor=params.cursor,
+        as_of=selected_as_of,
+        date_from=params.date_from,
+        date_to=params.date_to,
+        source_type=params.source_type,
+    )
+    filters = {
+        "run_id": run_id,
+        "quick_filter": params.quick_filter,
+        "ticker": params.ticker or "",
+        "sector": params.sector or "",
+        "setup_family": params.setup_family or "",
+        "lifecycle_state": lifecycle_state or "",
+        "transition": transition or "",
+        "actionability": actionability or "",
+        "confidence_min": confidence_min,
+        "confidence_max": confidence_max,
+        "state_age_min": params.state_age_min,
+        "state_age_max": params.state_age_max,
+        "setup_score_min": params.setup_score_min,
+        "setup_score_max": params.setup_score_max,
+        "trigger_distance_min": params.trigger_distance_min,
+        "trigger_distance_max": params.trigger_distance_max,
+        "sector_rank_min": params.sector_rank_min,
+        "sector_rank_max": params.sector_rank_max,
+        "sector_rank_change_min": params.sector_rank_change_min,
+        "sector_rank_change_max": params.sector_rank_change_max,
+        "velocity_window": params.velocity_window,
+        "velocity_min": velocity_min,
+        "velocity_max": params.velocity_max,
+        "market_regime": params.market_regime or "",
+        "blocker": params.blocker or "",
+        "warning_flag": warning_flag or "",
+        "sort": sort,
+        "direction": params.direction,
+        "limit": params.limit,
+        "cursor": params.cursor or "",
+        "as_of": selected_as_of.isoformat() if selected_as_of else "",
+        "date_from": params.date_from.isoformat() if params.date_from else "",
+        "date_to": params.date_to.isoformat() if params.date_to else "",
+        "source_type": params.source_type or "",
+    }
     payload["run_id"] = run_id
     return templates.TemplateResponse(
         request,
         "setup_lifecycle.html",
         _changes_template_context(
             payload=payload,
-            diagnostics=setup_lifecycle_diagnostics(db=db),
-            filters={
-                "run_id": run_id,
-                "quick_filter": "",
-                "ticker": "",
-                "sector": "",
-                "setup_family": "",
-                "lifecycle_state": "",
-                "transition": "",
-                "actionability": "",
-                "confidence_min": None,
-                "sort": "latest_event_time",
-                "direction": "desc",
-                "limit": 50,
-                "cursor": "",
-            },
+            diagnostics=diagnostics,
+            filters=filters,
+            base_path=base_path,
+            view_scope=view_scope,
         ),
     )
 
@@ -359,6 +474,7 @@ def export_setup_lifecycle_json(db: DbSession) -> Response:
 @router.get("/api/setup-lifecycle/changes")
 def setup_lifecycle_changes(
     db: DbSession,
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET,
     run_id: int | None = None,
     ticker: str | None = None,
     sector: str | None = None,
@@ -430,6 +546,7 @@ def setup_lifecycle_changes(
                 direction=direction,
                 limit=limit,
                 cursor=cursor,
+                view_scope=view_scope,
             ),
         )
     )
@@ -847,6 +964,7 @@ def setup_lifecycle_diagnostics(db: DbSession) -> dict[str, Any]:
 @router.get("/api/setup-lifecycle/changes/export.csv")
 def export_setup_lifecycle_changes_csv(
     db: DbSession,
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET,
     run_id: int | None = None,
     as_of: date | None = None,
     date_from: date | None = None,
@@ -881,6 +999,7 @@ def export_setup_lifecycle_changes_csv(
 ) -> Response:
     payload = setup_lifecycle_changes(
         db=db,
+        view_scope=view_scope,
         run_id=run_id,
         as_of=as_of,
         date_from=date_from,
@@ -934,6 +1053,7 @@ def export_setup_lifecycle_changes_csv(
 @router.get("/api/setup-lifecycle/changes/export.json")
 def export_setup_lifecycle_changes_json(
     db: DbSession,
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET,
     run_id: int | None = None,
     as_of: date | None = None,
     date_from: date | None = None,
@@ -968,6 +1088,7 @@ def export_setup_lifecycle_changes_json(
 ) -> Response:
     payload = setup_lifecycle_changes(
         db=db,
+        view_scope=view_scope,
         run_id=run_id,
         as_of=as_of,
         date_from=date_from,
@@ -1184,6 +1305,7 @@ def _list_query(
     direction: str,
     limit: int,
     cursor: str | None,
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET,
 ) -> SetupLifecycleListQuery:
     return SetupLifecycleListQuery(
         filters=SetupLifecycleFilters(
@@ -1221,6 +1343,7 @@ def _list_query(
         direction=direction,
         limit=limit,
         cursor=cursor,
+        view_scope=view_scope,
     )
 
 
@@ -1299,6 +1422,8 @@ def _changes_template_context(
     payload: dict[str, Any],
     diagnostics: dict[str, Any],
     filters: dict[str, Any],
+    base_path: str = "/setup-lifecycle",
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET,
 ) -> dict[str, Any]:
     items = list(payload.get("items", []))
     dates = sorted(
@@ -1306,9 +1431,14 @@ def _changes_template_context(
         reverse=True,
     )
     aggregate = dict(payload.get("summary") or {})
-    export_query = urlencode(
-        {key: value for key, value in filters.items() if value not in (None, "", False, 0)}
-    )
+    export_values = {
+        key: value
+        for key, value in filters.items()
+        if value not in (None, "", False, 0) and key not in {"cursor", "quick_filter"}
+    }
+    if view_scope == SetupLifecycleViewScope.HISTORICAL_RUN:
+        export_values["view_scope"] = view_scope.value
+    export_query = urlencode(export_values)
     summary = {
         "selected_date": filters.get("as_of")
         or (dates[0] if dates else diagnostics.get("latest_canonical_date")),
@@ -1328,12 +1458,16 @@ def _changes_template_context(
         "filters": filters,
         "diagnostics": diagnostics,
         "summary": summary,
-        "quick_filters": _quick_filters(filters.get("quick_filter", "")),
+        "quick_filters": _quick_filters(
+            filters.get("quick_filter", ""), base_path=base_path
+        ),
         "state_tones": _STATE_TONES,
         "actionability_tones": _ACTIONABILITY_TONES,
         "confidence_tones": _CONFIDENCE_TONES,
-        "pagination": _pagination(payload, filters, "/setup-lifecycle"),
+        "pagination": _pagination(payload, filters, base_path),
         "export_query": export_query,
+        "clear_url": base_path,
+        "view_scope": view_scope.value,
     }
 
 
@@ -1406,7 +1540,9 @@ def _alerts_template_context(
     }
 
 
-def _quick_filters(active: str) -> list[dict[str, str | bool]]:
+def _quick_filters(
+    active: str, *, base_path: str = "/setup-lifecycle"
+) -> list[dict[str, str | bool]]:
     definitions = {
         "newly-ready": {"label": "Newly Ready", "lifecycle_state": "READY"},
         "newly-triggered": {"label": "Newly Triggered", "lifecycle_state": "TRIGGERED"},
@@ -1421,7 +1557,7 @@ def _quick_filters(active: str) -> list[dict[str, str | bool]]:
         {
             "key": key,
             "label": str(value["label"]),
-            "href": "/setup-lifecycle?" + urlencode({"quick_filter": key}),
+            "href": base_path + "?" + urlencode({"quick_filter": key}),
             "active": key == active,
         }
         for key, value in definitions.items()

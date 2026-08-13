@@ -13,6 +13,12 @@ class TechnicalArtifactCacheMode(StrEnum):
     ACTIVE = "ACTIVE"
 
 
+class SecDocumentIncrementalMode(StrEnum):
+    OFF = "OFF"
+    SHADOW = "SHADOW"
+    ACTIVE = "ACTIVE"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -172,6 +178,9 @@ class Settings(BaseSettings):
     sec_requests_per_second: float = Field(default=2.0, gt=0, le=10)
     sec_http_timeout_seconds: int = Field(default=30, ge=1, le=120)
     sec_form4_enabled: bool = False
+    sec_document_incremental_mode: SecDocumentIncrementalMode = SecDocumentIncrementalMode.OFF
+    sec_document_lease_seconds: int = Field(default=900, ge=60, le=7200)
+    sec_document_retry_base_seconds: int = Field(default=30, ge=1, le=3600)
     runs_default_page_size: int = 25
     history_default_page_size: int = 50
     history_max_page_size: int = 200

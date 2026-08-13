@@ -17,6 +17,7 @@ from app.services.setup_lifecycle.query_service import (
     SetupLifecycleListQuery,
     SetupLifecycleQueryError,
     SetupLifecycleQueryService,
+    SetupLifecycleViewScope,
     _encode_timeline_cursor,
     _timeline_cursor_key,
     alert_payload,
@@ -162,6 +163,44 @@ def test_invalid_cursor_fails_before_database_access() -> None:
             SetupLifecycleListQuery(
                 filters=SetupLifecycleFilters(),
                 cursor="not-an-offset",
+            ),
+        )
+
+
+def test_historical_scope_requires_run_before_database_access() -> None:
+    with pytest.raises(SetupLifecycleQueryError, match="requires run_id"):
+        SetupLifecycleQueryService().changes(
+            object(),  # type: ignore[arg-type]
+            SetupLifecycleListQuery(
+                filters=SetupLifecycleFilters(),
+                view_scope=SetupLifecycleViewScope.HISTORICAL_RUN,
+            ),
+        )
+
+
+def test_change_cursor_is_bound_to_scope_and_filter_set() -> None:
+    current_query = SetupLifecycleListQuery(filters=SetupLifecycleFilters(ticker="FIX"))
+    cursor = query_module._encode_change_cursor(
+        current_query,
+        (date(2026, 8, 10), date(2026, 8, 10), 4, 1, 99),
+        next_offset=1,
+        summary={"material_changes": 1},
+        lifecycle_total=1,
+        signal_total=0,
+    )
+
+    assert query_module._decode_change_cursor(cursor, query=current_query)["offset"] == 1
+    with pytest.raises(SetupLifecycleQueryError, match="cursor"):
+        query_module._decode_change_cursor(
+            cursor,
+            query=SetupLifecycleListQuery(filters=SetupLifecycleFilters(ticker="OTHER")),
+        )
+    with pytest.raises(SetupLifecycleQueryError, match="cursor"):
+        query_module._decode_change_cursor(
+            cursor,
+            query=SetupLifecycleListQuery(
+                filters=SetupLifecycleFilters(ticker="FIX", run_id=101),
+                view_scope=SetupLifecycleViewScope.HISTORICAL_RUN,
             ),
         )
 

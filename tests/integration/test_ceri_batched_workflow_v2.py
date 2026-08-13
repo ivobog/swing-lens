@@ -6,7 +6,7 @@ import sys
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from threading import Barrier
 
 from sqlalchemy import create_engine, func, select
@@ -47,6 +47,12 @@ from app.services.ceri.job_handlers import (
     execute_rebuild_features_job,
 )
 from app.settings import Settings
+
+
+class _FixedDate(date):
+    @classmethod
+    def today(cls) -> date:
+        return cls(2026, 8, 12)
 
 
 def test_concurrent_finalizers_create_one_capture_in_postgresql(
@@ -173,6 +179,7 @@ def test_batched_workflow_outputs_match_legacy_workflow_in_postgresql(
     )
     fixed_now = datetime(2026, 8, 12, 16, 30, tzinfo=UTC)
     monkeypatch.setattr("app.services.ceri.capture_service._utcnow", lambda: fixed_now)
+    monkeypatch.setattr("app.services.ceri.feature_rebuild_service.date", _FixedDate)
 
     with disposable_postgres_database_factory() as legacy_url:
         with disposable_postgres_database_factory() as batched_url:

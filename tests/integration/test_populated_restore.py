@@ -11,10 +11,12 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, insert
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401 - registers every mapped table
 from app.db import Base
 from app.services.readiness_service import ReadinessService
+from app.services.worker_registry import register_worker
 from app.settings import Settings
 from scripts.ops.evidence_manifest import (
     DEFAULT_EVIDENCE_TABLES,
@@ -86,9 +88,20 @@ def test_populated_multi_module_backup_restore_preserves_evidence(
                 read_manifest(source_manifest_path),
             )
             write_comparison_report(comparison, comparison_path)
+            readiness_settings = _readiness_settings(tmp_path, restored_url)
+            with Session(restored_engine) as session:
+                register_worker(
+                    session,
+                    worker_id=readiness_settings.job_worker_id,
+                    queues=("background",),
+                    heartbeat_timeout_seconds=(
+                        readiness_settings.job_worker_heartbeat_timeout_seconds
+                    ),
+                )
+                session.commit()
             readiness = ReadinessService(
                 engine=restored_engine,
-                settings=_readiness_settings(tmp_path, restored_url),
+                settings=readiness_settings,
             ).report()
             restored_engine.dispose()
 

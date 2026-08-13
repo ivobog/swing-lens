@@ -22,6 +22,7 @@ from app.services.ceri.enums import CatalystCategory, CeriDataset
 from app.services.ceri.provider_protocol import CeriProvider
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.source_record_service import CeriSourceRecordService
+from app.settings import SecDocumentIncrementalMode, Settings, get_settings
 
 
 class CeriIngestionCancelled(RuntimeError):
@@ -53,6 +54,10 @@ class CeriIngestionResult:
     quarantined: int
     failed: int
     warnings: int
+    documents_discovered: int = 0
+    documents_downloaded: int = 0
+    documents_skipped: int = 0
+    documents_would_skip: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -65,10 +70,12 @@ class CeriIngestionService:
         config: CeriConfig | None = None,
         registry: CeriProviderRegistry | None = None,
         source_records: CeriSourceRecordService | None = None,
+        settings: Settings | None = None,
     ) -> None:
         self.config = config or load_ceri_config()
         self.registry = registry or CeriProviderRegistry(config=self.config)
         self.source_records = source_records or CeriSourceRecordService()
+        self.settings = settings or get_settings()
 
     def ingest(
         self,
@@ -94,6 +101,20 @@ class CeriIngestionService:
         )
         if ingestion_run.status in {"COMPLETED", "PARTIAL"}:
             return self._result_from_run(ingestion_run)
+
+        if (
+            request.provider == "sec"
+            and request.dataset is CeriDataset.GUIDANCE
+            and self.settings.sec_document_incremental_mode is not SecDocumentIncrementalMode.OFF
+        ):
+            return self._ingest_sec_incremental(
+                db,
+                request=request,
+                provider=provider,
+                dataset_policy=dataset_policy,
+                ingestion_run=ingestion_run,
+                should_cancel=should_cancel,
+            )
 
         requested = fetched = inserted = deduplicated = corrected = quarantined = failed = 0
         warning_count = 0
@@ -168,6 +189,82 @@ class CeriIngestionService:
     def request_key(self, request: CeriIngestionRequest) -> str:
         return f"ceri:{request.provider}:{request.dataset.value}:{request.ticker.upper()}"
 
+    def _ingest_sec_incremental(
+        self,
+        db: Session,
+        *,
+        request: CeriIngestionRequest,
+        provider,
+        dataset_policy,
+        ingestion_run: CeriIngestionRun,
+        should_cancel,
+    ) -> CeriIngestionResult:
+        from app.services.ceri.sec.incremental_ingestion import (
+            SecGuidanceIncrementalIngestionService,
+            SecIncrementalCancelled,
+        )
+
+        service = SecGuidanceIncrementalIngestionService(
+            settings=self.settings,
+            source_records=self.source_records,
+        )
+        try:
+            outcome = service.ingest(
+                db,
+                provider=provider,
+                ingestion_run=ingestion_run,
+                ticker=request.ticker,
+                start=request.start,
+                end=request.end,
+                raw_payload_allowed=dataset_policy.raw_payload_storage_allowed,
+                historical_backfill=bool((request.scope or {}).get("backfill")),
+                should_cancel=should_cancel,
+                worker_id=str(
+                    (request.scope or {}).get("worker_id") or self.settings.job_worker_id
+                ),
+            )
+            status = "PARTIAL" if outcome.failed or outcome.quarantined else "COMPLETED"
+        except SecIncrementalCancelled:
+            raise CeriIngestionCancelled("CERI ingestion cancelled.") from None
+        except SQLAlchemyError:
+            raise
+        except Exception as exc:
+            from app.services.ceri.sec.incremental_ingestion import SecIncrementalOutcome
+
+            outcome = SecIncrementalOutcome(failed=1, errors=[{"error": _safe_message(exc)}])
+            status = "PARTIAL"
+        telemetry = outcome.telemetry()
+        finished = self.source_records.finish_ingestion_run(
+            db,
+            ingestion_run,
+            status=status,
+            requested_count=outcome.requested,
+            fetched_count=outcome.fetched,
+            inserted_count=outcome.inserted,
+            deduplicated_count=outcome.deduplicated,
+            corrected_count=outcome.corrected,
+            quarantined_count=outcome.quarantined,
+            failed_count=outcome.failed,
+            warning_count=0,
+            quota_state={
+                "provider": request.provider,
+                "incremental_mode": self.settings.sec_document_incremental_mode.value,
+                "processor_signature": service.processor_signature,
+                **telemetry,
+            },
+            checkpoint=telemetry,
+            errors={"documents": outcome.errors} if outcome.errors else None,
+        )
+        result = self._result_from_run(finished)
+        values = result.as_dict()
+        values.update(
+            documents_discovered=outcome.documents_discovered,
+            documents_downloaded=outcome.documents_downloaded,
+            documents_skipped=outcome.documents_skipped,
+            documents_would_skip=outcome.documents_would_skip,
+        )
+        return CeriIngestionResult(**values)
+
     def _fetch_records(
         self,
         provider: CeriProvider,
@@ -209,6 +306,7 @@ class CeriIngestionService:
         raise ValueError(f"Unsupported CERI dataset: {request.dataset}")
 
     def _result_from_run(self, run: CeriIngestionRun) -> CeriIngestionResult:
+        telemetry = run.quota_state_json or {}
         return CeriIngestionResult(
             ingestion_run_id=run.id,
             provider=run.provider,
@@ -222,6 +320,10 @@ class CeriIngestionService:
             quarantined=run.quarantined_count,
             failed=run.failed_count,
             warnings=run.warning_count,
+            documents_discovered=int(telemetry.get("documents_discovered") or 0),
+            documents_downloaded=int(telemetry.get("documents_downloaded") or 0),
+            documents_skipped=int(telemetry.get("documents_skipped") or 0),
+            documents_would_skip=int(telemetry.get("documents_would_skip") or 0),
         )
 
 
