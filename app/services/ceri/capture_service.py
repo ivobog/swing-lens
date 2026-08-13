@@ -215,6 +215,7 @@ class CeriRunCaptureService:
                         price_feature.event_id if price_feature is not None else None
                     ),
                     conflict_penalty=min(3.0, float(company_conflicted)),
+                    as_of_session=cutoff_at.date(),
                 )
                 volatility_feature = _point_in_time_volatility_feature(db, row.ticker, cutoff_at)
                 short_pressure_feature = _point_in_time_short_pressure_feature(

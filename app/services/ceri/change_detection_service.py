@@ -94,6 +94,8 @@ class CeriChangeDetectionService:
         prior_action: str | None = None,
         scope: str = "daily_change_feed",
     ) -> ChangeDetectionResult:
+        if getattr(guidance, "accepted_for_scoring", None) is not True:
+            return ChangeDetectionResult(changes=0, duplicates=0)
         action_map = {
             "RAISED": CeriChangeType.GUIDANCE_RAISED,
             "LOWERED": CeriChangeType.GUIDANCE_LOWERED,
@@ -121,27 +123,46 @@ class CeriChangeDetectionService:
         prior: CeriScoreSnapshot | None,
     ) -> dict[CeriChangeType, dict[str, Any]]:
         if prior is None:
-            return {
-                CeriChangeType.OPPORTUNITY_UPGRADED: {
-                    "from": None,
-                    "to": current.opportunity_score,
-                }
-            }
+            return {}
         changes: dict[CeriChangeType, dict[str, Any]] = {}
         score_delta = float(self.config.change_thresholds["score_delta"])
         revision_delta = float(self.config.change_thresholds["revision_pct_points"])
-        if current.opportunity_score is not None and prior.opportunity_score is not None:
+        if prior.opportunity_score is None and current.opportunity_score is not None:
+            changes[CeriChangeType.BECAME_RATED] = {
+                "from": None,
+                "to": current.opportunity_score,
+                "baseline_only": False,
+            }
+        elif prior.opportunity_score is not None and current.opportunity_score is None:
+            changes[CeriChangeType.BECAME_UNRATED] = {
+                "from": prior.opportunity_score,
+                "to": None,
+                "baseline_only": False,
+            }
+        elif current.opportunity_score is not None and prior.opportunity_score is not None:
             opportunity_delta = current.opportunity_score - prior.opportunity_score
             if opportunity_delta >= score_delta:
                 changes[CeriChangeType.OPPORTUNITY_UPGRADED] = {"delta": opportunity_delta}
             elif opportunity_delta <= -score_delta:
                 changes[CeriChangeType.OPPORTUNITY_DOWNGRADED] = {"delta": opportunity_delta}
-        if current.event_risk_score is not None and prior.event_risk_score is not None:
+        if (
+            current.event_risk_score is not None
+            and prior.event_risk_score is not None
+            and _has_accepted_risk_evidence(current)
+        ):
             risk_delta = current.event_risk_score - prior.event_risk_score
             if risk_delta >= float(self.config.change_thresholds["risk_escalation_delta"]):
-                changes[CeriChangeType.RISK_ESCALATED] = {"delta": risk_delta}
+                changes[CeriChangeType.RISK_ESCALATED] = {
+                    "delta": risk_delta,
+                    "prior_comparable": True,
+                    "accepted_evidence": True,
+                }
             elif risk_delta <= -float(self.config.change_thresholds["risk_escalation_delta"]):
-                changes[CeriChangeType.RISK_DEESCALATED] = {"delta": risk_delta}
+                changes[CeriChangeType.RISK_DEESCALATED] = {
+                    "delta": risk_delta,
+                    "prior_comparable": True,
+                    "accepted_evidence": True,
+                }
         revision_current = _component_value(current, "revision_magnitude")
         revision_prior = _component_value(prior, "revision_magnitude")
         if revision_current is not None and revision_prior is not None:
@@ -249,6 +270,13 @@ def _has_stale_warning(snapshot: CeriScoreSnapshot | None) -> bool:
         return False
     values = [str(value).lower() for value in (snapshot.warnings_json or [])]
     return any("stale" in value for value in values)
+
+
+def _has_accepted_risk_evidence(snapshot: CeriScoreSnapshot) -> bool:
+    ledger = snapshot.event_risk_ledger_json or {}
+    if ledger.get("accepted_evidence") is True:
+        return True
+    return bool(ledger.get("accepted_evidence_ids") or ledger.get("selected_event_ids"))
 
 
 def _severity(delta: dict[str, Any]) -> str:

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 from app.models.ceri_tables import CeriGuidanceEvent, CeriRevisionFeature
 from app.services.ceri.catalyst_feature_service import CatalystFeature
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.dtos import ScoreComponent
-from app.services.ceri.enums import GuidanceAction
+from app.services.ceri.enums import CeriDataset, GuidanceAction
 from app.services.ceri.surprise_feature_service import SurpriseSummary
 
 
@@ -40,10 +41,15 @@ class CeriOpportunityScoreService:
         price_response_quality: float | None = None,
         price_response_parent_event_id: int | None = None,
         conflict_penalty: float = 0.0,
+        as_of_session: date | None = None,
     ) -> OpportunityResult:
         guidance_events = guidance_events or []
         catalyst_features = catalyst_features or []
-        guidance_value, guidance_ids, guidance_warnings = _guidance_score(guidance_events)
+        guidance_value, guidance_ids, guidance_warnings = _guidance_score(
+            guidance_events,
+            as_of_session=as_of_session,
+            max_stale_days=self.config.datasets[CeriDataset.GUIDANCE].max_stale_days,
+        )
         accepted_catalyst_ids = tuple(
             feature.catalyst_event_id
             for feature in catalyst_features
@@ -209,6 +215,9 @@ def _surprise_score(summary: SurpriseSummary | None) -> float | None:
 
 def _guidance_score(
     events: list[CeriGuidanceEvent],
+    *,
+    as_of_session: date | None = None,
+    max_stale_days: int | None = None,
 ) -> tuple[float | None, tuple[int, ...], tuple[str, ...]]:
     if not events:
         return None, (), ()
@@ -231,7 +240,15 @@ def _guidance_score(
         if event.action not in values or str(event.confidence).upper() not in {"HIGH", "NORMAL"}:
             rejected += 1
             continue
-        if event.accepted_for_scoring is False:
+        if event.accepted_for_scoring is not True:
+            rejected += 1
+            continue
+        if (
+            as_of_session is not None
+            and max_stale_days is not None
+            and event.effective_session is not None
+            and (as_of_session - event.effective_session).days > max_stale_days
+        ):
             rejected += 1
             continue
         if event.metric is None or event.period_type is None:

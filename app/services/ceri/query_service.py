@@ -22,6 +22,7 @@ from app.models.ceri_tables import (
     CeriGuidanceEvent,
     CeriIngestionRun,
     CeriProcessingRun,
+    CeriProviderRequestTelemetry,
     CeriPurgeAudit,
     CeriRevisionFeature,
     CeriScoreSnapshot,
@@ -39,6 +40,7 @@ from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import CeriDataset, HistoricalViewMode
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.guidance_normalizer import guidance_eligibility_reason
+from app.services.ceri.provider_cost_ledger import ProviderCostLedger
 from app.services.ceri.snapshot_service import CeriSnapshotService
 
 PURGE_INVALIDATION_FLAG = "provider_license_purge_invalidated"
@@ -431,6 +433,7 @@ class CeriQueryService:
         processing_runs = _load(db, CeriProcessingRun)
         source_records = _load(db, CeriSourceRecord)
         purge_audits = _load(db, CeriPurgeAudit)
+        provider_telemetry = _load(db, CeriProviderRequestTelemetry)
         estimates = _load(db, CeriEstimateSnapshot)
         revisions = _load(db, CeriRevisionFeature)
         snapshots = _load(db, CeriScoreSnapshot)
@@ -575,6 +578,27 @@ class CeriQueryService:
             "processing_runs": [_processing_run_payload(run) for run in processing_runs],
             "alert_delivery": dict(Counter(alert.status for alert in _load(db, CeriAlertEvent))),
             "provider_terms_version": self.config.retention.provider_terms_version,
+            "provider_cost_runtime_storage_ledger": ProviderCostLedger().summarize(
+                provider_telemetry
+            ),
+            "deployment_identities": [
+                {
+                    "run_type": "ingestion",
+                    "run_id": run.id,
+                    "identity": run.deployment_identity_json,
+                }
+                for run in ingestion_runs
+                if run.deployment_identity_json
+            ]
+            + [
+                {
+                    "run_type": "processing",
+                    "run_id": run.id,
+                    "identity": run.deployment_identity_json,
+                }
+                for run in processing_runs
+                if run.deployment_identity_json
+            ],
             "retention": {
                 "retain_source_evidence_indefinitely": (
                     self.config.retention.retain_source_evidence_indefinitely
@@ -926,6 +950,11 @@ def _revision_feature_payload(
         "acceleration": _value(feature.acceleration),
         "acceleration_unit": feature.acceleration_unit,
         "baseline_origin": feature.baseline_origin,
+        "comparison_mode": feature.comparison_mode,
+        "known_at": _value(feature.known_at),
+        "reference_at": _value(feature.reference_at),
+        "current_source_record_id": feature.current_source_record_id,
+        "baseline_source_record_id": feature.baseline_source_record_id,
         "revision_confidence_score": feature.revision_confidence_score,
         "revision_confidence_label": feature.revision_confidence_label,
         "warnings": feature.warnings_json,
@@ -1042,6 +1071,15 @@ def _current_revision_summary(db: Session, snapshot: CeriScoreSnapshot) -> dict[
             "upward_count": feature.upward_count,
             "downward_count": feature.downward_count,
             "breadth": _value(feature.net_breadth),
+            "comparison_mode": feature.comparison_mode,
+            "warnings": feature.warnings_json or [],
+            "currency_caveat": (
+                "Same-provider relative change; canonical currency unavailable."
+                if feature.comparison_mode == "SAME_PROVIDER_RELATIVE"
+                and "canonical_currency_unavailable_relative_only"
+                in (feature.warnings_json or [])
+                else None
+            ),
         }
     return result
 

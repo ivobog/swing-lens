@@ -1,0 +1,52 @@
+[
+  {
+    "cohort_id": "GOLD01",
+    "scenario": "EPS_RETROSPECTIVE_TREND",
+    "ticker": "GOLD01"
+  },
+  {
+    "cohort_id": "GOLD02",
+    "scenario": "EPS_RELATIVE_MISSING_CURRENCY",
+    "ticker": "GOLD02"
+  },
+  {
+    "cohort_id": "GOLD03",
+    "scenario": "REVENUE_HISTORY_AVAILABLE",
+    "ticker": "GOLD03"
+  },
+  {
+    "cohort_id": "GOLD04",
+    "scenario": "REVENUE_HISTORY_ABSENT",
+    "ticker": "GOLD04"
+  },
+  {
+    "cohort_id": "GOLD05",
+    "scenario": "HISTORICAL_REPORTED_EARNINGS",
+    "ticker": "GOLD05"
+  },
+  {
+    "cohort_id": "GOLD06",
+    "scenario": "UPCOMING_EARNINGS_ONLY",
+    "ticker": "GOLD06"
+  },
+  {
+    "cohort_id": "GOLD07",
+    "scenario": "VALID_EODHD_CATALYST",
+    "ticker": "GOLD07"
+  },
+  {
+    "cohort_id": "GOLD08",
+    "scenario": "CROSS_ISSUER_CATALYST_REJECTED",
+    "ticker": "GOLD08"
+  },
+  {
+    "cohort_id": "GOLD09",
+    "scenario": "VALID_SEC_GUIDANCE",
+    "ticker": "GOLD09"
+  },
+  {
+    "cohort_id": "GOLD10",
+    "scenario": "SEC_BOOTSTRAP_REQUIRED_DEGRADED",
+    "ticker": "GOLD10"
+  }
+]

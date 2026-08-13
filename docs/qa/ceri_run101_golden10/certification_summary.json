@@ -1,0 +1,13 @@
+{
+  "authorization_blockers": [
+    "Apply and verify schema revision 0042 on the intended deployment database before scheduling a broad run."
+  ],
+  "broad_run_authorized": false,
+  "calculation_version": "ceri-1.2.0",
+  "certified_as_of": "2026-08-13",
+  "code_gate_passed": true,
+  "cohort_size": 10,
+  "failures": [],
+  "passed": 10,
+  "status": "PASS"
+}

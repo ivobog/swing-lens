@@ -7,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriProcessingRun
+from app.services.ceri.config import load_ceri_config
+from app.services.ceri.deployment_identity import current_deployment_identity
 
 
 class CeriProcessingRunService:
@@ -37,6 +39,10 @@ class CeriProcessingRunService:
             scope_json=scope or {},
             config_version=config_version,
             config_hash=config_hash,
+            deployment_identity_json=current_deployment_identity(
+                config_hash=config_hash,
+                calculation_version=load_ceri_config().engine.calculation_version,
+            ),
             actor=actor,
             cutoff_at=cutoff_at,
             started_at=_utcnow(),

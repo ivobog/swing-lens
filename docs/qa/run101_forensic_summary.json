@@ -1,0 +1,186 @@
+{
+  "alerts": {
+    "n": 40,
+    "tickers": 40
+  },
+  "below_threshold_count": 200,
+  "calculation_version": "ceri-1.1.0",
+  "capture_cutoff": "2026-08-13 19:12:51.330758+02:00",
+  "changes": [
+    {
+      "change_type": "OPPORTUNITY_UPGRADED",
+      "n": 200
+    },
+    {
+      "change_type": "DATA_REFRESHED",
+      "n": 158
+    },
+    {
+      "change_type": "RISK_DEESCALATED",
+      "n": 86
+    },
+    {
+      "change_type": "RISK_ESCALATED",
+      "n": 1
+    }
+  ],
+  "config_hash": "aff83bb918fee7febe22dc35c66489178bbacce9d41cb9e88fc5a31f9434d677",
+  "config_version": "2026-08-12-remediation-r3",
+  "eodhd": {
+    "catalysts": {
+      "corrected_count": 236,
+      "deduplicated_count": 339,
+      "failed_count": 0,
+      "fetched_count": 907,
+      "inserted_count": 568,
+      "missing_currency_rows": 0,
+      "normalized_actuals": 0,
+      "normalized_catalyst_revisions": 439,
+      "normalized_estimates": 0,
+      "provider_observations": 907,
+      "usable_revision_features": 0
+    },
+    "earnings": {
+      "corrected_count": 0,
+      "deduplicated_count": 709,
+      "failed_count": 1,
+      "fetched_count": 869,
+      "inserted_count": 160,
+      "missing_currency_rows": 0,
+      "normalized_actuals": 160,
+      "normalized_catalyst_revisions": 0,
+      "normalized_estimates": 0,
+      "provider_observations": 869,
+      "usable_revision_features": 0
+    },
+    "estimates": {
+      "corrected_count": 7722,
+      "deduplicated_count": 0,
+      "failed_count": 1,
+      "fetched_count": 9156,
+      "inserted_count": 9156,
+      "missing_currency_rows": 9156,
+      "normalized_actuals": 0,
+      "normalized_catalyst_revisions": 0,
+      "normalized_estimates": 9156,
+      "provider_observations": 9156,
+      "usable_revision_features": 0
+    }
+  },
+  "generated_at": "2026-08-13 19:21:24.591522+00:00",
+  "hash_matches": 200,
+  "historical_ceri": {
+    "first_session": "2026-08-08",
+    "last_session": "2026-08-13",
+    "runs": 9,
+    "sessions": 6,
+    "snapshots": 2177
+  },
+  "jobs": [
+    {
+      "first_started": "2026-08-13 19:14:06.796374+02:00",
+      "job_type": "CERI_ALERT_REBUILD",
+      "last_completed": "2026-08-13 19:14:11.220927+02:00",
+      "n": 1,
+      "retries": 0,
+      "status": "COMPLETED"
+    },
+    {
+      "first_started": "2026-08-13 19:12:51.159725+02:00",
+      "job_type": "CERI_CAPTURE_RUN",
+      "last_completed": "2026-08-13 19:13:55.008695+02:00",
+      "n": 1,
+      "retries": 0,
+      "status": "COMPLETED"
+    },
+    {
+      "first_started": "2026-08-13 19:13:55.026691+02:00",
+      "job_type": "CERI_CHANGE_DETECTION",
+      "last_completed": "2026-08-13 19:14:06.777374+02:00",
+      "n": 1,
+      "retries": 0,
+      "status": "COMPLETED"
+    },
+    {
+      "first_started": "2026-08-13 17:35:49.423304+02:00",
+      "job_type": "CERI_FEATURE_BATCH",
+      "last_completed": "2026-08-13 19:12:51.072723+02:00",
+      "n": 4,
+      "retries": 0,
+      "status": "COMPLETED"
+    },
+    {
+      "first_started": "2026-08-13 17:22:41.751674+02:00",
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "last_completed": "2026-08-13 17:35:49.396786+02:00",
+      "n": 16,
+      "retries": 0,
+      "status": "COMPLETED"
+    },
+    {
+      "first_started": "2026-08-13 17:17:20.683048+02:00",
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "last_completed": "2026-08-13 17:28:14.880034+02:00",
+      "n": 22,
+      "retries": 0,
+      "status": "COMPLETED"
+    },
+    {
+      "first_started": "2026-08-13 17:20:26.532514+02:00",
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "last_completed": "2026-08-13 17:28:25.597075+02:00",
+      "n": 10,
+      "retries": 0,
+      "status": "PARTIAL"
+    },
+    {
+      "first_started": "2026-08-13 19:12:51.093724+02:00",
+      "job_type": "CERI_RUN_FINALIZE",
+      "last_completed": "2026-08-13 19:12:51.141723+02:00",
+      "n": 1,
+      "retries": 0,
+      "status": "COMPLETED"
+    },
+    {
+      "first_started": "2026-08-13 17:14:45.819515+02:00",
+      "job_type": "FULL_PIPELINE",
+      "last_completed": "2026-08-13 17:17:20.669047+02:00",
+      "n": 1,
+      "retries": 0,
+      "status": "COMPLETED"
+    }
+  ],
+  "minimum_component_coverage_pct": 60.0,
+  "null_score_upgrade_tickers": 200,
+  "read_only": true,
+  "reconstruction_matches": 200,
+  "run": {
+    "error_message": null,
+    "file_path": "data\\uploads\\20260813_151440_2b4a14ce_money money_2026-08-13.csv",
+    "filename": "money money_2026-08-13.csv",
+    "id": 101,
+    "notes": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+    "pine_engine_version": null,
+    "processed_at": "2026-08-13 17:14:40.901056+02:00",
+    "python_engine_version": null,
+    "row_count": 200,
+    "status": "COMPLETED",
+    "uploaded_at": "2026-08-13 17:14:40.067267+02:00"
+  },
+  "sec_downloads_during_run": 0,
+  "sec_extractions_during_run": 0,
+  "sec_status": {
+    "COMPLETED": 8,
+    "PARTIAL": 192
+  },
+  "selected_guidance_tickers": 4,
+  "snapshot_count": 200,
+  "ticker_count": 200,
+  "unrated_alert_tickers": 40,
+  "unrated_count": 200,
+  "without_eodhd_component_changes": 0,
+  "without_eodhd_material_decision_changes": 0,
+  "without_sec_component_changes": 4,
+  "without_sec_material_decision_changes": 0,
+  "zero_opportunity_coverage_count": 196
+}

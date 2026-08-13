@@ -14,6 +14,12 @@ from app.services.ceri.enums import CeriDataset
 from app.services.ceri.observability import ceri_metrics
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider, SecGuidanceDocument
+from app.services.ceri.sec.readiness_service import (
+    SecReadinessFacts,
+    SecReadinessPolicy,
+    SecReadinessService,
+    SecReadinessState,
+)
 from app.services.ceri.sec.state_service import (
     COMPLETED_STATUSES,
     SecDocumentIdentity,
@@ -48,6 +54,9 @@ class SecIncrementalOutcome:
     documents_claimed_elsewhere: int = 0
     stale_leases_recovered: int = 0
     errors: list[dict[str, str]] = field(default_factory=list)
+    readiness_state: str | None = None
+    run_evidence_status: str | None = None
+    readiness_reason: str | None = None
 
     def telemetry(self) -> dict[str, int]:
         return {
@@ -98,17 +107,43 @@ class SecGuidanceIncrementalIngestionService:
         mode = self.settings.sec_document_incremental_mode
         cik = self._resolve_and_persist_cik(db, provider=provider, ticker=ticker)
         if cik is None:
+            readiness = SecReadinessService().assess(
+                SecReadinessFacts(cik=None),
+                policy=SecReadinessPolicy(self.settings.sec_readiness_policy.value),
+            )
+            outcome.readiness_state = readiness.state.value
+            outcome.run_evidence_status = readiness.run_evidence_status
+            outcome.readiness_reason = readiness.reason
             return outcome
         if mode is SecDocumentIncrementalMode.ACTIVE and not historical_backfill:
-            if not self.state.is_bootstrap_certified(
+            certified = self.state.is_bootstrap_certified(
                 db,
                 cik=cik,
                 dataset=CeriDataset.GUIDANCE.value,
                 processor_signature=self.processor_signature,
-            ):
+            )
+            readiness = SecReadinessService().assess(
+                SecReadinessFacts(
+                    cik=cik,
+                    active=True,
+                    bootstrap_certified=certified,
+                    prior_signature_certified=self.state.has_prior_bootstrap_signature(
+                        db,
+                        cik=cik,
+                        dataset=CeriDataset.GUIDANCE.value,
+                        processor_signature=self.processor_signature,
+                    ),
+                ),
+                policy=SecReadinessPolicy(self.settings.sec_readiness_policy.value),
+            )
+            outcome.readiness_state = readiness.state.value
+            outcome.run_evidence_status = readiness.run_evidence_status
+            outcome.readiness_reason = readiness.reason
+            if not readiness.may_ingest:
                 raise SecBootstrapRequired(
-                    "SEC ACTIVE sync requires a successful SHADOW bootstrap for "
-                    f"CIK {cik} and processor signature {self.processor_signature}."
+                    f"{readiness.reason}: SEC ACTIVE sync requires a successful "
+                    f"bootstrap for CIK {cik} and processor signature "
+                    f"{self.processor_signature}."
                 )
         documents = provider.discover_guidance_documents(
             GuidanceRequest(
@@ -150,6 +185,14 @@ class SecGuidanceIncrementalIngestionService:
                 latest_filing_date=max((value for value in filing_dates if value), default=None),
             )
             db.commit()
+        if outcome.documents_skipped and not outcome.documents_downloaded:
+            outcome.readiness_state = SecReadinessState.READY_TERMINAL_REUSE.value
+            outcome.run_evidence_status = "READY"
+            outcome.readiness_reason = "TERMINAL_EXTRACTION_REUSED"
+        elif outcome.readiness_state is None:
+            outcome.readiness_state = SecReadinessState.READY.value
+            outcome.run_evidence_status = "READY"
+            outcome.readiness_reason = "SEC_INGESTION_COMPLETED"
         return outcome
 
     def _process_document(

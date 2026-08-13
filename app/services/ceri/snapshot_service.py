@@ -15,6 +15,7 @@ from app.services.ceri.confidence_service import ConfidenceResult
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.dtos import ScoreComponent
 from app.services.ceri.event_risk_service import EventRiskResult
+from app.services.ceri.evidence_state_service import CeriEvidenceLedgerService
 from app.services.ceri.opportunity_score_service import OpportunityResult
 
 
@@ -57,6 +58,18 @@ class CeriSnapshotService:
             event_risk.earnings_proximity.level,
         )
         components = [asdict(component) for component in opportunity.components]
+        selected_opportunity_ids = [
+            evidence_id
+            for component in opportunity.components
+            if component.available
+            for evidence_id in component.evidence_ids
+        ]
+        evidence_lineage = CeriEvidenceLedgerService().enrich(
+            evidence_lineage or {},
+            source_ids=source_ids,
+            opportunity_selected_ids=selected_opportunity_ids,
+            risk_selected_ids=list(event_risk.selected_event_ids),
+        )
         opportunity_ledger = {
             "rated": opportunity.rated,
             "score": opportunity.score,
@@ -84,6 +97,10 @@ class CeriSnapshotService:
             "rejected_event_ids": list(event_risk.rejected_event_ids),
             "rejected_events": list(event_risk.rejected_events),
             "penalties": list(event_risk.penalties),
+            "accepted_evidence": bool(
+                event_risk.earnings_proximity.days_until_earnings is not None
+                or event_risk.selected_event_ids
+            ),
         }
         earnings_risk = event_risk.earnings_proximity.risk_score
         reasons = [*opportunity.reasons, *event_risk.reasons, *confidence.reasons]
@@ -106,7 +123,7 @@ class CeriSnapshotService:
             "config_hash": self.config.config_hash,
             "calculation_version": self.config.engine.calculation_version,
             "alignment_context": alignment_context or {},
-            "evidence_lineage": evidence_lineage or {},
+            "evidence_lineage": evidence_lineage,
         }
         snapshot = CeriScoreSnapshot(
             run_id=run_id,
@@ -125,7 +142,7 @@ class CeriSnapshotService:
             earnings_proximity_risk=earnings_risk,
             alignment_flags_json=alignment_flags,
             alignment_context_json=alignment_context or {},
-            evidence_lineage_json=evidence_lineage or {},
+            evidence_lineage_json=evidence_lineage,
             top_positive_contributors_json=_top_contributors(opportunity.components, positive=True),
             top_negative_contributors_json=_top_contributors(
                 opportunity.components,
@@ -136,7 +153,7 @@ class CeriSnapshotService:
                 "source_ids": sorted(source_ids),
                 "earnings_proximity": asdict(event_risk.earnings_proximity),
                 "alignment_context": alignment_context or {},
-                "evidence_lineage": evidence_lineage or {},
+                "evidence_lineage": evidence_lineage,
             },
             opportunity_ledger_json=opportunity_ledger,
             confidence_ledger_json=confidence_ledger,

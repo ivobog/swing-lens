@@ -1,0 +1,907 @@
+[
+  {
+    "cohort_id": "GOLD01",
+    "rejected_evidence": [],
+    "scenario": "EPS_RETROSPECTIVE_TREND",
+    "selected_evidence_ids": [
+      10001
+    ],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 1,
+          "CONSIDERED": 1,
+          "REJECTED": 0,
+          "SELECTED_FOR_COMPONENT": 1
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "eodhd": "READY"
+        },
+        "snapshot_hash": "f88f173bcad776e2c0e207d84b8ea0a2f90c27217cb1ff766c1a70e2c2be340e"
+      },
+      "component": {
+        "available": true,
+        "name": "revision",
+        "selected_evidence_ids": [
+          10001
+        ]
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 20.0,
+        "selected_evidence_count": 1
+      },
+      "eligibility": {
+        "accepted": [
+          {
+            "evidence_id": 10001,
+            "reason": "ELIGIBLE"
+          }
+        ],
+        "rejected": []
+      },
+      "feature": {
+        "comparison_mode": null,
+        "family": "revision",
+        "value": 3.2,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10001
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "estimates",
+        "provider": "eodhd",
+        "readiness": "READY",
+        "source_record_ids": [
+          20001
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Low",
+        "event_risk_score": 0.0,
+        "opportunity_score": 5.0,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "f88f173bcad776e2c0e207d84b8ea0a2f90c27217cb1ff766c1a70e2c2be340e",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD01"
+  },
+  {
+    "cohort_id": "GOLD02",
+    "rejected_evidence": [],
+    "scenario": "EPS_RELATIVE_MISSING_CURRENCY",
+    "selected_evidence_ids": [
+      10002
+    ],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 1,
+          "CONSIDERED": 1,
+          "REJECTED": 0,
+          "SELECTED_FOR_COMPONENT": 1
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "eodhd": "READY"
+        },
+        "snapshot_hash": "d837394b8d2fcacbf497cf784d10aa4ac03cb12a93b1aa5c651ec1e8dcd3aa4a"
+      },
+      "component": {
+        "available": true,
+        "name": "revision",
+        "selected_evidence_ids": [
+          10002
+        ]
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 20.0,
+        "selected_evidence_count": 1
+      },
+      "eligibility": {
+        "accepted": [
+          {
+            "evidence_id": 10002,
+            "reason": "ELIGIBLE"
+          }
+        ],
+        "rejected": []
+      },
+      "feature": {
+        "comparison_mode": "SAME_PROVIDER_RELATIVE",
+        "family": "revision",
+        "value": 2.5,
+        "warnings": [
+          "canonical_currency_unavailable_relative_only"
+        ]
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10002
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "estimates",
+        "provider": "eodhd",
+        "readiness": "READY",
+        "source_record_ids": [
+          20002
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Low",
+        "event_risk_score": 0.0,
+        "opportunity_score": 5.0,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "d837394b8d2fcacbf497cf784d10aa4ac03cb12a93b1aa5c651ec1e8dcd3aa4a",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD02"
+  },
+  {
+    "cohort_id": "GOLD03",
+    "rejected_evidence": [],
+    "scenario": "REVENUE_HISTORY_AVAILABLE",
+    "selected_evidence_ids": [
+      10003
+    ],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 1,
+          "CONSIDERED": 1,
+          "REJECTED": 0,
+          "SELECTED_FOR_COMPONENT": 1
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "eodhd": "READY"
+        },
+        "snapshot_hash": "00736510dced92b386f1ed945b32e5751d1c26a54bd42697e00d151f4d1695ad"
+      },
+      "component": {
+        "available": true,
+        "name": "revision",
+        "selected_evidence_ids": [
+          10003
+        ]
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 20.0,
+        "selected_evidence_count": 1
+      },
+      "eligibility": {
+        "accepted": [
+          {
+            "evidence_id": 10003,
+            "reason": "ELIGIBLE"
+          }
+        ],
+        "rejected": []
+      },
+      "feature": {
+        "comparison_mode": "HISTORICAL_OBSERVATION",
+        "family": "revision",
+        "value": 1.4,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10003
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "estimates",
+        "provider": "eodhd",
+        "readiness": "READY",
+        "source_record_ids": [
+          20003
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Low",
+        "event_risk_score": 0.0,
+        "opportunity_score": 5.0,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "00736510dced92b386f1ed945b32e5751d1c26a54bd42697e00d151f4d1695ad",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD03"
+  },
+  {
+    "cohort_id": "GOLD04",
+    "rejected_evidence": [
+      {
+        "evidence_id": 10004,
+        "reason": "UNAVAILABLE_BASELINE_NOT_ACCUMULATED"
+      }
+    ],
+    "scenario": "REVENUE_HISTORY_ABSENT",
+    "selected_evidence_ids": [],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 0,
+          "CONSIDERED": 1,
+          "REJECTED": 1,
+          "SELECTED_FOR_COMPONENT": 0
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "eodhd": "READY"
+        },
+        "snapshot_hash": "b85883b6001de1d615f2b19a1fe61804b441abf2f2c1f0b30be9b297a6515fdd"
+      },
+      "component": {
+        "available": false,
+        "name": "revision",
+        "selected_evidence_ids": []
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 0.0,
+        "selected_evidence_count": 0
+      },
+      "eligibility": {
+        "accepted": [],
+        "rejected": [
+          {
+            "evidence_id": 10004,
+            "reason": "UNAVAILABLE_BASELINE_NOT_ACCUMULATED"
+          }
+        ]
+      },
+      "feature": {
+        "comparison_mode": null,
+        "family": "revision",
+        "value": null,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10004
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "estimates",
+        "provider": "eodhd",
+        "readiness": "READY",
+        "source_record_ids": [
+          20004
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Insufficient",
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "b85883b6001de1d615f2b19a1fe61804b441abf2f2c1f0b30be9b297a6515fdd",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD04"
+  },
+  {
+    "cohort_id": "GOLD05",
+    "rejected_evidence": [],
+    "scenario": "HISTORICAL_REPORTED_EARNINGS",
+    "selected_evidence_ids": [
+      10005
+    ],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 1,
+          "CONSIDERED": 1,
+          "REJECTED": 0,
+          "SELECTED_FOR_COMPONENT": 1
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "eodhd": "READY"
+        },
+        "snapshot_hash": "777b4322472b3c011296680261c256602f2e4e7486493a372164362d98821590"
+      },
+      "component": {
+        "available": true,
+        "name": "earnings_surprise",
+        "selected_evidence_ids": [
+          10005
+        ]
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 20.0,
+        "selected_evidence_count": 1
+      },
+      "eligibility": {
+        "accepted": [
+          {
+            "evidence_id": 10005,
+            "reason": "ELIGIBLE"
+          }
+        ],
+        "rejected": []
+      },
+      "feature": {
+        "comparison_mode": null,
+        "family": "earnings_surprise",
+        "value": 5.0,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10005
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "earnings",
+        "provider": "eodhd",
+        "readiness": "READY",
+        "source_record_ids": [
+          20005
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Low",
+        "event_risk_score": 0.0,
+        "opportunity_score": 5.0,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "777b4322472b3c011296680261c256602f2e4e7486493a372164362d98821590",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD05"
+  },
+  {
+    "cohort_id": "GOLD06",
+    "rejected_evidence": [],
+    "scenario": "UPCOMING_EARNINGS_ONLY",
+    "selected_evidence_ids": [
+      10006
+    ],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 1,
+          "CONSIDERED": 1,
+          "REJECTED": 0,
+          "SELECTED_FOR_COMPONENT": 1
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "eodhd": "READY"
+        },
+        "snapshot_hash": "6e2a4a327faa12b05a4edd429aa43ea0a3025306f9d522b17078534c57df8664"
+      },
+      "component": {
+        "available": true,
+        "name": "event_risk",
+        "selected_evidence_ids": [
+          10006
+        ]
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 20.0,
+        "selected_evidence_count": 1
+      },
+      "eligibility": {
+        "accepted": [
+          {
+            "evidence_id": 10006,
+            "reason": "ELIGIBLE"
+          }
+        ],
+        "rejected": []
+      },
+      "feature": {
+        "comparison_mode": null,
+        "family": "event_risk",
+        "value": 3.0,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10006
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "earnings",
+        "provider": "eodhd",
+        "readiness": "READY",
+        "source_record_ids": [
+          20006
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Low",
+        "event_risk_score": 3.0,
+        "opportunity_score": null,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "6e2a4a327faa12b05a4edd429aa43ea0a3025306f9d522b17078534c57df8664",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD06"
+  },
+  {
+    "cohort_id": "GOLD07",
+    "rejected_evidence": [],
+    "scenario": "VALID_EODHD_CATALYST",
+    "selected_evidence_ids": [
+      10007
+    ],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 1,
+          "CONSIDERED": 1,
+          "REJECTED": 0,
+          "SELECTED_FOR_COMPONENT": 1
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "eodhd": "READY"
+        },
+        "snapshot_hash": "b99084d84b6d0ed0ef546712cbdaa7b5547d6dfa3a724f6cc414106f069412ed"
+      },
+      "component": {
+        "available": true,
+        "name": "binary_event_risk",
+        "selected_evidence_ids": [
+          10007
+        ]
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 20.0,
+        "selected_evidence_count": 1
+      },
+      "eligibility": {
+        "accepted": [
+          {
+            "evidence_id": 10007,
+            "reason": "ELIGIBLE"
+          }
+        ],
+        "rejected": []
+      },
+      "feature": {
+        "comparison_mode": null,
+        "family": "binary_event_risk",
+        "value": 4.0,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10007
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "catalysts",
+        "provider": "eodhd",
+        "readiness": "READY",
+        "source_record_ids": [
+          20007
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Low",
+        "event_risk_score": 4.0,
+        "opportunity_score": 5.0,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "b99084d84b6d0ed0ef546712cbdaa7b5547d6dfa3a724f6cc414106f069412ed",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD07"
+  },
+  {
+    "cohort_id": "GOLD08",
+    "rejected_evidence": [
+      {
+        "evidence_id": 10008,
+        "reason": "ISSUER_MISMATCH_STRUCTURED_SYMBOLS"
+      }
+    ],
+    "scenario": "CROSS_ISSUER_CATALYST_REJECTED",
+    "selected_evidence_ids": [],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 0,
+          "CONSIDERED": 1,
+          "REJECTED": 1,
+          "SELECTED_FOR_COMPONENT": 0
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "eodhd": "READY"
+        },
+        "snapshot_hash": "53bf7147081af0563f8d5aec4b69b96719e925abd59a27af6085648da9817cce"
+      },
+      "component": {
+        "available": false,
+        "name": "binary_event_risk",
+        "selected_evidence_ids": []
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 0.0,
+        "selected_evidence_count": 0
+      },
+      "eligibility": {
+        "accepted": [],
+        "rejected": [
+          {
+            "evidence_id": 10008,
+            "reason": "ISSUER_MISMATCH_STRUCTURED_SYMBOLS"
+          }
+        ]
+      },
+      "feature": {
+        "comparison_mode": null,
+        "family": "binary_event_risk",
+        "value": null,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10008
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "catalysts",
+        "provider": "eodhd",
+        "readiness": "READY",
+        "source_record_ids": [
+          20008
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Insufficient",
+        "event_risk_score": null,
+        "opportunity_score": null,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "53bf7147081af0563f8d5aec4b69b96719e925abd59a27af6085648da9817cce",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD08"
+  },
+  {
+    "cohort_id": "GOLD09",
+    "rejected_evidence": [],
+    "scenario": "VALID_SEC_GUIDANCE",
+    "selected_evidence_ids": [
+      10009
+    ],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 1,
+          "CONSIDERED": 1,
+          "REJECTED": 0,
+          "SELECTED_FOR_COMPONENT": 1
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "sec": "READY"
+        },
+        "snapshot_hash": "84de3a02a6fceb3ced107051bcc52aaac5b296abd9d9864d43b1e4a8f0d0cfc4"
+      },
+      "component": {
+        "available": true,
+        "name": "guidance",
+        "selected_evidence_ids": [
+          10009
+        ]
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 20.0,
+        "selected_evidence_count": 1
+      },
+      "eligibility": {
+        "accepted": [
+          {
+            "evidence_id": 10009,
+            "reason": "ELIGIBLE"
+          }
+        ],
+        "rejected": []
+      },
+      "feature": {
+        "comparison_mode": null,
+        "family": "guidance",
+        "value": 2.0,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10009
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "guidance",
+        "provider": "sec",
+        "readiness": "READY",
+        "source_record_ids": [
+          20009
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Low",
+        "event_risk_score": 0.0,
+        "opportunity_score": 5.0,
+        "run_evidence_status": "READY"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "84de3a02a6fceb3ced107051bcc52aaac5b296abd9d9864d43b1e4a8f0d0cfc4",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD09"
+  },
+  {
+    "cohort_id": "GOLD10",
+    "rejected_evidence": [
+      {
+        "evidence_id": 10010,
+        "reason": "SEC_BOOTSTRAP_REQUIRED"
+      }
+    ],
+    "scenario": "SEC_BOOTSTRAP_REQUIRED_DEGRADED",
+    "selected_evidence_ids": [],
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "alerts": [],
+        "evidence_counts": {
+          "ACCEPTED": 0,
+          "CONSIDERED": 1,
+          "REJECTED": 1,
+          "SELECTED_FOR_COMPONENT": 0
+        },
+        "lifecycle_events": [],
+        "provider_readiness": {
+          "sec": "BOOTSTRAP_REQUIRED"
+        },
+        "snapshot_hash": "4497b629587f4a1dd22daa1c5c15bd30471fd2e131f4ecf8875c98a35b4d10a8"
+      },
+      "component": {
+        "available": false,
+        "name": "guidance",
+        "selected_evidence_ids": []
+      },
+      "coverage": {
+        "considered_evidence_count": 1,
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 0.0,
+        "selected_evidence_count": 0
+      },
+      "eligibility": {
+        "accepted": [],
+        "rejected": [
+          {
+            "evidence_id": 10010,
+            "reason": "SEC_BOOTSTRAP_REQUIRED"
+          }
+        ]
+      },
+      "feature": {
+        "comparison_mode": null,
+        "family": "guidance",
+        "value": null,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_events": [],
+        "is_first_observation": true
+      },
+      "normalized_evidence": {
+        "evidence_ids": [
+          10010
+        ],
+        "point_in_time_safe": true,
+        "states": [
+          "PERSISTED",
+          "CONSIDERED"
+        ]
+      },
+      "provider_source": {
+        "dataset": "guidance",
+        "provider": "sec",
+        "readiness": "BOOTSTRAP_REQUIRED",
+        "source_record_ids": [
+          20010
+        ]
+      },
+      "score_risk_confidence": {
+        "confidence": "Insufficient",
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "run_evidence_status": "DEGRADED"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "4497b629587f4a1dd22daa1c5c15bd30471fd2e131f4ecf8875c98a35b4d10a8",
+        "reproducible": true
+      }
+    },
+    "ticker": "GOLD10"
+  }
+]

@@ -243,19 +243,65 @@ class EodhdCeriProvider:
 
     def fetch_earnings_actuals(self, request: EarningsRequest) -> Iterable[RawProviderRecord]:
         symbol = self._symbol(request.ticker)
-        start = request.start or date.today() - timedelta(days=365)
-        end = request.end or date.today() + timedelta(days=120)
-        rows = _rows(
-            self.client.get_json(
-                "/api/calendar/earnings",
-                {"symbols": symbol, "from": start.isoformat(), "to": end.isoformat()},
-            )
+        today = self._clock().date()
+        historical_start = request.start or today - timedelta(days=548)
+        historical_end = min(request.end, today) if request.end is not None else today
+        upcoming_start = max(request.start, today) if request.start is not None else today
+        upcoming_end = request.end or today + timedelta(days=120)
+        policies = (
+            ("REPORTED", historical_start, historical_end),
+            ("UPCOMING", upcoming_start, upcoming_end),
         )
-        for row in rows:
+        seen: set[str] = set()
+        for policy_kind, start, end in policies:
+            if end < start:
+                continue
+            rows = _rows(
+                self.client.get_json(
+                    "/api/calendar/earnings",
+                    {"symbols": symbol, "from": start.isoformat(), "to": end.isoformat()},
+                )
+            )
+            for row in rows:
+                yield from self._earnings_record(
+                    symbol=symbol,
+                    row=row,
+                    today=today,
+                    policy_kind=policy_kind,
+                    seen=seen,
+                )
+
+    def _earnings_record(
+        self,
+        *,
+        symbol: str,
+        row: dict[str, Any],
+        today: date,
+        policy_kind: str,
+        seen: set[str],
+    ) -> Iterable[RawProviderRecord]:
             report_date = provider_date(row.get("reportDate") or row.get("date"))
             if report_date is None:
-                continue
+                return
+            provider_id = str(row.get("id") or f"{symbol}:{report_date}")
+            if provider_id in seen:
+                return
+            event_kind = "UPCOMING" if report_date > today else "REPORTED"
+            if event_kind != policy_kind:
+                return
+            seen.add(provider_id)
             ptype = period_type(row.get("period")) or "CURRENT_QUARTER"
+            actual = row.get("epsActual")
+            estimate = row.get("epsEstimate")
+            provider_surprise = row.get("surprisePercent")
+            consensus_semantics = (
+                "REPORT_TIME_CONSENSUS"
+                if event_kind == "REPORTED"
+                and actual is not None
+                and estimate is not None
+                and provider_surprise is not None
+                else None
+            )
             payload = {
                 "ticker": symbol.split(".")[0],
                 "provider_company_id": symbol,
@@ -265,14 +311,17 @@ class EodhdCeriProvider:
                 or report_date,
                 "report_at": _report_at(row, report_date),
                 "source_date": report_date.isoformat(),
-                "actual_value": row.get("epsActual"),
-                "estimate": row.get("epsEstimate"),
-                "surprise_percent": row.get("surprisePercent"),
+                "actual_value": actual,
+                "estimate": estimate,
+                "surprise_percent": provider_surprise,
                 "report_time": row.get("beforeAfterMarket"),
+                "event_kind": event_kind,
+                "acquisition_policy": policy_kind,
+                "provider_consensus_semantics": consensus_semantics,
             }
             yield self._record(
                 CeriDataset.EARNINGS,
-                str(row.get("id") or f"{symbol}:{report_date}"),
+                provider_id,
                 payload,
                 row.get("reportDate"),
             )
@@ -296,6 +345,10 @@ class EodhdCeriProvider:
             title = str(row.get("title") or row.get("headline") or "").strip()
             text = f"{title} {row.get('content') or row.get('text') or ''}"
             category, subtype, confidence = _classify_news(text)
+            expected_date = provider_date(
+                row.get("expectedDate") or row.get("eventDate") or row.get("scheduledDate")
+            )
+            lifecycle_status = _news_status(text, expected_date=expected_date)
             issuer_relevance, relevance_reason = _issuer_relevance(
                 symbol.split(".")[0],
                 row.get("relatedTickers") or row.get("symbols"),
@@ -315,9 +368,10 @@ class EodhdCeriProvider:
                 "source_date": str(published)[:10] if published else None,
                 "source_reference": str(row.get("source") or row.get("site") or "EODHD"),
                 "source_url": row.get("link") or row.get("url"),
-                "status": "ANNOUNCED",
+                "status": lifecycle_status,
                 "direction": "UNKNOWN",
-                "materiality": 0.0,
+                "materiality": row.get("materiality"),
+                "expected_date": expected_date.isoformat() if expected_date else None,
                 "tags": row.get("tags") or row.get("categories"),
                 "related_tickers": row.get("relatedTickers") or row.get("symbols"),
                 "issuer_relevance": issuer_relevance,
@@ -348,12 +402,12 @@ class EodhdCeriProvider:
         *,
         fallback_observed_at: datetime,
     ) -> dict[str, Any]:
-        provider_observed_at = (
+        supplied_provider_observed_at = (
             _datetime(row.get("observedAt"))
             or _datetime(row.get("updatedAt"))
             or _datetime(row.get("lastUpdated"))
-            or fallback_observed_at
         )
+        provider_observed_at = supplied_provider_observed_at or fallback_observed_at
         payload = {
             "ticker": symbol.split(".")[0],
             "provider_company_id": symbol,
@@ -367,6 +421,11 @@ class EodhdCeriProvider:
             ),
             "observed_at": (
                 provider_observed_at.isoformat() if provider_observed_at is not None else None
+            ),
+            "provider_observation_time_basis": (
+                "PROVIDER_SUPPLIED"
+                if supplied_provider_observed_at is not None
+                else "RETRIEVAL_FALLBACK"
             ),
         }
         return payload
@@ -493,3 +552,27 @@ def _issuer_relevance(
     if headline_tickers and requested not in headline_tickers:
         return False, "ISSUER_RELEVANCE_MISMATCH"
     return None, "ISSUER_RELEVANCE_UNVERIFIED"
+
+
+def _news_status(text: str, *, expected_date: date | None) -> str:
+    lowered = text.lower()
+    completed_terms = (
+        "completed",
+        "reported results",
+        "reports results",
+        "outcome announced",
+        "approval granted",
+        "ruling issued",
+        "settlement reached",
+    )
+    if any(term in lowered for term in completed_terms):
+        return "COMPLETED"
+    scheduled_terms = (
+        "scheduled",
+        "decision expected",
+        "hearing on",
+        "vote on",
+    )
+    if expected_date is not None and any(term in lowered for term in scheduled_terms):
+        return "SCHEDULED"
+    return "ANNOUNCED"

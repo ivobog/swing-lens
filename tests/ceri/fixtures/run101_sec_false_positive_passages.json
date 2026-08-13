@@ -1,0 +1,18 @@
+[
+  {
+    "case": "document_header_fiscal_date",
+    "text": "<html><head><meta name=\"guidance\" content=\"revenue\"></head><body><xbrli:context id=\"FY-12-31\">12-31</xbrli:context></body></html>"
+  },
+  {
+    "case": "pension_context_date_range",
+    "text": "Pension plan historical table context 20211226-20221231. Forward-looking outlook guidance revenue."
+  },
+  {
+    "case": "statute_year",
+    "text": "Forward-looking statements under the Private Securities Litigation Reform Act of 1995 may include our revenue outlook."
+  },
+  {
+    "case": "hidden_xbrl_context",
+    "text": "<ix:hidden><xbrli:context id=\"D20210201-20211031\">20210201-20211031</xbrli:context></ix:hidden><p>Forward-looking statements and guidance involve risks.</p>"
+  }
+]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, time
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import select
@@ -18,6 +19,7 @@ from app.models.ceri_tables import (
     CeriRevisionFeature,
 )
 from app.models.tables import RawCompanyRow
+from app.services.ceri.capability_matrix_service import CeriCapabilityMatrixService
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
 from app.services.ceri.confidence_service import CeriConfidenceService
 from app.services.ceri.config import CeriConfig, load_ceri_config
@@ -47,6 +49,9 @@ class CeriFeatureRebuildResult:
     warnings: int = 0
     failed: int = 0
     errors: tuple[dict[str, Any], ...] = ()
+    short_circuited_families: tuple[str, ...] = ()
+    family_runtime_ms: dict[str, int] | None = None
+    family_query_counts: dict[str, int] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         result = asdict(self)
@@ -88,11 +93,57 @@ class CeriFeatureRebuildService:
             mode = HistoricalViewMode.AS_KNOWN
         features = deduped = earnings_updated = warnings = failed = 0
         errors: list[dict[str, Any]] = []
+        short_circuited: set[str] = set()
+        family_runtime_ms: dict[str, int] = {
+            "revisions": 0,
+            "earnings_surprise": 0,
+            "guidance": 0,
+            "catalysts": 0,
+        }
+        estimates_all = _load(db, CeriEstimateSnapshot)
+        earnings_all = _load(db, CeriEarningsActual)
+        guidance_all = _load(db, CeriGuidanceEvent)
+        catalyst_events_all = _load(db, CeriCatalystEvent)
+        catalyst_revisions_all = _load(db, CeriCatalystEventRevision)
+        estimates_by_company: dict[int, set[tuple[str, str]]] = {}
+        for row in estimates_all:
+            slot = row.canonical_period_slot or row.period_type
+            if row.company_id is not None and row.metric and slot:
+                estimates_by_company.setdefault(row.company_id, set()).add((row.metric, slot))
+        reported_earnings = {
+            row.company_id
+            for row in earnings_all
+            if row.actual_value is not None and row.event_kind in (None, "REPORTED")
+        }
+        accepted_guidance = {
+            row.company_id for row in guidance_all if row.accepted_for_scoring is True
+        }
+        eligible_event_ids = {
+            row.catalyst_event_id
+            for row in catalyst_revisions_all
+            if row.is_current and row.issuer_relevance is True
+        }
+        catalyst_companies = {
+            row.company_id for row in catalyst_events_all if row.id in eligible_event_ids
+        }
+        capabilities = CeriCapabilityMatrixService().build(
+            company_ids=[row.id for row in companies],
+            estimates_by_company=estimates_by_company,
+            earnings_company_ids=reported_earnings,
+            guidance_company_ids=accepted_guidance,
+            catalyst_company_ids=catalyst_companies,
+        )
         for company in companies:
             try:
+                capability = capabilities[company.id]
                 company_features: list[CeriRevisionFeature] = []
+                revision_started = perf_counter()
+                if not capability.revision_slots:
+                    short_circuited.add("revisions")
                 for metric in (metric.value for metric in self.config.metrics.required):
                     for period_slot in self.config.metrics.period_types:
+                        if (metric, period_slot.value) not in capability.revision_slots:
+                            continue
                         calculated = self.revisions.calculate_windows(
                             db,
                             company_id=company.id,
@@ -119,16 +170,19 @@ class CeriFeatureRebuildService:
                             company_features.append(feature)
                             features += 1
                             warnings += len(feature.warnings_json or [])
+                family_runtime_ms["revisions"] += int(
+                    (perf_counter() - revision_started) * 1000
+                )
                 estimates = [
-                    row for row in _load(db, CeriEstimateSnapshot) if row.company_id == company.id
+                    row for row in estimates_all if row.company_id == company.id
                 ]
                 earnings = [
                     row
-                    for row in _load(db, CeriEarningsActual)
+                    for row in earnings_all
                     if row.company_id == company.id
                     and (row.report_at is None or row.report_at <= cutoff_at)
                 ]
-                if earnings:
+                if capability.earnings_surprise:
                     self.surprise.summarize(earnings, estimates)
                     for row in earnings:
                         if row.consensus_snapshot_id is not None:
@@ -162,10 +216,13 @@ class CeriFeatureRebuildService:
                             if row.source_record_id is not None
                         ],
                     )
+                else:
+                    short_circuited.add("earnings_surprise")
                 guidance_rows = [
                     row
-                    for row in _load(db, CeriGuidanceEvent)
+                    for row in guidance_all
                     if row.company_id == company.id
+                    and row.accepted_for_scoring is True
                     and (row.effective_session is None or row.effective_session <= cutoff)
                 ]
                 if request.from_session:
@@ -206,7 +263,15 @@ class CeriFeatureRebuildService:
                         },
                         source_ids=[row.source_record_id for row in guidance_rows],
                     )
-                event_rows = _current_catalysts(db, company.id, cutoff)
+                else:
+                    short_circuited.add("guidance")
+                event_rows = _current_catalysts(
+                    db,
+                    company.id,
+                    cutoff,
+                    events=catalyst_events_all,
+                    revisions=catalyst_revisions_all,
+                )
                 catalyst_values = []
                 catalyst_source_ids: list[int] = []
                 for event, revision in event_rows:
@@ -226,6 +291,8 @@ class CeriFeatureRebuildService:
                         value={"items": catalyst_values},
                         source_ids=catalyst_source_ids,
                     )
+                else:
+                    short_circuited.add("catalysts")
                 confidence = self.confidence.calculate(
                     as_of_session=cutoff,
                     revision_features=company_features,
@@ -255,7 +322,22 @@ class CeriFeatureRebuildService:
                     {"company_id": company.id, "error": str(exc).replace("\n", " ")[:500]}
                 )
         return CeriFeatureRebuildResult(
-            features, deduped, earnings_updated, len(companies), warnings, failed, tuple(errors)
+            features=features,
+            features_deduplicated=deduped,
+            earnings_updated=earnings_updated,
+            processed_companies=len(companies),
+            warnings=warnings,
+            failed=failed,
+            errors=tuple(errors),
+            short_circuited_families=tuple(sorted(short_circuited)),
+            family_runtime_ms=family_runtime_ms,
+            family_query_counts={
+                "estimates": 1,
+                "earnings": 1,
+                "guidance": 1,
+                "catalyst_events": 1,
+                "catalyst_revisions": 1,
+            },
         )
 
     def _upsert_derived(
@@ -269,6 +351,17 @@ class CeriFeatureRebuildService:
         value: dict[str, Any],
         source_ids: list[int],
     ) -> CeriDerivedFeature:
+        evidence = {
+            "company_id": company_id,
+            "family": family,
+            "key": key,
+            "as_of_session": as_of_session.isoformat(),
+            "value": value,
+            "source_ids": sorted(set(source_ids)),
+            "config_hash": self.config.config_hash,
+            "calculation_version": self.config.engine.calculation_version,
+        }
+        evidence_hash = _stable_hash(evidence)
         existing = next(
             (
                 row
@@ -282,16 +375,8 @@ class CeriFeatureRebuildService:
             ),
             None,
         )
-        evidence = {
-            "company_id": company_id,
-            "family": family,
-            "key": key,
-            "as_of_session": as_of_session.isoformat(),
-            "value": value,
-            "source_ids": sorted(set(source_ids)),
-            "config_hash": self.config.config_hash,
-            "calculation_version": self.config.engine.calculation_version,
-        }
+        if existing is not None and existing.evidence_hash == evidence_hash:
+            return existing
         if existing is None:
             existing = CeriDerivedFeature(
                 company_id=company_id,
@@ -301,12 +386,12 @@ class CeriFeatureRebuildService:
                 config_version=self.config.engine.config_version,
                 config_hash=self.config.config_hash,
                 calculation_version=self.config.engine.calculation_version,
-                evidence_hash=_stable_hash(evidence),
+                evidence_hash=evidence_hash,
             )
             db.add(existing)
         existing.value_json = value
         existing.source_ids_json = sorted(set(source_ids))
-        existing.evidence_hash = _stable_hash(evidence)
+        existing.evidence_hash = evidence_hash
         db.flush()
         return existing
 
@@ -410,19 +495,28 @@ def _copy_revision_derived(target: CeriRevisionFeature, source: CeriRevisionFeat
 
 
 def _current_catalysts(
-    db: Session, company_id: int, cutoff: date
+    db: Session,
+    company_id: int,
+    cutoff: date,
+    *,
+    events: list[CeriCatalystEvent] | None = None,
+    revisions: list[CeriCatalystEventRevision] | None = None,
 ) -> list[tuple[CeriCatalystEvent, CeriCatalystEventRevision]]:
-    events = {
-        event.id: event for event in _load(db, CeriCatalystEvent) if event.company_id == company_id
+    event_map = {
+        event.id: event
+        for event in (events if events is not None else _load(db, CeriCatalystEvent))
+        if event.company_id == company_id
     }
-    revisions = [
+    current_revisions = [
         revision
-        for revision in _load(db, CeriCatalystEventRevision)
+        for revision in (
+            revisions if revisions is not None else _load(db, CeriCatalystEventRevision)
+        )
         if revision.is_current
-        and revision.catalyst_event_id in events
+        and revision.catalyst_event_id in event_map
         and (revision.effective_session is None or revision.effective_session <= cutoff)
     ]
-    return [(events[revision.catalyst_event_id], revision) for revision in revisions]
+    return [(event_map[revision.catalyst_event_id], revision) for revision in current_revisions]
 
 
 def _latest_price_event(

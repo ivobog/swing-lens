@@ -138,6 +138,8 @@ def test_revision_detail_exposes_lineage_and_raw_breadth_counts() -> None:
         as_of_session=date(2026, 8, 2),
         window_days=30,
         baseline_snapshot_id=10,
+        comparison_mode="SAME_PROVIDER_RELATIVE",
+        warnings_json=["canonical_currency_unavailable_relative_only"],
         current_snapshot_id=11,
         actual_elapsed_days=29,
         absolute_change=Decimal("0.50"),
@@ -157,6 +159,8 @@ def test_revision_detail_exposes_lineage_and_raw_breadth_counts() -> None:
     payload = CeriQueryService().revision_detail(db, 4)
 
     assert payload["ticker"] == "MSFT"
+    assert payload["comparison_mode"] == "SAME_PROVIDER_RELATIVE"
+    assert "canonical_currency_unavailable_relative_only" in payload["warnings"]
     assert payload["raw_breadth_counts"] == {"upward_count": 6, "downward_count": 1}
     assert payload["lineage"]["baseline_snapshot_id"] == 10
     assert payload["lineage"]["source_observation_ids"] == [101, 102]

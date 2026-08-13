@@ -20,6 +20,7 @@ class BaselineSelection:
     target_baseline_date: date
     actual_elapsed_days: int | None
     unavailable_reason: str | None = None
+    comparison_mode: str | None = None
 
 
 class CeriPointInTimeQuery:
@@ -55,7 +56,7 @@ class CeriPointInTimeQuery:
                 fiscal_period_end is None
                 or snapshot.fiscal_period_end == fiscal_period_end
             )
-            and _comparable(snapshot)
+            and _current_candidate(snapshot)
             and _is_current_observation(snapshot)
         ]
         if mode is HistoricalViewMode.AS_KNOWN:
@@ -93,6 +94,13 @@ class CeriPointInTimeQuery:
             fiscal_period_end=fiscal_period_end,
             mode=mode,
         )
+        if metric == "REVENUE":
+            eligible = [
+                snapshot
+                for snapshot in eligible
+                if snapshot.trend_baseline_window_days is None
+                and snapshot.baseline_origin != "PROVIDER_RETROSPECTIVE_WINDOW"
+            ]
         if period_slot is not None and fiscal_period_end is None:
             target_end = _target_period_end(eligible, period_slot, cutoff_at.date())
             eligible = [
@@ -122,18 +130,27 @@ class CeriPointInTimeQuery:
                 unavailable_reason="current_snapshot_unavailable",
             )
         key = canonical_estimate_key(current)
-        semantic_baselines = [
+        semantic_candidates = [
             snapshot
             for snapshot in self._load_snapshots(db, company_id=company_id, metric=metric)
-            if snapshot.company_id == company_id
+            if metric == "EPS_DILUTED"
+            and snapshot.company_id == company_id
             and snapshot.metric == metric
             and snapshot is not current
             and snapshot.trend_baseline_window_days == window_days
             and snapshot.current_observation_reference
             == current.current_observation_reference
-            and _comparable(snapshot)
-            and canonical_estimate_key(snapshot) == key
             and _known_at(snapshot) <= cutoff_at
+        ]
+        semantic_baselines = [
+            snapshot
+            for snapshot in semantic_candidates
+            if _same_provider_relative_comparable(
+                db,
+                current=current,
+                baseline=snapshot,
+                source_records=self._source_records,
+            )
         ]
         if semantic_baselines:
             baseline = max(semantic_baselines, key=_snapshot_sort)
@@ -142,6 +159,23 @@ class CeriPointInTimeQuery:
                 baseline=baseline,
                 target_baseline_date=target_date,
                 actual_elapsed_days=window_days,
+                comparison_mode="SAME_PROVIDER_RELATIVE",
+            )
+        canonical_semantic_baselines = [
+            snapshot
+            for snapshot in semantic_candidates
+            if _absolute_comparable(snapshot)
+            and _absolute_comparable(current)
+            and canonical_estimate_key(snapshot) == key
+        ]
+        if canonical_semantic_baselines:
+            baseline = max(canonical_semantic_baselines, key=_snapshot_sort)
+            return BaselineSelection(
+                current=current,
+                baseline=baseline,
+                target_baseline_date=target_date,
+                actual_elapsed_days=window_days,
+                comparison_mode="ABSOLUTE_CANONICAL",
             )
         eligible = [
             snapshot
@@ -153,7 +187,17 @@ class CeriPointInTimeQuery:
                 fiscal_period_end=current.fiscal_period_end,
                 mode=mode,
             )
-            if snapshot is not current and canonical_estimate_key(snapshot) == key
+            if snapshot is not current
+            and not (
+                metric == "REVENUE"
+                and (
+                    snapshot.trend_baseline_window_days is not None
+                    or snapshot.baseline_origin == "PROVIDER_RETROSPECTIVE_WINDOW"
+                )
+            )
+            and _absolute_comparable(snapshot)
+            and _absolute_comparable(current)
+            and canonical_estimate_key(snapshot) == key
         ]
         baseline = _select_baseline_candidate(
             eligible,
@@ -166,7 +210,11 @@ class CeriPointInTimeQuery:
                 baseline=None,
                 target_baseline_date=target_date,
                 actual_elapsed_days=None,
-                unavailable_reason="baseline_unavailable",
+                unavailable_reason=(
+                    "UNAVAILABLE_BASELINE_NOT_ACCUMULATED"
+                    if metric == "REVENUE"
+                    else "baseline_unavailable"
+                ),
             )
         elapsed = (
             (current.effective_session - baseline.effective_session).days
@@ -178,6 +226,11 @@ class CeriPointInTimeQuery:
             baseline=baseline,
             target_baseline_date=target_date,
             actual_elapsed_days=elapsed,
+            comparison_mode=(
+                "HISTORICAL_OBSERVATION"
+                if metric == "REVENUE"
+                else "ABSOLUTE_CANONICAL"
+            ),
         )
 
     def source_record(self, db: Session, source_record_id: int) -> CeriSourceRecord | None:
@@ -277,8 +330,65 @@ def _select_baseline_candidate(
     return None
 
 
-def _comparable(snapshot: CeriEstimateSnapshot) -> bool:
+def _current_candidate(snapshot: CeriEstimateSnapshot) -> bool:
+    return snapshot.canonical_scale is not None
+
+
+def _absolute_comparable(snapshot: CeriEstimateSnapshot) -> bool:
     return snapshot.canonical_currency is not None and snapshot.canonical_scale is not None
+
+
+def _same_provider_relative_comparable(
+    db: Session,
+    *,
+    current: CeriEstimateSnapshot,
+    baseline: CeriEstimateSnapshot,
+    source_records: dict[int, CeriSourceRecord],
+) -> bool:
+    if current.metric != "EPS_DILUTED" or baseline.metric != current.metric:
+        return False
+    if baseline.baseline_origin != "PROVIDER_RETROSPECTIVE_WINDOW":
+        return False
+    if not current.current_observation_reference or (
+        baseline.current_observation_reference != current.current_observation_reference
+    ):
+        return False
+    if (
+        baseline.company_id != current.company_id
+        or baseline.period_type != current.period_type
+        or baseline.canonical_period_slot != current.canonical_period_slot
+        or baseline.fiscal_period_end != current.fiscal_period_end
+        or baseline.source_scale != current.source_scale
+        or baseline.canonical_scale != current.canonical_scale
+    ):
+        return False
+    if (
+        baseline.source_currency is not None
+        and current.source_currency is not None
+        and baseline.source_currency != current.source_currency
+    ):
+        return False
+    current_source = source_records.get(current.source_record_id)
+    baseline_source = source_records.get(baseline.source_record_id)
+    if current_source is None:
+        get = getattr(db, "get", None)
+        current_source = get(CeriSourceRecord, current.source_record_id) if callable(get) else None
+    if baseline_source is None:
+        get = getattr(db, "get", None)
+        baseline_source = (
+            get(CeriSourceRecord, baseline.source_record_id) if callable(get) else None
+        )
+    if current_source is not None or baseline_source is not None:
+        return bool(
+            current_source is not None
+            and baseline_source is not None
+            and current_source.provider == baseline_source.provider
+        )
+    return bool(
+        current.source_provider
+        and baseline.source_provider
+        and current.source_provider == baseline.source_provider
+    )
 
 
 def _is_current_observation(snapshot: CeriEstimateSnapshot) -> bool:

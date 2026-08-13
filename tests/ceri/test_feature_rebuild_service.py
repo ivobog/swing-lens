@@ -3,7 +3,12 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from app.models.ceri_tables import CeriCompany, CeriDerivedFeature, CeriRevisionFeature
+from app.models.ceri_tables import (
+    CeriCompany,
+    CeriDerivedFeature,
+    CeriEstimateSnapshot,
+    CeriRevisionFeature,
+)
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
@@ -13,7 +18,37 @@ from app.services.ceri.feature_rebuild_service import (
 def test_feature_rebuild_persists_windows_and_acceleration() -> None:
     company = CeriCompany(id=7, ticker="MSFT", exchange="US")
     revisions = StubRevisionService()
-    db = FakeDb({CeriCompany: [company], CeriRevisionFeature: []})
+    estimates = [
+        CeriEstimateSnapshot(
+            source_record_id=index,
+            company_id=7,
+            metric=metric,
+            fiscal_period_end=date(2027, 12, 31),
+            period_type=slot,
+            canonical_period_slot=slot,
+            canonical_observation_key=f"{metric}:{slot}",
+        )
+        for index, (metric, slot) in enumerate(
+            (
+                (metric, slot)
+                for metric in ("EPS_DILUTED", "REVENUE")
+                for slot in (
+                    "CURRENT_QUARTER",
+                    "NEXT_QUARTER",
+                    "CURRENT_FISCAL_YEAR",
+                    "NEXT_FISCAL_YEAR",
+                )
+            ),
+            start=1,
+        )
+    ]
+    db = FakeDb(
+        {
+            CeriCompany: [company],
+            CeriEstimateSnapshot: estimates,
+            CeriRevisionFeature: [],
+        }
+    )
 
     result = CeriFeatureRebuildService(revisions=revisions).rebuild(
         db,

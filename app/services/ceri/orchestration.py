@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
@@ -58,6 +59,9 @@ class CeriIngestionResult:
     documents_downloaded: int = 0
     documents_skipped: int = 0
     documents_would_skip: int = 0
+    readiness_state: str | None = None
+    run_evidence_status: str | None = None
+    readiness_reason: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -98,6 +102,7 @@ class CeriIngestionService:
             request_key=request_key,
             config_version=self.config.engine.config_version,
             config_hash=self.config.config_hash,
+            calculation_version=self.config.engine.calculation_version,
         )
         if ingestion_run.status in {"COMPLETED", "PARTIAL"}:
             return self._result_from_run(ingestion_run)
@@ -117,6 +122,7 @@ class CeriIngestionService:
             )
 
         requested = fetched = inserted = deduplicated = corrected = quarantined = failed = 0
+        response_bytes = stored_bytes = 0
         warning_count = 0
         errors: list[dict[str, Any]] = []
         checkpoint: dict[str, Any] = {}
@@ -126,6 +132,10 @@ class CeriIngestionService:
         try:
             for index, record in enumerate(self._fetch_records(provider, request), start=1):
                 requested += 1
+                payload_bytes = len(
+                    json.dumps(record.payload, sort_keys=True, default=str).encode("utf-8")
+                )
+                response_bytes += payload_bytes
                 if callable(should_cancel) and should_cancel():
                     raise CeriIngestionCancelled("CERI ingestion cancelled.")
                 try:
@@ -137,6 +147,8 @@ class CeriIngestionService:
                         raw_payload_allowed=dataset_policy.raw_payload_storage_allowed,
                     )
                     inserted += int(write.inserted)
+                    if write.inserted:
+                        stored_bytes += payload_bytes
                     deduplicated += int(write.deduplicated)
                     corrected += int(write.corrected)
                     quarantined += int(write.quarantined)
@@ -183,6 +195,8 @@ class CeriIngestionService:
             before=provider_stats_before,
             started=started,
             failed=failed,
+            response_bytes=response_bytes,
+            stored_bytes=stored_bytes,
         )
         return self._result_from_run(finished)
 
@@ -250,6 +264,9 @@ class CeriIngestionService:
                 "provider": request.provider,
                 "incremental_mode": self.settings.sec_document_incremental_mode.value,
                 "processor_signature": service.processor_signature,
+                "readiness_state": outcome.readiness_state,
+                "run_evidence_status": outcome.run_evidence_status,
+                "readiness_reason": outcome.readiness_reason,
                 **telemetry,
             },
             checkpoint=telemetry,
@@ -262,6 +279,9 @@ class CeriIngestionService:
             documents_downloaded=outcome.documents_downloaded,
             documents_skipped=outcome.documents_skipped,
             documents_would_skip=outcome.documents_would_skip,
+            readiness_state=outcome.readiness_state,
+            run_evidence_status=outcome.run_evidence_status,
+            readiness_reason=outcome.readiness_reason,
         )
         return CeriIngestionResult(**values)
 
@@ -324,6 +344,9 @@ class CeriIngestionService:
             documents_downloaded=int(telemetry.get("documents_downloaded") or 0),
             documents_skipped=int(telemetry.get("documents_skipped") or 0),
             documents_would_skip=int(telemetry.get("documents_would_skip") or 0),
+            readiness_state=telemetry.get("readiness_state"),
+            run_evidence_status=telemetry.get("run_evidence_status"),
+            readiness_reason=telemetry.get("readiness_reason"),
         )
 
 
@@ -361,6 +384,8 @@ def _record_provider_telemetry(
     before: Any,
     started: float,
     failed: int,
+    response_bytes: int,
+    stored_bytes: int,
 ) -> None:
     after = _provider_stats(provider)
     if after is None:
@@ -388,6 +413,8 @@ def _record_provider_telemetry(
                 0,
                 int(getattr(after, "retries", 0) or 0) - int(getattr(before, "retries", 0) or 0),
             ),
+            response_bytes=response_bytes,
+            stored_bytes=stored_bytes,
             error_code="PROVIDER_REQUEST_FAILED" if failed else None,
             observed_at=datetime.now(UTC),
         )

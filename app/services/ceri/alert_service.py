@@ -7,7 +7,12 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriAlertEvent, CeriAlertRule, CeriChangeEvent
+from app.models.ceri_tables import (
+    CeriAlertEvent,
+    CeriAlertRule,
+    CeriChangeEvent,
+    CeriScoreSnapshot,
+)
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 from app.services.ceri.enums import CeriChangeType
@@ -48,6 +53,9 @@ class CeriAlertService:
             return AlertRebuildResult(alerts=0, duplicates=0, skipped=len(changes))
         ticker_by_company = ticker_by_company or {}
         for change in changes:
+            if not self._eligible_change(db, change):
+                skipped += 1
+                continue
             event = self.persist_alert_for_change(
                 db,
                 change=change,
@@ -58,6 +66,47 @@ class CeriAlertService:
             else:
                 alerts += 1
         return AlertRebuildResult(alerts=alerts, duplicates=duplicates, skipped=skipped)
+
+    def _eligible_change(self, db: Session, change: CeriChangeEvent) -> bool:
+        try:
+            change_type = CeriChangeType(change.change_type)
+        except ValueError:
+            return False
+        opportunity_types = {
+            CeriChangeType.OPPORTUNITY_UPGRADED,
+            CeriChangeType.OPPORTUNITY_DOWNGRADED,
+        }
+        risk_types = {
+            CeriChangeType.RISK_ESCALATED,
+            CeriChangeType.RISK_DEESCALATED,
+        }
+        if change_type not in opportunity_types | risk_types:
+            return True
+        if change.from_snapshot_id is None or change.to_snapshot_id is None:
+            return False
+        snapshot = _get_snapshot(db, change.to_snapshot_id)
+        if snapshot is None:
+            return False
+        if change_type in opportunity_types:
+            coverage = snapshot.opportunity_coverage_pct
+            return bool(
+                snapshot.opportunity_score is not None
+                and coverage is not None
+                and coverage + 1e-9
+                >= self.config.revision.minimum_component_coverage_pct
+                and snapshot.data_confidence != "Insufficient"
+            )
+        delta = change.delta_json or {}
+        ledger = snapshot.event_risk_ledger_json or {}
+        accepted = bool(
+            delta.get("accepted_evidence") is True
+            and (
+                ledger.get("accepted_evidence") is True
+                or ledger.get("accepted_evidence_ids")
+                or ledger.get("selected_event_ids")
+            )
+        )
+        return bool(delta.get("prior_comparable") is True and accepted)
 
     def persist_alert_for_change(
         self,
@@ -182,6 +231,13 @@ def _maybe_scalar(db: Session, statement):
     scalar = getattr(db, "scalar", None)
     if callable(scalar):
         return scalar(statement)
+    return None
+
+
+def _get_snapshot(db: Session, snapshot_id: int) -> CeriScoreSnapshot | None:
+    get = getattr(db, "get", None)
+    if callable(get):
+        return get(CeriScoreSnapshot, snapshot_id)
     return None
 
 
