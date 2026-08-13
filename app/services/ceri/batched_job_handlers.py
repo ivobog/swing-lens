@@ -88,7 +88,11 @@ def execute_provider_ingest_batch_job(
                     dataset=dataset,
                     ticker=ticker,
                     request_key=request_key,
-                    scope={"ticker": ticker, "run_id": job.related_run_id},
+                    scope={
+                        "ticker": ticker,
+                        "run_id": job.related_run_id,
+                        "worker_id": job.worker_id,
+                    },
                 ),
                 should_cancel=lambda: _heartbeat_and_cancel(db, job),
             )

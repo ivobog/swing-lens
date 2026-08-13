@@ -76,6 +76,10 @@ class CeriBackfillService:
         )
 
     def run(self, db: Session, request: CeriBackfillRequest) -> CeriBackfillResult:
+        if request.provider == "sec" and (request.start is None or request.end is None):
+            raise ValueError(
+                "SEC historical backfill requires explicit bounded start and end dates"
+            )
         run, created = self.processing_runs.create_or_get(
             db,
             job_type="CERI_BACKFILL",

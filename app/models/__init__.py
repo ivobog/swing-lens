@@ -19,6 +19,9 @@ from app.models.ceri_tables import (
     CeriPurgeAudit,
     CeriRevisionFeature,
     CeriScoreSnapshot,
+    CeriSecDocumentExtraction,
+    CeriSecFilingDocument,
+    CeriSecSyncState,
     CeriSourceRecord,
 )
 from app.models.ib_market_intelligence_tables import (
@@ -80,6 +83,9 @@ __all__ = [
     "CeriProviderRequestTelemetry",
     "CeriRevisionFeature",
     "CeriScoreSnapshot",
+    "CeriSecDocumentExtraction",
+    "CeriSecFilingDocument",
+    "CeriSecSyncState",
     "CeriSourceRecord",
     "CombinedResult",
     "EngineParameters",

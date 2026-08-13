@@ -399,6 +399,111 @@ class CeriGuidanceEvent(Base):
     )
 
 
+class CeriSecFilingDocument(Base):
+    __tablename__ = "ceri_sec_filing_documents"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    cik: Mapped[str] = mapped_column(String(32), nullable=False)
+    accession_number: Mapped[str] = mapped_column(String(64), nullable=False)
+    document_name: Mapped[str] = mapped_column(Text, nullable=False)
+    ticker_hint: Mapped[str | None] = mapped_column(String(32))
+    form: Mapped[str | None] = mapped_column(String(32))
+    filing_date: Mapped[date | None] = mapped_column(Date)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_content_hash: Mapped[str | None] = mapped_column(String(128))
+    last_content_bytes: Mapped[int | None] = mapped_column(BigInteger)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "cik",
+            "accession_number",
+            "document_name",
+            name="uq_ceri_sec_filing_document_identity",
+        ),
+        Index("ix_ceri_sec_filing_documents_cik_date", "cik", "filing_date"),
+        Index("ix_ceri_sec_filing_documents_accession", "accession_number"),
+    )
+
+
+class CeriSecDocumentExtraction(Base):
+    __tablename__ = "ceri_sec_document_extractions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("ceri_sec_filing_documents.id", ondelete="CASCADE"), nullable=False
+    )
+    dataset: Mapped[str] = mapped_column(String(64), nullable=False)
+    processor_signature: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    record_count: Mapped[int | None] = mapped_column(Integer)
+    worker_id: Mapped[str | None] = mapped_column(Text)
+    execution_token: Mapped[str | None] = mapped_column(String(64))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    last_error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "document_id",
+            "dataset",
+            "processor_signature",
+            name="uq_ceri_sec_document_extraction_identity",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING','RUNNING','COMPLETED_WITH_RECORDS',"
+            "'COMPLETED_NO_RECORDS','FAILED_RETRYABLE','FAILED_PERMANENT','CANCELLED')",
+            name="ck_ceri_sec_document_extractions_status",
+        ),
+        Index(
+            "ix_ceri_sec_document_extractions_claim",
+            "dataset",
+            "processor_signature",
+            "status",
+            "lease_expires_at",
+        ),
+        Index("ix_ceri_sec_document_extractions_document", "document_id"),
+    )
+
+
+class CeriSecSyncState(Base):
+    """Certification boundary preventing an ACTIVE cold sync from becoming a backfill."""
+
+    __tablename__ = "ceri_sec_sync_states"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    cik: Mapped[str] = mapped_column(String(32), nullable=False)
+    dataset: Mapped[str] = mapped_column(String(64), nullable=False)
+    processor_signature: Mapped[str] = mapped_column(Text, nullable=False)
+    bootstrap_completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    last_discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    latest_filing_date: Mapped[date | None] = mapped_column(Date)
+    document_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("cik", "dataset", "processor_signature", name="uq_ceri_sec_sync_state"),
+        Index("ix_ceri_sec_sync_states_cik_dataset", "cik", "dataset"),
+    )
+
+
 class CeriCatalystEvent(Base):
     __tablename__ = "ceri_catalyst_events"
 
