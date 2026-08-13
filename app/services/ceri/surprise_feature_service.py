@@ -39,9 +39,16 @@ class CeriSurpriseFeatureService:
         earnings: CeriEarningsActual,
         estimates: list[CeriEstimateSnapshot],
     ) -> SurpriseFeature:
-        if earnings.provider_consensus_value is not None:
+        if (
+            earnings.provider_consensus_value is not None
+            and earnings.provider_consensus_semantics == "REPORT_TIME_CONSENSUS"
+        ):
             earnings.consensus_snapshot_id = None
-            earnings.consensus_selection_reason = "provider_consensus_at_report"
+            earnings.consensus_selection_reason = (
+                "provider_report_time_consensus_and_surprise"
+                if earnings.provider_surprise_pct is not None
+                else "provider_consensus_at_report"
+            )
             if earnings.actual_value is None:
                 earnings.surprise_absolute = None
                 earnings.surprise_pct = None
@@ -49,6 +56,9 @@ class CeriSurpriseFeatureService:
             earnings.surprise_absolute = (
                 earnings.actual_value - earnings.provider_consensus_value
             )
+            if earnings.provider_surprise_pct is not None:
+                earnings.surprise_pct = earnings.provider_surprise_pct
+                return _feature(earnings, None, [])
             threshold = Decimal(str(self.config.revision.near_zero_threshold))
             if abs(earnings.provider_consensus_value) <= threshold:
                 earnings.surprise_pct = None
@@ -97,8 +107,13 @@ class CeriSurpriseFeatureService:
         *,
         price_response_quality: float | None = None,
     ) -> SurpriseSummary:
+        reported = [
+            row
+            for row in earnings
+            if row.actual_value is not None and row.event_kind in (None, "REPORTED")
+        ]
         ordered = sorted(
-            earnings,
+            reported,
             key=lambda row: row.report_at or datetime.min,
             reverse=True,
         )[:4]

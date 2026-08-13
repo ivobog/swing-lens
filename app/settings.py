@@ -19,6 +19,11 @@ class SecDocumentIncrementalMode(StrEnum):
     ACTIVE = "ACTIVE"
 
 
+class SecReadinessPolicy(StrEnum):
+    REQUIRE_READY = "REQUIRE_READY"
+    ALLOW_DEGRADED = "ALLOW_DEGRADED"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -179,6 +184,7 @@ class Settings(BaseSettings):
     sec_http_timeout_seconds: int = Field(default=30, ge=1, le=120)
     sec_form4_enabled: bool = False
     sec_document_incremental_mode: SecDocumentIncrementalMode = SecDocumentIncrementalMode.OFF
+    sec_readiness_policy: SecReadinessPolicy = SecReadinessPolicy.REQUIRE_READY
     sec_document_lease_seconds: int = Field(default=900, ge=60, le=7200)
     sec_document_retry_base_seconds: int = Field(default=30, ge=1, le=3600)
     runs_default_page_size: int = 25

@@ -32,6 +32,63 @@ def test_score_change_detection_is_idempotent_for_same_snapshot_pair() -> None:
     assert len([row for row in db.added if isinstance(row, CeriChangeEvent)]) == 3
 
 
+def test_first_null_snapshot_establishes_baseline_without_opportunity_or_risk_change() -> None:
+    current = _snapshot(1, opportunity=None, risk=5.0)
+
+    result = CeriChangeDetectionService().detect_score_changes(
+        FakeDb(), current=current, prior=None
+    )
+
+    assert result.changes == 0
+
+
+def test_null_to_null_has_no_opportunity_change() -> None:
+    prior = _snapshot(1, opportunity=None, risk=0.0)
+    current = _snapshot(2, opportunity=None, risk=0.0)
+    db = FakeDb()
+
+    result = CeriChangeDetectionService().detect_score_changes(
+        db, current=current, prior=prior
+    )
+
+    assert result.changes == 0
+    assert not db.added
+
+
+def test_first_numeric_snapshot_is_baseline_not_generic_upgrade() -> None:
+    current = _snapshot(1, opportunity=7.0, risk=3.0)
+    db = FakeDb()
+
+    result = CeriChangeDetectionService().detect_score_changes(
+        db, current=current, prior=None
+    )
+
+    assert result.changes == 0
+    assert not db.added
+
+
+def test_null_numeric_transitions_use_explicit_rating_change_types() -> None:
+    service = CeriChangeDetectionService()
+    became_rated_db = FakeDb()
+    became_unrated_db = FakeDb()
+
+    rated = service.detect_score_changes(
+        became_rated_db,
+        current=_snapshot(2, opportunity=6.0, risk=0.0),
+        prior=_snapshot(1, opportunity=None, risk=0.0),
+    )
+    unrated = service.detect_score_changes(
+        became_unrated_db,
+        current=_snapshot(3, opportunity=None, risk=0.0),
+        prior=_snapshot(2, opportunity=6.0, risk=0.0),
+    )
+
+    assert rated.changes == 1
+    assert became_rated_db.added[0].change_type == "BECAME_RATED"
+    assert unrated.changes == 1
+    assert became_unrated_db.added[0].change_type == "BECAME_UNRATED"
+
+
 def test_change_business_identity_does_not_depend_on_orchestration_scope() -> None:
     parts = {
         "company_id": 42,
@@ -81,6 +138,7 @@ def test_guidance_and_conflict_transitions_are_persisted() -> None:
         action="RAISED",
         effective_session=date(2026, 8, 1),
         confidence="High",
+        accepted_for_scoring=True,
     )
     db = FakeDb(scalar_queue=[None, None])
     service = CeriChangeDetectionService()
@@ -101,7 +159,9 @@ def test_guidance_and_conflict_transitions_are_persisted() -> None:
     assert types == {"GUIDANCE_RAISED", "DATA_STALE", "CONFLICT_OPENED"}
 
 
-def _snapshot(snapshot_id: int, *, opportunity: float, risk: float) -> CeriScoreSnapshot:
+def _snapshot(
+    snapshot_id: int, *, opportunity: float | None, risk: float | None
+) -> CeriScoreSnapshot:
     return CeriScoreSnapshot(
         id=snapshot_id,
         company_id=42,
@@ -114,6 +174,17 @@ def _snapshot(snapshot_id: int, *, opportunity: float, risk: float) -> CeriScore
         coverage_pct=100.0,
         posture="Improving",
         component_json={"components": [{"name": "revision_magnitude", "value": opportunity}]},
+        opportunity_coverage_pct=100.0 if opportunity is not None else 0.0,
+        event_risk_ledger_json={
+            "accepted_evidence": True,
+            "components": [
+                {
+                    "component": "earnings_proximity_risk",
+                    "score": risk or 0.0,
+                    "reason": "accepted_fixture_evidence",
+                }
+            ]
+        },
         config_version="2026-07-31",
         config_hash="hash",
         calculation_version="ceri-1.0.0",

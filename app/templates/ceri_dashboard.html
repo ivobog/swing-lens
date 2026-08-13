@@ -122,6 +122,8 @@
               </td>
               <td>
                 {% for dataset, state in ((item.freshness if item.freshness is defined else {}) or {}).items() %}<span>{{ dataset|title }}: {{ state.age_days if state.age_days is not none else "N/A" }}d · {{ state.status|lower }}</span>{% endfor %}
+                {% set evidence_counts = ((item.evidence_lineage or {}).get('evidence_counts') or {}) %}
+                <span class="muted-line">Evidence {{ evidence_counts.get('CONSIDERED', 0) }} considered / {{ evidence_counts.get('SELECTED_FOR_COMPONENT', 0) }} selected</span>
                 {% if item.warnings %}<span class="badge badge-warning">Warnings present</span>{% else %}<span class="badge badge-success">No warnings</span>{% endif %}
               </td>
             </tr>

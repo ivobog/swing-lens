@@ -57,6 +57,13 @@ class CeriEarningsNormalizer:
             actual_value=actual,
             provider_consensus_value=provider_consensus,
             provider_surprise_pct=provider_surprise,
+            event_kind=_text(payload.get("event_kind")) or (
+                "REPORTED" if actual is not None else "UPCOMING"
+            ),
+            acquisition_policy=_text(payload.get("acquisition_policy")),
+            provider_consensus_semantics=_text(
+                payload.get("provider_consensus_semantics")
+            ),
             quality_warnings_json=warnings or None,
         )
 
@@ -75,3 +82,9 @@ def _date(value: Any) -> date | None:
     if isinstance(value, date):
         return value
     return date.fromisoformat(str(value)[:10])
+
+
+def _text(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    return str(value)

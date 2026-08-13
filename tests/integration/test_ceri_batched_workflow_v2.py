@@ -193,8 +193,9 @@ def test_batched_workflow_outputs_match_legacy_workflow_in_postgresql(
     assert len(batched["normalized"]) == 4
     assert len(batched["features"]) >= 3
     assert len(batched["snapshots"]) == 1
-    assert len(batched["changes"]) == 1
-    assert len(batched["alerts"]) == 1
+    # A first snapshot establishes a baseline; it is never an upgrade or alert.
+    assert len(batched["changes"]) == 0
+    assert len(batched["alerts"]) == 0
 
 
 def _upgrade(database_url: str, *, revision: str = "head") -> None:

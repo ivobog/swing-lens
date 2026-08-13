@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
+from app.services.ceri.deployment_identity import current_deployment_identity
 from app.services.ceri.dtos import RawProviderRecord
 from app.services.ceri.observability import ceri_log_event, ceri_metrics
 from app.services.ceri.provider_registry import provider_storage_projection
@@ -38,6 +39,7 @@ class CeriSourceRecordService:
         request_key: str,
         config_version: str | None,
         config_hash: str | None,
+        calculation_version: str | None = None,
     ) -> CeriIngestionRun:
         existing = _maybe_scalar(
             db,
@@ -55,6 +57,11 @@ class CeriSourceRecordService:
             request_key=request_key,
             config_version=config_version,
             config_hash=config_hash,
+            deployment_identity_json=current_deployment_identity(
+                config_hash=config_hash,
+                calculation_version=calculation_version,
+                provider_signatures={provider: provider_terms_version or "unknown"},
+            ),
             started_at=_utcnow(),
         )
         db.add(run)
@@ -317,7 +324,25 @@ class CeriSourceRecordService:
 
 
 def source_record_content_hash(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(_stable_json(payload).encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        _stable_json(source_record_economic_projection(payload)).encode("utf-8")
+    ).hexdigest()
+
+
+def source_record_economic_projection(payload: dict[str, Any]) -> dict[str, Any]:
+    projection = dict(payload)
+    if projection.get("provider_observation_time_basis") == "RETRIEVAL_FALLBACK":
+        for key in (
+            "provider_observed_at",
+            "provider_observation_at",
+            "observed_at",
+            "known_at",
+            "reference_at",
+            "effective_at",
+            "retrieved_at",
+        ):
+            projection.pop(key, None)
+    return projection
 
 
 def source_record_idempotency_key(

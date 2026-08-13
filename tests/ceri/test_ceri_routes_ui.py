@@ -44,6 +44,7 @@ def test_ceri_dashboard_renders_full_data_and_filters(
     assert "Low" in response.text
     assert "Warnings present" in response.text
     assert "Provider Freshness" in response.text
+    assert "Evidence 7 considered / 3 selected" in response.text
     assert fake_service.latest_queries[-1].filters.opportunity_min == 7
     assert fake_service.latest_queries[-1].filters.risk_max == 3
     assert fake_service.latest_queries[-1].filters.has_warnings is True
@@ -451,6 +452,16 @@ def _snapshot():
         },
         confidence_ledger_json={"score": 6.2, "gates": [], "caps": []},
         event_risk_ledger_json={"dominant_component": "binary_event_risk"},
+        evidence_lineage_json={
+            "evidence_counts": {
+                "PERSISTED": 9,
+                "CONSIDERED": 7,
+                "REJECTED": 2,
+                "ACCEPTED": 5,
+                "SELECTED_FOR_COMPONENT": 3,
+                "SCORED": 3,
+            }
+        },
         top_positive_contributors_json=[{"label": "EPS revision", "value": 2.1}],
         top_negative_contributors_json=[{"label": "Binary risk", "value": -1.4}],
         warnings_json=["estimate_data_stale"],

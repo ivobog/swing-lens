@@ -377,6 +377,20 @@ class SecDocumentStateService:
             is not None
         )
 
+    def has_prior_bootstrap_signature(
+        self, db: Session, *, cik: str, dataset: str, processor_signature: str
+    ) -> bool:
+        return (
+            db.scalar(
+                select(CeriSecSyncState.id).where(
+                    CeriSecSyncState.cik == _normalize_cik(cik),
+                    CeriSecSyncState.dataset == dataset,
+                    CeriSecSyncState.processor_signature != processor_signature,
+                )
+            )
+            is not None
+        )
+
     def certify_bootstrap(
         self,
         db: Session,

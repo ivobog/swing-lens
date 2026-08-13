@@ -197,10 +197,9 @@ class SecCeriProvider:
                 "low_value": extraction.low_value,
                 "high_value": extraction.high_value,
                 "point_value": extraction.point_value,
-                "unit": _unit_from_text(
-                    extraction.matched_text,
-                    metric=extraction.metric,
-                ),
+                "unit": extraction.unit
+                or _unit_from_text(extraction.matched_text, metric=extraction.metric),
+                "currency": extraction.currency,
                 "confidence": extraction.confidence,
                 "extraction_confidence": extraction.confidence,
                 "comparison_confidence": extraction.comparison_confidence,

@@ -158,6 +158,14 @@ class CeriRevisionFeatureService:
                 "config_hash": feature.config_hash,
                 "calculation_version": feature.calculation_version,
                 "unavailable_reason": feature.unavailable_reason,
+                "comparison_mode": feature.comparison_mode,
+                "current_source_record_id": feature.current_source_record_id,
+                "baseline_source_record_id": feature.baseline_source_record_id,
+                "provider_retrospective_source_record_id": (
+                    feature.provider_retrospective_source_record_id
+                ),
+                "known_at": feature.known_at,
+                "reference_at": feature.reference_at,
             }
         )
 
@@ -179,14 +187,21 @@ class CeriRevisionFeatureService:
         dispersion: Decimal | None = None
         net_breadth: Decimal | None = None
         unavailable_reason = selection.unavailable_reason
+        comparison_mode = selection.comparison_mode
 
         if current is not None and baseline is not None:
             if current.consensus is None or baseline.consensus is None:
                 unavailable_reason = "consensus_unavailable"
             else:
-                absolute_change = current.consensus - baseline.consensus
+                if comparison_mode != "SAME_PROVIDER_RELATIVE":
+                    absolute_change = current.consensus - baseline.consensus
                 pct_change, pct_warnings = self._pct_change(current.consensus, baseline.consensus)
                 warnings.extend(pct_warnings)
+                if (
+                    comparison_mode == "SAME_PROVIDER_RELATIVE"
+                    and current.canonical_currency is None
+                ):
+                    warnings.append("canonical_currency_unavailable_relative_only")
                 dispersion, dispersion_warning = self._dispersion(current)
                 if dispersion_warning:
                     warnings.append(dispersion_warning)
@@ -232,12 +247,36 @@ class CeriRevisionFeatureService:
             dispersion=dispersion,
             acceleration=None,
             acceleration_unit="PERCENTAGE_POINTS_PER_DAY",
-            baseline_origin=baseline.baseline_origin if baseline is not None else None,
+            baseline_origin=(
+                "ACCUMULATED_IMMUTABLE_OBSERVATION"
+                if baseline is not None and comparison_mode == "HISTORICAL_OBSERVATION"
+                else baseline.baseline_origin if baseline is not None else None
+            ),
+            comparison_mode=comparison_mode,
+            current_source_record_id=(current.source_record_id if current is not None else None),
+            baseline_source_record_id=(baseline.source_record_id if baseline is not None else None),
+            provider_retrospective_source_record_id=(
+                baseline.source_record_id
+                if baseline is not None and comparison_mode == "SAME_PROVIDER_RELATIVE"
+                else None
+            ),
+            known_at=current.known_at if current is not None else None,
+            reference_at=(
+                baseline.reference_at
+                or baseline.known_at
+                or baseline.effective_at
+                if baseline is not None
+                else None
+            ),
             revision_confidence_score=confidence_score,
             revision_confidence_label=confidence_label.value,
             warnings_json=warnings or None,
             source_observation_ids_json=source_ids,
-            provider_selection_reason="point_in_time_latest_effective_at",
+            provider_selection_reason=(
+                "same_provider_retrospective_window"
+                if comparison_mode == "SAME_PROVIDER_RELATIVE"
+                else "point_in_time_latest_effective_at"
+            ),
             unavailable_reason=unavailable_reason,
             config_version=self.config.engine.config_version,
             config_hash=self.config.config_hash,

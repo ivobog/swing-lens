@@ -168,6 +168,71 @@ def test_wave1_ceri_lineage_migration_preserves_populated_rows() -> None:
             )
 
 
+def test_run101_fail_closed_migration_preserves_snapshots_and_demotes_null_guidance() -> None:
+    database_name = f"swinglens_pytest_ceri_run101_{uuid.uuid4().hex[:12]}"
+    with _connect_admin_or_skip() as conn:
+        try:
+            conn.execute(sql.SQL("CREATE DATABASE {} ").format(sql.Identifier(database_name)))
+            database_url = _database_url_for(database_name)
+            upgrade = _run_alembic(
+                database_url, "upgrade", "0041_sec_incremental_documents"
+            )
+            assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
+            with psycopg.connect(
+                database_url.replace("+psycopg", ""), autocommit=True
+            ) as populated:
+                populated.execute(
+                    "INSERT INTO ceri_companies (ticker, exchange) VALUES ('MIGR', 'TEST')"
+                )
+                populated.execute(
+                    """
+                    INSERT INTO ceri_source_records
+                    (provider, dataset, provider_record_id, content_hash, idempotency_key,
+                     export_policy, redistribution_allowed, purge_eligible)
+                    VALUES ('sec', 'guidance', 'legacy-null', 'legacy-hash', 'legacy-idem',
+                            'restricted', false, false)
+                    """
+                )
+                populated.execute(
+                    """
+                    INSERT INTO ceri_guidance_events
+                    (source_record_id, company_id, action, confidence, accepted_for_scoring)
+                    VALUES (1, 1, 'UNKNOWN', 'Normal', NULL)
+                    """
+                )
+                populated.execute(
+                    """
+                    INSERT INTO ceri_score_snapshots
+                    (company_id, ticker, as_of_session, cutoff_at, opportunity_score,
+                     event_risk_score, data_confidence, coverage_pct, posture,
+                     config_version, config_hash, calculation_version, evidence_hash)
+                    VALUES (1, 'MIGR', '2026-08-01', '2026-08-01T20:00:00Z', NULL,
+                            0, 'Insufficient', 0, 'Unrated', 'legacy', 'legacy-config',
+                            'ceri-1.1.0', 'immutable-snapshot-hash')
+                    """
+                )
+            upgrade = _run_alembic(database_url, "upgrade", "head")
+            assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
+            with psycopg.connect(
+                database_url.replace("+psycopg", ""), autocommit=True
+            ) as check:
+                guidance = check.execute(
+                    "SELECT accepted_for_scoring, rejection_reason "
+                    "FROM ceri_guidance_events"
+                ).fetchone()
+                snapshot = check.execute(
+                    "SELECT evidence_hash, calculation_version FROM ceri_score_snapshots"
+                ).fetchone()
+                assert guidance == (False, "LEGACY_ACCEPTANCE_UNKNOWN")
+                assert snapshot == ("immutable-snapshot-hash", "ceri-1.1.0")
+        finally:
+            conn.execute(
+                sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
+                    sql.Identifier(database_name)
+                )
+            )
+
+
 def test_ceri_estimate_identity_migration_allows_corrected_observation() -> None:
     database_name = f"swinglens_pytest_ceri_estimate_{uuid.uuid4().hex[:12]}"
     with _connect_admin_or_skip() as conn:

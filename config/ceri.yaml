@@ -1,7 +1,7 @@
 engine:
   enabled: false
-  calculation_version: ceri-1.1.0
-  config_version: 2026-08-12-remediation-r3
+  calculation_version: ceri-1.2.0
+  config_version: 2026-08-13-run101-remediation-r1
   timezone: America/New_York
   daily_cutoff_time: "16:15"
   effective_session_policy: AFTER_HOURS_NEXT_COMPLETED_US_SESSION
@@ -182,6 +182,11 @@ alerts:
       enabled: true
       severity: RISK
       source_change_type: NEW_BINARY_EVENT
+      cooldown_sessions: 1
+    RISK_ESCALATED:
+      enabled: true
+      severity: RISK
+      source_change_type: RISK_ESCALATED
       cooldown_sessions: 1
     DATA_STALE:
       enabled: true

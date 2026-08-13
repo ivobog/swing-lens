@@ -158,6 +158,7 @@ class CeriEstimateNormalizer:
                 else payload.get("trend_baseline_days")
             ),
             baseline_origin=baseline_origin,
+            source_provider=source_record.provider,
             current_observation_reference=_text(payload.get("current_observation_reference")),
             canonical_observation_key=canonical_estimate_key(
                 company_id=company_id,
