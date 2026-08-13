@@ -306,6 +306,13 @@ class CeriEstimateSnapshot(Base):
             "current_observation_reference",
             "trend_baseline_window_days",
         ),
+        Index(
+            "ix_ceri_estimates_period_slot_known",
+            "company_id",
+            "metric",
+            "canonical_period_slot",
+            "known_at",
+        ),
         CheckConstraint(
             "analyst_count IS NULL OR analyst_count >= 0",
             name="ck_ceri_estimates_analysts_nonnegative",

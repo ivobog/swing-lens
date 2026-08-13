@@ -1248,6 +1248,16 @@ class IBFetchItem(Base):
         Index("idx_ib_fetch_items_fetch_run_id", "fetch_run_id"),
         Index("idx_ib_fetch_items_ticker", "ticker"),
         Index("idx_ib_fetch_items_status", "status"),
+        Index(
+            "idx_ib_fetch_items_full_backfill_evidence",
+            "ticker",
+            "what_to_show",
+            "duration",
+            "bar_size",
+            postgresql_where=text(
+                "status = 'SUCCESS' AND action IN ('FULL_BACKFILL', 'FORCE_REFRESH')"
+            ),
+        ),
     )
 
 

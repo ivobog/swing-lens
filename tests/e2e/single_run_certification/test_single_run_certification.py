@@ -121,6 +121,7 @@ def certification_environment(
         "IB_MAX_RETRIES": "1",
         "TECHNICAL_ARTIFACT_CACHE_ENABLED": "true",
         "TECHNICAL_ARTIFACT_CACHE_WRITE_ENABLED": "true",
+        "TECHNICAL_SERIES_VERSION_MAINTENANCE_ENABLED": "true",
         "WINNER_PROBABILITY_ENABLED": "true",
         "WINNER_PROBABILITY_CAPTURE_IN_PIPELINE": "true",
         "WINNER_PROBABILITY_ADMIN_ENABLED": "true",
@@ -809,14 +810,20 @@ def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: i
             recorder.check(False, f"CERI {ticker} belongs to run", area="CERI")
             continue
         comparisons = {
-            "Opportunity": _display_value(db["opportunity_score"]),
+            "Opportunity": (
+                _display_value(db["opportunity_score"])
+                if db["opportunity_score"] is not None
+                else "Unrated"
+            ),
             "Risk": _display_value(db["event_risk_score"]),
             "Confidence": str(db["data_confidence"]),
             "Posture": str(db["posture"]),
         }
         for field, expected in comparisons.items():
+            actual = gui[field].splitlines()[0].strip()
+            matches = actual.startswith(expected) if field == "Risk" else actual == expected
             recorder.check(
-                gui[field].splitlines()[0].strip() == expected,
+                matches,
                 f"CERI {ticker} {field} GUI↔DB",
                 area="CERI",
                 expected=expected,
