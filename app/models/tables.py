@@ -1922,6 +1922,155 @@ class WinnerTargetStopOutcome(Base):
     )
 
 
+class WinnerTrainingEligibilityDecision(Base):
+    """Append-only decision admitting a historical snapshot to a training family.
+
+    A new classification is represented by another row linked through
+    ``supersedes_decision_id``.  Source snapshots and their original identities
+    are deliberately never updated by this artifact.
+    """
+
+    __tablename__ = "winner_training_eligibility_decisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    prediction_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_prediction_snapshots.id"), nullable=False
+    )
+    policy_version: Mapped[str] = mapped_column(Text, nullable=False)
+    training_family: Mapped[str] = mapped_column(Text, nullable=False)
+    compatibility_bridge_version: Mapped[str] = mapped_column(Text, nullable=False)
+    source_feature_schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    source_calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    source_config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    target_feature_schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    target_calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    target_config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    target_outcome_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_outcome_definitions.id"), nullable=False
+    )
+    classification_status: Mapped[str] = mapped_column(Text, nullable=False)
+    training_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reason_codes_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    feature_compatibility_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    config_compatibility_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    outcome_compatibility_status: Mapped[str] = mapped_column(Text, nullable=False)
+    pit_status: Mapped[str] = mapped_column(Text, nullable=False)
+    episode_status: Mapped[str] = mapped_column(Text, nullable=False)
+    quality_status: Mapped[str] = mapped_column(Text, nullable=False)
+    reconstruction_method: Mapped[str | None] = mapped_column(Text)
+    source_manifest_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_manifest_hash: Mapped[str | None] = mapped_column(Text)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    supersedes_decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_training_eligibility_decisions.id")
+    )
+    request_key: Mapped[str] = mapped_column(Text, nullable=False)
+    decision_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    classified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    classified_by: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "prediction_id",
+            "training_family",
+            "policy_version",
+            "revision",
+            name="uq_winner_training_eligibility_decision_revision",
+        ),
+        UniqueConstraint("decision_hash", name="uq_winner_training_eligibility_decision_hash"),
+        Index(
+            "idx_winner_training_eligibility_decision_lookup",
+            "training_family",
+            "target_outcome_definition_id",
+            "training_allowed",
+        ),
+    )
+
+
+class WinnerTrainingOutcomeReplay(Base):
+    """Append-only active-label replay for an approved historical snapshot."""
+
+    __tablename__ = "winner_training_outcome_replays"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    eligibility_decision_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_training_eligibility_decisions.id"), nullable=False
+    )
+    prediction_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_prediction_snapshots.id"), nullable=False
+    )
+    target_outcome_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_outcome_definitions.id"), nullable=False
+    )
+    training_family: Mapped[str] = mapped_column(Text, nullable=False)
+    reconstruction_method: Mapped[str] = mapped_column(Text, nullable=False)
+    replay_policy_version: Mapped[str] = mapped_column(Text, nullable=False)
+    compatibility_bridge_version: Mapped[str] = mapped_column(Text, nullable=False)
+    source_forward_outcome_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_forward_outcomes.id")
+    )
+    entry_model: Mapped[str] = mapped_column(Text, nullable=False)
+    horizon_sessions: Mapped[int] = mapped_column(Integer, nullable=False)
+    entry_session: Mapped[date] = mapped_column(Date, nullable=False)
+    due_session: Mapped[date] = mapped_column(Date, nullable=False)
+    entry_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    exit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    close_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    mfe_pct: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    mae_pct: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    target_pct: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
+    stop_pct: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
+    target_hit: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    stop_hit: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    first_event: Mapped[str] = mapped_column(Text, nullable=False)
+    event_session: Mapped[date | None] = mapped_column(Date)
+    same_bar_conflict: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    primary_winner: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    optimistic_winner: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    conservative_winner: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    bar_lineage_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    source_bar_lineage_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    source_revision_cutoff_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    supersedes_replay_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_training_outcome_replays.id")
+    )
+    request_key: Mapped[str] = mapped_column(Text, nullable=False)
+    replay_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    replayed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    replayed_by: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "eligibility_decision_id",
+            "revision",
+            name="uq_winner_training_outcome_replay_revision",
+        ),
+        UniqueConstraint("replay_hash", name="uq_winner_training_outcome_replay_hash"),
+        Index(
+            "idx_winner_training_outcome_replay_lookup",
+            "training_family",
+            "target_outcome_definition_id",
+            "status",
+        ),
+    )
+
+
 class WinnerCohortDefinition(Base):
     __tablename__ = "winner_cohort_definitions"
 
@@ -2187,6 +2336,15 @@ class WinnerEstimateEvidenceMember(Base):
         ForeignKey("winner_forward_outcomes.id"), nullable=False
     )
     outcome_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    eligibility_decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_training_eligibility_decisions.id")
+    )
+    outcome_replay_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_training_outcome_replays.id")
+    )
+    evidence_origin: Mapped[str] = mapped_column(
+        Text, nullable=False, default="NATIVE_1_1", server_default="NATIVE_1_1"
+    )
     episode_id: Mapped[int | None] = mapped_column(ForeignKey("winner_prediction_episodes.id"))
     inclusion_weight: Mapped[Decimal] = mapped_column(
         Numeric(18, 8), nullable=False, default=1, server_default="1"

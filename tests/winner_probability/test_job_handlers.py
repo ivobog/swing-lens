@@ -23,6 +23,7 @@ from app.services.winner_probability.job_handlers import (
     execute_outcome_maturation_job,
     execute_prediction_capture_job,
 )
+from app.services.winner_probability.outcome_orchestration_service import H5DrainResult
 from app.services.winner_probability.outcome_service import (
     OutcomeMaturationCancelled,
     OutcomeMaturationResult,
@@ -132,6 +133,38 @@ def test_outcome_maturation_job_observes_cancel_before_next_batch() -> None:
     assert db.processing_runs[0].status == JobStatus.CANCELLED
 
 
+def test_material_h5_maturation_enqueues_cohort_refresh(monkeypatch) -> None:
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    service = FakeOrchestrationService(
+        H5DrainResult(
+            due_h5_next_open=3,
+            oldest_due_h5_session=None,
+            oldest_due_h5_age=None,
+            processed_h5=3,
+            matured_h5=3,
+            pending_h5_after_cycle=0,
+            excluded_h5=0,
+            failed_h5=0,
+            target_stop_matured=3,
+            unvisited_h5_after_cycle=0,
+            last_successful_full_drain_at="2026-08-14T22:05:00+02:00",
+        )
+    )
+    queued = []
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.enqueue_job",
+        lambda *args, **kwargs: queued.append((args, kwargs)),
+    )
+
+    result = execute_outcome_maturation_job(db, job, orchestration_service=service)
+
+    assert result["matured_h5"] == 3
+    assert len(queued) == 1
+    assert queued[0][0][1] == WINNER_COHORT_REFRESH
+    assert "training_cutoff_at" in queued[0][0][2]
+
+
 def test_cohort_refresh_job_persists_processing_run_and_counts() -> None:
     db = JobHandlerFakeDb()
     job = _job(
@@ -197,6 +230,15 @@ class CancellingOutcomeService:
     def process_due_outcomes(self, _db, **kwargs) -> OutcomeMaturationResult:
         assert kwargs["should_cancel"]()
         raise OutcomeMaturationCancelled("cancelled")
+
+
+class FakeOrchestrationService:
+    def __init__(self, result: H5DrainResult) -> None:
+        self.result = result
+
+    def drain_due(self, _db, **kwargs) -> H5DrainResult:
+        assert callable(kwargs["should_cancel"])
+        return self.result
 
 
 class FakeCohortRefreshService:

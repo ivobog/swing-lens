@@ -1,7 +1,7 @@
 engine:
   enabled: false
   feature_schema_version: owpe-features-1.0.0
-  calculation_version: owpe-calc-1.0.0
+  calculation_version: owpe-calc-1.1.0
 
 entry_models:
   production: NEXT_OPEN
@@ -60,6 +60,7 @@ cohort:
   prior_probability: 0.5
   min_coverage: 0.75
   max_interval_width: 0.35
+  rolling_window_years: 5
   hierarchy:
     - level: L0
       dimensions:
@@ -119,7 +120,7 @@ evidence_membership:
 cold_start:
   show_raw_evidence_counts: true
   show_insufficient_reasons: true
-  minimum_display_n: 5
+  minimum_display_n: 15
 
 drift:
   windows_sessions:

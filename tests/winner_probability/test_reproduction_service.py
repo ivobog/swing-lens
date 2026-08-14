@@ -10,6 +10,7 @@ from app.models.tables import (
     WinnerProbabilityEstimate,
     WinnerTargetStopOutcome,
 )
+from app.services.winner_probability.cohort_statistics import CohortStatisticsService
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.evidence_manifest_service import (
     _hash_payload,
@@ -23,6 +24,7 @@ def test_reproduction_uses_exact_membership_not_current_query() -> None:
     config = load_winner_probability_config()
     evidence = tuple(_evidence(index, won=index % 2 == 0) for index in range(20))
     manifest_hash = _hash_payload(_manifest_payload(evidence))
+    statistics = CohortStatisticsService().calculate(evidence, config)
     estimate = WinnerProbabilityEstimate(
         id=50,
         prediction_id=999,
@@ -32,11 +34,16 @@ def test_reproduction_uses_exact_membership_not_current_query() -> None:
         source_version="cohort_baseline_v1",
         training_cutoff_at=datetime(2026, 7, 1, tzinfo=UTC),
         point_probability=Decimal("0.500000"),
+        lower_bound=statistics.lower_bound,
+        upper_bound=statistics.upper_bound,
+        interval_width=statistics.interval_width,
         sample_n=20,
+        effective_n=statistics.effective_n,
         evidence_grade="Low",
         config_hash=config.config_hash,
         feature_schema_version=config.feature_schema.version,
         evidence_manifest_hash=manifest_hash,
+        metadata_json={"wins": str(statistics.wins)},
     )
     db = ReproductionFakeDb(estimate, evidence)
 
@@ -70,7 +77,10 @@ class ReproductionFakeDb:
                 inclusion_weight=Decimal("1"),
                 included_as_of=estimate.training_cutoff_at,
                 inclusion_cutoff_at=estimate.training_cutoff_at,
-                metadata_json={"target_stop_outcome_id": row.target_stop_outcome.id},
+                metadata_json={
+                    "target_stop_outcome_id": row.target_stop_outcome.id,
+                    "target_stop_revision": row.target_stop_outcome.revision,
+                },
             )
             for index, row in enumerate(evidence)
         ]

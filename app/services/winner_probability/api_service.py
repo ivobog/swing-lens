@@ -9,8 +9,10 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    CombinedResult,
     EstimateKind,
     EstimateSource,
+    RankingResult,
     WinnerCalibrationBin,
     WinnerDriftMetric,
     WinnerEstimateEvidenceMember,
@@ -83,16 +85,17 @@ class WinnerProbabilityApiService:
                 .order_by(WinnerPredictionSnapshot.ticker.asc(), WinnerPredictionSnapshot.id.asc())
             )
         )
-        rows = [
+        all_rows = [
             self._run_row(db, prediction, outcome_definition=outcome_definition, query=query)
             for prediction in predictions
         ]
         rows = [
             row
-            for row in rows
+            for row in all_rows
             if _matches_filters(row["prediction"], row["estimate"], query.filters)
         ]
         rows = _sort_rows(rows, query.sort, query.direction)
+        counts = _run_counts(predictions, all_rows, rows)
         page = _page_rows(rows, query.cursor, query.page_size)
         return {
             "run_id": run_id,
@@ -106,6 +109,7 @@ class WinnerProbabilityApiService:
             "config_hash": _first_non_null(rows, "config_hash"),
             "items": page.items,
             "next_cursor": page.next_cursor,
+            "counts": counts,
         }
 
     def get_prediction_detail(
@@ -131,7 +135,7 @@ class WinnerProbabilityApiService:
             query=query,
         )
         return {
-            "prediction": _prediction_payload(prediction),
+            "prediction": _prediction_payload(prediction, db=db),
             "outcome_definition": _outcome_definition_payload(outcome_definition),
             "decision_time_estimate": _estimate_payload(
                 db,
@@ -141,7 +145,7 @@ class WinnerProbabilityApiService:
                     outcome_definition_id=outcome_definition.id,
                     estimate_kind=EstimateKind.DECISION_TIME,
                     query=query,
-                )
+                ),
             ),
             "latest_rescore": _estimate_payload(
                 db,
@@ -151,7 +155,7 @@ class WinnerProbabilityApiService:
                     outcome_definition_id=outcome_definition.id,
                     estimate_kind=EstimateKind.LATEST_RESCORE,
                     query=query,
-                )
+                ),
             ),
             "selected_estimate": _estimate_payload(db, estimate),
             "forward_outcomes": [
@@ -319,6 +323,7 @@ class WinnerProbabilityApiService:
             statement = statement.where(WinnerOutcomeDefinition.is_primary.is_(True))
         else:
             statement = statement.where(WinnerOutcomeDefinition.is_primary.is_(True))
+        statement = statement.where(WinnerOutcomeDefinition.is_active.is_(True))
         if query.entry_model:
             statement = statement.where(WinnerOutcomeDefinition.entry_model == query.entry_model)
         if query.horizon_sessions:
@@ -326,7 +331,7 @@ class WinnerProbabilityApiService:
                 WinnerOutcomeDefinition.horizon_sessions == query.horizon_sessions
             )
         outcome_definition = db.scalar(
-            statement.order_by(WinnerOutcomeDefinition.id.asc()).limit(1)
+            statement.order_by(WinnerOutcomeDefinition.id.desc()).limit(1)
         )
         if outcome_definition is None:
             raise WinnerProbabilityApiError(
@@ -533,13 +538,9 @@ def _apply_revision_view(statement, model, query: WinnerProbabilityApiQuery):
     if query.outcome_revision_view == "CURRENT" and cutoff is None:
         return statement.where(model.is_current_revision.is_(True))
     if cutoff is not None:
-        timestamp_column = (
-            model.matured_at if hasattr(model, "matured_at") else model.evaluated_at
-        )
+        timestamp_column = model.matured_at if hasattr(model, "matured_at") else model.evaluated_at
         statement = statement.where((timestamp_column <= cutoff) | (model.status == "PENDING"))
-        statement = statement.where(
-            model.superseded_at.is_(None) | (model.superseded_at > cutoff)
-        )
+        statement = statement.where(model.superseded_at.is_(None) | (model.superseded_at > cutoff))
     return statement
 
 
@@ -627,7 +628,44 @@ def _page_rows(
     return PaginatedPayload(items=page, next_cursor=next_cursor)
 
 
-def _prediction_payload(row: WinnerPredictionSnapshot) -> dict[str, Any]:
+def _run_counts(
+    predictions: list[WinnerPredictionSnapshot],
+    all_rows: list[dict[str, Any]],
+    filtered_rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    estimates = [row["estimate"] for row in all_rows if row.get("estimate") is not None]
+    return {
+        "run_total": len(predictions),
+        "filtered_total": len(filtered_rows),
+        "filtered_estimate_total": sum(row.get("estimate") is not None for row in filtered_rows),
+        "estimate_total": len(estimates),
+        "calibrated_total": sum(
+            estimate.get("point_probability") is not None for estimate in estimates
+        ),
+        "insufficient_total": sum(
+            estimate.get("evidence_grade") == "Insufficient"
+            or estimate.get("point_probability") is None
+            for estimate in estimates
+        ),
+        "missing_estimate_total": len(all_rows) - len(estimates),
+    }
+
+
+def _prediction_payload(
+    row: WinnerPredictionSnapshot,
+    *,
+    db: Session | None = None,
+) -> dict[str, Any]:
+    combined = (
+        db.get(CombinedResult, row.combined_result_id)
+        if db is not None and row.combined_result_id is not None
+        else None
+    )
+    ranking = (
+        db.get(RankingResult, row.ranking_result_id)
+        if db is not None and row.ranking_result_id is not None
+        else None
+    )
     return {
         "id": row.id,
         "run_id": row.run_id,
@@ -643,6 +681,9 @@ def _prediction_payload(row: WinnerPredictionSnapshot) -> dict[str, Any]:
         "setup_family": row.setup_family,
         "setup_classification": row.setup_classification,
         "ranking_profile": row.ranking_profile,
+        "final_rank": getattr(combined, "final_rank", None),
+        "ranking_rank": getattr(ranking, "profile_rank", None),
+        "ranking_score": _number(getattr(ranking, "profile_score", None)),
         "fundamental_score": _number(row.fundamental_score),
         "technical_score": _number(row.technical_score),
         "combined_score": _number(row.combined_score),
@@ -659,6 +700,7 @@ def _prediction_payload(row: WinnerPredictionSnapshot) -> dict[str, Any]:
         "calculation_version": row.calculation_version,
         "feature_json": row.feature_json,
         "source_ids": row.source_ids_json or {},
+        "warnings": row.warning_flags_json or [],
         "lineage": row.lineage_json or {},
     }
 
@@ -671,18 +713,29 @@ def _estimate_payload(
         return None
     model = _estimate_model(db, row)
     calibration = _estimate_calibration(db, row, model)
+    withheld = row.point_probability is None
+    metadata = dict(row.metadata_json or {})
+    if withheld and row.cohort_definition_id is None:
+        attempted_level = metadata.get("attempted_cohort_level") or metadata.get("cohort_level")
+        attempted_key = metadata.get("attempted_cohort_key") or metadata.get("cohort_key")
+        metadata["attempted_cohort_level"] = attempted_level
+        metadata["attempted_cohort_key"] = attempted_key
+        metadata["cohort_level"] = None
+        metadata["cohort_key"] = None
     return {
         "id": row.id,
         "prediction_id": row.prediction_id,
         "outcome_definition_id": row.outcome_definition_id,
         "estimate_kind": row.estimate_kind,
-        "source": row.source,
+        "source": None if withheld and row.source == EstimateSource.INSUFFICIENT else row.source,
         "source_version": row.source_version,
         "cohort_definition_id": row.cohort_definition_id,
         "model_version_id": row.model_version_id,
-        "model_key": _model_key(row, model),
-        "model_status": _model_status(row, model),
-        "model_version_label": _model_version_label(row, model),
+        "model_key": None if withheld and model is None else _model_key(row, model),
+        "model_status": None if withheld and model is None else _model_status(row, model),
+        "model_version_label": (
+            None if withheld and model is None else _model_version_label(row, model)
+        ),
         "calibration_status": calibration["status"],
         "calibration_calculated_at": _iso(calibration["calculated_at"]),
         "training_cutoff_at": _iso(row.training_cutoff_at),
@@ -690,7 +743,7 @@ def _estimate_payload(
         "point_probability": _number(row.point_probability),
         "lower_bound": _number(row.lower_bound),
         "upper_bound": _number(row.upper_bound),
-        "interval_width": _number(row.interval_width),
+        "interval_width": None if withheld else _number(row.interval_width),
         "sample_n": row.sample_n,
         "effective_n": _number(row.effective_n),
         "evidence_grade": row.evidence_grade,
@@ -703,7 +756,15 @@ def _estimate_payload(
         "config_hash": row.config_hash,
         "feature_schema_version": row.feature_schema_version,
         "evidence_manifest_hash": row.evidence_manifest_hash,
-        "metadata": row.metadata_json or {},
+        "evidence_composition": {
+            "native_1_1_n": metadata.get("native_1_1_n", 0),
+            "pre11_compatible_n": metadata.get("pre11_compatible_n", 0),
+            "reconstructed_label_n": metadata.get("reconstructed_label_n", 0),
+            "compatibility_policy_version": metadata.get("compatibility_policy_version"),
+            "oldest_evidence_date": metadata.get("oldest_evidence_date"),
+            "newest_evidence_date": metadata.get("newest_evidence_date"),
+        },
+        "metadata": metadata,
     }
 
 
@@ -768,6 +829,9 @@ def _evidence_member_payload(row: WinnerEstimateEvidenceMember) -> dict[str, Any
         "prediction_id": row.prediction_id,
         "outcome_id": row.outcome_id,
         "outcome_revision": row.outcome_revision,
+        "eligibility_decision_id": row.eligibility_decision_id,
+        "outcome_replay_id": row.outcome_replay_id,
+        "evidence_origin": row.evidence_origin or "NATIVE_1_1",
         "episode_id": row.episode_id,
         "inclusion_weight": _number(row.inclusion_weight),
         "included_as_of": _iso(row.included_as_of),
@@ -834,7 +898,7 @@ def _estimate_calibration(
     model: WinnerModelVersion | None,
 ) -> dict[str, Any]:
     if estimate.point_probability is None:
-        return {"status": "insufficient", "calculated_at": None}
+        return {"status": "not_applicable", "calculated_at": None}
     if estimate.source == EstimateSource.COHORT and model is None:
         return {"status": "cohort_baseline", "calculated_at": None}
     if model is not None and model.status != "ACTIVE":

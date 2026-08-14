@@ -38,10 +38,13 @@
 </section>
 
 <section class="metric-grid section-gap winner-probability-metrics" aria-label="Winner evidence summary">
-  <div class="metric"><span>Rows</span><strong>{{ summary.row_count }}</strong></div>
+  <div class="metric"><span>Page rows</span><strong>{{ summary.row_count }}</strong></div>
+  <div class="metric"><span>Filtered rows</span><strong>{{ summary.filtered_count|default(summary.row_count) }}</strong></div>
+  <div class="metric"><span>Run rows</span><strong>{{ summary.run_count|default(summary.row_count) }}</strong></div>
   <div class="metric"><span>Estimates</span><strong>{{ summary.estimate_count }}</strong></div>
   <div class="metric"><span>Calibrated</span><strong>{{ summary.calibrated_count }}</strong></div>
   <div class="metric"><span>Insufficient</span><strong>{{ summary.insufficient_count }}</strong></div>
+  <div class="metric"><span>Missing estimate</span><strong>{{ summary.missing_estimate_count|default(0) }}</strong></div>
 </section>
 
 <section class="panel section-gap">
@@ -119,6 +122,9 @@
         <thead>
           <tr>
             <th scope="col">Ticker</th>
+            <th scope="col">Rank / Score</th>
+            <th scope="col">Setup</th>
+            <th scope="col">Regime / Sector</th>
             <th scope="col">Probability</th>
             <th scope="col">Interval</th>
             <th scope="col">Grade</th>
@@ -137,7 +143,16 @@
             {% set prediction = row.prediction %}
             {% set estimate = row.estimate %}
             <tr>
-              <td><strong>{{ prediction.ticker }}</strong><small>{{ prediction.setup_classification or prediction.setup_family or "" }}</small></td>
+              <td><strong>{{ prediction.ticker }}</strong></td>
+              <td>
+                {{ prediction.ranking_rank or prediction.final_rank or "-" }}
+                <small>{{ "%.2f"|format(prediction.ranking_score) if prediction.ranking_score is defined and prediction.ranking_score is not none else "ranking unavailable" }}</small>
+              </td>
+              <td>{{ prediction.setup_classification or prediction.setup_family or "-" }}</td>
+              <td>
+                {{ prediction.market_regime or prediction.market_risk_state or "-" }}
+                <small>{{ prediction.sector_state or "sector unavailable" }}</small>
+              </td>
               <td>
                 {% if estimate and estimate.point_probability is not none %}
                   <strong>{{ "%.0f"|format(estimate.point_probability * 100) }}%</strong>
@@ -157,7 +172,13 @@
               <td><span class="badge badge-{{ 'warning' if estimate and estimate.evidence_grade == 'Insufficient' else 'success' if estimate and estimate.evidence_grade == 'High' else 'muted' }}">{{ estimate.evidence_grade if estimate else "Missing" }}</span></td>
               <td>{{ estimate.model_version_label if estimate else "" }}<small>{{ estimate.model_status if estimate else "" }}</small></td>
               <td>{{ estimate.calibration_status if estimate else "" }}<small>{{ estimate.calibration_calculated_at if estimate and estimate.calibration_calculated_at else "" }}</small></td>
-              <td>{{ estimate.sample_n if estimate else "" }}<small>eff {{ "%.0f"|format(estimate.effective_n) if estimate and estimate.effective_n is not none else "" }}</small></td>
+              <td>
+                {{ estimate.sample_n if estimate else "" }}
+                <small>eff {{ "%.0f"|format(estimate.effective_n) if estimate and estimate.effective_n is not none else "" }}</small>
+                {% if estimate and estimate.evidence_composition and estimate.evidence_composition.pre11_compatible_n %}
+                  <small>native {{ estimate.evidence_composition.native_1_1_n }} / pre-1.1 replay {{ estimate.evidence_composition.pre11_compatible_n }}</small>
+                {% endif %}
+              </td>
               <td>{{ "%.1f"|format(estimate.median_return_pct) if estimate and estimate.median_return_pct is not none else "" }}</td>
               <td>{{ "%.1f"|format(estimate.median_mfe_pct) if estimate and estimate.median_mfe_pct is not none else "" }} / {{ "%.1f"|format(estimate.median_mae_pct) if estimate and estimate.median_mae_pct is not none else "" }}</td>
               <td>{{ "%.0f"|format(estimate.target_first_rate * 100) ~ "%" if estimate and estimate.target_first_rate is not none else "" }}</td>
@@ -165,6 +186,9 @@
               <td>
                 {% if estimate and estimate.insufficient_reasons %}
                   <small>{{ estimate.insufficient_reasons|join(", ") }}</small>
+                {% endif %}
+                {% if prediction.warnings %}
+                  <small>{{ prediction.warnings|join(", ") }}</small>
                 {% endif %}
                 <a href="/winner-probability/predictions/{{ prediction.id }}">Open</a>
               </td>
@@ -177,6 +201,11 @@
     <div class="empty-state">
       <strong>No winner probability rows match this view.</strong>
       <p>Cold-start rows still show raw counts and explicit insufficient reasons once predictions and outcomes are captured.</p>
+    </div>
+  {% endif %}
+  {% if next_page_url %}
+    <div class="actions section-gap">
+      <a class="button-link secondary" href="{{ next_page_url }}">Next page</a>
     </div>
   {% endif %}
 </section>

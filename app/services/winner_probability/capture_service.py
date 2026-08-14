@@ -29,6 +29,7 @@ from app.services.winner_probability.repository import (
     TickerCaptureContext,
     WinnerProbabilityRepository,
 )
+from app.services.winner_probability.training_eligibility import TrainingEligibilityPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ class WinnerPredictionCaptureService:
         episode_service: WinnerEpisodeService | None = None,
         pending_outcome_service: PendingOutcomeService | None = None,
         decision_time_estimate_service: DecisionTimeEstimateService | None = None,
+        training_eligibility_policy: TrainingEligibilityPolicy | None = None,
     ) -> None:
         self.repository = repository or WinnerProbabilityRepository()
         self.feature_extractor = feature_extractor or WinnerFeatureExtractor()
@@ -75,6 +77,9 @@ class WinnerPredictionCaptureService:
         )
         self.decision_time_estimate_service = (
             decision_time_estimate_service or DecisionTimeEstimateService(self.repository)
+        )
+        self.training_eligibility_policy = (
+            training_eligibility_policy or TrainingEligibilityPolicy()
         )
 
     def capture_run(
@@ -86,7 +91,7 @@ class WinnerPredictionCaptureService:
         captured_at: datetime | None = None,
         reconstruction_method: str | None = None,
         source_quality_flags: tuple[str, ...] = (),
-        production_training_allowed: bool = False,
+        production_training_allowed: bool | None = None,
         should_cancel: Callable[[], bool] | None = None,
     ) -> WinnerPredictionCaptureResult:
         config = config or load_winner_probability_config()
@@ -137,6 +142,10 @@ class WinnerPredictionCaptureService:
                     **prediction.lineage_json,
                     "dependent_episode": assignment.is_dependent,
                 }
+                self.training_eligibility_policy.persist_capture_decision(
+                    prediction,
+                    explicit_legacy_override=production_training_allowed,
+                )
                 self.repository.add(db, prediction)
                 if prediction.eligibility_status == PredictionEligibility.ELIGIBLE:
                     totals.inserted += 1
@@ -195,7 +204,7 @@ class WinnerPredictionCaptureService:
         config: WinnerProbabilityConfig,
         reconstruction_method: str | None,
         source_quality_flags: tuple[str, ...],
-        production_training_allowed: bool,
+        production_training_allowed: bool | None,
     ) -> WinnerPredictionSnapshot:
         raw_row = ticker_context.raw_row
         technical = ticker_context.technical_score
@@ -266,7 +275,7 @@ class WinnerPredictionCaptureService:
             lineage_json={
                 **features.lineage_json,
                 "source_quality_flags": list(source_quality_flags),
-                "production_training_allowed": production_training_allowed,
+                "production_training_allowed_override": production_training_allowed,
             },
             reconstruction_method=reconstruction_method,
             retention_class="permanent",

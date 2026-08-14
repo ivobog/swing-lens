@@ -127,6 +127,7 @@ class CohortConfig:
     prior_probability: float
     min_coverage: float
     max_interval_width: float
+    rolling_window_years: int
     hierarchy: tuple[CohortLevelConfig, ...]
 
 
@@ -414,8 +415,13 @@ def _parse_cohort(raw: dict[str, Any], registry: FeatureSchemaRegistry) -> Cohor
     prior_probability = _ratio(raw.get("prior_probability"), "cohort.prior_probability")
     min_coverage = _ratio(raw.get("min_coverage"), "cohort.min_coverage")
     max_interval_width = _ratio(raw.get("max_interval_width"), "cohort.max_interval_width")
+    rolling_window_years = int(
+        _number(raw.get("rolling_window_years"), "cohort.rolling_window_years")
+    )
     if prior_strength <= 0:
         raise WinnerProbabilityConfigError("cohort.prior_strength must be positive")
+    if rolling_window_years <= 0:
+        raise WinnerProbabilityConfigError("cohort.rolling_window_years must be positive")
     hierarchy_rows = _list(raw, "hierarchy")
     hierarchy = tuple(
         _parse_cohort_level(row, index, registry)
@@ -429,6 +435,7 @@ def _parse_cohort(raw: dict[str, Any], registry: FeatureSchemaRegistry) -> Cohor
         prior_probability=prior_probability,
         min_coverage=min_coverage,
         max_interval_width=max_interval_width,
+        rolling_window_years=rolling_window_years,
         hierarchy=hierarchy,
     )
 
@@ -728,6 +735,16 @@ def _validate_cross_section_rules(config: WinnerProbabilityConfig) -> None:
             )
     if config.api.default_estimate_kind not in config.estimate_kinds:
         raise WinnerProbabilityConfigError("api.default_estimate_kind must be configured")
+    minimum_display_n = int(config.cold_start["minimum_display_n"])
+    low_minimum_n = config.evidence_grades["low"].min_effective_n
+    l5_minimum_n = next(
+        level.min_effective_n for level in config.cohort.hierarchy if level.level == "L5"
+    )
+    if minimum_display_n != low_minimum_n or minimum_display_n != l5_minimum_n:
+        raise WinnerProbabilityConfigError(
+            "cold_start.minimum_display_n, evidence_grades.low.min_effective_n, "
+            "and cohort L5 min_effective_n must match"
+        )
 
 
 def _mapping(raw: dict[str, Any], field_name: str) -> dict[str, Any]:

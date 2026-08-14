@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Annotated
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
@@ -75,6 +76,7 @@ def winner_probability_run_page(
     market_risk_state: str | None = None,
     sector_state: str | None = None,
     data_quality: str | None = None,
+    cursor: str | None = None,
 ) -> HTMLResponse:
     run = _load_run(db, run_id)
     if run is None:
@@ -84,6 +86,7 @@ def winner_probability_run_page(
         estimate_view=estimate_view,
         sort=sort,
         direction=direction,
+        cursor=cursor,
         filters=WinnerProbabilityFilters(
             probability_min=probability_min,
             lower_bound_min=lower_bound_min,
@@ -115,6 +118,7 @@ def winner_probability_run_page(
             "run": run,
             "payload": payload,
             "summary": _run_evidence_summary(payload),
+            "next_page_url": _cursor_url(request, payload.get("next_cursor")),
             "filters": {
                 "outcome_definition_id": outcome_definition_id or "",
                 "estimate_view": estimate_view,
@@ -697,6 +701,7 @@ def _ui_payload_or_empty(callback) -> tuple[dict, dict[str, str] | None]:
 
 def _run_evidence_summary(payload: dict) -> dict[str, int]:
     rows = payload.get("items", [])
+    counts = payload.get("counts") or {}
     estimates = [row.get("estimate") for row in rows if row.get("estimate")]
     calibrated = [
         estimate for estimate in estimates if estimate.get("point_probability") is not None
@@ -709,10 +714,23 @@ def _run_evidence_summary(payload: dict) -> dict[str, int]:
     ]
     return {
         "row_count": len(rows),
-        "estimate_count": len(estimates),
-        "calibrated_count": len(calibrated),
-        "insufficient_count": len(insufficient),
+        "filtered_count": counts.get("filtered_total", len(rows)),
+        "run_count": counts.get("run_total", len(rows)),
+        "estimate_count": counts.get("estimate_total", len(estimates)),
+        "calibrated_count": counts.get("calibrated_total", len(calibrated)),
+        "insufficient_count": counts.get("insufficient_total", len(insufficient)),
+        "missing_estimate_count": counts.get(
+            "missing_estimate_total", len(rows) - len(estimates)
+        ),
     }
+
+
+def _cursor_url(request: Request, cursor: str | None) -> str | None:
+    if not cursor:
+        return None
+    params = [(key, value) for key, value in request.query_params.multi_items() if key != "cursor"]
+    params.append(("cursor", cursor))
+    return f"{request.url.path}?{urlencode(params)}"
 
 
 def _first_model_id(payload: dict) -> int | None:

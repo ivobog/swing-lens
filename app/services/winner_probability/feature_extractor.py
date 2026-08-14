@@ -12,7 +12,10 @@ from app.models.tables import (
     EntryScheduleStatus,
     PredictionEligibility,
 )
-from app.services.us_market_calendar import next_us_trading_day
+from app.services.us_market_calendar import (
+    latest_completed_us_trading_day,
+    next_us_trading_day,
+)
 from app.services.winner_probability.config import WinnerProbabilityConfig
 from app.services.winner_probability.feature_schema import (
     FeatureSchemaError,
@@ -71,12 +74,6 @@ class WinnerFeatureExtractor:
             sector_snapshot = None
             sector_row = None
 
-        prediction_as_of = _prediction_as_of_date(
-            market_date=getattr(market, "as_of_date", None),
-            sector_date=getattr(sector_snapshot, "as_of_date", None),
-            uploaded_at=getattr(run_context.upload_run, "uploaded_at", None),
-            captured_at=captured_at,
-        )
         _validate_point_in_time_sources(
             captured_at,
             run_context.upload_run,
@@ -99,6 +96,13 @@ class WinnerFeatureExtractor:
             market,
             sector_snapshot,
         )
+        prediction_as_of = latest_completed_us_trading_day(captured_at)
+        for context_name, context_date in (
+            ("market_regime", getattr(market, "as_of_date", None)),
+            ("sector_rotation", getattr(sector_snapshot, "as_of_date", None)),
+        ):
+            if context_date is not None and context_date > prediction_as_of:
+                warnings.append(f"{context_name}_date_after_completed_signal_session")
 
         exclusion_reason = None
         eligibility = PredictionEligibility.ELIGIBLE
@@ -132,7 +136,7 @@ class WinnerFeatureExtractor:
         )
         entry_data_status = (
             EntryDataStatus.NOT_DUE
-            if planned_entry and planned_entry > captured_at.date()
+            if planned_entry and planned_entry > latest_completed_us_trading_day(captured_at)
             else EntryDataStatus.PENDING
         )
 
@@ -268,22 +272,6 @@ def _canonical_feature_json(
             }
         )
     return features
-
-
-def _prediction_as_of_date(
-    *,
-    market_date: date | None,
-    sector_date: date | None,
-    uploaded_at: datetime | None,
-    captured_at: datetime,
-) -> date:
-    if sector_date is not None:
-        return sector_date
-    if market_date is not None:
-        return market_date
-    if uploaded_at is not None:
-        return uploaded_at.date()
-    return captured_at.date()
 
 
 def _source_cutoff_at(captured_at: datetime, *rows) -> datetime:

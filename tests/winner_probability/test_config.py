@@ -36,6 +36,9 @@ def test_valid_default_winner_probability_yaml_loads() -> None:
         SAME_BAR_CONSERVATIVE_STOP_FIRST
     )
     assert config.cohort.prior_strength == 20
+    assert config.cohort.rolling_window_years == 5
+    assert config.cold_start["minimum_display_n"] == 15
+    assert config.engine.calculation_version == "owpe-calc-1.1.0"
     assert "regularized_logistic_regression" in config.model_governance.approved_algorithms
     assert config.model_governance.promotion_gates["require_fresh_drift_metrics"] is True
     assert config.evidence_membership.persistence == "ROWS"
@@ -96,6 +99,16 @@ def test_unordered_evidence_thresholds_fail(tmp_path: Path) -> None:
     )
 
     with pytest.raises(WinnerProbabilityConfigError, match="max_interval_width"):
+        load_winner_probability_config(path)
+
+
+def test_display_threshold_must_match_l5_and_low_grade_authority(tmp_path: Path) -> None:
+    path = _config_with_mutation(
+        tmp_path,
+        lambda config: config["cold_start"].update({"minimum_display_n": 14}),
+    )
+
+    with pytest.raises(WinnerProbabilityConfigError, match="must match"):
         load_winner_probability_config(path)
 
 

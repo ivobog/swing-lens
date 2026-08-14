@@ -76,8 +76,7 @@ class EvidenceManifestService:
                 .where(WinnerEstimateEvidenceMember.estimate_id == estimate.id)
                 .where(WinnerEstimateEvidenceMember.outcome_id == row.forward_outcome.id)
                 .where(
-                    WinnerEstimateEvidenceMember.outcome_revision
-                    == row.forward_outcome.revision
+                    WinnerEstimateEvidenceMember.outcome_revision == row.forward_outcome.revision
                 )
             )
             if exists is not None:
@@ -88,6 +87,9 @@ class EvidenceManifestService:
                     prediction_id=row.prediction.id,
                     outcome_id=row.forward_outcome.id,
                     outcome_revision=row.forward_outcome.revision,
+                    eligibility_decision_id=row.eligibility_decision_id,
+                    outcome_replay_id=row.outcome_replay_id,
+                    evidence_origin=row.evidence_origin,
                     episode_id=row.prediction.episode_id,
                     inclusion_weight=Decimal(str(row.inclusion_weight)),
                     included_as_of=included_as_of,
@@ -95,6 +97,9 @@ class EvidenceManifestService:
                     metadata_json={
                         "target_stop_outcome_id": row.target_stop_outcome.id,
                         "target_stop_revision": row.target_stop_outcome.revision,
+                        "eligibility_decision_id": row.eligibility_decision_id,
+                        "outcome_replay_id": row.outcome_replay_id,
+                        "evidence_origin": row.evidence_origin,
                     },
                 )
             )
@@ -110,6 +115,9 @@ def _manifest_payload(evidence: tuple[EvidenceOutcome, ...]) -> dict[str, Any]:
                 "outcome_revision": row.forward_outcome.revision,
                 "target_stop_outcome_id": row.target_stop_outcome.id,
                 "target_stop_revision": row.target_stop_outcome.revision,
+                "eligibility_decision_id": row.eligibility_decision_id,
+                "outcome_replay_id": row.outcome_replay_id,
+                "evidence_origin": row.evidence_origin,
                 "episode_id": row.prediction.episode_id,
                 "inclusion_weight": str(row.inclusion_weight),
                 "primary_winner": row.target_stop_outcome.primary_winner,

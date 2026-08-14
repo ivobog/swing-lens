@@ -141,6 +141,7 @@ class Settings(BaseSettings):
     winner_probability_capture_in_pipeline: bool = False
     winner_probability_config_path: Path = Field(default=Path("config/winner_probability.yaml"))
     winner_probability_admin_enabled: bool = False
+    winner_probability_auto_maturation_enabled: bool = False
     setup_lifecycle_enabled: bool = False
     setup_lifecycle_pipeline_step_enabled: bool = False
     setup_latest_bar_projection_enabled: bool = True

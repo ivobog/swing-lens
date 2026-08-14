@@ -18,6 +18,9 @@ from app.models.tables import (
 )
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.evidence_service import EvidenceOutcome
+from app.services.winner_probability.pre11_compatibility_service import (
+    EVIDENCE_ORIGIN_PRE11,
+)
 from app.services.winner_probability.probability_estimator import ProbabilityEstimator
 
 
@@ -71,8 +74,12 @@ def test_insufficient_estimate_persists_raw_counts_without_fake_probability() ->
     assert result.status == "insufficient"
     assert result.estimate.source == EstimateSource.INSUFFICIENT
     assert result.estimate.point_probability is None
+    assert result.estimate.interval_width is None
     assert result.estimate.sample_n == 2
     assert result.estimate.insufficient_reasons_json == ["no_eligible_cohort"]
+    assert result.selected_cohort is None
+    assert result.estimate.metadata_json["cohort_level"] is None
+    assert result.estimate.metadata_json["attempted_cohort_level"] == "L5"
 
 
 def test_shared_cohort_cutoff_reuses_one_statistic_for_multiple_predictions() -> None:
@@ -99,7 +106,9 @@ def test_shared_cohort_cutoff_reuses_one_statistic_for_multiple_predictions() ->
 
     assert first_result.status == "estimated"
     assert second_result.status == "estimated"
-    assert len(db.rows[WinnerCohortStatistic]) == 1
+    assert len(db.rows[WinnerCohortStatistic]) == 6
+    definition_by_id = {row.id: row for row in db.rows[WinnerCohortDefinition]}
+    assert definition_by_id[db.rows[WinnerCohortStatistic][0].cohort_definition_id].level == "L5"
     assert len(db.rows[WinnerProbabilityEstimate]) == 2
 
 
@@ -156,12 +165,72 @@ def test_decision_time_estimate_is_immutable_on_duplicate_call() -> None:
     assert len(db.rows[WinnerProbabilityEstimate]) == 1
 
 
+def test_dependent_current_prediction_can_receive_independent_historical_probability() -> None:
+    config = load_winner_probability_config()
+    db = EstimatorFakeDb()
+    current = _prediction(999)
+    current.lineage_json = {"dependent_episode": True}
+    evidence = tuple(_evidence(index, won=index % 2 == 0) for index in range(15))
+
+    result = ProbabilityEstimator(
+        evidence_service=FakeEvidenceService({"L5": evidence})
+    ).create_decision_time_estimate(
+        db,
+        prediction=current,
+        outcome_definition=_definition(),
+        config=config,
+    )
+
+    assert result.status == "estimated"
+    assert result.estimate.point_probability is not None
+    assert result.estimate.sample_n == 15
+
+
+def test_estimate_persists_mixed_evidence_composition_and_member_origins() -> None:
+    config = load_winner_probability_config()
+    db = EstimatorFakeDb()
+    evidence = list(_evidence(index, won=index % 2 == 0) for index in range(20))
+    for index in range(5):
+        row = evidence[index]
+        evidence[index] = EvidenceOutcome(
+            prediction=row.prediction,
+            forward_outcome=row.forward_outcome,
+            target_stop_outcome=row.target_stop_outcome,
+            eligibility_decision_id=10_000 + index,
+            outcome_replay_id=20_000 + index,
+            evidence_origin=EVIDENCE_ORIGIN_PRE11,
+        )
+
+    result = ProbabilityEstimator(
+        evidence_service=FakeEvidenceService({"L5": tuple(evidence)})
+    ).create_decision_time_estimate(
+        db,
+        prediction=_prediction(999),
+        outcome_definition=_definition(),
+        config=config,
+    )
+
+    assert result.estimate.metadata_json["native_1_1_n"] == 15
+    assert result.estimate.metadata_json["pre11_compatible_n"] == 5
+    assert result.estimate.metadata_json["reconstructed_label_n"] == 5
+    origins = [row.evidence_origin for row in db.rows[WinnerEstimateEvidenceMember]]
+    assert origins.count(EVIDENCE_ORIGIN_PRE11) == 5
+
+
 class FakeEvidenceService:
     def __init__(self, evidence_by_level: dict[str, tuple[EvidenceOutcome, ...]]) -> None:
         self.evidence_by_level = evidence_by_level
 
     def load_evidence(self, _db, **kwargs) -> tuple[EvidenceOutcome, ...]:
         return self.evidence_by_level.get(kwargs["cohort_key"].level, ())
+
+    def diagnostic_funnel(self, _db, **kwargs):
+        evidence = self.load_evidence(_db, **kwargs)
+        return type(
+            "Funnel",
+            (),
+            {"evidence": evidence, "stages": (), "counts": lambda self: {}},
+        )()
 
 
 class EstimatorFakeDb:
@@ -214,6 +283,18 @@ class EstimatorFakeDb:
                 if statistic.cohort_definition_id == kwargs["cohort_definition_id"]
                 and statistic.outcome_definition_id == kwargs["outcome_definition_id"]
                 and statistic.training_cutoff_at == kwargs["training_cutoff_at"]
+            ),
+            None,
+        )
+
+    def get_existing_cohort_definition(self, **kwargs):
+        return next(
+            (
+                definition
+                for definition in self.rows[WinnerCohortDefinition]
+                if definition.cohort_key == kwargs["cohort_key"]
+                and definition.outcome_definition_id == kwargs["outcome_definition_id"]
+                and definition.source_version == kwargs["source_version"]
             ),
             None,
         )

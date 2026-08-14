@@ -13,6 +13,28 @@ from app.services.us_market_calendar import (
 NY = ZoneInfo("America/New_York")
 
 
+def test_run_104_zurich_cutoff_resolves_completed_session_and_next_open() -> None:
+    cutoff = datetime(2026, 8, 14, 4, 34, 21, tzinfo=ZoneInfo("Europe/Zurich"))
+
+    completed = latest_completed_us_trading_day(cutoff)
+
+    assert completed == date(2026, 8, 13)
+    assert next_us_trading_day(completed) == date(2026, 8, 14)
+
+
+def test_calendar_conversion_is_deterministic_across_us_europe_dst_gap() -> None:
+    before_bar_ready = datetime(2026, 3, 9, 21, 0, tzinfo=ZoneInfo("Europe/Zurich"))
+    after_bar_ready = datetime(2026, 3, 9, 21, 30, tzinfo=ZoneInfo("Europe/Zurich"))
+
+    assert latest_completed_us_trading_day(before_bar_ready) == date(2026, 3, 6)
+    assert latest_completed_us_trading_day(after_bar_ready) == date(2026, 3, 9)
+
+
+def test_next_session_skips_weekend_and_exchange_holiday() -> None:
+    assert next_us_trading_day(date(2026, 7, 2)) == date(2026, 7, 6)
+    assert next_us_trading_day(date(2026, 8, 14)) == date(2026, 8, 17)
+
+
 def test_latest_completed_day_after_us_close_requires_same_session() -> None:
     now = datetime(2026, 7, 7, 17, 45, tzinfo=NY)
 

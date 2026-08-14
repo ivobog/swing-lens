@@ -16,14 +16,17 @@ from app.models.tables import (
     ModelStatus,
     WinnerCalibrationBin,
     WinnerModelVersion,
+    WinnerOutcomeDefinition,
     WinnerProbabilityEstimate,
 )
 from app.routers import winner_probability_routes
 from app.services.background_job_service import JobStatus
 from app.services.winner_probability.api_service import (
     WinnerProbabilityApiError,
+    WinnerProbabilityApiService,
     _estimate_payload,
 )
+from app.services.winner_probability.dtos import WinnerProbabilityApiQuery
 from app.services.winner_probability.job_handlers import WINNER_COHORT_REFRESH
 from app.settings import Settings
 
@@ -81,6 +84,41 @@ def test_run_api_rejects_invalid_filters_with_structured_error() -> None:
 
     assert exc.value.status_code == 422
     assert exc.value.detail["code"] == "INVALID_FILTER"
+
+
+def test_outcome_definition_resolver_selects_only_active_version() -> None:
+    active = WinnerOutcomeDefinition(
+        id=2,
+        definition_id="T2_5_S2_0_H5_NEXT_OPEN",
+        label="active",
+        entry_model="NEXT_OPEN",
+        horizon_sessions=5,
+        target_pct=Decimal("2.5"),
+        stop_pct=Decimal("2.0"),
+        calculation_version="owpe-calc-1.1.0",
+        config_hash="new-config",
+        is_primary=True,
+        is_active=True,
+    )
+
+    class CapturingDb:
+        statement = None
+
+        def scalar(self, statement):
+            self.statement = statement
+            return active
+
+    db = CapturingDb()
+    resolved = WinnerProbabilityApiService()._resolve_outcome_definition(
+        db,
+        WinnerProbabilityApiQuery(),
+    )
+
+    compiled = str(db.statement)
+    assert resolved is active
+    assert "winner_outcome_definitions.is_active IS true" in compiled
+    assert "winner_outcome_definitions.is_primary IS true" in compiled
+    assert "winner_outcome_definitions.id DESC" in compiled
 
 
 def test_prediction_api_maps_not_found_to_structured_error(monkeypatch) -> None:
@@ -187,12 +225,51 @@ def test_estimate_api_payload_includes_model_and_calibration_state() -> None:
 
 
 def test_estimate_api_payload_labels_cohort_baseline_without_model() -> None:
-    payload = _estimate_payload(None, _estimate(model_version_id=None))
+    estimate = _estimate(model_version_id=None)
+    estimate.metadata_json = {
+        "native_1_1_n": 15,
+        "pre11_compatible_n": 65,
+        "reconstructed_label_n": 65,
+        "compatibility_policy_version": "owpe-pre11-eligibility-1.0.0",
+        "oldest_evidence_date": "2026-08-04",
+        "newest_evidence_date": "2026-08-06",
+    }
+    payload = _estimate_payload(None, estimate)
 
     assert payload["model_key"] == "cohort-baseline"
     assert payload["model_status"] == "BASELINE"
     assert payload["model_version_label"] == "cohort_baseline_v1"
     assert payload["calibration_status"] == "cohort_baseline"
+    assert payload["evidence_composition"] == {
+        "native_1_1_n": 15,
+        "pre11_compatible_n": 65,
+        "reconstructed_label_n": 65,
+        "compatibility_policy_version": "owpe-pre11-eligibility-1.0.0",
+        "oldest_evidence_date": "2026-08-04",
+        "newest_evidence_date": "2026-08-06",
+    }
+
+
+def test_withheld_estimate_does_not_masquerade_as_model_calibration_or_interval() -> None:
+    estimate = _estimate(model_version_id=None)
+    estimate.source = EstimateSource.INSUFFICIENT
+    estimate.point_probability = None
+    estimate.lower_bound = None
+    estimate.upper_bound = None
+    estimate.interval_width = Decimal("0.438270")
+    estimate.evidence_grade = "Insufficient"
+    estimate.metadata_json = {"cohort_level": "L5", "cohort_key": "L5:global"}
+
+    payload = _estimate_payload(None, estimate)
+
+    assert payload["source"] is None
+    assert payload["interval_width"] is None
+    assert payload["model_key"] is None
+    assert payload["model_status"] is None
+    assert payload["model_version_label"] is None
+    assert payload["calibration_status"] == "not_applicable"
+    assert payload["metadata"]["cohort_level"] is None
+    assert payload["metadata"]["attempted_cohort_level"] == "L5"
 
 
 def test_run_export_route_returns_csv_attachment(monkeypatch) -> None:
@@ -224,8 +301,7 @@ def test_cohort_refresh_admin_endpoint_queues_job() -> None:
     app.dependency_overrides[get_db] = lambda: db
 
     response = TestClient(app).post(
-        "/api/winner-probability/cohorts/refresh"
-        "?outcome_definition_id=T2_5_S2_0_H5_NEXT_OPEN"
+        "/api/winner-probability/cohorts/refresh?outcome_definition_id=T2_5_S2_0_H5_NEXT_OPEN"
     )
 
     assert response.status_code == 200
