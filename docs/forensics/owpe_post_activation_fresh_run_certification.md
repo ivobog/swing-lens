@@ -10,6 +10,7 @@ Fresh Run 106 demonstrates a working production Ranking stage and real probabili
 |---|---|
 | Branch | `codex/ceri-run101-remediation` |
 | Activation base commit | `04684a145b62daefb54eebf106b870591b8b02dc` |
+| Implementation/report commit | `8081ba3f70e6d947456c44d36df4853b69d485e2` |
 | Schema | `0046_owpe_pre11_training_compatibility` |
 | Database | PostgreSQL 18.3 / `swinglens` |
 | Active config hash | `218a897655d6c42e19043e1136cb4d578705632f13acf037bc9ce1beef57b527` |

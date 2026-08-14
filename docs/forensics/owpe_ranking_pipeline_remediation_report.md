@@ -4,6 +4,8 @@
 
 The Run 105 investigation established that the durable full-pipeline graph went directly from `COMBINING_RESULTS` to downstream stages, so configured ranking profiles were never materialized. This was a `CONFIRMED_DEFECT` (P1): 186 CombinedResult rows and 186 Winner snapshots existed, but RankingResult count was zero.
 
+Branch: `codex/ceri-run101-remediation`. Implementation/report commit: `8081ba3f70e6d947456c44d36df4853b69d485e2`. Schema: `0046_owpe_pre11_training_compatibility`.
+
 The durable graph is now:
 
 ```text

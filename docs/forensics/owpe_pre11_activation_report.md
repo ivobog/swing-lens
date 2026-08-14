@@ -10,6 +10,7 @@ Finding: `CONFIRMED_EXPECTED_BEHAVIOR` (P0 gate passed). The production write is
 
 - Branch: `codex/ceri-run101-remediation`
 - Pre-write git commit: `04684a145b62daefb54eebf106b870591b8b02dc`
+- Implementation/report commit: `8081ba3f70e6d947456c44d36df4853b69d485e2`
 - Database: PostgreSQL 18.3, database `swinglens`, user `postgres`, server timezone `Europe/Berlin`
 - Alembic before write: `0045_ceri_changes_alerts_semantics`
 - Alembic after migration: `0046_owpe_pre11_training_compatibility`

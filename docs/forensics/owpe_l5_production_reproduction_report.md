@@ -6,6 +6,8 @@ The active global L5 cohort was built from persisted compatibility decisions and
 
 Finding: `CONFIRMED_EXPECTED_BEHAVIOR` (P0). L5 is statistically and contractually reproducible from append-only artifacts.
 
+Branch: `codex/ceri-run101-remediation`. Implementation/report commit: `8081ba3f70e6d947456c44d36df4853b69d485e2`. Schema: `0046_owpe_pre11_training_compatibility`.
+
 Implementation anchors are `Pre11L5ActivationService.activate` at `app/services/winner_probability/pre11_activation_service.py:72`, canonical manifest decimal serialization at `app/services/winner_probability/evidence_manifest_service.py:135`, and replay-lineage verification at `app/services/winner_probability/reproduction_service.py:137`.
 
 ## Persisted identities
