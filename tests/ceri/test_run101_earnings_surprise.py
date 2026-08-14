@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-from app.models.ceri_tables import CeriEarningsActual, CeriEstimateSnapshot
+from app.models.ceri_tables import CeriEarningsActual, CeriEstimateSnapshot, CeriSourceRecord
 from app.services.ceri.dtos import EarningsRequest
+from app.services.ceri.earnings_normalizer import CeriEarningsNormalizer
+from app.services.ceri.provider_registry import provider_storage_projection
 from app.services.ceri.providers.eodhd_provider import EodhdCeriProvider
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
 
@@ -84,6 +86,63 @@ def test_post_report_estimate_is_not_selected_as_pre_report_consensus() -> None:
     assert feature.consensus_snapshot_id == before.id
 
 
+def test_reported_earnings_lineage_survives_licensed_storage_projection() -> None:
+    projected = provider_storage_projection(
+        "eodhd",
+        "earnings",
+        {
+            "ticker": "TEST",
+            "actual_value": 0,
+            "estimate": 0,
+            "surprise_percent": 0,
+            "event_kind": "REPORTED",
+            "acquisition_policy": "REPORTED",
+            "provider_consensus_semantics": "REPORT_TIME_CONSENSUS",
+        },
+    )
+
+    assert projected["actual_value"] == 0
+    assert projected["estimate"] == 0
+    assert projected["surprise_percent"] == 0
+    assert projected["event_kind"] == "REPORTED"
+    assert projected["acquisition_policy"] == "REPORTED"
+    assert projected["provider_consensus_semantics"] == "REPORT_TIME_CONSENSUS"
+
+
+def test_official_reported_row_survives_provider_storage_normalization_and_surprise() -> None:
+    now = datetime(2026, 8, 13, 12, tzinfo=UTC)
+    record = next(
+        row
+        for row in EodhdCeriProvider(
+            client=OfficialEarningsClient(now.date()), clock=lambda: now
+        ).fetch_earnings_actuals(EarningsRequest(None, "TEST"))
+        if row.payload["event_kind"] == "REPORTED"
+    )
+    source = CeriSourceRecord(
+        id=91,
+        provider="eodhd",
+        dataset="earnings",
+        provider_record_id=record.provider_record_id,
+        restricted_normalized_json=provider_storage_projection(
+            "eodhd", "earnings", record.payload
+        ),
+        observed_at=record.observed_at,
+        retrieved_at=now,
+        content_hash="reported-hash",
+        idempotency_key="reported-key",
+    )
+    earnings = CeriEarningsNormalizer().normalize(source, company_id=42)
+    earnings.id = 91
+
+    summary = CeriSurpriseFeatureService().summarize([earnings], [])
+
+    assert earnings.actual_value == Decimal("1.2")
+    assert earnings.provider_consensus_value == Decimal("1.0")
+    assert earnings.provider_consensus_semantics == "REPORT_TIME_CONSENSUS"
+    assert summary.average_surprise_pct == Decimal("20")
+    assert summary.features[0].earnings_actual_id == 91
+
+
 class EarningsClient:
     def __init__(self, today: date) -> None:
         self.today = today
@@ -113,6 +172,24 @@ class EarningsClient:
                 "epsEstimate": 1,
             }
         ]
+
+
+class OfficialEarningsClient(EarningsClient):
+    def get_json(self, _path, params):
+        self.calls.append(dict(params))
+        if params["to"] <= self.today.isoformat():
+            return [
+                {
+                    "id": "official-reported",
+                    "report_date": "2026-08-01",
+                    "date": "2026-06-30",
+                    "period": "0q",
+                    "actual": 1.2,
+                    "estimate": 1.0,
+                    "percent": 20,
+                }
+            ]
+        return []
 
 
 def _earnings(

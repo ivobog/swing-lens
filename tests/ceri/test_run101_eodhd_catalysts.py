@@ -8,6 +8,7 @@ from app.models.ceri_tables import CeriCatalystEvent, CeriCatalystEventRevision,
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
 from app.services.ceri.catalyst_taxonomy import CeriCatalystTaxonomy
 from app.services.ceri.dtos import CatalystRequest
+from app.services.ceri.provider_registry import provider_storage_projection
 from app.services.ceri.providers.eodhd_provider import EodhdCeriProvider
 
 
@@ -95,6 +96,42 @@ def test_sentiment_cannot_override_evidence_classification() -> None:
 
     assert feature.category == "LEGAL"
     assert feature.binary_eligible is False
+
+
+def test_structured_catalyst_relevance_survives_licensed_storage_projection() -> None:
+    record = _record(
+        {
+            "id": "scheduled-storage",
+            "title": "Regulatory decision scheduled",
+            "content": "The regulator scheduled its decision for September 15.",
+            "date": "2026-08-13T10:00:00+00:00",
+            "expectedDate": "2026-09-15",
+            "relatedTickers": ["TEST.US"],
+            "materiality": 7,
+        }
+    )
+    projected = provider_storage_projection("eodhd", "catalysts", record.payload)
+
+    assert projected["issuer_relevance"] is True
+    assert projected["issuer_relevance_reason"] == "PROVIDER_RELATED_TICKER_MATCH"
+    assert projected["expected_date"] == "2026-09-15"
+
+    source = CeriSourceRecord(
+        id=1,
+        provider="eodhd",
+        dataset="catalysts",
+        provider_record_id=record.provider_record_id,
+        restricted_normalized_json=projected,
+        observed_at=record.observed_at,
+        published_at=record.published_at,
+        content_hash="hash",
+        idempotency_key="key",
+    )
+    normalized = CeriCatalystTaxonomy().normalize(source, company_id=42)
+
+    assert normalized.issuer_relevance is True
+    assert normalized.relevance_reason == "PROVIDER_RELATED_TICKER_MATCH"
+    assert normalized.expected_date == date(2026, 9, 15)
 
 
 def _record(row):

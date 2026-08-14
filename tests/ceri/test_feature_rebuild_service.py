@@ -4,14 +4,19 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.ceri_tables import (
+    CeriCatalystEvent,
+    CeriCatalystEventRevision,
     CeriCompany,
     CeriDerivedFeature,
+    CeriEarningsActual,
     CeriEstimateSnapshot,
+    CeriGuidanceEvent,
     CeriRevisionFeature,
 )
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
+    _latest_price_event,
 )
 
 
@@ -62,6 +67,100 @@ def test_feature_rebuild_persists_windows_and_acceleration() -> None:
     assert {row.window_days for row in rows} == {7, 90}
     assert rows[0].acceleration == Decimal("0.10") or rows[1].acceleration == Decimal("0.10")
     assert any(row.feature_family == "confidence" for row in db.rows[CeriDerivedFeature])
+
+
+def test_price_response_parent_selection_rejects_unusable_events() -> None:
+    reported = CeriEarningsActual(
+        id=10,
+        source_record_id=10,
+        company_id=7,
+        metric="EPS_DILUTED",
+        period_type="CURRENT_QUARTER",
+        fiscal_period_end=date(2026, 6, 30),
+        report_session=date(2026, 8, 12),
+        actual_value=Decimal("1"),
+        event_kind="REPORTED",
+    )
+    upcoming = CeriEarningsActual(
+        id=11,
+        source_record_id=11,
+        company_id=7,
+        metric="EPS_DILUTED",
+        period_type="CURRENT_QUARTER",
+        fiscal_period_end=date(2026, 9, 30),
+        report_session=date(2026, 8, 13),
+        actual_value=None,
+        event_kind="UPCOMING",
+    )
+    rejected_guidance = CeriGuidanceEvent(
+        id=20,
+        source_record_id=20,
+        company_id=7,
+        effective_session=date(2026, 8, 14),
+        accepted_for_scoring=False,
+    )
+    event = CeriCatalystEvent(
+        id=30,
+        company_id=7,
+        category="REGULATORY",
+        subject_key="other-issuer",
+    )
+    rejected_catalyst = CeriCatalystEventRevision(
+        id=31,
+        catalyst_event_id=30,
+        source_record_id=31,
+        revision_number=1,
+        is_current=True,
+        effective_session=date(2026, 8, 14),
+        status="SCHEDULED",
+        direction="UNKNOWN",
+        issuer_relevance=False,
+        relevance_reason="ISSUER_RELEVANCE_MISMATCH",
+    )
+    db = FakeDb(
+        {
+            CeriEarningsActual: [reported, upcoming],
+            CeriGuidanceEvent: [rejected_guidance],
+            CeriCatalystEvent: [event],
+            CeriCatalystEventRevision: [rejected_catalyst],
+        }
+    )
+
+    selected = _latest_price_event(db, 7, date(2026, 8, 14))
+
+    assert selected is not None
+    assert selected[0:2] == ("EARNINGS", 10)
+
+
+def test_price_response_parent_is_absent_when_all_events_are_rejected() -> None:
+    upcoming = CeriEarningsActual(
+        id=11,
+        source_record_id=11,
+        company_id=7,
+        metric="EPS_DILUTED",
+        period_type="CURRENT_QUARTER",
+        fiscal_period_end=date(2026, 9, 30),
+        report_session=date(2026, 8, 13),
+        actual_value=None,
+        event_kind="UPCOMING",
+    )
+    rejected_guidance = CeriGuidanceEvent(
+        id=20,
+        source_record_id=20,
+        company_id=7,
+        effective_session=date(2026, 8, 12),
+        accepted_for_scoring=None,
+    )
+    db = FakeDb(
+        {
+            CeriEarningsActual: [upcoming],
+            CeriGuidanceEvent: [rejected_guidance],
+            CeriCatalystEvent: [],
+            CeriCatalystEventRevision: [],
+        }
+    )
+
+    assert _latest_price_event(db, 7, date(2026, 8, 14)) is None
 
 
 class StubRevisionService:

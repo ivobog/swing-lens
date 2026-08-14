@@ -102,10 +102,25 @@ class CeriPointInTimeQuery:
                 and snapshot.baseline_origin != "PROVIDER_RETROSPECTIVE_WINDOW"
             ]
         if period_slot is not None and fiscal_period_end is None:
-            target_end = _target_period_end(eligible, period_slot, cutoff_at.date())
-            eligible = [
-                snapshot for snapshot in eligible if snapshot.fiscal_period_end == target_end
+            slot_candidates = [
+                snapshot
+                for snapshot in eligible
+                if snapshot.canonical_period_slot == period_slot
+                or (
+                    snapshot.canonical_period_slot is None
+                    and snapshot.period_type == period_slot
+                )
             ]
+            if slot_candidates:
+                # Provider-defined slots remain current until the result is
+                # reported, even when the fiscal end precedes the cutoff.
+                # Duplicate slot rows are resolved to the latest fiscal end.
+                target_end = max(row.fiscal_period_end for row in slot_candidates)
+                eligible = [
+                    row for row in slot_candidates if row.fiscal_period_end == target_end
+                ]
+            else:
+                eligible = []
         return eligible[-1] if eligible else None
 
     def select_baseline(
@@ -142,15 +157,20 @@ class CeriPointInTimeQuery:
             == current.current_observation_reference
             and _known_at(snapshot) <= cutoff_at
         ]
-        semantic_baselines = [
-            snapshot
-            for snapshot in semantic_candidates
-            if _same_provider_relative_comparable(
-                db,
-                current=current,
-                baseline=snapshot,
-                source_records=self._source_records,
+        semantic_rejections = [
+            (
+                snapshot,
+                _same_provider_relative_rejection_reason(
+                    db,
+                    current=current,
+                    baseline=snapshot,
+                    source_records=self._source_records,
+                ),
             )
+            for snapshot in semantic_candidates
+        ]
+        semantic_baselines = [
+            snapshot for snapshot, rejection in semantic_rejections if rejection is None
         ]
         if semantic_baselines:
             baseline = max(semantic_baselines, key=_snapshot_sort)
@@ -205,6 +225,26 @@ class CeriPointInTimeQuery:
             self.config.revision.baseline_tolerance_days,
         )
         if baseline is None:
+            semantic_reason = next(
+                (reason for _snapshot, reason in semantic_rejections if reason),
+                None,
+            )
+            absolute_currency_required = any(
+                snapshot is not current
+                and snapshot.company_id == current.company_id
+                and snapshot.metric == current.metric
+                and snapshot.period_type == current.period_type
+                and snapshot.fiscal_period_end == current.fiscal_period_end
+                and snapshot.canonical_scale == current.canonical_scale
+                and (
+                    snapshot.canonical_currency is None
+                    or current.canonical_currency is None
+                )
+                and _known_at(snapshot) <= cutoff_at
+                for snapshot in self._load_snapshots(
+                    db, company_id=company_id, metric=metric
+                )
+            )
             return BaselineSelection(
                 current=current,
                 baseline=None,
@@ -213,7 +253,12 @@ class CeriPointInTimeQuery:
                 unavailable_reason=(
                     "UNAVAILABLE_BASELINE_NOT_ACCUMULATED"
                     if metric == "REVENUE"
-                    else "baseline_unavailable"
+                    else semantic_reason
+                    or (
+                        "ABSOLUTE_COMPARISON_CURRENCY_REQUIRED"
+                        if absolute_currency_required
+                        else "baseline_unavailable"
+                    )
                 ),
             )
         elapsed = (
@@ -338,36 +383,39 @@ def _absolute_comparable(snapshot: CeriEstimateSnapshot) -> bool:
     return snapshot.canonical_currency is not None and snapshot.canonical_scale is not None
 
 
-def _same_provider_relative_comparable(
+def _same_provider_relative_rejection_reason(
     db: Session,
     *,
     current: CeriEstimateSnapshot,
     baseline: CeriEstimateSnapshot,
     source_records: dict[int, CeriSourceRecord],
-) -> bool:
+) -> str | None:
     if current.metric != "EPS_DILUTED" or baseline.metric != current.metric:
-        return False
+        return "SAME_PROVIDER_METRIC_MISMATCH"
     if baseline.baseline_origin != "PROVIDER_RETROSPECTIVE_WINDOW":
-        return False
+        return "BASELINE_ORIGIN_INELIGIBLE"
     if not current.current_observation_reference or (
         baseline.current_observation_reference != current.current_observation_reference
     ):
-        return False
+        return "OBSERVATION_REFERENCE_MISMATCH"
     if (
         baseline.company_id != current.company_id
         or baseline.period_type != current.period_type
         or baseline.canonical_period_slot != current.canonical_period_slot
         or baseline.fiscal_period_end != current.fiscal_period_end
-        or baseline.source_scale != current.source_scale
+    ):
+        return "SAME_PROVIDER_PERIOD_MISMATCH"
+    if (
+        baseline.source_scale != current.source_scale
         or baseline.canonical_scale != current.canonical_scale
     ):
-        return False
+        return "SAME_PROVIDER_SCALE_MISMATCH"
     if (
         baseline.source_currency is not None
         and current.source_currency is not None
         and baseline.source_currency != current.source_currency
     ):
-        return False
+        return "SAME_PROVIDER_CURRENCY_SEMANTICS_MISMATCH"
     current_source = source_records.get(current.source_record_id)
     baseline_source = source_records.get(baseline.source_record_id)
     if current_source is None:
@@ -379,15 +427,39 @@ def _same_provider_relative_comparable(
             get(CeriSourceRecord, baseline.source_record_id) if callable(get) else None
         )
     if current_source is not None or baseline_source is not None:
-        return bool(
+        same_provider = bool(
             current_source is not None
             and baseline_source is not None
             and current_source.provider == baseline_source.provider
         )
-    return bool(
-        current.source_provider
-        and baseline.source_provider
-        and current.source_provider == baseline.source_provider
+    else:
+        same_provider = bool(
+            current.source_provider
+            and baseline.source_provider
+            and current.source_provider == baseline.source_provider
+        )
+    if not same_provider:
+        if current.canonical_currency is None or baseline.canonical_currency is None:
+            return "CROSS_PROVIDER_CURRENCY_REQUIRED"
+        return "CROSS_PROVIDER_COMPARISON_REJECTED"
+    return None
+
+
+def _same_provider_relative_comparable(
+    db: Session,
+    *,
+    current: CeriEstimateSnapshot,
+    baseline: CeriEstimateSnapshot,
+    source_records: dict[int, CeriSourceRecord],
+) -> bool:
+    return (
+        _same_provider_relative_rejection_reason(
+            db,
+            current=current,
+            baseline=baseline,
+            source_records=source_records,
+        )
+        is None
     )
 
 

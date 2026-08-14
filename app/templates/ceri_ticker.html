@@ -113,7 +113,21 @@
 
   <section class="split-grid section-gap">
     <div class="panel"><div class="panel-header compact-header"><div><h2>Guidance State</h2></div></div>{% if payload.guidance is defined and payload.guidance.status == 'AVAILABLE' %}<p>{{ payload.guidance.selected.action }} · {{ payload.guidance.selected.metric }} · {{ payload.guidance.selected.period }} · {{ payload.guidance.selected.confidence }}</p>{% else %}<p>Guidance unavailable{% if payload.guidance is defined %}: {{ payload.guidance.reason }}{% endif %}</p>{% endif %}</div>
-    <div class="panel"><div class="panel-header compact-header"><div><h2>Source Freshness</h2></div></div>{% for dataset, state in ((payload.source_freshness if payload.source_freshness is defined else {}) or {}).items() %}<p>{{ dataset|title }}: {{ state.age_days if state.age_days is not none else "N/A" }} days · {{ state.status }}{% if state.timestamp_quality %} · {{ state.timestamp_quality }}{% endif %}</p>{% endfor %}</div>
+    <div class="panel">
+      <div class="panel-header compact-header"><div><h2>Evidence Availability</h2></div></div>
+      {% for dataset, state in ((latest.evidence_diagnostics if latest.evidence_diagnostics is defined else {}) or {}).items() %}
+        <div class="evidence-row">
+          <strong>{{ dataset|title }}</strong>
+          <span>Source: {{ state.source_status|title }}{% if state.source_age_days is not none %} · {{ state.source_age_days }}d{% endif %}</span>
+          <span>Normalized: {{ state.normalized_count }}</span>
+          <span>Eligible: {{ state.eligible_count }}</span>
+          <span>Selected: {{ state.selected_count }}</span>
+          <span>Blocker: {{ state.dominant_blocker or "none" }}</span>
+        </div>
+      {% else %}
+        <p>No evidence-stage diagnostics are available.</p>
+      {% endfor %}
+    </div>
   </section>
 
   <section class="panel section-gap">

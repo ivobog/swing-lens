@@ -1,0 +1,52 @@
+[
+  {
+    "cohort_id": "R102G01",
+    "scenario": "VALID_EPS_RETROSPECTIVE_REVISION",
+    "ticker": "R102G01"
+  },
+  {
+    "cohort_id": "R102G02",
+    "scenario": "EPS_RELATIVE_MISSING_CURRENCY",
+    "ticker": "R102G02"
+  },
+  {
+    "cohort_id": "R102G03",
+    "scenario": "SPARSE_ANALYST_SAMPLE",
+    "ticker": "R102G03"
+  },
+  {
+    "cohort_id": "R102G04",
+    "scenario": "HISTORICAL_REPORTED_EARNINGS",
+    "ticker": "R102G04"
+  },
+  {
+    "cohort_id": "R102G05",
+    "scenario": "UPCOMING_EARNINGS_ONLY",
+    "ticker": "R102G05"
+  },
+  {
+    "cohort_id": "R102G06",
+    "scenario": "VALID_PENDING_CATALYST",
+    "ticker": "R102G06"
+  },
+  {
+    "cohort_id": "R102G07",
+    "scenario": "CROSS_ISSUER_CATALYST_REJECTED",
+    "ticker": "R102G07"
+  },
+  {
+    "cohort_id": "R102G08",
+    "scenario": "VALID_SEC_GUIDANCE",
+    "ticker": "R102G08"
+  },
+  {
+    "cohort_id": "R102G09",
+    "scenario": "REJECTED_LEGACY_SEC_GUIDANCE",
+    "ticker": "R102G09"
+  },
+  {
+    "cohort_id": "R102G10",
+    "scenario": "NONZERO_RISK_UNRATED_OPPORTUNITY",
+    "ticker": "R102G10"
+  }
+]

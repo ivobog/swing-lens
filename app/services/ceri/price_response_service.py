@@ -26,6 +26,7 @@ class PriceResponseResult:
     reasons: tuple[str, ...]
     warnings: tuple[str, ...]
     price_bar_ids: tuple[int, ...]
+    unavailable_reason: str | None = None
 
 
 class CeriPriceResponseService:
@@ -57,17 +58,41 @@ class CeriPriceResponseService:
         )
         if reaction is None:
             return PriceResponseResult(
-                None, event_key, event_type, None, {}, (), ("event_session_unavailable",), ()
+                None,
+                event_key,
+                event_type,
+                None,
+                {},
+                (),
+                ("event_session_unavailable",),
+                (),
+                "EVENT_TIMESTAMP_UNRESOLVED",
             )
         stock = self._bars(db, ticker)
         benchmark = self._bars(db, self.config.price_response.benchmark)
         if not stock:
             return PriceResponseResult(
-                None, event_key, event_type, reaction, {}, (), ("stock_bars_unavailable",), ()
+                None,
+                event_key,
+                event_type,
+                reaction,
+                {},
+                (),
+                ("stock_bars_unavailable",),
+                (),
+                "PRICE_DATA_MISSING",
             )
         if not benchmark:
             return PriceResponseResult(
-                None, event_key, event_type, reaction, {}, (), ("benchmark_bars_unavailable",), ()
+                None,
+                event_key,
+                event_type,
+                reaction,
+                {},
+                (),
+                ("benchmark_bars_unavailable",),
+                (),
+                "PRICE_DATA_MISSING",
             )
 
         stock_by_date = {bar.bar_date: bar for bar in stock}
@@ -75,8 +100,21 @@ class CeriPriceResponseService:
         prior_dates = [day for day in stock_by_date if day < reaction]
         reaction_dates = [day for day in stock_by_date if day >= reaction]
         if not prior_dates or not reaction_dates:
+            reason = (
+                "WINDOW_NOT_ELAPSED"
+                if stock_by_date and reaction > max(stock_by_date)
+                else "PRICE_DATA_MISSING"
+            )
             return PriceResponseResult(
-                None, event_key, event_type, reaction, {}, (), ("reaction_bars_unavailable",), ()
+                None,
+                event_key,
+                event_type,
+                reaction,
+                {},
+                (),
+                ("reaction_bars_unavailable",),
+                (),
+                reason,
             )
         prior_date = max(prior_dates)
         reaction_date = min(reaction_dates)
@@ -84,7 +122,15 @@ class CeriPriceResponseService:
         first = stock_by_date[reaction_date]
         if prior.close is None or first.open is None:
             return PriceResponseResult(
-                None, event_key, event_type, reaction, {}, (), ("reaction_prices_unavailable",), ()
+                None,
+                event_key,
+                event_type,
+                reaction,
+                {},
+                (),
+                ("reaction_prices_unavailable",),
+                (),
+                "PRICE_DATA_MISSING",
             )
 
         metrics: dict[str, Any] = {
@@ -140,6 +186,7 @@ class CeriPriceResponseService:
                 tuple(reasons),
                 tuple(sorted(set(warnings))),
                 _bar_ids(stock, benchmark, reaction_date, self.config.price_response.windows),
+                "WINDOW_NOT_ELAPSED",
             )
         score = 5.0
         if one_day >= self.config.price_response.strong_relative_return_threshold:
@@ -178,6 +225,31 @@ class CeriPriceResponseService:
             _bar_ids(stock, benchmark, reaction_date, self.config.price_response.windows),
         )
 
+    def unavailable(
+        self,
+        *,
+        company_id: int,
+        event_type: str,
+        reason: str,
+    ) -> PriceResponseResult:
+        return PriceResponseResult(
+            quality=None,
+            event_key=_event_key(
+                company_id,
+                event_type,
+                reason,
+                self.config.config_hash,
+                self.config.engine.calculation_version,
+            ),
+            event_type=event_type,
+            reaction_session=None,
+            metrics={},
+            reasons=(),
+            warnings=(reason,),
+            price_bar_ids=(),
+            unavailable_reason=reason,
+        )
+
     def persist(
         self,
         db: Session,
@@ -202,6 +274,7 @@ class CeriPriceResponseService:
             "reasons": result.reasons,
             "warnings": result.warnings,
             "price_bar_ids": result.price_bar_ids,
+            "unavailable_reason": result.unavailable_reason,
             "config_hash": self.config.config_hash,
             "calculation_version": self.config.engine.calculation_version,
         }
@@ -222,8 +295,15 @@ class CeriPriceResponseService:
                 evidence_hash=_hash(payload),
             )
             db.add(existing)
-        existing.metrics_json = result.metrics
-        existing.reasons_json = list(result.reasons) or None
+        existing.metrics_json = {
+            **result.metrics,
+            "quality": result.quality,
+            "unavailable_reason": result.unavailable_reason,
+        }
+        existing.reasons_json = [
+            *result.reasons,
+            *([result.unavailable_reason] if result.unavailable_reason else []),
+        ] or None
         existing.warnings_json = list(result.warnings) or None
         existing.price_bar_ids_json = list(result.price_bar_ids) or None
         existing.evidence_hash = _hash(payload)

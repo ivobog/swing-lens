@@ -1,0 +1,778 @@
+[
+  {
+    "cohort_id": "R102G01",
+    "proven_by_tests": [
+      "test_eodhd_raw_relative_eps_survives_to_component_ledger_without_currency"
+    ],
+    "scenario": "VALID_EPS_RETROSPECTIVE_REVISION",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "dominant_blocker": null,
+        "eligible_count": 1,
+        "normalized_count": 1,
+        "selected_count": 1,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": true,
+        "selected_evidence_ids": [
+          202001
+        ],
+        "unavailable_reason": null
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Normal"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 30.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": true,
+        "first_rejection_reason": null,
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": true,
+        "comparison_mode": null,
+        "first_cause": null,
+        "value": 2.5,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202001
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "4861a673c1a2c7e375cda1064d0d7a9f5dd78a35d87362f48b75966b31bbc35c",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "estimates",
+        "present": true,
+        "provider": "eodhd",
+        "source_record_ids": [
+          102001
+        ]
+      }
+    },
+    "ticker": "R102G01"
+  },
+  {
+    "cohort_id": "R102G02",
+    "proven_by_tests": [
+      "test_same_provider_eps_relative_revision_allows_unknown_currency"
+    ],
+    "scenario": "EPS_RELATIVE_MISSING_CURRENCY",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "dominant_blocker": null,
+        "eligible_count": 1,
+        "normalized_count": 1,
+        "selected_count": 1,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": true,
+        "selected_evidence_ids": [
+          202002
+        ],
+        "unavailable_reason": null
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Normal"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 30.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": true,
+        "first_rejection_reason": null,
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": true,
+        "comparison_mode": "SAME_PROVIDER_RELATIVE",
+        "first_cause": null,
+        "value": -0.0619753226,
+        "warnings": [
+          "canonical_currency_unavailable_relative_only"
+        ]
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202002
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "d58060ea6529c4dfd40377001481343fadb86413a7c4ee44dd474e0be8384ce9",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "estimates",
+        "present": true,
+        "provider": "eodhd",
+        "source_record_ids": [
+          102002
+        ]
+      }
+    },
+    "ticker": "R102G02"
+  },
+  {
+    "cohort_id": "R102G03",
+    "proven_by_tests": [
+      "test_missing_analyst_count_does_not_invalidate_relative_revision_magnitude"
+    ],
+    "scenario": "SPARSE_ANALYST_SAMPLE",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "dominant_blocker": null,
+        "eligible_count": 1,
+        "normalized_count": 1,
+        "selected_count": 1,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": true,
+        "selected_evidence_ids": [
+          202003
+        ],
+        "unavailable_reason": null
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Low"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 30.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": true,
+        "first_rejection_reason": null,
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": true,
+        "comparison_mode": null,
+        "first_cause": null,
+        "value": 1.25,
+        "warnings": [
+          "analyst_sample_sparse"
+        ]
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202003
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "88a4e687a9e8d4227b7f7e8eed9fcb6411a015599ca3bd74f5420d10565fb7e8",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "estimates",
+        "present": true,
+        "provider": "eodhd",
+        "source_record_ids": [
+          102003
+        ]
+      }
+    },
+    "ticker": "R102G03"
+  },
+  {
+    "cohort_id": "R102G04",
+    "proven_by_tests": [
+      "test_official_reported_row_survives_provider_storage_normalization_and_surprise"
+    ],
+    "scenario": "HISTORICAL_REPORTED_EARNINGS",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "dominant_blocker": null,
+        "eligible_count": 1,
+        "normalized_count": 1,
+        "selected_count": 1,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": true,
+        "selected_evidence_ids": [
+          202004
+        ],
+        "unavailable_reason": null
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Normal"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 15.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": true,
+        "first_rejection_reason": null,
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": true,
+        "comparison_mode": null,
+        "first_cause": null,
+        "value": 20.0,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202004
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "9bce614ccae10a36e3b63c4a6a001c535643d803b8230ae0825c98b42c4e88c3",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "earnings",
+        "present": true,
+        "provider": "eodhd",
+        "source_record_ids": [
+          102004
+        ]
+      }
+    },
+    "ticker": "R102G04"
+  },
+  {
+    "cohort_id": "R102G05",
+    "proven_by_tests": [
+      "test_upcoming_event_is_excluded_from_surprise_trend"
+    ],
+    "scenario": "UPCOMING_EARNINGS_ONLY",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "HISTORICAL_REPORTED_EARNINGS_MISSING"
+      },
+      "api_ui": {
+        "dominant_blocker": "HISTORICAL_REPORTED_EARNINGS_MISSING",
+        "eligible_count": 0,
+        "normalized_count": 1,
+        "selected_count": 0,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": false,
+        "selected_evidence_ids": [],
+        "unavailable_reason": "HISTORICAL_REPORTED_EARNINGS_MISSING"
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Insufficient"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 0.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": false,
+        "first_rejection_reason": "HISTORICAL_REPORTED_EARNINGS_MISSING",
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": false,
+        "comparison_mode": null,
+        "first_cause": "HISTORICAL_REPORTED_EARNINGS_MISSING",
+        "value": null,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202005
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 3.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "e3a1f8ac6c18aefe9cbeb4baec7ad2976d908997689c8839a6f6b066d2d6d548",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "earnings",
+        "present": true,
+        "provider": "eodhd",
+        "source_record_ids": [
+          102005
+        ]
+      }
+    },
+    "ticker": "R102G05"
+  },
+  {
+    "cohort_id": "R102G06",
+    "proven_by_tests": [
+      "test_scheduled_future_binary_event_is_eligible"
+    ],
+    "scenario": "VALID_PENDING_CATALYST",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "dominant_blocker": null,
+        "eligible_count": 1,
+        "normalized_count": 1,
+        "selected_count": 1,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": true,
+        "selected_evidence_ids": [
+          202006
+        ],
+        "unavailable_reason": null
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Normal"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 10.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": true,
+        "first_rejection_reason": null,
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": true,
+        "comparison_mode": null,
+        "first_cause": null,
+        "value": 7.0,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202006
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 4.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "dbd8b6575b5ba8ea59146cc9478073c7ed729c1348664b466757a29e7d8c8a73",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "catalysts",
+        "present": true,
+        "provider": "eodhd",
+        "source_record_ids": [
+          102006
+        ]
+      }
+    },
+    "ticker": "R102G06"
+  },
+  {
+    "cohort_id": "R102G07",
+    "proven_by_tests": [
+      "test_structured_related_symbols_control_issuer_relevance"
+    ],
+    "scenario": "CROSS_ISSUER_CATALYST_REJECTED",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "ISSUER_RELEVANCE_MISMATCH"
+      },
+      "api_ui": {
+        "dominant_blocker": "ISSUER_RELEVANCE_MISMATCH",
+        "eligible_count": 0,
+        "normalized_count": 1,
+        "selected_count": 0,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": false,
+        "selected_evidence_ids": [],
+        "unavailable_reason": "ISSUER_RELEVANCE_MISMATCH"
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Insufficient"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 0.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": false,
+        "first_rejection_reason": "ISSUER_RELEVANCE_MISMATCH",
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": false,
+        "comparison_mode": null,
+        "first_cause": "ISSUER_RELEVANCE_MISMATCH",
+        "value": null,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202007
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "1d1d6dd8e1c76b33c5bd80de78c6c4f9a1c7e021d1549e75409402b773ee9bf8",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "catalysts",
+        "present": true,
+        "provider": "eodhd",
+        "source_record_ids": [
+          102007
+        ]
+      }
+    },
+    "ticker": "R102G07"
+  },
+  {
+    "cohort_id": "R102G08",
+    "proven_by_tests": [
+      "test_explicitly_accepted_clean_guidance_can_score"
+    ],
+    "scenario": "VALID_SEC_GUIDANCE",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "FIRST_OBSERVATION_BASELINE"
+      },
+      "api_ui": {
+        "dominant_blocker": null,
+        "eligible_count": 1,
+        "normalized_count": 1,
+        "selected_count": 1,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": true,
+        "selected_evidence_ids": [
+          202008
+        ],
+        "unavailable_reason": null
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Normal"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 10.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": true,
+        "first_rejection_reason": null,
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": true,
+        "comparison_mode": null,
+        "first_cause": null,
+        "value": 8.0,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202008
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "3326afa71ff074772a6db3e1aa99a937fb67eb0237d195ef9e3daf4064b8bef6",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "guidance",
+        "present": true,
+        "provider": "sec",
+        "source_record_ids": [
+          102008
+        ]
+      }
+    },
+    "ticker": "R102G08"
+  },
+  {
+    "cohort_id": "R102G09",
+    "proven_by_tests": [
+      "test_guidance_scoring_is_explicit_true_allow_list"
+    ],
+    "scenario": "REJECTED_LEGACY_SEC_GUIDANCE",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "LEGACY_ACCEPTANCE_UNKNOWN"
+      },
+      "api_ui": {
+        "dominant_blocker": "LEGACY_ACCEPTANCE_UNKNOWN",
+        "eligible_count": 0,
+        "normalized_count": 1,
+        "selected_count": 0,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": false,
+        "selected_evidence_ids": [],
+        "unavailable_reason": "LEGACY_ACCEPTANCE_UNKNOWN"
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Insufficient"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 0.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": false,
+        "first_rejection_reason": "LEGACY_ACCEPTANCE_UNKNOWN",
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": false,
+        "comparison_mode": null,
+        "first_cause": "LEGACY_ACCEPTANCE_UNKNOWN",
+        "value": null,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202009
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 0.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "475441aded1c4a47dc946a0531a2be5d521b55d2d461a6cc56711a2fe49f946c",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "guidance",
+        "present": true,
+        "provider": "sec",
+        "source_record_ids": [
+          102009
+        ]
+      }
+    },
+    "ticker": "R102G09"
+  },
+  {
+    "cohort_id": "R102G10",
+    "proven_by_tests": [
+      "test_golden_unrated_but_nonzero_risk_fixture"
+    ],
+    "scenario": "NONZERO_RISK_UNRATED_OPPORTUNITY",
+    "stages": {
+      "alert": {
+        "emitted": false,
+        "reason": "OPPORTUNITY_COMPONENT_COVERAGE_INSUFFICIENT"
+      },
+      "api_ui": {
+        "dominant_blocker": "OPPORTUNITY_COMPONENT_COVERAGE_INSUFFICIENT",
+        "eligible_count": 0,
+        "normalized_count": 1,
+        "selected_count": 0,
+        "source_status": "FRESH"
+      },
+      "component": {
+        "available": false,
+        "selected_evidence_ids": [],
+        "unavailable_reason": "OPPORTUNITY_COMPONENT_COVERAGE_INSUFFICIENT"
+      },
+      "confidence": {
+        "hard_gate_unchanged": true,
+        "label": "Insufficient"
+      },
+      "coverage": {
+        "minimum_required_pct": 60.0,
+        "opportunity_pct": 0.0,
+        "threshold_unchanged": true
+      },
+      "eligibility": {
+        "accepted": false,
+        "first_rejection_reason": "OPPORTUNITY_COMPONENT_COVERAGE_INSUFFICIENT",
+        "point_in_time_safe": true
+      },
+      "feature": {
+        "available": false,
+        "comparison_mode": null,
+        "first_cause": "OPPORTUNITY_COMPONENT_COVERAGE_INSUFFICIENT",
+        "value": null,
+        "warnings": []
+      },
+      "lifecycle": {
+        "change_created": false,
+        "first_observation": true
+      },
+      "normalized": {
+        "count": 1,
+        "evidence_ids": [
+          202010
+        ],
+        "missing_is_zero": false
+      },
+      "opportunity_risk": {
+        "event_risk_score": 4.0,
+        "opportunity_score": null,
+        "posture": "Unrated"
+      },
+      "snapshot": {
+        "calculation_version": "ceri-1.2.0",
+        "evidence_hash": "7f2f0204712d15740a4e2fcea5ed2ac89c1ce9b61572478e21371570911d603c",
+        "reproducible": true
+      },
+      "source": {
+        "dataset": "catalysts",
+        "present": true,
+        "provider": "eodhd",
+        "source_record_ids": [
+          102010
+        ]
+      }
+    },
+    "ticker": "R102G10"
+  }
+]

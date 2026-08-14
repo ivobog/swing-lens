@@ -269,6 +269,27 @@ def test_rejected_parent_event_excludes_price_response() -> None:
     assert price.unavailable_reason == "PARENT_EVENT_INELIGIBLE"
 
 
+def test_component_ledger_uses_exact_first_cause_rejection_reason() -> None:
+    feature = _feature()
+    feature.pct_change = None
+    feature.net_breadth = None
+    feature.acceleration = None
+    feature.unavailable_reason = "SAME_PROVIDER_SCALE_MISMATCH"
+
+    result = CeriOpportunityScoreService().calculate(revision_features=[feature])
+
+    magnitude = next(c for c in result.components if c.name == "revision_magnitude")
+    breadth = next(c for c in result.components if c.name == "revision_breadth")
+    surprise = next(c for c in result.components if c.name == "surprise_trend")
+    guidance = next(c for c in result.components if c.name == "guidance")
+    catalysts = next(c for c in result.components if c.name == "catalysts")
+    assert magnitude.unavailable_reason == "SAME_PROVIDER_SCALE_MISMATCH"
+    assert breadth.unavailable_reason == "BREADTH_COUNTS_UNAVAILABLE"
+    assert surprise.unavailable_reason == "HISTORICAL_REPORTED_EARNINGS_MISSING"
+    assert guidance.unavailable_reason == "NO_ACCEPTED_CURRENT_GUIDANCE"
+    assert catalysts.unavailable_reason == "NO_ACCEPTED_CATALYST"
+
+
 def test_event_risk_uses_dominant_max_not_addition() -> None:
     from app.services.ceri.catalyst_feature_service import CatalystFeature
 

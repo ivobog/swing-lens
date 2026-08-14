@@ -59,6 +59,28 @@ def test_missing_baseline_returns_unavailable_reason_not_zero() -> None:
     assert feature.absolute_change is None
     assert feature.pct_change is None
     assert feature.unavailable_reason == "baseline_unavailable"
+
+
+def test_dimensionless_breadth_survives_missing_magnitude_baseline() -> None:
+    current = _estimate(
+        2,
+        102,
+        date(2026, 8, 31),
+        Decimal("12.00"),
+        upward_count=4,
+        downward_count=0,
+    )
+    feature = _service([current]).calculate_feature(
+        FakeDb(),
+        company_id=42,
+        metric="EPS_DILUTED",
+        cutoff_at=datetime(2026, 8, 31, tzinfo=UTC),
+        window_days=30,
+    )
+
+    assert feature.pct_change is None
+    assert feature.net_breadth == Decimal("1")
+    assert feature.unavailable_reason == "baseline_unavailable"
     assert "baseline_unavailable" in feature.warnings_json
 
 

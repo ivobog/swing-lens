@@ -68,7 +68,12 @@ class CeriEstimateNormalizer:
         conversion_source_record_id = int_or_none(payload.get("conversion_source_record_id"))
         conversion_rate = decimal_or_none(payload.get("conversion_rate"))
 
+        metric = CeriMetric(str(payload.get("metric") or "EPS_DILUTED")).value
         consensus = decimal_or_none(payload.get("consensus"))
+        same_provider_relative_eps = bool(
+            metric == CeriMetric.EPS_DILUTED.value
+            and _text(payload.get("current_observation_reference"))
+        )
         consensus_conversion = self.currency_conversion.convert(
             consensus,
             source_currency=source_currency,
@@ -81,6 +86,19 @@ class CeriEstimateNormalizer:
             conversion_effective_at=conversion_effective_at,
         )
         quality_flags = [*session_warnings, *consensus_conversion.warnings]
+        normalized_consensus = consensus_conversion.canonical_value
+        normalized_scale = consensus_conversion.canonical_scale
+        if (
+            same_provider_relative_eps
+            and consensus is not None
+            and consensus_conversion.canonical_currency is None
+        ):
+            # Preserve the provider-scale number for a same-response relative
+            # comparison. Currency remains unknown, so absolute and cross-source
+            # comparability continue to fail closed.
+            normalized_consensus = consensus
+            normalized_scale = source_scale
+            quality_flags.append("relative_value_only")
         if source_currency is None:
             quality_flags.append("currency_missing")
         if consensus is None:
@@ -103,28 +121,36 @@ class CeriEstimateNormalizer:
         return CeriEstimateSnapshot(
             source_record_id=source_record.id,
             company_id=company_id,
-            metric=CeriMetric(str(payload.get("metric") or "EPS_DILUTED")).value,
+            metric=metric,
             fiscal_period_end=period.fiscal_period_end,
             period_type=period.period_type.value,
             canonical_period_slot=period.period_type.value,
             fiscal_year=period.fiscal_year,
             fiscal_quarter=period.fiscal_quarter,
-            consensus=consensus_conversion.canonical_value,
-            high=self._convert_value(
-                payload.get("high"),
-                source_currency,
-                source_scale,
-                canonical_currency,
-                canonical_scale,
-                payload,
+            consensus=normalized_consensus,
+            high=(
+                decimal_or_none(payload.get("high"))
+                if same_provider_relative_eps and source_currency is None
+                else self._convert_value(
+                    payload.get("high"),
+                    source_currency,
+                    source_scale,
+                    canonical_currency,
+                    canonical_scale,
+                    payload,
+                )
             ),
-            low=self._convert_value(
-                payload.get("low"),
-                source_currency,
-                source_scale,
-                canonical_currency,
-                canonical_scale,
-                payload,
+            low=(
+                decimal_or_none(payload.get("low"))
+                if same_provider_relative_eps and source_currency is None
+                else self._convert_value(
+                    payload.get("low"),
+                    source_currency,
+                    source_scale,
+                    canonical_currency,
+                    canonical_scale,
+                    payload,
+                )
             ),
             analyst_count=int_or_none(payload.get("analyst_count")),
             upward_count=int_or_none(payload.get("upward_count")),
@@ -137,7 +163,7 @@ class CeriEstimateNormalizer:
                 consensus_conversion.canonical_currency is not None
                 and currency_basis in self.currency_conversion.config.allowed_sources
             ),
-            canonical_scale=consensus_conversion.canonical_scale,
+            canonical_scale=normalized_scale,
             conversion_rate=consensus_conversion.conversion_rate,
             conversion_source_record_id=consensus_conversion.conversion_source_record_id,
             conversion_effective_at=consensus_conversion.conversion_effective_at,
@@ -162,16 +188,16 @@ class CeriEstimateNormalizer:
             current_observation_reference=_text(payload.get("current_observation_reference")),
             canonical_observation_key=canonical_estimate_key(
                 company_id=company_id,
-                metric=str(payload.get("metric") or "EPS_DILUTED"),
+                metric=metric,
                 period_type=period.period_type.value,
                 fiscal_period_end=period.fiscal_period_end,
                 currency=consensus_conversion.canonical_currency or source_currency or "UNVERIFIED",
-                scale=consensus_conversion.canonical_scale or source_scale,
+                scale=normalized_scale or source_scale,
                 effective_session=effective_session,
             ),
             original_fields_json=payload,
             quality_flags_json=quality_flags or None,
-            normalization_version="ceri-normalization-1.1.0",
+            normalization_version="ceri-normalization-1.2.0",
         )
 
     def _convert_value(

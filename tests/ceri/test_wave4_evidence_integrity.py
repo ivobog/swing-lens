@@ -209,6 +209,58 @@ def test_ibkr_price_response_is_relative_to_benchmark_and_does_not_use_other_sou
     assert all(row_id != 0 for row_id in result.price_bar_ids)
 
 
+def test_price_response_exposes_exact_first_cause_codes() -> None:
+    unresolved = CeriPriceResponseService().calculate(
+        FakeDb({PriceBar: []}),
+        company_id=42,
+        ticker="MSFT",
+        event_type="CATALYST",
+        event_id=7,
+    )
+    missing_prices = CeriPriceResponseService().calculate(
+        FakeDb({PriceBar: []}),
+        company_id=42,
+        ticker="MSFT",
+        event_type="CATALYST",
+        event_id=7,
+        event_effective_session=date(2026, 8, 4),
+    )
+
+    assert unresolved.unavailable_reason == "EVENT_TIMESTAMP_UNRESOLVED"
+    assert missing_prices.unavailable_reason == "PRICE_DATA_MISSING"
+
+
+def test_price_response_future_reaction_window_is_not_elapsed() -> None:
+    rows = [
+        PriceBar(
+            id=1,
+            ticker=ticker,
+            bar_date=date(2026, 8, 4),
+            timeframe="1 day",
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("100"),
+            source="IB",
+            what_to_show="TRADES",
+        )
+        for ticker in ("MSFT", "SPY")
+    ]
+
+    result = CeriPriceResponseService().calculate(
+        FakeDb({PriceBar: rows}),
+        company_id=42,
+        ticker="MSFT",
+        event_type="CATALYST",
+        event_id=7,
+        event_effective_session=date(2026, 8, 8),
+    )
+
+    assert result.quality is None
+    assert result.unavailable_reason == "WINDOW_NOT_ELAPSED"
+
+
 def _raw_eodhd_record():
     from app.services.ceri.dtos import RawProviderRecord
     from app.services.ceri.enums import CeriDataset, ExportPolicy

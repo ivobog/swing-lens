@@ -11,6 +11,7 @@ from app.models.ceri_tables import (
     CeriCatalystEventRevision,
     CeriChangeEvent,
     CeriCompany,
+    CeriEstimateSnapshot,
     CeriRevisionFeature,
     CeriScoreSnapshot,
     CeriSourceRecord,
@@ -56,6 +57,69 @@ def test_latest_filters_sorts_pages_and_preserves_nulls() -> None:
     aapl = next(item for item in all_payload["items"] if item["ticker"] == "AAPL")
     assert aapl["opportunity_score"] is None
     assert aapl["event_risk_score"] is None
+
+
+def test_snapshot_api_distinguishes_source_normalized_eligible_and_selected() -> None:
+    snapshot = _snapshot(1, "MSFT", opportunity=None, confidence="Insufficient")
+    snapshot.calculation_version = "ceri-1.2.0"
+    snapshot.component_json = {"source_ids": [101]}
+    snapshot.opportunity_ledger_json = {
+        "components": [
+            {
+                "name": "revision_magnitude",
+                "available": False,
+                "unavailable_reason": "SAME_PROVIDER_BASELINE_INELIGIBLE",
+                "evidence_ids": [],
+            }
+        ]
+    }
+    source = CeriSourceRecord(
+        id=101,
+        provider="eodhd",
+        dataset="estimates",
+        provider_record_id="MSFT:estimate",
+        content_hash="hash",
+        idempotency_key="key",
+        retrieved_at=NOW,
+    )
+    estimate = CeriEstimateSnapshot(
+        id=201,
+        source_record_id=101,
+        company_id=1,
+        metric="EPS_DILUTED",
+        period_type="CURRENT_QUARTER",
+        fiscal_period_end=date(2026, 9, 30),
+        canonical_observation_key="estimate-201",
+    )
+    revision = CeriRevisionFeature(
+        id=301,
+        company_id=1,
+        metric="EPS_DILUTED",
+        period_key="MSFT:CURRENT_QUARTER",
+        period_slot="CURRENT_QUARTER",
+        as_of_session=date(2026, 8, 2),
+        window_days=30,
+        unavailable_reason="SAME_PROVIDER_BASELINE_INELIGIBLE",
+        config_version="test",
+        config_hash="hash",
+        calculation_version="ceri-1.2.0",
+    )
+    db = FakeDb(
+        {
+            CeriSourceRecord: [source],
+            CeriEstimateSnapshot: [estimate],
+            CeriRevisionFeature: [revision],
+        }
+    )
+
+    payload = _score_snapshot_payload(snapshot, db=db)
+    estimates = payload["evidence_diagnostics"]["estimates"]
+
+    assert estimates["source_status"] == "FRESH"
+    assert estimates["normalized_count"] == 1
+    assert estimates["eligible_count"] == 0
+    assert estimates["selected_count"] == 0
+    assert estimates["dominant_blocker"] == "SAME_PROVIDER_BASELINE_INELIGIBLE"
 
 
 def test_production_dto_does_not_expose_raw_component_storage_json() -> None:
