@@ -1,3 +1,4 @@
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -17,6 +18,7 @@ from app.services.pipeline_executor import (
     execute_full_pipeline,
 )
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
+from app.services.ranking_profile_service import RankingPipelineResult
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 
 
@@ -126,6 +128,7 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
         "technicals",
         "market_regime",
         "combined",
+        "rankings",
         "sector_rotation",
     ]
     assert result.status == PipelineStatus.COMPLETED
@@ -184,6 +187,7 @@ def test_execute_full_pipeline_runs_winner_capture_when_enabled() -> None:
         "technicals",
         "market_regime",
         "combined",
+        "rankings",
         "sector_rotation",
         "winner_capture",
     ]
@@ -191,6 +195,33 @@ def test_execute_full_pipeline_runs_winner_capture_when_enabled() -> None:
     assert result.winner_prediction_inserted == 1
     assert result.winner_prediction_pending_outcomes == 10
     assert result.winner_prediction_decision_time_estimates == 1
+
+
+def test_execute_full_pipeline_marks_ranking_skipped_without_profiles() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    dependencies = _dependencies(
+        [],
+        combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ],
+    )
+    dependencies = replace(
+        dependencies,
+        refresh_rankings=lambda *_: RankingPipelineResult(
+            status="SKIPPED",
+            profile_count=0,
+            result_count=0,
+            reason="no_configured_ranking_profiles",
+            results=(),
+        ),
+    )
+
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    ranking_step = next(step for step in db.steps if step.step_name == "RANKING_PROFILES")
+    assert ranking_step.status == PipelineStepStatus.SKIPPED
+    assert ranking_step.message == "no_configured_ranking_profiles"
+    assert result.ranking_status == "SKIPPED"
 
 
 def test_execute_full_pipeline_runs_setup_lifecycle_steps_when_enabled() -> None:
@@ -227,6 +258,7 @@ def test_execute_full_pipeline_runs_setup_lifecycle_steps_when_enabled() -> None
         "technicals",
         "market_regime",
         "combined",
+        "rankings",
         "sector_rotation",
         "setup_capture",
         "setup_evaluate",
@@ -321,6 +353,7 @@ def test_execute_full_pipeline_runs_ceri_before_setup_lifecycle_when_enabled(
         "technicals",
         "market_regime",
         "combined",
+        "rankings",
         "sector_rotation",
         "ceri_capture",
         "setup_capture",
@@ -451,6 +484,7 @@ def test_execute_full_pipeline_runs_fetch_before_technicals_and_finishes_partial
         "technicals",
         "market_regime",
         "combined",
+        "rankings",
         "sector_rotation",
     ]
     assert result.status == PipelineStatus.PARTIAL
@@ -487,6 +521,7 @@ def test_execute_full_pipeline_keeps_low_confidence_market_snapshot_nonfatal() -
         "technicals",
         "market_regime",
         "combined",
+        "rankings",
         "sector_rotation",
     ]
     assert result.status == PipelineStatus.PARTIAL
@@ -662,6 +697,16 @@ def _dependencies(
         calls.append("combined")
         return combined_results
 
+    def rankings(_db, _run_id):
+        calls.append("rankings")
+        return RankingPipelineResult(
+            status="COMPLETED",
+            profile_count=5,
+            result_count=len(combined_results) * 5,
+            reason=None,
+            results=(),
+        )
+
     def sector_rotation(_db, _run_id):
         calls.append("sector_rotation")
         return sector_rotation_snapshot
@@ -695,6 +740,7 @@ def _dependencies(
         score_technicals=technicals,
         build_market_regime_snapshot=market_regime,
         refresh_combined=combined,
+        refresh_rankings=rankings,
         build_sector_rotation_snapshot=sector_rotation,
         capture_ceri_snapshot=ceri_capture if ceri_capture_result is not None else None,
         ceri_run_capture_enabled=ceri_enabled,

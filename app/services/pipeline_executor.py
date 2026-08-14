@@ -42,6 +42,10 @@ from app.services.pipeline_service import (
     PipelineStatus,
     PipelineStepStatus,
 )
+from app.services.ranking_profile_service import (
+    RankingPipelineResult,
+    execute_ranking_pipeline_step,
+)
 from app.services.redaction import redact_sensitive
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 from app.services.sector_rotation_service import SectorRotationService
@@ -94,6 +98,10 @@ class PipelineExecutionResult:
     market_regime_confidence: str | None
     market_regime_warning_count: int
     combined_results: int
+    ranking_profiles: int
+    ranking_results: int
+    ranking_status: str
+    ranking_reason: str | None
     sector_rotation_snapshots: int
     sector_rotation_sector_count: int
     sector_rotation_leading_sector: str | None
@@ -140,6 +148,9 @@ class PipelineExecutionDependencies:
         build_market_regime_snapshot_for_run
     )
     refresh_combined: Callable[[Session, int], list[CombinedResult]] = refresh_combined_results
+    refresh_rankings: Callable[[Session, int], RankingPipelineResult] = (
+        execute_ranking_pipeline_step
+    )
     build_sector_rotation_snapshot: Callable[[Session, int], SectorRotationSnapshotDto] = (
         build_sector_rotation_snapshot_for_run
     )
@@ -423,6 +434,37 @@ def execute_full_pipeline(
         with _pipeline_step(
             db,
             pipeline,
+            "RANKING_PROFILES",
+            lease_guard=lease_guard,
+            performance=performance,
+        ) as ranking_step:
+            ranking = dependencies.refresh_rankings(db, upload_run.id)
+            result["ranking_profiles"] = ranking.profile_count
+            result["ranking_results"] = ranking.result_count
+            result["ranking_status"] = ranking.status
+            result["ranking_reason"] = ranking.reason
+            if ranking.status == PipelineStepStatus.SKIPPED:
+                ranking_step.status = PipelineStepStatus.SKIPPED
+                ranking_step.message = ranking.reason
+            else:
+                ranking_step.message = (
+                    f"Persisted {ranking.result_count} ranking results across "
+                    f"{ranking.profile_count} profiles."
+                )
+            operational_metrics.increment(
+                "swinglens_ranking_pipeline_runs_total",
+                status=ranking.status,
+            )
+            operational_metrics.increment(
+                "swinglens_ranking_results_total",
+                ranking.result_count,
+                status=ranking.status,
+            )
+
+        _raise_if_cancelled(should_cancel)
+        with _pipeline_step(
+            db,
+            pipeline,
             "SECTOR_ROTATION_SNAPSHOT",
             lease_guard=lease_guard,
             performance=performance,
@@ -591,7 +633,8 @@ def _pipeline_step(
         _save_progress(db, lease_guard=lease_guard)
         raise
     else:
-        step.status = PipelineStepStatus.COMPLETED
+        if step.status == PipelineStepStatus.RUNNING:
+            step.status = PipelineStepStatus.COMPLETED
         step.completed_at = _utcnow()
         if performance is not None:
             performance.finish_step(step_name, step.status)
@@ -743,6 +786,7 @@ def _pipeline_status_for_step(step_name: str) -> str:
         PipelineStatus.SCORING_TECHNICALS,
         PipelineStatus.MARKET_REGIME_SNAPSHOT,
         PipelineStatus.COMBINING_RESULTS,
+        PipelineStatus.RANKING_PROFILES,
         PipelineStatus.SECTOR_ROTATION_SNAPSHOT,
         PipelineStatus.CERI_PROVIDER_INGEST,
         PipelineStatus.CERI_CAPTURE_SNAPSHOT,
@@ -834,6 +878,10 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
         "market_regime_warning_count": 0,
         "market_regime_low_confidence": 0,
         "combined_results": 0,
+        "ranking_profiles": 0,
+        "ranking_results": 0,
+        "ranking_status": PipelineStepStatus.PENDING,
+        "ranking_reason": None,
         "sector_rotation_snapshots": 0,
         "sector_rotation_sector_count": 0,
         "sector_rotation_leading_sector": None,
@@ -893,6 +941,10 @@ def _to_execution_result(
         market_regime_confidence=result["market_regime_confidence"],
         market_regime_warning_count=result["market_regime_warning_count"],
         combined_results=result["combined_results"],
+        ranking_profiles=result["ranking_profiles"],
+        ranking_results=result["ranking_results"],
+        ranking_status=result["ranking_status"],
+        ranking_reason=result["ranking_reason"],
         sector_rotation_snapshots=result["sector_rotation_snapshots"],
         sector_rotation_sector_count=result["sector_rotation_sector_count"],
         sector_rotation_leading_sector=result["sector_rotation_leading_sector"],

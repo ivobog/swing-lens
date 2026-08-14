@@ -526,6 +526,10 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-job-status]", data.job_status || "");
   setText(root, "[data-pipeline-job-metric]", data.job_status || "None");
   setText(root, "[data-pipeline-cancel-metric]", data.job_cancel_requested ? "Requested" : "No");
+  const result = data.result || {};
+  setText(root, "[data-pipeline-ranking-status]", result.ranking_status || "Pending");
+  setText(root, "[data-pipeline-ranking-profiles]", result.ranking_profiles || 0);
+  setText(root, "[data-pipeline-ranking-results]", result.ranking_results || 0);
   setText(root, "[data-pipeline-percentage]", `${Number(data.percentage || 0).toFixed(1)}%`);
   setText(root, "[data-pipeline-completed-steps]", data.completed_steps);
   setText(root, "[data-pipeline-total-steps]", data.total_steps);

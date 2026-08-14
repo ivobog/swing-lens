@@ -7,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    PriceBar,
+    PriceBarRevision,
     WinnerEstimateEvidenceMember,
     WinnerForwardOutcome,
     WinnerProbabilityEstimate,
@@ -26,6 +28,7 @@ from app.services.winner_probability.evidence_manifest_service import (
 from app.services.winner_probability.evidence_service import EvidenceOutcome
 from app.services.winner_probability.pre11_compatibility_service import (
     EVIDENCE_ORIGIN_PRE11,
+    _hash,
 )
 
 
@@ -109,6 +112,7 @@ class ReproductionService:
                 decision = db.get(WinnerTrainingEligibilityDecision, member.eligibility_decision_id)
                 if decision is None or not decision.training_allowed:
                     raise ValueError("Evidence eligibility decision could not be reproduced.")
+                _verify_replay_lineage(db, replay=target_stop, forward_outcome=outcome)
             else:
                 target_stop = db.get(WinnerTargetStopOutcome, target_stop_id)
             if target_stop is None:
@@ -128,6 +132,48 @@ class ReproductionService:
                 )
             )
         return tuple(evidence)
+
+
+def _verify_replay_lineage(
+    db: Session,
+    *,
+    replay: WinnerTrainingOutcomeReplay,
+    forward_outcome: WinnerForwardOutcome,
+) -> None:
+    lineage = replay.bar_lineage_json or {}
+    bars = lineage.get("bars")
+    if not isinstance(bars, list) or len(bars) != replay.horizon_sessions:
+        raise ValueError("Replay bar lineage is incomplete.")
+    if _hash({"bars": tuple(bars)}) != replay.source_bar_lineage_hash:
+        raise ValueError("Replay bar lineage hash could not be reproduced.")
+    if replay.source_forward_outcome_id != forward_outcome.id or int(
+        lineage.get("source_forward_outcome_revision", -1)
+    ) != int(forward_outcome.revision):
+        raise ValueError("Replay forward outcome identity could not be reproduced.")
+    for item in bars:
+        bar_id = item.get("price_bar_id")
+        expected_hash = item.get("data_hash")
+        if not bar_id or not expected_hash:
+            raise ValueError("Replay bar identity is incomplete.")
+        revision_id = item.get("price_bar_revision_id")
+        if revision_id is not None:
+            revision = db.get(PriceBarRevision, revision_id)
+            if (
+                revision is None
+                or revision.price_bar_id != bar_id
+                or revision.new_data_hash != expected_hash
+                or revision.revision_number != item.get("revision_count")
+                or revision.observed_at > replay.source_revision_cutoff_at
+            ):
+                raise ValueError("Replay price-bar revision lineage could not be reproduced.")
+            continue
+        bar = db.get(PriceBar, bar_id)
+        if (
+            bar is None
+            or bar.data_hash != expected_hash
+            or bar.revision_count != item.get("revision_count")
+        ):
+            raise ValueError("Replay price-bar lineage changed after classification.")
 
 
 def _mismatches(

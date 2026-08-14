@@ -119,7 +119,7 @@ def _manifest_payload(evidence: tuple[EvidenceOutcome, ...]) -> dict[str, Any]:
                 "outcome_replay_id": row.outcome_replay_id,
                 "evidence_origin": row.evidence_origin,
                 "episode_id": row.prediction.episode_id,
-                "inclusion_weight": str(row.inclusion_weight),
+                "inclusion_weight": _canonical_decimal(row.inclusion_weight),
                 "primary_winner": row.target_stop_outcome.primary_winner,
             }
             for row in evidence
@@ -130,3 +130,8 @@ def _manifest_payload(evidence: tuple[EvidenceOutcome, ...]) -> dict[str, Any]:
 def _hash_payload(payload: dict[str, Any]) -> str:
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _canonical_decimal(value: Decimal | str | int | float) -> str:
+    normalized = Decimal(str(value)).normalize()
+    return format(normalized, "f")

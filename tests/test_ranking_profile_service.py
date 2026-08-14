@@ -12,6 +12,7 @@ from app.models.tables import (
 )
 from app.services import ranking_profile_service
 from app.services.ranking_profile_service import (
+    execute_ranking_pipeline_step,
     refresh_all_ranking_profiles,
     refresh_ranking_profile,
 )
@@ -28,7 +29,7 @@ def test_refresh_all_ranking_profiles_persists_enabled_profiles(monkeypatch) -> 
     assert len(results) == 10
     assert len(db.added) == 10
     assert db.flushes == 1
-    assert len(db.executed) == 1
+    assert db.executed == []
     assert {result.ranking_profile for result in results} == {
         "momentum_swing",
         "quality_momentum",
@@ -52,7 +53,8 @@ def test_refresh_all_ranking_profiles_is_idempotent_at_service_boundary(monkeypa
     second = refresh_all_ranking_profiles(db, run_id=7, today=TODAY)
 
     assert len(first) == len(second) == 10
-    assert len(db.executed) == 2
+    assert len(db.added) == 10
+    assert db.executed == []
     assert db.flushes == 2
 
 
@@ -69,7 +71,7 @@ def test_refresh_one_profile_persists_only_named_profile(monkeypatch) -> None:
 
     assert len(results) == 2
     assert {result.ranking_profile for result in results} == {"early_rocket"}
-    assert "ranking_results.ranking_profile" in str(db.executed[0])
+    assert db.executed == []
     assert db.flushes == 1
 
 
@@ -92,6 +94,47 @@ def test_refresh_all_ranking_profiles_raises_for_missing_run(monkeypatch) -> Non
 
     with pytest.raises(ValueError, match="Upload run 404 was not found"):
         refresh_all_ranking_profiles(db, run_id=404, today=TODAY)
+
+
+def test_ranking_pipeline_step_is_explicitly_skipped_without_profiles(monkeypatch) -> None:
+    monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: [])
+
+    result = execute_ranking_pipeline_step(FakeDb(), run_id=7)
+
+    assert result.status == "SKIPPED"
+    assert result.reason == "no_configured_ranking_profiles"
+    assert result.profile_count == result.result_count == 0
+
+
+def test_ranking_pipeline_step_fails_when_profiles_produce_zero_results(monkeypatch) -> None:
+    monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: [object()])
+    monkeypatch.setattr(ranking_profile_service, "_raw_rows_for_run", lambda *_: _rows())
+    monkeypatch.setattr(ranking_profile_service, "refresh_all_ranking_profiles", lambda *_: [])
+
+    with pytest.raises(RuntimeError, match="produced zero results"):
+        execute_ranking_pipeline_step(FakeDb(), run_id=7)
+
+
+def test_run105_shaped_ranking_step_reports_186_by_configured_profiles(monkeypatch) -> None:
+    profiles = [object() for _ in range(5)]
+    rows = [_row(1000 + index, f"T{index:03}", index + 1) for index in range(186)]
+    persisted = [
+        object()
+        for _ in range(len(rows) * len(profiles))
+    ]
+    monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: profiles)
+    monkeypatch.setattr(ranking_profile_service, "_raw_rows_for_run", lambda *_: rows)
+    monkeypatch.setattr(
+        ranking_profile_service,
+        "refresh_all_ranking_profiles",
+        lambda *_: persisted,
+    )
+
+    result = execute_ranking_pipeline_step(FakeDb(), run_id=105)
+
+    assert result.status == "COMPLETED"
+    assert result.profile_count == 5
+    assert result.result_count == 930
 
 
 def test_refresh_one_profile_raises_for_unknown_profile(monkeypatch) -> None:

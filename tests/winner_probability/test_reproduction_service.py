@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
 
 from app.models.tables import (
+    PriceBar,
+    PriceBarRevision,
     WinnerEstimateEvidenceMember,
     WinnerForwardOutcome,
     WinnerPredictionSnapshot,
@@ -17,7 +22,11 @@ from app.services.winner_probability.evidence_manifest_service import (
     _manifest_payload,
 )
 from app.services.winner_probability.evidence_service import EvidenceOutcome
-from app.services.winner_probability.reproduction_service import ReproductionService
+from app.services.winner_probability.pre11_compatibility_service import _hash
+from app.services.winner_probability.reproduction_service import (
+    ReproductionService,
+    _verify_replay_lineage,
+)
 
 
 def test_reproduction_uses_exact_membership_not_current_query() -> None:
@@ -57,6 +66,87 @@ def test_reproduction_uses_exact_membership_not_current_query() -> None:
     assert changed.matches is False
     assert "evidence_manifest_hash" in changed.mismatches
     assert "point_probability" in changed.mismatches
+
+
+def test_manifest_weight_serialization_is_decimal_scale_independent() -> None:
+    row = _evidence(1, won=True)
+    persisted_scale = EvidenceOutcome(
+        prediction=row.prediction,
+        forward_outcome=row.forward_outcome,
+        target_stop_outcome=row.target_stop_outcome,
+        inclusion_weight=Decimal("1.00000000"),
+    )
+
+    assert _hash_payload(_manifest_payload((row,))) == _hash_payload(
+        _manifest_payload((persisted_scale,))
+    )
+
+
+def test_replay_reproduction_fails_closed_when_unrevisioned_bar_changes() -> None:
+    bar = SimpleNamespace(id=41, data_hash="changed", revision_count=0)
+    replay, forward = _lineage_fixture(
+        [{"price_bar_id": 41, "data_hash": "reviewed", "revision_count": 0}]
+    )
+
+    with pytest.raises(ValueError, match="changed after classification"):
+        _verify_replay_lineage(
+            _LineageDb({(PriceBar, 41): bar}),
+            replay=replay,
+            forward_outcome=forward,
+        )
+
+
+def test_replay_reproduction_fails_closed_for_late_bar_revision() -> None:
+    observed_at = datetime(2026, 8, 15, tzinfo=UTC)
+    revision = SimpleNamespace(
+        id=51,
+        price_bar_id=41,
+        new_data_hash="reviewed",
+        revision_number=2,
+        observed_at=observed_at,
+    )
+    replay, forward = _lineage_fixture(
+        [
+            {
+                "price_bar_id": 41,
+                "price_bar_revision_id": 51,
+                "data_hash": "reviewed",
+                "revision_count": 2,
+            }
+        ],
+        cutoff=datetime(2026, 8, 14, tzinfo=UTC),
+    )
+
+    with pytest.raises(ValueError, match="revision lineage"):
+        _verify_replay_lineage(
+            _LineageDb({(PriceBarRevision, 51): revision}),
+            replay=replay,
+            forward_outcome=forward,
+        )
+
+
+class _LineageDb:
+    def __init__(self, rows) -> None:
+        self.rows = rows
+
+    def get(self, model, row_id):
+        return self.rows.get((model, row_id))
+
+
+def _lineage_fixture(bars, *, cutoff: datetime | None = None):
+    cutoff = cutoff or datetime(2026, 8, 14, tzinfo=UTC)
+    forward = SimpleNamespace(id=31, revision=1)
+    replay = SimpleNamespace(
+        horizon_sessions=len(bars),
+        bar_lineage_json={
+            "bars": bars,
+            "source_forward_outcome_revision": 1,
+        },
+        source_bar_lineage_hash=_hash({"bars": tuple(bars)}),
+        source_forward_outcome_id=31,
+        source_revision_cutoff_at=cutoff,
+    )
+    return replay, forward
 
 
 class ReproductionFakeDb:

@@ -1,0 +1,12 @@
+{
+  "manifest_hash": "dda5048538702f6eb9ae42f2aebefc86f19b988e3f2aa494e34900f27d462f54",
+  "request_key": "d555a6b40f63092527b7997932686342e1be32d0582cbfe5d49f71122c6afa8c",
+  "training_family": "OWPE_1_1_COMPAT_V1",
+  "outcome_definition_id": 3,
+  "cutoff_at": "2026-08-14T22:34:33.408271+02:00",
+  "start_date": "2021-08-14",
+  "end_date": "2026-08-14",
+  "eligible_prediction_count": 390,
+  "decision_count": 8859,
+  "reviewed_source": "docs/forensics/owpe_pre11_dry_run_manifest.md"
+}

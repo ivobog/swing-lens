@@ -17,6 +17,7 @@ from app.models.tables import (
     WinnerCalibrationBin,
     WinnerModelVersion,
     WinnerOutcomeDefinition,
+    WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
 )
 from app.routers import winner_probability_routes
@@ -248,6 +249,60 @@ def test_estimate_api_payload_labels_cohort_baseline_without_model() -> None:
         "oldest_evidence_date": "2026-08-04",
         "newest_evidence_date": "2026-08-06",
     }
+
+
+def test_run_row_hydrates_persisted_ranking_provenance() -> None:
+    class Service(WinnerProbabilityApiService):
+        def _selected_estimate(self, *_args, **_kwargs):
+            return None
+
+    class Db:
+        def get(self, model, row_id):
+            if model.__name__ == "RankingResult" and row_id == 22:
+                return SimpleNamespace(profile_rank=7, profile_score=Decimal("8.25"))
+            if model.__name__ == "CombinedResult" and row_id == 11:
+                return SimpleNamespace(final_rank=3)
+            return None
+
+    prediction = WinnerPredictionSnapshot(
+        id=1,
+        run_id=106,
+        ticker="AAA",
+        prediction_as_of_date=datetime(2026, 8, 14, tzinfo=UTC).date(),
+        source_data_cutoff_at=datetime(2026, 8, 15, tzinfo=UTC),
+        combined_result_id=11,
+        ranking_result_id=22,
+        ranking_profile="momentum_swing",
+        feature_schema_version="owpe-features-1.0.0",
+        feature_vector_hash="feature-hash",
+        config_hash="config-hash",
+        calculation_version="owpe-calc-1.1.0",
+        feature_json={},
+    )
+    definition = WinnerOutcomeDefinition(
+        id=3,
+        definition_id="T2_5_S2_0_H5_NEXT_OPEN",
+        label="primary",
+        entry_model="NEXT_OPEN",
+        horizon_sessions=5,
+        target_pct=Decimal("2.5"),
+        stop_pct=Decimal("2.0"),
+        calculation_version="owpe-calc-1.1.0",
+        config_hash="config-hash",
+        is_primary=True,
+        is_active=True,
+    )
+
+    payload = Service()._run_row(
+        Db(),
+        prediction,
+        outcome_definition=definition,
+        query=WinnerProbabilityApiQuery(),
+    )
+
+    assert payload["prediction"]["final_rank"] == 3
+    assert payload["prediction"]["ranking_rank"] == 7
+    assert payload["prediction"]["ranking_score"] == 8.25
 
 
 def test_withheld_estimate_does_not_masquerade_as_model_calibration_or_interval() -> None:

@@ -356,7 +356,7 @@ class WinnerProbabilityApiService:
             query=query,
         )
         return {
-            "prediction": _prediction_payload(prediction),
+            "prediction": _prediction_payload(prediction, db=db),
             "estimate": _estimate_payload(db, estimate),
             "outcome_definition": _outcome_definition_payload(outcome_definition),
             "schema_version": prediction.feature_schema_version,

@@ -52,7 +52,7 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
 
     steps = db.pipeline_steps_for(pipeline.id)
     assert [step.step_name for step in steps] == list(PIPELINE_STEP_NAMES)
-    assert [step.step_order for step in steps] == [1, 2, 3, 4, 5, 6, 7, 8]
+    assert [step.step_order for step in steps] == list(range(1, len(PIPELINE_STEP_NAMES) + 1))
     assert {step.status for step in steps} == {PipelineStepStatus.PENDING}
 
     jobs = list(db.background_jobs.values())
@@ -63,7 +63,8 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     assert job.request_key == (
         "full-pipeline:run:7:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
         "FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,"
-        "COMBINING_RESULTS,SECTOR_ROTATION_SNAPSHOT,CAPTURING_WINNER_PREDICTIONS"
+        "COMBINING_RESULTS,RANKING_PROFILES,SECTOR_ROTATION_SNAPSHOT,"
+        "CAPTURING_WINNER_PREDICTIONS"
     )
     assert job.status == JobStatus.QUEUED
     assert job.payload_json == {"pipeline_run_id": pipeline.id}
@@ -105,7 +106,8 @@ def test_start_pipeline_coalesces_matching_active_pipeline_request() -> None:
         request_key=(
             "full-pipeline:run:7:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
             "FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,"
-            "COMBINING_RESULTS,SECTOR_ROTATION_SNAPSHOT,CAPTURING_WINNER_PREDICTIONS"
+            "COMBINING_RESULTS,RANKING_PROFILES,SECTOR_ROTATION_SNAPSHOT,"
+            "CAPTURING_WINNER_PREDICTIONS"
         ),
         status=JobStatus.QUEUED,
         payload_json={"pipeline_run_id": 3},
@@ -180,7 +182,8 @@ def test_pipeline_step_names_can_pause_only_legacy_ceri_scheduling(
     steps = pipeline_step_names()
 
     assert "CERI_PROVIDER_INGEST" not in steps
-    assert CERI_PIPELINE_STEPS == steps[7:-1]
+    sector_index = steps.index("SECTOR_ROTATION_SNAPSHOT")
+    assert CERI_PIPELINE_STEPS == steps[sector_index + 1 : -1]
 
 
 def test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled() -> None:
@@ -197,7 +200,7 @@ def test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled() -> None:
     assert [step.step_name for step in steps] == list(
         pipeline_step_names(setup_lifecycle_pipeline_step_enabled=True)
     )
-    assert [step.step_order for step in steps] == list(range(1, 11))
+    assert [step.step_order for step in steps] == list(range(1, len(steps) + 1))
 
 
 def test_start_pipeline_can_create_ceri_and_setup_lifecycle_steps_when_enabled() -> None:
@@ -218,7 +221,7 @@ def test_start_pipeline_can_create_ceri_and_setup_lifecycle_steps_when_enabled()
             setup_lifecycle_pipeline_step_enabled=True,
         )
     )
-    assert [step.step_order for step in steps] == list(range(1, 12))
+    assert [step.step_order for step in steps] == list(range(1, len(steps) + 1))
 
 
 def test_start_pipeline_raises_for_missing_upload_run() -> None:
