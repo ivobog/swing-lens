@@ -47,9 +47,7 @@ def test_null_to_null_has_no_opportunity_change() -> None:
     current = _snapshot(2, opportunity=None, risk=0.0)
     db = FakeDb()
 
-    result = CeriChangeDetectionService().detect_score_changes(
-        db, current=current, prior=prior
-    )
+    result = CeriChangeDetectionService().detect_score_changes(db, current=current, prior=prior)
 
     assert result.changes == 0
     assert not db.added
@@ -59,9 +57,7 @@ def test_first_numeric_snapshot_is_baseline_not_generic_upgrade() -> None:
     current = _snapshot(1, opportunity=7.0, risk=3.0)
     db = FakeDb()
 
-    result = CeriChangeDetectionService().detect_score_changes(
-        db, current=current, prior=None
-    )
+    result = CeriChangeDetectionService().detect_score_changes(db, current=current, prior=None)
 
     assert result.changes == 0
     assert not db.added
@@ -116,6 +112,8 @@ def test_catalyst_revision_change_emits_stable_binary_event() -> None:
         direction="UNKNOWN",
         effective_session=date(2026, 8, 1),
         date_confidence="DATE_RANGE",
+        issuer_relevance=True,
+        binary_eligible=True,
     )
     db = FakeDb(scalar_queue=[None])
 
@@ -183,7 +181,7 @@ def _snapshot(
                     "score": risk or 0.0,
                     "reason": "accepted_fixture_evidence",
                 }
-            ]
+            ],
         },
         config_version="2026-07-31",
         config_hash="hash",

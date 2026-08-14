@@ -219,6 +219,50 @@ def test_market_changes_page_renders_full_data(monkeypatch: pytest.MonkeyPatch) 
     assert "Expand" in response.text
 
 
+def test_market_changes_page_labels_and_renders_authoritative_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _changes_payload()
+    payload["items"][0].update(
+        {
+            "source_type": "LIFECYCLE_EVENT",
+            "signal_key": None,
+            "company": "Microsoft",
+            "data_as_of_date": "2026-08-13",
+            "comparison_date": "2026-08-12",
+            "previous_state": "TIGHTENING",
+            "current_state": "READY",
+            "actionability": "ACTIONABLE",
+            "confidence": 91,
+            "technical_score": 8.1,
+            "technical_score_previous": 7.5,
+            "technical_score_delta": 0.6,
+            "score_velocity_3d": 1.1,
+            "setup_score_velocity_3d": 0.4,
+            "trigger_distance_pct": 2.0,
+            "sector_rank": 1,
+            "sector_rank_previous": 2,
+            "sector_rank_delta": 1,
+            "warning_count": 0,
+            "source_url": "/runs/7#lifecycle",
+        }
+    )
+    monkeypatch.setattr(
+        routes,
+        "SetupLifecycleQueryService",
+        lambda: FakeQueryService(changes_payload=payload),
+    )
+    app = create_app(Settings(_env_file=None, job_worker_enabled=False))
+    app.dependency_overrides[get_db] = lambda: object()
+
+    response = TestClient(app).get("/setup-lifecycle")
+
+    assert response.status_code == 200
+    assert "Technical Velocity (3S)" in response.text
+    assert "+1.10" in response.text
+    assert "+2.00%" in response.text
+
+
 def test_global_changes_page_does_not_inject_latest_snapshot_date(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -227,9 +271,7 @@ def test_global_changes_page_does_not_inject_latest_snapshot_date(
     app = create_app(Settings(_env_file=None, job_worker_enabled=False))
     app.dependency_overrides[get_db] = lambda: object()
 
-    response = TestClient(app).get(
-        "/setup-lifecycle?date_from=2026-07-01&date_to=2026-08-10"
-    )
+    response = TestClient(app).get("/setup-lifecycle?date_from=2026-07-01&date_to=2026-08-10")
 
     assert response.status_code == 200
     query = fake_service.last_changes_query
@@ -276,9 +318,7 @@ def test_run_changes_page_forwards_filters_and_keeps_run_context(
 
 def test_quick_filters_use_event_semantics_and_real_bounds() -> None:
     assert routes._quick_filter_values("newly-ready") == {"transition": "TO_READY"}
-    assert routes._quick_filter_values("newly-triggered") == {
-        "transition": "TO_TRIGGERED"
-    }
+    assert routes._quick_filter_values("newly-triggered") == {"transition": "TO_TRIGGERED"}
 
 
 @pytest.mark.parametrize(

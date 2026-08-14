@@ -10,6 +10,7 @@ from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup
 from app.services.setup_lifecycle.enums import EventSeverity, SignalCategory, SignalValueType
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.signal_registry import SignalDefinition
+from app.services.us_market_calendar import subtract_us_trading_sessions
 
 QUALITY_ORDER = {
     "INSUFFICIENT": 0,
@@ -184,7 +185,9 @@ class SetupLifecycleChangeDetector:
 
         reason_codes.extend(_type_reason_codes(definition.value_type))
         velocity = velocity_by_window(definition, current, history)
-        if velocity:
+        if any(
+            observation.get("normalized_delta") is not None for observation in velocity.values()
+        ):
             reason_codes.append("VELOCITY_COMPUTED")
 
         return DetectedSignalChange(
@@ -208,9 +211,7 @@ class SetupLifecycleChangeDetector:
                 "material_on_change": definition.material_on_change,
                 "confidence_score": current.confidence_score,
                 "confidence_label": current.confidence_label,
-                "required_feature_coverage": _json_value(
-                    current.required_feature_coverage
-                ),
+                "required_feature_coverage": _json_value(current.required_feature_coverage),
                 "freshness_status": current.freshness_status,
                 "data_quality_label": current.data_quality_label,
                 "current_snapshot_id": current.id,
@@ -316,21 +317,41 @@ def velocity_by_window(
 ) -> dict[str, dict[str, Any]]:
     if not definition.velocity_windows:
         return {}
-    by_date = sorted(history, key=lambda snapshot: snapshot.data_as_of_date, reverse=True)
+    by_date = {
+        snapshot.data_as_of_date: snapshot
+        for snapshot in sorted(history, key=lambda item: (item.data_as_of_date, item.id or 0))
+        if snapshot.is_canonical is not False
+    }
     current_value = _signal_value(current, definition)
     result: dict[str, dict[str, Any]] = {}
     for window in definition.velocity_windows:
-        if len(by_date) < window:
+        target_date = subtract_us_trading_sessions(current.data_as_of_date, window)
+        prior = by_date.get(target_date)
+        if prior is None:
+            result[str(window)] = {
+                "target_date": target_date.isoformat(),
+                "prior_snapshot_id": None,
+                "prior_date": None,
+                "old_value": None,
+                "new_value": _json_value(current_value),
+                "normalized_delta": None,
+                "missing_reason": "EXACT_TARGET_SESSION_SNAPSHOT_UNAVAILABLE",
+            }
             continue
-        prior = by_date[window - 1]
         old_value = _signal_value(prior, definition)
         normalized = definition.normalized_delta(old_value, current_value)
         result[str(window)] = {
+            "target_date": target_date.isoformat(),
             "prior_snapshot_id": prior.id,
             "prior_date": prior.data_as_of_date.isoformat(),
             "old_value": _json_value(old_value),
             "new_value": _json_value(current_value),
             "normalized_delta": _json_value(_decimal_or_none(normalized)),
+            "missing_reason": (
+                None
+                if old_value is not None and current_value is not None
+                else "TARGET_SESSION_SIGNAL_UNAVAILABLE"
+            ),
         }
     return result
 
@@ -454,11 +475,15 @@ def _data_quality_changed(
     old_value: Any,
     new_value: Any,
 ) -> bool:
-    return definition.key in {
-        "data_quality",
-        "required_feature_coverage",
-        "freshness_status",
-    } and old_value != new_value
+    return (
+        definition.key
+        in {
+            "data_quality",
+            "required_feature_coverage",
+            "freshness_status",
+        }
+        and old_value != new_value
+    )
 
 
 def _data_quality_reason(

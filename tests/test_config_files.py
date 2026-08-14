@@ -1,4 +1,3 @@
-from datetime import date
 from pathlib import Path
 
 import yaml
@@ -72,15 +71,9 @@ def test_fundamentals_v2_config_is_normalized_and_mapped() -> None:
     assert sum(config["weights"].values()) == 1.0
 
     configured_fields = {
-        field
-        for component in config["components"].values()
-        for field in component["fields"]
+        field for component in config["components"].values() for field in component["fields"]
     }
-    priority_fields = {
-        field
-        for fields in config["field_priorities"].values()
-        for field in fields
-    }
+    priority_fields = {field for fields in config["field_priorities"].values() for field in fields}
 
     assert configured_fields.issubset(aliases)
     assert priority_fields.issubset(aliases)
@@ -179,8 +172,8 @@ def test_sector_rotation_config_defines_v1_universe_defaults() -> None:
 def test_setup_lifecycle_config_defines_phase_1_defaults() -> None:
     config = yaml.safe_load(Path("config/setup_lifecycle.yaml").read_text(encoding="utf-8"))
 
-    assert config["engine"]["version"] == "slse-1.2.0"
-    assert config["engine"]["config_version"] == date(2026, 8, 12)
+    assert config["engine"]["version"] == "slse-1.3.0"
+    assert config["engine"]["config_version"] == "2026-08-14-velocity-trigger-distance"
     assert config["episodes"]["history_window_sessions"] == 10
     assert config["engine"]["trigger_authority"] == "COMPLETED_DAILY_CLOSE"
     assert config["families"]["generic_fallback"]["prevent_shadowing_supported_family"] is True

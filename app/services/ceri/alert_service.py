@@ -13,6 +13,7 @@ from app.models.ceri_tables import (
     CeriChangeEvent,
     CeriScoreSnapshot,
 )
+from app.services.ceri.change_semantics import ComparisonState
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 from app.services.ceri.enums import CeriChangeType
@@ -68,6 +69,8 @@ class CeriAlertService:
         return AlertRebuildResult(alerts=alerts, duplicates=duplicates, skipped=skipped)
 
     def _eligible_change(self, db: Session, change: CeriChangeEvent) -> bool:
+        if change.comparison_state and change.comparison_state != ComparisonState.COMPARABLE.value:
+            return False
         try:
             change_type = CeriChangeType(change.change_type)
         except ValueError:
@@ -92,8 +95,7 @@ class CeriAlertService:
             return bool(
                 snapshot.opportunity_score is not None
                 and coverage is not None
-                and coverage + 1e-9
-                >= self.config.revision.minimum_component_coverage_pct
+                and coverage + 1e-9 >= self.config.revision.minimum_component_coverage_pct
                 and snapshot.data_confidence != "Insufficient"
             )
         delta = change.delta_json or {}
@@ -118,11 +120,8 @@ class CeriAlertService:
         rule = self._rule_for_change(db, change)
         if rule is None:
             return None
-        event_key = alert_event_key(
-            rule_id=rule.rule_id,
-            change_dedup_key=change.dedup_key,
-            catalyst_revision_id=change.catalyst_revision_id,
-        )
+        identity = alert_business_identity(rule.rule_id, change)
+        event_key = _identity_hash(identity)
         existing = _maybe_scalar(
             db,
             select(CeriAlertEvent).where(CeriAlertEvent.event_key == event_key),
@@ -138,12 +137,20 @@ class CeriAlertService:
             event_key=event_key,
             ticker=ticker.upper(),
             severity=rule.severity,
+            importance=change.importance or change.severity,
+            signal_class=change.signal_class,
+            validity_classification="VALID_CURRENT",
             status="UNREAD",
             evidence_json={
                 "change_type": change.change_type,
                 "dedup_key": change.dedup_key,
                 "delta": change.delta_json,
-                "cooldown_scope": self.config.alerts.dedup_scope,
+                "alert_rule": rule.rule_id,
+                "alert_rule_version": rule.config_version,
+                "dedup_identity": identity,
+                "dedup_identity_type": identity["identity_type"],
+                "cooldown_scope": "rule_ticker",
+                "cooldown_sessions": rule.cooldown_sessions,
             },
         )
         db.add(event)
@@ -151,12 +158,16 @@ class CeriAlertService:
         return event
 
     def acknowledge(self, db: Session, alert: CeriAlertEvent) -> CeriAlertEvent:
+        if alert.status == "INVALIDATED":
+            return alert
         alert.status = "ACKNOWLEDGED"
         alert.acknowledged_at = datetime.now(UTC)
         db.flush()
         return alert
 
     def dismiss(self, db: Session, alert: CeriAlertEvent) -> CeriAlertEvent:
+        if alert.status == "INVALIDATED":
+            return alert
         alert.status = "DISMISSED"
         alert.dismissed_at = datetime.now(UTC)
         db.flush()
@@ -203,6 +214,10 @@ class CeriAlertService:
     ) -> bool:
         if not rule.cooldown_sessions:
             return False
+        if change.catalyst_revision_id is not None or change.guidance_event_id is not None:
+            # Material canonical event revisions carry their own deterministic
+            # identity and must not be swallowed by a ticker-wide cooldown.
+            return False
         alerts = _load(db, CeriAlertEvent)
         for alert in alerts:
             if alert.alert_rule_id != rule.id or alert.ticker.upper() != ticker.upper():
@@ -224,6 +239,41 @@ def alert_event_key(
     catalyst_revision_id: int | None,
 ) -> str:
     encoded = f"{rule_id}:{change_dedup_key}:{catalyst_revision_id or ''}"
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def alert_business_identity(rule_id: str, change: CeriChangeEvent) -> dict[str, object]:
+    change_type = CeriChangeType(change.change_type)
+    if change.catalyst_revision_id is not None:
+        return {
+            "identity_type": "CATALYST_REVISION",
+            "rule_id": rule_id,
+            "canonical_event_id": (change.delta_json or {}).get("canonical_event_id"),
+            "event_revision_id": change.catalyst_revision_id,
+        }
+    if change.guidance_event_id is not None:
+        return {
+            "identity_type": "GUIDANCE_REVISION",
+            "rule_id": rule_id,
+            "guidance_event_id": change.guidance_event_id,
+        }
+    identity_type = (
+        "RISK_TRANSITION"
+        if change_type in {CeriChangeType.RISK_ESCALATED, CeriChangeType.RISK_DEESCALATED}
+        else "OPPORTUNITY_TRANSITION"
+    )
+    return {
+        "identity_type": identity_type,
+        "rule_id": rule_id,
+        "company_id": change.company_id,
+        "from_snapshot_id": change.from_snapshot_id,
+        "to_snapshot_id": change.to_snapshot_id,
+        "change_type": change.change_type,
+    }
+
+
+def _identity_hash(identity: dict[str, object]) -> str:
+    encoded = "|".join(f"{key}={identity[key]}" for key in sorted(identity))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 

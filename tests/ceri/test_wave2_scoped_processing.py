@@ -177,7 +177,7 @@ def test_non_stale_warning_does_not_emit_data_stale_change() -> None:
     )
 
     assert result.changes == 1
-    assert {row.change_type for row in db.added} == {"OPPORTUNITY_UPGRADED"}
+    assert {row.change_type for row in db.added} == {"OPPORTUNITY_CHANGED"}
 
 
 def test_backfill_retries_failed_ticker_from_checkpoint(monkeypatch) -> None:

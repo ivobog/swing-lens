@@ -36,6 +36,11 @@ CERI_LOCAL_ADMIN_REQUIRED = True
 CERI_ADMIN_CSRF_REQUIRED = True
 CERI_ORDER_PLACEMENT_ALLOWED = False
 
+# Presentation/classification policy shared by every CERI summary surface.
+# These preserve the existing Positive posture and low-risk boundaries.
+CERI_HIGH_OPPORTUNITY_THRESHOLD = 7.0
+CERI_LOW_RISK_THRESHOLD = 3.0
+
 CERI_JOB_REQUEST_KEYS_REQUIRED = True
 CERI_JOB_EXECUTION_FENCING_REQUIRED = True
 CERI_JOB_HEARTBEATS_REQUIRED = True

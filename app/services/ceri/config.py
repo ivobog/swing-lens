@@ -519,7 +519,12 @@ def _parse_change_thresholds(raw: dict[str, Any]) -> dict[str, float]:
     thresholds = {
         key: _positive_number(value, f"change_thresholds.{key}") for key, value in raw.items()
     }
-    for field in ("score_delta", "revision_pct_points", "risk_escalation_delta"):
+    for field in (
+        "score_delta",
+        "opportunity_upgrade_threshold",
+        "revision_pct_points",
+        "risk_escalation_delta",
+    ):
         if field not in thresholds:
             raise CeriConfigError(f"change_thresholds.{field} is required")
     return thresholds

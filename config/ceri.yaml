@@ -1,7 +1,7 @@
 engine:
   enabled: false
   calculation_version: ceri-1.2.0
-  config_version: 2026-08-13-run101-remediation-r1
+  config_version: 2026-08-14-changes-alerts-remediation-r1
   timezone: America/New_York
   daily_cutoff_time: "16:15"
   effective_session_policy: AFTER_HOURS_NEXT_COMPLETED_US_SESSION
@@ -142,6 +142,7 @@ confidence:
 
 change_thresholds:
   score_delta: 1.0
+  opportunity_upgrade_threshold: 7.5
   revision_pct_points: 2.0
   risk_escalation_delta: 2.0
   acceleration_delta: 0.01

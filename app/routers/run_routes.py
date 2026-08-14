@@ -1272,11 +1272,11 @@ def _ceri_context(db: Session, run_id: int) -> dict[str, object]:
         snapshot.data_confidence in {"Low", "Insufficient"} for snapshot in snapshots
     )
     warning_count = sum(bool(snapshot.warnings_json) for snapshot in snapshots)
-    high_opportunity_low_risk_count = sum(
-        (snapshot.opportunity_score or 0) >= 7
-        and (snapshot.event_risk_score or 10) <= 3
-        for snapshot in snapshots
-    )
+    from app.services.ceri.query_service import snapshot_population_summary
+
+    high_opportunity_low_risk_count = snapshot_population_summary(snapshots)[
+        "high_opportunity_low_risk"
+    ]
     return {
         "snapshot_count": len(snapshots),
         "low_confidence_count": low_confidence_count,

@@ -11,7 +11,11 @@ from app.models.ceri_tables import (
     CeriChangeEvent,
     CeriScoreSnapshot,
 )
-from app.services.ceri.alert_service import CeriAlertService
+from app.services.ceri.alert_service import (
+    CeriAlertService,
+    _identity_hash,
+    alert_business_identity,
+)
 from app.services.ceri.feature_flags import CeriFeatureFlags
 
 
@@ -132,6 +136,64 @@ def test_accepted_risk_change_can_alert_when_opportunity_is_unrated(
     )
 
     assert result.alerts == 1
+
+
+def test_material_new_catalyst_revision_has_distinct_dedup_identity() -> None:
+    first = CeriChangeEvent(
+        id=10,
+        company_id=42,
+        catalyst_revision_id=100,
+        change_type="CATALYST_UPDATED",
+        severity="NOTABLE",
+        dedup_key="first",
+        delta_json={"canonical_event_id": 77},
+    )
+    second = CeriChangeEvent(
+        id=11,
+        company_id=42,
+        catalyst_revision_id=101,
+        change_type="CATALYST_UPDATED",
+        severity="NOTABLE",
+        dedup_key="second",
+        delta_json={"canonical_event_id": 77},
+    )
+
+    first_identity = alert_business_identity("catalyst-rule", first)
+    second_identity = alert_business_identity("catalyst-rule", second)
+
+    assert first_identity["identity_type"] == "CATALYST_REVISION"
+    assert first_identity["canonical_event_id"] == 77
+    assert _identity_hash(first_identity) != _identity_hash(second_identity)
+
+
+def test_opportunity_and_risk_alerts_use_type_correct_transition_identities() -> None:
+    opportunity = CeriChangeEvent(
+        id=10,
+        company_id=42,
+        from_snapshot_id=1,
+        to_snapshot_id=2,
+        change_type="OPPORTUNITY_UPGRADED",
+        severity="NOTABLE",
+        dedup_key="opportunity",
+    )
+    risk = CeriChangeEvent(
+        id=11,
+        company_id=42,
+        from_snapshot_id=1,
+        to_snapshot_id=2,
+        change_type="RISK_ESCALATED",
+        severity="IMPORTANT",
+        dedup_key="risk",
+    )
+
+    assert (
+        alert_business_identity("opportunity-rule", opportunity)["identity_type"]
+        == "OPPORTUNITY_TRANSITION"
+    )
+    assert (
+        alert_business_identity("risk-rule", risk)["identity_type"]
+        == "RISK_TRANSITION"
+    )
 
 
 def _enable_alerts(monkeypatch: pytest.MonkeyPatch) -> None:

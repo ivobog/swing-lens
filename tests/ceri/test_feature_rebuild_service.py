@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from app.models.ceri_tables import (
@@ -16,6 +16,7 @@ from app.models.ceri_tables import (
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
+    _copy_revision_derived,
     _latest_price_event,
 )
 
@@ -212,3 +213,61 @@ class FakeDb:
                 if getattr(row, "id", None) is None:
                     row.id = self.next_id
                     self.next_id += 1
+def test_reused_revision_feature_copies_values_and_full_comparison_lineage() -> None:
+    target = CeriRevisionFeature(
+        company_id=1,
+        metric="EPS_DILUTED",
+        period_key="same-key",
+        as_of_session=date(2026, 8, 14),
+        window_days=30,
+        current_snapshot_id=10,
+        baseline_snapshot_id=11,
+        current_source_record_id=100,
+        baseline_source_record_id=101,
+        comparison_mode="STALE_MODE",
+        unavailable_reason="stale_reason",
+        source_observation_ids_json=[100, 101],
+        config_version="test",
+        config_hash="hash",
+        calculation_version="ceri-1.2.0",
+        evidence_hash="old",
+    )
+    source = CeriRevisionFeature(
+        company_id=1,
+        metric="EPS_DILUTED",
+        period_key="same-key",
+        as_of_session=date(2026, 8, 14),
+        window_days=30,
+        current_snapshot_id=20,
+        baseline_snapshot_id=21,
+        current_source_record_id=200,
+        baseline_source_record_id=201,
+        provider_retrospective_source_record_id=201,
+        comparison_mode="SAME_PROVIDER_RELATIVE",
+        baseline_origin="PROVIDER_RETROSPECTIVE_WINDOW",
+        known_at=datetime(2026, 8, 14, 12, tzinfo=UTC),
+        reference_at=datetime(2026, 7, 15, 12, tzinfo=UTC),
+        pct_change=Decimal("5.0"),
+        unavailable_reason=None,
+        source_observation_ids_json=[200, 201],
+        provider_selection_reason="same_provider_relative",
+        config_version="test",
+        config_hash="hash",
+        calculation_version="ceri-1.2.0",
+        evidence_hash="new",
+    )
+
+    _copy_revision_derived(target, source)
+
+    assert target.pct_change == Decimal("5.0")
+    assert target.current_snapshot_id == 20
+    assert target.baseline_snapshot_id == 21
+    assert target.current_source_record_id == 200
+    assert target.baseline_source_record_id == 201
+    assert target.provider_retrospective_source_record_id == 201
+    assert target.comparison_mode == "SAME_PROVIDER_RELATIVE"
+    assert target.known_at == source.known_at
+    assert target.reference_at == source.reference_at
+    assert target.unavailable_reason is None
+    assert target.source_observation_ids_json == [200, 201]
+    assert target.provider_selection_reason == "same_provider_relative"

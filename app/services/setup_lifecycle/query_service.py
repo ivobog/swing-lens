@@ -132,17 +132,12 @@ class SetupLifecycleQueryService:
                 SetupLifecycleEvent.is_current_version.is_(True)
             )
         lifecycle_statement = _apply_event_filters(lifecycle_statement, query.filters)
-        signal_statement = (
-            select(SignalChangeEvent)
-            .join(
-                SetupSignalSnapshot,
-                SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id,
-            )
+        signal_statement = select(SignalChangeEvent).join(
+            SetupSignalSnapshot,
+            SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id,
         )
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
-            signal_statement = signal_statement.where(
-                SetupSignalSnapshot.is_canonical.is_(True)
-            )
+            signal_statement = signal_statement.where(SetupSignalSnapshot.is_canonical.is_(True))
         signal_statement = _apply_signal_change_filters(signal_statement, query.filters)
 
         cursor_metadata = _decode_change_cursor(query.cursor, query=query)
@@ -875,7 +870,11 @@ def market_change_payload(
         )
     evidence = dict(event.evidence_json or {})
     reason_codes = list(event.reason_codes_json or [])
-    velocities = evidence.get("velocity") or {}
+    technical_velocities = _snapshot_velocity_map(current, "technical_score")
+    setup_velocities = _snapshot_velocity_map(current, "setup_score")
+    trigger_reference = dict(
+        (getattr(current, "debug_json", None) or {}).get("trigger_reference") or {}
+    )
     technical_score = _number_or_none(getattr(current, "dual_score", None))
     technical_score_previous = _number_or_none(getattr(previous, "dual_score", None))
     sector_rank = _snapshot_signal(current, "sector_rank")
@@ -950,11 +949,23 @@ def market_change_payload(
         "technical_score_delta": _difference(technical_score, technical_score_previous),
         "setup_score": _number_or_none(getattr(current, "setup_score", None)),
         "setup_score_previous": _number_or_none(getattr(previous, "setup_score", None)),
-        "score_velocity_1d": _velocity_value(velocities, 1),
-        "score_velocity_3d": _velocity_value(velocities, 3),
-        "score_velocity_5d": _velocity_value(velocities, 5),
-        "score_velocity_10d": _velocity_value(velocities, 10),
+        "score_velocity_1d": _velocity_value(technical_velocities, 1),
+        "score_velocity_3d": _velocity_value(technical_velocities, 3),
+        "score_velocity_5d": _velocity_value(technical_velocities, 5),
+        "score_velocity_10d": _velocity_value(technical_velocities, 10),
+        "technical_score_velocity": technical_velocities,
+        "setup_score_velocity_1d": _velocity_value(setup_velocities, 1),
+        "setup_score_velocity_3d": _velocity_value(setup_velocities, 3),
+        "setup_score_velocity_5d": _velocity_value(setup_velocities, 5),
+        "setup_score_velocity_10d": _velocity_value(setup_velocities, 10),
+        "setup_score_velocity": setup_velocities,
         "trigger_distance_pct": _number_or_none(getattr(current, "distance_to_pivot_pct", None)),
+        "trigger_reference_type": trigger_reference.get("reference_type"),
+        "trigger_reference_price": _number_or_none(trigger_reference.get("reference_price")),
+        "trigger_reference_source": trigger_reference.get("source_path"),
+        "trigger_reference_source_id": trigger_reference.get("source_record_id"),
+        "trigger_reference_session": trigger_reference.get("source_session"),
+        "trigger_distance_missing_reason": trigger_reference.get("missing_reason"),
         "sector_rank": _int_or_none(sector_rank),
         "sector_rank_previous": _int_or_none(sector_rank_previous),
         "sector_rank_delta": _rank_improvement(sector_rank_previous, sector_rank),
@@ -1080,6 +1091,7 @@ _SNAPSHOT_PAYLOAD_COLUMNS = (
     SetupSignalSnapshot.required_feature_coverage,
     SetupSignalSnapshot.freshness_status,
     SetupSignalSnapshot.signals_json,
+    SetupSignalSnapshot.debug_json,
     SetupSignalSnapshot.warning_flags_json,
 )
 
@@ -1308,6 +1320,9 @@ def no_material_change_payload(
     sector_rank = _snapshot_signal(snapshot, "sector_rank")
     previous_rank = _snapshot_signal(previous, "sector_rank")
     blockers = list((getattr(episode, "metadata_json", None) or {}).get("blockers") or ())
+    technical_velocities = _snapshot_velocity_map(snapshot, "technical_score")
+    setup_velocities = _snapshot_velocity_map(snapshot, "setup_score")
+    trigger_reference = dict((snapshot.debug_json or {}).get("trigger_reference") or {})
     return {
         "id": snapshot.id,
         "source_type": "SNAPSHOT_OBSERVATION",
@@ -1343,11 +1358,23 @@ def no_material_change_payload(
         "technical_score_delta": _difference(score, previous_score),
         "setup_score": _number_or_none(snapshot.setup_score),
         "setup_score_previous": _number_or_none(getattr(previous, "setup_score", None)),
-        "score_velocity_1d": None,
-        "score_velocity_3d": None,
-        "score_velocity_5d": None,
-        "score_velocity_10d": None,
+        "score_velocity_1d": _velocity_value(technical_velocities, 1),
+        "score_velocity_3d": _velocity_value(technical_velocities, 3),
+        "score_velocity_5d": _velocity_value(technical_velocities, 5),
+        "score_velocity_10d": _velocity_value(technical_velocities, 10),
+        "technical_score_velocity": technical_velocities,
+        "setup_score_velocity_1d": _velocity_value(setup_velocities, 1),
+        "setup_score_velocity_3d": _velocity_value(setup_velocities, 3),
+        "setup_score_velocity_5d": _velocity_value(setup_velocities, 5),
+        "setup_score_velocity_10d": _velocity_value(setup_velocities, 10),
+        "setup_score_velocity": setup_velocities,
         "trigger_distance_pct": _number_or_none(snapshot.distance_to_pivot_pct),
+        "trigger_reference_type": trigger_reference.get("reference_type"),
+        "trigger_reference_price": _number_or_none(trigger_reference.get("reference_price")),
+        "trigger_reference_source": trigger_reference.get("source_path"),
+        "trigger_reference_source_id": trigger_reference.get("source_record_id"),
+        "trigger_reference_session": trigger_reference.get("source_session"),
+        "trigger_distance_missing_reason": trigger_reference.get("missing_reason"),
         "sector_rank": _int_or_none(sector_rank),
         "sector_rank_previous": _int_or_none(previous_rank),
         "sector_rank_delta": _rank_improvement(previous_rank, sector_rank),
@@ -1426,10 +1453,7 @@ def _validate_query(query: SetupLifecycleListQuery) -> SetupLifecycleListQuery:
     if query.direction not in {"asc", "desc"}:
         raise SetupLifecycleQueryError("INVALID_SORT", "direction must be asc or desc")
     filters = query.filters
-    if (
-        query.view_scope == SetupLifecycleViewScope.HISTORICAL_RUN
-        and filters.run_id is None
-    ):
+    if query.view_scope == SetupLifecycleViewScope.HISTORICAL_RUN and filters.run_id is None:
         raise SetupLifecycleQueryError(
             "INVALID_CONFIGURATION",
             "HISTORICAL_RUN scope requires run_id",
@@ -1817,8 +1841,14 @@ def _apply_snapshot_filters(statement, filters: SetupLifecycleFilters):
         statement = statement.where(SetupSignalSnapshot.data_as_of_date >= filters.date_from)
     if filters.date_to is not None:
         statement = statement.where(SetupSignalSnapshot.data_as_of_date <= filters.date_to)
-    if filters.velocity_min is not None or filters.velocity_max is not None:
-        statement = statement.where(False)
+    if filters.velocity_min is not None:
+        statement = statement.where(
+            _snapshot_velocity(filters.velocity_window) >= filters.velocity_min
+        )
+    if filters.velocity_max is not None:
+        statement = statement.where(
+            _snapshot_velocity(filters.velocity_window) <= filters.velocity_max
+        )
     return statement
 
 
@@ -1828,7 +1858,7 @@ def _sort_no_material_snapshots(statement, query: SetupLifecycleListQuery):
         "confidence": SetupSignalSnapshot.confidence_score,
         "score": SetupSignalSnapshot.dual_score,
         "setup_score": SetupSignalSnapshot.setup_score,
-        "velocity": literal(None),
+        "velocity": _snapshot_velocity(3),
         "state_age": literal(None),
         "trigger_distance": SetupSignalSnapshot.distance_to_pivot_pct,
         "sector_rank": _signal_int("sector_rank"),
@@ -2091,8 +2121,8 @@ def _combined_change_sort_columns(sort: str):
         "score": (SetupSignalSnapshot.dual_score, SetupSignalSnapshot.dual_score),
         "setup_score": (SetupSignalSnapshot.setup_score, SetupSignalSnapshot.setup_score),
         "velocity": (
-            SetupLifecycleEvent.evidence_json["velocity"]["3"]["normalized_delta"].as_float(),
-            SignalChangeEvent.evidence_json["velocity"]["3"]["normalized_delta"].as_float(),
+            _snapshot_velocity(3),
+            _snapshot_velocity(3),
         ),
         "state_age": (lifecycle_episode_age, signal_episode_age),
         "trigger_distance": (
@@ -2132,9 +2162,7 @@ def _sort_events(statement, sort: str, direction: str):
         "confidence": SetupLifecycleEvent.confidence_score,
         "score": SetupSignalSnapshot.dual_score,
         "setup_score": SetupSignalSnapshot.setup_score,
-        "velocity": SetupLifecycleEvent.evidence_json["velocity"]["3"][
-            "normalized_delta"
-        ].as_float(),
+        "velocity": _snapshot_velocity(3),
         "state_age": SetupLifecycleEvent.state_age_before,
         "trigger_distance": SetupSignalSnapshot.distance_to_pivot_pct,
         "sector_rank": _signal_int("sector_rank"),
@@ -2304,11 +2332,17 @@ def _event_float(key: str):
 
 
 def _event_velocity(window: int):
-    return SetupLifecycleEvent.evidence_json["velocity"][str(window)]["normalized_delta"].as_float()
+    return _snapshot_velocity(window)
 
 
 def _change_velocity(window: int):
-    return SignalChangeEvent.evidence_json["velocity"][str(window)]["normalized_delta"].as_float()
+    return _snapshot_velocity(window)
+
+
+def _snapshot_velocity(window: int, signal_key: str = "technical_score"):
+    return SetupSignalSnapshot.signals_json[signal_key]["velocity"][str(window)][
+        "normalized_delta"
+    ].as_float()
 
 
 def _severity_priority(column=None):
@@ -2456,6 +2490,17 @@ def _snapshot_signal(snapshot: SetupSignalSnapshot | None, key: str) -> Any:
 def _velocity_value(velocities: dict[str, Any], window: int) -> float | None:
     row = velocities.get(str(window)) or {}
     return _number_or_none(row.get("normalized_delta"))
+
+
+def _snapshot_velocity_map(
+    snapshot: SetupSignalSnapshot | None,
+    signal_key: str,
+) -> dict[str, Any]:
+    if snapshot is None:
+        return {}
+    signal = (snapshot.signals_json or {}).get(signal_key) or {}
+    velocity = signal.get("velocity") if isinstance(signal, dict) else None
+    return dict(velocity) if isinstance(velocity, dict) else {}
 
 
 def _missing_session_gap(

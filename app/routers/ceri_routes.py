@@ -35,6 +35,7 @@ from app.services.background_job_service import (
 )
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
+from app.services.ceri.change_semantics import ChangeGroup
 from app.services.ceri.export_service import CeriExportService
 from app.services.ceri.feature_flags import ceri_flags, require_flag
 from app.services.ceri.job_handlers import (
@@ -121,6 +122,7 @@ def ceri_dashboard_page(
                 latest.get("items", []),
                 changes.get("items", []),
                 operations,
+                population=latest.get("summary"),
             ),
             "changes": _group_changes(changes.get("items", [])),
             "provider_freshness": operations.get("dataset_freshness", []),
@@ -150,7 +152,7 @@ def ceri_run_page(
     db: DbSession,
     sort: str = "opportunity_score",
     direction: str = "desc",
-    limit: int = 100,
+    limit: int = 50,
     offset: int = 0,
 ) -> HTMLResponse:
     payload, ui_error = _ui_payload_or_empty(
@@ -174,7 +176,12 @@ def ceri_run_page(
             "run_id": run_id,
             "items": payload.get("items", []),
             "page": payload,
-            "summary": _dashboard_summary(payload.get("items", []), changes.get("items", []), {}),
+            "summary": _dashboard_summary(
+                payload.get("items", []),
+                changes.get("items", []),
+                {},
+                population=payload.get("summary"),
+            ),
             "changes": _group_changes(changes.get("items", [])),
             "provider_freshness": [],
             "filters": {
@@ -212,6 +219,17 @@ def ceri_changes_page(
     db: DbSession,
     ticker: str | None = None,
     status: str | None = None,
+    from_run_id: int | None = None,
+    to_run_id: int | None = None,
+    change_group: str | None = None,
+    change_type: str | None = None,
+    importance: str | None = None,
+    signal_class: str | None = None,
+    min_delta: float | None = None,
+    catalyst_category: str | None = None,
+    history_scope: str | None = None,
+    include_non_comparable: bool = False,
+    include_ineligible: bool = False,
     sort: str = "created_at",
     direction: str = "desc",
     limit: int = 50,
@@ -220,17 +238,41 @@ def ceri_changes_page(
     changes, changes_error = _ui_payload_or_empty(
         lambda: CeriQueryService().changes(
             db,
-            _list_query(ticker=ticker, sort=sort, direction=direction, limit=limit, offset=offset),
+            _list_query(
+                ticker=ticker,
+                from_run_id=from_run_id,
+                to_run_id=to_run_id,
+                change_group=change_group,
+                change_type=change_type,
+                importance=importance,
+                signal_class=signal_class,
+                min_delta=min_delta,
+                catalyst_category=catalyst_category,
+                history_scope=history_scope,
+                include_non_comparable=include_non_comparable,
+                include_ineligible=include_ineligible,
+                sort=sort,
+                direction=direction,
+                limit=limit,
+                offset=offset,
+            ),
         )
     )
     alerts, alerts_error = _ui_payload_or_empty(
         lambda: CeriQueryService().alerts(
             db,
-            _list_query(ticker=ticker, sort="created_at", direction="desc", limit=limit),
+            _list_query(
+                ticker=ticker,
+                alert_status=status,
+                importance=importance,
+                signal_class=signal_class,
+                history_scope=history_scope,
+                sort="created_at",
+                direction="desc",
+                limit=limit,
+            ),
         )
     )
-    if status:
-        alerts["items"] = [item for item in alerts.get("items", []) if item["status"] == status]
     return templates.TemplateResponse(
         request,
         "ceri_changes.html",
@@ -239,9 +281,21 @@ def ceri_changes_page(
             "change_groups": _group_changes(changes.get("items", [])),
             "alerts": alerts.get("items", []),
             "page": changes,
+            "comparison_context": changes.get("comparison_context", {}),
             "filters": {
                 "ticker": ticker or "",
                 "status": status or "",
+                "from_run_id": from_run_id or "",
+                "to_run_id": to_run_id or "",
+                "change_group": change_group or "",
+                "change_type": change_type or "",
+                "importance": importance or "",
+                "signal_class": signal_class or "",
+                "min_delta": min_delta if min_delta is not None else "",
+                "catalyst_category": catalyst_category or "",
+                "history_scope": history_scope or "",
+                "include_non_comparable": include_non_comparable,
+                "include_ineligible": include_ineligible,
                 "sort": sort,
                 "direction": direction,
                 "limit": limit,
@@ -338,7 +392,7 @@ def ceri_run(
     db: DbSession,
     sort: str = "opportunity_score",
     direction: str = "desc",
-    limit: int = 100,
+    limit: int = 50,
     offset: int = 0,
 ) -> dict[str, Any]:
     return _query_or_http(
@@ -387,6 +441,17 @@ def ceri_changes(
     db: DbSession,
     ticker: str | None = None,
     changed_since: datetime | None = None,
+    from_run_id: int | None = None,
+    to_run_id: int | None = None,
+    change_group: str | None = None,
+    change_type: str | None = None,
+    importance: str | None = None,
+    signal_class: str | None = None,
+    min_delta: float | None = None,
+    catalyst_category: str | None = None,
+    history_scope: str | None = None,
+    include_non_comparable: bool = False,
+    include_ineligible: bool = False,
     sort: str = "created_at",
     direction: str = "desc",
     limit: int = 50,
@@ -398,6 +463,17 @@ def ceri_changes(
             _list_query(
                 ticker=ticker,
                 changed_since=changed_since,
+                from_run_id=from_run_id,
+                to_run_id=to_run_id,
+                change_group=change_group,
+                change_type=change_type,
+                importance=importance,
+                signal_class=signal_class,
+                min_delta=min_delta,
+                catalyst_category=catalyst_category,
+                history_scope=history_scope,
+                include_non_comparable=include_non_comparable,
+                include_ineligible=include_ineligible,
                 sort=sort,
                 direction=direction,
                 limit=limit,
@@ -500,17 +576,26 @@ def ceri_alerts(
     db: DbSession,
     ticker: str | None = None,
     status: Annotated[str | None, Query(alias="status")] = None,
+    importance: str | None = None,
+    signal_class: str | None = None,
+    history_scope: str | None = None,
     sort: str = "created_at",
     direction: str = "desc",
     limit: int = 50,
     offset: int = 0,
 ) -> dict[str, Any]:
-    payload = _list_query(ticker=ticker, sort=sort, direction=direction, limit=limit, offset=offset)
-    result = _query_or_http(lambda: CeriQueryService().alerts(db, payload))
-    if status:
-        items = [item for item in result["items"] if item["status"] == status]
-        result = {**result, "items": items, "total": len(items)}
-    return result
+    payload = _list_query(
+        ticker=ticker,
+        alert_status=status,
+        importance=importance,
+        signal_class=signal_class,
+        history_scope=history_scope,
+        sort=sort,
+        direction=direction,
+        limit=limit,
+        offset=offset,
+    )
+    return _query_or_http(lambda: CeriQueryService().alerts(db, payload))
 
 
 @router.get("/api/ceri/operations/quarantine", dependencies=[Depends(_require_ceri_ui)])
@@ -970,15 +1055,26 @@ def _dashboard_summary(
     items: list[dict[str, Any]],
     changes: list[dict[str, Any]],
     operations: dict[str, Any],
+    *,
+    population: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
-        "candidate_count": len(items),
-        "high_opportunity_low_risk": sum(
+    population = population or {}
+    high_opportunity_low_risk = population.get("high_opportunity_low_risk")
+    if high_opportunity_low_risk is None:
+        high_opportunity_low_risk = sum(
             1
             for item in items
-            if (item.get("opportunity_score") or 0) >= 7
-            and (item.get("event_risk_score") or 10) <= 3
-        ),
+            if item.get("opportunity_score") is not None
+            and item["opportunity_score"] >= 7
+            and item.get("posture") == "Positive"
+            and item.get("event_risk_score") is not None
+            and item["event_risk_score"] <= 3
+            and (item.get("event_risk") or {}).get("evidence_state") == "SUFFICIENT"
+        )
+    return {
+        "candidate_count": population.get("population_count", len(items)),
+        "population_count": population.get("population_count", len(items)),
+        "high_opportunity_low_risk": high_opportunity_low_risk,
         "upward_revision_leaders": sum(
             1 for change in changes if change.get("change_type") == "REVISION_UP"
         ),
@@ -996,33 +1092,13 @@ def _dashboard_summary(
 
 
 def _group_changes(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups = [
-        ("Upward revisions", {"REVISION_UP", "REVISION_ACCELERATED"}),
-        ("Downward revisions", {"REVISION_DOWN", "REVISION_DECELERATED"}),
-        ("Guidance changes", {"GUIDANCE_RAISED", "GUIDANCE_LOWERED", "GUIDANCE_WITHDRAWN"}),
-        ("New or updated catalysts", {"NEW_CATALYST", "CATALYST_UPDATED", "NEW_BINARY_EVENT"}),
-        ("Opportunity changes", {"OPPORTUNITY_UPGRADED", "OPPORTUNITY_DOWNGRADED"}),
-        ("Risk changes", {"RISK_ESCALATED", "RISK_DEESCALATED"}),
-        ("Resolved events", {"CATALYST_RESOLVED", "CONFLICT_RESOLVED", "DATA_REFRESHED"}),
+    return [
+        {
+            "label": group.value,
+            "items": [change for change in changes if change.get("group") == group.value],
+        }
+        for group in ChangeGroup
     ]
-    assigned_ids: set[int] = set()
-    payload = []
-    for label, change_types in groups:
-        rows = [
-            change
-            for change in changes
-            if change.get("change_type") in change_types and change.get("id") not in assigned_ids
-        ]
-        assigned_ids.update(change.get("id") for change in rows if change.get("id") is not None)
-        payload.append({"label": label, "items": rows})
-    other = [
-        change
-        for change in changes
-        if change.get("id") not in assigned_ids and change.get("id") is not None
-    ]
-    if other:
-        payload.append({"label": "Other changes", "items": other})
-    return payload
 
 
 def _provider_health_payload() -> list[dict[str, Any]]:

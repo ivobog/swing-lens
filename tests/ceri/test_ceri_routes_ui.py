@@ -42,12 +42,50 @@ def test_ceri_dashboard_renders_full_data_and_filters(
     assert "CERI Dashboard" in response.text
     assert "MSFT" in response.text
     assert "Low" in response.text
-    assert "Warnings present" in response.text
+    assert "1 warning" in response.text
     assert "Provider Freshness" in response.text
-    assert "Evidence 7 considered / 3 selected" in response.text
+    assert "Evidence 7 considered / 1 direct component evidence selected" in response.text
     assert fake_service.latest_queries[-1].filters.opportunity_min == 7
     assert fake_service.latest_queries[-1].filters.risk_max == 3
     assert fake_service.latest_queries[-1].filters.has_warnings is True
+
+
+def test_run_dashboard_renders_pagination_rated_coverage_and_safe_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    app = _app(ceri_ui_enabled=True)
+
+    response = TestClient(app).get("/runs/104/ceri?limit=50&offset=50")
+
+    assert response.status_code == 200
+    assert "51-100 of 177" in response.text
+    assert "Previous" in response.text
+    assert "Next" in response.text
+    assert "Coverage 85%" in response.text
+    assert "Risk evidence: Sufficient" in response.text
+    assert "Source: Fresh" in response.text
+    assert "Normalized: 36" in response.text
+    assert "Eligible: 8" in response.text
+    assert "Selected: 3" in response.text
+    assert "+5.00%" in response.text
+    assert "+0.71" in response.text
+    assert "Breadth is (upward revisions - downward revisions)" in response.text
+
+
+def test_summary_uses_full_population_and_explicit_zero_risk_predicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = FakeCeriQueryService()
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: service)
+    app = _app(ceri_ui_enabled=True)
+
+    response = TestClient(app).get("/runs/104/ceri?limit=50")
+
+    assert response.status_code == 200
+    assert "31</strong>" in response.text
+    assert "177 candidates" in response.text
+    assert "Summary population 177" in response.text
 
 
 def test_ceri_dashboard_renders_empty_state(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -85,6 +123,7 @@ def test_ceri_ticker_detail_renders_provenance_and_warnings(
     assert "Eligible: 8" in response.text
     assert "Selected: 3" in response.text
     assert "Blocker: none" in response.text
+    assert "Price Response" in response.text
 
 
 def test_ceri_changes_render_groups_and_alert_actions(
@@ -97,9 +136,40 @@ def test_ceri_changes_render_groups_and_alert_actions(
 
     assert response.status_code == 200
     assert "Upward revisions" in response.text
-    assert "Risk changes" in response.text
+    assert "Risk" in response.text
+    assert "Revision up" in response.text
+    assert "EPS CQ 30d +1.20% -&gt; +4.60%" in response.text
+    assert "Importance" in response.text
+    assert "Confidence" in response.text
+    assert "Technical details" in response.text
+    assert "From 1 to 2" not in response.text
+    assert "N/A -&gt; N/A" not in response.text
     assert 'data-ceri-alert-action="/api/ceri/alerts/9/acknowledge"' in response.text
     assert "Alert actions update only alert state" in response.text
+
+
+def test_ceri_changes_template_tolerates_missing_comparison_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    original_response = ceri_routes.templates.TemplateResponse
+
+    def response_without_comparison_context(request, name, context):
+        context = dict(context)
+        context.pop("comparison_context", None)
+        return original_response(request, name, context)
+
+    monkeypatch.setattr(
+        ceri_routes.templates,
+        "TemplateResponse",
+        response_without_comparison_context,
+    )
+
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/ceri/changes")
+
+    assert response.status_code == 200
+    assert "No comparable run pair selected" in response.text
+    assert "0 excluded as non-comparable" in response.text
 
 
 def test_ceri_operations_render_health_checkpoints_and_preview_only_purge(
@@ -258,9 +328,25 @@ class FakeCeriQueryService:
     def run(self, _db, _run_id, query):
         return {
             "items": [_snapshot()],
-            "total": 1,
+            "total": 177,
+            "total_items": 177,
             "limit": query.limit,
             "offset": query.offset,
+            "page": (query.offset // query.limit) + 1,
+            "page_size": query.limit,
+            "total_pages": 4,
+            "has_previous": query.offset > 0,
+            "has_next": query.offset + query.limit < 177,
+            "previous_offset": max(0, query.offset - query.limit) if query.offset else None,
+            "next_offset": query.offset + query.limit
+            if query.offset + query.limit < 177
+            else None,
+            "start_item": query.offset + 1,
+            "end_item": min(177, query.offset + query.limit),
+            "summary": {
+                "population_count": 177,
+                "high_opportunity_low_risk": 31,
+            },
         }
 
     def ticker(self, _db, ticker):
@@ -321,7 +407,15 @@ class FakeCeriQueryService:
                     "id": 5,
                     "ticker": "MSFT",
                     "change_type": "REVISION_UP",
+                    "group": "Upward revisions",
+                    "title": "Revision up",
+                    "summary": "EPS CQ 30d +1.20% -> +4.60%",
+                    "importance": "NOTABLE",
+                    "signal_class": "POSITIVE",
                     "severity": "NOTABLE",
+                    "previous": {"confidence": "Normal", "run_id": 101},
+                    "current": {"confidence": "Normal", "run_id": 104},
+                    "technical": {"from_snapshot_id": 1, "to_snapshot_id": 2},
                     "created_at": "2026-08-02T12:00:00+00:00",
                     "from_snapshot_id": 1,
                     "to_snapshot_id": 2,
@@ -331,7 +425,15 @@ class FakeCeriQueryService:
                     "id": 6,
                     "ticker": "MSFT",
                     "change_type": "RISK_ESCALATED",
+                    "group": "Risk",
+                    "title": "Risk escalated",
+                    "summary": "Event Risk 2.00 -> 5.00",
+                    "importance": "IMPORTANT",
+                    "signal_class": "RISK",
                     "severity": "RISK",
+                    "previous": {"event_risk": 2.0, "confidence": "Normal", "run_id": 101},
+                    "current": {"event_risk": 5.0, "confidence": "Normal", "run_id": 104},
+                    "technical": {"from_snapshot_id": 2, "to_snapshot_id": 3},
                     "created_at": "2026-08-02T12:05:00+00:00",
                     "from_snapshot_id": 2,
                     "to_snapshot_id": 3,
@@ -341,6 +443,10 @@ class FakeCeriQueryService:
             "total": 2,
             "limit": query.limit,
             "offset": query.offset,
+            "comparison_context": {
+                "label": "Comparing Run 101 -> Run 104",
+                "excluded_non_comparable": 3,
+            },
         }
 
     def alerts(self, _db, _query):
@@ -349,8 +455,16 @@ class FakeCeriQueryService:
                 {
                     "id": 9,
                     "ticker": "MSFT",
+                    "alert_type": "RISK_ESCALATED",
+                    "importance": "IMPORTANT",
+                    "signal_class": "RISK",
                     "severity": "RISK",
                     "status": "UNREAD",
+                    "change_summary": "Event Risk 2.00 -> 5.00",
+                    "risk": 5.0,
+                    "confidence": "Normal",
+                    "actionable": True,
+                    "technical": {"source_change_event_id": 6},
                     "evidence": {"change_type": "RISK_ESCALATED"},
                 }
             ],
@@ -450,9 +564,18 @@ def _snapshot():
                 {
                     "name": "revision_magnitude",
                     "value": 5.0,
+                    "weight": 0.8,
                     "available": True,
                     "unavailable_reason": None,
-                }
+                },
+                {
+                    "name": "price_response",
+                    "value": 7.5,
+                    "weight": 0.05,
+                    "available": True,
+                    "unavailable_reason": None,
+                    "evidence_ids": [7001],
+                },
             ],
         },
         confidence_ledger_json={"score": 6.2, "gates": [], "caps": []},
@@ -477,6 +600,22 @@ def _snapshot():
         hash_schema_version="ceri-canonical-json-v2",
     )
     payload = _score_snapshot_payload(snapshot)
+    payload["event_risk"]["evidence_state"] = "SUFFICIENT"
+    payload["event_risk"]["low_risk_eligible"] = True
+    payload["warning_summary"] = {
+        "count": 1,
+        "severity": "INFO",
+        "dominant_warning": "estimate_data_stale",
+    }
+    payload["revision_evidence"] = {
+        "eps_CURRENT_QUARTER_30d": {
+            "value": 5.0,
+            "available": True,
+            "breadth": 0.714286,
+            "display_value": "+5.00%",
+            "display_breadth": "+0.71",
+        }
+    }
     payload["evidence_diagnostics"] = {
         "estimates": {
             "source_status": "FRESH",

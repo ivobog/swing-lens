@@ -13,6 +13,7 @@ from app.services.setup_lifecycle.family_adapters import (
     relative_strength_agreement,
     signal_bool,
     signal_number,
+    signal_optional_number,
     trend_agreement,
 )
 
@@ -56,12 +57,14 @@ class ContinuationAdapter:
         tight_sessions = consecutive_family_condition_sessions(
             snapshot,
             history,
-            lambda item: signal_number(
-                item,
-                "range_percentile_252",
-                default=100.0,
-            )
-            <= tight_max,
+            lambda item: (
+                signal_number(
+                    item,
+                    "range_percentile_252",
+                    default=100.0,
+                )
+                <= tight_max
+            ),
         )
         trackable = setup_score >= policy.tracking_score_min and classification_contains(
             snapshot,
@@ -77,11 +80,7 @@ class ContinuationAdapter:
         triggered = ready and close_cross
         follow_through = consecutive_true_sessions(snapshot, history, "close_trigger_cross")
         confirmed = triggered and follow_through >= 2
-        extended = (
-            triggered
-            and extended_atr is not None
-            and extended_atr >= extended_limit
-        )
+        extended = triggered and extended_atr is not None and extended_atr >= extended_limit
 
         reasons: list[str] = []
         if failed:
@@ -130,6 +129,16 @@ class ContinuationAdapter:
                 "range_percentile_252": tight_range,
                 "tight_range_sessions": tight_sessions,
                 "close_trigger_cross": close_cross,
+                "trigger_price": signal_optional_number(snapshot, "trigger_price"),
+                "trigger_distance_pct": signal_optional_number(
+                    snapshot,
+                    "distance_to_pivot_pct",
+                ),
+                "trigger_distance_missing_reason": (
+                    None
+                    if signal_optional_number(snapshot, "distance_to_pivot_pct") is not None
+                    else "TRIGGER_UNAVAILABLE"
+                ),
                 "follow_through_sessions": follow_through,
                 "extended_atr_from_trigger": extended_atr,
                 "state_age_sessions": state_age_sessions,

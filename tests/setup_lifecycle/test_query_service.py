@@ -11,6 +11,7 @@ from app.models.tables import (
     SetupLifecycleEvent,
     SetupSignalSnapshot,
     SignalAlertEvent,
+    SignalChangeEvent,
 )
 from app.services.setup_lifecycle.query_service import (
     SetupLifecycleFilters,
@@ -19,10 +20,12 @@ from app.services.setup_lifecycle.query_service import (
     SetupLifecycleQueryService,
     SetupLifecycleViewScope,
     _encode_timeline_cursor,
+    _MarketChangePayloadContext,
     _timeline_cursor_key,
     alert_payload,
     episode_payload,
     lifecycle_event_payload,
+    market_change_payload,
     snapshot_payload,
 )
 
@@ -235,3 +238,137 @@ def test_timeline_cursor_is_opaque_deterministic_and_validated() -> None:
     assert _timeline_cursor_key(cursor) == (date(2026, 8, 1), 2, 99)
     with pytest.raises(SetupLifecycleQueryError, match="timeline cursor"):
         _timeline_cursor_key("not-a-valid-cursor")
+
+
+def test_market_change_projection_uses_snapshot_technical_velocity_for_every_row() -> None:
+    current = SetupSignalSnapshot(
+        id=30,
+        run_id=7,
+        ticker="MSFT",
+        timeframe="1d",
+        data_as_of_date=date(2026, 8, 13),
+        calculated_at=datetime(2026, 8, 13, 21, tzinfo=UTC),
+        origin_type="LIVE_RUN",
+        engine_version="slse-test",
+        config_version="test-v2",
+        config_hash="config-hash",
+        source_data_hash="source-current",
+        schema_version="v2",
+        is_canonical=True,
+        primary_setup_family="BREAKOUT",
+        data_quality_label="HIGH",
+        dual_score=Decimal("8.1"),
+        setup_score=Decimal("7.8"),
+        close_price=Decimal("98"),
+        trigger_price=Decimal("100"),
+        distance_to_pivot_pct=Decimal("2.0"),
+        signals_json={
+            "technical_score": {
+                "value": "8.1",
+                "velocity": {
+                    "1": {"target_date": "2026-08-12", "normalized_delta": "0.6"},
+                    "3": {"target_date": "2026-08-10", "normalized_delta": "1.1"},
+                },
+            },
+            "setup_score": {
+                "value": "7.8",
+                "velocity": {
+                    "1": {"target_date": "2026-08-12", "normalized_delta": "0.2"},
+                    "3": {"target_date": "2026-08-10", "normalized_delta": "0.4"},
+                },
+            },
+        },
+        debug_json={
+            "trigger_reference": {
+                "reference_type": "BREAKOUT_PIVOT",
+                "reference_price": "100",
+                "source_path": "technical_scores.v4_debug_json.box.box_high",
+                "source_record_id": 301,
+            }
+        },
+        warning_flags_json=[],
+    )
+    previous = SetupSignalSnapshot(
+        id=29,
+        run_id=6,
+        ticker="MSFT",
+        timeframe="1d",
+        data_as_of_date=date(2026, 8, 12),
+        calculated_at=datetime(2026, 8, 12, 21, tzinfo=UTC),
+        origin_type="LIVE_RUN",
+        engine_version="slse-test",
+        config_version="test-v2",
+        config_hash="config-hash",
+        source_data_hash="source-previous",
+        schema_version="v2",
+        is_canonical=True,
+        data_quality_label="HIGH",
+        dual_score=Decimal("7.5"),
+        setup_score=Decimal("7.6"),
+        signals_json={},
+        warning_flags_json=[],
+    )
+    lifecycle = SetupLifecycleEvent(
+        id=41,
+        snapshot_id=current.id,
+        ticker="MSFT",
+        timeframe="1d",
+        setup_family="BREAKOUT",
+        effective_date=current.data_as_of_date,
+        event_type="STATE_TRANSITION",
+        from_state="TIGHTENING",
+        to_state="READY",
+        severity="ACTIONABLE",
+        source_event_key="lifecycle",
+        engine_version="slse-test",
+        config_version="test-v2",
+        config_hash="config-hash",
+        reason_codes_json=["PIVOT_DISTANCE_READY"],
+        evidence_json={},
+    )
+    signal = SignalChangeEvent(
+        id=42,
+        previous_snapshot_id=previous.id,
+        current_snapshot_id=current.id,
+        ticker="MSFT",
+        timeframe="1d",
+        effective_date=current.data_as_of_date,
+        category="SCORE",
+        signal_key="setup_score",
+        value_type="float",
+        old_value_json={"value": 7.6},
+        new_value_json={"value": 7.8},
+        direction="higher_is_better",
+        severity="NOTABLE",
+        signal_definition_version="test-v2",
+        source_event_key="signal",
+        config_hash="config-hash",
+        reason_codes_json=["VALUE_CHANGED"],
+        evidence_json={"velocity": {"3": {"normalized_delta": "99"}}},
+    )
+    context = _MarketChangePayloadContext(
+        current_snapshots={current.id: current},
+        explicit_previous_snapshots={previous.id: previous},
+        previous_by_current_snapshot={current.id: previous},
+        lifecycle_by_snapshot={current.id: lifecycle},
+        episodes={},
+    )
+
+    lifecycle_payload = market_change_payload(
+        object(),
+        lifecycle_event=lifecycle,
+        context=context,  # type: ignore[arg-type]
+    )
+    signal_payload = market_change_payload(
+        object(),
+        signal_change_event=signal,
+        context=context,  # type: ignore[arg-type]
+    )
+
+    for payload in (lifecycle_payload, signal_payload):
+        assert payload["score_velocity_1d"] == 0.6
+        assert payload["score_velocity_3d"] == 1.1
+        assert payload["setup_score_velocity_3d"] == 0.4
+        assert payload["trigger_distance_pct"] == 2.0
+        assert payload["trigger_reference_type"] == "BREAKOUT_PIVOT"
+        assert payload["trigger_reference_price"] == 100.0

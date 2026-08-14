@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriScoreSnapshot
+from app.services.ceri.change_semantics import EVIDENCE_CONTRACT_VERSION
 from app.services.ceri.confidence_service import ConfidenceResult
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.dtos import ScoreComponent
@@ -163,6 +164,8 @@ class CeriSnapshotService:
             config_version=self.config.engine.config_version,
             config_hash=self.config.config_hash,
             calculation_version=self.config.engine.calculation_version,
+            evidence_contract_version=EVIDENCE_CONTRACT_VERSION,
+            comparison_state="NO_PRIOR_COMPARABLE_SNAPSHOT",
             evidence_hash=score_evidence_hash(payload),
             hash_schema_version="ceri-canonical-json-v2",
         )
@@ -315,9 +318,7 @@ def _top_contributors(
 ) -> list[dict[str, Any]]:
     rows = []
     for component in components:
-        contribution = (
-            component.contribution if component.contribution is not None else 0.0
-        )
+        contribution = component.contribution if component.contribution is not None else 0.0
         if positive and contribution <= 0:
             continue
         if not positive and contribution >= 0:
