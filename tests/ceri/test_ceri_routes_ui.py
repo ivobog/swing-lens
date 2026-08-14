@@ -80,6 +80,11 @@ def test_ceri_ticker_detail_renders_provenance_and_warnings(
     assert "No guidance" not in response.text
     assert "No event" not in response.text
     assert "Earnings Risk</span><strong>N/A" in response.text
+    assert "Source: Fresh" in response.text
+    assert "Normalized: 36" in response.text
+    assert "Eligible: 8" in response.text
+    assert "Selected: 3" in response.text
+    assert "Blocker: none" in response.text
 
 
 def test_ceri_changes_render_groups_and_alert_actions(
@@ -471,4 +476,15 @@ def _snapshot():
         evidence_hash="evidence-MSFT",
         hash_schema_version="ceri-canonical-json-v2",
     )
-    return _score_snapshot_payload(snapshot)
+    payload = _score_snapshot_payload(snapshot)
+    payload["evidence_diagnostics"] = {
+        "estimates": {
+            "source_status": "FRESH",
+            "source_age_days": 2,
+            "normalized_count": 36,
+            "eligible_count": 8,
+            "selected_count": 3,
+            "dominant_blocker": None,
+        }
+    }
+    return payload

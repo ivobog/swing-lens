@@ -1,0 +1,14 @@
+{
+  "authorization_blockers": [
+    "Apply migration 0043 to the target deployment.",
+    "Run a targeted post-deploy capture proving real reported earnings and accepted-event price windows before the broad cohort."
+  ],
+  "broad_200_ticker_recertification_authorized": false,
+  "certified_as_of": "2026-08-14",
+  "cohort_size": 10,
+  "confidence_hard_gate_unchanged": true,
+  "failures": [],
+  "minimum_opportunity_coverage_pct": 60.0,
+  "missing_evidence_zero_filled": false,
+  "status": "PASS"
+}

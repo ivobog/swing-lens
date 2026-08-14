@@ -189,6 +189,17 @@ class CeriRevisionFeatureService:
         unavailable_reason = selection.unavailable_reason
         comparison_mode = selection.comparison_mode
 
+        if current is not None:
+            # Revision counts are dimensionless current-response evidence. They
+            # do not depend on a monetary baseline or currency conversion.
+            net_breadth = _net_breadth(current.upward_count, current.downward_count)
+            if current.upward_count is None or current.downward_count is None:
+                warnings.append("breadth_counts_unavailable")
+            if current.analyst_count is None:
+                warnings.append("analyst_sample_unavailable")
+            elif current.analyst_count < self.config.revision.minimum_analyst_count:
+                warnings.append("analyst_sample_sparse")
+
         if current is not None and baseline is not None:
             if current.consensus is None or baseline.consensus is None:
                 unavailable_reason = "consensus_unavailable"
@@ -205,7 +216,6 @@ class CeriRevisionFeatureService:
                 dispersion, dispersion_warning = self._dispersion(current)
                 if dispersion_warning:
                     warnings.append(dispersion_warning)
-                net_breadth = _net_breadth(current.upward_count, current.downward_count)
         elif unavailable_reason:
             warnings.append(unavailable_reason)
 

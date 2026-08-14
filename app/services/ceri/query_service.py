@@ -21,6 +21,7 @@ from app.models.ceri_tables import (
     CeriEstimateSnapshot,
     CeriGuidanceEvent,
     CeriIngestionRun,
+    CeriPriceResponseFeature,
     CeriProcessingRun,
     CeriProviderRequestTelemetry,
     CeriPurgeAudit,
@@ -866,6 +867,7 @@ def _score_snapshot_payload(
         gates=confidence_ledger.get("gates") or [],
         caps=confidence_ledger.get("caps") or [],
     )
+    freshness = _snapshot_freshness(db, snapshot) if db is not None else {}
     return CeriDashboardRowDto(
         id=snapshot.id,
         run_id=snapshot.run_id,
@@ -906,7 +908,12 @@ def _score_snapshot_payload(
             if db is not None
             else {"status": "UNAVAILABLE", "reason": "DTO_CONTEXT_UNAVAILABLE"}
         ),
-        freshness=_snapshot_freshness(db, snapshot) if db is not None else {},
+        freshness=freshness,
+        evidence_diagnostics=(
+            _evidence_diagnostics(db, snapshot, freshness, opportunity_ledger)
+            if db is not None
+            else {}
+        ),
         reasons=snapshot.reasons_json,
         warnings=snapshot.warnings_json,
         config_version=snapshot.config_version,
@@ -1241,6 +1248,181 @@ def _snapshot_freshness(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, A
             ),
         }
     return result
+
+
+def _evidence_diagnostics(
+    db: Session,
+    snapshot: CeriScoreSnapshot,
+    freshness: dict[str, Any],
+    opportunity_ledger: dict[str, Any],
+) -> dict[str, Any]:
+    source_ids = set((snapshot.component_json or {}).get("source_ids") or [])
+    if _uses_fixture_collections(db):
+        sources = [row for row in _load(db, CeriSourceRecord) if row.id in source_ids]
+    elif source_ids:
+        sources = list(
+            db.scalars(
+                select(CeriSourceRecord).where(CeriSourceRecord.id.in_(source_ids))
+            ).all()
+        )
+    else:
+        sources = []
+    estimates = [
+        row
+        for row in _rows_for_company(db, CeriEstimateSnapshot, snapshot.company_id)
+        if row.source_record_id in source_ids
+    ]
+    earnings = [
+        row
+        for row in _rows_for_company(db, CeriEarningsActual, snapshot.company_id)
+        if row.source_record_id in source_ids
+    ]
+    guidance = [
+        row
+        for row in _rows_for_company(db, CeriGuidanceEvent, snapshot.company_id)
+        if row.source_record_id in source_ids
+    ]
+    catalyst_events = _rows_for_company(db, CeriCatalystEvent, snapshot.company_id)
+    catalyst_event_ids = {row.id for row in catalyst_events}
+    if _uses_fixture_collections(db):
+        catalyst_revisions = [
+            row
+            for row in _load(db, CeriCatalystEventRevision)
+            if row.catalyst_event_id in catalyst_event_ids
+            and row.source_record_id in source_ids
+        ]
+    elif catalyst_event_ids and source_ids:
+        catalyst_revisions = list(
+            db.scalars(
+                select(CeriCatalystEventRevision).where(
+                    CeriCatalystEventRevision.catalyst_event_id.in_(catalyst_event_ids),
+                    CeriCatalystEventRevision.source_record_id.in_(source_ids),
+                )
+            ).all()
+        )
+    else:
+        catalyst_revisions = []
+    revisions = [
+        row
+        for row in _rows_for_company(db, CeriRevisionFeature, snapshot.company_id)
+        if row.as_of_session == snapshot.as_of_session
+        and row.calculation_version == snapshot.calculation_version
+    ]
+    price_rows = [
+        row
+        for row in _rows_for_company(db, CeriPriceResponseFeature, snapshot.company_id)
+    ]
+    components = opportunity_ledger.get("components") or []
+
+    def component_ids(*names: str) -> set[int]:
+        return {
+            int(evidence_id)
+            for component in components
+            if component.get("name") in names and component.get("available")
+            for evidence_id in component.get("evidence_ids") or []
+        }
+
+    revision_selected = component_ids(
+        "revision_magnitude", "revision_breadth", "revision_acceleration"
+    )
+    normalized = {
+        "estimates": len(estimates),
+        "earnings": len(earnings),
+        "guidance": len(guidance),
+        "catalysts": len(catalyst_revisions),
+        "price_response": len(price_rows),
+    }
+    eligible = {
+        "estimates": sum(
+            1
+            for row in revisions
+            if any(
+                value is not None
+                for value in (row.pct_change, row.net_breadth, row.acceleration)
+            )
+        ),
+        "earnings": sum(
+            1
+            for row in earnings
+            if row.event_kind in (None, "REPORTED") and row.surprise_pct is not None
+        ),
+        "guidance": sum(1 for row in guidance if row.accepted_for_scoring is True),
+        "catalysts": sum(
+            1
+            for row in catalyst_revisions
+            if row.issuer_relevance is True and row.review_state != "REJECTED"
+        ),
+        "price_response": sum(
+            1
+            for row in price_rows
+            if (row.metrics_json or {}).get("quality") is not None
+        ),
+    }
+    selected = {
+        "estimates": len(revision_selected),
+        "earnings": 1
+        if any(
+            row.get("name") == "surprise_trend" and row.get("available")
+            for row in components
+        )
+        else 0,
+        "guidance": len(component_ids("guidance")),
+        "catalysts": len(component_ids("catalysts")),
+        "price_response": len(component_ids("price_response")),
+    }
+
+    estimate_reasons = [row.unavailable_reason for row in revisions if row.unavailable_reason]
+    price_reasons = [
+        reason
+        for row in price_rows
+        for reason in (row.reasons_json or [])
+        if reason in {
+            "NO_ACCEPTED_EVENT",
+            "PRICE_DATA_MISSING",
+            "EVENT_TIMESTAMP_UNRESOLVED",
+            "WINDOW_NOT_ELAPSED",
+            "PIT_UNSAFE",
+        }
+    ]
+    blockers = {
+        "estimates": _dominant_reason(estimate_reasons),
+        "earnings": (
+            None
+            if eligible["earnings"]
+            else "HISTORICAL_REPORTED_EARNINGS_MISSING"
+        ),
+        "guidance": None if eligible["guidance"] else "NO_ACCEPTED_CURRENT_GUIDANCE",
+        "catalysts": None if eligible["catalysts"] else "NO_ACCEPTED_CATALYST",
+        "price_response": _dominant_reason(price_reasons) or (
+            None if eligible["price_response"] else "NO_ACCEPTED_EVENT"
+        ),
+    }
+    result: dict[str, Any] = {}
+    for dataset in normalized:
+        state = freshness.get(dataset) or {}
+        raw_status = state.get("status", "UNAVAILABLE")
+        source_status = (
+            "FRESH"
+            if raw_status == "AVAILABLE"
+            else ("STALE" if raw_status == "STALE" else "ABSENT")
+        )
+        result[dataset] = {
+            "source_present": any(row.dataset == dataset for row in sources),
+            "source_status": source_status,
+            "source_age_days": state.get("age_days"),
+            "normalized_count": normalized[dataset],
+            "eligible_count": eligible[dataset],
+            "selected_count": selected[dataset],
+            "dominant_blocker": blockers[dataset],
+        }
+    return result
+
+
+def _dominant_reason(reasons: list[str]) -> str | None:
+    if not reasons:
+        return None
+    counts = Counter(reasons)
+    return min(counts, key=lambda reason: (-counts[reason], reasons.index(reason)))
 
 
 def _change_payload(change: CeriChangeEvent, *, ticker: str | None) -> dict[str, Any]:

@@ -37,16 +37,12 @@ class EodhdCeriProvider:
     ) -> None:
         settings = get_settings()
         key = api_key if api_key is not None else settings.eodhd_api_key
-        self.terms_version = str(
-            config.pop("terms_version", settings.eodhd_terms_version)
-        )
+        self.terms_version = str(config.pop("terms_version", settings.eodhd_terms_version))
         self._clock = clock or (lambda: datetime.now(UTC))
         self.client = client or EodhdHttpClient(
             EodhdClientConfig(
                 api_key=key,
-                base_url=str(
-                    config.pop("base_url", settings.eodhd_base_url)
-                ),
+                base_url=str(config.pop("base_url", settings.eodhd_base_url)),
                 timeout_seconds=int(
                     config.pop("timeout_seconds", settings.eodhd_http_timeout_seconds)
                 ),
@@ -168,9 +164,7 @@ class EodhdCeriProvider:
                     "low": row.get(f"{prefix}Low"),
                     "analyst_count": row.get(f"{prefix}NumberOfAnalysts"),
                 }
-                payload["current_observation_reference"] = (
-                    f"{symbol}:{ptype}:{fiscal_end}:{metric}"
-                )
+                payload["current_observation_reference"] = f"{symbol}:{ptype}:{fiscal_end}:{metric}"
                 if metric == "REVENUE":
                     payload["growth"] = (
                         row.get("revenueGrowth")
@@ -280,51 +274,52 @@ class EodhdCeriProvider:
         policy_kind: str,
         seen: set[str],
     ) -> Iterable[RawProviderRecord]:
-            report_date = provider_date(row.get("reportDate") or row.get("date"))
-            if report_date is None:
-                return
-            provider_id = str(row.get("id") or f"{symbol}:{report_date}")
-            if provider_id in seen:
-                return
-            event_kind = "UPCOMING" if report_date > today else "REPORTED"
-            if event_kind != policy_kind:
-                return
-            seen.add(provider_id)
-            ptype = period_type(row.get("period")) or "CURRENT_QUARTER"
-            actual = row.get("epsActual")
-            estimate = row.get("epsEstimate")
-            provider_surprise = row.get("surprisePercent")
-            consensus_semantics = (
-                "REPORT_TIME_CONSENSUS"
-                if event_kind == "REPORTED"
-                and actual is not None
-                and estimate is not None
-                and provider_surprise is not None
-                else None
-            )
-            payload = {
-                "ticker": symbol.split(".")[0],
-                "provider_company_id": symbol,
-                "metric": "EPS_DILUTED",
-                "period_type": ptype,
-                "fiscal_period_end": provider_date(row.get("fiscalPeriodEnd") or row.get("date"))
-                or report_date,
-                "report_at": _report_at(row, report_date),
-                "source_date": report_date.isoformat(),
-                "actual_value": actual,
-                "estimate": estimate,
-                "surprise_percent": provider_surprise,
-                "report_time": row.get("beforeAfterMarket"),
-                "event_kind": event_kind,
-                "acquisition_policy": policy_kind,
-                "provider_consensus_semantics": consensus_semantics,
-            }
-            yield self._record(
-                CeriDataset.EARNINGS,
-                provider_id,
-                payload,
-                row.get("reportDate"),
-            )
+        report_date = provider_date(_first_present(row, "report_date", "reportDate", "date"))
+        if report_date is None:
+            return
+        provider_id = str(row.get("id") or f"{symbol}:{report_date}")
+        if provider_id in seen:
+            return
+        event_kind = "UPCOMING" if report_date > today else "REPORTED"
+        if event_kind != policy_kind:
+            return
+        seen.add(provider_id)
+        ptype = period_type(row.get("period")) or "CURRENT_QUARTER"
+        actual = _first_present(row, "actual", "epsActual")
+        estimate = _first_present(row, "estimate", "epsEstimate")
+        provider_surprise = _first_present(row, "percent", "surprisePercent")
+        consensus_semantics = (
+            "REPORT_TIME_CONSENSUS"
+            if event_kind == "REPORTED"
+            and actual is not None
+            and estimate is not None
+            and provider_surprise is not None
+            else None
+        )
+        payload = {
+            "ticker": symbol.split(".")[0],
+            "provider_company_id": symbol,
+            "metric": "EPS_DILUTED",
+            "period_type": ptype,
+            "fiscal_period_end": provider_date(_first_present(row, "date", "fiscalPeriodEnd"))
+            or report_date,
+            "report_at": _report_at(row, report_date),
+            "source_date": report_date.isoformat(),
+            "actual_value": actual,
+            "estimate": estimate,
+            "surprise_percent": provider_surprise,
+            "report_time": _first_present(row, "before_after_market", "beforeAfterMarket"),
+            "source_currency": row.get("currency"),
+            "event_kind": event_kind,
+            "acquisition_policy": policy_kind,
+            "provider_consensus_semantics": consensus_semantics,
+        }
+        yield self._record(
+            CeriDataset.EARNINGS,
+            provider_id,
+            payload,
+            _first_present(row, "report_date", "reportDate"),
+        )
 
     def fetch_guidance(self, request: GuidanceRequest) -> Iterable[RawProviderRecord]:
         return iter(())
@@ -434,9 +429,8 @@ class EodhdCeriProvider:
         self, dataset: CeriDataset, provider_id: str, payload: dict[str, Any], observed: Any
     ) -> RawProviderRecord:
         retrieved_at = self._clock()
-        observed_at = (
-            _datetime(payload.get("observed_at"))
-            or _datetime(payload.get("provider_observation_at"))
+        observed_at = _datetime(payload.get("observed_at")) or _datetime(
+            payload.get("provider_observation_at")
         )
         published_at = (
             _datetime(payload.get("published_at"))
@@ -468,6 +462,13 @@ def _rows(value: Any) -> list[dict[str, Any]]:
                 return _flatten_rows(value[key])
         return [value]
     return []
+
+
+def _first_present(row: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in row and row[key] is not None:
+            return row[key]
+    return None
 
 
 def _flatten_rows(value: list[Any]) -> list[dict[str, Any]]:
@@ -530,23 +531,17 @@ def _issuer_relevance(
     related: set[str] = set()
     if isinstance(related_tickers, str):
         related = {
-            token.split(".")[0].upper()
-            for token in re.split(r"[,;\s]+", related_tickers)
-            if token
+            token.split(".")[0].upper() for token in re.split(r"[,;\s]+", related_tickers) if token
         }
     elif isinstance(related_tickers, (list, tuple, set)):
         related = {
-            str(token).split(".")[0].upper()
-            for token in related_tickers
-            if token not in (None, "")
+            str(token).split(".")[0].upper() for token in related_tickers if token not in (None, "")
         }
     if related:
         if requested in related:
             return True, "PROVIDER_RELATED_TICKER_MATCH"
         return False, "ISSUER_RELEVANCE_MISMATCH"
-    headline_tickers = {
-        match.upper() for match in re.findall(r"\(([A-Z][A-Z0-9.-]{0,9})\)", title)
-    }
+    headline_tickers = {match.upper() for match in re.findall(r"\(([A-Z][A-Z0-9.-]{0,9})\)", title)}
     if requested in headline_tickers:
         return True, "HEADLINE_TICKER_MATCH"
     if headline_tickers and requested not in headline_tickers:

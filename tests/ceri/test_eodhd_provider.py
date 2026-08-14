@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from app.services.ceri.dtos import EstimateRequest
+from app.services.ceri.dtos import EarningsRequest, EstimateRequest
 from app.services.ceri.enums import CeriMetric, CeriPeriodType
 from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
 from app.services.ceri.providers.eodhd_provider import EodhdCeriProvider
@@ -117,6 +117,45 @@ def test_eodhd_trends_flattens_symbol_grouped_response() -> None:
     )
 
     assert [record.payload["consensus"] for record in records] == ["2.0", "1.9"]
+
+
+def test_eodhd_official_earnings_schema_maps_reported_result_and_zero_values() -> None:
+    payload = {
+        "earnings": [
+            {
+                "code": "AAPL.US",
+                "report_date": "2026-07-30",
+                "date": "2026-06-30",
+                "before_after_market": "AfterMarket",
+                "currency": "USD",
+                "actual": 0,
+                "estimate": 0,
+                "difference": 0,
+                "percent": 0,
+            }
+        ]
+    }
+    client = EodhdHttpClient(
+        EodhdClientConfig(api_key="secret"),
+        transport=lambda _url, _timeout: payload,
+    )
+
+    records = list(
+        EodhdCeriProvider(
+            client=client,
+            clock=lambda: datetime(2026, 8, 14, 12, tzinfo=UTC),
+        ).fetch_earnings_actuals(EarningsRequest(None, "AAPL"))
+    )
+
+    assert len(records) == 1
+    record = records[0]
+    assert record.payload["event_kind"] == "REPORTED"
+    assert record.payload["report_at"].date().isoformat() == "2026-07-30"
+    assert record.payload["fiscal_period_end"].isoformat() == "2026-06-30"
+    assert record.payload["actual_value"] == 0
+    assert record.payload["estimate"] == 0
+    assert record.payload["surprise_percent"] == 0
+    assert record.payload["provider_consensus_semantics"] == "REPORT_TIME_CONSENSUS"
 
 
 class _ContextResponse:

@@ -400,6 +400,20 @@ class CeriFeatureRebuildService:
     ) -> None:
         event = _latest_price_event(db, company_id, cutoff)
         if event is None:
+            result = self.price_response.unavailable(
+                company_id=company_id,
+                event_type="NONE",
+                reason="NO_ACCEPTED_EVENT",
+            )
+            self.price_response.persist(
+                db,
+                result=result,
+                company_id=company_id,
+                ticker=ticker,
+                event_id=None,
+                event_effective_at=None,
+                event_effective_session=None,
+            )
             return
         result = self.price_response.calculate(
             db,
@@ -527,6 +541,8 @@ def _latest_price_event(
         row
         for row in _load(db, CeriEarningsActual)
         if row.company_id == company_id
+        and row.actual_value is not None
+        and row.event_kind in (None, "REPORTED")
         and row.report_session is not None
         and row.report_session <= cutoff
     ]
@@ -537,12 +553,15 @@ def _latest_price_event(
         row
         for row in _load(db, CeriGuidanceEvent)
         if row.company_id == company_id
+        and row.accepted_for_scoring is True
         and (row.effective_session is None or row.effective_session <= cutoff)
     ]
     if guidance:
         row = max(guidance, key=lambda item: (item.effective_session or date.min, item.id or 0))
         candidates.append(("GUIDANCE", row.id, row.effective_at, row.effective_session))
     for _event, revision in _current_catalysts(db, company_id, cutoff):
+        if revision.issuer_relevance is not True or revision.review_state == "REJECTED":
+            continue
         candidates.append(
             (
                 "CATALYST",

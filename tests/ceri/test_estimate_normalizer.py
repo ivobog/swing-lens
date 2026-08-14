@@ -85,6 +85,32 @@ def test_missing_currency_is_not_inferred_from_us_ticker_suffix() -> None:
     assert "currency_missing" in estimate.quality_flags_json
 
 
+def test_same_provider_relative_eps_preserves_numeric_value_without_currency() -> None:
+    estimate = CeriEstimateNormalizer().normalize(
+        _source(
+            {
+                "ticker": "NVDA",
+                "metric": "EPS_DILUTED",
+                "period_type": "NEXT_QUARTER",
+                "fiscal_period_end": "2026-10-31",
+                "consensus": "2.3524",
+                "source_scale": "1",
+                "current_observation_reference": (
+                    "NVDA.US:NEXT_QUARTER:2026-10-31:EPS_DILUTED"
+                ),
+                "provider_observed_at": "2026-08-14T00:51:32+00:00",
+            }
+        ),
+        company_id=42,
+    )
+
+    assert estimate.consensus == Decimal("2.3524")
+    assert estimate.source_currency is None
+    assert estimate.canonical_currency is None
+    assert estimate.canonical_scale == Decimal("1")
+    assert "relative_value_only" in estimate.quality_flags_json
+
+
 def test_verified_currency_conversion_is_traceable() -> None:
     source = _source(
         {

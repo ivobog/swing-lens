@@ -40,6 +40,8 @@ class CeriOpportunityScoreService:
         catalyst_features: list[CatalystFeature] | None = None,
         price_response_quality: float | None = None,
         price_response_parent_event_id: int | None = None,
+        price_response_parent_type: str | None = "CATALYST",
+        price_response_unavailable_reason: str | None = "NO_ACCEPTED_EVENT",
         conflict_penalty: float = 0.0,
         as_of_session: date | None = None,
     ) -> OpportunityResult:
@@ -55,10 +57,10 @@ class CeriOpportunityScoreService:
             for feature in catalyst_features
             if feature.catalyst_event_id is not None and getattr(feature, "selected", True)
         )
-        price_response_unavailable_reason = None
         if (
             price_response_quality is not None
             and price_response_parent_event_id is not None
+            and price_response_parent_type == "CATALYST"
             and price_response_parent_event_id not in accepted_catalyst_ids
         ):
             price_response_quality = None
@@ -68,28 +70,49 @@ class CeriOpportunityScoreService:
                 "revision_magnitude",
                 _revision_magnitude(revision_features),
                 evidence_ids=_feature_ids(revision_features, "pct_change"),
+                unavailable_reason=_revision_unavailable_reason(
+                    revision_features,
+                    attribute="pct_change",
+                    fallback="REVISION_EVIDENCE_MISSING",
+                ),
             ),
             self._component(
                 "revision_breadth",
                 _revision_breadth(revision_features),
                 evidence_ids=_feature_ids(revision_features, "net_breadth"),
+                unavailable_reason=_revision_unavailable_reason(
+                    revision_features,
+                    attribute="net_breadth",
+                    fallback="BREADTH_COUNTS_UNAVAILABLE",
+                ),
             ),
             self._component(
                 "revision_acceleration",
                 _revision_acceleration(revision_features),
                 evidence_ids=_feature_ids(revision_features, "acceleration"),
+                unavailable_reason=_revision_unavailable_reason(
+                    revision_features,
+                    attribute="acceleration",
+                    fallback="ACCELERATION_HISTORY_UNAVAILABLE",
+                ),
             ),
-            self._component("surprise_trend", _surprise_score(surprise_summary)),
+            self._component(
+                "surprise_trend",
+                _surprise_score(surprise_summary),
+                unavailable_reason="HISTORICAL_REPORTED_EARNINGS_MISSING",
+            ),
             self._component(
                 "guidance",
                 guidance_value,
                 evidence_ids=guidance_ids,
                 extra_warnings=guidance_warnings,
+                unavailable_reason="NO_ACCEPTED_CURRENT_GUIDANCE",
             ),
             self._component(
                 "catalysts",
                 _catalyst_score(catalyst_features),
                 evidence_ids=accepted_catalyst_ids,
+                unavailable_reason="NO_ACCEPTED_CATALYST",
             ),
             self._component(
                 "price_response",
@@ -298,6 +321,29 @@ def _feature_ids(features: list[CeriRevisionFeature], attribute: str) -> tuple[i
         for feature in features
         if feature.id is not None and getattr(feature, attribute) is not None
     )
+
+
+def _revision_unavailable_reason(
+    features: list[CeriRevisionFeature],
+    *,
+    attribute: str,
+    fallback: str,
+) -> str | None:
+    if any(getattr(feature, attribute) is not None for feature in features):
+        return None
+    if attribute == "pct_change":
+        reason = next(
+            (feature.unavailable_reason for feature in features if feature.unavailable_reason),
+            None,
+        )
+        return reason or fallback
+    if attribute == "net_breadth":
+        return fallback
+    reason = next(
+        (feature.unavailable_reason for feature in features if feature.unavailable_reason),
+        None,
+    )
+    return reason or fallback
 
 
 def _guidance_sort_key(event: CeriGuidanceEvent) -> tuple[str, int]:

@@ -214,6 +214,14 @@ class CeriRunCaptureService:
                     price_response_parent_event_id=(
                         price_feature.event_id if price_feature is not None else None
                     ),
+                    price_response_parent_type=(
+                        price_feature.event_type if price_feature is not None else None
+                    ),
+                    price_response_unavailable_reason=(
+                        price_result.unavailable_reason
+                        if price_result is not None
+                        else "NO_ACCEPTED_EVENT"
+                    ),
                     conflict_penalty=min(3.0, float(company_conflicted)),
                     as_of_session=cutoff_at.date(),
                 )
@@ -513,7 +521,10 @@ def _price_response_for_company(
             db,
             select(CeriEarningsActual).where(CeriEarningsActual.company_id == company_id),
         )
-        if row.report_session is not None and row.report_session <= as_of_session
+        if row.report_session is not None
+        and row.report_session <= as_of_session
+        and row.actual_value is not None
+        and (row.event_kind or "REPORTED").upper() == "REPORTED"
     ]
     for event in earnings:
         candidates.append(("EARNINGS", event.id, event.report_at, event.report_session))
@@ -523,7 +534,8 @@ def _price_response_for_company(
             db,
             select(CeriGuidanceEvent).where(CeriGuidanceEvent.company_id == company_id),
         )
-        if row.effective_session is None or row.effective_session <= as_of_session
+        if (row.effective_session is None or row.effective_session <= as_of_session)
+        and row.accepted_for_scoring is True
     ]
     for event in guidance:
         candidates.append(("GUIDANCE", event.id, event.effective_at, event.effective_session))
@@ -544,6 +556,8 @@ def _price_response_for_company(
                 ),
             )
             if _revision_is_known_by(revision, as_of_session)
+            and revision.issuer_relevance is True
+            and str(revision.review_state or "").upper() != "REJECTED"
         ]
         if company_event_ids
         else []
@@ -558,7 +572,21 @@ def _price_response_for_company(
             )
         )
     if not candidates:
-        return None, None
+        result = service.unavailable(
+            company_id=company_id,
+            event_type="NONE",
+            reason="NO_ACCEPTED_EVENT",
+        )
+        feature = service.persist(
+            db,
+            result=result,
+            company_id=company_id,
+            ticker=ticker,
+            event_id=None,
+            event_effective_at=None,
+            event_effective_session=None,
+        )
+        return result, feature
     event_type, event_id, event_at, event_session = max(
         candidates,
         key=lambda item: (

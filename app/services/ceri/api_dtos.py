@@ -90,6 +90,7 @@ class CeriDashboardRowDto:
     revision_evidence: dict[str, Any]
     next_event: dict[str, Any]
     freshness: dict[str, Any]
+    evidence_diagnostics: dict[str, Any]
     reasons: list[str] | None
     warnings: list[str] | None
     config_version: str

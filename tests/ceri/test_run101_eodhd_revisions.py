@@ -2,13 +2,25 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
-from app.services.ceri.dtos import RawProviderRecord
-from app.services.ceri.enums import CeriDataset, ExportPolicy, HistoricalViewMode
+from app.services.ceri.dtos import EstimateRequest, RawProviderRecord
+from app.services.ceri.enums import (
+    CeriDataset,
+    CeriMetric,
+    CeriPeriodType,
+    ExportPolicy,
+    HistoricalViewMode,
+)
+from app.services.ceri.estimate_normalizer import CeriEstimateNormalizer
+from app.services.ceri.opportunity_score_service import CeriOpportunityScoreService
 from app.services.ceri.point_in_time_query import CeriPointInTimeQuery
+from app.services.ceri.provider_registry import provider_storage_projection
+from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
+from app.services.ceri.providers.eodhd_provider import EodhdCeriProvider
 from app.services.ceri.revision_feature_service import CeriRevisionFeatureService
 from app.services.ceri.source_record_service import CeriSourceRecordService
 
@@ -33,6 +45,85 @@ def test_same_provider_eps_relative_revision_allows_unknown_currency() -> None:
     assert "canonical_currency_unavailable_relative_only" in feature.warnings_json
 
 
+def test_eodhd_raw_relative_eps_survives_to_component_ledger_without_currency() -> None:
+    known_at = datetime(2026, 8, 13, 12, tzinfo=UTC)
+    provider = EodhdCeriProvider(
+        client=EodhdHttpClient(
+            EodhdClientConfig(api_key="fixture"),
+            transport=lambda _url, _timeout: [
+                {
+                    "code": "NVDA.US",
+                    "period": "0q",
+                    "date": "2026-10-31",
+                    "earningsEstimateAvg": "2.3524",
+                    "earningsEstimateNumberOfAnalysts": 39,
+                    "epsTrend7daysAgo": "2.3524",
+                    "epsTrend30daysAgo": "2.3466",
+                    "epsTrend90daysAgo": "2.1772",
+                    "epsRevisionsUpLast30days": 4,
+                    "epsRevisionsDownLast30days": 0,
+                }
+            ],
+        ),
+        clock=lambda: known_at,
+    )
+    raw = list(
+        provider.fetch_estimate_snapshots(
+            EstimateRequest(
+                None,
+                "NVDA",
+                (CeriMetric.EPS_DILUTED,),
+                (CeriPeriodType.CURRENT_QUARTER,),
+            )
+        )
+    )
+    sources: dict[int, CeriSourceRecord] = {}
+    snapshots: list[CeriEstimateSnapshot] = []
+    for identifier, record in enumerate(raw, start=1):
+        source = CeriSourceRecord(
+            id=identifier,
+            provider="eodhd",
+            dataset="estimates",
+            provider_record_id=record.provider_record_id,
+            restricted_normalized_json=provider_storage_projection(
+                "eodhd", "estimates", record.payload
+            ),
+            observed_at=record.observed_at,
+            retrieved_at=known_at,
+            content_hash=f"hash-{identifier}",
+            idempotency_key=f"key-{identifier}",
+        )
+        snapshot = CeriEstimateNormalizer().normalize(source, company_id=42)
+        snapshot.id = identifier
+        sources[identifier] = source
+        snapshots.append(snapshot)
+
+    feature = CeriRevisionFeatureService(
+        query=CeriPointInTimeQuery(snapshots=snapshots, source_records=sources)
+    ).calculate_feature(
+        FakeDb(),
+        company_id=42,
+        metric="EPS_DILUTED",
+        cutoff_at=known_at,
+        window_days=30,
+        period_slot="CURRENT_QUARTER",
+    )
+    opportunity = CeriOpportunityScoreService().calculate(revision_features=[feature])
+    magnitude = next(c for c in opportunity.components if c.name == "revision_magnitude")
+    breadth = next(c for c in opportunity.components if c.name == "revision_breadth")
+
+    assert feature.comparison_mode == "SAME_PROVIDER_RELATIVE"
+    assert feature.pct_change == (Decimal("2.3524") - Decimal("2.3466")) / Decimal(
+        "2.3466"
+    ) * 100
+    assert feature.net_breadth == Decimal("1")
+    assert feature.known_at == known_at
+    assert feature.reference_at == known_at - timedelta(days=30)
+    assert magnitude.available is True
+    assert breadth.available is True
+    assert opportunity.score is None  # 60% gate remains unchanged.
+
+
 def test_provider_relative_revision_is_excluded_before_response_known_at() -> None:
     known_at = datetime(2026, 8, 13, 12, tzinfo=UTC)
     current, baseline, sources = _relative_pair(Decimal("2.20"), Decimal("2.00"), known_at)
@@ -50,8 +141,36 @@ def test_provider_relative_revision_is_excluded_before_response_known_at() -> No
     assert feature.unavailable_reason == "current_snapshot_unavailable"
 
 
-@pytest.mark.parametrize("failure", ["cross_provider", "period_mismatch", "scale_mismatch"])
-def test_same_provider_relative_comparability_fails_closed(failure: str) -> None:
+def test_provider_period_slot_selects_latest_fiscal_end_even_after_period_end() -> None:
+    known_at = datetime(2026, 8, 13, 12, tzinfo=UTC)
+    relevant = _estimate(1, 101, Decimal("2.00"), known_at)
+    relevant.fiscal_period_end = date(2026, 7, 31)
+    stale_duplicate = _estimate(2, 102, Decimal("1.50"), known_at)
+    stale_duplicate.fiscal_period_end = date(2026, 4, 30)
+    query = CeriPointInTimeQuery(snapshots=[relevant, stale_duplicate])
+
+    selected = query.current_snapshot(
+        FakeDb(),
+        company_id=42,
+        metric="EPS_DILUTED",
+        cutoff_at=datetime(2026, 8, 14, 12, tzinfo=UTC),
+        period_slot="CURRENT_QUARTER",
+    )
+
+    assert selected is relevant
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_reason"),
+    [
+        ("cross_provider", "CROSS_PROVIDER_CURRENCY_REQUIRED"),
+        ("period_mismatch", "SAME_PROVIDER_PERIOD_MISMATCH"),
+        ("scale_mismatch", "SAME_PROVIDER_SCALE_MISMATCH"),
+    ],
+)
+def test_same_provider_relative_comparability_fails_closed(
+    failure: str, expected_reason: str
+) -> None:
     known_at = datetime(2026, 8, 13, 12, tzinfo=UTC)
     current, baseline, sources = _relative_pair(Decimal("2.20"), Decimal("2.00"), known_at)
     if failure == "cross_provider":
@@ -71,6 +190,7 @@ def test_same_provider_relative_comparability_fails_closed(failure: str) -> None
     )
 
     assert feature.pct_change is None
+    assert feature.unavailable_reason == expected_reason
 
 
 def test_absolute_missing_currency_comparison_remains_rejected() -> None:
@@ -89,6 +209,34 @@ def test_absolute_missing_currency_comparison_remains_rejected() -> None:
 
     assert feature.pct_change is None
     assert feature.absolute_change is None
+    assert feature.unavailable_reason == "ABSOLUTE_COMPARISON_CURRENCY_REQUIRED"
+
+
+def test_missing_analyst_count_does_not_invalidate_relative_revision_magnitude() -> None:
+    known_at = datetime(2026, 8, 13, 12, tzinfo=UTC)
+    current, baseline, sources = _relative_pair(Decimal("2.20"), Decimal("2.00"), known_at)
+    current.analyst_count = None
+
+    feature = _service(current, baseline, sources).calculate_feature(
+        FakeDb(), company_id=42, metric="EPS_DILUTED", cutoff_at=known_at, window_days=30
+    )
+
+    assert feature.pct_change == Decimal("10.0")
+    assert "analyst_sample_unavailable" in feature.warnings_json
+
+
+def test_run102_migration_rehydrates_only_same_provider_relative_eps() -> None:
+    migration = Path(
+        "alembic/versions/20260814_0043_ceri_run102_relative_evidence.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'down_revision: str | None = "0042_ceri_run101_fail_closed"' in migration
+    assert "current_observation_reference IS NOT NULL" in migration
+    assert "metric = 'EPS_DILUTED'" in migration
+    assert "canonical_currency IS NULL" in migration
+    assert "original_fields_json ->> 'consensus'" in migration
+    assert "accepted_for_scoring" not in migration
+    assert "minimum_component_coverage_pct" not in migration
 
 
 @pytest.mark.parametrize(
