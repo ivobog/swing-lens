@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 
-from app.models.tables import SetupLifecycleEvaluationRun
+from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
+from app.services.setup_lifecycle.change_detector import velocity_by_window
 from app.services.setup_lifecycle.config import (
     SetupLifecycleConfig,
     data_quality_label_for,
@@ -20,7 +22,7 @@ from app.services.setup_lifecycle.source_loader import (
     SetupLifecycleSourceLoader,
     TickerSourceContext,
 )
-from app.services.us_market_calendar import us_trading_sessions_between
+from app.services.us_market_calendar import previous_us_trading_day, us_trading_sessions_between
 
 REQUIRED_FEATURE_SOURCES = (
     "technical_score",
@@ -89,11 +91,38 @@ class SnapshotCaptureResult:
         }
 
 
+@dataclass(frozen=True)
+class TriggerReference:
+    setup_family: str | None
+    reference_type: str | None
+    reference_price: Decimal | None
+    source_path: str | None
+    source_record_id: int | None
+    source_session: date | None
+    missing_reason: str | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "setup_family": self.setup_family,
+            "reference_type": self.reference_type,
+            "reference_price": _json_value(self.reference_price),
+            "source_path": self.source_path,
+            "source_record_id": self.source_record_id,
+            "source_session": _date_or_none(self.source_session),
+            "missing_reason": self.missing_reason,
+        }
+
+
 class SetupLifecycleSnapshotBuilder:
     def __init__(self, config: SetupLifecycleConfig | None = None) -> None:
         self.config = config or load_setup_lifecycle_config()
 
-    def build(self, context: TickerSourceContext) -> BuiltSnapshot:
+    def build(
+        self,
+        context: TickerSourceContext,
+        *,
+        history: tuple[SetupSignalSnapshot, ...] = (),
+    ) -> BuiltSnapshot:
         ticker = context.ticker
         if not ticker:
             raise ValueError("ticker is required")
@@ -101,7 +130,13 @@ class SetupLifecycleSnapshotBuilder:
         latest_bar = context.latest_completed_bar
         as_of_date = self._resolve_data_as_of_date(context)
         reference_date = self._reference_date(context)
-        promoted = self._promoted_fields(context, latest_bar)
+        setup_family = _primary_setup_family(context.technical_score)
+        trigger_reference = _trigger_reference(
+            context,
+            setup_family=setup_family,
+            latest_bar=latest_bar,
+        )
+        promoted = self._promoted_fields(context, latest_bar, trigger_reference)
         source_values = self._source_values(context, promoted)
         warnings = list(self._warnings(context, as_of_date, reference_date, source_values))
         coverage = self._required_feature_coverage(source_values)
@@ -123,6 +158,11 @@ class SetupLifecycleSnapshotBuilder:
         promoted["required_feature_coverage"] = Decimal(str(round(coverage, 6)))
         promoted["freshness_status"] = freshness
         promoted["technical_confidence"] = self._technical_confidence(context, coverage, freshness)
+        velocities = self._score_velocities(
+            source_values,
+            as_of_date=as_of_date,
+            history=history,
+        )
 
         if data_quality in {DataQualityLabel.LOW, DataQualityLabel.INSUFFICIENT}:
             warnings.append(f"DATA_QUALITY_{data_quality.value}")
@@ -130,13 +170,20 @@ class SetupLifecycleSnapshotBuilder:
             warnings.append("MISSING_OPTIONAL_CONTEXT")
 
         source_ids = self._source_ids(context)
-        source_lineage = self._source_lineage(context, source_ids, latest_bar, as_of_date)
+        source_lineage = self._source_lineage(
+            context,
+            source_ids,
+            latest_bar,
+            as_of_date,
+            trigger_reference,
+        )
         source_data_hash = SetupLifecycleRepository.stable_hash(
             {
                 "ticker": ticker,
                 "as_of": as_of_date.isoformat(),
                 "source_ids": source_ids,
                 "signals": source_values,
+                "velocities": velocities,
                 "lineage": source_lineage,
             }
         )
@@ -157,14 +204,24 @@ class SetupLifecycleSnapshotBuilder:
             source_run_id_text=str(context.raw_row.run_id),
             source_ids=source_ids,
             promoted_fields=promoted,
-            signals=self._signals_json(source_values),
+            signals=self._signals_json(source_values, velocities=velocities),
             feature_flags=self._feature_flags(context),
             warning_flags=sorted(set(warnings)),
-            missing_data=self._missing_data(source_values),
+            missing_data={
+                **self._missing_data(source_values),
+                **(
+                    {"trigger_reference": trigger_reference.missing_reason}
+                    if trigger_reference.missing_reason
+                    else {}
+                ),
+            },
             source_lineage=source_lineage,
             diagnostic_high_cross=self._diagnostic_high_cross(context, promoted),
             canonical_decision={"canonical": False, "reason": "pending_phase_4_canonicalization"},
-            debug={"builder": "phase_3_snapshot_builder"},
+            debug={
+                "builder": "phase_3_snapshot_builder",
+                "trigger_reference": trigger_reference.as_dict(),
+            },
         )
         return BuiltSnapshot(
             dto=dto,
@@ -196,7 +253,12 @@ class SetupLifecycleSnapshotBuilder:
                 return timestamp.date()
         return self._resolve_data_as_of_date(context)
 
-    def _promoted_fields(self, context: TickerSourceContext, latest_bar) -> dict[str, Any]:
+    def _promoted_fields(
+        self,
+        context: TickerSourceContext,
+        latest_bar,
+        trigger_reference: TriggerReference,
+    ) -> dict[str, Any]:
         raw = context.raw_row
         fundamental = context.fundamental_score
         technical = context.technical_score
@@ -215,15 +277,9 @@ class SetupLifecycleSnapshotBuilder:
             _raw_value(raw, "high_price"),
             _raw_value(raw, "high"),
         )
-        pivot_price = _first_value(
-            _raw_value(raw, "pivot_price"),
-            _raw_value(raw, "pivot"),
-            _raw_value(raw, "pivotPrice"),
-        )
-        trigger_price = _first_value(
-            _raw_value(raw, "trigger_price"),
-            _raw_value(raw, "trigger"),
-            pivot_price,
+        trigger_price = trigger_reference.reference_price
+        pivot_price = (
+            trigger_price if trigger_reference.setup_family in {"BREAKOUT", "VCP"} else None
         )
 
         return {
@@ -273,7 +329,7 @@ class SetupLifecycleSnapshotBuilder:
                 _raw_value(raw, "target_price"),
                 getattr(technical, "suggested_target", None),
             ),
-            "distance_to_pivot_pct": _distance_to_pivot_pct(close_price, pivot_price),
+            "distance_to_pivot_pct": _trigger_distance_pct(close_price, trigger_price),
             "entry_risk_pct": getattr(technical, "entry_risk_pct", None),
             "reward_risk": getattr(technical, "reward_risk", None),
             "close_above_trigger": _crossed(close_price, trigger_price),
@@ -417,8 +473,7 @@ class SetupLifecycleSnapshotBuilder:
 
     def _context_complete(self, context: TickerSourceContext) -> bool:
         return (
-            context.market_regime_snapshot is not None
-            and context.sector_rotation_row is not None
+            context.market_regime_snapshot is not None and context.sector_rotation_row is not None
         )
 
     def _technical_confidence(
@@ -473,6 +528,7 @@ class SetupLifecycleSnapshotBuilder:
         source_ids: dict[str, int | None],
         latest_bar,
         as_of_date: date,
+        trigger_reference: TriggerReference,
     ) -> dict[str, Any]:
         run = context.raw_row.run
         run_status = str(getattr(run, "status", "") or "").upper() or None
@@ -488,6 +544,7 @@ class SetupLifecycleSnapshotBuilder:
             "ticker": context.ticker,
             "data_as_of_date": as_of_date.isoformat(),
             "latest_bar": _bar_lineage(latest_bar),
+            "trigger_reference": trigger_reference.as_dict(),
             "ranking_profiles": [row.ranking_profile for row in context.ranking_results],
             "market_regime_as_of": _date_or_none(
                 getattr(context.market_regime_snapshot, "as_of_date", None)
@@ -504,7 +561,12 @@ class SetupLifecycleSnapshotBuilder:
             "source_hash_algorithm": "sha256-canonical-json-v1",
         }
 
-    def _signals_json(self, source_values: dict[str, Any]) -> dict[str, Any]:
+    def _signals_json(
+        self,
+        source_values: dict[str, Any],
+        *,
+        velocities: dict[str, dict[str, dict[str, Any]]] | None = None,
+    ) -> dict[str, Any]:
         signals: dict[str, Any] = {}
         for definition in self.config.signal_registry.definitions():
             value = source_values.get(definition.key)
@@ -518,7 +580,33 @@ class SetupLifecycleSnapshotBuilder:
                 "diagnostic_only": definition.diagnostic_only,
                 "trigger_authority": definition.trigger_authority,
             }
+            if definition.key in (velocities or {}):
+                signals[definition.key]["velocity"] = velocities[definition.key]
         return signals
+
+    def _score_velocities(
+        self,
+        source_values: dict[str, Any],
+        *,
+        as_of_date: date,
+        history: tuple[SetupSignalSnapshot, ...],
+    ) -> dict[str, dict[str, dict[str, Any]]]:
+        current = SimpleNamespace(
+            id=None,
+            data_as_of_date=as_of_date,
+            is_canonical=True,
+            signals_json={
+                key: {"value": _json_value(value)} for key, value in source_values.items()
+            },
+        )
+        return {
+            key: velocity_by_window(
+                self.config.signal_registry.require(key),
+                current,
+                history,
+            )
+            for key in ("technical_score", "setup_score")
+        }
 
     def _feature_flags(self, context: TickerSourceContext) -> dict[str, Any]:
         technical = context.technical_score
@@ -602,9 +690,39 @@ class SetupLifecycleSnapshotCaptureService:
         errors_by_ticker: dict[str, str] = {}
         low_confidence = 0
 
+        cutoffs = {
+            (
+                ticker_context.ticker,
+                self.config.engine.timeframe,
+            ): self.builder._resolve_data_as_of_date(ticker_context)
+            for ticker_context in run_context.tickers
+        }
+        history_loader = getattr(self.repository, "canonical_snapshot_histories_before", None)
+        max_window = max(
+            (
+                window
+                for key in ("technical_score", "setup_score")
+                for window in self.config.signal_registry.require(key).velocity_windows
+            ),
+            default=10,
+        )
+        histories = (
+            history_loader(db, cutoffs=cutoffs, limit=max_window)
+            if history_loader is not None
+            else {}
+        )
+
         for ticker_context in run_context.tickers:
             try:
-                built = self.builder.build(ticker_context)
+                built = self.builder.build(
+                    ticker_context,
+                    history=tuple(
+                        histories.get(
+                            (ticker_context.ticker, self.config.engine.timeframe),
+                            (),
+                        )
+                    ),
+                )
                 dto = replace(built.dto, evaluation_run_id=evaluation_run.id)
                 snapshot = self.repository.upsert_snapshot(db, dto)
                 snapshot_ids.append(snapshot.id)
@@ -680,14 +798,171 @@ def _raw_value(raw_row, key: str) -> Any:
     return raw_json.get(key)
 
 
-def _distance_to_pivot_pct(close_price, pivot_price) -> Decimal | None:
-    close_decimal = _decimal_or_none(close_price)
-    pivot_decimal = _decimal_or_none(pivot_price)
-    if close_decimal is None or pivot_decimal in {None, Decimal("0")}:
+def _trigger_reference(
+    context: TickerSourceContext,
+    *,
+    setup_family: str | None,
+    latest_bar,
+) -> TriggerReference:
+    raw = context.raw_row
+    technical = context.technical_score
+    family = setup_family or "GENERIC"
+    explicit_trigger = _valid_reference_price(
+        _first_value(_raw_value(raw, "trigger_price"), _raw_value(raw, "trigger"))
+    )
+    explicit_pivot = _valid_reference_price(
+        _first_value(
+            _raw_value(raw, "pivot_price"),
+            _raw_value(raw, "pivot"),
+            _raw_value(raw, "pivotPrice"),
+        )
+    )
+
+    if family in {"BREAKOUT", "VCP"}:
+        if explicit_pivot is not None:
+            return TriggerReference(
+                family,
+                f"{family}_PIVOT",
+                explicit_pivot,
+                "raw_company_rows.raw_json.pivot_price",
+                getattr(raw, "id", None),
+                getattr(latest_bar, "bar_date", None),
+                None,
+            )
+        box_high, box_path = _technical_box_high(technical)
+        if box_high is not None:
+            return TriggerReference(
+                family,
+                f"{family}_PIVOT",
+                box_high,
+                box_path,
+                getattr(technical, "id", None),
+                getattr(latest_bar, "bar_date", None),
+                None,
+            )
+        return TriggerReference(family, None, None, None, None, None, "PIVOT_UNAVAILABLE")
+
+    if family == "PULLBACK":
+        if explicit_trigger is not None:
+            return TriggerReference(
+                family,
+                "PULLBACK_CONFIGURED_TRIGGER",
+                explicit_trigger,
+                "raw_company_rows.raw_json.trigger_price",
+                getattr(raw, "id", None),
+                getattr(latest_bar, "bar_date", None),
+                None,
+            )
+        prior = _exact_previous_session_bar(context, latest_bar)
+        prior_high = _valid_reference_price(getattr(prior, "high", None))
+        if prior_high is not None:
+            return TriggerReference(
+                family,
+                "PULLBACK_PRIOR_SESSION_HIGH",
+                prior_high,
+                "price_bars.previous_completed_session.high",
+                getattr(prior, "id", None),
+                getattr(prior, "bar_date", None),
+                None,
+            )
+        return TriggerReference(family, None, None, None, None, None, "TRIGGER_UNAVAILABLE")
+
+    if family == "CONTINUATION":
+        if explicit_trigger is not None:
+            return TriggerReference(
+                family,
+                "CONTINUATION_TRIGGER",
+                explicit_trigger,
+                "raw_company_rows.raw_json.trigger_price",
+                getattr(raw, "id", None),
+                getattr(latest_bar, "bar_date", None),
+                None,
+            )
+        box_high, box_path = _technical_box_high(technical)
+        if box_high is not None:
+            return TriggerReference(
+                family,
+                "CONTINUATION_TRIGGER",
+                box_high,
+                box_path,
+                getattr(technical, "id", None),
+                getattr(latest_bar, "bar_date", None),
+                None,
+            )
+        return TriggerReference(family, None, None, None, None, None, "TRIGGER_UNAVAILABLE")
+
+    generic_reference = explicit_trigger or explicit_pivot
+    if generic_reference is not None:
+        return TriggerReference(
+            "GENERIC",
+            "GENERIC_CONFIGURED_TRIGGER",
+            generic_reference,
+            "raw_company_rows.raw_json.trigger_price",
+            getattr(raw, "id", None),
+            getattr(latest_bar, "bar_date", None),
+            None,
+        )
+    return TriggerReference("GENERIC", None, None, None, None, None, "TRIGGER_NOT_APPLICABLE")
+
+
+def _technical_box_high(technical) -> tuple[Decimal | None, str | None]:
+    if technical is None:
+        return None, None
+    v4 = getattr(technical, "v4_debug_json", None)
+    if isinstance(v4, dict):
+        value = _valid_reference_price(_nested_mapping(v4, "box").get("box_high"))
+        if value is not None:
+            return value, "technical_scores.v4_debug_json.box.box_high"
+    debug = getattr(technical, "debug_json", None)
+    explainability = _nested_mapping(debug, "explainability")
+    value = _valid_reference_price(_nested_mapping(explainability, "box").get("box_high"))
+    if value is not None:
+        return value, "technical_scores.debug_json.explainability.box.box_high"
+    return None, None
+
+
+def _exact_previous_session_bar(context: TickerSourceContext, latest_bar):
+    if latest_bar is None or getattr(latest_bar, "bar_date", None) is None:
         return None
-    return ((close_decimal - pivot_decimal) / pivot_decimal * Decimal("100")).quantize(
+    target = previous_us_trading_day(latest_bar.bar_date)
+    candidates = [
+        row
+        for row in context.price_bars
+        if getattr(row, "bar_date", None) == target and getattr(row, "high", None) is not None
+    ]
+    if not candidates:
+        return None
+    source_order = {"TRADES": 2, "ADJUSTED_LAST": 1}
+    return max(
+        candidates,
+        key=lambda row: (source_order.get(getattr(row, "what_to_show", None), 0), row.id or 0),
+    )
+
+
+def _trigger_distance_pct(close_price, reference_price) -> Decimal | None:
+    close_decimal = _decimal_or_none(close_price)
+    reference_decimal = _valid_reference_price(reference_price)
+    if close_decimal is None or not close_decimal.is_finite() or close_decimal <= 0:
+        return None
+    if reference_decimal is None:
+        return None
+    return ((reference_decimal - close_decimal) / reference_decimal * Decimal("100")).quantize(
         Decimal("0.000001")
     )
+
+
+def _distance_to_pivot_pct(close_price, pivot_price) -> Decimal | None:
+    """Compatibility alias for the normalized trigger-distance convention."""
+    return _trigger_distance_pct(close_price, pivot_price)
+
+
+def _valid_reference_price(value) -> Decimal | None:
+    numeric = _decimal_or_none(value)
+    if numeric is None or not numeric.is_finite() or numeric <= 0:
+        return None
+    if numeric == Decimal("999"):
+        return None
+    return numeric
 
 
 def _crossed(price, trigger_price) -> bool | None:

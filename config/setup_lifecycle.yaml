@@ -1,8 +1,8 @@
 engine:
   enabled: false
-  version: slse-1.2.0
+  version: slse-1.3.0
   schema_version: slse-snapshot-1.0.0
-  config_version: 2026-08-12
+  config_version: 2026-08-14-velocity-trigger-distance
   timeframe: 1d
   origin_mode: forward_only
   trigger_authority: COMPLETED_DAILY_CLOSE

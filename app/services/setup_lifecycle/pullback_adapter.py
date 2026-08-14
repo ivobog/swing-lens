@@ -101,11 +101,7 @@ class PullbackAdapter:
                 or signal_number(snapshot, "volume_ratio") >= 1.0
             )
         )
-        extended = (
-            triggered
-            and extended_atr is not None
-            and extended_atr >= extended_limit
-        )
+        extended = triggered and extended_atr is not None and extended_atr >= extended_limit
         expired = state_age_sessions >= policy.max_age_sessions
 
         if support_break:
@@ -164,6 +160,16 @@ class PullbackAdapter:
                     "pullback_depth_pct",
                 ),
                 "reversal_trigger": reversal_trigger,
+                "trigger_price": signal_optional_number(snapshot, "trigger_price"),
+                "trigger_distance_pct": signal_optional_number(
+                    snapshot,
+                    "distance_to_pivot_pct",
+                ),
+                "trigger_distance_missing_reason": (
+                    None
+                    if signal_optional_number(snapshot, "distance_to_pivot_pct") is not None
+                    else "TRIGGER_UNAVAILABLE"
+                ),
                 "follow_through_sessions": follow_through,
                 "extended_atr_from_trigger": extended_atr,
                 "state_age_sessions": state_age_sessions,
@@ -172,8 +178,11 @@ class PullbackAdapter:
             agreement_components={
                 "trend": trend_agreement(snapshot),
                 "contraction": (
-                    1.0 if declining_volume and shrinking_ranges else 0.5
-                    if declining_volume or shrinking_ranges else 0.0
+                    1.0
+                    if declining_volume and shrinking_ranges
+                    else 0.5
+                    if declining_volume or shrinking_ranges
+                    else 0.0
                 ),
                 "relative_strength": relative_strength_agreement(snapshot),
                 "classification": classification_agreement(

@@ -19,6 +19,7 @@ from app.models.tables import (
 )
 from app.services.setup_lifecycle.source_loader import (
     SetupLifecycleSourceLoader,
+    _latest_price_bar_history_statement,
     _latest_price_bars_statement,
     _run_context_cutoff_date,
     _select_context_candidate,
@@ -85,6 +86,20 @@ def test_latest_price_bar_projection_query_is_one_row_per_ticker() -> None:
     assert "price_bars.bar_date <=" in rendered
     assert "price_bars.bar_date DESC" in rendered
     assert "CASE WHEN (price_bars.what_to_show =" in rendered
+
+
+def test_price_bar_history_projection_keeps_two_sessions_with_one_source_each() -> None:
+    statement = _latest_price_bar_history_statement(
+        ("MSFT", "AAPL"),
+        cutoff=date(2026, 8, 13),
+        session_count=2,
+    )
+    rendered = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "dense_rank() OVER" in rendered
+    assert "row_number() OVER" in rendered
+    assert "date_rank <=" in rendered
+    assert "source_rank =" in rendered
 
 
 def test_latest_bar_projection_shadow_comparison_detects_lineage_drift() -> None:

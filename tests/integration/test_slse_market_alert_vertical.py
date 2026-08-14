@@ -68,11 +68,16 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
         )
         db.add(evaluation)
         db.flush()
-        previous = _snapshot(
-            1, date(2026, 8, 7), Decimal("7.6"), 9, evaluation.id, source_run.id
-        )
+        previous = _snapshot(1, date(2026, 8, 7), Decimal("7.6"), 9, evaluation.id, source_run.id)
         current = _snapshot(
-            2, date(2026, 8, 10), Decimal("8.1"), 5, evaluation.id, source_run.id
+            2,
+            date(2026, 8, 10),
+            Decimal("8.1"),
+            5,
+            evaluation.id,
+            source_run.id,
+            technical_velocity_3d=Decimal("0.9"),
+            setup_velocity_3d=Decimal("0.4"),
         )
         db.add_all([previous, current])
         db.flush()
@@ -225,10 +230,30 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
         assert signal_item["technical_score"] == 8.1
         assert signal_item["technical_score_delta"] == 0.5
         assert signal_item["score_velocity_3d"] == 0.9
+        lifecycle_item = next(row for row in change_rows if row["source_type"] == "LIFECYCLE_EVENT")
+        assert lifecycle_item["score_velocity_3d"] == 0.9
+        assert lifecycle_item["setup_score_velocity_3d"] == 0.4
+        assert signal_item["setup_score_velocity_3d"] == 0.4
         assert signal_item["sector_rank_delta"] == 4
         assert signal_item["source_url"].endswith(
             f"#signal-change-{signal_item['signal_change_event_id']}"
         )
+
+        stable_metric_filter = service.changes(
+            db,
+            SetupLifecycleListQuery(
+                filters=SetupLifecycleFilters(
+                    ticker="FIX",
+                    velocity_min=Decimal("0.8"),
+                    trigger_distance_min=Decimal("-0.5"),
+                    trigger_distance_max=Decimal("0"),
+                ),
+                sort="velocity",
+            ),
+        )
+        assert stable_metric_filter["total"] == 2
+        assert {item["score_velocity_3d"] for item in stable_metric_filter["items"]} == {0.9}
+        assert {item["trigger_distance_pct"] for item in stable_metric_filter["items"]} == {-0.4}
 
         alerts = service.alerts(
             db,
@@ -412,6 +437,8 @@ def _snapshot(
     *,
     ticker: str = "FIX",
     is_canonical: bool = True,
+    technical_velocity_3d: Decimal | None = None,
+    setup_velocity_3d: Decimal | None = None,
 ) -> SetupSignalSnapshot:
     return SetupSignalSnapshot(
         evaluation_run_id=evaluation_id,
@@ -444,6 +471,30 @@ def _snapshot(
         required_feature_coverage=Decimal("1.0"),
         freshness_status="FRESH",
         signals_json={
+            "technical_score": {
+                "value": str(score),
+                "velocity": {
+                    "3": {
+                        "target_date": "2026-08-05",
+                        "normalized_delta": (
+                            str(technical_velocity_3d)
+                            if technical_velocity_3d is not None
+                            else None
+                        ),
+                    }
+                },
+            },
+            "setup_score": {
+                "value": "7.8",
+                "velocity": {
+                    "3": {
+                        "target_date": "2026-08-05",
+                        "normalized_delta": (
+                            str(setup_velocity_3d) if setup_velocity_3d is not None else None
+                        ),
+                    }
+                },
+            },
             "sector_rank": {"value": sector_rank},
             "market_regime": {"value": "GREEN"},
             "earnings_risk": {"value": "LOW"},

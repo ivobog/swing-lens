@@ -573,9 +573,9 @@ def test_versioned_golden_source_sequences_run_through_the_production_stack(
                         event.reason_codes_json,
                     )
                     for event in db.scalars(
-                            select(SetupLifecycleEvent)
-                            .where(SetupLifecycleEvent.ticker == scenario.ticker)
-                            .where(SetupLifecycleEvent.event_type != "CANONICAL_SELECTION")
+                        select(SetupLifecycleEvent)
+                        .where(SetupLifecycleEvent.ticker == scenario.ticker)
+                        .where(SetupLifecycleEvent.event_type != "CANONICAL_SELECTION")
                         .order_by(SetupLifecycleEvent.effective_date, SetupLifecycleEvent.id)
                     )
                 ],
@@ -755,10 +755,13 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
             )
         )
         assert len(canonical_audits) == 2
-        assert sum(
-            (row.evidence_json or {}).get("previous_snapshot_id") is not None
-            for row in canonical_audits
-        ) == 1
+        assert (
+            sum(
+                (row.evidence_json or {}).get("previous_snapshot_id") is not None
+                for row in canonical_audits
+            )
+            == 1
+        )
 
         retry_run = _seed_source_day(
             db,
@@ -771,11 +774,14 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
         evaluator.evaluate_run(db, retry_run, requester=GOLDEN_FIXTURE_VERSION)
         db.commit()
         assert _domain_counts(db, "GRTY") == before_retry
-        assert db.scalar(
-            select(func.count())
-            .select_from(SetupLifecycleEvaluationRun)
-            .where(SetupLifecycleEvaluationRun.source_run_id == retry_run)
-        ) == 2
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(SetupLifecycleEvaluationRun)
+                .where(SetupLifecycleEvaluationRun.source_run_id == retry_run)
+            )
+            == 2
+        )
 
         canonical_first = _seed_source_day(
             db,
@@ -1037,9 +1043,7 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
                 run_id=run.id,
                 ticker=ticker,
                 dual_score=(
-                    Decimal(str(spec.technical_score))
-                    if spec.technical_score is not None
-                    else None
+                    Decimal(str(spec.technical_score)) if spec.technical_score is not None else None
                 ),
                 trend_score=Decimal(str(spec.trend_score)),
                 momentum_score=Decimal("7.0"),
@@ -1079,9 +1083,7 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
             fundamental_score=Decimal("8.5"),
             technical_classification=spec.classification,
             dual_score=(
-                Decimal(str(spec.technical_score))
-                if spec.technical_score is not None
-                else None
+                Decimal(str(spec.technical_score)) if spec.technical_score is not None else None
             ),
             combined_decision="WATCH",
             earnings_risk_level=spec.earnings_risk,
@@ -1160,9 +1162,7 @@ def _assert_every_layer(
     source_run_id: int,
 ) -> None:
     source_count = db.scalar(
-        select(func.count())
-        .select_from(RawCompanyRow)
-        .where(RawCompanyRow.run_id == source_run_id)
+        select(func.count()).select_from(RawCompanyRow).where(RawCompanyRow.run_id == source_run_id)
     )
     assert source_count == 1
     snapshot = db.scalar(
@@ -1172,24 +1172,40 @@ def _assert_every_layer(
         .where(SetupSignalSnapshot.is_canonical.is_(True))
     )
     assert snapshot is not None
-    assert snapshot.engine_version == "slse-1.2.0"
-    assert snapshot.config_version == "2026-08-12"
+    assert snapshot.engine_version == "slse-1.3.0"
+    assert snapshot.config_version == "2026-08-14-velocity-trigger-distance"
     assert snapshot.config_hash
     assert snapshot.source_data_hash
     assert snapshot.confidence_score is not None
     assert snapshot.actionability_candidate is not None
+    trigger_reference = (snapshot.debug_json or {}).get("trigger_reference") or {}
+    if day.add_bar and day.close is not None:
+        expected_distance = (
+            (Decimal(str(day.pivot)) - Decimal(str(day.close)))
+            / Decimal(str(day.pivot))
+            * Decimal("100")
+        ).quantize(Decimal("0.000001"))
+        assert snapshot.trigger_price == Decimal(str(day.pivot))
+        assert snapshot.distance_to_pivot_pct == expected_distance
+        assert trigger_reference["reference_price"] == str(day.pivot)
+        expected_source_path = (
+            "raw_company_rows.raw_json.pivot_price"
+            if scenario.expected_family in {"BREAKOUT", "VCP"}
+            else "raw_company_rows.raw_json.trigger_price"
+        )
+        assert trigger_reference["source_path"] == expected_source_path
+        assert trigger_reference["missing_reason"] is None
+    else:
+        assert snapshot.distance_to_pivot_pct is None
+    assert snapshot.distance_to_pivot_pct not in {Decimal("999"), Decimal("-999")}
     lifecycle_events = list(
         db.scalars(
-            select(SetupLifecycleEvent).where(
-                SetupLifecycleEvent.snapshot_id == snapshot.id
-            )
+            select(SetupLifecycleEvent).where(SetupLifecycleEvent.snapshot_id == snapshot.id)
         )
     )
     signal_changes = list(
         db.scalars(
-            select(SignalChangeEvent).where(
-                SignalChangeEvent.current_snapshot_id == snapshot.id
-            )
+            select(SignalChangeEvent).where(SignalChangeEvent.current_snapshot_id == snapshot.id)
         )
     )
     assert lifecycle_events or signal_changes
@@ -1217,6 +1233,12 @@ def _assert_every_layer(
             ),
         )
     assert market["total"] > 0
+    if day.add_bar and day.close is not None:
+        assert {
+            item["trigger_distance_pct"]
+            for item in market["items"]
+            if item.get("snapshot_id") == snapshot.id
+        } == {float(expected_distance)}
     assert scenario.ticker in export_changes_csv(market)
     alerts = query.alerts(
         db,

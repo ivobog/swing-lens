@@ -39,6 +39,9 @@ def test_populated_market_changes_and_alert_center_contract(
     expect(page.get_by_text("LIFECYCLE_EVENT", exact=True).last).to_be_visible()
     expect(page.get_by_text("SIGNAL_CHANGE_EVENT", exact=True).last).to_be_visible()
     expect(page.get_by_text("READY to TRIGGERED", exact=True).first).to_be_visible()
+    expect(page.get_by_role("columnheader", name="Technical Velocity (3S)")).to_be_visible()
+    expect(page.get_by_text("+0.90", exact=True)).to_have_count(2)
+    expect(page.get_by_text("-0.40%", exact=True)).to_have_count(2)
     expect(
         page.locator(".metric", has_text="Total Changes").get_by_text("2", exact=True)
     ).to_be_visible()
@@ -64,9 +67,7 @@ def test_populated_market_changes_and_alert_center_contract(
     expect(page.locator("tbody tr:not(.detail-row)")).to_have_count(1)
     first_source = page.locator("tbody tr").first.get_by_role("cell").nth(3).inner_text()
     next_link = page.get_by_role("link", name="Next page")
-    expect(next_link).to_have_attribute(
-        "href", re.compile(f"^/runs/{run_id}/setup-lifecycle\\?")
-    )
+    expect(next_link).to_have_attribute("href", re.compile(f"^/runs/{run_id}/setup-lifecycle\\?"))
     expect(page.get_by_role("link", name="Clear")).to_have_attribute(
         "href", f"/runs/{run_id}/setup-lifecycle"
     )
@@ -85,9 +86,12 @@ def test_populated_market_changes_and_alert_center_contract(
         f"?run_id={run_id}&view_scope=HISTORICAL_RUN"
     ).json()
     assert historical_export["total"] == 2
-    assert page.request.get(
-        f"{live_server_url}/api/setup-lifecycle/changes?run_id={run_id}"
-    ).json()["total"] == 0
+    assert (
+        page.request.get(f"{live_server_url}/api/setup-lifecycle/changes?run_id={run_id}").json()[
+            "total"
+        ]
+        == 0
+    )
 
     page.goto(f"{live_server_url}/setup-lifecycle/alerts")
     expect(page.get_by_role("heading", name="Alert Center")).to_be_visible()
@@ -122,15 +126,16 @@ def test_populated_market_changes_and_alert_center_contract(
             "trigger-alert": "ACKNOWLEDGED",
         }
 
-    page.goto(
-        f"{live_server_url}/setup-lifecycle/alerts?alert_type=SCORE_ACCELERATION"
-    )
+    page.goto(f"{live_server_url}/setup-lifecycle/alerts?alert_type=SCORE_ACCELERATION")
     expect(page.get_by_text("SCORE_ACCELERATION", exact=True).last).to_be_visible()
     expect(page.locator("tbody tr[data-slse-alert-row]")).to_have_count(1)
-    assert page.request.get(
-        f"{live_server_url}/api/setup-lifecycle/alerts/export.json"
-        "?alert_type=SCORE_ACCELERATION"
-    ).json()["items"][0]["severity"] == "NOTABLE"
+    assert (
+        page.request.get(
+            f"{live_server_url}/api/setup-lifecycle/alerts/export.json"
+            "?alert_type=SCORE_ACCELERATION"
+        ).json()["items"][0]["severity"]
+        == "NOTABLE"
+    )
     engine.dispose()
 
 
@@ -152,12 +157,8 @@ def _seed_vertical_fixture(db: Session) -> tuple[int, int, int]:
     )
     db.add(evaluation)
     db.flush()
-    previous = _snapshot(
-        date(2026, 8, 7), Decimal("7.6"), 9, evaluation.id, 1, source_run.id
-    )
-    current = _snapshot(
-        date(2026, 8, 10), Decimal("8.1"), 5, evaluation.id, 2, source_run.id
-    )
+    previous = _snapshot(date(2026, 8, 7), Decimal("7.6"), 9, evaluation.id, 1, source_run.id)
+    current = _snapshot(date(2026, 8, 10), Decimal("8.1"), 5, evaluation.id, 2, source_run.id)
     db.add_all([previous, current])
     db.flush()
     episode = SetupLifecycleEpisode(
@@ -309,15 +310,45 @@ def _snapshot(
         dual_score=score,
         setup_score=Decimal("7.8"),
         close_price=Decimal("101"),
+        trigger_price=Decimal("100"),
         distance_to_pivot_pct=Decimal("-0.4"),
         required_feature_coverage=Decimal("1.0"),
         freshness_status="FRESH",
         signals_json={
+            "technical_score": {
+                "value": str(score),
+                "velocity": {
+                    "3": {
+                        "target_date": "2026-08-05",
+                        "normalized_delta": "0.9" if identity == 2 else None,
+                    }
+                },
+            },
+            "setup_score": {
+                "value": "7.8",
+                "velocity": {
+                    "3": {
+                        "target_date": "2026-08-05",
+                        "normalized_delta": "0.3" if identity == 2 else None,
+                    }
+                },
+            },
             "sector_rank": {"value": sector_rank},
             "market_regime": {"value": "GREEN"},
             "market_gate": {"value": True},
             "earnings_risk": {"value": "LOW"},
             "liquidity": {"value": False},
+        },
+        debug_json={
+            "trigger_reference": {
+                "setup_family": "BREAKOUT",
+                "reference_type": "BREAKOUT_PIVOT",
+                "reference_price": "100",
+                "source_path": "technical_scores.v4_debug_json.box.box_high",
+                "source_record_id": identity,
+                "source_session": as_of.isoformat(),
+                "missing_reason": None,
+            }
         },
         warning_flags_json=[],
     )

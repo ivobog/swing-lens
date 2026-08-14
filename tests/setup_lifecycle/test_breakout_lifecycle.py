@@ -79,3 +79,11 @@ def test_breakout_adapter_flags_hard_failure_and_expiry() -> None:
     assert failed.hard_failure is True
     assert "FAILED_BREAKOUT" in failed.reason_codes
     assert expired.phase_code == "EXPIRED"
+
+
+def test_breakout_adapter_preserves_missing_distance_as_null_not_sentinel() -> None:
+    evidence = BreakoutAdapter().evaluate(snapshot(setup_score=8.0, classification="Breakout Base"))
+
+    assert evidence.ready is False
+    assert evidence.evidence["distance_to_pivot_pct"] is None
+    assert evidence.evidence["trigger_distance_missing_reason"] == "PIVOT_UNAVAILABLE"

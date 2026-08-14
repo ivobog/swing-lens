@@ -35,27 +35,33 @@ class BreakoutAdapter:
     ) -> FamilyEvidence:
         policy = self.config.families.policies[self.setup_family]
         setup_score = signal_number(snapshot, "setup_score")
-        distance = signal_number(snapshot, "distance_to_pivot_pct", default=999.0)
+        distance = signal_optional_number(snapshot, "distance_to_pivot_pct")
         close_cross = signal_bool(snapshot, "close_trigger_cross")
         follow_through = consecutive_true_sessions(snapshot, history, "close_trigger_cross")
         dry_up = signal_bool(snapshot, "volume_dry_up") or classification_contains(
             snapshot, "dry", "vdu"
         )
         volume_percentile = signal_optional_number(snapshot, "volume_percentile_252")
-        dry_up = dry_up or (volume_percentile is not None and volume_percentile <= 35) or (
-            numeric_history_is_improving(
-                snapshot,
-                history,
-                "volume_percentile_252",
-                lower_is_better=True,
+        dry_up = (
+            dry_up
+            or (volume_percentile is not None and volume_percentile <= 35)
+            or (
+                numeric_history_is_improving(
+                    snapshot,
+                    history,
+                    "volume_percentile_252",
+                    lower_is_better=True,
+                )
             )
         )
+
         def contraction_observation(item: NormalizedSnapshot) -> bool:
             return (
                 signal_bool(item, "range_contraction")
                 or signal_number(item, "tightness_score") >= 6.0
                 or classification_contains(item, "contraction", "tight")
             )
+
         contraction_sessions = consecutive_family_condition_sessions(
             snapshot,
             history,
@@ -103,14 +109,14 @@ class BreakoutAdapter:
 
         reasons: list[str] = []
         phase = "BASE_FORMING"
-        ready = setup_score >= policy.ready_score_min and distance <= ready_distance
+        ready = (
+            setup_score >= policy.ready_score_min
+            and distance is not None
+            and distance <= ready_distance
+        )
         triggered = ready and close_cross
         confirmed = triggered and follow_through >= confirmed_sessions
-        extended = (
-            triggered
-            and extended_atr is not None
-            and extended_atr >= extended_limit
-        )
+        extended = triggered and extended_atr is not None and extended_atr >= extended_limit
 
         if failed:
             phase = "BREAKOUT_FAILED"
@@ -155,6 +161,9 @@ class BreakoutAdapter:
             evidence={
                 "setup_score": setup_score,
                 "distance_to_pivot_pct": distance,
+                "trigger_distance_missing_reason": (
+                    None if distance is not None else "PIVOT_UNAVAILABLE"
+                ),
                 "close_trigger_cross": close_cross,
                 "follow_through_sessions": follow_through,
                 "extended_atr_from_trigger": extended_atr,

@@ -13,6 +13,7 @@ from app.services.setup_lifecycle.family_adapters import (
     relative_strength_agreement,
     signal_bool,
     signal_number,
+    signal_optional_number,
     trend_agreement,
 )
 
@@ -33,6 +34,7 @@ class VcpAdapter:
     ) -> FamilyEvidence:
         policy = self.config.families.policies[self.setup_family]
         setup_score = signal_number(snapshot, "setup_score")
+
         def contraction_observation(item: NormalizedSnapshot) -> bool:
             return (
                 signal_bool(item, "range_contraction")
@@ -60,9 +62,8 @@ class VcpAdapter:
         dry_up_max = float(
             policy_parameter(self.config, self.setup_family, "dry_up_percentile_max", 35)
         )
-        trackable = (
-            setup_score >= policy.tracking_score_min
-            and (classification_contains(snapshot, "vcp") or contraction_count >= 1)
+        trackable = setup_score >= policy.tracking_score_min and (
+            classification_contains(snapshot, "vcp") or contraction_count >= 1
         )
         ready = setup_score >= policy.ready_score_min and contraction_count >= contraction_min
         ready = ready and dry_up_percentile <= dry_up_max
@@ -78,11 +79,7 @@ class VcpAdapter:
                 2.5,
             )
         )
-        extended = (
-            triggered
-            and extended_atr is not None
-            and extended_atr >= extended_limit
-        )
+        extended = triggered and extended_atr is not None and extended_atr >= extended_limit
 
         reasons: list[str] = []
         if failed:
@@ -134,6 +131,16 @@ class VcpAdapter:
                 "contraction_count": contraction_count,
                 "volume_percentile_252": dry_up_percentile,
                 "close_trigger_cross": close_cross,
+                "trigger_price": signal_optional_number(snapshot, "trigger_price"),
+                "trigger_distance_pct": signal_optional_number(
+                    snapshot,
+                    "distance_to_pivot_pct",
+                ),
+                "trigger_distance_missing_reason": (
+                    None
+                    if signal_optional_number(snapshot, "distance_to_pivot_pct") is not None
+                    else "PIVOT_UNAVAILABLE"
+                ),
                 "follow_through_sessions": follow_through,
                 "extended_atr_from_trigger": extended_atr,
                 "state_age_sessions": state_age_sessions,

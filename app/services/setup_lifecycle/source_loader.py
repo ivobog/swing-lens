@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from time import perf_counter
 
-from sqlalchemy import case, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -154,11 +154,17 @@ class SetupLifecycleSourceLoader:
         sector_snapshot_ids = tuple(
             snapshot.id for snapshot in sector_candidates if snapshot.id is not None
         )
-        sector_rows = tuple(
-            db.scalars(
-                select(SectorRotationRow).where(SectorRotationRow.snapshot_id.in_(sector_snapshot_ids))
+        sector_rows = (
+            tuple(
+                db.scalars(
+                    select(SectorRotationRow).where(
+                        SectorRotationRow.snapshot_id.in_(sector_snapshot_ids)
+                    )
+                )
             )
-        ) if sector_snapshot_ids else ()
+            if sector_snapshot_ids
+            else ()
+        )
 
         context = build_run_source_context(
             upload_run=upload_run,
@@ -202,7 +208,13 @@ class SetupLifecycleSourceLoader:
 
         if self.latest_bar_projection_enabled or self.shadow_compare_enabled:
             projected_price_bars = tuple(
-                db.scalars(_latest_price_bars_statement(tickers, cutoff=cutoff))
+                db.scalars(
+                    _latest_price_bar_history_statement(
+                        tickers,
+                        cutoff=cutoff,
+                        session_count=2,
+                    )
+                )
             )
         if not self.latest_bar_projection_enabled or self.shadow_compare_enabled:
             legacy_price_bars = tuple(
@@ -557,6 +569,51 @@ def _select_context_candidate(rows, cutoff: date, run_id: int):
             row.created_at.timestamp() if row.created_at is not None else 0,
             row.id or 0,
         ),
+    )
+
+
+def _latest_price_bar_history_statement(
+    tickers: tuple[str, ...],
+    *,
+    cutoff: date,
+    session_count: int = 2,
+):
+    """Return one authoritative price source for each of the latest sessions per ticker."""
+    safe_count = max(1, min(int(session_count), 10))
+    source_priority = case(
+        (PriceBar.what_to_show == "TRADES", 0),
+        (PriceBar.what_to_show == "ADJUSTED_LAST", 1),
+        else_=2,
+    )
+    ranked = (
+        select(
+            PriceBar.id.label("price_bar_id"),
+            func.dense_rank()
+            .over(
+                partition_by=PriceBar.ticker,
+                order_by=PriceBar.bar_date.desc(),
+            )
+            .label("date_rank"),
+            func.row_number()
+            .over(
+                partition_by=(PriceBar.ticker, PriceBar.bar_date),
+                order_by=(source_priority, PriceBar.id.desc()),
+            )
+            .label("source_rank"),
+        )
+        .where(PriceBar.ticker.in_(tickers))
+        .where(PriceBar.timeframe.in_(DAILY_PRICE_TIMEFRAMES))
+        .where(PriceBar.what_to_show.in_(PRICE_BAR_SOURCE_ORDER))
+        .where(PriceBar.bar_date <= cutoff)
+        .where(PriceBar.close.is_not(None))
+        .subquery()
+    )
+    return (
+        select(PriceBar)
+        .join(ranked, ranked.c.price_bar_id == PriceBar.id)
+        .where(ranked.c.date_rank <= safe_count)
+        .where(ranked.c.source_rank == 1)
+        .order_by(PriceBar.ticker, PriceBar.bar_date, PriceBar.id)
     )
 
 

@@ -16,6 +16,7 @@ from app.models.tables import (
     SectorRotationRow,
     SectorRotationSnapshot,
     SetupLifecycleEvaluationRun,
+    SetupSignalSnapshot,
     TechnicalScore,
     UploadRun,
 )
@@ -25,6 +26,7 @@ from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.snapshot_builder import (
     SetupLifecycleSnapshotBuilder,
     SetupLifecycleSnapshotCaptureService,
+    _trigger_distance_pct,
 )
 from app.services.setup_lifecycle.source_loader import (
     RunSourceContext,
@@ -144,11 +146,156 @@ def test_freshness_uses_completed_us_trading_sessions(
 def test_snapshot_source_hash_changes_when_relevant_evidence_changes() -> None:
     builder = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config())
     original = builder.build(_ticker_context())
-    changed = builder.build(
-        _ticker_context(technical_score=_technical(dual_score=Decimal("8.9")))
-    )
+    changed = builder.build(_ticker_context(technical_score=_technical(dual_score=Decimal("8.9"))))
 
     assert original.source_data_hash != changed.source_data_hash
+
+
+def test_snapshot_builder_persists_separate_exact_session_score_velocities() -> None:
+    technical = _technical(dual_score=Decimal("8.0"))
+    technical.setup_score = Decimal("7.8")
+    history = (
+        _history_snapshot(date(2026, 8, 12), 1, technical="7.4", setup="7.6"),
+        _history_snapshot(date(2026, 8, 10), 2, technical="7.0", setup="7.1"),
+        _history_snapshot(date(2026, 8, 6), 3, technical="6.5", setup="6.9"),
+        _history_snapshot(date(2026, 7, 30), 4, technical="6.0", setup="6.8"),
+    )
+
+    built = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()).build(
+        _ticker_context(
+            technical_score=technical,
+            price_bars=(_bar(date(2026, 8, 13), close=101),),
+        ),
+        history=history,
+    )
+
+    technical_velocity = built.dto.signals["technical_score"]["velocity"]
+    setup_velocity = built.dto.signals["setup_score"]["velocity"]
+    assert technical_velocity["1"]["target_date"] == "2026-08-12"
+    assert technical_velocity["1"]["normalized_delta"] == "0.6"
+    assert technical_velocity["3"]["target_date"] == "2026-08-10"
+    assert technical_velocity["3"]["normalized_delta"] == "1.0"
+    assert technical_velocity["5"]["target_date"] == "2026-08-06"
+    assert technical_velocity["5"]["normalized_delta"] == "1.5"
+    assert technical_velocity["10"]["target_date"] == "2026-07-30"
+    assert technical_velocity["10"]["normalized_delta"] == "2.0"
+    assert setup_velocity["1"]["normalized_delta"] == "0.2"
+    assert setup_velocity["3"]["normalized_delta"] == "0.7"
+    assert setup_velocity["5"]["normalized_delta"] == "0.9"
+    assert setup_velocity["10"]["normalized_delta"] == "1.0"
+    assert technical_velocity["1"]["normalized_delta"] != setup_velocity["1"]["normalized_delta"]
+
+
+@pytest.mark.parametrize(
+    ("classification", "expected_type", "expected_price", "expected_distance"),
+    [
+        ("Breakout Base", "BREAKOUT_PIVOT", Decimal("100"), Decimal("-1.000000")),
+        ("VCP", "VCP_PIVOT", Decimal("100"), Decimal("-1.000000")),
+        ("Continuation Flag", "CONTINUATION_TRIGGER", Decimal("100"), Decimal("-1.000000")),
+    ],
+)
+def test_snapshot_builder_promotes_family_specific_box_trigger_geometry(
+    classification: str,
+    expected_type: str,
+    expected_price: Decimal,
+    expected_distance: Decimal,
+) -> None:
+    technical = _technical(classification=classification)
+    technical.v4_debug_json = {"box": {"box_high": 100.0}}
+
+    built = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()).build(
+        _ticker_context(
+            technical_score=technical,
+            price_bars=(_bar(date(2026, 8, 13), close=101),),
+            raw_json={},
+        )
+    )
+
+    assert built.dto.promoted_fields["trigger_price"] == expected_price
+    assert built.dto.promoted_fields["distance_to_pivot_pct"] == expected_distance
+    assert built.dto.debug["trigger_reference"]["reference_type"] == expected_type
+    assert (
+        built.dto.debug["trigger_reference"]["source_path"]
+        == "technical_scores.v4_debug_json.box.box_high"
+    )
+
+
+def test_snapshot_builder_uses_exact_previous_session_high_for_pullback() -> None:
+    technical = _technical(classification="Bull Pullback")
+    current = _bar(date(2026, 8, 13), close=98)
+    previous = _bar(date(2026, 8, 12), close=97)
+    previous.high = Decimal("100")
+
+    built = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()).build(
+        _ticker_context(
+            technical_score=technical,
+            price_bars=(previous, current),
+            raw_json={},
+        )
+    )
+
+    assert built.dto.promoted_fields["pivot_price"] is None
+    assert built.dto.promoted_fields["trigger_price"] == Decimal("100")
+    assert built.dto.promoted_fields["distance_to_pivot_pct"] == Decimal("2.000000")
+    assert built.dto.debug["trigger_reference"] == {
+        "setup_family": "PULLBACK",
+        "reference_type": "PULLBACK_PRIOR_SESSION_HIGH",
+        "reference_price": "100",
+        "source_path": "price_bars.previous_completed_session.high",
+        "source_record_id": previous.id,
+        "source_session": "2026-08-12",
+        "missing_reason": None,
+    }
+
+
+def test_snapshot_builder_does_not_substitute_non_exact_pullback_history() -> None:
+    technical = _technical(classification="Bull Pullback")
+    stale = _bar(date(2026, 8, 5), close=97)
+    stale.high = Decimal("100")
+
+    built = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()).build(
+        _ticker_context(
+            technical_score=technical,
+            price_bars=(stale, _bar(date(2026, 8, 13), close=98)),
+            raw_json={},
+        )
+    )
+
+    assert built.dto.promoted_fields["trigger_price"] is None
+    assert built.dto.promoted_fields["distance_to_pivot_pct"] is None
+    assert built.dto.debug["trigger_reference"]["missing_reason"] == "TRIGGER_UNAVAILABLE"
+
+
+@pytest.mark.parametrize(
+    ("close", "reference", "expected"),
+    [
+        (Decimal("98"), Decimal("100"), Decimal("2.000000")),
+        (Decimal("100"), Decimal("100"), Decimal("0.000000")),
+        (Decimal("101"), Decimal("100"), Decimal("-1.000000")),
+        (Decimal("98"), Decimal("999"), None),
+        (Decimal("98"), Decimal("0"), None),
+        (None, Decimal("100"), None),
+    ],
+)
+def test_trigger_distance_formula_and_invalid_geometry(
+    close: Decimal | None,
+    reference: Decimal,
+    expected: Decimal | None,
+) -> None:
+    assert _trigger_distance_pct(close, reference) == expected
+
+
+def test_generic_snapshot_without_legitimate_trigger_remains_null() -> None:
+    built = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()).build(
+        _ticker_context(
+            technical_score=_technical(classification="Distribution risk"),
+            raw_json={},
+        )
+    )
+
+    assert built.dto.promoted_fields["trigger_price"] is None
+    assert built.dto.promoted_fields["distance_to_pivot_pct"] is None
+    assert built.dto.debug["trigger_reference"]["missing_reason"] == "TRIGGER_NOT_APPLICABLE"
 
 
 def test_capture_service_persists_one_snapshot_per_ticker_and_retries_idempotently() -> None:
@@ -241,10 +388,15 @@ class FakeRepository:
 
 
 class FailingBuilder(SetupLifecycleSnapshotBuilder):
-    def build(self, context: TickerSourceContext):
+    def build(
+        self,
+        context: TickerSourceContext,
+        *,
+        history: tuple[SetupSignalSnapshot, ...] = (),
+    ):
         if context.ticker == "BAD":
             raise ValueError("bad ticker source context")
-        return super().build(context)
+        return super().build(context, history=history)
 
 
 def _ticker_context(
@@ -258,9 +410,12 @@ def _ticker_context(
     sector_rotation_snapshot=_MISSING,
     sector_rotation_row=_MISSING,
     price_bars: tuple[PriceBar, ...] | None = None,
+    raw_json=_MISSING,
 ) -> TickerSourceContext:
     upload = upload_run or _upload_run()
     raw = _raw_row(ticker)
+    if raw_json is not _MISSING:
+        raw.raw_json = raw_json
     raw.run = upload
     ranking = _ranking(ticker)
     return TickerSourceContext(
@@ -327,6 +482,7 @@ def _technical(
     *,
     ticker: str = "MSFT",
     dual_score: Decimal = Decimal("8.2"),
+    classification: str = "Breakout",
 ) -> TechnicalScore:
     return TechnicalScore(
         id=301,
@@ -337,7 +493,7 @@ def _technical(
         momentum_score=Decimal("7.1"),
         setup_score=Decimal("7.8"),
         risk_score=Decimal("2.1"),
-        classification="Breakout",
+        classification=classification,
         stage="PIVOT_READY",
         pullback_health="Clean",
         action_bias="Constructive",
@@ -456,4 +612,35 @@ def _bar(bar_date: date, *, close: int) -> PriceBar:
         source="IBKR",
         what_to_show="TRADES",
         data_hash=f"MSFT-{bar_date.isoformat()}-{close}",
+    )
+
+
+def _history_snapshot(
+    as_of: date,
+    identity: int,
+    *,
+    technical: str,
+    setup: str,
+) -> SetupSignalSnapshot:
+    return SetupSignalSnapshot(
+        id=identity,
+        run_id=identity,
+        ticker="MSFT",
+        timeframe="1d",
+        data_as_of_date=as_of,
+        calculated_at=datetime.combine(as_of, datetime.min.time(), tzinfo=UTC),
+        origin_type="LIVE_RUN",
+        engine_version="slse-test",
+        config_version="test",
+        config_hash="hash",
+        source_data_hash=f"history-{identity}",
+        schema_version="v1",
+        data_quality_label="HIGH",
+        dual_score=Decimal(technical),
+        setup_score=Decimal(setup),
+        signals_json={
+            "technical_score": {"value": technical},
+            "setup_score": {"value": setup},
+        },
+        is_canonical=True,
     )
