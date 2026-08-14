@@ -95,8 +95,7 @@ def test_descending_opportunity_sort_places_nulls_last_across_pages() -> None:
 
 def test_pagination_metadata_and_all_rows_are_complete_without_duplicates() -> None:
     snapshots = [
-        _snapshot(index, f"T{index:03d}", opportunity=float(200 - index))
-        for index in range(1, 178)
+        _snapshot(index, f"T{index:03d}", opportunity=float(200 - index)) for index in range(1, 178)
     ]
     service = CeriQueryService()
     db = FakeDb({CeriScoreSnapshot: snapshots})
@@ -573,6 +572,8 @@ def test_events_changes_alerts_and_operations_payloads_are_queryable() -> None:
         expected_date=date(2026, 8, 15),
         status="SCHEDULED",
         direction="NEGATIVE",
+        issuer_relevance=True,
+        binary_eligible=True,
         conflict_flags_json=["provider_disagreement"],
     )
     change = CeriChangeEvent(
@@ -580,6 +581,7 @@ def test_events_changes_alerts_and_operations_payloads_are_queryable() -> None:
         company_id=1,
         change_type="NEW_BINARY_EVENT",
         severity="RISK",
+        catalyst_revision_id=9,
         dedup_key="dedup",
         created_at=NOW,
     )

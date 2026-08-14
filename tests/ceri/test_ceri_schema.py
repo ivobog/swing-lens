@@ -47,6 +47,7 @@ CERI_TABLE_NAMES = {
     "ceri_purge_audits",
     "ceri_price_response_features",
     "ceri_derived_features",
+    "ceri_controlled_replays",
 }
 
 
@@ -198,14 +199,31 @@ def test_revision_score_change_alert_and_purge_indexes_are_defined() -> None:
     assert "uq_ceri_change_events_dedup_key" in change_constraints
     assert "uq_ceri_alert_rules_rule_id" in alert_rule_constraints
     assert "uq_ceri_alert_events_event_key" in alert_event_constraints
+    assert "ck_ceri_alert_events_change_lineage" in alert_event_constraints
     assert "uq_ceri_purge_audits_preview_scope" in purge_constraints
     assert "uq_ceri_catalyst_event_current_revision" in catalyst_revision_indexes
     assert catalyst_revision_indexes["uq_ceri_catalyst_event_current_revision"].unique
     assert (
-        catalyst_revision_indexes["uq_ceri_catalyst_event_current_revision"]
-        .dialect_options["postgresql"]["where"]
+        catalyst_revision_indexes["uq_ceri_catalyst_event_current_revision"].dialect_options[
+            "postgresql"
+        ]["where"]
         is not None
     )
+
+
+def test_change_and_alert_semantic_dimensions_are_non_nullable() -> None:
+    snapshot = CeriScoreSnapshot.__table__.c
+    change = CeriChangeEvent.__table__.c
+    alert = CeriAlertEvent.__table__.c
+
+    assert snapshot.evidence_contract_version.nullable is False
+    assert snapshot.comparison_state.nullable is False
+    assert change.importance.nullable is False
+    assert change.signal_class.nullable is False
+    assert change.comparison_state.nullable is False
+    assert alert.importance.nullable is False
+    assert alert.signal_class.nullable is False
+    assert alert.validity_classification.nullable is False
 
 
 def test_revision_features_preserve_phase_5_lineage_fields() -> None:
@@ -335,9 +353,9 @@ def test_ceri_migration_follows_current_head_and_lists_tables() -> None:
 
 
 def test_ceri_ingestion_audit_migration_follows_ceri_schema_head() -> None:
-    migration = Path(
-        "alembic/versions/20260801_0019_add_ceri_ingestion_audit_fields.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260801_0019_add_ceri_ingestion_audit_fields.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0019_add_ceri_ingestion_audit_fields"' in migration
     assert 'down_revision: str | None = "0018_add_ceri_tables"' in migration

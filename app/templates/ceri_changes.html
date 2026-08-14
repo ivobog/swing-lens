@@ -4,6 +4,7 @@
 
 {% block content %}
 <script src="{{ url_for('static', path='/ceri.js') }}" defer></script>
+{% set comparison = comparison_context|default({}) %}
 
 <section class="panel ceri-hero">
   <div class="panel-header run-header">
@@ -19,6 +20,8 @@
   <div class="run-meta">
     <span>{{ page.total or 0 }} changes</span>
     <span>{{ alerts|length }} alerts visible</span>
+    <span>{{ comparison.get("label", "No comparable run pair selected") }}</span>
+    <span>{{ comparison.get("excluded_non_comparable", 0) }} excluded as non-comparable</span>
     {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
   </div>
 </section>
@@ -27,10 +30,34 @@
   <div class="panel-header compact-header"><div><h2>Filters</h2></div></div>
   <form class="ceri-filter-grid section-gap" method="get">
     <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
+    <label><span>From run</span><input name="from_run_id" type="number" value="{{ filters.from_run_id }}"></label>
+    <label><span>To run</span><input name="to_run_id" type="number" value="{{ filters.to_run_id }}"></label>
+    <label><span>Group</span>
+      <select name="change_group">
+        <option value="">Any</option>
+        {% for option in ["Upward revisions", "Downward revisions", "Guidance", "Catalysts", "Opportunity", "Risk", "Resolved", "Other/Data quality"] %}
+          <option value="{{ option }}" {{ "selected" if filters.change_group == option else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span>Change type</span><input name="change_type" value="{{ filters.change_type }}"></label>
+    <label><span>Importance</span>
+      <select name="importance"><option value="">Any</option>{% for option in ["INFO", "NOTABLE", "IMPORTANT", "URGENT"] %}<option value="{{ option }}" {{ "selected" if filters.importance == option else "" }}>{{ option|title }}</option>{% endfor %}</select>
+    </label>
+    <label><span>Signal class</span>
+      <select name="signal_class"><option value="">Any</option>{% for option in ["POSITIVE", "NEGATIVE", "RISK", "NEUTRAL", "DATA_QUALITY"] %}<option value="{{ option }}" {{ "selected" if filters.signal_class == option else "" }}>{{ option|replace("_", " ")|title }}</option>{% endfor %}</select>
+    </label>
+    <label><span>Minimum delta</span><input name="min_delta" type="number" step="any" value="{{ filters.min_delta }}"></label>
+    <label><span>Event category</span><input name="catalyst_category" value="{{ filters.catalyst_category }}"></label>
+    <label><span>History</span>
+      <select name="history_scope"><option value="">Current and historical</option>{% for option in ["CURRENT", "HISTORICAL"] %}<option value="{{ option }}" {{ "selected" if filters.history_scope == option else "" }}>{{ option|title }}</option>{% endfor %}</select>
+    </label>
+    <label><span>Forensic transitions</span><input name="include_non_comparable" type="checkbox" value="true" {{ "checked" if filters.include_non_comparable else "" }}> Include non-comparable</label>
+    <label><span>Forensic catalyst rows</span><input name="include_ineligible" type="checkbox" value="true" {{ "checked" if filters.include_ineligible else "" }}> Include ineligible</label>
     <label><span>Alert status</span>
       <select name="status">
         <option value="" {{ "selected" if not filters.status else "" }}>Any</option>
-        {% for option in ["UNREAD", "ACKNOWLEDGED", "DISMISSED"] %}
+        {% for option in ["UNREAD", "ACKNOWLEDGED", "DISMISSED", "INVALIDATED"] %}
           <option value="{{ option }}" {{ "selected" if filters.status == option else "" }}>{{ option|title }}</option>
         {% endfor %}
       </select>
@@ -49,6 +76,7 @@
       </select>
     </label>
     <div class="actions ceri-filter-actions">
+      <input name="limit" type="hidden" value="{{ filters.limit }}">
       <button type="submit">Apply</button>
       <a class="button-link secondary" href="/ceri/changes">Clear</a>
     </div>
@@ -63,15 +91,38 @@
         <h3>{{ group.label }}</h3>
         {% for change in group["items"] %}
           <article class="evidence-row">
-            <strong>{{ change.ticker or "Unknown" }} - {{ change.change_type }}</strong>
-            <span>{{ change.severity }} - {{ change.created_at }}</span>
-            <small>From {{ change.from_snapshot_id or "N/A" }} to {{ change.to_snapshot_id or "N/A" }} - Catalyst revision {{ change.catalyst_revision_id or "N/A" }}</small>
+            <strong>{{ change.ticker or "Unknown" }} · {{ change.title }}</strong>
+            <span>{{ change.summary }}</span>
+            {% if change.group in ["Upward revisions", "Downward revisions"] %}
+              {% for window in change.current.revision_windows %}
+                <small>{{ window.metric|replace("_DILUTED", "") }} {{ window.period_key|replace("_", " ")|title }} {{ window.window_days }}d · {{ "%+.2f"|format(window.pct_change) if window.pct_change is not none else "Unavailable" }}% · Breadth {{ "%+.2f"|format(window.net_breadth) if window.net_breadth is not none else "Unavailable" }} · Acceleration {{ "%+.2f"|format(window.acceleration) if window.acceleration is not none else "Unavailable" }}</small>
+              {% endfor %}
+            {% elif change.group == "Guidance" %}
+              <small>{{ change.previous.action or "No accepted guidance" }} -> {{ change.current.action }} · {{ change.current.metric or "Metric unavailable" }} · Confidence {{ change.current.confidence or "Unavailable" }}</small>
+            {% elif change.previous and change.current %}
+              <small>
+                Coverage {{ change.previous.coverage_pct if change.previous.coverage_pct is not none else "Unavailable" }}% -> {{ change.current.coverage_pct if change.current.coverage_pct is not none else "Unavailable" }}%
+                · Confidence {{ change.previous.confidence or "Unavailable" }} -> {{ change.current.confidence or "Unavailable" }}
+              </small>
+            {% elif change.event %}
+              <small>{{ change.event.category or "Catalyst" }} · {{ change.event.subtype or "Event" }} · {{ change.event.status or "Status unavailable" }} · Materiality {{ change.event.materiality if change.event.materiality is not none else "Unavailable" }} · Confidence {{ change.event.confidence or "Unavailable" }}</small>
+              {% if change.event.expected_date %}<small>Expected {{ change.event.expected_date }}</small>{% endif %}
+            {% endif %}
+            <small>{{ change.importance|title }} · {{ change.signal_class|replace("_", " ")|title }} · {{ change.created_at }}</small>
+            <details><summary>Technical details</summary><code>{{ change.technical|tojson }}</code></details>
           </article>
         {% else %}
           <p>No changes in this group.</p>
         {% endfor %}
       </section>
     {% endfor %}
+    {% if page.has_previous or page.has_next %}
+      <nav class="actions section-gap" aria-label="Changes pagination">
+        {% if page.has_previous %}<a class="button-link secondary" href="{{ request.url.include_query_params(offset=page.previous_offset) }}">Previous</a>{% endif %}
+        <span>{{ page.start_item }}-{{ page.end_item }} of {{ page.total }}</span>
+        {% if page.has_next %}<a class="button-link secondary" href="{{ request.url.include_query_params(offset=page.next_offset) }}">Next</a>{% endif %}
+      </nav>
+    {% endif %}
   </div>
 
   <div class="panel" data-ceri-alerts>
@@ -83,9 +134,13 @@
           <thead>
             <tr>
               <th scope="col">Ticker</th>
-              <th scope="col">Severity</th>
+              <th scope="col">Alert</th>
+              <th scope="col">Importance</th>
+              <th scope="col">Change</th>
+              <th scope="col">Risk</th>
+              <th scope="col">Confidence</th>
+              <th scope="col">When</th>
               <th scope="col">Status</th>
-              <th scope="col">Evidence</th>
               <th scope="col">Action</th>
             </tr>
           </thead>
@@ -93,18 +148,25 @@
             {% for alert in alerts %}
               <tr data-ceri-alert-row>
                 <td>{{ alert.ticker }}</td>
-                <td>{{ alert.severity }}</td>
+                <td>{{ alert.alert_type|replace("_", " ")|title }}</td>
+                <td>{{ alert.importance|title }}</td>
+                <td>{{ alert.change_summary }}</td>
+                <td>{{ alert.risk if alert.risk is not none else "Unavailable" }}</td>
+                <td>{{ alert.confidence or "Unavailable" }}</td>
+                <td>{{ alert.created_at }}</td>
                 <td><span data-ceri-alert-status>{{ alert.status }}</span></td>
-                <td><code>{{ alert.evidence|tojson }}</code></td>
                 <td>
-                  {% if admin_enabled %}
+                  {% if alert.actionable and admin_enabled %}
                     <div class="row-actions">
                       <button class="secondary" type="button" data-ceri-csrf-token="{{ csrf_token }}" data-ceri-alert-action="/api/ceri/alerts/{{ alert.id }}/acknowledge">Acknowledge</button>
                       <button class="secondary" type="button" data-ceri-csrf-token="{{ csrf_token }}" data-ceri-alert-action="/api/ceri/alerts/{{ alert.id }}/dismiss">Dismiss</button>
                     </div>
+                  {% elif alert.status == "INVALIDATED" %}
+                    <span>Invalidated: {{ alert.invalidated_reason or "legacy semantics" }}</span>
                   {% else %}
                     <span>Admin disabled</span>
                   {% endif %}
+                  <details><summary>Technical details</summary><code>{{ alert.technical|tojson }}</code></details>
                 </td>
               </tr>
             {% endfor %}

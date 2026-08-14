@@ -13,6 +13,11 @@ from app.models.ceri_tables import (
     CeriChangeEvent,
     CeriScoreSnapshot,
 )
+from app.services.ceri.change_semantics import (
+    ComparisonState,
+    change_dimensions,
+    classify_snapshot_comparison,
+)
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import CeriChangeType
 
@@ -22,9 +27,15 @@ class ChangeDetectionResult:
     changes: int
     duplicates: int
     warnings: int = 0
+    comparison_state: str = ComparisonState.COMPARABLE.value
 
-    def as_dict(self) -> dict[str, int]:
-        return {"changes": self.changes, "duplicates": self.duplicates, "warnings": self.warnings}
+    def as_dict(self) -> dict[str, int | str]:
+        return {
+            "changes": self.changes,
+            "duplicates": self.duplicates,
+            "warnings": self.warnings,
+            "comparison_state": self.comparison_state,
+        }
 
 
 class CeriChangeDetectionService:
@@ -38,7 +49,17 @@ class CeriChangeDetectionService:
         current: CeriScoreSnapshot,
         prior: CeriScoreSnapshot | None,
         scope: str = "run_capture",
+        comparison_state: ComparisonState | str | None = None,
     ) -> ChangeDetectionResult:
+        state = ComparisonState(comparison_state or classify_snapshot_comparison(prior, current))
+        current.comparison_state = state.value
+        current.comparison_snapshot_id = prior.id if prior is not None else None
+        if state is not ComparisonState.COMPARABLE:
+            return ChangeDetectionResult(
+                changes=0,
+                duplicates=0,
+                comparison_state=state.value,
+            )
         changes = duplicates = 0
         for change_type, delta in self._score_changes(current, prior).items():
             event = self._persist_change(
@@ -53,10 +74,15 @@ class CeriChangeDetectionService:
                 delta=delta,
                 config_hash=current.config_hash,
                 calculation_version=current.calculation_version,
+                comparison_state=state,
             )
             changes += int(event is not None)
             duplicates += int(event is None)
-        return ChangeDetectionResult(changes=changes, duplicates=duplicates)
+        return ChangeDetectionResult(
+            changes=changes,
+            duplicates=duplicates,
+            comparison_state=state.value,
+        )
 
     def detect_catalyst_revision(
         self,
@@ -67,21 +93,42 @@ class CeriChangeDetectionService:
         company_id: int,
         scope: str = "daily_change_feed",
     ) -> ChangeDetectionResult:
+        if not _catalyst_change_eligible(revision, prior_revision):
+            return ChangeDetectionResult(changes=0, duplicates=0)
         change_type = _catalyst_change_type(revision, prior_revision)
+        delta = {
+            "canonical_event_id": revision.catalyst_event_id,
+            "event_revision_id": revision.id,
+            "status": revision.status,
+            "prior_status": prior_revision.status if prior_revision is not None else None,
+            "direction": revision.direction,
+            "materiality": revision.materiality,
+            "confidence": revision.source_confidence,
+            "announced_at": revision.announced_at.isoformat()
+            if revision.announced_at is not None
+            else None,
+            "effective_session": revision.effective_session.isoformat()
+            if revision.effective_session is not None
+            else None,
+            "expected_date": revision.expected_date.isoformat()
+            if revision.expected_date is not None
+            else None,
+            "issuer_relevance": revision.issuer_relevance,
+            "binary_eligible": revision.binary_eligible,
+            "eligibility_reason": revision.relevance_reason,
+        }
         event = self._persist_change(
             db,
             company_id=company_id,
             change_type=change_type,
-            severity="RISK" if change_type is CeriChangeType.NEW_BINARY_EVENT else "NOTABLE",
+            severity="NOTABLE",
             effective_session=revision.effective_session,
             scope=scope,
             catalyst_revision_id=revision.id,
-            delta={
-                "status": revision.status,
-                "prior_status": prior_revision.status if prior_revision is not None else None,
-            },
+            delta=delta,
             config_hash="event_revision",
             calculation_version="ceri-1.0.0",
+            comparison_state=ComparisonState.COMPARABLE,
         )
         return ChangeDetectionResult(changes=int(event is not None), duplicates=int(event is None))
 
@@ -108,12 +155,25 @@ class CeriChangeDetectionService:
             db,
             company_id=company_id,
             change_type=change_type,
-            severity="RISK" if change_type is CeriChangeType.GUIDANCE_LOWERED else "NOTABLE",
+            severity="NOTABLE",
             effective_session=guidance.effective_session,
             scope=scope,
-            delta={"action": guidance.action, "prior_action": prior_action},
+            guidance_event_id=getattr(guidance, "id", None),
+            delta={
+                "guidance_event_id": getattr(guidance, "id", None),
+                "action": guidance.action,
+                "prior_action": prior_action,
+                "metric": getattr(guidance, "metric", None),
+                "period": getattr(guidance, "period_type", None),
+                "low": _json_value(getattr(guidance, "low_value", None)),
+                "high": _json_value(getattr(guidance, "high_value", None)),
+                "point": _json_value(getattr(guidance, "point_value", None)),
+                "confidence": getattr(guidance, "confidence", None),
+                "accepted_for_scoring": True,
+            },
             config_hash="guidance_event",
             calculation_version="ceri-1.0.0",
+            comparison_state=ComparisonState.COMPARABLE,
         )
         return ChangeDetectionResult(changes=int(event is not None), duplicates=int(event is None))
 
@@ -141,10 +201,23 @@ class CeriChangeDetectionService:
             }
         elif current.opportunity_score is not None and prior.opportunity_score is not None:
             opportunity_delta = current.opportunity_score - prior.opportunity_score
-            if opportunity_delta >= score_delta:
-                changes[CeriChangeType.OPPORTUNITY_UPGRADED] = {"delta": opportunity_delta}
-            elif opportunity_delta <= -score_delta:
-                changes[CeriChangeType.OPPORTUNITY_DOWNGRADED] = {"delta": opportunity_delta}
+            upgrade_boundary = float(self.config.change_thresholds["opportunity_upgrade_threshold"])
+            if prior.opportunity_score < upgrade_boundary <= current.opportunity_score:
+                changes[CeriChangeType.OPPORTUNITY_UPGRADED] = _opportunity_delta(
+                    prior, current, opportunity_delta, upgrade_boundary
+                )
+            elif prior.opportunity_score >= upgrade_boundary > current.opportunity_score:
+                changes[CeriChangeType.OPPORTUNITY_DOWNGRADED] = _opportunity_delta(
+                    prior, current, opportunity_delta, upgrade_boundary
+                )
+            elif prior.posture != current.posture:
+                changes[CeriChangeType.POSTURE_CHANGED] = _opportunity_delta(
+                    prior, current, opportunity_delta, upgrade_boundary
+                )
+            elif abs(opportunity_delta) >= score_delta:
+                changes[CeriChangeType.OPPORTUNITY_CHANGED] = _opportunity_delta(
+                    prior, current, opportunity_delta, upgrade_boundary
+                )
         if (
             current.event_risk_score is not None
             and prior.event_risk_score is not None
@@ -207,7 +280,10 @@ class CeriChangeDetectionService:
         from_snapshot_id: int | None = None,
         to_snapshot_id: int | None = None,
         catalyst_revision_id: int | None = None,
+        guidance_event_id: int | None = None,
+        comparison_state: ComparisonState | str = ComparisonState.COMPARABLE,
     ) -> CeriChangeEvent | None:
+        importance, signal_class = change_dimensions(change_type, delta)
         dedup_key = change_dedup_key(
             company_id=company_id,
             change_type=change_type.value,
@@ -216,6 +292,7 @@ class CeriChangeDetectionService:
             from_snapshot_id=from_snapshot_id,
             to_snapshot_id=to_snapshot_id,
             catalyst_revision_id=catalyst_revision_id,
+            guidance_event_id=guidance_event_id,
             config_hash=config_hash,
             calculation_version=calculation_version,
         )
@@ -230,8 +307,12 @@ class CeriChangeDetectionService:
             from_snapshot_id=from_snapshot_id,
             to_snapshot_id=to_snapshot_id,
             catalyst_revision_id=catalyst_revision_id,
+            guidance_event_id=guidance_event_id,
             change_type=change_type.value,
-            severity=severity,
+            severity=importance.value,
+            importance=importance.value,
+            signal_class=signal_class.value,
+            comparison_state=ComparisonState(comparison_state).value,
             delta_json=delta,
             dedup_key=dedup_key,
         )
@@ -245,9 +326,7 @@ def change_dedup_key(**parts: Any) -> str:
     # part of the business identity. Capture and standalone rebuild stages can
     # observe the same transition and must converge on one durable event.
     canonical_parts = {key: value for key, value in parts.items() if key != "scope"}
-    encoded = "|".join(
-        f"{key}={canonical_parts[key]}" for key in sorted(canonical_parts)
-    )
+    encoded = "|".join(f"{key}={canonical_parts[key]}" for key in sorted(canonical_parts))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
@@ -284,7 +363,7 @@ def _severity(delta: dict[str, Any]) -> str:
     if raw is None:
         raw = delta.get("to")
     value = abs(float(raw)) if raw is not None else 0.0
-    return "RISK" if value >= 3.0 else "NOTABLE"
+    return "IMPORTANT" if value >= 3.0 else "NOTABLE"
 
 
 def _catalyst_change_type(
@@ -296,12 +375,66 @@ def _catalyst_change_type(
             return CeriChangeType.NEW_BINARY_EVENT
         return CeriChangeType.NEW_CATALYST
     status_map = {
-        "COMPLETED": CeriChangeType.CATALYST_CONFIRMED,
+        "COMPLETED": CeriChangeType.EVENT_COMPLETED,
         "DELAYED": CeriChangeType.CATALYST_DELAYED,
-        "CANCELLED": CeriChangeType.CATALYST_CANCELLED,
-        "OUTCOME_KNOWN": CeriChangeType.CATALYST_RESOLVED,
+        "CANCELLED": CeriChangeType.EVENT_CANCELLED,
+        "OUTCOME_KNOWN": CeriChangeType.EVENT_RESOLVED,
+        "RESOLVED": CeriChangeType.EVENT_RESOLVED,
     }
     return status_map.get(revision.status, CeriChangeType.CATALYST_UPDATED)
+
+
+def _catalyst_change_eligible(
+    revision: CeriCatalystEventRevision,
+    prior_revision: CeriCatalystEventRevision | None,
+) -> bool:
+    if revision.is_current is False or revision.review_state == "REJECTED":
+        return False
+    if revision.issuer_relevance is not True and (
+        prior_revision is None or prior_revision.issuer_relevance is not True
+    ):
+        return False
+    if prior_revision is None and revision.status in {
+        "COMPLETED",
+        "CANCELLED",
+        "OUTCOME_KNOWN",
+        "RESOLVED",
+    }:
+        return False
+    if prior_revision is None:
+        return revision.binary_eligible is True or revision.materiality is not None
+    return bool(
+        revision.binary_eligible is True
+        or revision.materiality is not None
+        or prior_revision.binary_eligible is True
+        or prior_revision.materiality is not None
+    )
+
+
+def _opportunity_delta(
+    prior: CeriScoreSnapshot,
+    current: CeriScoreSnapshot,
+    delta: float,
+    boundary: float,
+) -> dict[str, Any]:
+    return {
+        "from": prior.opportunity_score,
+        "to": current.opportunity_score,
+        "delta": delta,
+        "from_posture": prior.posture,
+        "to_posture": current.posture,
+        "from_coverage_pct": prior.opportunity_coverage_pct,
+        "to_coverage_pct": current.opportunity_coverage_pct,
+        "from_confidence": prior.data_confidence,
+        "to_confidence": current.data_confidence,
+        "upgrade_boundary": boundary,
+    }
+
+
+def _json_value(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
 
 
 def _maybe_scalar(db: Session, statement):

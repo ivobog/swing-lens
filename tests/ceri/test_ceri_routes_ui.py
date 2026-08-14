@@ -136,9 +136,40 @@ def test_ceri_changes_render_groups_and_alert_actions(
 
     assert response.status_code == 200
     assert "Upward revisions" in response.text
-    assert "Risk changes" in response.text
+    assert "Risk" in response.text
+    assert "Revision up" in response.text
+    assert "EPS CQ 30d +1.20% -&gt; +4.60%" in response.text
+    assert "Importance" in response.text
+    assert "Confidence" in response.text
+    assert "Technical details" in response.text
+    assert "From 1 to 2" not in response.text
+    assert "N/A -&gt; N/A" not in response.text
     assert 'data-ceri-alert-action="/api/ceri/alerts/9/acknowledge"' in response.text
     assert "Alert actions update only alert state" in response.text
+
+
+def test_ceri_changes_template_tolerates_missing_comparison_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    original_response = ceri_routes.templates.TemplateResponse
+
+    def response_without_comparison_context(request, name, context):
+        context = dict(context)
+        context.pop("comparison_context", None)
+        return original_response(request, name, context)
+
+    monkeypatch.setattr(
+        ceri_routes.templates,
+        "TemplateResponse",
+        response_without_comparison_context,
+    )
+
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/ceri/changes")
+
+    assert response.status_code == 200
+    assert "No comparable run pair selected" in response.text
+    assert "0 excluded as non-comparable" in response.text
 
 
 def test_ceri_operations_render_health_checkpoints_and_preview_only_purge(
@@ -376,7 +407,15 @@ class FakeCeriQueryService:
                     "id": 5,
                     "ticker": "MSFT",
                     "change_type": "REVISION_UP",
+                    "group": "Upward revisions",
+                    "title": "Revision up",
+                    "summary": "EPS CQ 30d +1.20% -> +4.60%",
+                    "importance": "NOTABLE",
+                    "signal_class": "POSITIVE",
                     "severity": "NOTABLE",
+                    "previous": {"confidence": "Normal", "run_id": 101},
+                    "current": {"confidence": "Normal", "run_id": 104},
+                    "technical": {"from_snapshot_id": 1, "to_snapshot_id": 2},
                     "created_at": "2026-08-02T12:00:00+00:00",
                     "from_snapshot_id": 1,
                     "to_snapshot_id": 2,
@@ -386,7 +425,15 @@ class FakeCeriQueryService:
                     "id": 6,
                     "ticker": "MSFT",
                     "change_type": "RISK_ESCALATED",
+                    "group": "Risk",
+                    "title": "Risk escalated",
+                    "summary": "Event Risk 2.00 -> 5.00",
+                    "importance": "IMPORTANT",
+                    "signal_class": "RISK",
                     "severity": "RISK",
+                    "previous": {"event_risk": 2.0, "confidence": "Normal", "run_id": 101},
+                    "current": {"event_risk": 5.0, "confidence": "Normal", "run_id": 104},
+                    "technical": {"from_snapshot_id": 2, "to_snapshot_id": 3},
                     "created_at": "2026-08-02T12:05:00+00:00",
                     "from_snapshot_id": 2,
                     "to_snapshot_id": 3,
@@ -396,6 +443,10 @@ class FakeCeriQueryService:
             "total": 2,
             "limit": query.limit,
             "offset": query.offset,
+            "comparison_context": {
+                "label": "Comparing Run 101 -> Run 104",
+                "excluded_non_comparable": 3,
+            },
         }
 
     def alerts(self, _db, _query):
@@ -404,8 +455,16 @@ class FakeCeriQueryService:
                 {
                     "id": 9,
                     "ticker": "MSFT",
+                    "alert_type": "RISK_ESCALATED",
+                    "importance": "IMPORTANT",
+                    "signal_class": "RISK",
                     "severity": "RISK",
                     "status": "UNREAD",
+                    "change_summary": "Event Risk 2.00 -> 5.00",
+                    "risk": 5.0,
+                    "confidence": "Normal",
+                    "actionable": True,
+                    "technical": {"source_change_event_id": 6},
                     "evidence": {"change_type": "RISK_ESCALATED"},
                 }
             ],

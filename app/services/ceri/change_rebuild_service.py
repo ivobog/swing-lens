@@ -15,6 +15,7 @@ from app.models.ceri_tables import (
     CeriScoreSnapshot,
 )
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
+from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.config import CeriConfig, load_ceri_config
 
 
@@ -65,9 +66,14 @@ class CeriChangeRebuildService:
             try:
                 rows.sort(key=lambda row: (row.as_of_session, row.cutoff_at, row.id or 0))
                 for index, current in enumerate(rows):
-                    prior = rows[index - 1] if index else None
+                    prior, _comparison_state, _excluded = select_prior_comparison(
+                        current, rows[:index]
+                    )
                     result = self.detector.detect_score_changes(
-                        db, current=current, prior=prior, scope="standalone"
+                        db,
+                        current=current,
+                        prior=prior,
+                        scope="standalone",
                     )
                     changes += result.changes
                     duplicates += result.duplicates

@@ -24,6 +24,7 @@ from app.models.tables import RawCompanyRow
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
+from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.confidence_service import CeriConfidenceService
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.event_risk_service import CeriEventRiskService
@@ -344,12 +345,13 @@ class CeriRunCaptureService:
                 counts["score_snapshots"] += 1
                 if not getattr(opportunity, "rated", opportunity.score is not None):
                     counts["unrated"] += 1
-                prior = _prior_snapshot(db, company.id, snapshot)
+                prior, comparison_state = _prior_snapshot(db, company.id, snapshot)
                 changes = self.change_detection.detect_score_changes(
                     db,
                     current=snapshot,
                     prior=prior,
                     scope=f"run:{run_id}",
+                    comparison_state=comparison_state,
                 )
                 counts["change_events"] += changes.changes
                 if changes.changes:
@@ -701,21 +703,20 @@ def _prior_snapshot(
     db: Session,
     company_id: int,
     current: CeriScoreSnapshot,
-) -> CeriScoreSnapshot | None:
+) -> tuple[CeriScoreSnapshot | None, str]:
     snapshots = _scalars(
         db,
         select(CeriScoreSnapshot).where(CeriScoreSnapshot.company_id == company_id),
     )
-    prior = [
+    candidates = [
         snapshot
         for snapshot in snapshots
         if snapshot is not current
         and snapshot.id != current.id
         and snapshot.as_of_session <= current.as_of_session
     ]
-    if not prior:
-        return None
-    return sorted(prior, key=lambda snapshot: (snapshot.as_of_session, snapshot.id or 0))[-1]
+    prior, state, _excluded = select_prior_comparison(current, candidates)
+    return prior, state.value
 
 
 def _latest_changes(db: Session, company_id: int, limit: int):

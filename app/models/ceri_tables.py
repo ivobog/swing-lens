@@ -641,10 +641,49 @@ class CeriCatalystSource(Base):
     )
 
 
+class CeriControlledReplay(Base):
+    __tablename__ = "ceri_controlled_replays"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    replay_identifier: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    source_run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    original_cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    git_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    processor_signature: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="RUNNING")
+    universe_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    feature_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    snapshot_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    changed_feature_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    original_state_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    replay_state_hash: Mapped[str | None] = mapped_column(Text)
+    certification_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    impact_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    feature_changes_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_ceri_controlled_replays_source_run", "source_run_id"),
+        Index("ix_ceri_controlled_replays_status", "status"),
+    )
+
+
 class CeriRevisionFeature(Base):
     __tablename__ = "ceri_revision_features"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    controlled_replay_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ceri_controlled_replays.id", ondelete="RESTRICT")
+    )
     company_id: Mapped[int] = mapped_column(
         ForeignKey("ceri_companies.id", ondelete="RESTRICT"),
         nullable=False,
@@ -696,10 +735,17 @@ class CeriRevisionFeature(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "company_id", "metric", "period_key", "as_of_session", "window_days",
-            "config_hash", "calculation_version", name="uq_ceri_revision_features_identity",
+            "company_id",
+            "metric",
+            "period_key",
+            "as_of_session",
+            "window_days",
+            "config_hash",
+            "calculation_version",
+            name="uq_ceri_revision_features_identity",
         ),
         Index("ix_ceri_revision_features_company_session", "company_id", "as_of_session"),
+        Index("ix_ceri_revision_features_controlled_replay", "controlled_replay_id"),
     )
 
 
@@ -758,8 +804,13 @@ class CeriDerivedFeature(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "company_id", "feature_family", "feature_key", "as_of_session",
-            "config_hash", "calculation_version", name="uq_ceri_derived_features_identity"
+            "company_id",
+            "feature_family",
+            "feature_key",
+            "as_of_session",
+            "config_hash",
+            "calculation_version",
+            name="uq_ceri_derived_features_identity",
         ),
         Index("ix_ceri_derived_features_company_session", "company_id", "as_of_session"),
     )
@@ -769,6 +820,9 @@ class CeriScoreSnapshot(Base):
     __tablename__ = "ceri_score_snapshots"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    controlled_replay_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ceri_controlled_replays.id", ondelete="RESTRICT")
+    )
     run_id: Mapped[int | None] = mapped_column(ForeignKey("upload_runs.id", ondelete="SET NULL"))
     source_run_id_text: Mapped[str | None] = mapped_column(Text)
     company_id: Mapped[int] = mapped_column(
@@ -800,6 +854,11 @@ class CeriScoreSnapshot(Base):
     config_version: Mapped[str] = mapped_column(Text, nullable=False)
     config_hash: Mapped[str] = mapped_column(Text, nullable=False)
     calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_contract_version: Mapped[str] = mapped_column(Text, nullable=False)
+    comparison_state: Mapped[str] = mapped_column(String(64), nullable=False)
+    comparison_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ceri_score_snapshots.id", ondelete="SET NULL")
+    )
     evidence_hash: Mapped[str] = mapped_column(Text, nullable=False)
     hash_schema_version: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
@@ -819,6 +878,13 @@ class CeriScoreSnapshot(Base):
         Index("ix_ceri_score_snapshots_run_ticker", "run_id", "ticker"),
         Index("ix_ceri_score_snapshots_scores", "opportunity_score", "event_risk_score"),
         Index("ix_ceri_score_snapshots_confidence", "data_confidence"),
+        Index("ix_ceri_score_snapshots_comparison_state", "comparison_state"),
+        UniqueConstraint(
+            "controlled_replay_id",
+            "company_id",
+            name="uq_ceri_score_snapshots_controlled_replay_company",
+        ),
+        Index("ix_ceri_score_snapshots_controlled_replay", "controlled_replay_id"),
     )
 
 
@@ -839,8 +905,14 @@ class CeriChangeEvent(Base):
     catalyst_revision_id: Mapped[int | None] = mapped_column(
         ForeignKey("ceri_catalyst_event_revisions.id", ondelete="SET NULL")
     )
+    guidance_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ceri_guidance_events.id", ondelete="SET NULL")
+    )
     change_type: Mapped[str] = mapped_column(String(64), nullable=False)
     severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    importance: Mapped[str] = mapped_column(String(32), nullable=False)
+    signal_class: Mapped[str] = mapped_column(String(32), nullable=False)
+    comparison_state: Mapped[str] = mapped_column(String(64), nullable=False)
     delta_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     dedup_key: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -852,6 +924,12 @@ class CeriChangeEvent(Base):
     __table_args__ = (
         UniqueConstraint("dedup_key", name="uq_ceri_change_events_dedup_key"),
         Index("ix_ceri_change_events_company_created", "company_id", "created_at"),
+        Index(
+            "ix_ceri_change_events_semantic_filters",
+            "importance",
+            "signal_class",
+            "comparison_state",
+        ),
         Index("ix_ceri_change_events_type", "change_type"),
     )
 
@@ -934,11 +1012,21 @@ class CeriAlertEvent(Base):
     )
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    importance: Mapped[str] = mapped_column(String(32), nullable=False)
+    signal_class: Mapped[str] = mapped_column(String(32), nullable=False)
+    validity_classification: Mapped[str] = mapped_column(String(32), nullable=False)
+    invalidated_reason: Mapped[str | None] = mapped_column(Text)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         UniqueConstraint("event_key", name="uq_ceri_alert_events_event_key"),
+        CheckConstraint(
+            "source_change_event_id IS NOT NULL AND alert_rule_id IS NOT NULL",
+            name="ck_ceri_alert_events_change_lineage",
+        ),
         Index("ix_ceri_alert_events_status_created", "status", "created_at"),
         Index("ix_ceri_alert_events_ticker", "ticker"),
+        Index("ix_ceri_alert_events_validity", "validity_classification", "status"),
     )
 
 
@@ -1011,6 +1099,7 @@ CERI_TABLES = (
     CeriCatalystEvent.__table__,
     CeriCatalystEventRevision.__table__,
     CeriCatalystSource.__table__,
+    CeriControlledReplay.__table__,
     CeriRevisionFeature.__table__,
     CeriPriceResponseFeature.__table__,
     CeriDerivedFeature.__table__,
