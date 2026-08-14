@@ -5,7 +5,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import select
@@ -38,6 +38,10 @@ from app.services.ceri.api_dtos import (
     CeriTickerDetailDto,
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.constants import (
+    CERI_HIGH_OPPORTUNITY_THRESHOLD,
+    CERI_LOW_RISK_THRESHOLD,
+)
 from app.services.ceri.enums import CeriDataset, HistoricalViewMode
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.guidance_normalizer import guidance_eligibility_reason
@@ -110,8 +114,9 @@ class CeriQueryService:
             current = latest_by_ticker.get(snapshot.ticker.upper())
             if current is None or _snapshot_sort_tuple(snapshot) > _snapshot_sort_tuple(current):
                 latest_by_ticker[snapshot.ticker.upper()] = snapshot
-        return self._page(
-            [_score_snapshot_payload(snapshot, db=db) for snapshot in latest_by_ticker.values()],
+        return self._snapshot_page(
+            list(latest_by_ticker.values()),
+            db=db,
             query=query,
             sort_aliases={
                 "opportunity_score": "opportunity_score",
@@ -756,32 +761,56 @@ class CeriQueryService:
         sort_key = sort_aliases.get(query.sort)
         if sort_key is None:
             raise CeriQueryError("INVALID_SORT", f"Unsupported CERI sort: {query.sort}")
-        reverse = query.direction.lower() == "desc"
-        ordered = sorted(
+        ordered = _ordered_nulls_last(
             items,
-            key=lambda item: (
-                _sort_value(item.get("ticker")),
-                _sort_value(item.get("id")),
-            ),
-        )
-        ordered = sorted(
-            ordered,
-            key=lambda item: _sort_value(item.get(sort_key)),
-            reverse=reverse,
+            value=lambda item: item.get(sort_key),
+            tie=lambda item: (item.get("ticker") or "", item.get("id") or 0),
+            descending=query.direction.lower() == "desc",
         )
         total = len(ordered)
         page_items = ordered[query.offset : query.offset + query.limit]
-        return {
-            "items": page_items,
-            "total": total,
-            "limit": query.limit,
-            "offset": query.offset,
-            "next_offset": query.offset + query.limit
-            if query.offset + query.limit < total
-            else None,
-            "sort": query.sort,
-            "direction": query.direction,
-        }
+        return _page_payload(page_items, total=total, query=query)
+
+    def _snapshot_page(
+        self,
+        snapshots: list[CeriScoreSnapshot],
+        *,
+        db: Session,
+        query: CeriListQuery,
+        sort_aliases: dict[str, str],
+    ) -> dict[str, Any]:
+        self._validate(query)
+        sort_key = sort_aliases.get(query.sort)
+        if sort_key is None:
+            raise CeriQueryError("INVALID_SORT", f"Unsupported CERI sort: {query.sort}")
+        ordered = _ordered_nulls_last(
+            snapshots,
+            value=lambda snapshot: getattr(snapshot, sort_key),
+            tie=lambda snapshot: (snapshot.ticker, snapshot.id or 0),
+            descending=query.direction.lower() == "desc",
+        )
+        page_snapshots = ordered[query.offset : query.offset + query.limit]
+        lineage_audits = _revision_lineage_audits(db, page_snapshots)
+        page_items = [
+            _score_snapshot_payload(
+                snapshot,
+                db=db,
+                revision_lineage_audit=lineage_audits.get(snapshot.id),
+            )
+            for snapshot in page_snapshots
+        ]
+        # The list uses staged evidence diagnostics. The raw freshness mapping
+        # remains available on ticker detail but is suppressed here so source
+        # presence is never presented as evidence availability.
+        for item in page_items:
+            item["freshness"] = {}
+        payload = _page_payload(
+            page_items,
+            total=len(ordered),
+            query=query,
+        )
+        payload["summary"] = snapshot_population_summary(ordered)
+        return payload
 
     def _dataset_freshness(
         self,
@@ -829,6 +858,7 @@ def _score_snapshot_payload(
     snapshot: CeriScoreSnapshot,
     *,
     db: Session | None = None,
+    revision_lineage_audit: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cutoff_date = (
         snapshot.cutoff_at.date()
@@ -838,10 +868,20 @@ def _score_snapshot_payload(
     opportunity_ledger = snapshot.opportunity_ledger_json or {}
     confidence_ledger = snapshot.confidence_ledger_json or {}
     risk_ledger = snapshot.event_risk_ledger_json or {}
-    opportunity_coverage = (
+    stored_opportunity_coverage = (
         snapshot.opportunity_coverage_pct
         if snapshot.opportunity_coverage_pct is not None
         else opportunity_ledger.get("coverage_pct")
+    )
+    components = opportunity_ledger.get("components") or []
+    ledger_coverage = _component_coverage_pct(components)
+    opportunity_coverage = (
+        ledger_coverage if components else stored_opportunity_coverage
+    )
+    coverage_matches_ledger = (
+        stored_opportunity_coverage is None
+        or opportunity_coverage is None
+        or abs(float(stored_opportunity_coverage) - float(opportunity_coverage)) < 1e-6
     )
     opportunity = CeriOpportunityDto(
         score=snapshot.opportunity_score,
@@ -855,10 +895,14 @@ def _score_snapshot_payload(
         ),
         unrated_reason=snapshot.opportunity_unrated_reason,
         reweighted=opportunity_ledger.get("reweighted", False),
+        coverage_matches_ledger=coverage_matches_ledger,
     )
+    risk_evidence_state = _risk_evidence_state(risk_ledger, snapshot.warnings_json or [])
     event_risk = CeriRiskDto(
         score=snapshot.event_risk_score,
         dominant_reason=risk_ledger.get("dominant_component"),
+        evidence_state=risk_evidence_state,
+        low_risk_eligible=risk_evidence_state == "SUFFICIENT",
     )
     confidence = CeriConfidenceDto(
         label=snapshot.data_confidence,
@@ -868,6 +912,22 @@ def _score_snapshot_payload(
         caps=confidence_ledger.get("caps") or [],
     )
     freshness = _snapshot_freshness(db, snapshot) if db is not None else {}
+    revision_lineage_audit = revision_lineage_audit or {}
+    display_warnings = list(snapshot.warnings_json or [])
+    if revision_lineage_audit.get("revision_value_mismatches"):
+        display_warnings.append("revision_feature_lineage_mismatch")
+    lineage_reconciliation = _lineage_reconciliation(
+        opportunity_ledger,
+        snapshot.evidence_lineage_json or {},
+    )
+    lineage_reconciliation.update(revision_lineage_audit)
+    lineage_reconciliation["valid"] = bool(
+        lineage_reconciliation.get("valid", True)
+        and not lineage_reconciliation.get("revision_value_mismatches")
+    )
+    lineage_reconciliation["requires_rebuild"] = bool(
+        lineage_reconciliation.get("revision_value_mismatches")
+    )
     return CeriDashboardRowDto(
         id=snapshot.id,
         run_id=snapshot.run_id,
@@ -915,7 +975,9 @@ def _score_snapshot_payload(
             else {}
         ),
         reasons=snapshot.reasons_json,
-        warnings=snapshot.warnings_json,
+        warnings=display_warnings or None,
+        warning_summary=_warning_summary(display_warnings),
+        lineage_reconciliation=lineage_reconciliation,
         config_version=snapshot.config_version,
         config_hash=snapshot.config_hash,
         calculation_version=snapshot.calculation_version,
@@ -945,6 +1007,7 @@ def _revision_feature_payload(
         "actual_elapsed_days": feature.actual_elapsed_days,
         "absolute_change": _value(feature.absolute_change),
         "pct_change": _value(feature.pct_change),
+        "display_pct_change": _format_signed(feature.pct_change, suffix="%"),
         "pct_change_unit": feature.pct_change_unit,
         "upward_count": feature.upward_count,
         "downward_count": feature.downward_count,
@@ -953,6 +1016,7 @@ def _revision_feature_payload(
             "downward_count": feature.downward_count,
         },
         "net_breadth": _value(feature.net_breadth),
+        "display_net_breadth": _format_signed(feature.net_breadth),
         "dispersion": _value(feature.dispersion),
         "acceleration": _value(feature.acceleration),
         "acceleration_unit": feature.acceleration_unit,
@@ -1072,12 +1136,14 @@ def _current_revision_summary(db: Session, snapshot: CeriScoreSnapshot) -> dict[
         key = f"{metric}_{feature.period_slot or 'unresolved'}_{feature.window_days}d"
         result[key] = {
             "value": _value(feature.pct_change),
+            "display_value": _format_signed(feature.pct_change, suffix="%"),
             "unit": feature.pct_change_unit,
             "available": feature.pct_change is not None,
             "reason": feature.unavailable_reason,
             "upward_count": feature.upward_count,
             "downward_count": feature.downward_count,
             "breadth": _value(feature.net_breadth),
+            "display_breadth": _format_signed(feature.net_breadth),
             "comparison_mode": feature.comparison_mode,
             "warnings": feature.warnings_json or [],
             "currency_caveat": (
@@ -1414,8 +1480,35 @@ def _evidence_diagnostics(
             "eligible_count": eligible[dataset],
             "selected_count": selected[dataset],
             "dominant_blocker": blockers[dataset],
+            "evidence_state": _dataset_evidence_state(
+                dataset,
+                source_status=source_status,
+                normalized_count=normalized[dataset],
+                eligible_count=eligible[dataset],
+                selected_count=selected[dataset],
+            ),
         }
     return result
+
+
+def _dataset_evidence_state(
+    dataset: str,
+    *,
+    source_status: str,
+    normalized_count: int,
+    eligible_count: int,
+    selected_count: int,
+) -> str:
+    prefix = "CATALYST" if dataset == "catalysts" else dataset.upper()
+    if source_status == "ABSENT":
+        return f"{prefix}_SOURCE_UNAVAILABLE"
+    if source_status == "STALE":
+        return f"{prefix}_SOURCE_STALE"
+    if normalized_count == 0:
+        return f"{prefix}_NONE_ELIGIBLE"
+    if eligible_count == 0 or selected_count == 0:
+        return f"{prefix}_EVIDENCE_INELIGIBLE"
+    return f"{prefix}_SELECTED"
 
 
 def _dominant_reason(reasons: list[str]) -> str | None:
@@ -1683,6 +1776,302 @@ def _sort_value(value: Any) -> tuple[int, Any]:
     if value is None:
         return (1, "")
     return (0, value)
+
+
+def _ordered_nulls_last(
+    items: list[Any],
+    *,
+    value,
+    tie,
+    descending: bool,
+) -> list[Any]:
+    """Return a deterministic ordering with missing values last in both directions."""
+    non_null = sorted((item for item in items if value(item) is not None), key=tie)
+    non_null = sorted(non_null, key=value, reverse=descending)
+    nulls = sorted((item for item in items if value(item) is None), key=tie)
+    return [*non_null, *nulls]
+
+
+def _page_payload(
+    items: list[dict[str, Any]],
+    *,
+    total: int,
+    query: CeriListQuery,
+) -> dict[str, Any]:
+    total_pages = (total + query.limit - 1) // query.limit if total else 0
+    page = query.offset // query.limit + 1
+    has_previous = query.offset > 0
+    has_next = query.offset + query.limit < total
+    return {
+        "items": items,
+        "total": total,
+        "total_items": total,
+        "limit": query.limit,
+        "page_size": query.limit,
+        "offset": query.offset,
+        "page": page,
+        "total_pages": total_pages,
+        "has_previous": has_previous,
+        "has_next": has_next,
+        "previous_offset": max(0, query.offset - query.limit) if has_previous else None,
+        "next_offset": query.offset + query.limit if has_next else None,
+        "start_item": query.offset + 1 if items else 0,
+        "end_item": query.offset + len(items),
+        "sort": query.sort,
+        "direction": query.direction,
+    }
+
+
+def snapshot_population_summary(
+    snapshots: list[CeriScoreSnapshot],
+) -> dict[str, Any]:
+    matches = [snapshot for snapshot in snapshots if _is_high_opportunity_low_risk(snapshot)]
+    return {
+        "population_count": len(snapshots),
+        "high_opportunity_low_risk": len(matches),
+        "high_opportunity_threshold": CERI_HIGH_OPPORTUNITY_THRESHOLD,
+        "low_risk_threshold": CERI_LOW_RISK_THRESHOLD,
+        "matching_tickers": sorted(snapshot.ticker for snapshot in matches),
+        "predicate": (
+            "opportunity_score >= 7.0 AND posture = Positive AND "
+            "event_risk_score <= 3.0 AND risk_evidence_state = SUFFICIENT"
+        ),
+    }
+
+
+def _is_high_opportunity_low_risk(snapshot: CeriScoreSnapshot) -> bool:
+    risk_state = _risk_evidence_state(
+        snapshot.event_risk_ledger_json or {},
+        snapshot.warnings_json or [],
+    )
+    return bool(
+        snapshot.opportunity_score is not None
+        and snapshot.opportunity_score >= CERI_HIGH_OPPORTUNITY_THRESHOLD
+        and snapshot.posture == "Positive"
+        and snapshot.event_risk_score is not None
+        and snapshot.event_risk_score <= CERI_LOW_RISK_THRESHOLD
+        and risk_state == "SUFFICIENT"
+    )
+
+
+def _risk_evidence_state(risk_ledger: dict[str, Any], warnings: list[str]) -> str:
+    if risk_ledger.get("accepted_evidence") is True:
+        return "SUFFICIENT"
+    if risk_ledger.get("rejected_event_ids"):
+        return "PARTIAL"
+    components = risk_ledger.get("components") or []
+    earnings_unknown = any(
+        component.get("reason") == "earnings_proximity:unknown"
+        for component in components
+    )
+    if earnings_unknown and not risk_ledger.get("rejected_event_ids"):
+        return "UNAVAILABLE"
+    return "INSUFFICIENT"
+
+
+def _component_coverage_pct(components: list[dict[str, Any]]) -> float | None:
+    if not components:
+        return None
+    return 100.0 * sum(
+        float(component.get("weight") or 0.0)
+        for component in components
+        if component.get("available") is True
+    )
+
+
+_WARNING_SEVERITY = {
+    "revision_feature_lineage_mismatch": "BLOCKER",
+    "opportunity_component_coverage_insufficient": "BLOCKER",
+    "revision_magnitude_unavailable": "WARNING",
+    "revision_acceleration_unavailable": "WARNING",
+    "surprise_trend_unavailable": "WARNING",
+    "guidance_unavailable": "WARNING",
+    "catalysts_unavailable": "WARNING",
+    "price_response_unavailable": "WARNING",
+    "estimate_coverage_low": "INFO",
+    "analyst_sample_sparse": "INFO",
+}
+_SEVERITY_RANK = {"NONE": 0, "INFO": 1, "WARNING": 2, "BLOCKER": 3}
+
+
+def _warning_summary(warnings: list[str]) -> dict[str, Any]:
+    if not warnings:
+        return {"count": 0, "severity": "NONE", "dominant_warning": None}
+    dominant = max(
+        enumerate(warnings),
+        key=lambda pair: (
+            _SEVERITY_RANK.get(_WARNING_SEVERITY.get(pair[1], "WARNING"), 2),
+            -pair[0],
+        ),
+    )[1]
+    return {
+        "count": len(warnings),
+        "severity": _WARNING_SEVERITY.get(dominant, "WARNING"),
+        "dominant_warning": dominant,
+    }
+
+
+def _lineage_reconciliation(
+    opportunity_ledger: dict[str, Any],
+    evidence_lineage: dict[str, Any],
+) -> dict[str, Any]:
+    ledger_selected = {
+        int(row["evidence_id"])
+        for row in evidence_lineage.get("evidence_states") or []
+        if row.get("evidence_id") is not None
+        and "SELECTED_FOR_COMPONENT" in (row.get("states") or [])
+    }
+    rows: list[dict[str, Any]] = []
+    for component in opportunity_ledger.get("components") or []:
+        if component.get("available") is not True:
+            continue
+        evidence_ids = sorted({int(value) for value in component.get("evidence_ids") or []})
+        exemption = None
+        if not evidence_ids and component.get("name") == "surprise_trend":
+            exemption = "AGGREGATE_COMPONENT_NO_DIRECT_EVIDENCE_IDS"
+        valid = bool(evidence_ids or exemption)
+        rows.append(
+            {
+                "component": component.get("name"),
+                "selected_lineage_ids": evidence_ids,
+                "state_ledger_selected_ids": sorted(set(evidence_ids) & ledger_selected),
+                "lineage_exemption_reason": exemption,
+                "valid": valid,
+            }
+        )
+    selected_evidence_ids = sorted(
+        {
+            evidence_id
+            for row in rows
+            for evidence_id in row["selected_lineage_ids"]
+        }
+    )
+    return {
+        "valid": all(row["valid"] for row in rows),
+        "components": rows,
+        "selected_evidence_count": len(selected_evidence_ids),
+        "selected_evidence_ids": selected_evidence_ids,
+    }
+
+
+def _revision_lineage_audits(
+    db: Session,
+    snapshots: list[CeriScoreSnapshot],
+) -> dict[int, dict[str, Any]]:
+    revision_names = {
+        "revision_magnitude",
+        "revision_breadth",
+        "revision_acceleration",
+    }
+    ids_by_snapshot = {
+        snapshot.id: {
+            int(evidence_id)
+            for component in (snapshot.opportunity_ledger_json or {}).get("components") or []
+            if component.get("name") in revision_names
+            for evidence_id in component.get("evidence_ids") or []
+        }
+        for snapshot in snapshots
+    }
+    feature_ids = set().union(*ids_by_snapshot.values()) if ids_by_snapshot else set()
+    if _uses_fixture_collections(db):
+        features = [
+            feature
+            for feature in _load(db, CeriRevisionFeature)
+            if feature.id in feature_ids
+        ]
+    elif feature_ids:
+        features = list(
+            db.scalars(
+                select(CeriRevisionFeature).where(CeriRevisionFeature.id.in_(feature_ids))
+            ).all()
+        )
+    else:
+        features = []
+    features_by_id = {feature.id: feature for feature in features}
+    estimate_ids = {
+        estimate_id
+        for feature in features
+        for estimate_id in (feature.current_snapshot_id, feature.baseline_snapshot_id)
+        if estimate_id is not None
+    }
+    if _uses_fixture_collections(db):
+        estimates = [
+            estimate
+            for estimate in _load(db, CeriEstimateSnapshot)
+            if estimate.id in estimate_ids
+        ]
+    elif estimate_ids:
+        estimates = list(
+            db.scalars(
+                select(CeriEstimateSnapshot).where(CeriEstimateSnapshot.id.in_(estimate_ids))
+            ).all()
+        )
+    else:
+        estimates = []
+    estimates_by_id = {estimate.id: estimate for estimate in estimates}
+
+    result: dict[int, dict[str, Any]] = {}
+    for snapshot in snapshots:
+        mismatches: list[int] = []
+        source_field_exemptions: list[int] = []
+        for feature_id in sorted(ids_by_snapshot.get(snapshot.id, set())):
+            feature = features_by_id.get(feature_id)
+            if feature is None or feature.pct_change is None:
+                continue
+            current = estimates_by_id.get(feature.current_snapshot_id)
+            baseline = estimates_by_id.get(feature.baseline_snapshot_id)
+            if current is None or current.consensus is None:
+                mismatches.append(feature_id)
+                continue
+            baseline_value = baseline.consensus if baseline is not None else None
+            baseline_rehydrated_from_source = False
+            if baseline_value is None:
+                baseline_value = _provider_baseline_value(current, feature.window_days)
+                if baseline_value is not None:
+                    baseline_rehydrated_from_source = True
+            if baseline_value is None:
+                continue
+            threshold = Decimal(str(load_ceri_config().revision.near_zero_threshold))
+            if abs(baseline_value) <= threshold:
+                continue
+            if (current.consensus > 0 > baseline_value) or (
+                current.consensus < 0 < baseline_value
+            ):
+                continue
+            reproduced = (current.consensus - baseline_value) / abs(baseline_value) * Decimal("100")
+            if abs(reproduced - feature.pct_change) > Decimal("0.0001"):
+                mismatches.append(feature_id)
+            elif baseline_rehydrated_from_source:
+                source_field_exemptions.append(feature_id)
+        result[snapshot.id] = {
+            "revision_value_mismatches": mismatches,
+            "lineage_exemptions": {
+                "PROVIDER_RETROSPECTIVE_REHYDRATED_SOURCE_FIELD": source_field_exemptions
+            },
+        }
+    return result
+
+
+def _provider_baseline_value(
+    current: CeriEstimateSnapshot,
+    window_days: int,
+) -> Decimal | None:
+    raw = (current.original_fields_json or {}).get(f"eps_trend_{window_days}d")
+    if raw is None:
+        return None
+    try:
+        return Decimal(str(raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _format_signed(value: Any, *, suffix: str = "") -> str | None:
+    if value is None:
+        return None
+    number = float(value)
+    if abs(number) < 0.005:
+        return f"0.00{suffix}"
+    return f"{number:+.2f}{suffix}"
 
 
 def _value(value: Any) -> Any:

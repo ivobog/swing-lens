@@ -121,6 +121,7 @@ def ceri_dashboard_page(
                 latest.get("items", []),
                 changes.get("items", []),
                 operations,
+                population=latest.get("summary"),
             ),
             "changes": _group_changes(changes.get("items", [])),
             "provider_freshness": operations.get("dataset_freshness", []),
@@ -150,7 +151,7 @@ def ceri_run_page(
     db: DbSession,
     sort: str = "opportunity_score",
     direction: str = "desc",
-    limit: int = 100,
+    limit: int = 50,
     offset: int = 0,
 ) -> HTMLResponse:
     payload, ui_error = _ui_payload_or_empty(
@@ -174,7 +175,12 @@ def ceri_run_page(
             "run_id": run_id,
             "items": payload.get("items", []),
             "page": payload,
-            "summary": _dashboard_summary(payload.get("items", []), changes.get("items", []), {}),
+            "summary": _dashboard_summary(
+                payload.get("items", []),
+                changes.get("items", []),
+                {},
+                population=payload.get("summary"),
+            ),
             "changes": _group_changes(changes.get("items", [])),
             "provider_freshness": [],
             "filters": {
@@ -338,7 +344,7 @@ def ceri_run(
     db: DbSession,
     sort: str = "opportunity_score",
     direction: str = "desc",
-    limit: int = 100,
+    limit: int = 50,
     offset: int = 0,
 ) -> dict[str, Any]:
     return _query_or_http(
@@ -970,15 +976,26 @@ def _dashboard_summary(
     items: list[dict[str, Any]],
     changes: list[dict[str, Any]],
     operations: dict[str, Any],
+    *,
+    population: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
-        "candidate_count": len(items),
-        "high_opportunity_low_risk": sum(
+    population = population or {}
+    high_opportunity_low_risk = population.get("high_opportunity_low_risk")
+    if high_opportunity_low_risk is None:
+        high_opportunity_low_risk = sum(
             1
             for item in items
-            if (item.get("opportunity_score") or 0) >= 7
-            and (item.get("event_risk_score") or 10) <= 3
-        ),
+            if item.get("opportunity_score") is not None
+            and item["opportunity_score"] >= 7
+            and item.get("posture") == "Positive"
+            and item.get("event_risk_score") is not None
+            and item["event_risk_score"] <= 3
+            and (item.get("event_risk") or {}).get("evidence_state") == "SUFFICIENT"
+        )
+    return {
+        "candidate_count": population.get("population_count", len(items)),
+        "population_count": population.get("population_count", len(items)),
+        "high_opportunity_low_risk": high_opportunity_low_risk,
         "upward_revision_leaders": sum(
             1 for change in changes if change.get("change_type") == "REVISION_UP"
         ),

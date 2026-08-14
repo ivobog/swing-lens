@@ -12,12 +12,15 @@ class CeriOpportunityDto:
     minimum_required_coverage_pct: float | None
     unrated_reason: str | None
     reweighted: bool
+    coverage_matches_ledger: bool
 
 
 @dataclass(frozen=True, slots=True)
 class CeriRiskDto:
     score: float | None
     dominant_reason: str | None
+    evidence_state: str
+    low_risk_eligible: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +96,8 @@ class CeriDashboardRowDto:
     evidence_diagnostics: dict[str, Any]
     reasons: list[str] | None
     warnings: list[str] | None
+    warning_summary: dict[str, Any]
+    lineage_reconciliation: dict[str, Any]
     config_version: str
     config_hash: str
     calculation_version: str

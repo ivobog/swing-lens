@@ -95,8 +95,8 @@
                 <td>{{ row.metric }}</td>
                 <td>{{ row.period_slot or row.period_key }}</td>
                 <td>{{ row.window_days }} days<span class="muted-line">elapsed {{ row.actual_elapsed_days if row.actual_elapsed_days is not none else "N/A" }}</span></td>
-                <td>{{ row.pct_change if row.pct_change is not none else "N/A" }}{% if row.pct_change is not none %}%{% endif %}</td>
-                <td>{{ row.net_breadth if row.net_breadth is not none else "N/A" }}<span class="muted-line">Up {{ row.raw_breadth_counts.upward_count if row.raw_breadth_counts.upward_count is not none else "N/A" }} / Down {{ row.raw_breadth_counts.downward_count if row.raw_breadth_counts.downward_count is not none else "N/A" }}</span></td>
+                <td>{{ row.display_pct_change if row.display_pct_change is defined and row.display_pct_change else "N/A" }}</td>
+                <td><span title="Breadth is (upward revisions - downward revisions) / total directional revisions; it ranges from -1.00 to +1.00.">{{ row.display_net_breadth if row.display_net_breadth is defined and row.display_net_breadth else "N/A" }}</span><span class="muted-line">Up {{ row.raw_breadth_counts.upward_count if row.raw_breadth_counts.upward_count is not none else "N/A" }} / Down {{ row.raw_breadth_counts.downward_count if row.raw_breadth_counts.downward_count is not none else "N/A" }}</span></td>
                 <td>{% if row.raw_breadth_counts.upward_count is not none and row.raw_breadth_counts.downward_count is not none %}{{ row.raw_breadth_counts.upward_count + row.raw_breadth_counts.downward_count }}{% else %}N/A{% endif %}</td>
                 <td>{{ row.dispersion if row.dispersion is not none else "N/A" }}</td>
                 <td>{{ row.revision_confidence_label or "Unavailable" }}</td>

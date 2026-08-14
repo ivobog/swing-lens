@@ -21,6 +21,7 @@
   <div class="run-meta">
     <span class="badge badge-muted">Research only</span>
     <span>{{ page.total or 0 }} candidates</span>
+    <span>Summary population {{ summary.population_count or 0 }}</span>
     {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
   </div>
   {% set disclaimer_context = "CERI opportunity, event risk, posture, and catalyst evidence" %}
@@ -66,6 +67,11 @@
         <option value="asc" {{ "selected" if filters.direction == "asc" else "" }}>Low to high</option>
       </select>
     </label>
+    <label><span>Rows per page</span>
+      <select name="limit">
+        {% for size in [25, 50, 100] %}<option value="{{ size }}" {{ "selected" if filters.limit == size else "" }}>{{ size }}</option>{% endfor %}
+      </select>
+    </label>
     <label class="toggle-row"><input name="has_warnings" type="checkbox" value="true" {{ "checked" if filters.has_warnings else "" }}><span>Warnings only</span></label>
     <div class="actions ceri-filter-actions">
       <button type="submit">Apply</button>
@@ -103,18 +109,19 @@
               <td>
                 {% if opportunity.rated %}
                   {{ "%.2f"|format(opportunity.score) }}
+                  <span class="muted-line">Coverage {{ "%.0f"|format(opportunity.coverage_pct) if opportunity.coverage_pct is number else "N/A" }}%</span>
                 {% else %}
                   Unrated
                   <span class="muted-line">Coverage {{ "%.0f"|format(opportunity.coverage_pct) if opportunity.coverage_pct is number else "N/A" }}% / {{ "%.0f"|format(opportunity.minimum_required_coverage_pct) if opportunity.minimum_required_coverage_pct is number else "60" }}% required</span>
                 {% endif %}
               </td>
-              <td>{{ "%.2f"|format(risk.score) if risk.score is number else "Unavailable" }}<span class="muted-line">{{ risk.dominant_reason or "Dominant risk unavailable" }}</span></td>
+              <td>{{ "%.2f"|format(risk.score) if risk.score is number else "Unavailable" }}<span class="muted-line">{{ risk.dominant_reason or "Dominant risk unavailable" }}</span><span class="muted-line">Risk evidence: {{ risk.evidence_state|title if risk.evidence_state is defined else "Unavailable" }}</span></td>
               <td><span class="badge badge-{{ 'success' if item.data_confidence == 'High' else 'warning' if item.data_confidence in ['Low', 'Insufficient'] else 'muted' }}">{{ item.data_confidence }}</span></td>
               <td>{{ item.posture }}</td>
               <td>
                 {% set eps30 = item.revision_evidence.get('eps_CURRENT_QUARTER_30d') if item.revision_evidence is defined else none %}
-                <span>EPS CQ 30d {{ eps30.value if eps30 and eps30.available else "N/A" }}</span>
-                <span class="muted-line">Breadth {{ eps30.breadth if eps30 and eps30.breadth is not none else "N/A" }}</span>
+                <span>EPS CQ 30d {{ eps30.display_value if eps30 and eps30.available and eps30.display_value else "N/A" }}</span>
+                <span class="muted-line" title="Breadth is (upward revisions - downward revisions) / total directional revisions; it ranges from -1.00 to +1.00.">Breadth {{ eps30.display_breadth if eps30 and eps30.breadth is not none else "N/A" }}</span>
               </td>
               <td>
                 <span>{% if guidance.status == 'AVAILABLE' %}{{ guidance.selected.action }} · {{ guidance.selected.confidence }}{% elif guidance.status == 'REJECTED' %}Guidance rejected / unavailable{% else %}Guidance unavailable{% endif %}</span>
@@ -122,15 +129,26 @@
               </td>
               <td>
                 {% for dataset, state in ((item.freshness if item.freshness is defined else {}) or {}).items() %}<span>{{ dataset|title }}: {{ state.age_days if state.age_days is not none else "N/A" }}d · {{ state.status|lower }}</span>{% endfor %}
+                {% for dataset, state in ((item.evidence_diagnostics if item.evidence_diagnostics is defined else {}) or {}).items() %}
+                  <span>{{ dataset|title }} — Source: {{ state.source_status|title }}{% if state.source_age_days is not none %} · {{ state.source_age_days }}d{% endif %}</span>
+                  <span class="muted-line">Normalized: {{ state.normalized_count }} · Eligible: {{ state.eligible_count }} · Selected: {{ state.selected_count }} · {{ state.evidence_state or state.dominant_blocker or "No blocker" }}</span>
+                {% endfor %}
                 {% set evidence_counts = ((item.evidence_lineage or {}).get('evidence_counts') or {}) %}
-                <span class="muted-line">Evidence {{ evidence_counts.get('CONSIDERED', 0) }} considered / {{ evidence_counts.get('SELECTED_FOR_COMPONENT', 0) }} selected</span>
-                {% if item.warnings %}<span class="badge badge-warning">Warnings present</span>{% else %}<span class="badge badge-success">No warnings</span>{% endif %}
+                <span class="muted-line">Evidence {{ evidence_counts.get('CONSIDERED', 0) }} considered / {{ item.lineage_reconciliation.selected_evidence_count if item.lineage_reconciliation is defined else evidence_counts.get('SELECTED_FOR_COMPONENT', 0) }} direct component evidence selected{% if item.lineage_reconciliation is defined and item.lineage_reconciliation.requires_rebuild %} · rebuild required{% endif %}</span>
+                {% set warning_summary = item.warning_summary if item.warning_summary is defined else {'count': (item.warnings or [])|length, 'severity': 'WARNING', 'dominant_warning': (item.warnings or [none])[0]} %}
+                {% if warning_summary.count %}<span class="badge badge-warning">{{ warning_summary.count }} warning{{ '' if warning_summary.count == 1 else 's' }} · {{ warning_summary.severity|title }} · {{ warning_summary.dominant_warning }}</span>{% else %}<span class="badge badge-success">No warnings</span>{% endif %}
               </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    <nav class="actions section-gap" aria-label="CERI result pages">
+      <span>{{ page.start_item }}-{{ page.end_item }} of {{ page.total_items or page.total }}</span>
+      {% if page.has_previous %}<a class="button-link secondary" href="{{ request.url.include_query_params(offset=page.previous_offset, limit=page.page_size) }}">Previous</a>{% else %}<span class="button-link secondary" aria-disabled="true">Previous</span>{% endif %}
+      <span>Page {{ page.page }} of {{ page.total_pages }}</span>
+      {% if page.has_next %}<a class="button-link secondary" href="{{ request.url.include_query_params(offset=page.next_offset, limit=page.page_size) }}">Next</a>{% else %}<span class="button-link secondary" aria-disabled="true">Next</span>{% endif %}
+    </nav>
   {% else %}
     <div class="empty-state section-gap">
       <strong>No CERI candidates match this view.</strong>

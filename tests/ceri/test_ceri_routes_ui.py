@@ -42,12 +42,50 @@ def test_ceri_dashboard_renders_full_data_and_filters(
     assert "CERI Dashboard" in response.text
     assert "MSFT" in response.text
     assert "Low" in response.text
-    assert "Warnings present" in response.text
+    assert "1 warning" in response.text
     assert "Provider Freshness" in response.text
-    assert "Evidence 7 considered / 3 selected" in response.text
+    assert "Evidence 7 considered / 1 direct component evidence selected" in response.text
     assert fake_service.latest_queries[-1].filters.opportunity_min == 7
     assert fake_service.latest_queries[-1].filters.risk_max == 3
     assert fake_service.latest_queries[-1].filters.has_warnings is True
+
+
+def test_run_dashboard_renders_pagination_rated_coverage_and_safe_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    app = _app(ceri_ui_enabled=True)
+
+    response = TestClient(app).get("/runs/104/ceri?limit=50&offset=50")
+
+    assert response.status_code == 200
+    assert "51-100 of 177" in response.text
+    assert "Previous" in response.text
+    assert "Next" in response.text
+    assert "Coverage 85%" in response.text
+    assert "Risk evidence: Sufficient" in response.text
+    assert "Source: Fresh" in response.text
+    assert "Normalized: 36" in response.text
+    assert "Eligible: 8" in response.text
+    assert "Selected: 3" in response.text
+    assert "+5.00%" in response.text
+    assert "+0.71" in response.text
+    assert "Breadth is (upward revisions - downward revisions)" in response.text
+
+
+def test_summary_uses_full_population_and_explicit_zero_risk_predicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = FakeCeriQueryService()
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: service)
+    app = _app(ceri_ui_enabled=True)
+
+    response = TestClient(app).get("/runs/104/ceri?limit=50")
+
+    assert response.status_code == 200
+    assert "31</strong>" in response.text
+    assert "177 candidates" in response.text
+    assert "Summary population 177" in response.text
 
 
 def test_ceri_dashboard_renders_empty_state(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -85,6 +123,7 @@ def test_ceri_ticker_detail_renders_provenance_and_warnings(
     assert "Eligible: 8" in response.text
     assert "Selected: 3" in response.text
     assert "Blocker: none" in response.text
+    assert "Price Response" in response.text
 
 
 def test_ceri_changes_render_groups_and_alert_actions(
@@ -258,9 +297,25 @@ class FakeCeriQueryService:
     def run(self, _db, _run_id, query):
         return {
             "items": [_snapshot()],
-            "total": 1,
+            "total": 177,
+            "total_items": 177,
             "limit": query.limit,
             "offset": query.offset,
+            "page": (query.offset // query.limit) + 1,
+            "page_size": query.limit,
+            "total_pages": 4,
+            "has_previous": query.offset > 0,
+            "has_next": query.offset + query.limit < 177,
+            "previous_offset": max(0, query.offset - query.limit) if query.offset else None,
+            "next_offset": query.offset + query.limit
+            if query.offset + query.limit < 177
+            else None,
+            "start_item": query.offset + 1,
+            "end_item": min(177, query.offset + query.limit),
+            "summary": {
+                "population_count": 177,
+                "high_opportunity_low_risk": 31,
+            },
         }
 
     def ticker(self, _db, ticker):
@@ -450,9 +505,18 @@ def _snapshot():
                 {
                     "name": "revision_magnitude",
                     "value": 5.0,
+                    "weight": 0.8,
                     "available": True,
                     "unavailable_reason": None,
-                }
+                },
+                {
+                    "name": "price_response",
+                    "value": 7.5,
+                    "weight": 0.05,
+                    "available": True,
+                    "unavailable_reason": None,
+                    "evidence_ids": [7001],
+                },
             ],
         },
         confidence_ledger_json={"score": 6.2, "gates": [], "caps": []},
@@ -477,6 +541,22 @@ def _snapshot():
         hash_schema_version="ceri-canonical-json-v2",
     )
     payload = _score_snapshot_payload(snapshot)
+    payload["event_risk"]["evidence_state"] = "SUFFICIENT"
+    payload["event_risk"]["low_risk_eligible"] = True
+    payload["warning_summary"] = {
+        "count": 1,
+        "severity": "INFO",
+        "dominant_warning": "estimate_data_stale",
+    }
+    payload["revision_evidence"] = {
+        "eps_CURRENT_QUARTER_30d": {
+            "value": 5.0,
+            "available": True,
+            "breadth": 0.714286,
+            "display_value": "+5.00%",
+            "display_breadth": "+0.71",
+        }
+    }
     payload["evidence_diagnostics"] = {
         "estimates": {
             "source_status": "FRESH",

@@ -490,6 +490,11 @@ def _load(db: Session, model: Any) -> list[Any]:
 
 
 def _copy_revision_derived(target: CeriRevisionFeature, source: CeriRevisionFeature) -> None:
+    # Values and lineage form one atomic derived fact. Reusing a row while
+    # retaining its prior comparison IDs can attach a new percentage to an old
+    # current/baseline pair, making the feature irreconcilable.
+    target.baseline_snapshot_id = source.baseline_snapshot_id
+    target.current_snapshot_id = source.current_snapshot_id
     target.actual_elapsed_days = source.actual_elapsed_days
     target.absolute_change = source.absolute_change
     target.pct_change = source.pct_change
@@ -502,9 +507,20 @@ def _copy_revision_derived(target: CeriRevisionFeature, source: CeriRevisionFeat
     target.acceleration = source.acceleration
     target.acceleration_unit = source.acceleration_unit
     target.baseline_origin = source.baseline_origin
+    target.comparison_mode = source.comparison_mode
+    target.known_at = source.known_at
+    target.reference_at = source.reference_at
+    target.current_source_record_id = source.current_source_record_id
+    target.baseline_source_record_id = source.baseline_source_record_id
+    target.provider_retrospective_source_record_id = (
+        source.provider_retrospective_source_record_id
+    )
     target.revision_confidence_score = source.revision_confidence_score
     target.revision_confidence_label = source.revision_confidence_label
     target.warnings_json = source.warnings_json
+    target.source_observation_ids_json = source.source_observation_ids_json
+    target.provider_selection_reason = source.provider_selection_reason
+    target.unavailable_reason = source.unavailable_reason
     target.evidence_hash = source.evidence_hash
 
 

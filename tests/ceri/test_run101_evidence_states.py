@@ -56,3 +56,29 @@ def test_provider_readiness_is_preserved_as_evidence_availability_not_zero_score
 
     assert enriched["provider_readiness"]["sec"] == "BOOTSTRAP_REQUIRED"
     assert enriched["evidence_counts"]["SCORED"] == 0
+
+
+def test_xpel_breadth_selection_is_lineage_even_when_magnitude_pair_is_unavailable() -> None:
+    enriched = CeriEvidenceLedgerService().enrich(
+        {
+            "revision_pairs": [
+                {
+                    "feature_id": 17174,
+                    "available": False,
+                    "unavailable_reason": "baseline_unavailable",
+                }
+            ]
+        },
+        source_ids=[],
+        opportunity_selected_ids=[17174],
+        risk_selected_ids=[],
+    )
+
+    row = enriched["evidence_states"][0]
+    assert row["states"] == [
+        "PERSISTED",
+        "CONSIDERED",
+        "ACCEPTED",
+        "SELECTED_FOR_COMPONENT",
+        "SCORED",
+    ]

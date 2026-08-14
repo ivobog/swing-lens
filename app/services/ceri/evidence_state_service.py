@@ -37,12 +37,15 @@ class CeriEvidenceLedgerService:
             evidence_id = pair.get("feature_id")
             if evidence_id is None:
                 continue
+            selected = evidence_id in selected_opportunity
             rows.append(
                 self._row(
                     "REVISION_FEATURE",
                     evidence_id,
-                    accepted=bool(pair.get("available")),
-                    selected=evidence_id in selected_opportunity,
+                    # A feature can be unavailable for magnitude while its
+                    # dimensionless breadth is selected by another component.
+                    accepted=bool(pair.get("available")) or selected,
+                    selected=selected,
                     reason=pair.get("unavailable_reason"),
                 )
             )
@@ -90,6 +93,23 @@ class CeriEvidenceLedgerService:
                     evidence_id,
                     accepted=True,
                     selected=evidence_id in selected_opportunity,
+                )
+            )
+
+        represented_selected = {
+            row["evidence_id"]
+            for row in rows
+            if CeriEvidenceState.SELECTED_FOR_COMPONENT.value in row["states"]
+        }
+        for evidence_id in sorted(selected_opportunity - represented_selected):
+            rows.append(
+                self._row(
+                    "COMPONENT_EVIDENCE",
+                    evidence_id,
+                    accepted=True,
+                    selected=True,
+                    scored=True,
+                    reason="selected_by_opportunity_component_ledger",
                 )
             )
 
