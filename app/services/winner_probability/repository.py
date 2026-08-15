@@ -172,6 +172,18 @@ class WinnerProbabilityRepository:
             .where(WinnerOutcomeDefinition.calculation_version == calculation_version)
         )
 
+    def get_active_outcome_definition(
+        self,
+        db: Session,
+        *,
+        definition_id: str,
+    ) -> WinnerOutcomeDefinition | None:
+        return db.scalar(
+            select(WinnerOutcomeDefinition)
+            .where(WinnerOutcomeDefinition.definition_id == definition_id)
+            .where(WinnerOutcomeDefinition.is_active.is_(True))
+        )
+
     def get_forward_outcome(
         self,
         db: Session,

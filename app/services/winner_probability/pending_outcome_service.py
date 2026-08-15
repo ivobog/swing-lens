@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -87,6 +88,15 @@ class PendingOutcomeService:
         )
         if existing is not None:
             return existing
+        get_active = getattr(self.repository, "get_active_outcome_definition", None)
+        active = (
+            get_active(db, definition_id=raw_definition.id)
+            if callable(get_active)
+            else None
+        )
+        if active is not None and active.calculation_version != config.engine.calculation_version:
+            active.is_active = False
+            active.retired_at = datetime.now(UTC)
         row = WinnerOutcomeDefinition(
             definition_id=raw_definition.id,
             label=raw_definition.label,
@@ -99,7 +109,10 @@ class PendingOutcomeService:
             config_hash=config.config_hash,
             is_primary=raw_definition.primary,
             is_active=True,
-            metadata_json={"phase": "phase_3"},
+            metadata_json={
+                "phase": "post_run104_remediation",
+                "supersedes_outcome_definition_id": getattr(active, "id", None),
+            },
         )
         return self.repository.add(db, row)
 

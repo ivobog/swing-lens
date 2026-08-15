@@ -116,6 +116,9 @@ def run_worker(
                 claim_state=claim_state,
                 session_factory=session_factory,
                 handlers=handlers,
+                schedule_winner_probability=(
+                    settings.winner_probability_auto_maturation_enabled
+                ),
             )
             if stop_after_one:
                 return
@@ -183,6 +186,7 @@ def run_worker_once(
     claim_state: WorkerClaimState | None = None,
     session_factory: sessionmaker[Session],
     handlers: Mapping[str, JobHandler] | None = None,
+    schedule_winner_probability: bool = False,
 ) -> bool:
     handlers = handlers or default_job_handlers()
     db = session_factory()
@@ -202,6 +206,14 @@ def run_worker_once(
         if recovered_count:
             logger.info("job.stale_recovered", extra={"count": recovered_count})
         db.commit()
+
+        if schedule_winner_probability:
+            from app.services.winner_probability.scheduler import (
+                schedule_primary_h5_maturation,
+            )
+
+            schedule_primary_h5_maturation(db)
+            db.commit()
 
         claim_state = claim_state or WorkerClaimState()
         claim_groups = build_worker_claim_groups(

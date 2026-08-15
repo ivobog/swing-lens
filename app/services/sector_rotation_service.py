@@ -32,6 +32,7 @@ from app.services.sector_rotation_repository import (
     SectorRotationSnapshotWrite,
 )
 from app.services.sector_universe_service import SectorUniverseService
+from app.services.us_market_calendar import latest_completed_us_trading_day
 
 CALCULATION_VERSION = "sector-rotation-1.0.0"
 MODE_UNIVERSE_ONLY = "universe_only"
@@ -399,18 +400,18 @@ def _resolve_as_of_date(db: Session, run_id: int | None) -> date:
             select(func.max(TechnicalScore.created_at)).where(TechnicalScore.run_id == run_id)
         )
         if latest_technical is not None:
-            return latest_technical.date()
+            return latest_completed_us_trading_day(latest_technical)
 
         uploaded_at = db.scalar(select(UploadRun.uploaded_at).where(UploadRun.id == run_id))
         if uploaded_at is not None:
-            return uploaded_at.date()
+            return latest_completed_us_trading_day(uploaded_at)
 
         raw_exists = db.scalar(
             select(func.count(RawCompanyRow.id)).where(RawCompanyRow.run_id == run_id)
         )
         if raw_exists:
-            return date.today()
-    return date.today()
+            return latest_completed_us_trading_day()
+    return latest_completed_us_trading_day()
 
 
 def _market_debug(snapshot: MarketRegimeSnapshot | None) -> dict[str, Any]:

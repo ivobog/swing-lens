@@ -79,14 +79,20 @@ class OutcomeMaturationService:
         now: datetime | None = None,
         limit: int = 500,
         should_cancel: Callable[[], bool] | None = None,
+        entry_model: str | None = None,
+        horizon_sessions: int | None = None,
+        due_session: date | None = None,
     ) -> OutcomeMaturationResult:
         now = now or _utcnow()
         completed_on = _latest_completed_for(now)
-        outcomes = self.repository.get_due_pending_forward_outcomes(
-            db,
-            completed_on=completed_on,
-            limit=limit,
-        )
+        selector_kwargs: dict[str, Any] = {"completed_on": completed_on, "limit": limit}
+        if entry_model is not None or horizon_sessions is not None or due_session is not None:
+            selector_kwargs.update(
+                entry_model=entry_model,
+                horizon_sessions=horizon_sessions,
+                due_session=due_session,
+            )
+        outcomes = self.repository.get_due_pending_forward_outcomes(db, **selector_kwargs)
         totals = _MutableOutcomeCounts()
         for outcome in outcomes:
             if should_cancel is not None and should_cancel():
@@ -371,10 +377,13 @@ class WinnerOutcomeRepository:
         *,
         completed_on: date,
         limit: int,
+        entry_model: str | None = None,
+        horizon_sessions: int | None = None,
+        due_session: date | None = None,
+        exclude_ids: tuple[int, ...] = (),
     ) -> list[WinnerForwardOutcome]:
-        return list(
-            db.scalars(
-                select(WinnerForwardOutcome)
+        statement = (
+            select(WinnerForwardOutcome)
                 .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
                 .where(WinnerForwardOutcome.is_current_revision.is_(True))
                 .where(WinnerForwardOutcome.due_session <= completed_on)
@@ -395,8 +404,18 @@ class WinnerOutcomeRepository:
                     WinnerForwardOutcome.id,
                 )
                 .limit(limit)
-            )
         )
+        if entry_model is not None:
+            statement = statement.where(WinnerForwardOutcome.entry_model == entry_model)
+        if horizon_sessions is not None:
+            statement = statement.where(
+                WinnerForwardOutcome.horizon_sessions == horizon_sessions
+            )
+        if due_session is not None:
+            statement = statement.where(WinnerForwardOutcome.due_session <= due_session)
+        if exclude_ids:
+            statement = statement.where(WinnerForwardOutcome.id.not_in(exclude_ids))
+        return list(db.scalars(statement))
 
     def get_current_matured_forward_outcomes(
         self,

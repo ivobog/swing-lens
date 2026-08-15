@@ -47,11 +47,20 @@ class CohortDefinitionService:
         outcome_definition: WinnerOutcomeDefinition,
         config: WinnerProbabilityConfig,
     ) -> WinnerCohortDefinition:
-        existing = db.scalar(
-            select(WinnerCohortDefinition)
-            .where(WinnerCohortDefinition.cohort_key == cohort_key.key)
-            .where(WinnerCohortDefinition.outcome_definition_id == outcome_definition.id)
-            .where(WinnerCohortDefinition.source_version == COHORT_BASELINE_SOURCE_VERSION)
+        getter = getattr(db, "get_existing_cohort_definition", None)
+        existing = (
+            getter(
+                cohort_key=cohort_key.key,
+                outcome_definition_id=outcome_definition.id,
+                source_version=COHORT_BASELINE_SOURCE_VERSION,
+            )
+            if callable(getter)
+            else db.scalar(
+                select(WinnerCohortDefinition)
+                .where(WinnerCohortDefinition.cohort_key == cohort_key.key)
+                .where(WinnerCohortDefinition.outcome_definition_id == outcome_definition.id)
+                .where(WinnerCohortDefinition.source_version == COHORT_BASELINE_SOURCE_VERSION)
+            )
         )
         if existing is not None:
             return existing

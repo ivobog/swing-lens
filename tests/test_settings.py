@@ -185,6 +185,7 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     monkeypatch.setenv("WINNER_PROBABILITY_CAPTURE_IN_PIPELINE", "true")
     monkeypatch.setenv("WINNER_PROBABILITY_CONFIG_PATH", "config/test_winner.yaml")
     monkeypatch.setenv("WINNER_PROBABILITY_ADMIN_ENABLED", "true")
+    monkeypatch.setenv("WINNER_PROBABILITY_AUTO_MATURATION_ENABLED", "true")
     monkeypatch.setenv("SETUP_LIFECYCLE_ENABLED", "true")
     monkeypatch.setenv("SETUP_LIFECYCLE_PIPELINE_STEP_ENABLED", "true")
     monkeypatch.setenv("SETUP_LIFECYCLE_ALERTS_ENABLED", "true")
@@ -227,6 +228,7 @@ def test_phase_0_durable_pipeline_settings_can_be_overridden(monkeypatch) -> Non
     assert settings.winner_probability_capture_in_pipeline is True
     assert settings.winner_probability_config_path == Path("config/test_winner.yaml")
     assert settings.winner_probability_admin_enabled is True
+    assert settings.winner_probability_auto_maturation_enabled is True
     assert settings.setup_lifecycle_enabled is True
     assert settings.setup_lifecycle_pipeline_step_enabled is True
     assert settings.setup_lifecycle_alerts_enabled is True

@@ -1,8 +1,9 @@
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
@@ -26,6 +27,40 @@ def get_ranking_profiles() -> list[RankingProfileConfig]:
     return load_ranking_profiles()
 
 
+@dataclass(frozen=True)
+class RankingPipelineResult:
+    status: str
+    profile_count: int
+    result_count: int
+    reason: str | None
+    results: tuple[RankingResult, ...]
+
+
+def execute_ranking_pipeline_step(db: Session, run_id: int) -> RankingPipelineResult:
+    profiles = load_ranking_profiles()
+    if not profiles:
+        return RankingPipelineResult(
+            status="SKIPPED",
+            profile_count=0,
+            result_count=0,
+            reason="no_configured_ranking_profiles",
+            results=(),
+        )
+    rows = _raw_rows_for_run(db, run_id)
+    results = refresh_all_ranking_profiles(db, run_id)
+    if rows and not results:
+        raise RuntimeError(
+            "configured ranking profiles produced zero results for non-empty run inputs"
+        )
+    return RankingPipelineResult(
+        status="COMPLETED",
+        profile_count=len(profiles),
+        result_count=len(results),
+        reason=None,
+        results=tuple(results),
+    )
+
+
 def refresh_all_ranking_profiles(
     db: Session,
     run_id: int,
@@ -37,9 +72,7 @@ def refresh_all_ranking_profiles(
     config = _load_scoring_config()
     liquidity_features = _load_liquidity_features(db, _run_cutoff(run))
 
-    db.execute(delete(RankingResult).where(RankingResult.run_id == run_id))
-
-    all_results: list[RankingResult] = []
+    desired: list[RankingResult] = []
     for profile in profiles:
         decisions = rank_profile(
             profile=profile,
@@ -51,11 +84,9 @@ def refresh_all_ranking_profiles(
             liquidity_features=liquidity_features,
         )
         models = [_to_ranking_model(run_id, decision) for decision in decisions]
-        db.add_all(models)
-        all_results.extend(models)
+        desired.extend(models)
 
-    db.flush()
-    return all_results
+    return _persist_rankings(db, run_id=run_id, desired=desired)
 
 
 def refresh_ranking_profile(
@@ -70,13 +101,6 @@ def refresh_ranking_profile(
     config = _load_scoring_config()
     liquidity_features = _load_liquidity_features(db, _run_cutoff(run))
 
-    db.execute(
-        delete(RankingResult).where(
-            RankingResult.run_id == run_id,
-            RankingResult.ranking_profile == profile.name,
-        )
-    )
-
     decisions = rank_profile(
         profile=profile,
         rows=rows,
@@ -87,9 +111,55 @@ def refresh_ranking_profile(
         liquidity_features=liquidity_features,
     )
     models = [_to_ranking_model(run_id, decision) for decision in decisions]
-    db.add_all(models)
+    return _persist_rankings(db, run_id=run_id, desired=models)
+
+
+def _persist_rankings(
+    db: Session,
+    *,
+    run_id: int,
+    desired: list[RankingResult],
+) -> list[RankingResult]:
+    existing = {
+        (row.ranking_profile, row.ticker.upper()): row
+        for row in _existing_rankings(db, run_id)
+    }
+    persisted: list[RankingResult] = []
+    added: list[RankingResult] = []
+    for candidate in desired:
+        key = (candidate.ranking_profile, candidate.ticker.upper())
+        current = existing.get(key)
+        if current is None:
+            added.append(candidate)
+            persisted.append(candidate)
+            existing[key] = candidate
+            continue
+        _copy_ranking_values(current, candidate)
+        persisted.append(current)
+    if added:
+        db.add_all(added)
     db.flush()
-    return models
+    return persisted
+
+
+def _existing_rankings(db: Session, run_id: int) -> list[RankingResult]:
+    scalars = getattr(db, "scalars", None)
+    if callable(scalars):
+        return list(
+            scalars(select(RankingResult).where(RankingResult.run_id == run_id))
+        )
+    return [
+        row
+        for row in getattr(db, "added", [])
+        if isinstance(row, RankingResult) and row.run_id == run_id
+    ]
+
+
+def _copy_ranking_values(target: RankingResult, source: RankingResult) -> None:
+    immutable = {"id", "run_id", "ranking_profile", "ticker", "created_at", "updated_at"}
+    for column in RankingResult.__table__.columns:
+        if column.name not in immutable:
+            setattr(target, column.name, getattr(source, column.name))
 
 
 def get_ranking_results(

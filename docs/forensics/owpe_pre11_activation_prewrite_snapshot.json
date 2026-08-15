@@ -1,0 +1,65 @@
+{
+  "captured_on": "2026-08-15",
+  "git_commit": "04684a145b62daefb54eebf106b870591b8b02dc",
+  "branch": "codex/ceri-run101-remediation",
+  "alembic_current": "0045_ceri_changes_alerts_semantics",
+  "alembic_target": "0046_owpe_pre11_training_compatibility",
+  "database": "swinglens",
+  "database_user": "postgres",
+  "database_server": "PostgreSQL 18.3",
+  "database_timezone": "Europe/Berlin",
+  "winner_probability_auto_maturation_enabled": false,
+  "compatibility_tables_present": false,
+  "run_104": {
+    "snapshots": 186,
+    "estimates": 184,
+    "latest_snapshot": "2026-08-14T04:34:33.298462+02:00",
+    "latest_estimate": "2026-08-14T04:34:33.298462+02:00",
+    "snapshot_checksum": "55b12cf70c532a120d453ee2c72e78a3",
+    "estimate_checksum": "d0b8383e293fe5911f47d1cf70c9630d"
+  },
+  "run_105": {
+    "snapshots": 186,
+    "estimates": 184,
+    "latest_snapshot": "2026-08-14T22:34:55.87988+02:00",
+    "latest_estimate": "2026-08-14T22:34:55.87988+02:00",
+    "snapshot_checksum": "1e872fe9d3620a320ea8c9ef4d7a31ce",
+    "estimate_checksum": "4783fa1f5675f8e25b02c41dbfd773c1"
+  },
+  "winner_counts": {
+    "prediction_snapshots": 9045,
+    "forward_outcomes": 85125,
+    "target_stop_outcomes": 16032,
+    "probability_estimates": 9009,
+    "cohort_definitions": 45,
+    "cohort_statistics": 45,
+    "evidence_manifests": 1,
+    "evidence_members": 0,
+    "processing_runs": 110
+  },
+  "pending_h5_next_open": {
+    "all": 6611,
+    "through_2026_08_13": 1111,
+    "oldest_due": "2026-08-07",
+    "newest_due": "2026-08-21"
+  },
+  "latest_relevant_jobs": {
+    "30260": {
+      "type": "WINNER_OUTCOME_MATURATION",
+      "status": "PARTIAL"
+    },
+    "30262": {
+      "type": "WINNER_COHORT_REFRESH",
+      "status": "FAILED"
+    }
+  },
+  "classifier_reconciliation": {
+    "historical_snapshots_considered": 8859,
+    "pit_valid": 2854,
+    "outcome_replay_possible": 715,
+    "final_training_eligible": 390,
+    "request_key": "d555a6b40f63092527b7997932686342e1be32d0582cbfe5d49f71122c6afa8c",
+    "manifest_hash": "dda5048538702f6eb9ae42f2aebefc86f19b988e3f2aa494e34900f27d462f54",
+    "database_write_count": 0
+  }
+}

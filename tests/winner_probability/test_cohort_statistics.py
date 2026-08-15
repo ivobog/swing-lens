@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+import pytest
+
 from app.models.tables import (
     WinnerForwardOutcome,
     WinnerPredictionSnapshot,
@@ -36,6 +38,20 @@ def test_evidence_grade_is_reproducible_from_config_thresholds() -> None:
 
     assert first.evidence_grade == second.evidence_grade == "High"
     assert first.posterior_probability == second.posterior_probability
+
+
+@pytest.mark.parametrize(
+    ("sample_n", "expected_grade"),
+    [(14, "Insufficient"), (15, "Low"), (40, "Medium"), (100, "High")],
+)
+def test_authoritative_evidence_grade_boundaries(sample_n: int, expected_grade: str) -> None:
+    config = load_winner_probability_config()
+    evidence = tuple(_evidence(index, won=index % 2 == 0) for index in range(sample_n))
+
+    result = CohortStatisticsService().calculate(evidence, config)
+
+    assert result.effective_n == Decimal(sample_n)
+    assert result.evidence_grade == expected_grade
 
 
 def _evidence(index: int, *, won: bool) -> EvidenceOutcome:

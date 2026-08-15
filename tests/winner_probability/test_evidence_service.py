@@ -3,12 +3,15 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+
 from app.models.tables import (
     WinnerForwardOutcome,
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
 )
 from app.services.winner_probability.cohort_definition import CohortKey
+from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.evidence_service import EvidenceService
 
 
@@ -27,6 +30,7 @@ def test_evidence_excludes_future_current_dependent_and_reconstructed_rows() -> 
         outcome_definition=_definition(),
         cohort_key=CohortKey(level="L5", dimensions={"global": "all"}, key="L5:test"),
         training_cutoff_at=cutoff,
+        config=load_winner_probability_config(),
     )
 
     assert [row.prediction.id for row in result] == [1]
@@ -53,16 +57,112 @@ def test_evidence_uses_revision_visible_at_training_cutoff() -> None:
         outcome_definition=_definition(),
         cohort_key=CohortKey(level="L5", dimensions={"global": "all"}, key="L5:test"),
         training_cutoff_at=cutoff,
+        config=load_winner_probability_config(),
     )
 
     assert [row.prediction.id for row in result] == [1]
 
 
+def test_positive_funnel_reaches_authoritative_minimum_independent_sample() -> None:
+    cutoff = datetime(2026, 7, 1, tzinfo=UTC)
+    current = _prediction(999, cutoff=cutoff)
+    rows = [_row(index, cutoff=cutoff - timedelta(days=30)) for index in range(1, 16)]
+
+    funnel = EvidenceService().diagnostic_funnel(
+        EvidenceFakeDb(rows),
+        prediction=current,
+        outcome_definition=_definition(),
+        cohort_key=CohortKey(level="L5", dimensions={"global": "all"}, key="L5:test"),
+        training_cutoff_at=cutoff,
+        config=load_winner_probability_config(),
+    )
+
+    assert len(funnel.evidence) == 15
+    assert all(stage.after_count == 15 for stage in funnel.stages)
+
+
+def test_global_funnel_is_reused_for_same_immutable_cutoff_contract() -> None:
+    cutoff = datetime(2026, 7, 1, tzinfo=UTC)
+    db = EvidenceFakeDb([_row(1, cutoff=cutoff - timedelta(days=30))])
+    service = EvidenceService()
+    kwargs = {
+        "outcome_definition": _definition(),
+        "cohort_key": CohortKey(
+            level="L5", dimensions={"global": "all"}, key="L5:test"
+        ),
+        "training_cutoff_at": cutoff,
+        "config": load_winner_probability_config(),
+    }
+
+    first = service.diagnostic_funnel(db, prediction=_prediction(998, cutoff=cutoff), **kwargs)
+    second = service.diagnostic_funnel(db, prediction=_prediction(999, cutoff=cutoff), **kwargs)
+
+    assert first is second
+    assert db.execute_count == 1
+
+
+@pytest.mark.parametrize(
+    ("stage", "mutation"),
+    [
+        ("prediction_eligible", lambda p, f, t, c: setattr(p, "eligibility_status", "EXCLUDED")),
+        (
+            "point_in_time_validated",
+            lambda p, f, t, c: p.lineage_json.update(point_in_time_validated=False),
+        ),
+        (
+            "production_training_eligible",
+            lambda p, f, t, c: p.lineage_json.update(capture_training_candidate=False),
+        ),
+        (
+            "feature_schema_compatible",
+            lambda p, f, t, c: setattr(p, "feature_schema_version", "old-schema"),
+        ),
+        (
+            "calculation_version_compatible",
+            lambda p, f, t, c: setattr(p, "calculation_version", "old-calc"),
+        ),
+        ("config_compatible", lambda p, f, t, c: setattr(p, "config_hash", "old-config")),
+        (
+            "quality_gates",
+            lambda p, f, t, c: setattr(p, "warning_flags_json", ["quality_blocking"]),
+        ),
+        (
+            "rolling_window_eligible",
+            lambda p, f, t, c: setattr(p, "prediction_as_of_date", date(2010, 1, 1)),
+        ),
+        (
+            "no_revised_after_cutoff_leakage",
+            lambda p, f, t, c: setattr(f, "source_revision_cutoff_at", c + timedelta(seconds=1)),
+        ),
+        ("independent_episode", lambda p, f, t, c: p.lineage_json.update(dependent_episode=True)),
+    ],
+)
+def test_each_production_gate_can_remove_otherwise_valid_observation(stage, mutation) -> None:
+    cutoff = datetime(2026, 7, 1, tzinfo=UTC)
+    row = _row(1, cutoff=cutoff - timedelta(days=30))
+    mutation(*row, cutoff)
+
+    funnel = EvidenceService().diagnostic_funnel(
+        EvidenceFakeDb([row]),
+        prediction=_prediction(999, cutoff=cutoff),
+        outcome_definition=_definition(),
+        cohort_key=CohortKey(level="L5", dimensions={"global": "all"}, key="L5:test"),
+        training_cutoff_at=cutoff,
+        config=load_winner_probability_config(),
+    )
+
+    target_stage = next(item for item in funnel.stages if item.predicate == stage)
+    assert target_stage.before_count == 1
+    assert target_stage.after_count == 0
+
+
 class EvidenceFakeDb:
     def __init__(self, rows) -> None:
         self.rows = rows
+        self.execute_count = 0
 
     def execute(self, _statement):
+        self.execute_count += 1
         return self.rows
 
 
@@ -75,17 +175,26 @@ def _row(
     superseded_at: datetime | None = None,
 ):
     prediction = _prediction(id, cutoff=cutoff)
-    prediction.lineage_json = {"dependent_episode": dependent}
+    prediction.episode_id = id
+    prediction.lineage_json = {
+        "dependent_episode": dependent,
+        "point_in_time_validated": True,
+        "capture_training_candidate": not dependent and not reconstructed,
+        "evidence_training_eligible": not dependent and not reconstructed,
+        "training_rejection_reasons": [],
+    }
     prediction.reconstruction_method = "AS_OF_REPLAY" if reconstructed else None
     forward = WinnerForwardOutcome(
         id=id + 100,
         prediction_id=id,
         entry_model="NEXT_OPEN",
         horizon_sessions=5,
+        due_session=date(2026, 2, 1),
         status="MATURED",
         revision=1,
         is_current_revision=True,
         matured_at=cutoff + timedelta(days=1),
+        source_revision_cutoff_at=cutoff + timedelta(days=1),
         superseded_at=superseded_at,
     )
     target = WinnerTargetStopOutcome(
@@ -108,6 +217,7 @@ def _row(
 
 
 def _prediction(id: int, *, cutoff: datetime) -> WinnerPredictionSnapshot:
+    config = load_winner_probability_config()
     return WinnerPredictionSnapshot(
         id=id,
         run_id=id,
@@ -119,11 +229,32 @@ def _prediction(id: int, *, cutoff: datetime) -> WinnerPredictionSnapshot:
         eligibility_status="ELIGIBLE",
         feature_schema_version="owpe-features-1.0.0",
         feature_vector_hash=f"hash-{id}",
-        config_hash="config",
-        calculation_version="calc",
+        config_hash=config.config_hash,
+        calculation_version=config.engine.calculation_version,
         feature_json={},
+        lineage_json={
+            "point_in_time_validated": True,
+            "capture_training_candidate": True,
+            "evidence_training_eligible": True,
+        },
     )
 
 
 def _definition():
-    return type("Definition", (), {"id": 1, "entry_model": "NEXT_OPEN", "horizon_sessions": 5})()
+    config = load_winner_probability_config()
+    raw = config.primary_outcome_definition
+    return type(
+        "Definition",
+        (),
+        {
+            "id": 1,
+            "definition_id": raw.id,
+            "entry_model": raw.entry_model,
+            "horizon_sessions": raw.horizon_sessions,
+            "target_pct": raw.target_pct,
+            "stop_pct": raw.stop_pct,
+            "calculation_version": config.engine.calculation_version,
+            "config_hash": config.config_hash,
+            "is_active": True,
+        },
+    )()

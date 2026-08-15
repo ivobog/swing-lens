@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from _phase3_helpers import FakeWinnerRepository, build_run_context
 
@@ -108,6 +109,37 @@ def test_future_next_open_entry_is_not_a_capture_exclusion() -> None:
     assert prediction.planned_entry_session.isoformat() == "2026-08-03"
     assert prediction.entry_data_status == EntryDataStatus.NOT_DUE
     assert prediction.exclusion_reason is None
+
+
+def test_run_104_cutoff_uses_completed_us_session_not_zurich_calendar_date() -> None:
+    config = load_winner_probability_config()
+    context = build_run_context(as_of_date=datetime(2026, 8, 14).date())
+    cutoff = datetime(2026, 8, 14, 4, 34, 21, tzinfo=ZoneInfo("Europe/Zurich"))
+    context.upload_run.uploaded_at = cutoff
+    context.upload_run.processed_at = cutoff
+    ticker = context.tickers[0]
+    for row in (
+        ticker.raw_row,
+        ticker.fundamental_score,
+        ticker.technical_score,
+        ticker.combined_result,
+        *ticker.ranking_results,
+        context.market_regime_snapshot,
+        context.sector_rotation_snapshot,
+    ):
+        row.created_at = cutoff
+    repository = FakeWinnerRepository(context)
+
+    result = _capture_service(repository).capture_run(
+        object(), run_id=7, config=config, captured_at=cutoff
+    )
+
+    assert result.inserted == 1
+    prediction = repository.predictions[0]
+    assert prediction.prediction_as_of_date.isoformat() == "2026-08-13"
+    assert prediction.planned_entry_session.isoformat() == "2026-08-14"
+    assert prediction.entry_data_status == EntryDataStatus.NOT_DUE
+    assert "sector_rotation_date_after_completed_signal_session" in prediction.warning_flags_json
 
 
 def test_future_dated_optional_context_is_nulled_and_warned_without_snapshot() -> None:

@@ -4,6 +4,7 @@
 
 {% block content %}
 {% set is_terminal = pipeline.status in terminal_statuses %}
+{% set pipeline_result = pipeline.result|default({}) %}
 <section
   class="panel"
   data-pipeline-progress
@@ -81,6 +82,18 @@
     <div class="metric">
       <span>Cancel</span>
       <strong data-pipeline-cancel-metric>{{ "Requested" if pipeline.job_cancel_requested else "No" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Ranking status</span>
+      <strong data-pipeline-ranking-status>{{ pipeline_result.get("ranking_status", "Pending") }}</strong>
+    </div>
+    <div class="metric">
+      <span>Ranking profiles</span>
+      <strong data-pipeline-ranking-profiles>{{ pipeline_result.get("ranking_profiles", 0) }}</strong>
+    </div>
+    <div class="metric">
+      <span>Ranking results</span>
+      <strong data-pipeline-ranking-results>{{ pipeline_result.get("ranking_results", 0) }}</strong>
     </div>
   </div>
   <div class="actions section-gap">

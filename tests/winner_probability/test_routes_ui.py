@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.tables import UploadRun
+from app.routers.winner_probability_routes import _run_evidence_summary
 from app.templates import templates
 
 
@@ -54,6 +55,7 @@ def test_run_page_renders_required_evidence_fields(monkeypatch) -> None:
     assert "cohort-baseline" in html
     assert "cohort_baseline" in html
     assert "120" in html
+    assert "native 15 / pre-1.1 replay 105" in html
     assert "2.1" in html
     assert "3.7 / -1.2" in html
     assert "64%" in html
@@ -92,6 +94,30 @@ def test_run_page_renders_insufficient_raw_evidence_reason(monkeypatch) -> None:
     assert "Withheld" in html
     assert "no_eligible_cohort" in html
     assert "3" in html
+
+
+def test_run_summary_uses_full_counts_instead_of_page_length() -> None:
+    payload = _run_payload()
+    payload["counts"] = {
+        "run_total": 186,
+        "filtered_total": 186,
+        "estimate_total": 184,
+        "calibrated_total": 0,
+        "insufficient_total": 184,
+        "missing_estimate_total": 2,
+    }
+
+    summary = _run_evidence_summary(payload)
+
+    assert summary == {
+        "row_count": 1,
+        "filtered_count": 186,
+        "run_count": 186,
+        "estimate_count": 184,
+        "calibrated_count": 0,
+        "insufficient_count": 184,
+        "missing_estimate_count": 2,
+    }
 
 
 def test_ticker_evidence_page_separates_label_entry_model_and_estimate_views(
@@ -204,8 +230,8 @@ def test_operations_page_exposes_overdue_pending_and_failed_jobs(monkeypatch) ->
     assert "market data incomplete" in html
     assert "Process due outcomes" in html
     assert "Refresh cohorts" in html
-    assert 'data-winner-json-form' in html
-    assert 'data-winner-form-output' in html
+    assert "data-winner-json-form" in html
+    assert "data-winner-form-output" in html
     assert "<caption>Recent winner probability processing runs and errors.</caption>" in html
 
 
@@ -269,9 +295,7 @@ def test_model_health_page_renders_calibration_and_drift(monkeypatch) -> None:
 def test_nav_includes_winner_evidence(monkeypatch) -> None:
     monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
 
-    html = templates.get_template("partials/_nav.html").render(
-        active_nav="winner-probability"
-    )
+    html = templates.get_template("partials/_nav.html").render(active_nav="winner-probability")
 
     assert 'href="/winner-probability/operations"' in html
     assert "Winner Evidence" in html
@@ -333,6 +357,10 @@ def _run_payload() -> dict[str, object]:
                     "calibration_calculated_at": None,
                     "sample_n": 120,
                     "effective_n": 118.0,
+                    "evidence_composition": {
+                        "native_1_1_n": 15,
+                        "pre11_compatible_n": 105,
+                    },
                     "median_return_pct": 2.1,
                     "median_mfe_pct": 3.7,
                     "median_mae_pct": -1.2,
