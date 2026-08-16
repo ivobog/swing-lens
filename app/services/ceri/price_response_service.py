@@ -46,6 +46,8 @@ class CeriPriceResponseService:
         event_id: int | None,
         event_effective_at: datetime | None = None,
         event_effective_session: date | None = None,
+        stock_bars: list[PriceBar] | None = None,
+        benchmark_bars: list[PriceBar] | None = None,
     ) -> PriceResponseResult:
         reaction = self.reaction_session(event_effective_at, event_effective_session)
         event_key = _event_key(
@@ -68,8 +70,12 @@ class CeriPriceResponseService:
                 (),
                 "EVENT_TIMESTAMP_UNRESOLVED",
             )
-        stock = self._bars(db, ticker)
-        benchmark = self._bars(db, self.config.price_response.benchmark)
+        stock = stock_bars if stock_bars is not None else self._bars(db, ticker)
+        benchmark = (
+            benchmark_bars
+            if benchmark_bars is not None
+            else self._bars(db, self.config.price_response.benchmark)
+        )
         if not stock:
             return PriceResponseResult(
                 None,
@@ -267,6 +273,37 @@ class CeriPriceResponseService:
                 CeriPriceResponseFeature.event_key == result.event_key
             ),
         )
+        feature = self.build_feature(
+            result=result,
+            company_id=company_id,
+            ticker=ticker,
+            event_id=event_id,
+            event_effective_at=event_effective_at,
+            event_effective_session=event_effective_session,
+        )
+        if existing is None:
+            existing = feature
+            db.add(existing)
+        else:
+            existing.metrics_json = feature.metrics_json
+            existing.reasons_json = feature.reasons_json
+            existing.warnings_json = feature.warnings_json
+            existing.price_bar_ids_json = feature.price_bar_ids_json
+            existing.evidence_hash = feature.evidence_hash
+        db.flush()
+        return existing
+
+    def build_feature(
+        self,
+        *,
+        result: PriceResponseResult,
+        company_id: int,
+        ticker: str,
+        event_id: int | None,
+        event_effective_at: datetime | None,
+        event_effective_session: date | None,
+    ) -> CeriPriceResponseFeature:
+        """Build a persistence row without querying or flushing the database."""
         payload = {
             "quality": result.quality,
             "event_key": result.event_key,
@@ -278,37 +315,33 @@ class CeriPriceResponseService:
             "config_hash": self.config.config_hash,
             "calculation_version": self.config.engine.calculation_version,
         }
-        if existing is None:
-            existing = CeriPriceResponseFeature(
-                company_id=company_id,
-                ticker=ticker.upper(),
-                event_type=result.event_type,
-                event_id=event_id,
-                event_effective_at=event_effective_at,
-                event_effective_session=event_effective_session,
-                reaction_session=result.reaction_session,
-                benchmark=self.config.price_response.benchmark,
-                event_key=result.event_key,
-                config_version=self.config.engine.config_version,
-                config_hash=self.config.config_hash,
-                calculation_version=self.config.engine.calculation_version,
-                evidence_hash=_hash(payload),
-            )
-            db.add(existing)
-        existing.metrics_json = {
-            **result.metrics,
-            "quality": result.quality,
-            "unavailable_reason": result.unavailable_reason,
-        }
-        existing.reasons_json = [
-            *result.reasons,
-            *([result.unavailable_reason] if result.unavailable_reason else []),
-        ] or None
-        existing.warnings_json = list(result.warnings) or None
-        existing.price_bar_ids_json = list(result.price_bar_ids) or None
-        existing.evidence_hash = _hash(payload)
-        db.flush()
-        return existing
+        return CeriPriceResponseFeature(
+            company_id=company_id,
+            ticker=ticker.upper(),
+            event_type=result.event_type,
+            event_id=event_id,
+            event_effective_at=event_effective_at,
+            event_effective_session=event_effective_session,
+            reaction_session=result.reaction_session,
+            benchmark=self.config.price_response.benchmark,
+            metrics_json={
+                **result.metrics,
+                "quality": result.quality,
+                "unavailable_reason": result.unavailable_reason,
+            },
+            reasons_json=[
+                *result.reasons,
+                *([result.unavailable_reason] if result.unavailable_reason else []),
+            ]
+            or None,
+            warnings_json=list(result.warnings) or None,
+            price_bar_ids_json=list(result.price_bar_ids) or None,
+            event_key=result.event_key,
+            config_version=self.config.engine.config_version,
+            config_hash=self.config.config_hash,
+            calculation_version=self.config.engine.calculation_version,
+            evidence_hash=_hash(payload),
+        )
 
     def reaction_session(
         self,

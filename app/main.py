@@ -8,6 +8,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import BaseRoute
 
+from app.observability.db_monitor import (
+    DatabaseHealthSampler,
+    DatabaseMonitorMiddleware,
+)
 from app.routers import (
     ceri_provider_routes,
     ceri_routes,
@@ -62,6 +66,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     worker_settings: Settings = app.state.settings
     worker_stop_event: Event | None = None
     worker_thread: Thread | None = None
+    database_health_sampler = DatabaseHealthSampler(worker_settings)
+    database_health_sampler.start()
 
     if worker_settings.job_worker_enabled:
         worker_stop_event = Event()
@@ -83,6 +89,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        database_health_sampler.stop()
         if worker_stop_event is not None:
             worker_stop_event.set()
         if worker_thread is not None:
@@ -103,6 +110,8 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = app_settings
     app.state.local_admin_csrf_token = issue_local_admin_csrf_token()
+
+    app.add_middleware(DatabaseMonitorMiddleware, enabled=app_settings.db_monitor_enabled)
     install_trusted_host_middleware(app, app_settings.app_host)
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
     app.include_router(health_routes.router)

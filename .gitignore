@@ -23,3 +23,4 @@ backups/
 *.log
 uvicorn.*.log
 *.sqlite3
+logs/db-monitor/*.jsonl

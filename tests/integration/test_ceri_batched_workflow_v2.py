@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -8,15 +9,18 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
 from datetime import UTC, date, datetime
 from threading import Barrier
+from time import perf_counter
 
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
     CeriAlertEvent,
     CeriChangeEvent,
     CeriCompany,
+    CeriDerivedFeature,
     CeriEstimateSnapshot,
+    CeriFeatureBuildState,
     CeriIngestionRun,
     CeriRevisionFeature,
     CeriScoreSnapshot,
@@ -34,6 +38,10 @@ from app.services.ceri.batched_workflow import (
     CERI_NORMALIZE_BATCH,
     CERI_PROVIDER_INGEST_BATCH,
     CERI_RUN_FINALIZE,
+)
+from app.services.ceri.feature_rebuild_service import (
+    CeriFeatureRebuildRequest,
+    CeriFeatureRebuildService,
 )
 from app.services.ceri.job_handlers import (
     CERI_ALERT_REBUILD,
@@ -196,6 +204,183 @@ def test_batched_workflow_outputs_match_legacy_workflow_in_postgresql(
     # A first snapshot establishes a baseline; it is never an upgrade or alert.
     assert len(batched["changes"]) == 0
     assert len(batched["alerts"]) == 0
+
+
+def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    statements: list[str] = []
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement.lstrip().split(None, 1)[0].upper())
+
+    with Session(engine, expire_on_commit=False) as db:
+        run_id, ingestion_run_id = _seed_fixture(
+            db, request_key="perf-fixture:ingest:MSFT"
+        )
+        processing = BackgroundJob(
+            job_type="CERI_NORMALIZE",
+            related_run_id=run_id,
+            request_key="perf-fixture:normalize:MSFT",
+            status=JobStatus.RUNNING,
+            payload_json={
+                "request_key": "perf-fixture:normalize:MSFT",
+                "ingestion_run_id": ingestion_run_id,
+                "provider": "eodhd",
+                "dataset": "estimates",
+                "ticker": "MSFT",
+                "run_id": run_id,
+                "scope": {"ticker": "MSFT", "run_id": run_id},
+            },
+        )
+        db.add(processing)
+        db.flush()
+        _execute_handler(db, processing, execute_normalize_job)
+        request = CeriFeatureRebuildRequest(
+            ticker="MSFT",
+            run_id=run_id,
+            as_of_session=date(2026, 8, 12),
+        )
+        service = CeriFeatureRebuildService()
+
+        statements.clear()
+        first = service.rebuild(db, request)
+        db.commit()
+        first_selects = statements.count("SELECT")
+        first_counts = (
+            db.scalar(select(func.count()).select_from(CeriRevisionFeature)),
+            db.scalar(select(func.count()).select_from(CeriDerivedFeature)),
+            db.scalar(select(func.count()).select_from(CeriFeatureBuildState)),
+        )
+        first_hashes = tuple(db.scalars(
+            select(CeriRevisionFeature.evidence_hash).order_by(CeriRevisionFeature.id)
+        ))
+
+        statements.clear()
+        second = service.rebuild(db, request)
+        db.commit()
+        second_counts = (
+            db.scalar(select(func.count()).select_from(CeriRevisionFeature)),
+            db.scalar(select(func.count()).select_from(CeriDerivedFeature)),
+            db.scalar(select(func.count()).select_from(CeriFeatureBuildState)),
+        )
+        second_hashes = tuple(db.scalars(
+            select(CeriRevisionFeature.evidence_hash).order_by(CeriRevisionFeature.id)
+        ))
+
+        assert first.companies_rebuilt == 1
+        assert first_selects <= 12
+        assert first.sql_write_count <= 5
+        assert second.companies_skipped_unchanged == 1
+        assert second_counts == first_counts
+        assert second_hashes == first_hashes
+
+    engine.dispose()
+
+
+def test_optimized_50_company_batch_emits_bounded_performance_telemetry(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    statements: list[str] = []
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement.lstrip().split(None, 1)[0].upper())
+
+    tickers = tuple(f"P{index:03d}" for index in range(50))
+    with Session(engine, expire_on_commit=False) as db:
+        companies = [CeriCompany(ticker=ticker, exchange="US") for ticker in tickers]
+        db.add_all(companies)
+        db.flush()
+        sources = [
+            CeriSourceRecord(
+                provider="fixture",
+                dataset="estimates",
+                provider_record_id=f"{company.ticker}-current",
+                content_hash=f"content-{company.ticker}",
+                idempotency_key=f"perf-{company.ticker}",
+                export_policy="exportable",
+                redistribution_allowed=False,
+                purge_eligible=False,
+            )
+            for company in companies
+        ]
+        db.add_all(sources)
+        db.flush()
+        db.add_all([
+            CeriEstimateSnapshot(
+                source_record_id=source.id,
+                company_id=company.id,
+                metric="EPS_DILUTED",
+                fiscal_period_end=date(2026, 9, 30),
+                period_type="CURRENT_QUARTER",
+                canonical_period_slot="CURRENT_QUARTER",
+                consensus="2.0",
+                high="2.2",
+                low="1.8",
+                analyst_count=10,
+                upward_count=6,
+                downward_count=2,
+                canonical_currency="USD",
+                canonical_scale="1",
+                effective_at=datetime(2026, 8, 10, 20, tzinfo=UTC),
+                known_at=datetime(2026, 8, 10, 20, tzinfo=UTC),
+                effective_session=date(2026, 8, 10),
+                canonical_observation_key=f"{company.ticker}:EPS:CQ:2026Q3",
+            )
+            for company, source in zip(companies, sources, strict=True)
+        ])
+        db.commit()
+        request = CeriFeatureRebuildRequest(
+            tickers=tickers, as_of_session=date(2026, 8, 12)
+        )
+        service = CeriFeatureRebuildService()
+
+        statements.clear()
+        started = perf_counter()
+        first = service.rebuild(db, request)
+        db.commit()
+        first_wall_ms = int((perf_counter() - started) * 1000)
+        first_selects = statements.count("SELECT")
+        first_writes = sum(
+            statements.count(verb) for verb in ("INSERT", "UPDATE", "DELETE")
+        )
+
+        statements.clear()
+        started = perf_counter()
+        second = service.rebuild(db, request)
+        db.commit()
+        second_wall_ms = int((perf_counter() - started) * 1000)
+
+        telemetry = {
+            "ticker_count": 50,
+            "first_wall_ms": first_wall_ms,
+            "first_seconds_per_ticker": first_wall_ms / 50_000,
+            "first_select_count": first_selects,
+            "first_write_count": first_writes,
+            "first_companies_rebuilt": first.companies_rebuilt,
+            "first_load_context_ms": first.load_context_ms,
+            "first_batch_total_ms": first.batch_total_ms,
+            "second_wall_ms": second_wall_ms,
+            "second_companies_skipped": second.companies_skipped_unchanged,
+            "rows_loaded": first.rows_loaded,
+            "family_runtime_ms": first.family_runtime_ms,
+            "persistence_ms": first.persistence_ms,
+        }
+        print("CERI_PERF_TELEMETRY=" + json.dumps(telemetry, sort_keys=True))
+
+        assert first.companies_rebuilt == 50
+        assert first_selects <= 12
+        assert first_writes <= 200
+        assert second.companies_skipped_unchanged == 50
+        assert first_wall_ms < 60_000
+
+    engine.dispose()
 
 
 def _upgrade(database_url: str, *, revision: str = "head") -> None:

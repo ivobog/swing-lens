@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal
 from app.models.tables import BackgroundJob
+from app.observability.db_monitor import background_job_scope
 from app.services.background_job_service import (
     JobLeaseLost,
     JobStatus,
@@ -303,8 +304,22 @@ def execute_job(
         raise ValueError(f"Unsupported job type: {job.job_type}")
     if heartbeat is not None:
         job._heartbeat = heartbeat
+    payload = job.payload_json or {}
+    run_id = job.related_run_id or payload.get("run_id")
+    workflow_key = job.workflow_key or payload.get("workflow_key")
+    ticker = payload.get("ticker")
+    company = payload.get("company")
     try:
-        return handler(db, job)
+        with background_job_scope(
+            job_id=job.id,
+            job_type=job.job_type,
+            run_id=run_id,
+            worker_id=job.worker_id,
+            workflow_key=workflow_key,
+            ticker=str(ticker) if ticker else None,
+            company=str(company) if company else None,
+        ):
+            return handler(db, job)
     finally:
         if heartbeat is not None and hasattr(job, "_heartbeat"):
             delattr(job, "_heartbeat")

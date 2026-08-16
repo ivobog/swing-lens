@@ -40,6 +40,19 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
     database_connect_timeout_seconds: int = Field(default=3, ge=1, le=30)
+    db_monitor_enabled: bool = True
+    db_monitor_slow_query_ms: float = Field(default=100.0, ge=0)
+    db_monitor_full_trace_ms: float = Field(default=250.0, ge=0)
+    db_monitor_full_stack_for_all_sql: bool = False
+    db_monitor_retention_days: int = Field(default=8, ge=1, le=365)
+    db_monitor_log_dir: Path = Field(default=Path("logs/db-monitor"))
+    db_monitor_queue_size: int = Field(default=10_000, ge=1)
+    db_monitor_max_file_mb: int = Field(default=100, ge=1)
+    db_monitor_max_stack_frames: int = Field(default=20, ge=1, le=100)
+    db_monitor_n_plus_one_threshold: int = Field(default=10, ge=2)
+    db_monitor_activity_sampler_enabled: bool = False
+    db_monitor_activity_threshold_ms: float = Field(default=1500.0, ge=100)
+    db_monitor_activity_sample_interval_seconds: float = Field(default=10.0, ge=1)
 
     upload_dir: Path = Field(default=Path("data/uploads"))
     export_dir: Path = Field(default=Path("data/exports"))
@@ -318,6 +331,11 @@ class Settings(BaseSettings):
             raise ValueError("job_worker_heartbeat_interval_seconds must be positive")
         if self.job_worker_heartbeat_interval_seconds >= self.job_worker_heartbeat_timeout_seconds:
             raise ValueError("job_worker_heartbeat_interval_seconds must be less than the timeout")
+        if self.db_monitor_full_trace_ms < self.db_monitor_slow_query_ms:
+            raise ValueError(
+                "db_monitor_full_trace_ms must be greater than or equal to "
+                "db_monitor_slow_query_ms"
+            )
         if self.ceri_legacy_pipeline_scheduling_enabled and self.ceri_batched_workflow_enabled:
             raise ValueError("legacy and batched CERI pipeline scheduling cannot both be enabled")
         return self
