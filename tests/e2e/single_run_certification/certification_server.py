@@ -147,22 +147,21 @@ def _install_deterministic_fetch_dependency() -> None:
 
 
 def _install_deterministic_outcome_clock() -> None:
-    """Freeze only OWPE outcome maturation; all production logic remains real."""
-    from app.services.winner_probability.outcome_service import OutcomeMaturationService
+    """Freeze the production Winner outcome worker handler for certification."""
+    from app.services.winner_probability import job_handlers
 
     fixed_now = datetime.fromisoformat(os.environ["CERTIFICATION_OUTCOME_NOW"])
-    real_process_due_outcomes = OutcomeMaturationService.process_due_outcomes
+    real_execute_outcome_maturation_job = job_handlers.execute_outcome_maturation_job
 
-    def process_due_outcomes(self, db, *, now=None, limit=500, should_cancel=None):
-        return real_process_due_outcomes(
-            self,
+    def execute_outcome_maturation_job(db, job, **kwargs):
+        return real_execute_outcome_maturation_job(
             db,
-            now=now or fixed_now,
-            limit=limit,
-            should_cancel=should_cancel,
+            job,
+            now=kwargs.pop("now", None) or fixed_now,
+            **kwargs,
         )
 
-    OutcomeMaturationService.process_due_outcomes = process_due_outcomes
+    job_handlers.execute_outcome_maturation_job = execute_outcome_maturation_job
 
 
 _install_deterministic_fetch_dependency()

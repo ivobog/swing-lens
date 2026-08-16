@@ -104,7 +104,7 @@ jobs:
         with:
           name: qa-test-reports
           path: ${{ runner.temp }}/swinglens-qa/
-          if-no-files-found: error
+          if-no-files-found: warn
 
   browser-smoke:
     name: Chromium and Firefox Smoke

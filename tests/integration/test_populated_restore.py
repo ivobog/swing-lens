@@ -495,7 +495,10 @@ def _seed_representative_evidence(database_url: str) -> dict[str, int]:
                 config_version="ceri-config-v1",
                 config_hash="ceri-config-sha256",
                 calculation_version="ceri-score-qa-v1",
+                evidence_contract_version="ceri-evidence-contract-v2",
+                comparison_state="NO_PRIOR_COMPARABLE_SNAPSHOT",
                 evidence_hash="ceri-score-evidence-sha256",
+                hash_schema_version="ceri-canonical-json-v2",
                 created_at=captured_at,
             )
         )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 
 from app.models.tables import BackgroundJob, WinnerProcessingRun
@@ -160,9 +162,41 @@ def test_material_h5_maturation_enqueues_cohort_refresh(monkeypatch) -> None:
     result = execute_outcome_maturation_job(db, job, orchestration_service=service)
 
     assert result["matured_h5"] == 3
+    assert service.now is None
     assert len(queued) == 1
     assert queued[0][0][1] == WINNER_COHORT_REFRESH
     assert "training_cutoff_at" in queued[0][0][2]
+
+
+def test_outcome_maturation_worker_path_receives_injected_time() -> None:
+    fixed_now = datetime(2027, 1, 15, 22, 0, tzinfo=UTC)
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    service = FakeOrchestrationService(
+        H5DrainResult(
+            due_h5_next_open=1,
+            oldest_due_h5_session=None,
+            oldest_due_h5_age=None,
+            processed_h5=1,
+            matured_h5=1,
+            pending_h5_after_cycle=0,
+            excluded_h5=0,
+            failed_h5=0,
+            target_stop_matured=0,
+            unvisited_h5_after_cycle=0,
+            last_successful_full_drain_at=fixed_now.isoformat(),
+        )
+    )
+
+    result = execute_outcome_maturation_job(
+        db,
+        job,
+        orchestration_service=service,
+        now=fixed_now,
+    )
+
+    assert result["status"] == JobStatus.COMPLETED
+    assert service.now == fixed_now
 
 
 def test_cohort_refresh_job_persists_processing_run_and_counts() -> None:
@@ -235,9 +269,11 @@ class CancellingOutcomeService:
 class FakeOrchestrationService:
     def __init__(self, result: H5DrainResult) -> None:
         self.result = result
+        self.now = None
 
     def drain_due(self, _db, **kwargs) -> H5DrainResult:
         assert callable(kwargs["should_cancel"])
+        self.now = kwargs["now"]
         return self.result
 
 

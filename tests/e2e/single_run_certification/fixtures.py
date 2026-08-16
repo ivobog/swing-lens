@@ -22,16 +22,21 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
 )
-from app.services.ceri.enums import CeriDataset
+from app.services.ceri.confidence_service import ConfidenceResult
+from app.services.ceri.dtos import ScoreComponent
+from app.services.ceri.enums import CeriConfidenceLabel, CeriDataset
+from app.services.ceri.event_risk_service import CeriEventRiskService
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
 )
 from app.services.ceri.normalization_service import CeriNormalizationService
+from app.services.ceri.opportunity_score_service import OpportunityResult
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
+from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.winner_probability.config import load_winner_probability_config
 
 FIXTURE_VERSION = "single-run-certification-1.0.0"
@@ -46,6 +51,7 @@ class SeedResult:
     fixture_hash: str
     ceri_ingestion_run_ids: tuple[int, ...]
     ceri_processing_run_ids: tuple[int, ...]
+    ceri_baseline_snapshot_id: int
     pre_run_counts: dict[str, int]
 
 
@@ -353,7 +359,9 @@ def seed_prerequisites(database_url: str) -> SeedResult:
         _seed_market_cache(db)
         _seed_winner_history(db, decoy.id)
         db.commit()
-        ceri_ingestion_ids, ceri_processing_ids = _seed_ceri_manual_evidence(db)
+        ceri_ingestion_ids, ceri_processing_ids, ceri_baseline_snapshot_id = (
+            _seed_ceri_manual_evidence(db)
+        )
         db.commit()
         counts = {
             "upload_runs": db.query(UploadRun).count(),
@@ -367,6 +375,7 @@ def seed_prerequisites(database_url: str) -> SeedResult:
             fixture_hash=_fixture_hash(counts),
             ceri_ingestion_run_ids=tuple(ceri_ingestion_ids),
             ceri_processing_run_ids=tuple(ceri_processing_ids),
+            ceri_baseline_snapshot_id=ceri_baseline_snapshot_id,
             pre_run_counts=counts,
         )
     engine.dispose()
@@ -554,7 +563,7 @@ def _seed_winner_history(db: Session, decoy_run_id: int) -> None:
         )
 
 
-def _seed_ceri_manual_evidence(db: Session) -> tuple[list[int], list[int]]:
+def _seed_ceri_manual_evidence(db: Session) -> tuple[list[int], list[int], int]:
     for ticker in CANONICAL_TICKERS:
         db.add(
             CeriCompany(
@@ -633,12 +642,38 @@ def _seed_ceri_manual_evidence(db: Session) -> tuple[list[int], list[int]]:
                 "published_at": "2026-08-07T19:00:00Z",
             }
         )
+        if ticker == "ALFA":
+            records[CeriDataset.EARNINGS].append(
+                {
+                    "provider_record_id": "ALFA-earnings-2026-q2",
+                    "ticker": ticker,
+                    "metric": "EPS_DILUTED",
+                    "period_type": "QUARTERLY",
+                    "fiscal_year": 2026,
+                    "fiscal_quarter": 2,
+                    "actual": "1.50",
+                    "estimate": "1.00",
+                    "surprise_percent": "50.0",
+                    "report_at": "2026-07-31T20:15:00Z",
+                    "event_kind": "REPORTED",
+                    "acquisition_policy": "REPORTED",
+                    "provider_consensus_semantics": "REPORT_TIME_CONSENSUS",
+                    "published_at": "2026-07-31T20:15:00Z",
+                    "observed_at": "2026-07-31T20:15:00Z",
+                    "export_policy": "exportable",
+                }
+            )
 
     provider = ManualCeriProvider(records, provider_terms_version=FIXTURE_VERSION)
     service = CeriIngestionService(registry=CeriProviderRegistry(providers={"manual": provider}))
     ingestion_ids: list[int] = []
     processing_ids: list[int] = []
-    for dataset in (CeriDataset.ESTIMATES, CeriDataset.GUIDANCE, CeriDataset.CATALYSTS):
+    for dataset in (
+        CeriDataset.ESTIMATES,
+        CeriDataset.EARNINGS,
+        CeriDataset.GUIDANCE,
+        CeriDataset.CATALYSTS,
+    ):
         for ticker in CANONICAL_TICKERS:
             result = service.ingest(
                 db,
@@ -691,7 +726,56 @@ def _seed_ceri_manual_evidence(db: Session) -> tuple[list[int], list[int]]:
         counts=feature_result.as_dict(),
     )
     processing_ids.append(feature_run.id)
-    return ingestion_ids, processing_ids
+    baseline_snapshot_id = _seed_ceri_baseline_snapshot(db)
+    return ingestion_ids, processing_ids, baseline_snapshot_id
+
+
+def _seed_ceri_baseline_snapshot(db: Session) -> int:
+    company = db.query(CeriCompany).filter(CeriCompany.ticker == "ALFA").one()
+    as_of_session = date(2026, 6, 30)
+    opportunity = OpportunityResult(
+        score=7.0,
+        rated=True,
+        coverage_pct=100.0,
+        available_weight=1.0,
+        minimum_required_coverage_pct=60.0,
+        reweighted=False,
+        unrated_reason=None,
+        components=(
+            ScoreComponent(
+                name="certification_baseline",
+                value=7.0,
+                weight=1.0,
+                contribution=7.0,
+                evidence_ids=(),
+                reasons=("deterministic_pre_run_baseline",),
+            ),
+        ),
+        penalties=(),
+        reasons=("deterministic_pre_run_baseline",),
+        warnings=(),
+    )
+    confidence = ConfidenceResult(
+        score=7.0,
+        label=CeriConfidenceLabel.NORMAL,
+        coverage_pct=100.0,
+        reasons=("deterministic_pre_run_baseline",),
+        warnings=(),
+    )
+    snapshot = CeriSnapshotService().build_snapshot(
+        company_id=company.id,
+        ticker=company.ticker,
+        as_of_session=as_of_session,
+        cutoff_at=datetime(2026, 6, 30, 20, 0, tzinfo=UTC),
+        opportunity=opportunity,
+        event_risk=CeriEventRiskService().calculate(as_of_session=as_of_session),
+        confidence=confidence,
+        source_ids=[],
+        source_run_id_text="certification-pre-run-baseline",
+        evidence_lineage={"fixture": FIXTURE_VERSION, "kind": "pre_run_baseline"},
+    )
+    CeriSnapshotService().persist_snapshot(db, snapshot)
+    return int(snapshot.id)
 
 
 def _fixture_hash(counts: dict[str, int]) -> str:
