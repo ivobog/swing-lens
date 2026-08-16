@@ -102,9 +102,23 @@
       <p>{{ run.filename }}</p>
     </div>
     <div class="actions">
-      <form method="post" action="/runs/{{ run.id }}/pipeline" data-loading-form data-confirm="Run full pipeline may queue IB requests and take several minutes. Continue?">
+      <form
+        method="post"
+        action="/runs/{{ run.id }}/pipeline"
+        data-loading-form
+        data-ib-pipeline-form
+        data-confirm="Run full pipeline may queue IB requests and take several minutes. Continue?"
+        data-ib-status-url="/api/ib-gateway/status"
+        data-ib-launch-url="/api/ib-gateway/launch"
+        data-csrf-token="{{ ib_gateway_csrf_token|default('') }}"
+      >
+        <input type="hidden" name="market_data_policy" value="REQUIRE_IB" data-market-data-policy>
         <button type="submit" data-loading-label="Running...">Run full pipeline</button>
       </form>
+      <span class="ib-connection-status" data-ib-connection-status role="status" aria-live="polite">
+        <span class="ib-status-dot" aria-hidden="true"></span>
+        <span data-ib-connection-label>Checking IB…</span>
+      </span>
       <form method="post" action="/runs/{{ run.id }}/fundamentals/recalculate" data-loading-form>
         <button class="secondary" type="submit" data-loading-label="Recalculating...">Recalculate fundamentals</button>
       </form>
@@ -136,6 +150,33 @@
     {% if run.notes %}<span>{{ run.notes }}</span>{% endif %}
   </div>
 </section>
+
+<div class="confirm-panel" data-ib-preflight-panel hidden>
+  <div
+    class="confirm-dialog ib-preflight-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="ib-preflight-title"
+    aria-describedby="ib-preflight-message"
+  >
+    <h2 id="ib-preflight-title" data-ib-preflight-title>Interactive Brokers is not connected</h2>
+    <p id="ib-preflight-message" data-ib-preflight-message>
+      Starting the pipeline now may use cached or stale market data. This can affect technical
+      scores, rankings, lifecycle changes, Winner Evidence, and downstream research outputs.
+    </p>
+    <p class="muted-inline" data-ib-preflight-detail></p>
+    <p class="ib-waiting-message" data-ib-waiting-message hidden>
+      Complete login and 2FA in IB Gateway. SwingLens will check API readiness every few seconds.
+    </p>
+    <div class="actions ib-preflight-actions">
+      <button type="button" data-ib-launch>Launch IB Gateway</button>
+      <button class="secondary" type="button" data-ib-retry>Retry connection</button>
+      <button class="secondary" type="button" data-ib-run-ready hidden>Run full pipeline</button>
+      <button class="link-button" type="button" data-ib-cache>Continue with cached data</button>
+      <button class="secondary" type="button" data-ib-cancel>Cancel</button>
+    </div>
+  </div>
+</div>
 
 {% if ceri_context.snapshot_count or ceri_ui_enabled %}
   <section class="panel section-gap">

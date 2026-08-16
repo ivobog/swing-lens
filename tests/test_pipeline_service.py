@@ -61,14 +61,21 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     assert job.job_type == FULL_PIPELINE_JOB_TYPE
     assert job.related_run_id == 7
     assert job.request_key == (
-        "full-pipeline:run:7:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
+        "full-pipeline:run:7:policy:REQUIRE_IB:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
         "FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,"
         "COMBINING_RESULTS,RANKING_PROFILES,SECTOR_ROTATION_SNAPSHOT,"
         "CAPTURING_WINNER_PREDICTIONS"
     )
     assert job.status == JobStatus.QUEUED
     assert job.payload_json == {"pipeline_run_id": pipeline.id}
-    assert pipeline.result_json == {"background_job_id": job.id}
+    assert pipeline.result_json == {
+        "background_job_id": job.id,
+        "market_data_policy": "REQUIRE_IB",
+        "ib_preflight_status": None,
+        "ib_preflight_checked_at": None,
+        "ib_host": None,
+        "ib_port": None,
+    }
 
 
 def test_new_pipeline_requests_running_prewarm_preemption(
@@ -87,6 +94,11 @@ def test_new_pipeline_requests_running_prewarm_preemption(
     assert calls == [pipeline.id]
     assert pipeline.result_json == {
         "background_job_id": 1,
+        "market_data_policy": "REQUIRE_IB",
+        "ib_preflight_status": None,
+        "ib_preflight_checked_at": None,
+        "ib_host": None,
+        "ib_port": None,
         "preempted_prewarm_job_ids": [91],
     }
 
@@ -104,7 +116,7 @@ def test_start_pipeline_coalesces_matching_active_pipeline_request() -> None:
         id=10,
         job_type=FULL_PIPELINE_JOB_TYPE,
         request_key=(
-            "full-pipeline:run:7:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
+            "full-pipeline:run:7:policy:REQUIRE_IB:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
             "FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,"
             "COMBINING_RESULTS,RANKING_PROFILES,SECTOR_ROTATION_SNAPSHOT,"
             "CAPTURING_WINNER_PREDICTIONS"

@@ -1073,6 +1073,48 @@ th {
   margin-top: 18px;
 }
 
+.ib-connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ib-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8b98a5;
+}
+
+.ib-connection-status[data-state="ready"] .ib-status-dot {
+  background: #16835b;
+}
+
+.ib-connection-status[data-state="offline"] .ib-status-dot {
+  background: #c04b41;
+}
+
+.ib-preflight-dialog {
+  width: min(560px, 100%);
+}
+
+.ib-preflight-actions {
+  align-items: stretch;
+}
+
+.ib-preflight-actions button {
+  flex: 1 1 190px;
+}
+
+.ib-waiting-message {
+  margin-top: 14px;
+  padding: 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+}
+
 td a {
   color: var(--accent);
   font-weight: 700;

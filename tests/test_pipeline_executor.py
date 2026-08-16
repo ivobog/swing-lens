@@ -1,4 +1,6 @@
 from dataclasses import replace
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +11,7 @@ from app.models.tables import CombinedResult, IBFetchRun, PipelineRun, PipelineS
 from app.services.background_job_service import JobLeaseLost
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_flags import CeriFeatureFlags
-from app.services.ib_fetch_plan_service import FetchPlan
+from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
 from app.services.pipeline_executor import (
     PipelineCancelled,
     PipelineExecutionDependencies,
@@ -583,6 +585,116 @@ def test_execute_full_pipeline_fails_when_run_has_no_tickers() -> None:
     assert db.rollbacks == 1
 
 
+def test_require_ib_stops_before_technicals_when_gateway_closes_after_preflight() -> None:
+    calls: list[str] = []
+    db = PipelineExecutorFakeDb(["MSFT"])
+    dependencies = replace(
+        _dependencies(calls, combined_results=[CombinedResult(ticker="MSFT")]),
+        check_ib_gateway=lambda: SimpleNamespace(
+            status="NOT_RUNNING_OR_UNREACHABLE",
+            checked_at=datetime.now(UTC),
+            api_connected=False,
+            error_code="IB_GATEWAY_API_UNREACHABLE",
+            message="offline",
+        ),
+    )
+
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert result.status == PipelineStatus.FAILED
+    assert "fundamentals" in calls
+    assert "build_fetch_plan" not in calls
+    assert "technicals" not in calls
+    assert "combined" not in calls
+    assert "winner_capture" not in calls
+    assert db.pipeline.result_json["failure_reason"] == "IB_GATEWAY_UNAVAILABLE"
+    assert db.pipeline.result_json["market_data_mode"] == "BLOCKED"
+    assert db.pipeline.current_step == "FETCHING_MARKET_DATA"
+    fetch_step = next(step for step in db.steps if step.step_name == "FETCHING_MARKET_DATA")
+    assert fetch_step.status == PipelineStepStatus.FAILED
+
+
+def test_allow_cache_fallback_persists_degraded_metadata_and_skips_winner_capture() -> None:
+    calls: list[str] = []
+    db = PipelineExecutorFakeDb(["MSFT"])
+    db.pipeline.result_json = {
+        "background_job_id": 99,
+        "market_data_policy": "ALLOW_CACHE_FALLBACK",
+    }
+    plan = FetchPlan(
+        run_id=7,
+        requested_tickers=["MSFT"],
+        symbols_including_benchmarks=["MSFT"],
+        items=[
+            FetchPlanItem(
+                ticker="MSFT",
+                contract_status="RESOLVED",
+                what_to_show="TRADES",
+                action=FetchAction.TOP_UP_RECENT,
+                duration="10 D",
+                bar_size="1 day",
+                current_bar_count=300,
+                first_bar_date=date(2025, 1, 2),
+                latest_bar_date=date(2026, 8, 14),
+                required_bars=252,
+                reason="top up",
+                estimated_request_count=1,
+                freshness_threshold_date=date(2026, 8, 14),
+            )
+        ],
+        estimated_request_count=1,
+        estimated_full_backfills=0,
+        estimated_top_ups=1,
+        estimated_refreshes=0,
+        estimated_skips=0,
+        warnings=[],
+    )
+    technical = SimpleNamespace(
+        insufficient_data=False,
+        technical_confidence="high",
+        data_quality_score=Decimal("10.0"),
+        warning_flags_json=[],
+        missing_data_json={},
+    )
+    combined = CombinedResult(ticker="MSFT", is_complete=True, has_warning=False)
+    dependencies = replace(
+        _dependencies(
+            calls,
+            plan=plan,
+            technical_scores=[technical],
+            combined_results=[combined],
+            winner_capture_enabled=True,
+        ),
+        check_ib_gateway=lambda: SimpleNamespace(
+            status="NOT_RUNNING_OR_UNREACHABLE",
+            checked_at=datetime.now(UTC),
+            api_connected=False,
+            error_code="IB_GATEWAY_API_UNREACHABLE",
+            message="offline",
+        ),
+    )
+
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert result.status == PipelineStatus.PARTIAL
+    assert "fetch" not in calls
+    assert "technicals" in calls
+    assert "winner_capture" not in calls
+    assert technical.technical_confidence == "low"
+    assert technical.data_quality_score == Decimal("6.0")
+    assert technical.warning_flags_json == ["cache_fallback_market_data"]
+    assert technical.missing_data_json["market_data"]["mode"] == "CACHE_FALLBACK"
+    audit = db.pipeline.result_json
+    assert audit["market_data_policy"] == "ALLOW_CACHE_FALLBACK"
+    assert audit["market_data_mode"] == "CACHE_FALLBACK"
+    assert audit["degraded"] is True
+    assert audit["ib_api_available_at_execution"] is False
+    assert audit["fresh_fetch_count"] == 0
+    assert audit["cache_used_count"] == 1
+    assert audit["latest_expected_market_session"] == "2026-08-14"
+    assert audit["actual_latest_data_session"] == "2026-08-14"
+    assert audit["winner_prediction_capture_skip_reason"] == "CACHE_FALLBACK_MARKET_DATA"
+
 def test_execute_full_pipeline_does_not_commit_step_completion_after_lease_loss() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
     calls = []
@@ -751,6 +863,13 @@ def _dependencies(
         setup_capture_handoff_enabled=setup_capture_handoff_enabled,
         capture_winner_predictions=winner_capture,
         winner_probability_capture_enabled=winner_capture_enabled,
+        check_ib_gateway=lambda: SimpleNamespace(
+            status="READY",
+            checked_at=datetime.now(UTC),
+            api_connected=True,
+            error_code=None,
+            message="ready",
+        ),
     )
 
 

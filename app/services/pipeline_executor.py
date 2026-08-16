@@ -4,6 +4,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 from inspect import Parameter, signature
 from typing import Any
 
@@ -30,6 +31,13 @@ from app.services.combined_decision import refresh_combined_results
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, build_fetch_plan
+from app.services.ib_gateway_health_service import (
+    IBGatewayHealthState,
+    IBGatewayHealthStatus,
+)
+from app.services.ib_gateway_health_service import (
+    check_status as check_ib_gateway_status,
+)
 from app.services.market_data_prewarm_service import (
     record_pipeline_prewarm_reuse,
     resolve_pipeline_prewarm_context,
@@ -39,6 +47,7 @@ from app.services.market_regime_dtos import MarketRegimeCommandCenterDto
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_performance import PipelinePerformanceTracker
 from app.services.pipeline_service import (
+    MarketDataPolicy,
     PipelineStatus,
     PipelineStepStatus,
 )
@@ -63,6 +72,10 @@ from app.settings import get_settings
 
 class PipelineCancelled(Exception):
     pass
+
+
+class IBGatewayUnavailable(Exception):
+    code = "IB_GATEWAY_UNAVAILABLE"
 
 
 def build_market_regime_snapshot_for_run(
@@ -165,6 +178,7 @@ class PipelineExecutionDependencies:
     fetch_technical_overlap_enabled: bool | None = None
     capture_winner_predictions: Callable[[Session, int], Any] | None = None
     winner_probability_capture_enabled: bool | None = None
+    check_ib_gateway: Callable[[], IBGatewayHealthStatus] = check_ib_gateway_status
 
 
 def execute_full_pipeline(
@@ -206,6 +220,8 @@ def execute_full_pipeline(
     }
 
     result = _empty_result(pipeline, upload_run)
+    market_data_policy = _market_data_policy(pipeline)
+    result["market_data_policy"] = market_data_policy.value
     overlap_coordinator: TechnicalScoringOverlapCoordinator | None = None
     try:
         _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
@@ -234,6 +250,23 @@ def execute_full_pipeline(
         with _pipeline_step(
             db, pipeline, "FETCHING_MARKET_DATA", lease_guard=lease_guard, performance=performance
         ):
+            ib_health = dependencies.check_ib_gateway()
+            _apply_ib_execution_status(result, ib_health)
+            if (
+                market_data_policy is MarketDataPolicy.REQUIRE_IB
+                and ib_health.status != IBGatewayHealthState.READY
+            ):
+                result["failure_reason"] = IBGatewayUnavailable.code
+                result["market_data_mode"] = "BLOCKED"
+                raise IBGatewayUnavailable(
+                    f"{IBGatewayUnavailable.code}: {ib_health.message}"
+                )
+            cache_fallback = ib_health.status != IBGatewayHealthState.READY
+            if cache_fallback:
+                result["market_data_mode"] = "CACHE_FALLBACK"
+                result["degraded"] = True
+            else:
+                result["market_data_mode"] = "IB_GATEWAY"
             plan = dependencies.build_fetch_plan(
                 db=db,
                 tickers=tickers,
@@ -268,6 +301,7 @@ def execute_full_pipeline(
                     reused_tickers=prewarm_reused_tickers,
                 )
             result["ib_planned_requests"] = plan.estimated_request_count
+            _apply_market_session_metadata(result, plan)
             overlap_callback_supported = _accepts_keyword(
                 dependencies.execute_fetch_plan,
                 "on_ticker_ready",
@@ -297,7 +331,7 @@ def execute_full_pipeline(
                     reason="callback_unsupported",
                 )
             fetch_run = None
-            if plan.estimated_request_count:
+            if plan.estimated_request_count and not cache_fallback:
                 fetch_kwargs: dict[str, Any] = {
                     "db": db,
                     "plan": plan,
@@ -313,6 +347,8 @@ def execute_full_pipeline(
                     raise PipelineCancelled("Pipeline cancelled during market data fetch.")
             else:
                 result["ib_skipped_count"] = plan.estimated_skips
+                if cache_fallback:
+                    result["cache_used_count"] = _cached_ticker_count(plan)
             if overlap_coordinator is not None:
                 overlap_coordinator.mark_fetch_complete()
 
@@ -339,6 +375,8 @@ def execute_full_pipeline(
                     )
             else:
                 technical_scores = dependencies.score_technicals(db, upload_run.id)
+            if result["market_data_mode"] == "CACHE_FALLBACK":
+                _mark_technical_scores_degraded(technical_scores, result)
             performance.set_metric(
                 "technical_cache_hits",
                 operational_metrics.total("swinglens_technical_artifact_cache_total", result="hit")
@@ -548,7 +586,10 @@ def execute_full_pipeline(
             lease_guard=lease_guard,
             performance=performance,
         ):
-            if _winner_probability_capture_enabled(dependencies):
+            if result["market_data_mode"] == "CACHE_FALLBACK":
+                result["winner_prediction_capture_skipped"] = 1
+                result["winner_prediction_capture_skip_reason"] = "CACHE_FALLBACK_MARKET_DATA"
+            elif _winner_probability_capture_enabled(dependencies):
                 capture = dependencies.capture_winner_predictions or _capture_winner_predictions
                 capture_result = capture(db, upload_run.id)
                 _apply_winner_capture_result(result, capture_result)
@@ -559,6 +600,13 @@ def execute_full_pipeline(
         final_status = _final_pipeline_status(result)
         _record_performance_metrics(final_status, result["performance"])
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
+        return _to_execution_result(pipeline, result)
+    except IBGatewayUnavailable as exc:
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
+        result["performance"] = performance.snapshot()
+        _record_performance_metrics(PipelineStatus.FAILED, result["performance"])
+        _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
     except JobLeaseLost:
         if overlap_coordinator is not None:
@@ -804,6 +852,77 @@ def _apply_fetch_result(result: dict[str, Any], fetch_run: IBFetchRun) -> None:
     result["ib_failure_count"] = fetch_run.failure_count or 0
     result["ib_skipped_count"] = fetch_run.skipped_count or 0
     result["fetch_failed"] = int(fetch_run.status in {"FAILED", "PARTIAL"})
+    result["fresh_fetch_count"] = fetch_run.success_count or 0
+
+
+def _market_data_policy(pipeline: PipelineRun) -> MarketDataPolicy:
+    raw_policy = (pipeline.result_json or {}).get(
+        "market_data_policy",
+        MarketDataPolicy.REQUIRE_IB.value,
+    )
+    try:
+        return MarketDataPolicy(raw_policy)
+    except ValueError:
+        return MarketDataPolicy.REQUIRE_IB
+
+
+def _apply_ib_execution_status(
+    result: dict[str, Any],
+    status: IBGatewayHealthStatus,
+) -> None:
+    result["ib_execution_status"] = status.status
+    result["ib_execution_checked_at"] = status.checked_at.isoformat()
+    result["ib_api_available_at_execution"] = status.api_connected
+    result["ib_execution_error_code"] = status.error_code
+
+
+def _apply_market_session_metadata(result: dict[str, Any], plan: FetchPlan) -> None:
+    expected = [
+        item.freshness_threshold_date
+        for item in plan.items
+        if item.freshness_threshold_date
+    ]
+    actual = [
+        item.latest_bar_date
+        for item in plan.items
+        if item.ticker in plan.requested_tickers and item.latest_bar_date is not None
+    ]
+    result["latest_expected_market_session"] = max(expected).isoformat() if expected else None
+    result["actual_latest_data_session"] = min(actual).isoformat() if actual else None
+
+
+def _cached_ticker_count(plan: FetchPlan) -> int:
+    return len(
+        {
+            item.ticker
+            for item in plan.items
+            if item.ticker in plan.requested_tickers and item.latest_bar_date is not None
+        }
+    )
+
+
+def _mark_technical_scores_degraded(
+    scores: list[Any],
+    result: dict[str, Any],
+) -> None:
+    warning = "cache_fallback_market_data"
+    for score in scores:
+        score.technical_confidence = "low"
+        current_quality = getattr(score, "data_quality_score", None)
+        if current_quality is None or Decimal(str(current_quality)) > Decimal("6.0"):
+            score.data_quality_score = Decimal("6.0")
+        warnings = list(getattr(score, "warning_flags_json", None) or [])
+        if warning not in warnings:
+            warnings.append(warning)
+        score.warning_flags_json = warnings
+        missing = dict(getattr(score, "missing_data_json", None) or {})
+        missing["market_data"] = {
+            "mode": "CACHE_FALLBACK",
+            "ib_api_available": False,
+            "expected_latest_session": result.get("latest_expected_market_session"),
+            "actual_latest_session": result.get("actual_latest_data_session"),
+        }
+        score.missing_data_json = missing
 
 
 def _plan_skips_ticker(plan: FetchPlan, ticker: str) -> bool:
@@ -869,6 +988,18 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
         "ib_success_count": 0,
         "ib_failure_count": 0,
         "ib_skipped_count": 0,
+        "market_data_policy": MarketDataPolicy.REQUIRE_IB.value,
+        "market_data_mode": None,
+        "degraded": False,
+        "ib_execution_status": None,
+        "ib_execution_checked_at": None,
+        "ib_api_available_at_execution": None,
+        "ib_execution_error_code": None,
+        "fresh_fetch_count": 0,
+        "cache_used_count": 0,
+        "latest_expected_market_session": None,
+        "actual_latest_data_session": None,
+        "failure_reason": None,
         "technical_scores": 0,
         "technical_error_count": 0,
         "market_regime_snapshots": 0,

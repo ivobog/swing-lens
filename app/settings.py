@@ -2,7 +2,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     ib_port: int = 4002
     ib_client_id: int = 21
     ib_timeout_seconds: int = 30
+    ib_health_timeout_seconds: float = Field(default=3.0, ge=0.25, le=10.0)
+    ib_gateway_auto_launch_enabled: bool = False
+    ib_gateway_executable_path: Path | None = None
     ib_use_rth: bool = True
     ib_default_duration: str = "3 Y"
     ib_full_backfill_duration: str = "3 Y"
@@ -204,6 +207,11 @@ class Settings(BaseSettings):
     runs_default_page_size: int = 25
     history_default_page_size: int = 50
     history_max_page_size: int = 200
+
+    @field_validator("ib_gateway_executable_path", mode="before")
+    @classmethod
+    def empty_ib_gateway_path_is_not_configured(cls, value):
+        return None if value is None or not str(value).strip() else value
 
     @property
     def ib_benchmark_symbols(self) -> tuple[str, ...]:

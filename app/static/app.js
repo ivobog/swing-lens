@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+  bindIbGatewayPreflight();
   bindConfirmActions();
   bindLoadingForms();
   bindCockpitTables();
@@ -7,6 +8,166 @@ document.addEventListener("DOMContentLoaded", () => {
   bindPipelineProgressPolling();
   bindFileInputs();
 });
+
+function bindIbGatewayPreflight() {
+  const form = document.querySelector("[data-ib-pipeline-form]");
+  const panel = document.querySelector("[data-ib-preflight-panel]");
+  if (!form || !panel) return;
+
+  const statusUrl = form.dataset.ibStatusUrl;
+  const launchUrl = form.dataset.ibLaunchUrl;
+  const policy = form.querySelector("[data-market-data-policy]");
+  const submitButton = form.querySelector("button[type='submit']");
+  const indicator = document.querySelector("[data-ib-connection-status]");
+  const indicatorLabel = indicator?.querySelector("[data-ib-connection-label]");
+  const title = panel.querySelector("[data-ib-preflight-title]");
+  const detail = panel.querySelector("[data-ib-preflight-detail]");
+  const waiting = panel.querySelector("[data-ib-waiting-message]");
+  const launchButton = panel.querySelector("[data-ib-launch]");
+  const retryButton = panel.querySelector("[data-ib-retry]");
+  const readyButton = panel.querySelector("[data-ib-run-ready]");
+  const cacheButton = panel.querySelector("[data-ib-cache]");
+  const cancelButton = panel.querySelector("[data-ib-cancel]");
+  let approved = false;
+  let checking = false;
+  let pollTimer = null;
+
+  const setIndicator = (state, label) => {
+    if (indicator) indicator.dataset.state = state;
+    if (indicatorLabel) indicatorLabel.textContent = label;
+  };
+
+  const showUnavailable = (status) => {
+    if (title) title.textContent = "Interactive Brokers is not connected";
+    if (detail) detail.textContent = status?.message || "IB Gateway API is unavailable.";
+    if (waiting) waiting.hidden = true;
+    if (readyButton) readyButton.hidden = true;
+    if (launchButton) launchButton.hidden = false;
+    if (cacheButton) cacheButton.hidden = false;
+    panel.hidden = false;
+    launchButton?.focus();
+  };
+
+  const showReady = (status) => {
+    setIndicator("ready", "IB Connected");
+    if (title) title.textContent = "IB Gateway connected — API ready";
+    if (detail) detail.textContent = status?.message || "IB Gateway API connection successful.";
+    if (waiting) waiting.hidden = true;
+    if (launchButton) launchButton.hidden = true;
+    if (cacheButton) cacheButton.hidden = true;
+    if (readyButton) readyButton.hidden = false;
+    panel.hidden = false;
+    readyButton?.focus();
+    stopPolling();
+  };
+
+  const checkStatus = async ({ showPanel = false } = {}) => {
+    if (checking || !statusUrl) return null;
+    checking = true;
+    setIndicator("checking", "Checking IB…");
+    try {
+      const response = await fetch(statusUrl, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const status = await response.json();
+      if (status.status === "READY" && status.api_connected) {
+        setIndicator("ready", "IB Connected");
+        if (showPanel || !panel.hidden) showReady(status);
+      } else {
+        setIndicator("offline", "IB Offline");
+        if (showPanel) showUnavailable(status);
+      }
+      return status;
+    } catch (_error) {
+      setIndicator("offline", "IB status unavailable");
+      if (showPanel) showUnavailable({ message: "SwingLens could not check IB API status." });
+      return null;
+    } finally {
+      checking = false;
+    }
+  };
+
+  const poll = async () => {
+    const status = await checkStatus({ showPanel: true });
+    if (!status || status.status !== "READY") {
+      pollTimer = window.setTimeout(poll, 2500);
+    }
+  };
+
+  function stopPolling() {
+    if (pollTimer !== null) window.clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  const submitWithPolicy = (value) => {
+    stopPolling();
+    if (policy) policy.value = value;
+    approved = value === "REQUIRE_IB";
+    if (value === "ALLOW_CACHE_FALLBACK") form.dataset.confirmed = "true";
+    panel.hidden = true;
+    form.requestSubmit();
+  };
+
+  form.addEventListener("submit", async (event) => {
+    if (form.dataset.confirmed === "true") return;
+    if (approved) {
+      approved = false;
+      return;
+    }
+    event.preventDefault();
+    if (submitButton) submitButton.disabled = true;
+    const status = await checkStatus({ showPanel: false });
+    if (submitButton) submitButton.disabled = false;
+    if (status?.status === "READY" && status.api_connected) {
+      submitWithPolicy("REQUIRE_IB");
+    } else {
+      showUnavailable(status);
+    }
+  });
+
+  retryButton?.addEventListener("click", () => checkStatus({ showPanel: true }));
+  readyButton?.addEventListener("click", () => submitWithPolicy("REQUIRE_IB"));
+  cacheButton?.addEventListener("click", () => submitWithPolicy("ALLOW_CACHE_FALLBACK"));
+  cancelButton?.addEventListener("click", () => {
+    stopPolling();
+    panel.hidden = true;
+    submitButton?.focus();
+  });
+  panel.addEventListener("click", (event) => {
+    if (event.target === panel) cancelButton?.click();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !panel.hidden) cancelButton?.click();
+  });
+  launchButton?.addEventListener("click", async () => {
+    if (!launchUrl) return;
+    launchButton.disabled = true;
+    if (title) title.textContent = "Connecting to Interactive Brokers";
+    if (detail) detail.textContent = "Starting the configured IB Gateway executable…";
+    try {
+      const response = await fetch(launchUrl, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "X-CSRF-Token": form.dataset.csrfToken || "",
+        },
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result?.detail?.message || `HTTP ${response.status}`);
+      if (detail) detail.textContent = result.message;
+      if (!["STARTED", "ALREADY_RUNNING"].includes(result.status)) return;
+      if (waiting) waiting.hidden = false;
+      if (cacheButton) cacheButton.hidden = true;
+      stopPolling();
+      pollTimer = window.setTimeout(poll, 1000);
+    } catch (error) {
+      if (detail) detail.textContent = error.message || "IB Gateway launch failed.";
+    } finally {
+      launchButton.disabled = false;
+    }
+  });
+
+  checkStatus();
+}
 
 function bindLoadingForms() {
   document.querySelectorAll("[data-loading-form]").forEach((form) => {
@@ -530,6 +691,27 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-ranking-status]", result.ranking_status || "Pending");
   setText(root, "[data-pipeline-ranking-profiles]", result.ranking_profiles || 0);
   setText(root, "[data-pipeline-ranking-results]", result.ranking_results || 0);
+  setText(root, "[data-pipeline-market-policy]", result.market_data_policy || "REQUIRE_IB");
+  setText(root, "[data-pipeline-market-mode]", result.market_data_mode || "Pending");
+  setText(
+    root,
+    "[data-pipeline-ib-available]",
+    result.ib_api_available_at_execution === null || result.ib_api_available_at_execution === undefined
+      ? "Pending"
+      : String(result.ib_api_available_at_execution),
+  );
+  setText(root, "[data-pipeline-fresh-fetches]", result.fresh_fetch_count || 0);
+  setText(root, "[data-pipeline-cache-used]", result.cache_used_count || 0);
+  setText(root, "[data-pipeline-expected-session]", result.latest_expected_market_session || "Unknown");
+  setText(root, "[data-pipeline-actual-session]", result.actual_latest_data_session || "Unknown");
+  const degraded = root.querySelector("[data-pipeline-degraded]");
+  if (degraded) {
+    degraded.hidden = !result.degraded;
+    if (result.degraded) {
+      degraded.textContent =
+        "Degraded run: cached market data was explicitly allowed. Winner Evidence capture is skipped and technical confidence is capped low for this pipeline.";
+    }
+  }
   setText(root, "[data-pipeline-percentage]", `${Number(data.percentage || 0).toFixed(1)}%`);
   setText(root, "[data-pipeline-completed-steps]", data.completed_steps);
   setText(root, "[data-pipeline-total-steps]", data.total_steps);
@@ -599,6 +781,7 @@ function bindConfirmActions() {
 
   document.querySelectorAll("[data-confirm]").forEach((element) => {
     element.addEventListener("submit", (event) => {
+      if (event.defaultPrevented) return;
       if (element.dataset.confirmed === "true") {
         delete element.dataset.confirmed;
         return;

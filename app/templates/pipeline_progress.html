@@ -95,7 +95,43 @@
       <span>Ranking results</span>
       <strong data-pipeline-ranking-results>{{ pipeline_result.get("ranking_results", 0) }}</strong>
     </div>
+    <div class="metric">
+      <span>Market data policy</span>
+      <strong data-pipeline-market-policy>{{ pipeline_result.get("market_data_policy", "REQUIRE_IB") }}</strong>
+    </div>
+    <div class="metric">
+      <span>Market data mode</span>
+      <strong data-pipeline-market-mode>{{ pipeline_result.get("market_data_mode", "Pending") or "Pending" }}</strong>
+    </div>
+    <div class="metric">
+      <span>IB available at execution</span>
+      <strong data-pipeline-ib-available>{{ pipeline_result.get("ib_api_available_at_execution", "Pending") }}</strong>
+    </div>
+    <div class="metric">
+      <span>Fresh fetches</span>
+      <strong data-pipeline-fresh-fetches>{{ pipeline_result.get("fresh_fetch_count", 0) }}</strong>
+    </div>
+    <div class="metric">
+      <span>Cached tickers</span>
+      <strong data-pipeline-cache-used>{{ pipeline_result.get("cache_used_count", 0) }}</strong>
+    </div>
+    <div class="metric">
+      <span>Expected session</span>
+      <strong data-pipeline-expected-session>{{ pipeline_result.get("latest_expected_market_session", "") or "Unknown" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Actual session</span>
+      <strong data-pipeline-actual-session>{{ pipeline_result.get("actual_latest_data_session", "") or "Unknown" }}</strong>
+    </div>
   </div>
+  {% if pipeline_result.get("degraded") %}
+    <div class="alert section-gap" data-pipeline-degraded role="alert">
+      Degraded run: cached market data was explicitly allowed. Winner Evidence capture is skipped
+      and technical confidence is capped low for this pipeline.
+    </div>
+  {% else %}
+    <div class="alert section-gap" data-pipeline-degraded role="alert" hidden></div>
+  {% endif %}
   <div class="actions section-gap">
     <span class="async-status" data-pipeline-live role="status" aria-live="polite">
       {{ pipeline.status }}: {{ pipeline.completed_steps }} of {{ pipeline.total_steps }} steps complete.

@@ -86,6 +86,8 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/api/ceri/run/{run_id}` | `ceri_run` |
 | GET | `/api/ceri/ticker/{ticker}` | `ceri_ticker` |
 | GET | `/api/ceri/ticker/{ticker}/history` | `ceri_ticker_history` |
+| POST | `/api/ib-gateway/launch` | `launch_ib_gateway` |
+| GET | `/api/ib-gateway/status` | `ib_gateway_status` |
 | POST | `/api/ib-intelligence/flex/import` | `queue_flex` |
 | POST | `/api/ib-intelligence/histogram/fetch` | `queue_histogram` |
 | GET | `/api/ib-intelligence/histogram/{ticker}` | `histogram_api` |

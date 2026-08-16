@@ -98,6 +98,7 @@ def _install_deterministic_fetch_dependency() -> None:
     from app.services import background_worker
     from app.services.background_job_service import is_cancel_requested
     from app.services.ib_fetch_executor import execute_fetch_plan as real_execute_fetch_plan
+    from app.services.ib_gateway_health_service import check_status as real_check_status
     from app.services.pipeline_executor import (
         PipelineCancelled,
         PipelineExecutionDependencies,
@@ -109,6 +110,9 @@ def _install_deterministic_fetch_dependency() -> None:
             **kwargs,
             ib_client_factory=DeterministicReadOnlyIB,
         )
+
+    def deterministic_check_status():
+        return real_check_status(ib_factory=DeterministicReadOnlyIB)
 
     def execute_full_pipeline_job(db, job):
         pipeline_run_id = job.payload_json.get("pipeline_run_id")
@@ -132,6 +136,7 @@ def _install_deterministic_fetch_dependency() -> None:
                 lease_guard=lease_guard,
                 dependencies=PipelineExecutionDependencies(
                     execute_fetch_plan=deterministic_execute_fetch_plan,
+                    check_ib_gateway=deterministic_check_status,
                 ),
             )
         except PipelineCancelled as exc:
@@ -164,5 +169,15 @@ _install_deterministic_fetch_dependency()
 _install_deterministic_outcome_clock()
 
 from app.main import app  # noqa: E402  (environment and dependency must be installed first)
+from app.routers import ib_gateway_admin_routes, run_routes  # noqa: E402
+from app.services.ib_gateway_health_service import check_status as real_check_status  # noqa: E402
+
+
+def _deterministic_route_check_status(*, settings=None):
+    return real_check_status(settings=settings, ib_factory=DeterministicReadOnlyIB)
+
+
+run_routes.check_status = _deterministic_route_check_status
+ib_gateway_admin_routes.check_status = _deterministic_route_check_status
 
 __all__ = ["app"]

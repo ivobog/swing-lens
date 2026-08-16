@@ -17,6 +17,7 @@ from app.routers import (
     ceri_routes,
     gui_routes,
     health_routes,
+    ib_gateway_admin_routes,
     ib_market_intelligence_routes,
     ib_routes,
     market_data_routes,
@@ -122,6 +123,7 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     app.include_router(sector_rotation_routes.router)
     app.include_router(gui_routes.router)
     app.include_router(ib_routes.router)
+    app.include_router(ib_gateway_admin_routes.router)
     app.include_router(ib_market_intelligence_routes.router)
     app.include_router(winner_probability_routes.router)
     app.include_router(setup_lifecycle_routes.router)

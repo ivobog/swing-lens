@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import select
@@ -40,6 +41,11 @@ PIPELINE_STEP_NAMES = (
 )
 
 PIPELINE_TERMINAL_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
+
+
+class MarketDataPolicy(StrEnum):
+    REQUIRE_IB = "REQUIRE_IB"
+    ALLOW_CACHE_FALLBACK = "ALLOW_CACHE_FALLBACK"
 
 
 class PipelineStatus:
@@ -109,17 +115,24 @@ def start_pipeline(
     ceri_run_capture_enabled: bool | None = None,
     ceri_provider_ingest_enabled: bool | None = None,
     setup_lifecycle_pipeline_step_enabled: bool | None = None,
+    market_data_policy: MarketDataPolicy | str = MarketDataPolicy.REQUIRE_IB,
+    ib_preflight_status: dict[str, Any] | None = None,
 ) -> PipelineRun:
     upload_run = db.get(UploadRun, upload_run_id)
     if upload_run is None:
         raise ValueError(f"Upload run {upload_run_id} was not found.")
+
+    try:
+        policy = MarketDataPolicy(market_data_policy)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported market data policy: {market_data_policy}") from exc
 
     step_names = pipeline_step_names(
         ceri_run_capture_enabled=ceri_run_capture_enabled,
         ceri_provider_ingest_enabled=ceri_provider_ingest_enabled,
         setup_lifecycle_pipeline_step_enabled=setup_lifecycle_pipeline_step_enabled,
     )
-    request_key = _pipeline_request_key(upload_run_id, step_names)
+    request_key = _pipeline_request_key(upload_run_id, step_names, policy)
     existing_job = active_job_for_request_key(db, FULL_PIPELINE_JOB_TYPE, request_key)
     existing_pipeline = _pipeline_for_job(db, existing_job)
     if existing_pipeline is not None:
@@ -176,7 +189,16 @@ def start_pipeline(
             )
             return existing_pipeline
 
-    pipeline.result_json = {"background_job_id": job.id}
+    settings = get_settings()
+    preflight = dict(ib_preflight_status or {})
+    pipeline.result_json = {
+        "background_job_id": job.id,
+        "market_data_policy": policy.value,
+        "ib_preflight_status": preflight.get("status"),
+        "ib_preflight_checked_at": preflight.get("checked_at"),
+        "ib_host": preflight.get("host", getattr(settings, "ib_host", None)),
+        "ib_port": preflight.get("port", getattr(settings, "ib_port", None)),
+    }
     preempted_prewarm_jobs = request_active_prewarm_preemption(
         db,
         pipeline_run_id=pipeline.id,
@@ -320,8 +342,15 @@ def _background_job_id(pipeline: PipelineRun) -> int | None:
     return int(value) if value is not None else None
 
 
-def _pipeline_request_key(upload_run_id: int, step_names: tuple[str, ...]) -> str:
-    return f"full-pipeline:run:{upload_run_id}:steps:{','.join(step_names)}"
+def _pipeline_request_key(
+    upload_run_id: int,
+    step_names: tuple[str, ...],
+    market_data_policy: MarketDataPolicy = MarketDataPolicy.REQUIRE_IB,
+) -> str:
+    return (
+        f"full-pipeline:run:{upload_run_id}:policy:{market_data_policy.value}:"
+        f"steps:{','.join(step_names)}"
+    )
 
 
 def _pipeline_for_job(db: Session, job: BackgroundJob | None) -> PipelineRun | None:

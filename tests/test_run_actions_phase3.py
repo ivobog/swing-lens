@@ -1,6 +1,9 @@
 from copy import deepcopy
 from types import SimpleNamespace
 
+import pytest
+from fastapi import HTTPException
+
 from app.models.tables import BackgroundJob, FundamentalScore, RawCompanyRow, UploadRun
 from app.routers import run_routes
 from app.services.fundamental_score_service import recalculate_run_fundamentals
@@ -9,6 +12,34 @@ from app.services.pipeline_service import (
     PipelineStatusDto,
     PipelineStepStatusDto,
 )
+
+
+def _ready_ib_status() -> SimpleNamespace:
+    return SimpleNamespace(
+        status="READY",
+        message="ready",
+        to_dict=lambda: {
+            "status": "READY",
+            "api_connected": True,
+            "checked_at": "2026-08-16T10:00:00+00:00",
+            "host": "127.0.0.1",
+            "port": 4002,
+        },
+    )
+
+
+def _offline_ib_status() -> SimpleNamespace:
+    return SimpleNamespace(
+        status="NOT_RUNNING_OR_UNREACHABLE",
+        message="offline",
+        to_dict=lambda: {
+            "status": "NOT_RUNNING_OR_UNREACHABLE",
+            "api_connected": False,
+            "checked_at": "2026-08-16T10:00:00+00:00",
+            "host": "127.0.0.1",
+            "port": 4002,
+        },
+    )
 
 
 def test_recalculate_run_fundamentals_replaces_scores_from_stored_raw_rows() -> None:
@@ -127,6 +158,7 @@ def test_full_pipeline_queues_fetch_and_refreshes_scores(monkeypatch) -> None:
         "get_settings",
         lambda: SimpleNamespace(use_durable_pipeline=False),
     )
+    monkeypatch.setattr(run_routes, "check_status", lambda **_kwargs: _ready_ib_status())
     monkeypatch.setattr(run_routes, "_load_run", lambda _db, _run_id: run)
     monkeypatch.setattr(
         run_routes,
@@ -146,21 +178,17 @@ def test_full_pipeline_queues_fetch_and_refreshes_scores(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         run_routes,
-        "create_queued_fetch_run",
-        lambda _db, _plan, _options: SimpleNamespace(id=42),
-    )
-    monkeypatch.setattr(
-        run_routes,
-        "submit_fetch_job",
-        lambda fetch_run_id, _plan, _options: calls.setdefault("submitted", fetch_run_id),
+        "execute_fetch_plan",
+        lambda **_kwargs: calls.setdefault("fetched", True)
+        and SimpleNamespace(id=42, status="COMPLETED"),
     )
     db = RouteFakeDb()
 
     response = run_routes.run_full_pipeline_action(run_id=7, db=db)
 
     assert db.commits == 1
-    assert calls["submitted"] == 42
-    assert "pipeline-queued" in response.headers["location"]
+    assert calls["fetched"] is True
+    assert "pipeline-refreshed" in response.headers["location"]
 
 
 def test_full_pipeline_uses_durable_pipeline_when_feature_flag_enabled(monkeypatch) -> None:
@@ -170,18 +198,66 @@ def test_full_pipeline_uses_durable_pipeline_when_feature_flag_enabled(monkeypat
         "get_settings",
         lambda: SimpleNamespace(use_durable_pipeline=True),
     )
+    monkeypatch.setattr(run_routes, "check_status", lambda **_kwargs: _ready_ib_status())
     monkeypatch.setattr(
         run_routes,
         "start_pipeline",
-        lambda _db, run_id: calls.update({"run_id": run_id}) or SimpleNamespace(id=99),
+        lambda _db, run_id, **kwargs: calls.update({"run_id": run_id, **kwargs})
+        or SimpleNamespace(id=99),
     )
     db = RouteFakeDb()
 
     response = run_routes.run_full_pipeline_action(run_id=7, db=db)
 
     assert calls["run_id"] == 7
+    assert calls["market_data_policy"] == "REQUIRE_IB"
     assert db.commits == 1
     assert response.headers["location"] == "/runs/7/pipeline/99"
+
+
+def test_full_pipeline_default_policy_rejects_unavailable_ib_before_enqueue(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        run_routes,
+        "get_settings",
+        lambda: SimpleNamespace(use_durable_pipeline=True),
+    )
+    monkeypatch.setattr(run_routes, "check_status", lambda **_kwargs: _offline_ib_status())
+    monkeypatch.setattr(run_routes, "start_pipeline", lambda *args, **kwargs: calls.append(kwargs))
+
+    with pytest.raises(HTTPException) as exc:
+        run_routes.run_full_pipeline_action(run_id=7, db=RouteFakeDb())
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail["code"] == "IB_GATEWAY_UNAVAILABLE"
+    assert calls == []
+
+
+def test_full_pipeline_explicit_cache_fallback_enqueues_degraded_policy(monkeypatch) -> None:
+    calls = {}
+    monkeypatch.setattr(
+        run_routes,
+        "get_settings",
+        lambda: SimpleNamespace(use_durable_pipeline=True),
+    )
+    monkeypatch.setattr(run_routes, "check_status", lambda **_kwargs: _offline_ib_status())
+    monkeypatch.setattr(
+        run_routes,
+        "start_pipeline",
+        lambda _db, run_id, **kwargs: calls.update({"run_id": run_id, **kwargs})
+        or SimpleNamespace(id=100),
+    )
+    db = RouteFakeDb()
+
+    response = run_routes.run_full_pipeline_action(
+        run_id=7,
+        db=db,
+        market_data_policy="ALLOW_CACHE_FALLBACK",
+    )
+
+    assert response.headers["location"] == "/runs/7/pipeline/100"
+    assert calls["market_data_policy"] == "ALLOW_CACHE_FALLBACK"
+    assert calls["ib_preflight_status"]["api_connected"] is False
 
 
 def test_pipeline_status_route_returns_progress_payload(monkeypatch) -> None:
