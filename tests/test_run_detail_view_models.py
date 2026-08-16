@@ -336,6 +336,12 @@ def test_run_detail_template_handles_missing_summary_context(monkeypatch) -> Non
     assert "No combined decisions yet." in html
     assert 'action="/runs/1/pipeline"' in html
     assert "Run full pipeline" in html
+    assert "data-ib-pipeline-form" in html
+    assert 'name="market_data_policy" value="REQUIRE_IB"' in html
+    assert "Launch IB Gateway" in html
+    assert "Continue with cached data" in html
+    assert "/api/ib-gateway/status" in html
+    assert "/api/ib-gateway/launch" in html
     assert 'action="/runs/1/fundamentals/recalculate"' in html
     assert "Recalculate fundamentals" in html
     assert 'action="/runs/1/technicals/refresh"' in html

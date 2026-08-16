@@ -50,6 +50,11 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.app_host == "127.0.0.1"
     assert settings.database_connect_timeout_seconds == 3
     assert settings.use_durable_pipeline is True
+    assert settings.ib_health_timeout_seconds == 3.0
+    assert settings.ib_gateway_auto_launch_enabled is False
+    assert settings.ib_gateway_executable_path is None
+    empty_gateway_path = Settings(_env_file=None, ib_gateway_executable_path="")
+    assert empty_gateway_path.ib_gateway_executable_path is None
     assert settings.job_worker_enabled is False
     assert settings.job_poll_interval_seconds == 2.0
     assert settings.job_stale_after_seconds == 900

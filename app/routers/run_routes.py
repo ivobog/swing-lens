@@ -49,6 +49,7 @@ from app.services.history_query_service import (
     paged_runs,
 )
 from app.services.ib_connection import check_ib_connection
+from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_job_service import (
     FetchJobOptions,
     cancel_fetch_job,
@@ -61,11 +62,13 @@ from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan, fetc
 from app.services.ib_fetch_summary_service import (
     latest_ib_fetch_for_run,
 )
+from app.services.ib_gateway_health_service import IBGatewayHealthState, check_status
 from app.services.ib_market_intelligence.query_service import latest_features
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.ohlcv_coverage_service import OhlcvCoverageSummary, summarize_run_ohlcv_coverage
 from app.services.pipeline_service import (
     PIPELINE_TERMINAL_STATUSES,
+    MarketDataPolicy,
     PipelineStatusDto,
     cancel_pipeline,
     get_pipeline_status,
@@ -101,6 +104,7 @@ IncludeBenchmarksForm = Annotated[bool, Form()]
 WhatToShowForm = Annotated[list[str] | None, Form()]
 ForceRefreshForm = Annotated[bool, Form()]
 ForceFullBackfillForm = Annotated[bool, Form()]
+MarketDataPolicyForm = Annotated[str, Form()]
 
 WARNING_BADGE_LABELS = {
     "incomplete_data": "Incomplete",
@@ -303,6 +307,7 @@ def run_detail_page(
             "coverage": coverage,
             "latest_fetch": latest_fetch,
             "latest_pipeline": latest_pipeline,
+            "ib_gateway_csrf_token": request.app.state.local_admin_csrf_token,
             "ib_panel": {
                 "host": settings.ib_host,
                 "port": settings.ib_port,
@@ -608,11 +613,43 @@ def refresh_technicals_action(run_id: int, db: DbSession) -> RedirectResponse:
 
 @router.post("/runs/{run_id}/pipeline")
 @unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="starts a local run pipeline")
-def run_full_pipeline_action(run_id: int, db: DbSession) -> RedirectResponse:
+def run_full_pipeline_action(
+    run_id: int,
+    db: DbSession,
+    market_data_policy: MarketDataPolicyForm = MarketDataPolicy.REQUIRE_IB.value,
+) -> RedirectResponse:
     settings = get_settings()
+    try:
+        policy = MarketDataPolicy(market_data_policy)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_MARKET_DATA_POLICY",
+                "message": "Choose REQUIRE_IB or ALLOW_CACHE_FALLBACK.",
+            },
+        ) from exc
+    ib_preflight = check_status(settings=settings)
+    if (
+        policy is MarketDataPolicy.REQUIRE_IB
+        and ib_preflight.status != IBGatewayHealthState.READY
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "IB_GATEWAY_UNAVAILABLE",
+                "message": ib_preflight.message,
+                "ib_status": ib_preflight.to_dict(),
+            },
+        )
     if settings.use_durable_pipeline:
         try:
-            pipeline = start_pipeline(db, run_id)
+            pipeline = start_pipeline(
+                db,
+                run_id,
+                market_data_policy=policy,
+                ib_preflight_status=ib_preflight.to_dict(),
+            )
             db.commit()
             query = "?duplicate_action=coalesced" if getattr(pipeline, "_coalesced", False) else ""
             return RedirectResponse(
@@ -648,6 +685,22 @@ def run_full_pipeline_action(run_id: int, db: DbSession) -> RedirectResponse:
         include_benchmarks=True,
         what_to_show_values=DEFAULT_WHAT_TO_SHOW,
     )
+    fetch_run = None
+    if plan.estimated_request_count and ib_preflight.status == IBGatewayHealthState.READY:
+        fetch_run = execute_fetch_plan(
+            db=db,
+            plan=plan,
+            include_benchmarks=True,
+        )
+        if fetch_run.status in {"FAILED", "PARTIAL"} and policy is MarketDataPolicy.REQUIRE_IB:
+            db.rollback()
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "IB_GATEWAY_UNAVAILABLE",
+                    "message": "IB market-data refresh failed; downstream scoring was not run.",
+                },
+            )
     technical_scores = score_run_technicals(db, run_id)
     combined_results = refresh_combined_results(db, run_id)
 
@@ -656,19 +709,19 @@ def run_full_pipeline_action(run_id: int, db: DbSession) -> RedirectResponse:
         f"{len(technical_scores)} technicals, and rebuilt {len(combined_results)} "
         "combined rows."
     )
-    status = "pipeline-refreshed"
-    if plan.estimated_request_count:
-        options = FetchJobOptions(include_benchmarks=True)
-        fetch_run = create_queued_fetch_run(db, plan, options)
-        db.commit()
-        submit_fetch_job(fetch_run.id, plan, options)
-        status = "pipeline-queued"
+    status = (
+        "pipeline-cache-fallback"
+        if ib_preflight.status != IBGatewayHealthState.READY
+        else "pipeline-refreshed"
+    )
+    if fetch_run is not None:
         message = (
-            f"IB fetch {fetch_run.id} queued for {plan.estimated_request_count} requests. "
-            f"{message} Refresh technicals and combined again after fetch completion."
+            f"IB fetch {fetch_run.id} completed before downstream scoring. "
+            f"{message}"
         )
-    else:
-        db.commit()
+    elif status == "pipeline-cache-fallback":
+        message = f"Explicit cached-data fallback used. {message}"
+    db.commit()
 
     return _redirect_with_query(
         run_id,
