@@ -34,6 +34,14 @@ class CeriPointInTimeQuery:
         self.config = config or load_ceri_config()
         self._snapshots = snapshots
         self._source_records = source_records or {}
+        self._snapshot_index: dict[tuple[int, str], tuple[CeriEstimateSnapshot, ...]] = {}
+        if snapshots is not None:
+            indexed: dict[tuple[int, str], list[CeriEstimateSnapshot]] = {}
+            for snapshot in snapshots:
+                indexed.setdefault((snapshot.company_id, snapshot.metric), []).append(snapshot)
+            self._snapshot_index = {
+                key: tuple(rows) for key, rows in indexed.items()
+            }
 
     def eligible_estimates(
         self,
@@ -294,12 +302,23 @@ class CeriPointInTimeQuery:
         metric: str | None = None,
     ) -> list[CeriEstimateSnapshot]:
         if self._snapshots is not None:
-            return [
-                snapshot
-                for snapshot in self._snapshots
-                if (company_id is None or snapshot.company_id == company_id)
-                and (metric is None or snapshot.metric == metric)
-            ]
+            if company_id is not None and metric is not None:
+                return list(self._snapshot_index.get((company_id, metric), ()))
+            if company_id is not None:
+                return [
+                    snapshot
+                    for (indexed_company_id, _), rows in self._snapshot_index.items()
+                    if indexed_company_id == company_id
+                    for snapshot in rows
+                ]
+            if metric is not None:
+                return [
+                    snapshot
+                    for (_, indexed_metric), rows in self._snapshot_index.items()
+                    if indexed_metric == metric
+                    for snapshot in rows
+                ]
+            return list(self._snapshots)
         scalars = getattr(db, "scalars", None)
         if not callable(scalars):
             return []

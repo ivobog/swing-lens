@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -10,9 +11,12 @@ from app.models.ceri_tables import (
     CeriDerivedFeature,
     CeriEarningsActual,
     CeriEstimateSnapshot,
+    CeriFeatureBuildState,
     CeriGuidanceEvent,
     CeriRevisionFeature,
 )
+from app.models.tables import PriceBar
+from app.services.ceri.config import load_ceri_config
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
@@ -199,8 +203,10 @@ class FakeDb:
     def __init__(self, rows):
         self.rows = rows
         self.next_id = 1
+        self.scalar_calls = 0
 
     def scalars(self, statement):
+        self.scalar_calls += 1
         model = statement.column_descriptions[0]["entity"]
         return FakeResult(self.rows.get(model, []))
 
@@ -271,3 +277,143 @@ def test_reused_revision_feature_copies_values_and_full_comparison_lineage() -> 
     assert target.unavailable_reason is None
     assert target.source_observation_ids_json == [200, 201]
     assert target.provider_selection_reason == "same_provider_relative"
+
+
+def test_optimized_batch_second_run_skips_unchanged_companies() -> None:
+    companies = [CeriCompany(id=index, ticker=f"T{index}") for index in (1, 2, 3)]
+    estimates = [_estimate(company.id) for company in companies]
+    db = FakeDb({
+        CeriCompany: companies,
+        CeriEstimateSnapshot: estimates,
+        CeriRevisionFeature: [],
+        CeriFeatureBuildState: [],
+    })
+    service = CeriFeatureRebuildService(revisions=StubRevisionService())
+    request = CeriFeatureRebuildRequest(
+        tickers=("T1", "T2", "T3"), as_of_session=date(2026, 8, 7)
+    )
+
+    first = service.rebuild(db, request)
+    second = service.rebuild(db, request)
+
+    assert first.companies_rebuilt == 3
+    assert second.companies_rebuilt == 0
+    assert second.companies_skipped_unchanged == 3
+    assert len(db.rows[CeriFeatureBuildState]) == 3
+    identities = {
+        (row.company_id, row.metric, row.period_key, row.window_days)
+        for row in db.rows[CeriRevisionFeature]
+    }
+    assert len(identities) == len(db.rows[CeriRevisionFeature])
+
+
+def test_changed_company_evidence_rebuilds_only_that_company() -> None:
+    companies = [CeriCompany(id=index, ticker=f"T{index}") for index in (1, 2)]
+    estimates = [_estimate(company.id) for company in companies]
+    db = FakeDb({
+        CeriCompany: companies,
+        CeriEstimateSnapshot: estimates,
+        CeriRevisionFeature: [],
+        CeriFeatureBuildState: [],
+    })
+    service = CeriFeatureRebuildService(revisions=StubRevisionService())
+    request = CeriFeatureRebuildRequest(
+        tickers=("T1", "T2"), as_of_session=date(2026, 8, 7)
+    )
+    service.rebuild(db, request)
+
+    estimates[0].consensus = Decimal("2.5")
+    result = service.rebuild(db, request)
+
+    assert result.companies_rebuilt == 1
+    assert result.companies_skipped_unchanged == 1
+
+
+def test_relevant_price_bar_change_forces_rebuild() -> None:
+    company = CeriCompany(id=1, ticker="T1")
+    db = FakeDb({
+        CeriCompany: [company],
+        CeriEstimateSnapshot: [_estimate(1)],
+        CeriRevisionFeature: [],
+        CeriFeatureBuildState: [],
+        PriceBar: [],
+    })
+    service = CeriFeatureRebuildService(revisions=StubRevisionService())
+    request = CeriFeatureRebuildRequest(ticker="T1", as_of_session=date(2026, 8, 7))
+    service.rebuild(db, request)
+    db.rows[PriceBar].append(PriceBar(
+        id=900,
+        ticker="T1",
+        bar_date=date(2026, 8, 6),
+        timeframe="1d",
+        close=Decimal("10"),
+        source="ibkr",
+        what_to_show="ADJUSTED_LAST",
+    ))
+
+    result = service.rebuild(db, request)
+
+    assert result.companies_rebuilt == 1
+    assert result.companies_skipped_unchanged == 0
+
+
+def test_config_hash_change_forces_rebuild() -> None:
+    company = CeriCompany(id=1, ticker="T1")
+    db = FakeDb({
+        CeriCompany: [company],
+        CeriEstimateSnapshot: [_estimate(1)],
+        CeriRevisionFeature: [],
+        CeriFeatureBuildState: [],
+    })
+    request = CeriFeatureRebuildRequest(ticker="T1", as_of_session=date(2026, 8, 7))
+    CeriFeatureRebuildService(revisions=StubRevisionService()).rebuild(db, request)
+    changed_config = replace(load_ceri_config(), config_hash="changed-config-hash")
+
+    result = CeriFeatureRebuildService(
+        config=changed_config, revisions=StubRevisionService()
+    ).rebuild(db, request)
+
+    assert result.companies_rebuilt == 1
+    assert result.companies_skipped_unchanged == 0
+
+
+def test_batch_query_families_are_constant_and_company_failures_are_isolated() -> None:
+    companies = [CeriCompany(id=index, ticker=f"T{index}") for index in (1, 2, 3)]
+    db = FakeDb({
+        CeriCompany: companies,
+        CeriEstimateSnapshot: [_estimate(company.id) for company in companies],
+        CeriRevisionFeature: [],
+        CeriFeatureBuildState: [],
+    })
+
+    class FailingRevisionService(StubRevisionService):
+        def calculate_windows(self, db, *, company_id, **kwargs):
+            if company_id == 2:
+                raise ValueError("fixture failure")
+            return super().calculate_windows(db, company_id=company_id, **kwargs)
+
+    result = CeriFeatureRebuildService(revisions=FailingRevisionService()).rebuild(
+        db,
+        CeriFeatureRebuildRequest(
+            tickers=("T1", "T2", "T3"), as_of_session=date(2026, 8, 7)
+        ),
+    )
+
+    assert result.companies_rebuilt == 2
+    assert result.failed == 1
+    assert result.errors[0]["company_id"] == 2
+    assert db.scalar_calls <= 12
+
+
+def _estimate(company_id: int) -> CeriEstimateSnapshot:
+    return CeriEstimateSnapshot(
+        id=company_id,
+        source_record_id=company_id,
+        company_id=company_id,
+        metric="EPS_DILUTED",
+        fiscal_period_end=date(2027, 12, 31),
+        period_type="CURRENT_QUARTER",
+        canonical_period_slot="CURRENT_QUARTER",
+        canonical_observation_key=f"{company_id}:EPS:CQ",
+        consensus=Decimal("2.0"),
+    )

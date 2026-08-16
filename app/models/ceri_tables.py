@@ -745,6 +745,13 @@ class CeriRevisionFeature(Base):
             name="uq_ceri_revision_features_identity",
         ),
         Index("ix_ceri_revision_features_company_session", "company_id", "as_of_session"),
+        Index(
+            "ix_ceri_revision_features_batch_identity",
+            "company_id",
+            "as_of_session",
+            "config_hash",
+            "calculation_version",
+        ),
         Index("ix_ceri_revision_features_controlled_replay", "controlled_replay_id"),
     )
 
@@ -813,6 +820,49 @@ class CeriDerivedFeature(Base):
             name="uq_ceri_derived_features_identity",
         ),
         Index("ix_ceri_derived_features_company_session", "company_id", "as_of_session"),
+        Index(
+            "ix_ceri_derived_features_batch_identity",
+            "company_id",
+            "as_of_session",
+            "config_hash",
+            "calculation_version",
+        ),
+    )
+
+
+class CeriFeatureBuildState(Base):
+    """Successful, conservatively fingerprinted feature-build boundary."""
+
+    __tablename__ = "ceri_feature_build_states"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("ceri_companies.id", ondelete="CASCADE"), nullable=False
+    )
+    as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
+    historical_view_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    input_evidence_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    output_evidence_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    output_feature_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    implementation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "as_of_session",
+            "historical_view_mode",
+            "config_hash",
+            "calculation_version",
+            name="uq_ceri_feature_build_states_identity",
+        ),
+        Index(
+            "ix_ceri_feature_build_states_company_session",
+            "company_id",
+            "as_of_session",
+        ),
     )
 
 

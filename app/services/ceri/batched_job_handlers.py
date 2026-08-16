@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import select
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriIngestionRun
 from app.models.tables import BackgroundJob
+from app.observability.db_monitor import current_sql_summary_snapshot
 from app.services.background_job_service import (
     TERMINAL_JOB_STATUSES,
     JobStatus,
@@ -26,6 +28,7 @@ from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.feature_rebuild_service import (
+    FEATURE_REBUILD_IMPL_VERSION,
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
 )
@@ -239,12 +242,28 @@ def execute_feature_batch_job(
         expected=int(payload.get("expected_normalization_batches") or 0),
     )
     tickers = _tickers(payload)
-    checkpoint_interval = _checkpoint_interval(payload)
     config = load_ceri_config()
     service = feature_service or CeriFeatureRebuildService(config=config)
     completed, results = _checkpoint_state(job)
+    remaining_tickers = tuple(ticker for ticker in tickers if ticker not in completed)
+    batch_started = perf_counter()
+    batch_context = None
+    # The worker heartbeat commits. Keep the immutable batch-prefetched ORM
+    # evidence resident across those per-ticker durable checkpoints instead of
+    # expiring it and silently re-querying one row at a time.
+    if hasattr(db, "expire_on_commit"):
+        db.expire_on_commit = False
+    if remaining_tickers and hasattr(service, "prepare_batch"):
+        batch_context = service.prepare_batch(
+            db,
+            CeriFeatureRebuildRequest(
+                tickers=remaining_tickers,
+                run_id=int(payload.get("run_id") or job.related_run_id),
+                mode="AS_KNOWN",
+            ),
+        )
     failed = 0
-    for index, ticker in enumerate(tickers, start=1):
+    for ticker in tickers:
         if ticker in completed:
             continue
         if _heartbeat_and_cancel(db, job, heartbeat=False):
@@ -275,6 +294,7 @@ def execute_feature_batch_job(
                     mode="AS_KNOWN",
                 ),
                 processing_run=processing,
+                **({"batch_context": batch_context} if batch_context is not None else {}),
             )
             CeriProcessingRunService().finish(
                 db,
@@ -297,12 +317,59 @@ def execute_feature_batch_job(
         failed += int(values.get("failed") or 0)
         completed.add(ticker)
         _save_checkpoint(job, completed=completed, results=results)
-        if index % checkpoint_interval == 0:
-            if _heartbeat_and_cancel(db, job):
-                raise CancelRequested("CERI feature batch cancelled.")
+        # Make feature rows, processing-run completion, and the ticker
+        # checkpoint durable in that order. This also bounds retry work to one
+        # ticker without discarding the shared read-only batch context.
+        if _heartbeat_and_cancel(db, job):
+            raise CancelRequested("CERI feature batch cancelled.")
     _save_checkpoint(job, completed=completed, results=results)
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
         job.status = JobStatus.PARTIAL
+    family_timings: dict[str, int] = {}
+    for value in results.values():
+        for family, duration in (value.get("family_runtime_ms") or {}).items():
+            family_timings[family] = family_timings.get(family, 0) + int(duration or 0)
+    telemetry = {
+        "feature_rebuild_impl_version": FEATURE_REBUILD_IMPL_VERSION,
+        "ticker_count": len(tickers),
+        "companies_rebuilt": sum(
+            int(value.get("companies_rebuilt") or 0) for value in results.values()
+        ),
+        "companies_skipped_unchanged": sum(
+            int(value.get("companies_skipped_unchanged") or 0)
+            for value in results.values()
+        ),
+        "features_inserted": sum(
+            int(value.get("features_inserted") or 0) for value in results.values()
+        ),
+        "features_updated": sum(
+            int(value.get("features_updated") or 0) for value in results.values()
+        ),
+        "features_deduplicated": sum(
+            int(value.get("features_deduplicated") or 0) for value in results.values()
+        ),
+        "batch_total_ms": int((perf_counter() - batch_started) * 1000),
+        "load_context_ms": int(getattr(batch_context, "load_context_ms", 0) or 0),
+        "persistence_ms": sum(
+            int(value.get("persistence_ms") or 0) for value in results.values()
+        ),
+        "revision_compute_ms": family_timings.get("revisions", 0),
+        "surprise_compute_ms": family_timings.get("earnings_surprise", 0),
+        "guidance_compute_ms": family_timings.get("guidance", 0),
+        "catalyst_compute_ms": family_timings.get("catalysts", 0),
+        "confidence_compute_ms": family_timings.get("confidence", 0),
+        "price_response_compute_ms": family_timings.get("price_response", 0),
+        "family_runtime_ms": family_timings,
+        "sql_select_count": int(getattr(batch_context, "select_count", 0) or 0),
+        "sql_upsert_write_count": sum(
+            int(value.get("sql_write_count") or 0) for value in results.values()
+        ),
+        "rows_loaded": dict(getattr(batch_context, "rows_loaded", {}) or {}),
+    }
+    telemetry["sql_monitor"] = current_sql_summary_snapshot()
+    metadata = dict(job.operational_metadata_json or {})
+    metadata["ceri_feature_rebuild"] = telemetry
+    job.operational_metadata_json = metadata
     return {
         "job_type": CERI_FEATURE_BATCH,
         "status": "PARTIAL" if job.status == JobStatus.PARTIAL else "COMPLETED",
@@ -310,6 +377,7 @@ def execute_feature_batch_job(
         "features": sum(int(value.get("features") or 0) for value in results.values()),
         "failed": failed,
         "results": results,
+        "telemetry": telemetry,
     }
 
 

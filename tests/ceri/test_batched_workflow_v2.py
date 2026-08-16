@@ -7,9 +7,10 @@ import pytest
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, enqueue_job
-from app.services.background_worker import JobDeferred
+from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.ceri import batched_job_handlers
 from app.services.ceri.batched_job_handlers import (
+    execute_feature_batch_job,
     execute_provider_ingest_batch_job,
     execute_run_finalize_job,
 )
@@ -20,6 +21,7 @@ from app.services.ceri.batched_workflow import (
     CERI_RUN_FINALIZE,
     build_ceri_batched_workflow_plan,
 )
+from app.services.ceri.feature_rebuild_service import CeriFeatureRebuildResult
 from app.settings import Settings
 
 
@@ -167,6 +169,160 @@ def test_provider_batch_continues_after_partial_ticker_failure(monkeypatch) -> N
     assert result["failed"] == 1
     assert result["results"]["T1"]["status"] == "PARTIAL"
     assert job.status == JobStatus.PARTIAL
+
+
+def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch) -> None:
+    monkeypatch.setattr(
+        batched_job_handlers,
+        "ceri_flags",
+        lambda: SimpleNamespace(enabled=True),
+    )
+    monkeypatch.setattr(batched_job_handlers, "_require_terminal_stage", lambda *_a, **_k: None)
+    monkeypatch.setattr(batched_job_handlers, "_heartbeat_and_cancel", lambda *_a, **_k: False)
+    processing_runs = {}
+
+    def create_or_get(_self, _db, *, request_key, **_kwargs):
+        run = SimpleNamespace(
+            id=len(processing_runs) + 1,
+            status="RUNNING",
+            feature_count=0,
+            checkpoint_json=None,
+        )
+        processing_runs[request_key] = run
+        return run, True
+
+    def finish(_self, _db, run, *, status, counts, **_kwargs):
+        run.status = status
+        run.feature_count = counts["features"]
+        return run
+
+    monkeypatch.setattr(
+        batched_job_handlers.CeriProcessingRunService, "create_or_get", create_or_get
+    )
+    monkeypatch.setattr(batched_job_handlers.CeriProcessingRunService, "finish", finish)
+
+    class Service:
+        def __init__(self):
+            self.prepared = []
+            self.rebuilt = []
+
+        def prepare_batch(self, _db, request):
+            self.prepared.append(request.tickers)
+            return SimpleNamespace(
+                load_context_ms=3,
+                select_count=9,
+                rows_loaded={"ceri_estimate_snapshots": 6},
+            )
+
+        def rebuild(self, _db, request, **_kwargs):
+            self.rebuilt.append(request.ticker)
+            return CeriFeatureRebuildResult(
+                features=2,
+                processed_companies=1,
+                companies_rebuilt=1,
+                features_inserted=2,
+                family_runtime_ms={"revisions": 1},
+            )
+
+    service = Service()
+    job = BackgroundJob(
+        id=77,
+        job_type=CERI_FEATURE_BATCH,
+        workflow_key="ceri:pipeline:95:config-a",
+        request_key="ceri:pipeline:95:config-a:feature:1",
+        related_run_id=95,
+        status=JobStatus.RUNNING,
+        payload_json={
+            "workflow_key": "ceri:pipeline:95:config-a",
+            "run_id": 95,
+            "tickers": ["T0", "T1", "T2"],
+            "expected_normalization_batches": 1,
+        },
+        operational_metadata_json={
+            "ceri_batch": {
+                "completed_tickers": ["T0"],
+                "results": {"T0": {"status": "COMPLETED", "features": 2}},
+            }
+        },
+    )
+
+    result = execute_feature_batch_job(FakeDb(), job, feature_service=service)
+
+    assert service.prepared == [("T1", "T2")]
+    assert service.rebuilt == ["T1", "T2"]
+    assert result["processed_tickers"] == 3
+    assert result["telemetry"]["sql_select_count"] == 9
+    assert job.operational_metadata_json["ceri_batch"]["completed_tickers"] == [
+        "T0",
+        "T1",
+        "T2",
+    ]
+
+
+def test_feature_batch_cancellation_never_checkpoints_unfinished_ticker(monkeypatch) -> None:
+    monkeypatch.setattr(
+        batched_job_handlers,
+        "ceri_flags",
+        lambda: SimpleNamespace(enabled=True),
+    )
+    monkeypatch.setattr(batched_job_handlers, "_require_terminal_stage", lambda *_a, **_k: None)
+    checks = iter((False, False, True))
+    monkeypatch.setattr(
+        batched_job_handlers,
+        "_heartbeat_and_cancel",
+        lambda *_a, **_k: next(checks),
+    )
+    processing = SimpleNamespace(
+        id=1,
+        status="RUNNING",
+        feature_count=0,
+        checkpoint_json=None,
+    )
+    monkeypatch.setattr(
+        batched_job_handlers.CeriProcessingRunService,
+        "create_or_get",
+        lambda *_a, **_k: (processing, True),
+    )
+
+    def finish(_self, _db, run, *, status, counts, **_kwargs):
+        run.status = status
+        run.feature_count = counts["features"]
+        return run
+
+    monkeypatch.setattr(batched_job_handlers.CeriProcessingRunService, "finish", finish)
+
+    class Service:
+        def prepare_batch(self, *_args):
+            return SimpleNamespace(load_context_ms=0, select_count=1, rows_loaded={})
+
+        def rebuild(self, *_args, **_kwargs):
+            return CeriFeatureRebuildResult(
+                features=1,
+                processed_companies=1,
+                companies_rebuilt=1,
+            )
+
+    job = BackgroundJob(
+        id=78,
+        job_type=CERI_FEATURE_BATCH,
+        workflow_key="workflow-cancel",
+        request_key="workflow-cancel:feature:1",
+        related_run_id=95,
+        status=JobStatus.RUNNING,
+        payload_json={
+            "workflow_key": "workflow-cancel",
+            "run_id": 95,
+            "tickers": ["T1", "T2"],
+            "expected_normalization_batches": 1,
+        },
+        operational_metadata_json={},
+    )
+
+    with pytest.raises(CancelRequested):
+        execute_feature_batch_job(FakeDb(), job, feature_service=Service())
+
+    assert job.operational_metadata_json["ceri_batch"]["completed_tickers"] == ["T1"]
+    assert "T2" not in job.operational_metadata_json["ceri_batch"]["results"]
 
 
 def test_finalizer_enqueues_exactly_one_capture_for_repeated_execution(monkeypatch) -> None:
