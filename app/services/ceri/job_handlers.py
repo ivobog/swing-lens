@@ -340,13 +340,23 @@ def execute_change_detection_job(
         default_request_key=f"ceri:change-rebuild:{_scope_key(payload, job.id)}",
     )
     if not created and processing.status == "COMPLETED":
+        change_ids = tuple(
+            int(value)
+            for value in (processing.checkpoint_json or {}).get("change_ids", [])
+        )
         values = {
             "job_type": CERI_CHANGE_DETECTION,
             "processing_run_id": processing.id,
             "status": processing.status,
             "coalesced": True,
+            "change_ids": list(change_ids),
         }
-        alert_job_id = _enqueue_alert_after_change(db, job=job, payload=payload)
+        alert_job_id = _enqueue_alert_after_change(
+            db,
+            job=job,
+            payload=payload,
+            change_ids=change_ids,
+        )
         if alert_job_id is not None:
             values["alert_job_id"] = alert_job_id
         return values
@@ -361,6 +371,8 @@ def execute_change_detection_job(
             changed_since=_optional_datetime(payload.get("changed_since")),
         ),
     )
+    raw_change_ids = getattr(result, "change_ids", None)
+    change_ids = tuple(int(value) for value in (raw_change_ids or ()))
     CeriProcessingRunService().finish(
         db,
         processing,
@@ -370,7 +382,11 @@ def execute_change_detection_job(
             "warnings": result.warnings,
             "failed": result.failed,
         },
-        checkpoint={"scope": payload.get("scope") or payload, "change_count": result.changes},
+        checkpoint={
+            "scope": payload.get("scope") or payload,
+            "change_count": result.changes,
+            "change_ids": list(change_ids),
+        },
         errors={"records": list(result.errors)} if result.errors else None,
     )
     values = {
@@ -380,8 +396,18 @@ def execute_change_detection_job(
         **result.as_dict(),
     }
     alert_job_id = (
-        _enqueue_alert_after_change(db, job=job, payload=payload)
-        if (result.changes or job.workflow_key) and processing.status == "COMPLETED"
+        _enqueue_alert_after_change(
+            db,
+            job=job,
+            payload=payload,
+            change_ids=change_ids,
+        )
+        if (
+            change_ids
+            or (raw_change_ids is None and result.changes)
+            or job.workflow_key
+        )
+        and processing.status == "COMPLETED"
         else None
     )
     if alert_job_id is not None:
@@ -618,8 +644,11 @@ def _processing_run(
 
 def _eligible_changes(db: Session, payload: dict[str, Any]) -> list[CeriChangeEvent]:
     changes = _load_rows(db, CeriChangeEvent)
+    ids = {int(value) for value in payload.get("change_ids", []) if str(value).isdigit()}
+    if ids:
+        changes = [change for change in changes if change.id in ids]
     run_id = _optional_int(payload.get("run_id"))
-    if run_id is not None:
+    if run_id is not None and not ids:
         snapshots = {
             snapshot.id
             for snapshot in _load_rows(db, CeriScoreSnapshot)
@@ -630,9 +659,6 @@ def _eligible_changes(db: Session, payload: dict[str, Any]) -> list[CeriChangeEv
             for change in changes
             if change.from_snapshot_id in snapshots or change.to_snapshot_id in snapshots
         ]
-    ids = {int(value) for value in payload.get("change_ids", []) if str(value).isdigit()}
-    if ids:
-        changes = [change for change in changes if change.id in ids]
     company_ids = set(_optional_int_tuple(payload.get("company_ids")) or ())
     if company_ids:
         changes = [change for change in changes if change.company_id in company_ids]
@@ -808,7 +834,11 @@ def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: in
 
 
 def _enqueue_alert_after_change(
-    db: Session, *, job: BackgroundJob, payload: dict[str, Any]
+    db: Session,
+    *,
+    job: BackgroundJob,
+    payload: dict[str, Any],
+    change_ids: tuple[int, ...] = (),
 ) -> int | None:
     if not ceri_flags().alerts:
         return None
@@ -825,6 +855,7 @@ def _enqueue_alert_after_change(
             "request_key": request_key,
             "run_id": payload.get("run_id"),
             "workflow_key": job.workflow_key,
+            "change_ids": list(change_ids),
         },
         related_run_id=job.related_run_id,
         priority=_child_priority(job),

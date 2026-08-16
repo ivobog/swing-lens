@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import PriceBar
 from app.services.bar_cache_service import cache_bars
+from app.services.ceri.config import load_ceri_config
 from app.services.ib_data_fetcher import HistoricalBar
 from app.services.winner_probability.trading_session_service import next_regular_session
 from single_run_certification.evidence import (
@@ -288,6 +289,12 @@ def test_single_run_comprehensive_e2e_certification(
             heading=f"Run {run_id}",
         )
         _compare_run_detail(page, engine, recorder, run_id)
+        _assert_ceri_upgrade_baseline(
+            engine,
+            recorder,
+            run_id,
+            baseline_snapshot_id=env.seed.ceri_baseline_snapshot_id,
+        )
 
         dynamic = _dynamic_routes(engine, run_id)
         surfaces = [
@@ -831,12 +838,119 @@ def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: i
             )
 
 
+def _assert_ceri_upgrade_baseline(
+    engine,
+    recorder: CertificationRecorder,
+    run_id: int,
+    *,
+    baseline_snapshot_id: int,
+) -> None:
+    config = load_ceri_config()
+    upgrade_threshold = float(config.change_thresholds["opportunity_upgrade_threshold"])
+    minimum_coverage = float(config.revision.minimum_component_coverage_pct)
+    rows = query_rows(
+        engine,
+        """
+        select cur.id current_id, cur.opportunity_score current_score,
+               cur.opportunity_coverage_pct current_coverage,
+               cur.data_confidence current_confidence,
+               cur.comparison_state, cur.comparison_snapshot_id,
+               prior.id prior_id, prior.opportunity_score prior_score
+        from ceri_score_snapshots cur
+        left join ceri_score_snapshots prior on prior.id=cur.comparison_snapshot_id
+        where cur.run_id=:run_id and cur.ticker='ALFA'
+        """,
+        {"run_id": run_id},
+    )
+    recorder.check(
+        bool(rows),
+        "CERI ALFA current snapshot exists for baseline comparison",
+        area="CERI",
+        expected=True,
+        actual=bool(rows),
+    )
+    if not rows:
+        return
+    row = rows[0]
+    recorder.check(
+        row["prior_id"] == baseline_snapshot_id,
+        "CERI ALFA uses the intended pre-run baseline snapshot",
+        area="CERI",
+        expected=baseline_snapshot_id,
+        actual=row["prior_id"],
+    )
+    recorder.check(
+        row["comparison_state"] == "COMPARABLE"
+        and row["comparison_snapshot_id"] == baseline_snapshot_id,
+        "CERI ALFA current snapshot is comparable to the pre-run baseline",
+        area="CERI",
+        expected={"state": "COMPARABLE", "snapshot_id": baseline_snapshot_id},
+        actual={
+            "state": row["comparison_state"],
+            "snapshot_id": row["comparison_snapshot_id"],
+        },
+    )
+    recorder.check(
+        row["current_coverage"] is not None
+        and float(row["current_coverage"]) >= minimum_coverage
+        and row["current_confidence"] != "Insufficient",
+        "CERI ALFA current score satisfies production coverage and confidence gates",
+        area="CERI",
+        expected={"minimum_coverage": minimum_coverage, "confidence": "rated"},
+        actual={
+            "coverage": row["current_coverage"],
+            "confidence": row["current_confidence"],
+        },
+    )
+    recorder.check(
+        row["prior_score"] is not None
+        and row["current_score"] is not None
+        and float(row["prior_score"]) < upgrade_threshold <= float(row["current_score"]),
+        "CERI ALFA crosses the configured opportunity upgrade threshold",
+        area="CERI",
+        expected=f"prior < {upgrade_threshold} <= current",
+        actual={"prior": row["prior_score"], "current": row["current_score"]},
+    )
+    upgrade_changes = query_rows(
+        engine,
+        """
+        select id, from_snapshot_id, to_snapshot_id, comparison_state
+        from ceri_change_events
+        where company_id=(select company_id from ceri_score_snapshots where id=:current_id)
+          and from_snapshot_id=:baseline_id and to_snapshot_id=:current_id
+          and change_type='OPPORTUNITY_UPGRADED'
+        """,
+        {"baseline_id": baseline_snapshot_id, "current_id": row["current_id"]},
+    )
+    recorder.check(
+        bool(upgrade_changes)
+        and all(change["comparison_state"] == "COMPARABLE" for change in upgrade_changes),
+        "CERI emitted the expected comparable OPPORTUNITY_UPGRADED transition",
+        area="CERI",
+        expected="OPPORTUNITY_UPGRADED",
+        actual=upgrade_changes,
+    )
+
+
 def _compare_ceri_alerts(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
-    gui_rows = _table_rows(page, {"Ticker", "Severity", "Status", "Evidence", "Action"})
+    gui_rows = _table_rows(
+        page,
+        {
+            "Ticker",
+            "Alert",
+            "Importance",
+            "Change",
+            "Risk",
+            "Confidence",
+            "When",
+            "Status",
+            "Action",
+        },
+    )
     db_rows = query_rows(
         engine,
         """
-        select a.ticker, a.severity, a.status, a.evidence_json
+        select a.ticker, a.importance, a.status, c.change_type
         from ceri_alert_events a
         join ceri_change_events c on c.id=a.source_change_event_id
         join ceri_score_snapshots s on s.id=c.to_snapshot_id
@@ -872,7 +986,8 @@ def _compare_ceri_alerts(page: Page, engine, recorder: CertificationRecorder, ru
             continue
         for field, expected in {
             "Ticker": str(db["ticker"]),
-            "Severity": str(db["severity"]),
+            "Alert": str(db["change_type"]).replace("_", " ").title(),
+            "Importance": str(db["importance"]).title(),
             "Status": str(db["status"]),
         }.items():
             recorder.check(
@@ -1026,8 +1141,16 @@ def _mature_winner_evidence(
     job_result = job.get("result_json") or {}
     expected_job_status = (
         "PARTIAL"
-        if int(job_result.get("failed", 0)) or int(job_result.get("warnings", 0))
+        if int(job_result.get("failed_h5", 0))
+        or int(job_result.get("pending_h5_after_cycle", 0))
         else "COMPLETED"
+    )
+    recorder.check(
+        bool(job),
+        "browser action created a WINNER_OUTCOME_MATURATION background job",
+        area="Winner Evidence",
+        expected=True,
+        actual=bool(job),
     )
     recorder.check(
         job.get("status") == expected_job_status,
@@ -1037,17 +1160,33 @@ def _mature_winner_evidence(
         actual=job.get("status"),
     )
     recorder.check(
-        int(job_result.get("failed", -1)) == 0,
-        "Winner Evidence maturation completed without failed outcomes",
+        int(job_result.get("failed_h5", -1)) == 0,
+        "Winner Evidence primary H5 maturation completed without failed outcomes",
         area="Winner Evidence",
         expected=0,
-        actual=job_result.get("failed"),
+        actual=job_result.get("failed_h5"),
     )
-    if int(job_result.get("warnings", 0)):
-        recorder.warnings.append(
-            "Winner outcome maturation emitted deterministic missing-comparison warnings "
-            f"for sparse/Unknown sector cases ({job_result['warnings']})."
-        )
+    recorder.check(
+        int(job_result.get("pending_h5_after_cycle", -1)) == 0,
+        "Winner Evidence primary H5 queue drained completely",
+        area="Winner Evidence",
+        expected=0,
+        actual=job_result.get("pending_h5_after_cycle"),
+    )
+    recorder.check(
+        int(job_result.get("matured_h5", 0)) > 0,
+        "Winner Evidence matured at least one primary H5 outcome",
+        area="Winner Evidence",
+        expected=">0",
+        actual=job_result.get("matured_h5"),
+    )
+    recorder.check(
+        int(job_result.get("target_stop_matured", 0)) > 0,
+        "Winner Evidence matured at least one primary target/stop outcome",
+        area="Winner Evidence",
+        expected=">0",
+        actual=job_result.get("target_stop_matured"),
+    )
 
     _capture_surface(
         page,
@@ -1072,14 +1211,22 @@ def _mature_winner_evidence(
         expected=job.get("status"),
         actual=maturation_row["Status"] if maturation_row else "missing",
     )
-    processing_run = query_rows(
+    processing_runs = query_rows(
         engine,
         """
         select id, status, counts_json from winner_processing_runs
         where background_job_id=:job_id order by id desc limit 1
         """,
         {"job_id": job.get("id")},
-    )[0]
+    )
+    recorder.check(
+        bool(processing_runs),
+        "Winner Evidence maturation persisted its processing run",
+        area="Winner Evidence",
+        expected=True,
+        actual=bool(processing_runs),
+    )
+    processing_run = processing_runs[0] if processing_runs else {"id": None, "counts_json": {}}
     gui_counts = json.loads(maturation_row["Counts"]) if maturation_row else {}
     recorder.check(
         gui_counts == processing_run["counts_json"],
@@ -1120,6 +1267,7 @@ def _mature_winner_evidence(
                source_bar_lineage_hash, matured_at
         from winner_forward_outcomes
         where prediction_id=:prediction_id and is_current_revision
+          and entry_model='NEXT_OPEN' and horizon_sessions=5
         order by entry_model, horizon_sessions
         """,
         {"prediction_id": prediction_id},
@@ -1132,24 +1280,38 @@ def _mature_winner_evidence(
         from winner_target_stop_outcomes t
         join winner_outcome_definitions d on d.id=t.outcome_definition_id
         where t.prediction_id=:prediction_id and t.is_current_revision and d.is_primary
+          and t.entry_model='NEXT_OPEN' and t.horizon_sessions=5
         order by t.id
         """,
         {"prediction_id": prediction_id},
     )
     recorder.check(
-        bool(matured_forward) and all(row["status"] == "MATURED" for row in matured_forward),
-        "all ALFA forward horizons matured from later bars",
+        bool(matured_forward)
+        and all(
+            row["status"] == "MATURED" and row["matured_at"] is not None
+            for row in matured_forward
+        ),
+        "ALFA primary NEXT_OPEN H5 outcome matured from later bars",
         area="Winner Evidence",
-        expected="all MATURED",
-        actual=[row["status"] for row in matured_forward],
+        expected="MATURED with timestamp",
+        actual=[
+            {"status": row["status"], "matured_at": row["matured_at"]}
+            for row in matured_forward
+        ],
     )
     recorder.check(
         bool(matured_target_stop)
-        and all(row["status"] == "MATURED" for row in matured_target_stop),
+        and all(
+            row["status"] == "MATURED" and row["evaluated_at"] is not None
+            for row in matured_target_stop
+        ),
         "ALFA primary target/stop outcome matured",
         area="Winner Evidence",
-        expected="MATURED",
-        actual=[row["status"] for row in matured_target_stop],
+        expected="MATURED with timestamp",
+        actual=[
+            {"status": row["status"], "evaluated_at": row["evaluated_at"]}
+            for row in matured_target_stop
+        ],
     )
 
     _capture_surface(
@@ -1202,7 +1364,11 @@ def _seed_later_market_bars(engine, prediction_id: int) -> int:
 
     inserted = 0
     with Session(engine) as db:
-        for ticker, fallback in (("ALFA", 100.0), ("SPY", 500.0), ("XLK", 250.0)):
+        for ticker, fallback in (
+            *((ticker, 100.0) for ticker in CANONICAL_TICKERS),
+            ("SPY", 500.0),
+            ("XLK", 250.0),
+        ):
             latest = db.scalar(
                 select(PriceBar)
                 .where(PriceBar.ticker == ticker)
@@ -1289,26 +1455,17 @@ def _compare_matured_outcomes(
                 "Revision": str(row["revision"]),
             }
         )
-    def sort_key(row: dict[str, str]) -> tuple[str, str, str]:
-        return tuple(row[key] for key in ("Type", "Entry", "Due/Event"))
-    gui_sorted = sorted(gui_rows, key=sort_key)
-    expected_sorted = sorted(expected, key=sort_key)
-    recorder.check(
-        len(gui_sorted) == len(expected_sorted),
-        "matured Winner Evidence GUI outcome cardinality matches DB",
-        area="Winner Evidence",
-        expected=len(expected_sorted),
-        actual=len(gui_sorted),
-    )
-    for index, (gui, db) in enumerate(zip(gui_sorted, expected_sorted, strict=False), start=1):
-        for field, expected_value in db.items():
-            recorder.check(
-                gui[field].strip() == expected_value,
-                f"matured outcome row {index} {field} GUI↔DB",
-                area="Winner Evidence",
-                expected=expected_value,
-                actual=gui[field].strip(),
-            )
+    normalized_gui = [
+        {field: value.strip() for field, value in row.items()} for row in gui_rows
+    ]
+    for index, expected_row in enumerate(expected, start=1):
+        recorder.check(
+            expected_row in normalized_gui,
+            f"primary matured outcome row {index} GUI↔DB",
+            area="Winner Evidence",
+            expected=expected_row,
+            actual=normalized_gui,
+        )
 
 
 def _one_decimal(value) -> str:

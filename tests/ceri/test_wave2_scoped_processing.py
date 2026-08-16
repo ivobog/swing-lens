@@ -8,6 +8,7 @@ import pytest
 from app.models.ceri_tables import (
     CeriCatalystEvent,
     CeriCatalystEventRevision,
+    CeriChangeEvent,
     CeriCompany,
     CeriGuidanceEvent,
     CeriProcessingRun,
@@ -20,10 +21,17 @@ from app.services.ceri.capture_service import _catalyst_features_for_company
 from app.services.ceri.change_detection_service import ChangeDetectionResult
 from app.services.ceri.change_rebuild_service import (
     CeriChangeRebuildRequest,
+    CeriChangeRebuildResult,
     CeriChangeRebuildService,
 )
 from app.services.ceri.feature_flags import CeriFeatureFlags
-from app.services.ceri.job_handlers import execute_alert_rebuild_job, execute_backfill_job
+from app.services.ceri.job_handlers import (
+    CERI_CHANGE_DETECTION,
+    _eligible_changes,
+    execute_alert_rebuild_job,
+    execute_backfill_job,
+    execute_change_detection_job,
+)
 
 UTC_INFO = UTC
 
@@ -160,6 +168,115 @@ def test_alert_rebuild_request_key_is_stable_across_job_ids(
     assert second["coalesced"] is True
 
 
+def test_snapshot_transition_alert_is_scoped_to_its_run() -> None:
+    current = _snapshot(2, 1)
+    current.run_id = 7
+    transition = _change(10, company_id=1, from_snapshot_id=1, to_snapshot_id=2)
+    unrelated = _change(11, company_id=1, from_snapshot_id=3, to_snapshot_id=4)
+    db = RowDb(
+        {
+            CeriScoreSnapshot: [current],
+            CeriChangeEvent: [transition, unrelated],
+        }
+    )
+
+    selected = _eligible_changes(db, {"run_id": 7})
+
+    assert [change.id for change in selected] == [transition.id]
+
+
+def test_event_only_binary_alert_uses_exact_upstream_change_identity() -> None:
+    current = _snapshot(2, 1)
+    current.run_id = 7
+    event_only = _change(
+        20,
+        company_id=1,
+        change_type="NEW_BINARY_EVENT",
+        catalyst_revision_id=101,
+    )
+    db = RowDb(
+        {
+            CeriScoreSnapshot: [current],
+            CeriChangeEvent: [event_only],
+        }
+    )
+
+    selected = _eligible_changes(db, {"run_id": 7, "change_ids": [event_only.id]})
+
+    assert [change.id for change in selected] == [event_only.id]
+
+
+def test_exact_event_alert_scope_does_not_sweep_unrelated_company_history() -> None:
+    current = _snapshot(2, 1)
+    current.run_id = 7
+    event_only = _change(
+        20,
+        company_id=1,
+        change_type="NEW_BINARY_EVENT",
+        catalyst_revision_id=101,
+    )
+    unrelated = _change(
+        21,
+        company_id=1,
+        change_type="NEW_BINARY_EVENT",
+        catalyst_revision_id=99,
+    )
+    db = RowDb(
+        {
+            CeriScoreSnapshot: [current],
+            CeriChangeEvent: [unrelated, event_only],
+        }
+    )
+
+    selected = _eligible_changes(db, {"run_id": 7, "change_ids": [event_only.id]})
+
+    assert [change.id for change in selected] == [event_only.id]
+
+
+def test_change_detection_retry_reuses_exact_alert_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.ceri.job_handlers.ceri_flags",
+        lambda: CeriFeatureFlags(True, True, True, True, True, True, True),
+    )
+    enqueued = []
+
+    def capture_enqueue(_db, job_type, payload, **kwargs):
+        enqueued.append((job_type, payload, kwargs))
+        return SimpleNamespace(id=100 + len(enqueued))
+
+    monkeypatch.setattr("app.services.ceri.job_handlers.enqueue_job", capture_enqueue)
+    db = ProcessingDb(scalar_queue=[None])
+    payload = {"request_key": "ceri:change-rebuild:run:7", "run_id": 7}
+    first_job = BackgroundJob(
+        id=30,
+        job_type=CERI_CHANGE_DETECTION,
+        payload_json=payload,
+        related_run_id=7,
+    )
+    service = FixedChangeService(
+        CeriChangeRebuildResult(changes=1, change_ids=(20,))
+    )
+
+    first = execute_change_detection_job(db, first_job, change_service=service)
+    processing = next(row for row in db.added if isinstance(row, CeriProcessingRun))
+    db.scalar_queue = [processing]
+    retry_job = BackgroundJob(
+        id=31,
+        job_type=CERI_CHANGE_DETECTION,
+        payload_json=payload,
+        related_run_id=7,
+    )
+    second = execute_change_detection_job(db, retry_job, change_service=service)
+
+    assert first["change_ids"] == [20]
+    assert second["coalesced"] is True
+    assert second["change_ids"] == [20]
+    assert [item[1]["change_ids"] for item in enqueued] == [[20], [20]]
+    assert enqueued[0][2]["request_key"] == enqueued[1][2]["request_key"]
+
+
 def test_non_stale_warning_does_not_emit_data_stale_change() -> None:
     from app.services.ceri.change_detection_service import CeriChangeDetectionService
 
@@ -270,6 +387,14 @@ class RecordingDetector:
         return ChangeDetectionResult(1, 0)
 
 
+class FixedChangeService:
+    def __init__(self, result: CeriChangeRebuildResult) -> None:
+        self.result = result
+
+    def rebuild(self, _db, _request) -> CeriChangeRebuildResult:
+        return self.result
+
+
 class RowResult:
     def __init__(self, rows):
         self.rows = rows
@@ -353,4 +478,30 @@ def _revision(revision_id: int, event_id: int) -> CeriCatalystEventRevision:
         status="ANNOUNCED",
         direction="POSITIVE",
         effective_session=date(2026, 8, 2),
+    )
+
+
+def _change(
+    change_id: int,
+    *,
+    company_id: int,
+    change_type: str = "OPPORTUNITY_UPGRADED",
+    from_snapshot_id: int | None = None,
+    to_snapshot_id: int | None = None,
+    catalyst_revision_id: int | None = None,
+) -> CeriChangeEvent:
+    return CeriChangeEvent(
+        id=change_id,
+        company_id=company_id,
+        from_snapshot_id=from_snapshot_id,
+        to_snapshot_id=to_snapshot_id,
+        catalyst_revision_id=catalyst_revision_id,
+        change_type=change_type,
+        severity="NOTABLE",
+        importance="NOTABLE",
+        signal_class="RISK" if change_type == "NEW_BINARY_EVENT" else "POSITIVE",
+        comparison_state="COMPARABLE",
+        delta_json={},
+        dedup_key=f"change-{change_id}",
+        created_at=datetime(2026, 8, 14, 20, change_id % 60, tzinfo=UTC),
     )

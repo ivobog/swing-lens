@@ -36,11 +36,13 @@ class CeriChangeRebuildResult:
     warnings: int = 0
     failed: int = 0
     errors: tuple[dict[str, Any], ...] = ()
+    change_ids: tuple[int, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         value = asdict(self)
         value["change_count"] = self.changes
         value["errors"] = list(self.errors)
+        value["change_ids"] = list(self.change_ids)
         return value
 
 
@@ -58,6 +60,7 @@ class CeriChangeRebuildService:
         snapshots = self._snapshots(db, request)
         scoped_company_ids = self._scoped_company_ids(db, request, snapshots)
         changes = duplicates = failed = 0
+        change_ids: list[int] = []
         errors: list[dict[str, Any]] = []
         grouped: dict[int, list[CeriScoreSnapshot]] = {}
         for snapshot in snapshots:
@@ -77,6 +80,7 @@ class CeriChangeRebuildService:
                     )
                     changes += result.changes
                     duplicates += result.duplicates
+                    change_ids.extend(result.change_ids)
             except Exception as exc:
                 failed += 1
                 errors.append(
@@ -98,6 +102,7 @@ class CeriChangeRebuildService:
                 )
                 changes += result.changes
                 duplicates += result.duplicates
+                change_ids.extend(result.change_ids)
             except Exception as exc:
                 failed += 1
                 errors.append(
@@ -115,13 +120,21 @@ class CeriChangeRebuildService:
                     )
                     changes += result.changes
                     duplicates += result.duplicates
+                    change_ids.extend(result.change_ids)
                     prior_action = guidance.action
                 except Exception as exc:
                     failed += 1
                     errors.append(
                         {"guidance_id": guidance.id, "error": str(exc).replace("\n", " ")[:500]}
                     )
-        return CeriChangeRebuildResult(changes, duplicates, 0, failed, tuple(errors))
+        return CeriChangeRebuildResult(
+            changes=changes,
+            duplicates=duplicates,
+            warnings=0,
+            failed=failed,
+            errors=tuple(errors),
+            change_ids=tuple(dict.fromkeys(change_ids)),
+        )
 
     def _snapshots(self, db: Session, request: CeriChangeRebuildRequest) -> list[CeriScoreSnapshot]:
         rows = _load(db, CeriScoreSnapshot)

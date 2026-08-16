@@ -273,6 +273,7 @@ def execute_outcome_maturation_job(
     *,
     outcome_service: OutcomeMaturationService | None = None,
     orchestration_service: H5NextOpenOrchestrationService | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     payload = job.payload_json or {}
     limit = _optional_int(payload, "limit") or 500
@@ -298,6 +299,7 @@ def execute_outcome_maturation_job(
         if orchestration_service is not None:
             result = orchestration_service.drain_due(
                 db,
+                now=now,
                 batch_size=limit,
                 max_batches=max_batches,
                 due_session=due_session,
@@ -306,6 +308,7 @@ def execute_outcome_maturation_job(
         else:
             result = outcome_service.process_due_outcomes(  # type: ignore[union-attr]
                 db,
+                now=now,
                 limit=limit,
                 should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
             )

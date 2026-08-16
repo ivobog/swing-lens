@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
+import app.services.winner_probability.outcome_orchestration_service as orchestration_module
 from app.models.tables import EntryModel, OutcomeStatus, WinnerForwardOutcome
 from app.services.winner_probability.outcome_orchestration_service import (
     H5NextOpenOrchestrationService,
 )
 from app.services.winner_probability.outcome_service import OutcomeMaturationResult
+from app.services.winner_probability.trading_session_service import latest_completed_session
 
 
 def test_more_than_one_batch_drains_fully_and_retry_is_idempotent() -> None:
@@ -65,9 +67,53 @@ def test_partial_cycle_resumes_and_missing_bar_does_not_block_valid_rows() -> No
     assert second.pending_h5_after_cycle == 1
 
 
+def test_default_clock_reads_current_utc_time(monkeypatch) -> None:
+    fixed_now = datetime(2026, 8, 14, 2, 34, 21, tzinfo=UTC)
+    observed_timezones = []
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            observed_timezones.append(tz)
+            return fixed_now
+
+    monkeypatch.setattr(orchestration_module, "datetime", FrozenDateTime)
+    repository = FakeDrainRepository([_outcome(1)])
+    maturation = FakeMaturationService()
+    service = H5NextOpenOrchestrationService(
+        repository=repository,
+        maturation_service=maturation,
+    )
+
+    service.drain_due(FakeDrainDb())
+
+    assert observed_timezones == [UTC]
+    assert repository.completed_ons
+    assert set(repository.completed_ons) == {latest_completed_session(fixed_now)}
+    assert maturation.now_values == [fixed_now]
+
+
+def test_injected_time_controls_h5_due_session_and_maturation_clock() -> None:
+    injected_now = datetime(2027, 1, 15, 22, 0, tzinfo=UTC)
+    repository = FakeDrainRepository([_outcome(1)])
+    maturation = FakeMaturationService()
+    service = H5NextOpenOrchestrationService(
+        repository=repository,
+        maturation_service=maturation,
+    )
+
+    result = service.drain_due(FakeDrainDb(), now=injected_now)
+
+    assert result.matured_h5 == 1
+    assert repository.completed_ons
+    assert set(repository.completed_ons) == {latest_completed_session(injected_now)}
+    assert maturation.now_values == [injected_now]
+
+
 class FakeDrainRepository:
     def __init__(self, rows: list[WinnerForwardOutcome]) -> None:
         self.rows = rows
+        self.completed_ons = []
 
     def get_due_pending_forward_outcomes(
         self,
@@ -80,6 +126,7 @@ class FakeDrainRepository:
         due_session=None,
         exclude_ids=(),
     ):
+        self.completed_ons.append(completed_on)
         return [
             row
             for row in self.rows
@@ -91,6 +138,7 @@ class FakeDrainRepository:
         ][:limit]
 
     def h5_backlog(self, _db, *, completed_on):
+        self.completed_ons.append(completed_on)
         rows = [
             row
             for row in self.rows
@@ -116,8 +164,10 @@ class FakeDrainRepository:
 class FakeMaturationService:
     def __init__(self, missing_ids: set[int] | None = None) -> None:
         self.missing_ids = missing_ids or set()
+        self.now_values = []
 
     def process_forward_outcome(self, _db, row, *, now):
+        self.now_values.append(now)
         if row.id in self.missing_ids:
             row.metadata_json = {"pending_reason": "missing_entry_bar"}
             return OutcomeMaturationResult(processed=1, pending=1)

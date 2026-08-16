@@ -29,6 +29,7 @@ def test_score_change_detection_is_idempotent_for_same_snapshot_pair() -> None:
 
     assert first.changes == 3
     assert second.duplicates == 3
+    assert set(first.change_ids) == set(second.change_ids)
     assert len([row for row in db.added if isinstance(row, CeriChangeEvent)]) == 3
 
 

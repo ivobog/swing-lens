@@ -28,13 +28,15 @@ class ChangeDetectionResult:
     duplicates: int
     warnings: int = 0
     comparison_state: str = ComparisonState.COMPARABLE.value
+    change_ids: tuple[int, ...] = ()
 
-    def as_dict(self) -> dict[str, int | str]:
+    def as_dict(self) -> dict[str, int | str | list[int]]:
         return {
             "changes": self.changes,
             "duplicates": self.duplicates,
             "warnings": self.warnings,
             "comparison_state": self.comparison_state,
+            "change_ids": list(self.change_ids),
         }
 
 
@@ -61,8 +63,9 @@ class CeriChangeDetectionService:
                 comparison_state=state.value,
             )
         changes = duplicates = 0
+        change_ids: list[int] = []
         for change_type, delta in self._score_changes(current, prior).items():
-            event = self._persist_change(
+            event, created = self._persist_change(
                 db,
                 company_id=current.company_id,
                 change_type=change_type,
@@ -76,12 +79,15 @@ class CeriChangeDetectionService:
                 calculation_version=current.calculation_version,
                 comparison_state=state,
             )
-            changes += int(event is not None)
-            duplicates += int(event is None)
+            changes += int(created)
+            duplicates += int(not created)
+            if event.id is not None:
+                change_ids.append(int(event.id))
         return ChangeDetectionResult(
             changes=changes,
             duplicates=duplicates,
             comparison_state=state.value,
+            change_ids=tuple(change_ids),
         )
 
     def detect_catalyst_revision(
@@ -117,7 +123,7 @@ class CeriChangeDetectionService:
             "binary_eligible": revision.binary_eligible,
             "eligibility_reason": revision.relevance_reason,
         }
-        event = self._persist_change(
+        event, created = self._persist_change(
             db,
             company_id=company_id,
             change_type=change_type,
@@ -130,7 +136,11 @@ class CeriChangeDetectionService:
             calculation_version="ceri-1.0.0",
             comparison_state=ComparisonState.COMPARABLE,
         )
-        return ChangeDetectionResult(changes=int(event is not None), duplicates=int(event is None))
+        return ChangeDetectionResult(
+            changes=int(created),
+            duplicates=int(not created),
+            change_ids=(int(event.id),) if event.id is not None else (),
+        )
 
     def detect_guidance_change(
         self,
@@ -151,7 +161,7 @@ class CeriChangeDetectionService:
         change_type = action_map.get(str(guidance.action))
         if change_type is None or str(guidance.action) == prior_action:
             return ChangeDetectionResult(changes=0, duplicates=0)
-        event = self._persist_change(
+        event, created = self._persist_change(
             db,
             company_id=company_id,
             change_type=change_type,
@@ -175,7 +185,11 @@ class CeriChangeDetectionService:
             calculation_version="ceri-1.0.0",
             comparison_state=ComparisonState.COMPARABLE,
         )
-        return ChangeDetectionResult(changes=int(event is not None), duplicates=int(event is None))
+        return ChangeDetectionResult(
+            changes=int(created),
+            duplicates=int(not created),
+            change_ids=(int(event.id),) if event.id is not None else (),
+        )
 
     def _score_changes(
         self,
@@ -282,7 +296,7 @@ class CeriChangeDetectionService:
         catalyst_revision_id: int | None = None,
         guidance_event_id: int | None = None,
         comparison_state: ComparisonState | str = ComparisonState.COMPARABLE,
-    ) -> CeriChangeEvent | None:
+    ) -> tuple[CeriChangeEvent, bool]:
         importance, signal_class = change_dimensions(change_type, delta)
         dedup_key = change_dedup_key(
             company_id=company_id,
@@ -301,7 +315,7 @@ class CeriChangeDetectionService:
             select(CeriChangeEvent).where(CeriChangeEvent.dedup_key == dedup_key),
         )
         if existing is not None:
-            return None
+            return existing, False
         event = CeriChangeEvent(
             company_id=company_id,
             from_snapshot_id=from_snapshot_id,
@@ -318,7 +332,7 @@ class CeriChangeDetectionService:
         )
         db.add(event)
         db.flush()
-        return event
+        return event, True
 
 
 def change_dedup_key(**parts: Any) -> str:

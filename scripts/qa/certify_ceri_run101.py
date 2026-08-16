@@ -11,7 +11,7 @@ import csv
 import json
 import math
 from collections import defaultdict
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +22,6 @@ from app.models.ceri_tables import CeriScoreSnapshot
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.settings import get_settings
-
 
 RUN_ID = 101
 OUT_DIR = Path("docs/qa")
@@ -96,8 +95,7 @@ def _independent_opportunity(
     if coverage + 1e-9 < threshold:
         return coverage, None, "Unrated"
     weighted = sum(
-        max(0.0, min(10.0, float(component["value"])))
-        * float(component.get("weight") or 0.0)
+        max(0.0, min(10.0, float(component["value"]))) * float(component.get("weight") or 0.0)
         for component in available
     )
     available_weight = sum(float(component.get("weight") or 0.0) for component in available)
@@ -120,7 +118,9 @@ def _selected_guidance_ids(snapshot: CeriScoreSnapshot) -> list[int]:
     return []
 
 
-def _source_counts(snapshot: CeriScoreSnapshot, sources: dict[int, dict[str, Any]]) -> dict[str, int]:
+def _source_counts(
+    snapshot: CeriScoreSnapshot, sources: dict[int, dict[str, Any]]
+) -> dict[str, int]:
     counts: dict[str, int] = defaultdict(int)
     source_ids = (snapshot.component_json or {}).get("source_ids") or []
     for source_id in source_ids:
@@ -202,7 +202,11 @@ def main() -> None:
                 FROM ceri_guidance_events g
                 WHERE g.id = ANY(:ids)
                 """,
-                ids=[identifier for snapshot in snapshots for identifier in _selected_guidance_ids(snapshot)]
+                ids=[
+                    identifier
+                    for snapshot in snapshots
+                    for identifier in _selected_guidance_ids(snapshot)
+                ]
                 or [-1],
             )
         }
@@ -301,8 +305,16 @@ def main() -> None:
 
             scenarios = {
                 "FULL": None,
-                "WITHOUT_EODHD": {name for name in {c.get("name") for c in components} if name not in EODHD_COMPONENTS},
-                "WITHOUT_SEC": {name for name in {c.get("name") for c in components} if name not in SEC_COMPONENTS},
+                "WITHOUT_EODHD": {
+                    name
+                    for name in {c.get("name") for c in components}
+                    if name not in EODHD_COMPONENTS
+                },
+                "WITHOUT_SEC": {
+                    name
+                    for name in {c.get("name") for c in components}
+                    if name not in SEC_COMPONENTS
+                },
                 "EODHD_ONLY": EODHD_COMPONENTS,
                 "SEC_ONLY": SEC_COMPONENTS,
             }
@@ -372,8 +384,10 @@ def _eodhd_reconciliation(connection) -> list[dict[str, Any]]:
           SELECT upper(ir.scope_json->>'ticker') ticker,ir.dataset,
                  count(DISTINCT es.id) estimates,count(DISTINCT ea.id) actuals,
                  count(DISTINCT cr.id) catalyst_revisions,
-                 count(DISTINCT es.id) FILTER (WHERE es.canonical_currency IS NULL) missing_currency,
-                 count(DISTINCT es.id) FILTER (WHERE es.canonical_currency IS NOT NULL) usable_currency
+                 count(DISTINCT es.id) FILTER
+                   (WHERE es.canonical_currency IS NULL) missing_currency,
+                 count(DISTINCT es.id) FILTER
+                   (WHERE es.canonical_currency IS NOT NULL) usable_currency
           FROM ceri_ingestion_runs ir
           LEFT JOIN ceri_source_records sr ON sr.ingestion_run_id=ir.id
           LEFT JOIN ceri_estimate_snapshots es ON es.source_record_id=sr.id
@@ -425,11 +439,18 @@ def _sec_reconciliation(connection, snapshots: list[CeriScoreSnapshot]) -> list[
           WHERE (scope_json->>'run_id')::int=:run_id AND provider='sec'
         ), registry AS (
           SELECT u.ticker,count(DISTINCT d.id) documents,
-            count(DISTINCT x.id) FILTER(WHERE x.status='COMPLETED_WITH_RECORDS') completed_with_records,
+            count(DISTINCT x.id) FILTER(WHERE x.status='COMPLETED_WITH_RECORDS')
+              completed_with_records,
             count(DISTINCT x.id) FILTER(WHERE x.status='COMPLETED_NO_RECORDS') completed_no_records,
-            count(DISTINCT x.id) FILTER(WHERE x.status NOT IN('COMPLETED_WITH_RECORDS','COMPLETED_NO_RECORDS')) nonterminal,
-            count(DISTINCT d.id) FILTER(WHERE d.last_downloaded_at BETWEEN :start_at AND :end_at) downloaded_during_run,
-            count(DISTINCT x.id) FILTER(WHERE x.completed_at BETWEEN :start_at AND :end_at) extracted_during_run,
+            count(DISTINCT x.id) FILTER(
+              WHERE x.status NOT IN('COMPLETED_WITH_RECORDS','COMPLETED_NO_RECORDS')
+            ) nonterminal,
+            count(DISTINCT d.id) FILTER(
+              WHERE d.last_downloaded_at BETWEEN :start_at AND :end_at
+            ) downloaded_during_run,
+            count(DISTINCT x.id) FILTER(
+              WHERE x.completed_at BETWEEN :start_at AND :end_at
+            ) extracted_during_run,
             COALESCE(sum(DISTINCT d.last_content_bytes),0) cached_bytes
           FROM universe u LEFT JOIN ceri_sec_filing_documents d
             ON ltrim(d.cik,'0')=ltrim(u.cik,'0')
@@ -483,7 +504,8 @@ def _summary(
     )
     historical = _rows(
         connection,
-        """SELECT count(*) snapshots,count(DISTINCT run_id) runs,count(DISTINCT as_of_session) sessions,
+        """SELECT count(*) snapshots,count(DISTINCT run_id) runs,
+                  count(DISTINCT as_of_session) sessions,
                   min(as_of_session) first_session,max(as_of_session) last_session
            FROM ceri_score_snapshots""",
     )[0]
@@ -544,14 +566,12 @@ def _summary(
             float(row["component_coverage"] or 0.0) == 0.0 for row in audit_rows
         ),
         "below_threshold_count": sum(
-            float(row["component_coverage"] or 0.0)
-            < config.revision.minimum_component_coverage_pct
+            float(row["component_coverage"] or 0.0) < config.revision.minimum_component_coverage_pct
             for row in audit_rows
         ),
         "reconstruction_matches": sum(bool(row["reconstruction_match"]) for row in audit_rows),
         "hash_matches": sum(
-            row["stored_evidence_hash"] == row["reproduced_evidence_hash"]
-            for row in audit_rows
+            row["stored_evidence_hash"] == row["reproduced_evidence_hash"] for row in audit_rows
         ),
         "selected_guidance_tickers": sum(bool(row["selected_guidance_ids"]) for row in audit_rows),
         "null_score_upgrade_tickers": sum(
@@ -565,12 +585,24 @@ def _summary(
         "alerts": alerts,
         "eodhd": {key: dict(value) for key, value in eodhd_dataset.items()},
         "sec_status": dict(sec_status),
-        "sec_downloads_during_run": sum(int(row.get("downloaded_during_run") or 0) for row in sec_rows),
-        "sec_extractions_during_run": sum(int(row.get("extracted_during_run") or 0) for row in sec_rows),
-        "without_eodhd_component_changes": sum(row["component_changed_vs_full"] for row in without_eodhd),
-        "without_eodhd_material_decision_changes": sum(row["material_decision_changed"] for row in without_eodhd),
-        "without_sec_component_changes": sum(row["component_changed_vs_full"] for row in without_sec),
-        "without_sec_material_decision_changes": sum(row["material_decision_changed"] for row in without_sec),
+        "sec_downloads_during_run": sum(
+            int(row.get("downloaded_during_run") or 0) for row in sec_rows
+        ),
+        "sec_extractions_during_run": sum(
+            int(row.get("extracted_during_run") or 0) for row in sec_rows
+        ),
+        "without_eodhd_component_changes": sum(
+            row["component_changed_vs_full"] for row in without_eodhd
+        ),
+        "without_eodhd_material_decision_changes": sum(
+            row["material_decision_changed"] for row in without_eodhd
+        ),
+        "without_sec_component_changes": sum(
+            row["component_changed_vs_full"] for row in without_sec
+        ),
+        "without_sec_material_decision_changes": sum(
+            row["material_decision_changed"] for row in without_sec
+        ),
         "historical_ceri": historical,
     }
 
