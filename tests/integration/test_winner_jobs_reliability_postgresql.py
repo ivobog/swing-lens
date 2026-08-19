@@ -463,6 +463,17 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             contract=contract_for(definition, config),
         )
         db.commit()
+        decision_time_before_cancel = db.scalar(
+            select(func.count(WinnerProbabilityEstimate.id)).where(
+                WinnerProbabilityEstimate.estimate_kind == "DECISION_TIME"
+            )
+        )
+        cancel_checks = {"count": 0}
+
+        def cancel_during_evidence_load() -> bool:
+            cancel_checks["count"] += 1
+            return cancel_checks["count"] >= 2
+
         with pytest.raises(CohortMaterializationCancelled):
             materializer.materialize_slice(
                 db,
@@ -470,11 +481,106 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
                 outcome_definition=definition,
                 config=config,
                 lease_guard=db.commit,
-                should_cancel=lambda: True,
+                should_cancel=cancel_during_evidence_load,
             )
         state = db.get(WinnerCohortRefreshState, latest.state.id)
         assert state.published_generation_id == replacement_id
+        assert db.get(WinnerCohortGeneration, cancelled.id).status == "CANCELLED"
+        assert (
+            db.scalar(
+                select(func.count(WinnerProbabilityEstimate.id)).where(
+                    WinnerProbabilityEstimate.estimate_kind == "DECISION_TIME"
+                )
+            )
+            == decision_time_before_cancel
+        )
     engine.dispose()
+
+
+@pytest.mark.performance
+def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    config = load_winner_probability_config()
+    observed = datetime(2026, 8, 17, 14, 30, tzinfo=UTC)
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        _expand_material_evidence(db, definition=definition, observed=observed, row_count=390)
+        advance = EvidenceWatermarkService().advance_to_current_material_evidence(
+            db, outcome_definition=definition, config=config, observed_at=observed
+        )
+        generation = CohortGenerationService().capture_or_resume(
+            db,
+            state=advance.state,
+            contract=contract_for(definition, config),
+            requested_at=observed,
+        )
+        db.commit()
+        generation_id = generation.id
+        definition_id = definition.id
+
+    selects: list[str] = []
+
+    def count_selects(_conn, _cursor, statement, _parameters, _context, _executemany):
+        normalized = statement.lstrip().lower()
+        if normalized.startswith("select"):
+            selects.append(normalized)
+
+    event.listen(engine, "before_cursor_execute", count_selects)
+    try:
+        with Session(engine) as db:
+            generation = db.get(WinnerCohortGeneration, generation_id)
+            definition = db.get(WinnerOutcomeDefinition, definition_id)
+            selects.clear()
+            started = perf_counter()
+            result = CohortMaterializationService().materialize_slice(
+                db,
+                generation=generation,
+                outcome_definition=definition,
+                config=config,
+                lease_guard=db.commit,
+                should_cancel=lambda: False,
+                max_groups=100,
+                max_wall_seconds=45,
+            )
+            elapsed = perf_counter() - started
+            prediction_selects = sum(
+                "winner_prediction_snapshots" in statement for statement in selects
+            )
+            manifest_memberships = int(
+                db.scalar(
+                    select(func.count()).select_from(WinnerEstimateEvidenceMember)
+                )
+                or 0
+            )
+            # Generation manifests have their own member table; use persisted
+            # manifest member counts without coupling this assertion to rows
+            # created by latest-rescore estimates.
+            generation_memberships = int(
+                db.scalar(
+                    select(func.sum(WinnerEvidenceManifest.member_count))
+                    .join(
+                        WinnerCohortStatistic,
+                        WinnerCohortStatistic.evidence_manifest_id
+                        == WinnerEvidenceManifest.id,
+                    )
+                    .where(WinnerCohortStatistic.generation_id == generation_id)
+                )
+                or 0
+            )
+            assert manifest_memberships == 0
+            assert result.status == CohortGenerationStatus.PUBLISHED
+            assert result.evidence_rows_loaded == 390
+            assert result.planned_groups == result.completed_groups == 42
+            assert generation_memberships == 2_340
+            assert prediction_selects <= 2
+            assert len(selects) <= 260
+            assert elapsed < 45
+    finally:
+        event.remove(engine, "before_cursor_execute", count_selects)
+        engine.dispose()
 
 
 def test_stale_lease_owner_cannot_publish_generation(
@@ -711,6 +817,139 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
     db.add(target)
     db.flush()
     return definition
+
+
+def _expand_material_evidence(
+    db: Session,
+    *,
+    definition: WinnerOutcomeDefinition,
+    observed: datetime,
+    row_count: int,
+) -> None:
+    """Expand the one-row fixture to the incident's exact 390/42/2,340 shape."""
+    if row_count < 1:
+        raise ValueError("row_count must include the existing fixture row")
+    config = load_winner_probability_config()
+    existing = db.scalar(select(WinnerPredictionSnapshot).limit(1))
+    existing.feature_json = _incident_feature_pattern(0)
+    db.flush()
+    prediction_values = [
+        {
+            "run_id": existing.run_id,
+            "ticker": f"Q{index:04d}",
+            "prediction_as_of_date": date(2026, 7, 1),
+            "source_data_cutoff_at": observed - timedelta(days=20),
+            "entry_schedule_status": "RESOLVED",
+            "entry_data_status": "AVAILABLE",
+            "eligibility_status": "ELIGIBLE",
+            "feature_schema_version": config.feature_schema.version,
+            "feature_vector_hash": f"incident-vector-{index}",
+            "config_hash": config.config_hash,
+            "calculation_version": config.engine.calculation_version,
+            "feature_json": _incident_feature_pattern(index),
+            "source_ids_json": {},
+            "warning_flags_json": [],
+            "lineage_json": {
+                "point_in_time_validated": True,
+                "capture_training_candidate": True,
+                "evidence_training_eligible": True,
+                "training_rejection_reasons": [],
+            },
+        }
+        for index in range(1, row_count)
+    ]
+    prediction_ids = list(
+        db.scalars(
+            insert(WinnerPredictionSnapshot)
+            .returning(WinnerPredictionSnapshot.id),
+            prediction_values,
+        )
+    )
+    forward_values = [
+        {
+            "prediction_id": prediction_id,
+            "entry_model": definition.entry_model,
+            "horizon_sessions": definition.horizon_sessions,
+            "entry_session": date(2026, 7, 2),
+            "due_session": date(2026, 7, 8),
+            "status": "MATURED",
+            "revision": 1,
+            "is_current_revision": True,
+            "close_return_pct": Decimal(str((index % 11) - 5)),
+            "mfe_pct": Decimal(str((index % 9) + 1)),
+            "mae_pct": Decimal(str(-((index % 7) + 1))),
+            "source_bar_lineage_hash": f"incident-lineage-{index}",
+            "source_revision_cutoff_at": observed - timedelta(days=10),
+            "matured_at": observed - timedelta(days=10),
+            "metadata_json": {},
+        }
+        for index, prediction_id in enumerate(prediction_ids, start=1)
+    ]
+    forward_ids = list(
+        db.scalars(
+            insert(WinnerForwardOutcome).returning(WinnerForwardOutcome.id),
+            forward_values,
+        )
+    )
+    target_values = [
+        {
+            "prediction_id": prediction_id,
+            "outcome_definition_id": definition.id,
+            "forward_outcome_id": forward_id,
+            "entry_model": definition.entry_model,
+            "horizon_sessions": definition.horizon_sessions,
+            "status": "MATURED",
+            "revision": 1,
+            "is_current_revision": True,
+            "target_pct": definition.target_pct,
+            "stop_pct": definition.stop_pct,
+            "target_hit": index % 2 == 0,
+            "stop_hit": index % 2 != 0,
+            "first_event": "TARGET_FIRST" if index % 2 == 0 else "STOP_FIRST",
+            "primary_winner": index % 2 == 0,
+            "optimistic_winner": index % 2 == 0,
+            "conservative_winner": index % 2 == 0,
+            "source_bar_lineage_hash": f"incident-lineage-{index}",
+            "evaluated_at": observed - timedelta(days=10),
+            "metadata_json": {},
+        }
+        for index, (prediction_id, forward_id) in enumerate(
+            zip(prediction_ids, forward_ids, strict=True), start=1
+        )
+    ]
+    db.execute(insert(WinnerTargetStopOutcome), target_values)
+    db.flush()
+
+
+def _incident_feature_pattern(index: int) -> dict[str, str]:
+    bases = (
+        ("setup-0", "score-a"),
+        ("setup-0", "score-b"),
+        ("setup-1", "score-a"),
+        ("setup-1", "score-b"),
+        ("setup-2", "score-a"),
+        ("setup-3", "score-a"),
+        ("setup-4", "score-a"),
+        ("setup-4", "score-b"),
+    )
+    pattern = index % 12
+    if pattern < 8:
+        base_index = pattern // 2 if pattern < 4 else pattern - 2
+        variant = pattern % 2 if pattern < 4 else 0
+    else:
+        base_index = pattern - 4
+        variant = 1
+    setup, score = bases[base_index]
+    return {
+        "setup_family": setup,
+        "score_band": score,
+        "dual_score_band": f"dual-{base_index}-{variant}",
+        "market_risk_state": f"risk-{base_index}",
+        "sector_state": f"sector-{base_index}",
+        "ranking_profile": "profile",
+        "sector_leadership_bucket": f"lead-{base_index}",
+        "market_regime_family": f"regime-{base_index}",
+    }
 
 
 def _append_material_revision(db: Session, definition_id: int, observed: datetime) -> None:

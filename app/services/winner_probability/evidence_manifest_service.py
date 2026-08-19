@@ -17,7 +17,7 @@ from app.models.tables import (
     WinnerEvidenceManifestMember,
     WinnerProbabilityEstimate,
 )
-from app.services.winner_probability.evidence_service import EvidenceOutcome
+from app.services.winner_probability.evidence_service import GenerationEvidenceMember
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class EvidenceManifestService:
         self,
         db: Session,
         *,
-        evidence: tuple[EvidenceOutcome, ...],
+        evidence: tuple[GenerationEvidenceMember, ...],
         hash_algorithm: str = "sha256",
     ) -> EvidenceManifestResult:
         payload = _manifest_payload(evidence)
@@ -101,7 +101,7 @@ class EvidenceManifestService:
         db: Session,
         *,
         manifest: WinnerEvidenceManifest,
-        evidence: tuple[EvidenceOutcome, ...],
+        evidence: tuple[GenerationEvidenceMember, ...],
     ) -> int:
         """Persist immutable content-addressed members with one bulk statement."""
         values = [
@@ -116,10 +116,13 @@ class EvidenceManifestService:
             statement = postgresql_insert(WinnerEvidenceManifestMember).values(values)
             statement = statement.on_conflict_do_nothing(
                 constraint="uq_winner_manifest_members_hash"
-            )
+            ).returning(WinnerEvidenceManifestMember.id)
             result = db.execute(statement)
             db.flush()
-            return int(result.rowcount or 0)
+            scalars = getattr(result, "scalars", None)
+            if callable(scalars):
+                return len(scalars().all())
+            return max(0, int(result.rowcount or 0))
         rows = [WinnerEvidenceManifestMember(**value) for value in values]
         add_all = getattr(db, "add_all", None)
         if callable(add_all):
@@ -135,7 +138,7 @@ class EvidenceManifestService:
         db: Session,
         *,
         estimate: WinnerProbabilityEstimate,
-        evidence: tuple[EvidenceOutcome, ...],
+        evidence: tuple[GenerationEvidenceMember, ...],
         included_as_of: datetime,
         inclusion_cutoff_at: datetime,
     ) -> None:
@@ -180,7 +183,7 @@ class EvidenceManifestService:
         db.flush()
 
 
-def _manifest_payload(evidence: tuple[EvidenceOutcome, ...]) -> dict[str, Any]:
+def _manifest_payload(evidence: tuple[GenerationEvidenceMember, ...]) -> dict[str, Any]:
     return {
         "members": [
             {
@@ -214,7 +217,7 @@ def _canonical_decimal(value: Decimal | str | int | float) -> str:
 def _manifest_member_values(
     manifest_id: int,
     ordinal: int,
-    row: EvidenceOutcome,
+    row: GenerationEvidenceMember,
 ) -> dict[str, Any]:
     identity = {
         "prediction_id": row.prediction.id,

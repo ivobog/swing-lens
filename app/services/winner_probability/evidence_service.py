@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -46,6 +47,51 @@ class EvidenceOutcome:
 
 
 @dataclass(frozen=True)
+class FrozenEvidencePrediction:
+    id: int
+    episode_id: int | None
+    prediction_as_of_date: date
+    feature_json: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class FrozenEvidenceForwardOutcome:
+    id: int
+    revision: int
+    close_return_pct: Decimal | None
+    mfe_pct: Decimal | None
+    mae_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class FrozenEvidenceTargetStopOutcome:
+    id: int
+    revision: int
+    primary_winner: bool
+    first_event: str | None
+
+
+@dataclass(frozen=True)
+class FrozenEvidenceMember:
+    """Detached generation evidence safe across heartbeat commits."""
+
+    prediction: FrozenEvidencePrediction
+    forward_outcome: FrozenEvidenceForwardOutcome
+    target_stop_outcome: FrozenEvidenceTargetStopOutcome
+    inclusion_weight: Decimal = Decimal("1")
+    eligibility_decision_id: int | None = None
+    outcome_replay_id: int | None = None
+    evidence_origin: str = EVIDENCE_ORIGIN_NATIVE
+
+    @property
+    def won(self) -> bool:
+        return self.target_stop_outcome.primary_winner
+
+
+GenerationEvidenceMember = EvidenceOutcome | FrozenEvidenceMember
+
+
+@dataclass(frozen=True)
 class EvidenceFunnelStage:
     predicate: str
     before_count: int
@@ -63,7 +109,7 @@ class EvidenceDiagnosticFunnel:
 
 @dataclass(frozen=True)
 class GenerationEvidenceUniverse:
-    evidence: tuple[EvidenceOutcome, ...]
+    evidence: tuple[FrozenEvidenceMember, ...]
     stages: tuple[EvidenceFunnelStage, ...]
 
     def counts(self) -> dict[str, int]:
@@ -109,6 +155,7 @@ class EvidenceService:
         training_cutoff_at: datetime,
         config: WinnerProbabilityConfig,
         watermark: dict[str, int],
+        progress_guard: Callable[[], None] | None = None,
     ) -> GenerationEvidenceUniverse:
         """Load and gate one frozen evidence universe for a cohort generation."""
         rows = tuple(
@@ -156,6 +203,8 @@ class EvidenceService:
             <= int(watermark.get("training_replay_id") or 0)
         )
         candidates = rows + replay_rows
+        if progress_guard is not None:
+            progress_guard()
         completed_session = latest_completed_session(training_cutoff_at)
         rolling_start = _subtract_years(
             training_cutoff_at.date(), config.cohort.rolling_window_years
@@ -167,6 +216,8 @@ class EvidenceService:
             before = len(candidates)
             candidates = tuple(row for row in candidates if predicate(row))
             stages.append(EvidenceFunnelStage(name, before, len(candidates)))
+            if progress_guard is not None:
+                progress_guard()
 
         apply(
             "historical_predictions_before_cutoff",
@@ -301,7 +352,13 @@ class EvidenceService:
                 "one_representative_per_episode", before, len(candidates)
             )
         )
-        return GenerationEvidenceUniverse(evidence=candidates, stages=tuple(stages))
+        frozen = tuple(_freeze_generation_member(row) for row in candidates)
+        # No ORM-backed evidence escapes this method. The domain session may
+        # now commit heartbeats without expiring data used by later groups.
+        candidates = ()
+        if progress_guard is not None:
+            progress_guard()
+        return GenerationEvidenceUniverse(evidence=frozen, stages=tuple(stages))
 
     def diagnostic_funnel(
         self,
@@ -679,3 +736,35 @@ def _one_per_episode(rows: tuple[EvidenceOutcome, ...]) -> tuple[EvidenceOutcome
             seen_episode_ids.add(episode_id)
         selected.append(row)
     return tuple(selected)
+
+
+def _freeze_generation_member(row: EvidenceOutcome) -> FrozenEvidenceMember:
+    return FrozenEvidenceMember(
+        prediction=FrozenEvidencePrediction(
+            id=int(row.prediction.id),
+            episode_id=(
+                int(row.prediction.episode_id)
+                if row.prediction.episode_id is not None
+                else None
+            ),
+            prediction_as_of_date=row.prediction.prediction_as_of_date,
+            feature_json=dict(row.prediction.feature_json or {}),
+        ),
+        forward_outcome=FrozenEvidenceForwardOutcome(
+            id=int(row.forward_outcome.id),
+            revision=int(row.forward_outcome.revision),
+            close_return_pct=row.forward_outcome.close_return_pct,
+            mfe_pct=row.forward_outcome.mfe_pct,
+            mae_pct=row.forward_outcome.mae_pct,
+        ),
+        target_stop_outcome=FrozenEvidenceTargetStopOutcome(
+            id=int(row.target_stop_outcome.id),
+            revision=int(row.target_stop_outcome.revision),
+            primary_winner=bool(row.target_stop_outcome.primary_winner),
+            first_event=row.target_stop_outcome.first_event,
+        ),
+        inclusion_weight=Decimal(str(row.inclusion_weight)),
+        eligibility_decision_id=row.eligibility_decision_id,
+        outcome_replay_id=row.outcome_replay_id,
+        evidence_origin=row.evidence_origin,
+    )
