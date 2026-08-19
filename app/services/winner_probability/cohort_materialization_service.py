@@ -3,9 +3,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from math import ceil
 from time import monotonic
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -16,6 +18,7 @@ from app.models.tables import (
 from app.services.winner_probability.cohort_definition import (
     CohortDefinitionService,
     CohortKey,
+    CohortOutcomeIdentity,
 )
 from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
@@ -26,7 +29,10 @@ from app.services.winner_probability.cohort_generation_service import (
 from app.services.winner_probability.cohort_statistics import CohortStatisticsService
 from app.services.winner_probability.config import WinnerProbabilityConfig
 from app.services.winner_probability.evidence_manifest_service import EvidenceManifestService
-from app.services.winner_probability.evidence_service import EvidenceOutcome, EvidenceService
+from app.services.winner_probability.evidence_service import (
+    EvidenceService,
+    GenerationEvidenceMember,
+)
 
 
 class CohortMaterializationCancelled(RuntimeError):
@@ -86,43 +92,131 @@ class CohortMaterializationService:
                 f"generation {generation.id} is not buildable: {generation.status}"
             )
         started = monotonic()
+        generation_id = int(generation.id)
+        generation_key = str(generation.generation_key)
+        training_cutoff_at = generation.training_cutoff_at
+        watermark = dict(generation.watermark_json or {})
+        outcome_identity = CohortOutcomeIdentity(
+            id=int(outcome_definition.id),
+            entry_model=str(outcome_definition.entry_model),
+        )
+        metrics = dict(generation.metrics_json or {})
+        evidence_load_started_at = datetime.now(UTC)
+        generation.checkpoint_json = {
+            **(generation.checkpoint_json or {}),
+            "phase": "LOAD_EVIDENCE",
+            "evidence_load_started_at": evidence_load_started_at.isoformat(),
+        }
+        generation.metrics_json = {
+            **metrics,
+            "phase": "LOAD_EVIDENCE",
+            "generation_id": generation_id,
+            "evidence_load_started_at": evidence_load_started_at.isoformat(),
+            "slice_wall_limit_seconds": max_wall_seconds,
+        }
+        db.flush()
         lease_guard()
         if should_cancel():
             self._cancel(db, generation, lease_guard)
 
-        universe = self.evidence_service.load_generation_evidence(
-            db,
-            outcome_definition=outcome_definition,
-            training_cutoff_at=generation.training_cutoff_at,
-            config=config,
-            watermark=dict(generation.watermark_json or {}),
-        )
+        def evidence_progress_guard() -> None:
+            lease_guard()
+            if should_cancel():
+                self._cancel(db, generation, lease_guard)
+
+        try:
+            universe = self._load_frozen_evidence(
+                db,
+                outcome_definition_id=outcome_identity.id,
+                training_cutoff_at=training_cutoff_at,
+                config=config,
+                watermark=watermark,
+                progress_guard=evidence_progress_guard,
+                statement_timeout_seconds=max_wall_seconds,
+            )
+        except DBAPIError as exc:
+            if not _is_statement_timeout(exc):
+                raise
+            elapsed = monotonic() - started
+            generation.checkpoint_json = {
+                "phase": "LOAD_EVIDENCE_TIMED_OUT",
+                "evidence_load_started_at": evidence_load_started_at.isoformat(),
+                "slice_elapsed_seconds": elapsed,
+            }
+            generation.metrics_json = {
+                **metrics,
+                "phase": "LOAD_EVIDENCE_TIMED_OUT",
+                "evidence_load_started_at": evidence_load_started_at.isoformat(),
+                "slice_elapsed_seconds": elapsed,
+                "statement_timeout_seconds": max_wall_seconds,
+            }
+            db.flush()
+            lease_guard()
+            return CohortMaterializationResult(
+                generation_id=generation_id,
+                generation_key=generation_key,
+                status=CohortGenerationStatus.BUILDING,
+                evidence_rows_loaded=0,
+                planned_groups=int(generation.planned_group_count or 0),
+                completed_groups=int(generation.completed_group_count or 0),
+                groups_in_slice=0,
+                manifest_members_inserted=0,
+                continuation_required=True,
+            )
+        evidence_load_completed_at = datetime.now(UTC)
         groups = self._groups(universe.evidence, config)
         ordered = self._ordered_groups(groups, config)
         generation.evidence_row_count = len(universe.evidence)
         generation.planned_group_count = len(ordered)
-        generation.metrics_json = {
-            **(generation.metrics_json or {}),
+        metrics = {
+            **metrics,
+            "phase": "PLAN_GROUPS",
             "evidence_funnel": universe.counts(),
             "evidence_rows_loaded": len(universe.evidence),
             "unique_cohort_keys_planned": len(ordered),
+            "evidence_load_completed_at": evidence_load_completed_at.isoformat(),
+            "evidence_load_seconds": (
+                evidence_load_completed_at - evidence_load_started_at
+            ).total_seconds(),
+            "group_plan_completed_at": datetime.now(UTC).isoformat(),
         }
+        generation.metrics_json = metrics
         remaining = self._remaining_from_checkpoint(generation, ordered)
+        completed_group_count = int(generation.completed_group_count or 0)
+        generation.checkpoint_json = {
+            **(generation.checkpoint_json or {}),
+            "phase": "PLAN_GROUPS",
+            "evidence_load_completed_at": evidence_load_completed_at.isoformat(),
+            "evidence_rows_loaded": len(universe.evidence),
+            "planned_groups": len(ordered),
+            "completed_groups": completed_group_count,
+        }
+        db.flush()
+        lease_guard()
         groups_in_slice = 0
         manifest_members_inserted = 0
 
         for cohort_key, evidence in remaining:
             if groups_in_slice >= max(1, int(max_groups)):
                 break
-            if groups_in_slice and monotonic() - started >= max_wall_seconds:
+            if monotonic() - started >= max_wall_seconds:
                 break
+            generation.checkpoint_json = {
+                "phase": "MATERIALIZE_GROUPS",
+                "current_group_level": cohort_key.level,
+                "current_group_key": cohort_key.key,
+                "completed_groups": completed_group_count,
+                "planned_groups": len(ordered),
+                "slice_elapsed_seconds": monotonic() - started,
+            }
+            db.flush()
             lease_guard()
             if should_cancel():
                 self._cancel(db, generation, lease_guard)
             definition = self.definition_service.ensure_definition(
                 db,
                 cohort_key=cohort_key,
-                outcome_definition=outcome_definition,
+                outcome_definition=outcome_identity,
                 config=config,
             )
             statistics = self.statistics_service.calculate(evidence, config)
@@ -136,18 +230,18 @@ class CohortMaterializationService:
             )
             existing = db.scalar(
                 select(WinnerCohortStatistic)
-                .where(WinnerCohortStatistic.generation_id == generation.id)
+                .where(WinnerCohortStatistic.generation_id == generation_id)
                 .where(WinnerCohortStatistic.cohort_definition_id == definition.id)
             )
             if existing is None:
                 db.add(
                     WinnerCohortStatistic(
-                        generation_id=generation.id,
+                        generation_id=generation_id,
                         cohort_definition_id=definition.id,
-                        outcome_definition_id=outcome_definition.id,
+                        outcome_definition_id=outcome_identity.id,
                         evidence_manifest_id=manifest.manifest.id,
                         statistic_as_of=datetime.now(UTC),
-                        training_cutoff_at=generation.training_cutoff_at,
+                        training_cutoff_at=training_cutoff_at,
                         sample_n=statistics.sample_n,
                         effective_n=statistics.effective_n,
                         wins=statistics.wins,
@@ -180,30 +274,33 @@ class CohortMaterializationService:
                     "generation cohort statistic has corrupted evidence identity"
                 )
             db.flush()
-            generation.completed_group_count = int(
+            completed_group_count = int(
                 db.scalar(
                     select(func.count(WinnerCohortStatistic.id)).where(
-                        WinnerCohortStatistic.generation_id == generation.id
+                        WinnerCohortStatistic.generation_id == generation_id
                     )
                 )
                 or 0
             )
+            generation.completed_group_count = completed_group_count
             generation.checkpoint_json = {
                 "phase": "MATERIALIZE_GROUPS",
                 "last_cohort_level": cohort_key.level,
                 "last_cohort_key": cohort_key.key,
-                "completed_groups": generation.completed_group_count,
+                "completed_groups": completed_group_count,
                 "planned_groups": len(ordered),
+                "slice_elapsed_seconds": monotonic() - started,
             }
             groups_in_slice += 1
 
         # The heartbeat executes an execution-token compare-and-swap and commits
         # this batch and its checkpoint together. A stale owner is rolled back.
         lease_guard()
-        complete = generation.completed_group_count == len(ordered)
+        complete = completed_group_count == len(ordered)
         if not complete:
             generation.metrics_json = {
-                **(generation.metrics_json or {}),
+                **metrics,
+                "phase": "YIELDED",
                 "manifest_members_inserted": manifest_members_inserted,
                 "slice_seconds": monotonic() - started,
             }
@@ -216,16 +313,24 @@ class CohortMaterializationService:
                 continuation_required=True,
             )
 
-        self._validate_complete(db, generation, ordered)
+        self._validate_complete(db, generation_id, ordered)
         validate_generation_transition(
-            generation.status, CohortGenerationStatus.READY
+            CohortGenerationStatus.BUILDING, CohortGenerationStatus.READY
         )
         generation.status = CohortGenerationStatus.READY
         generation.ready_at = datetime.now(UTC)
-        generation.checkpoint_json = {
-            **(generation.checkpoint_json or {}),
+        generation.metrics_json = {
+            **metrics,
             "phase": "READY",
-            "validated_count": generation.completed_group_count,
+            "manifest_members_inserted": manifest_members_inserted,
+            "slice_seconds": monotonic() - started,
+        }
+        generation.checkpoint_json = {
+            "phase": "READY",
+            "validated_count": completed_group_count,
+            "completed_groups": completed_group_count,
+            "planned_groups": len(ordered),
+            "slice_elapsed_seconds": monotonic() - started,
         }
         db.flush()
         lease_guard()
@@ -244,12 +349,51 @@ class CohortMaterializationService:
             desired_watermark_advanced=desired_advanced,
         )
 
+    def _load_frozen_evidence(
+        self,
+        db: Session,
+        *,
+        outcome_definition_id: int,
+        training_cutoff_at: datetime,
+        config: WinnerProbabilityConfig,
+        watermark: dict[str, int],
+        progress_guard: Callable[[], None],
+        statement_timeout_seconds: float,
+    ):
+        bind = db.get_bind()
+        # A dedicated read transaction lets PostgreSQL cancel an unexpectedly
+        # expensive evidence query without aborting the generation/checkpoint
+        # transaction. The returned universe contains detached frozen DTOs.
+        if bind.dialect.name != "postgresql":
+            definition = db.get(WinnerOutcomeDefinition, outcome_definition_id)
+            return self.evidence_service.load_generation_evidence(
+                db,
+                outcome_definition=definition,
+                training_cutoff_at=training_cutoff_at,
+                config=config,
+                watermark=watermark,
+            )
+        with Session(bind=bind) as evidence_db:
+            timeout_ms = max(1, ceil(statement_timeout_seconds * 1000))
+            evidence_db.execute(text(f"SET LOCAL statement_timeout = {timeout_ms}"))
+            definition = evidence_db.get(WinnerOutcomeDefinition, outcome_definition_id)
+            if definition is None:
+                raise GenerationInvariantViolation("outcome definition disappeared")
+            return self.evidence_service.load_generation_evidence(
+                evidence_db,
+                outcome_definition=definition,
+                training_cutoff_at=training_cutoff_at,
+                config=config,
+                watermark=watermark,
+                progress_guard=progress_guard,
+            )
+
     def _groups(
         self,
-        evidence: tuple[EvidenceOutcome, ...],
+        evidence: tuple[GenerationEvidenceMember, ...],
         config: WinnerProbabilityConfig,
-    ) -> dict[str, tuple[CohortKey, tuple[EvidenceOutcome, ...]]]:
-        mutable: dict[str, tuple[CohortKey, list[EvidenceOutcome]]] = {}
+    ) -> dict[str, tuple[CohortKey, tuple[GenerationEvidenceMember, ...]]]:
+        mutable: dict[str, tuple[CohortKey, list[GenerationEvidenceMember]]] = {}
         for row in evidence:
             for key in self.definition_service.cohort_keys_for_features(
                 row.prediction.feature_json or {}, config
@@ -290,11 +434,11 @@ class CohortMaterializationService:
         raise GenerationInvariantViolation("generation checkpoint cohort key is invalid")
 
     @staticmethod
-    def _validate_complete(db, generation, ordered) -> None:
+    def _validate_complete(db, generation_id: int, ordered) -> None:
         count = int(
             db.scalar(
                 select(func.count(WinnerCohortStatistic.id)).where(
-                    WinnerCohortStatistic.generation_id == generation.id
+                    WinnerCohortStatistic.generation_id == generation_id
                 )
             )
             or 0
@@ -348,3 +492,10 @@ class CohortMaterializationService:
 
 def _str_or_none(value) -> str | None:
     return str(value) if value is not None else None
+
+
+def _is_statement_timeout(exc: DBAPIError) -> bool:
+    original = getattr(exc, "orig", None)
+    return getattr(original, "sqlstate", None) == "57014" or getattr(
+        original, "pgcode", None
+    ) == "57014"

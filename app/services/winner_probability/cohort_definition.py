@@ -28,6 +28,12 @@ class CohortKey:
     key: str
 
 
+@dataclass(frozen=True)
+class CohortOutcomeIdentity:
+    id: int
+    entry_model: str
+
+
 class CohortDefinitionService:
     def cohort_keys_for_prediction(
         self,
@@ -51,7 +57,7 @@ class CohortDefinitionService:
         db: Session,
         *,
         cohort_key: CohortKey,
-        outcome_definition: WinnerOutcomeDefinition,
+        outcome_definition: WinnerOutcomeDefinition | CohortOutcomeIdentity,
         config: WinnerProbabilityConfig,
     ) -> WinnerCohortDefinition:
         getter = getattr(db, "get_existing_cohort_definition", None)

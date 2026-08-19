@@ -290,6 +290,7 @@ class FakeCohortRefreshService:
 
 class CancellingCohortRefreshService:
     def refresh_cohorts(self, _db, **kwargs) -> WinnerCohortRefreshResult:
+        kwargs["lease_guard"]()
         assert kwargs["should_cancel"]()
         raise WinnerCohortRefreshCancelled("cancelled")
 

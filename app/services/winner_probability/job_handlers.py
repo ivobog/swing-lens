@@ -131,6 +131,7 @@ class WinnerCohortRefreshService:
         training_cutoff_at: datetime | None = None,
         should_cancel: Callable[[], bool] | None = None,
         lease_guard: Callable[[], None] | None = None,
+        on_generation_captured: Callable[[WinnerCohortGeneration], None] | None = None,
         max_groups: int = 100,
         max_wall_seconds: float = 45.0,
     ) -> WinnerCohortRefreshResult:
@@ -170,6 +171,8 @@ class WinnerCohortRefreshService:
             state=state,
             contract=contract_for(outcome_definition, config),
         )
+        if on_generation_captured is not None:
+            on_generation_captured(generation)
         materialized = self.materialization_service.materialize_slice(
             db,
             generation=generation,
@@ -582,6 +585,16 @@ def execute_cohort_refresh_job(
     cohort_refresh_service = cohort_refresh_service or WinnerCohortRefreshService()
     started_at = processing_run.started_at or _utcnow()
 
+    def link_generation(generation: WinnerCohortGeneration) -> None:
+        processing_run.cohort_generation_id = generation.id
+        processing_run.last_checkpoint_at = _utcnow()
+        processing_run.checkpoint_json = {
+            "last_completed_phase": "generation_captured",
+            "generation_id": generation.id,
+            "generation_status": generation.status,
+        }
+        db.flush()
+
     try:
         result = cohort_refresh_service.refresh_cohorts(
             db,
@@ -589,8 +602,11 @@ def execute_cohort_refresh_job(
             if outcome_definition_id is not None
             else None,
             training_cutoff_at=training_cutoff_at,
-            should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+            # materialize_slice fences with lease_guard before every check;
+            # avoid a second commit that would expire the same domain session.
+            should_cancel=lambda: _check_cancel_only(db, job),
             lease_guard=lambda: _heartbeat_only(job),
+            on_generation_captured=link_generation,
             max_groups=max_groups,
             max_wall_seconds=max_wall_seconds,
         )
@@ -976,6 +992,10 @@ def _heartbeat_and_check_cancel(db: Session, job: BackgroundJob) -> bool:
     heartbeat = getattr(job, "_heartbeat", None)
     if callable(heartbeat):
         heartbeat()
+    return is_cancel_requested(db, job.id)
+
+
+def _check_cancel_only(db: Session, job: BackgroundJob) -> bool:
     return is_cancel_requested(db, job.id)
 
 

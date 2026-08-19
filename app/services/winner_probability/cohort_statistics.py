@@ -6,7 +6,7 @@ from statistics import mean, median
 
 from app.models.tables import EvidenceGrade
 from app.services.winner_probability.config import WinnerProbabilityConfig
-from app.services.winner_probability.evidence_service import EvidenceOutcome
+from app.services.winner_probability.evidence_service import GenerationEvidenceMember
 
 SIX_PLACES = Decimal("0.000001")
 
@@ -33,7 +33,7 @@ class CohortStatisticsResult:
 class CohortStatisticsService:
     def calculate(
         self,
-        evidence: tuple[EvidenceOutcome, ...],
+        evidence: tuple[GenerationEvidenceMember, ...],
         config: WinnerProbabilityConfig,
     ) -> CohortStatisticsResult:
         sample_n = len(evidence)
@@ -98,7 +98,9 @@ def _credible_interval(probability: Decimal, denominator: Decimal) -> tuple[Deci
     )
 
 
-def _aggregate(evidence: tuple[EvidenceOutcome, ...], field_name: str, function) -> Decimal | None:
+def _aggregate(
+    evidence: tuple[GenerationEvidenceMember, ...], field_name: str, function
+) -> Decimal | None:
     values = [
         Decimal(str(getattr(row.forward_outcome, field_name)))
         for row in evidence
@@ -109,7 +111,7 @@ def _aggregate(evidence: tuple[EvidenceOutcome, ...], field_name: str, function)
     return Decimal(str(function(values))).quantize(SIX_PLACES)
 
 
-def _target_first_rate(evidence: tuple[EvidenceOutcome, ...]) -> Decimal | None:
+def _target_first_rate(evidence: tuple[GenerationEvidenceMember, ...]) -> Decimal | None:
     if not evidence:
         return None
     count = sum(1 for row in evidence if row.target_stop_outcome.first_event == "TARGET_FIRST")
