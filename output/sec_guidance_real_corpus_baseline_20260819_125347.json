@@ -1,0 +1,50 @@
+{
+  "artifact_type": "sec_guidance_real_corpus_baseline",
+  "captured_at_utc": "2026-08-19T10:53:47.170Z",
+  "baseline_state": "PRE_CORPUS_PRE_CODE_CHANGE",
+  "git_sha": "2438e6e17979dbfec4b41189fcba2e7a14570b87",
+  "branch": "codex/fix-main-ci-h5-ceri",
+  "alembic_revision": "0049_winner_jobs_reliability (head)",
+  "python_version": "3.12.2",
+  "guidance_extraction_service_source_sha256": "f426bc8f1a407295183bb9ac0222025b83914dc9c5b972f3aa1eab89f990fba8",
+  "processor_signature": "sec-guidance:948beb114caa8da9",
+  "versions": {
+    "DOCUMENT_PARSER_VERSION": "sec-html-text-v1",
+    "GUIDANCE_EXTRACTOR_VERSION": "guidance-regex-visible-text-v2",
+    "EVIDENCE_LOCATOR_VERSION": "paragraph-locator-v1",
+    "FILING_SELECTION_POLICY_VERSION": "guidance-forms-v1"
+  },
+  "supported_forms": ["8-K", "10-Q", "10-K", "6-K", "20-F"],
+  "regex": {
+    "_RANGE": {
+      "pattern": "(?:(?P<low_currency>USD|EUR|GBP)\\s*)?\\$?(?P<low>\\d+(?:\\.\\d+)?)\\s*(?P<low_unit>%|million|billion)?\\s*(?:to|[-\\u2013])\\s*(?:(?P<high_currency>USD|EUR|GBP)\\s*)?\\$?(?P<high>\\d+(?:\\.\\d+)?)\\s*(?P<high_unit>%|million|billion)?",
+      "flags": 34
+    },
+    "_POINT": {
+      "pattern": "(?:of|at|approximately|around)\\s*(?:(?P<currency>USD|EUR|GBP)\\s*)?\\$?(?P<point>\\d+(?:\\.\\d+)?)",
+      "flags": 34
+    }
+  },
+  "behavior_identity": {
+    "_visible_text": {
+      "sha256": "ade26d00af0491c7ec50ff3886647f8772856ff4cf6ebc30b1124ab19130ca4a",
+      "source": "def _visible_text(text: str) -> str:\n    if \"<\" not in text or \">\" not in text:\n        return unescape(text)\n    parser = _VisibleTextParser()\n    parser.feed(text)\n    parser.close()\n    return \"\\n\\n\".join(parser.parts)\n"
+    },
+    "_hard_negative": {
+      "sha256": "17f5102559d2287ea41a97207a09f0c3b74a37cfdfa96c0fe35033bc928f6c5b",
+      "source": "def _hard_negative(paragraph: str) -> bool:\n    lowered = paragraph.lower()\n    compact = re.sub(r\"\\s+\", \" \", lowered)\n    if \"private securities litigation reform act of 1995\" in compact:\n        return True\n    if \"forward-looking statement\" in compact and any(\n        token in compact for token in (\"involve risks\", \"actual results\", \"undue reliance\")\n    ):\n        return True\n    if \"pension\" in compact and any(token in compact for token in (\"historical\", \"benefit\")):\n        return True\n    if re.search(r\"\\b(?:19|20)\\d{6}\\s*[-\\u2013]\\s*(?:19|20)\\d{6}\\b\", compact):\n        return True\n    if re.search(\n        r\"\\b(?:19|20)\\d{2}-\\d{2}-\\d{2}\\s*(?:to|[-\\u2013])\\s*\"\n        r\"(?:19|20)\\d{2}-\\d{2}-\\d{2}\\b\",\n        compact,\n    ):\n        return True\n    if any(token in compact for token in (\"contextref=\", \"xmlns:\", \"xbrli:\", \"ix:\")):\n        return True\n    return False\n"
+    },
+    "_action": {
+      "sha256": "a14d090b80fc0532ccd715e002493e199c70953a06e0c1f02f74e03f5087d29a",
+      "source": "def _action(text: str) -> str:\n    actions = (\n        (\"raised\", \"RAISED\"),\n        (\"lowered\", \"LOWERED\"),\n        (\"withdrawn\", \"WITHDRAWN\"),\n        (\"withdrew\", \"WITHDRAWN\"),\n        (\"withdraw\", \"WITHDRAWN\"),\n        (\"initiated\", \"INITIATED\"),\n        (\"maintained\", \"MAINTAINED\"),\n        (\"narrowed\", \"NARROWED\"),\n        (\"widened\", \"WIDENED\"),\n    )\n    for word, action in actions:\n        if word in text:\n            return action\n    return \"UNKNOWN\"\n"
+    },
+    "_metric": {
+      "sha256": "50f40aecdad37c8cac3fbeee22daf70621c627978a5dbf2de6610d6d6cbf7a6d",
+      "source": "def _metric(text: str) -> str | None:\n    if \"revenue\" in text or \"sales\" in text:\n        return \"REVENUE\"\n    if \"eps\" in text or \"earnings per share\" in text:\n        return \"EPS_DILUTED\"\n    return None\n"
+    },
+    "_period": {
+      "sha256": "3bb95870aa6f55b0e40fd627e17d99222b18ffe81f8f8664ef1ee71040439437",
+      "source": "def _period(text: str) -> str | None:\n    if any(term in text for term in (\"full year\", \"full-year\", \"fiscal year\", \"fy \")):\n        return \"CURRENT_FISCAL_YEAR\"\n    if any(term in text for term in (\"quarter\", \"q1\", \"q2\", \"q3\", \"q4\")):\n        return \"CURRENT_QUARTER\"\n    return None\n"
+    }
+  }
+}

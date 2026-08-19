@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-08-19",
+  "review_method": "Independent semantic review using Q1-Q9; extractor output was not used as gold.",
+  "source_candidate_path": "output/sec_guidance_real_corpus_work/sec_guidance_real_candidates.jsonl",
+  "source_candidate_sha256": "b2b6754baa21e35f20349834aebb605e76c4f4b636f220a296f74cb103796bcc",
+  "source_candidate_files": [
+    {
+      "path": "output/sec_guidance_real_corpus_work/sec_guidance_real_candidates.jsonl",
+      "sha256": "b2b6754baa21e35f20349834aebb605e76c4f4b636f220a296f74cb103796bcc"
+    },
+    {
+      "path": "output/sec_guidance_real_periodic_work/sec_guidance_real_candidates.jsonl",
+      "sha256": "2ab3585357babe6f300550325076c97e290e99cb568f34a3729da0105cbb442d"
+    },
+    {
+      "path": "output/sec_guidance_real_10k_work/sec_guidance_real_candidates.jsonl",
+      "sha256": "ae3b8847414e5824e009e024d8d56052d7da6fae9d577305eb41e2c5d48f0cce"
+    }
+  ],
+  "corpus_path": "tests/ceri/fixtures/sec_guidance_real_corpus_v1.jsonl",
+  "corpus_sha256": "31b4e721f7146e1b53935836a41dc38f05203cc8791b4b8dbd36624286cc1fc8",
+  "passages": 232,
+  "issuers": 28,
+  "filings": 117,
+  "forms": [
+    "10-K",
+    "10-Q",
+    "8-K"
+  ],
+  "labels": {
+    "POSITIVE": 33,
+    "NEGATIVE": 194,
+    "REVIEW_REQUIRED": 5
+  },
+  "source_candidates_available": 1781,
+  "offline_production_documents": [
+    {
+      "accession": "0000002488-26-000121",
+      "document_name": "q22026991.htm",
+      "path": "tests/ceri/fixtures/sec_guidance_real_documents_v1/000000248826000121_q22026991.htm",
+      "sha256": "251cb1dc61dc45e98d13328d5bc5151e25bb853068237b651925eb7089438d39"
+    },
+    {
+      "accession": "0000104169-26-000095",
+      "document_name": "earningspresentationfy27.htm",
+      "path": "tests/ceri/fixtures/sec_guidance_real_documents_v1/000010416926000095_earningspresentationfy27.htm",
+      "sha256": "2bb544c91ff4151a5d5fa1c5041405dfef04454e1edf19cc48eef234b4930bee"
+    }
+  ],
+  "certification_reference": {
+    "processor_signature": "sec-guidance:eed017654682a0c9",
+    "output_fingerprint_sha256": "e7165fccfbdc6e731bcc26230ac31981f1c5fbeafad6604dcb995e8f04c2d806",
+    "certified": true
+  }
+}

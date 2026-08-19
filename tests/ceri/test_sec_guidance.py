@@ -66,7 +66,7 @@ def test_extractor_version_change_changes_processor_signature(monkeypatch) -> No
     monkeypatch.setattr(
         processor_signature,
         "GUIDANCE_EXTRACTOR_VERSION",
-        "guidance-regex-visible-text-v3",
+        "guidance-regex-visible-text-v4",
     )
 
     assert processor_signature.sec_guidance_processor_signature() != before
