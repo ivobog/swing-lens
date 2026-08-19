@@ -222,6 +222,7 @@ class CeriSourceRecord(Base):
         ),
         UniqueConstraint("idempotency_key", name="uq_ceri_source_records_idempotency"),
         Index("ix_ceri_source_records_content_hash", "content_hash"),
+        Index("ix_ceri_source_records_ingestion_id", "ingestion_run_id", "id"),
         Index("ix_ceri_source_records_dataset_published", "dataset", "published_at"),
         Index("ix_ceri_source_records_quarantine", "quarantine_reason"),
         Index("ix_ceri_source_records_provider_retrieved", "provider", "retrieved_at"),
@@ -410,6 +411,14 @@ class CeriGuidanceEvent(Base):
 
     __table_args__ = (
         Index("ix_ceri_guidance_events_company_effective", "company_id", "effective_session"),
+        Index(
+            "ix_ceri_guidance_events_prior_lookup",
+            "company_id",
+            "metric",
+            "period_type",
+            "effective_at",
+            "id",
+        ),
         Index("ix_ceri_guidance_events_action", "action"),
         Index(
             "ix_ceri_guidance_events_source_accession",

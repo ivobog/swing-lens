@@ -32,6 +32,14 @@ class CeriIdentityResolver:
         self._companies = companies
         self._aliases = aliases
 
+    def prepare(self, db: Session) -> CeriIdentityResolver:
+        """Materialize stable identity snapshots once for a normalization batch."""
+        if self._companies is None:
+            self._companies = [_company_snapshot(row) for row in _load_companies(db)]
+        if self._aliases is None:
+            self._aliases = [_alias_snapshot(row) for row in _load_aliases(db)]
+        return self
+
     def resolve_source_record(
         self,
         db: Session,
@@ -118,6 +126,32 @@ def _load_aliases(db: Session) -> list[CeriCompanyAlias]:
         return []
     result = scalars(select(CeriCompanyAlias))
     return list(result.all() if hasattr(result, "all") else result)
+
+
+def _company_snapshot(row: CeriCompany) -> CeriCompany:
+    return CeriCompany(
+        id=row.id,
+        ticker=row.ticker,
+        exchange=row.exchange,
+        company_name=row.company_name,
+        cik=row.cik,
+        current_provider_ids_json=dict(row.current_provider_ids_json or {}),
+    )
+
+
+def _alias_snapshot(row: CeriCompanyAlias) -> CeriCompanyAlias:
+    return CeriCompanyAlias(
+        id=row.id,
+        company_id=row.company_id,
+        provider=row.provider,
+        alias_type=row.alias_type,
+        alias_value=row.alias_value,
+        exchange=row.exchange,
+        valid_from=row.valid_from,
+        valid_to=row.valid_to,
+        source=row.source,
+        confidence=row.confidence,
+    )
 
 
 def _payload(source_record: CeriSourceRecord) -> dict[str, Any]:

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.models.ceri_tables import CeriCompany, CeriIngestionRun
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, enqueue_job
 from app.services.background_worker import CancelRequested, JobDeferred
@@ -20,9 +21,11 @@ from app.services.ceri.batched_workflow import (
     CERI_PROVIDER_INGEST_BATCH,
     CERI_RUN_FINALIZE,
     build_ceri_batched_workflow_plan,
+    sec_readiness_coverage,
 )
 from app.services.ceri.feature_rebuild_service import CeriFeatureRebuildResult
-from app.settings import Settings
+from app.services.ceri.orchestration import CeriIngestionResult, CeriIngestionService
+from app.settings import SecDocumentIncrementalMode, Settings
 
 
 def test_402_ticker_plan_is_deterministic_bounded_and_under_sanity_target() -> None:
@@ -170,6 +173,97 @@ def test_provider_batch_continues_after_partial_ticker_failure(monkeypatch) -> N
     assert result["results"]["T1"]["status"] == "PARTIAL"
     assert job.status == JobStatus.PARTIAL
 
+
+def test_active_batched_sec_provider_routes_through_incremental_service(monkeypatch) -> None:
+    monkeypatch.setattr(
+        batched_job_handlers,
+        "ceri_flags",
+        lambda: SimpleNamespace(provider_ingest=True),
+    )
+
+    class SourceRecords:
+        def create_ingestion_run(self, *_args, **kwargs):
+            return CeriIngestionRun(
+                id=7,
+                provider="sec",
+                dataset="guidance",
+                request_key=kwargs["request_key"],
+                status="RUNNING",
+                requested_count=0,
+                fetched_count=0,
+                inserted_count=0,
+                deduplicated_count=0,
+                corrected_count=0,
+                quarantined_count=0,
+                failed_count=0,
+                warning_count=0,
+                retry_count=0,
+            )
+
+    class Registry:
+        def get(self, _provider):
+            return SimpleNamespace(provider_terms_version="test")
+
+        def license_policy(self, *_args):
+            return SimpleNamespace(
+                terms_version="test",
+                raw_payload_storage_allowed=False,
+            )
+
+    service = CeriIngestionService(
+        registry=Registry(),
+        source_records=SourceRecords(),
+        settings=Settings(
+            _env_file=None,
+            sec_document_incremental_mode=SecDocumentIncrementalMode.ACTIVE,
+        ),
+    )
+    calls = []
+
+    def incremental(*_args, **_kwargs):
+        calls.append("incremental")
+        return CeriIngestionResult(
+            ingestion_run_id=7,
+            provider="sec",
+            dataset="guidance",
+            status="COMPLETED",
+            requested=0,
+            fetched=0,
+            inserted=0,
+            deduplicated=0,
+            corrected=0,
+            quarantined=0,
+            failed=0,
+            warnings=0,
+        )
+
+    monkeypatch.setattr(service, "_ingest_sec_incremental", incremental)
+    job = _provider_batch_job(["AIZ"])
+    job.payload_json.update(provider="sec", dataset="guidance")
+
+    result = execute_provider_ingest_batch_job(FakeDb(), job, ingestion_service=service)
+
+    assert calls == ["incremental"]
+    assert result["status"] == "COMPLETED"
+
+
+def test_sec_readiness_coverage_requires_current_signature_per_ticker() -> None:
+    db = CoverageDb(
+        [
+            [
+                CeriCompany(id=1, ticker="AIZ", cik="0001041668"),
+                CeriCompany(id=2, ticker="AMZN", cik="0001018724"),
+                CeriCompany(id=3, ticker="MISS", cik=None),
+            ],
+            ["0001041668"],
+        ]
+    )
+
+    coverage = sec_readiness_coverage(db, tickers=["AIZ", "AMZN", "MISS"])
+
+    assert coverage.ready_tickers == 1
+    assert coverage.missing_tickers == ("AMZN", "MISS")
+    assert coverage.missing_ciks == ("0001018724",)
 
 def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch) -> None:
     monkeypatch.setattr(
@@ -476,3 +570,11 @@ class FakeDb:
         if self.stage_jobs and CERI_FEATURE_BATCH in parameters.values():
             return FakeScalarRows(self.stage_jobs)
         return FakeScalarRows([])
+
+
+class CoverageDb:
+    def __init__(self, rows) -> None:
+        self.rows = list(rows)
+
+    def scalars(self, _statement):
+        return FakeScalarRows(self.rows.pop(0))

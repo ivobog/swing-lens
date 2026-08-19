@@ -8,6 +8,7 @@ from datetime import timedelta
 from threading import Event, Thread
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal
@@ -35,7 +36,7 @@ from app.services.worker_registry import (
     mark_worker_stopping,
     register_worker,
 )
-from app.settings import Settings, get_settings
+from app.settings import SecDocumentIncrementalMode, Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ def run_worker(
             hostname=hostname,
             process_id=process_id,
         )
+        log_worker_startup_configuration(db, settings=settings, worker_id=worker_id)
         db.commit()
     except Exception:
         db.rollback()
@@ -144,6 +146,57 @@ def run_worker(
             logger.exception("job.worker.stop_heartbeat_failed", extra={"worker_id": worker_id})
         finally:
             db.close()
+
+
+def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str, Any]:
+    from app.services.ceri.deployment_identity import current_deployment_identity
+    from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+
+    # Treat a missing/unreadable migration identity as a startup failure.  On
+    # PostgreSQL, swallowing the query error would still leave this worker's
+    # registration transaction aborted and make the later commit fail with a
+    # misleading secondary exception.
+    schema_revision = str(db.scalar(text("select version_num from alembic_version")))
+    identity = current_deployment_identity(
+        config_hash=None,
+        calculation_version=None,
+    )
+    return {
+        "ceri_enabled": settings.ceri_enabled,
+        "ceri_batched_workflow_enabled": settings.ceri_batched_workflow_enabled,
+        "ceri_provider_ingest_enabled": settings.ceri_provider_ingest_enabled,
+        "sec_incremental_mode": settings.sec_document_incremental_mode.value,
+        "sec_processor_signature": sec_guidance_processor_signature(),
+        "sec_readiness_policy": settings.sec_readiness_policy.value,
+        "sec_requests_per_second": settings.sec_requests_per_second,
+        "database_schema_revision": schema_revision,
+        "deployment_git_sha": identity.get("git_sha"),
+        "deployment_git_dirty": identity.get("git_dirty"),
+    }
+
+
+def log_worker_startup_configuration(
+    db: Session,
+    *,
+    settings: Settings,
+    worker_id: str,
+) -> dict[str, Any]:
+    summary = worker_startup_configuration(db, settings=settings)
+    logger.info(
+        "job.worker.startup_configuration %s",
+        summary,
+        extra={"worker_id": worker_id, "runtime_configuration": summary},
+    )
+    if (
+        settings.ceri_provider_ingest_enabled
+        and settings.sec_document_incremental_mode is SecDocumentIncrementalMode.OFF
+    ):
+        logger.critical(
+            "SEC guidance is using the legacy repeated-download path because "
+            "CERI provider ingestion is enabled while SEC document incremental mode is OFF.",
+            extra={"worker_id": worker_id, "runtime_configuration": summary},
+        )
+    return summary
 
 
 def _worker_heartbeat_loop(

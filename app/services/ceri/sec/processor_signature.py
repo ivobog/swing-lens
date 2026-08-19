@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 
 DOCUMENT_PARSER_VERSION = "sec-html-text-v1"
-GUIDANCE_EXTRACTOR_VERSION = "guidance-regex-v1"
+GUIDANCE_EXTRACTOR_VERSION = "guidance-regex-visible-text-v2"
 EVIDENCE_LOCATOR_VERSION = "paragraph-locator-v1"
 FILING_SELECTION_POLICY_VERSION = "guidance-forms-v1"
 

@@ -60,3 +60,33 @@ def test_5xx_and_timeout_remain_retryable_failures() -> None:
         timeout_client.get_json("/submissions/CIK0000123456.json")
     assert timeout_client.stats().timeouts == 2
     assert timeout_client.stats().retries == 1
+
+
+def test_legacy_0001_document_uses_accession_text_fallback_after_404() -> None:
+    requested_urls: list[str] = []
+
+    def transport(url: str, *_args):
+        requested_urls.append(url)
+        if url.endswith("/0001.txt"):
+            return _BufferedResponse(404, {}, b"")
+        return _BufferedResponse(200, {"Content-Type": "text/plain"}, b"<SEC-DOCUMENT>")
+
+    client = SecEdgarClient(
+        SecClientConfig(requests_per_second=10, max_attempts=1),
+        transport=transport,
+        sleep=lambda _seconds: None,
+    )
+
+    result = client.archive_document(
+        "0000729580",
+        "0000950110-01-000244",
+        "0001.txt",
+    )
+
+    assert result == "<SEC-DOCUMENT>"
+    assert requested_urls == [
+        "https://www.sec.gov/Archives/edgar/data/729580/000095011001000244/0001.txt",
+        "https://www.sec.gov/Archives/edgar/data/729580/000095011001000244/"
+        "0000950110-01-000244.txt",
+    ]
+    assert client.stats().filing_document_requests == 2

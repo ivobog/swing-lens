@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -7,13 +8,21 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriCompany
+from app.models.ceri_tables import CeriCompany, CeriSecSyncState
 from app.models.tables import RawCompanyRow
 from app.services.background_job_service import enqueue_job
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.provider_registry import CeriProviderRegistry
-from app.settings import Settings, get_settings
+from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from app.settings import (
+    SecDocumentIncrementalMode,
+    SecReadinessPolicy,
+    Settings,
+    get_settings,
+)
+
+logger = logging.getLogger(__name__)
 
 CERI_PROVIDER_INGEST_BATCH = "CERI_PROVIDER_INGEST_BATCH"
 CERI_NORMALIZE_BATCH = "CERI_NORMALIZE_BATCH"
@@ -56,6 +65,19 @@ class CeriBatchedWorkflowPlan:
     @property
     def expected_total_job_count(self) -> int:
         return self.initial_job_count + 3
+
+
+@dataclass(frozen=True)
+class SecReadinessCoverage:
+    processor_signature: str
+    requested_tickers: int
+    ready_tickers: int
+    missing_tickers: tuple[str, ...]
+    missing_ciks: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return self.ready_tickers == self.requested_tickers
 
 
 def build_ceri_batched_workflow_plan(
@@ -183,6 +205,7 @@ def build_ceri_batched_workflow_plan(
 
 
 def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkflowPlan:
+    runtime_settings = get_settings()
     tickers = sorted(
         {
             row.ticker.upper()
@@ -201,10 +224,40 @@ def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkf
         provider_datasets[provider] = tuple(
             dataset for dataset in datasets if dataset in capabilities.datasets
         )
+    if CeriDataset.GUIDANCE in provider_datasets.get("sec", ()):
+        coverage = sec_readiness_coverage(db, tickers=tickers)
+        logger.info(
+            "ceri.sec.preflight",
+            extra={
+                "run_id": run_id,
+                "sec_incremental_mode": runtime_settings.sec_document_incremental_mode.value,
+                "sec_readiness_policy": runtime_settings.sec_readiness_policy.value,
+                "sec_processor_signature": coverage.processor_signature,
+                "requested_tickers": coverage.requested_tickers,
+                "ready_tickers": coverage.ready_tickers,
+                "missing_tickers": list(coverage.missing_tickers),
+                "missing_ciks": list(coverage.missing_ciks),
+            },
+        )
+        if (
+            runtime_settings.sec_document_incremental_mode
+            is SecDocumentIncrementalMode.ACTIVE
+            and runtime_settings.sec_readiness_policy is SecReadinessPolicy.REQUIRE_READY
+            and not coverage.complete
+        ):
+            missing = ", ".join(coverage.missing_tickers[:25])
+            suffix = "..." if len(coverage.missing_tickers) > 25 else ""
+            raise RuntimeError(
+                "SEC ACTIVE preflight rejected the CERI workflow before enqueue: "
+                f"{coverage.ready_tickers}/{coverage.requested_tickers} tickers are ready for "
+                f"processor signature {coverage.processor_signature}; bootstrap required for "
+                f"{missing}{suffix}."
+            )
     plan = build_ceri_batched_workflow_plan(
         run_id=run_id,
         tickers=tickers,
         config_hash=load_ceri_config().config_hash,
+        settings=runtime_settings,
         provider_datasets=provider_datasets,
     )
     for spec in plan.jobs:
@@ -219,6 +272,49 @@ def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkf
         )
     db.flush()
     return plan
+
+
+def sec_readiness_coverage(
+    db: Session,
+    *,
+    tickers: Iterable[str],
+) -> SecReadinessCoverage:
+    symbols = tuple(sorted({str(ticker).strip().upper() for ticker in tickers if ticker}))
+    signature = sec_guidance_processor_signature()
+    companies = list(
+        db.scalars(select(CeriCompany).where(CeriCompany.ticker.in_(symbols))).all()
+    )
+    by_ticker: dict[str, list[CeriCompany]] = {}
+    for company in companies:
+        by_ticker.setdefault(company.ticker.upper(), []).append(company)
+    ciks = {str(company.cik) for company in companies if company.cik}
+    ready_ciks = set(
+        db.scalars(
+            select(CeriSecSyncState.cik).where(
+                CeriSecSyncState.cik.in_(ciks),
+                CeriSecSyncState.dataset == CeriDataset.GUIDANCE.value,
+                CeriSecSyncState.processor_signature == signature,
+            )
+        ).all()
+    ) if ciks else set()
+    ready: set[str] = set()
+    missing_tickers: list[str] = []
+    missing_ciks: set[str] = set()
+    for ticker in symbols:
+        matching = by_ticker.get(ticker, [])
+        ticker_ciks = {str(company.cik) for company in matching if company.cik}
+        if ticker_ciks & ready_ciks:
+            ready.add(ticker)
+            continue
+        missing_tickers.append(ticker)
+        missing_ciks.update(ticker_ciks)
+    return SecReadinessCoverage(
+        processor_signature=signature,
+        requested_tickers=len(symbols),
+        ready_tickers=len(ready),
+        missing_tickers=tuple(missing_tickers),
+        missing_ciks=tuple(sorted(missing_ciks)),
+    )
 
 
 def _ensure_ceri_companies(db: Session, tickers: Iterable[str]) -> None:

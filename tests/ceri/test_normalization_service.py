@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy.dialects import postgresql
+
 from app.models.ceri_tables import (
     CeriCatalystEvent,
     CeriCatalystSource,
     CeriCompany,
     CeriEstimateSnapshot,
+    CeriGuidanceEvent,
     CeriProcessingRun,
     CeriSourceRecord,
 )
 from app.services.ceri.identity_resolver import CeriIdentityResolver
-from app.services.ceri.normalization_service import CeriNormalizationService
+from app.services.ceri.normalization_service import CeriNormalizationService, _prior_guidance
 
 
 def test_normalization_service_persists_estimate_and_processing_lineage() -> None:
@@ -217,6 +220,41 @@ def test_normalization_resume_starts_after_durable_checkpoint() -> None:
     assert result.normalized == 8
     assert [checkpoint["last_source_record_id"] for checkpoint in checkpoints] == [5, 7]
     assert processing_run.checkpoint_json["last_source_record_id"] == 8
+
+
+def test_prior_guidance_uses_bounded_sql_lookup() -> None:
+    captured = []
+
+    class Db:
+        def scalar(self, statement):
+            captured.append(statement)
+            return None
+
+    current = CeriGuidanceEvent(
+        id=99,
+        source_record_id=7,
+        company_id=42,
+        action="UNKNOWN",
+        metric="REVENUE",
+        period_type="CURRENT_FISCAL_YEAR",
+        effective_at=datetime(2026, 8, 1),
+    )
+
+    assert _prior_guidance(Db(), current) is None
+    compiled = str(
+        captured[0].compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    assert "WHERE ceri_guidance_events.company_id = 42" in compiled
+    assert "ceri_guidance_events.metric = 'REVENUE'" in compiled
+    assert "ceri_guidance_events.period_type = 'CURRENT_FISCAL_YEAR'" in compiled
+    assert (
+        "ORDER BY ceri_guidance_events.effective_at DESC, "
+        "ceri_guidance_events.id DESC"
+    ) in compiled
+    assert "LIMIT 1" in compiled
 
 
 class FakeDb:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.services.ceri.dtos import GuidanceRequest
+from app.services.ceri.sec import processor_signature
 from app.services.ceri.sec.client import SecClientConfig
 from app.services.ceri.sec.guidance_extractor import GuidanceExtractionService
 from app.services.ceri.sec.provider import SecCeriProvider
@@ -57,3 +58,15 @@ def test_refactored_document_boundary_preserves_cold_provider_output() -> None:
     incremental_shape = list(refactored_provider.extract_guidance_document(documents[0]))
 
     assert legacy_shape == incremental_shape
+
+
+def test_extractor_version_change_changes_processor_signature(monkeypatch) -> None:
+    before = processor_signature.sec_guidance_processor_signature()
+
+    monkeypatch.setattr(
+        processor_signature,
+        "GUIDANCE_EXTRACTOR_VERSION",
+        "guidance-regex-visible-text-v3",
+    )
+
+    assert processor_signature.sec_guidance_processor_signature() != before

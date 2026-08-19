@@ -88,6 +88,9 @@ class CeriNormalizationService:
         records = (
             source_records if source_records is not None else _source_records(db, ingestion_run_id)
         )
+        prepare_identity = getattr(self.identity_resolver, "prepare", None)
+        if callable(prepare_identity):
+            prepare_identity(db)
         checkpoint = processing_run.checkpoint_json or {}
         last_source_record_id = int(checkpoint.get("last_source_record_id") or 0)
         records = [
@@ -101,6 +104,7 @@ class CeriNormalizationService:
         failed = int(processing_run.failed_count or 0)
         warning_count = int(processing_run.warning_count or 0)
         errors: list[dict[str, Any]] = list((processing_run.errors_json or {}).get("records") or [])
+        persisted_sec_identities: set[tuple[int, str]] = set()
 
         for index, source_record in enumerate(records, start=1):
             if callable(should_cancel) and should_cancel():
@@ -119,7 +123,12 @@ class CeriNormalizationService:
                             source_record,
                             company_id=resolution.company_id,
                         )
-                        _persist_sec_identity(db, source_record, resolution.company_id)
+                        _persist_sec_identity(
+                            db,
+                            source_record,
+                            resolution.company_id,
+                            seen=persisted_sec_identities,
+                        )
                         normalized += created
                         warning_count += _warning_count_for_last(db)
                 except Exception as exc:
@@ -130,16 +139,18 @@ class CeriNormalizationService:
                             "error": str(exc).replace("\n", " ")[:500],
                         }
                     )
-            processing_run.checkpoint_json = {
-                "last_source_record_id": source_record.id,
-                "last_record_index": index,
-            }
-            processing_run.read_count = read
-            processing_run.normalized_count = normalized
-            processing_run.failed_count = failed
-            processing_run.warning_count = warning_count
-            processing_run.errors_json = {"records": errors} if errors else None
-            processing_run.counts_json = {"quarantined": quarantined}
+            if index % max(1, checkpoint_interval) == 0:
+                _update_processing_checkpoint(
+                    processing_run,
+                    source_record_id=source_record.id,
+                    record_index=index,
+                    read=read,
+                    normalized=normalized,
+                    failed=failed,
+                    warnings=warning_count,
+                    quarantined=quarantined,
+                    errors=errors,
+                )
             if callable(checkpoint_callback) and index % max(1, checkpoint_interval) == 0:
                 checkpoint_callback(dict(processing_run.checkpoint_json))
 
@@ -151,6 +162,11 @@ class CeriNormalizationService:
         processing_run.warning_count = warning_count
         processing_run.errors_json = {"records": errors} if errors else None
         processing_run.counts_json = {"quarantined": quarantined}
+        if records:
+            processing_run.checkpoint_json = {
+                "last_source_record_id": records[-1].id,
+                "last_record_index": len(records),
+            }
         processing_run.completed_at = _utcnow()
         if processing_run.started_at is not None:
             processing_run.duration_ms = _duration_ms(
@@ -357,6 +373,8 @@ def _persist_sec_identity(
     db: Session,
     source_record: CeriSourceRecord,
     company_id: int | None,
+    *,
+    seen: set[tuple[int, str]] | None = None,
 ) -> None:
     """Persist the SEC CIK learned during ingestion for future resolution.
 
@@ -372,6 +390,9 @@ def _persist_sec_identity(
     if cik_value in (None, ""):
         return
     cik = str(cik_value).zfill(10)
+    identity_key = (company_id, cik)
+    if seen is not None and identity_key in seen:
+        return
     company = getattr(db, "get", lambda *_args: None)(CeriCompany, company_id)
     if company is not None and not company.cik:
         company.cik = cik
@@ -379,7 +400,7 @@ def _persist_sec_identity(
     if not callable(scalar):
         return
     existing = scalar(
-        select(CeriCompanyAlias)
+        select(CeriCompanyAlias.id)
         .where(CeriCompanyAlias.provider == "sec")
         .where(CeriCompanyAlias.alias_type == "cik")
         .where(CeriCompanyAlias.alias_value == cik)
@@ -395,6 +416,8 @@ def _persist_sec_identity(
                 confidence="High",
             )
         )
+    if seen is not None:
+        seen.add(identity_key)
 
 
 def _find_catalyst_event(
@@ -421,26 +444,49 @@ def _exists_by_source(db: Session, model: Any, source_record_id: int) -> bool:
     # optional idempotency probe.
     if not callable(getattr(db, "scalars", None)):
         return False
-    if model is CeriCatalystSource:
-        statement = select(model).where(model.source_record_id == source_record_id)
-    else:
-        statement = select(model).where(model.source_record_id == source_record_id)
+    statement = select(model.id).where(model.source_record_id == source_record_id)
     return _maybe_scalar(db, statement) is not None
 
 
+def _update_processing_checkpoint(
+    processing_run: CeriProcessingRun,
+    *,
+    source_record_id: int | None,
+    record_index: int,
+    read: int,
+    normalized: int,
+    failed: int,
+    warnings: int,
+    quarantined: int,
+    errors: list[dict[str, Any]],
+) -> None:
+    processing_run.checkpoint_json = {
+        "last_source_record_id": source_record_id,
+        "last_record_index": record_index,
+    }
+    processing_run.read_count = read
+    processing_run.normalized_count = normalized
+    processing_run.failed_count = failed
+    processing_run.warning_count = warnings
+    processing_run.errors_json = {"records": errors} if errors else None
+    processing_run.counts_json = {"quarantined": quarantined}
+
+
 def _prior_guidance(db: Session, current: CeriGuidanceEvent) -> CeriGuidanceEvent | None:
-    rows = [
-        row
-        for row in _load(db, CeriGuidanceEvent)
-        if row.id != current.id
-        and row.company_id == current.company_id
-        and row.metric == current.metric
-        and row.period_type == current.period_type
-        and row.effective_at is not None
-        and current.effective_at is not None
-        and row.effective_at < current.effective_at
-    ]
-    return max(rows, key=lambda row: (row.effective_at, row.id or 0)) if rows else None
+    if current.effective_at is None:
+        return None
+    statement = (
+        select(CeriGuidanceEvent)
+        .where(CeriGuidanceEvent.company_id == current.company_id)
+        .where(CeriGuidanceEvent.metric == current.metric)
+        .where(CeriGuidanceEvent.period_type == current.period_type)
+        .where(CeriGuidanceEvent.effective_at < current.effective_at)
+        .order_by(CeriGuidanceEvent.effective_at.desc(), CeriGuidanceEvent.id.desc())
+        .limit(1)
+    )
+    if current.id is not None:
+        statement = statement.where(CeriGuidanceEvent.id != current.id)
+    return _maybe_scalar(db, statement)
 
 
 def _maybe_scalar(db: Session, statement):
