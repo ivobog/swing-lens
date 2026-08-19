@@ -299,6 +299,28 @@ def test_setup_lifecycle_phase_0_guard_rails_are_stable_constants() -> None:
     )
 
 
+def test_winner_auto_refresh_requires_generation_architecture() -> None:
+    with pytest.raises(ValidationError, match="requires winner_cohort_refresh_v2_enabled"):
+        Settings(
+            _env_file=None,
+            winner_probability_auto_cohort_refresh_enabled=True,
+            winner_cohort_refresh_v2_enabled=False,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    (
+        ("winner_cohort_refresh_max_groups_per_slice", 0),
+        ("winner_cohort_refresh_max_wall_seconds", 0),
+        ("winner_latest_rescore_max_predictions_per_slice", 0),
+    ),
+)
+def test_winner_refresh_slice_limits_must_be_positive(field_name: str, value: int) -> None:
+    with pytest.raises(ValidationError, match="must be positive"):
+        Settings(_env_file=None, **{field_name: value})
+
+
 def test_ceri_phase_0_guard_rails_are_stable_constants() -> None:
     assert CERI_DAILY_CUTOFF_TIMEZONE == "America/New_York"
     assert CERI_EFFECTIVE_SESSION_POLICY == "AFTER_HOURS_NEXT_COMPLETED_US_SESSION"

@@ -1775,6 +1775,15 @@ class WinnerPredictionSnapshot(Base):
             unique=True,
             postgresql_where=text("superseded_at IS NULL"),
         ),
+        Index(
+            "idx_winner_prediction_snapshots_current_contract",
+            "eligibility_status",
+            "config_hash",
+            "calculation_version",
+            "feature_schema_version",
+            "id",
+            postgresql_where=text("superseded_at IS NULL"),
+        ),
     )
 
 
@@ -1813,6 +1822,10 @@ class WinnerForwardOutcome(Base):
     source_revision_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     matured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pending_reason_code: Mapped[str | None] = mapped_column(Text)
+    last_attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retry_not_before_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_attempted_bar_watermark: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
@@ -1831,6 +1844,16 @@ class WinnerForwardOutcome(Base):
             name="uq_winner_forward_outcomes_prediction_entry_horizon_revision",
         ),
         Index("idx_winner_forward_outcomes_status_due", "status", "due_session"),
+        Index(
+            "idx_winner_forward_outcomes_h5_due_retry",
+            "status",
+            "is_current_revision",
+            "entry_model",
+            "horizon_sessions",
+            "retry_not_before_at",
+            "due_session",
+            "id",
+        ),
         Index(
             "idx_winner_forward_outcomes_prediction_entry_horizon",
             "prediction_id",
@@ -1918,6 +1941,19 @@ class WinnerTargetStopOutcome(Base):
             "outcome_definition_id",
             unique=True,
             postgresql_where=text("is_current_revision"),
+        ),
+        Index(
+            "idx_winner_target_stop_outcomes_generation_source",
+            "outcome_definition_id",
+            "status",
+            "is_current_revision",
+            "id",
+        ),
+        Index(
+            "idx_winner_target_stop_outcomes_forward_current",
+            "forward_outcome_id",
+            "outcome_definition_id",
+            "is_current_revision",
         ),
     )
 
@@ -2071,6 +2107,120 @@ class WinnerTrainingOutcomeReplay(Base):
     )
 
 
+class WinnerCohortRefreshState(Base):
+    __tablename__ = "winner_cohort_refresh_state"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    outcome_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_outcome_definitions.id"), nullable=False
+    )
+    feature_schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    eligibility_policy_version: Mapped[str] = mapped_column(Text, nullable=False)
+    compatibility_policy_version: Mapped[str] = mapped_column(Text, nullable=False)
+    cohort_algorithm_version: Mapped[str] = mapped_column(Text, nullable=False)
+    desired_forward_revision_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    desired_target_stop_revision_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    desired_eligibility_decision_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    desired_training_replay_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    desired_watermark_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    published_generation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_cohort_generations.id", use_alter=True)
+    )
+    published_watermark_hash: Mapped[str | None] = mapped_column(Text)
+    last_full_scan_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_zero_due_backlog_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    current_due_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    current_deferred_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    oldest_due_session: Mapped[date | None] = mapped_column(Date)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "outcome_definition_id",
+            "feature_schema_version",
+            "calculation_version",
+            "config_hash",
+            "eligibility_policy_version",
+            "compatibility_policy_version",
+            "cohort_algorithm_version",
+            name="uq_winner_cohort_refresh_state_contract",
+        ),
+        Index("idx_winner_cohort_refresh_state_published", "published_generation_id"),
+    )
+
+
+class WinnerCohortGeneration(Base):
+    __tablename__ = "winner_cohort_generations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    generation_key: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_state_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_cohort_refresh_state.id", ondelete="CASCADE"), nullable=False
+    )
+    outcome_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_outcome_definitions.id"), nullable=False
+    )
+    watermark_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    watermark_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    feature_schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    eligibility_policy_version: Mapped[str] = mapped_column(Text, nullable=False)
+    compatibility_policy_version: Mapped[str] = mapped_column(Text, nullable=False)
+    cohort_algorithm_version: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    training_cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    planned_group_count: Mapped[int | None] = mapped_column(Integer)
+    completed_group_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    failed_group_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    evidence_row_count: Mapped[int | None] = mapped_column(Integer)
+    root_manifest_hash: Mapped[str | None] = mapped_column(Text)
+    checkpoint_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        UniqueConstraint("generation_key", name="uq_winner_cohort_generations_key"),
+        Index("idx_winner_cohort_generations_state_status", "refresh_state_id", "status"),
+        Index(
+            "idx_winner_cohort_generations_published",
+            "outcome_definition_id",
+            "published_at",
+            postgresql_where=text("status = 'PUBLISHED'"),
+        ),
+    )
+
+
 class WinnerCohortDefinition(Base):
     __tablename__ = "winner_cohort_definitions"
 
@@ -2120,6 +2270,12 @@ class WinnerCohortStatistic(Base):
     outcome_definition_id: Mapped[int] = mapped_column(
         ForeignKey("winner_outcome_definitions.id"), nullable=False
     )
+    generation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_cohort_generations.id", ondelete="CASCADE")
+    )
+    evidence_manifest_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_evidence_manifests.id")
+    )
     statistic_as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     training_cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     sample_n: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -2149,6 +2305,13 @@ class WinnerCohortStatistic(Base):
             name="uq_winner_cohort_statistics_definition_cutoff",
         ),
         Index("idx_winner_cohort_statistics_cutoff", "training_cutoff_at"),
+        Index(
+            "uq_winner_cohort_statistics_generation_definition",
+            "generation_id",
+            "cohort_definition_id",
+            unique=True,
+            postgresql_where=text("generation_id IS NOT NULL"),
+        ),
         Index("idx_winner_cohort_statistics_grade_n", "evidence_grade", "effective_n"),
     )
 
@@ -2175,6 +2338,49 @@ class WinnerEvidenceManifest(Base):
     __table_args__ = (
         UniqueConstraint("manifest_hash", name="uq_winner_evidence_manifests_hash"),
         Index("idx_winner_evidence_manifests_created_at", "created_at"),
+    )
+
+
+class WinnerEvidenceManifestMember(Base):
+    __tablename__ = "winner_evidence_manifest_members"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    manifest_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_evidence_manifests.id", ondelete="CASCADE"), nullable=False
+    )
+    member_ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    prediction_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_prediction_snapshots.id"), nullable=False
+    )
+    forward_outcome_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_forward_outcomes.id"), nullable=False
+    )
+    forward_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_stop_outcome_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    target_stop_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    eligibility_decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_training_eligibility_decisions.id")
+    )
+    outcome_replay_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_training_outcome_replays.id")
+    )
+    evidence_origin: Mapped[str] = mapped_column(Text, nullable=False)
+    episode_id: Mapped[int | None] = mapped_column(ForeignKey("winner_prediction_episodes.id"))
+    inclusion_weight: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False)
+    primary_winner: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    member_hash: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "manifest_id", "member_ordinal", name="uq_winner_manifest_members_ordinal"
+        ),
+        UniqueConstraint("manifest_id", "member_hash", name="uq_winner_manifest_members_hash"),
+        Index("idx_winner_manifest_members_prediction", "prediction_id"),
+        Index(
+            "idx_winner_manifest_members_forward_revision",
+            "forward_outcome_id",
+            "forward_revision",
+        ),
     )
 
 
@@ -2255,6 +2461,9 @@ class WinnerProbabilityEstimate(Base):
     evidence_manifest_id: Mapped[int | None] = mapped_column(
         ForeignKey("winner_evidence_manifests.id")
     )
+    cohort_generation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_cohort_generations.id")
+    )
     training_cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -2319,6 +2528,16 @@ class WinnerProbabilityEstimate(Base):
         Index("idx_winner_probability_estimates_probability", "point_probability"),
         Index("idx_winner_probability_estimates_lower_bound", "lower_bound"),
         Index("idx_winner_probability_estimates_grade_n", "evidence_grade", "effective_n"),
+        Index(
+            "uq_winner_probability_estimates_generation_identity",
+            "prediction_id",
+            "outcome_definition_id",
+            "estimate_kind",
+            "cohort_generation_id",
+            "source_version",
+            unique=True,
+            postgresql_where=text("cohort_generation_id IS NOT NULL"),
+        ),
     )
 
 
@@ -2456,6 +2675,16 @@ class WinnerProcessingRun(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False)
     config_hash: Mapped[str | None] = mapped_column(Text)
     source_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempt_no: Mapped[int | None] = mapped_column(Integer)
+    attempt_correlation_id: Mapped[str | None] = mapped_column(Text)
+    cohort_generation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_cohort_generations.id")
+    )
+    superseded_by_processing_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_processing_runs.id")
+    )
+    terminal_reason_code: Mapped[str | None] = mapped_column(Text)
+    last_checkpoint_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     counts_json: Mapped[dict[str, Any]] = mapped_column(
@@ -2473,6 +2702,11 @@ class WinnerProcessingRun(Base):
         Index("idx_winner_processing_runs_type_status", "process_type", "status"),
         Index("idx_winner_processing_runs_run_id", "run_id"),
         Index("idx_winner_processing_runs_job_id", "background_job_id"),
+        Index(
+            "idx_winner_processing_runs_generation_attempt",
+            "cohort_generation_id",
+            "attempt_no",
+        ),
     )
 
 

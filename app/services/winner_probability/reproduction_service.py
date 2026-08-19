@@ -7,9 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    EvidenceGrade,
     PriceBar,
     PriceBarRevision,
     WinnerEstimateEvidenceMember,
+    WinnerEvidenceManifestMember,
     WinnerForwardOutcome,
     WinnerProbabilityEstimate,
     WinnerTargetStopOutcome,
@@ -62,16 +64,29 @@ class ReproductionService:
         evidence = self._load_exact_evidence(db, estimate)
         statistics = CohortStatisticsService().calculate(evidence, config)
         manifest_hash = _hash_payload(_manifest_payload(evidence))
+        probability_is_publishable = estimate.evidence_grade != EvidenceGrade.INSUFFICIENT
+        reproduced_probability = (
+            statistics.posterior_probability if evidence and probability_is_publishable else None
+        )
+        reproduced_lower = (
+            statistics.lower_bound if evidence and probability_is_publishable else None
+        )
+        reproduced_upper = (
+            statistics.upper_bound if evidence and probability_is_publishable else None
+        )
+        reproduced_width = (
+            statistics.interval_width if evidence and probability_is_publishable else None
+        )
         mismatches = _mismatches(
             estimate=estimate,
-            point_probability=statistics.posterior_probability if evidence else None,
+            point_probability=reproduced_probability,
             sample_n=statistics.sample_n,
             manifest_hash=manifest_hash,
             effective_n=statistics.effective_n,
             wins=statistics.wins,
-            lower_bound=statistics.lower_bound if evidence else None,
-            upper_bound=statistics.upper_bound if evidence else None,
-            interval_width=statistics.interval_width if evidence else None,
+            lower_bound=reproduced_lower,
+            upper_bound=reproduced_upper,
+            interval_width=reproduced_width,
             config_hash=config.config_hash,
         )
         return EstimateReproductionResult(
@@ -79,13 +94,13 @@ class ReproductionService:
             matches=not mismatches,
             mismatches=tuple(mismatches),
             evidence_manifest_hash=manifest_hash,
-            point_probability=statistics.posterior_probability if evidence else None,
+            point_probability=reproduced_probability,
             sample_n=statistics.sample_n,
             effective_n=statistics.effective_n,
             wins=statistics.wins,
-            lower_bound=statistics.lower_bound if evidence else None,
-            upper_bound=statistics.upper_bound if evidence else None,
-            interval_width=statistics.interval_width if evidence else None,
+            lower_bound=reproduced_lower,
+            upper_bound=reproduced_upper,
+            interval_width=reproduced_width,
         )
 
     def _load_exact_evidence(
@@ -100,13 +115,32 @@ class ReproductionService:
                 .order_by(WinnerEstimateEvidenceMember.id)
             )
         )
+        if not members and estimate.evidence_manifest_id is not None:
+            members = list(
+                db.scalars(
+                    select(WinnerEvidenceManifestMember)
+                    .where(
+                        WinnerEvidenceManifestMember.manifest_id == estimate.evidence_manifest_id
+                    )
+                    .order_by(WinnerEvidenceManifestMember.member_ordinal)
+                )
+            )
         evidence: list[EvidenceOutcome] = []
         for member in members:
             evidence_origin = member.evidence_origin or "NATIVE_1_1"
-            outcome = db.get(WinnerForwardOutcome, member.outcome_id)
-            if outcome is None or outcome.revision != member.outcome_revision:
+            if isinstance(member, WinnerEstimateEvidenceMember):
+                outcome_id = member.outcome_id
+                outcome_revision = member.outcome_revision
+            else:
+                outcome_id = member.forward_outcome_id
+                outcome_revision = member.forward_revision
+            outcome = db.get(WinnerForwardOutcome, outcome_id)
+            if outcome is None or outcome.revision != outcome_revision:
                 raise ValueError("Evidence outcome revision could not be reproduced.")
-            target_stop_id = (member.metadata_json or {}).get("target_stop_outcome_id")
+            metadata = getattr(member, "metadata_json", None) or {}
+            target_stop_id = metadata.get("target_stop_outcome_id") or getattr(
+                member, "target_stop_outcome_id", None
+            )
             if evidence_origin == EVIDENCE_ORIGIN_PRE11:
                 target_stop = db.get(WinnerTrainingOutcomeReplay, member.outcome_replay_id)
                 decision = db.get(WinnerTrainingEligibilityDecision, member.eligibility_decision_id)
@@ -117,7 +151,9 @@ class ReproductionService:
                 target_stop = db.get(WinnerTargetStopOutcome, target_stop_id)
             if target_stop is None:
                 raise ValueError("Evidence target/stop outcome could not be reproduced.")
-            expected_target_revision = (member.metadata_json or {}).get("target_stop_revision")
+            expected_target_revision = metadata.get("target_stop_revision") or getattr(
+                member, "target_stop_revision", None
+            )
             if target_stop.revision != expected_target_revision:
                 raise ValueError("Evidence target/stop revision could not be reproduced.")
             evidence.append(

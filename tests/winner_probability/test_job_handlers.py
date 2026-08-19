@@ -165,7 +165,7 @@ def test_material_h5_maturation_enqueues_cohort_refresh(monkeypatch) -> None:
     assert service.now is None
     assert len(queued) == 1
     assert queued[0][0][1] == WINNER_COHORT_REFRESH
-    assert "training_cutoff_at" in queued[0][0][2]
+    assert "training_cutoff_at" not in queued[0][0][2]
 
 
 def test_outcome_maturation_worker_path_receives_injected_time() -> None:

@@ -61,6 +61,15 @@ class EvidenceDiagnosticFunnel:
         return {stage.predicate: stage.after_count for stage in self.stages}
 
 
+@dataclass(frozen=True)
+class GenerationEvidenceUniverse:
+    evidence: tuple[EvidenceOutcome, ...]
+    stages: tuple[EvidenceFunnelStage, ...]
+
+    def counts(self) -> dict[str, int]:
+        return {stage.predicate: stage.after_count for stage in self.stages}
+
+
 class EvidenceService:
     def __init__(self, policy: TrainingEligibilityPolicy | None = None) -> None:
         self.policy = policy or TrainingEligibilityPolicy()
@@ -91,6 +100,208 @@ class EvidenceService:
         cohort_key: CohortKey,
     ) -> tuple[EvidenceOutcome, ...]:
         return tuple(row for row in evidence if _matches(row.prediction, cohort_key))
+
+    def load_generation_evidence(
+        self,
+        db: Session,
+        *,
+        outcome_definition: WinnerOutcomeDefinition,
+        training_cutoff_at: datetime,
+        config: WinnerProbabilityConfig,
+        watermark: dict[str, int],
+    ) -> GenerationEvidenceUniverse:
+        """Load and gate one frozen evidence universe for a cohort generation."""
+        rows = tuple(
+            EvidenceOutcome(row[0], row[1], row[2])
+            for row in db.execute(
+                select(WinnerPredictionSnapshot, WinnerForwardOutcome, WinnerTargetStopOutcome)
+                .join(
+                    WinnerForwardOutcome,
+                    WinnerForwardOutcome.prediction_id == WinnerPredictionSnapshot.id,
+                )
+                .join(
+                    WinnerTargetStopOutcome,
+                    WinnerTargetStopOutcome.forward_outcome_id == WinnerForwardOutcome.id,
+                )
+                .where(
+                    WinnerForwardOutcome.id
+                    <= int(watermark.get("forward_revision_id") or 0)
+                )
+                .where(
+                    WinnerTargetStopOutcome.id
+                    <= int(watermark.get("target_stop_revision_id") or 0)
+                )
+                .where(
+                    WinnerTargetStopOutcome.outcome_definition_id
+                    == outcome_definition.id
+                )
+                .order_by(
+                    WinnerPredictionSnapshot.prediction_as_of_date,
+                    WinnerPredictionSnapshot.id,
+                    WinnerForwardOutcome.revision,
+                    WinnerTargetStopOutcome.revision,
+                )
+            )
+        )
+        replay_rows = tuple(
+            row
+            for row in self._load_compatibility_replays(
+                db,
+                training_cutoff_at=training_cutoff_at,
+                outcome_definition=outcome_definition,
+            )
+            if int(row.eligibility_decision_id or 0)
+            <= int(watermark.get("eligibility_decision_id") or 0)
+            and int(row.outcome_replay_id or 0)
+            <= int(watermark.get("training_replay_id") or 0)
+        )
+        candidates = rows + replay_rows
+        completed_session = latest_completed_session(training_cutoff_at)
+        rolling_start = _subtract_years(
+            training_cutoff_at.date(), config.cohort.rolling_window_years
+        )
+        stages: list[EvidenceFunnelStage] = []
+
+        def apply(name: str, predicate: Callable[[EvidenceOutcome], bool]) -> None:
+            nonlocal candidates
+            before = len(candidates)
+            candidates = tuple(row for row in candidates if predicate(row))
+            stages.append(EvidenceFunnelStage(name, before, len(candidates)))
+
+        apply(
+            "historical_predictions_before_cutoff",
+            lambda row: (
+                row.prediction.source_data_cutoff_at < training_cutoff_at
+                and _visible_at_cutoff(row.prediction.superseded_at, training_cutoff_at)
+            ),
+        )
+        apply(
+            "full_horizon_matured_before_cutoff",
+            lambda row: _matured_before_cutoff(row, completed_session, training_cutoff_at),
+        )
+        apply(
+            "current_forward_revision_at_cutoff",
+            lambda row: _visible_at_cutoff(row.forward_outcome.superseded_at, training_cutoff_at),
+        )
+        apply(
+            "compatible_target_stop_label",
+            lambda row: (
+                row.forward_outcome.entry_model == outcome_definition.entry_model
+                and row.forward_outcome.horizon_sessions == outcome_definition.horizon_sessions
+                and _target_definition_id(row) == outcome_definition.id
+                and row.target_stop_outcome.entry_model == outcome_definition.entry_model
+                and row.target_stop_outcome.horizon_sessions
+                == outcome_definition.horizon_sessions
+                and _decimal_equal(
+                    row.target_stop_outcome.target_pct, outcome_definition.target_pct
+                )
+                and _decimal_equal(
+                    row.target_stop_outcome.stop_pct, outcome_definition.stop_pct
+                )
+                and row.target_stop_outcome.primary_winner is not None
+            ),
+        )
+        apply(
+            "current_target_stop_revision_at_cutoff",
+            lambda row: (
+                row.evidence_origin == EVIDENCE_ORIGIN_PRE11
+                or _visible_at_cutoff(
+                    row.target_stop_outcome.superseded_at, training_cutoff_at
+                )
+            ),
+        )
+        apply(
+            "prediction_eligible",
+            lambda row: row.prediction.eligibility_status
+            == PredictionEligibility.ELIGIBLE,
+        )
+        apply(
+            "point_in_time_validated",
+            lambda row: (row.prediction.lineage_json or {}).get(
+                "point_in_time_validated"
+            )
+            is True,
+        )
+        apply("native_capture", lambda row: row.prediction.reconstruction_method is None)
+        apply(
+            "production_training_eligible",
+            lambda row: (
+                row.evidence_origin == EVIDENCE_ORIGIN_PRE11
+                and row.eligibility_decision_id is not None
+            )
+            or (
+                row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
+                and self.policy.persisted_capture_decision(
+                    row.prediction
+                ).capture_training_candidate
+            ),
+        )
+        apply(
+            "feature_schema_compatible",
+            lambda row: row.prediction.feature_schema_version
+            == config.feature_schema.version,
+        )
+        apply(
+            "calculation_version_compatible",
+            lambda row: (
+                row.evidence_origin == EVIDENCE_ORIGIN_PRE11
+                and getattr(
+                    row.target_stop_outcome, "compatibility_bridge_version", None
+                )
+                == BRIDGE_VERSION
+            )
+            or (
+                row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
+                and row.prediction.calculation_version
+                == outcome_definition.calculation_version
+                == config.engine.calculation_version
+            ),
+        )
+        apply(
+            "config_compatible",
+            lambda row: (
+                row.evidence_origin == EVIDENCE_ORIGIN_PRE11
+                and getattr(
+                    row.target_stop_outcome, "target_outcome_definition_id", None
+                )
+                == outcome_definition.id
+            )
+            or (
+                row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
+                and row.prediction.config_hash
+                == outcome_definition.config_hash
+                == config.config_hash
+            ),
+        )
+        apply(
+            "outcome_definition_compatible",
+            lambda _row: (
+                outcome_definition.is_active
+                and outcome_definition.definition_id
+                == config.primary_outcome_definition.id
+            ),
+        )
+        apply("quality_gates", _passes_quality_gates)
+        apply(
+            "rolling_window_eligible",
+            lambda row: row.prediction.prediction_as_of_date >= rolling_start,
+        )
+        apply(
+            "no_revised_after_cutoff_leakage",
+            lambda row: (
+                _source_revision_cutoff(row) is not None
+                and _source_revision_cutoff(row) <= training_cutoff_at
+            ),
+        )
+        apply("independent_episode", lambda row: not _is_dependent(row.prediction))
+        before = len(candidates)
+        candidates = _one_per_episode(candidates)
+        stages.append(
+            EvidenceFunnelStage(
+                "one_representative_per_episode", before, len(candidates)
+            )
+        )
+        return GenerationEvidenceUniverse(evidence=candidates, stages=tuple(stages))
 
     def diagnostic_funnel(
         self,

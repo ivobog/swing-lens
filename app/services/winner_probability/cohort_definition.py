@@ -39,6 +39,13 @@ class CohortDefinitionService:
             for level in config.cohort.hierarchy
         )
 
+    def cohort_keys_for_features(
+        self,
+        feature_json: dict[str, Any],
+        config: WinnerProbabilityConfig,
+    ) -> tuple[CohortKey, ...]:
+        return tuple(_cohort_key(level, feature_json) for level in config.cohort.hierarchy)
+
     def ensure_definition(
         self,
         db: Session,

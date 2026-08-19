@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 from app.models.tables import (
     WinnerEstimateEvidenceMember,
     WinnerEvidenceManifest,
+    WinnerEvidenceManifestMember,
     WinnerForwardOutcome,
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
@@ -58,6 +60,26 @@ def test_persist_members_writes_exact_outcome_revision_membership() -> None:
     assert member.metadata_json["target_stop_outcome_id"] == evidence[0].target_stop_outcome.id
 
 
+def test_shared_manifest_members_use_one_bulk_statement() -> None:
+    evidence = tuple(_evidence(index) for index in range(1, 1001))
+    db = ManifestPostgresFakeDb()
+    manifest = WinnerEvidenceManifest(
+        id=5,
+        manifest_hash="stable",
+        hash_algorithm="sha256",
+        content_encoding="json",
+        member_count=len(evidence),
+    )
+
+    inserted = EvidenceManifestService().persist_manifest_members(
+        db, manifest=manifest, evidence=evidence
+    )
+
+    assert inserted == 1000
+    assert db.execute_calls == 1
+    assert db.scalar_calls == 0
+
+
 class ManifestFakeDb:
     def __init__(self) -> None:
         self.rows: dict[type, list] = {
@@ -74,6 +96,27 @@ class ManifestFakeDb:
             row.id = self._next_id
             self._next_id += 1
         self.rows.setdefault(type(row), []).append(row)
+
+    def flush(self) -> None:
+        return None
+
+
+class ManifestPostgresFakeDb:
+    def __init__(self) -> None:
+        self.execute_calls = 0
+        self.scalar_calls = 0
+
+    def get_bind(self):
+        return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+    def execute(self, statement):
+        assert statement.table.name == WinnerEvidenceManifestMember.__tablename__
+        self.execute_calls += 1
+        return SimpleNamespace(rowcount=1000)
+
+    def scalar(self, _statement):
+        self.scalar_calls += 1
+        return None
 
     def flush(self) -> None:
         return None
