@@ -38,7 +38,7 @@ def current_deployment_identity(
         git_sha=base[0],
         dirty=base[1],
         image_digest=base[2],
-        schema_revision="0043_ceri_run102_relative_evidence",
+        schema_revision="0048_sec_guidance_normalization_performance",
         config_hash=config_hash,
         calculation_version=calculation_version,
         provider_signatures=provider_signatures or {},

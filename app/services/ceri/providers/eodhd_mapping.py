@@ -17,12 +17,21 @@ PERIOD_MAP = {
 
 def eodhd_symbol(ticker: str, exchange: str | None = None) -> str | None:
     value = ticker.strip().upper()
-    if "." in value:
-        return value
     suffix = {"US": "US", "NASDAQ": "US", "NYSE": "US", "AMEX": "US", "NYSEARCA": "US"}.get(
         (exchange or "").strip().upper()
     )
+    if "." in value:
+        if suffix and not value.endswith(f".{suffix}"):
+            # US share classes use a dot in canonical ticker notation (MOG.A),
+            # while EODHD expects a hyphen plus its exchange suffix (MOG-A.US).
+            return f"{value.replace('.', '-')}.{suffix}"
+        return value
     return f"{value}.{suffix}" if suffix else None
+
+
+def canonical_ticker_from_eodhd_symbol(symbol: str) -> str:
+    provider_ticker = symbol.strip().upper().rsplit(".", 1)[0]
+    return provider_ticker.replace("-", ".")
 
 
 def period_type(value: Any) -> str | None:

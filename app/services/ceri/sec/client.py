@@ -14,6 +14,10 @@ class SecEdgarError(RuntimeError):
     pass
 
 
+class SecEdgarNotFoundError(SecEdgarError):
+    pass
+
+
 class SecFairAccessError(SecEdgarError):
     pass
 
@@ -116,7 +120,22 @@ class SecEdgarClient:
             f"{self.config.archive_url.rstrip('/')}/{normalized_cik}/"
             f"{normalized_accession}/{document}"
         )
-        return self.get_text(url, absolute=True)
+        try:
+            return self.get_text(url, absolute=True)
+        except SecEdgarNotFoundError:
+            # Historical submissions metadata can expose the placeholder
+            # primaryDocument name ``0001.txt`` even though EDGAR stores only
+            # the accession-named full submission text in that directory.
+            # This is an availability fallback for the same filing identity;
+            # it does not alter parser/extractor behavior for documents that
+            # were already retrievable.
+            if document.lower() != "0001.txt":
+                raise
+            fallback_url = (
+                f"{self.config.archive_url.rstrip('/')}/{normalized_cik}/"
+                f"{normalized_accession}/{accession}.txt"
+            )
+            return self.get_text(fallback_url, absolute=True)
 
     def get_json(self, path: str) -> dict[str, Any]:
         value = self._request(path)
@@ -174,6 +193,8 @@ class SecEdgarClient:
                         self._retry_sleep(_retry_after(headers) or min(30.0, 2 ** (attempt - 1)))
                         continue
                     if status >= 400:
+                        if status == 404:
+                            raise SecEdgarNotFoundError("SEC archive object was not found")
                         raise SecEdgarError(f"SEC request failed with HTTP {status}")
                     body = response.read()
                     if isinstance(body, bytes):
@@ -205,6 +226,9 @@ class SecEdgarClient:
                 if status == 403:
                     self.failures += 1
                     raise SecFairAccessError("SEC fair-access response HTTP 403") from exc
+                if status == 404:
+                    self.failures += 1
+                    raise SecEdgarNotFoundError("SEC archive object was not found") from exc
                 if (status == 429 or status >= 500 or status == 0) and attempt < attempts:
                     self._retry_sleep(min(30.0, 2 ** (attempt - 1)))
                     continue

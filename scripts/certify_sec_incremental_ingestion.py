@@ -18,6 +18,7 @@ from app.services.ceri.enums import CeriDataset
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.sec.client import SecClientConfig, SecEdgarClient
+from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider
 from app.services.ceri.source_record_service import source_record_content_hash
 from app.settings import SecDocumentIncrementalMode, Settings, get_settings
@@ -26,9 +27,9 @@ TICKERS = ("AIZ", "AMZN", "CLBT", "JPM", "SLDE")
 
 
 class CertificationProvider(SecCeriProvider):
-    def __init__(self, *, client: SecEdgarClient) -> None:
+    def __init__(self, *, client: SecEdgarClient, tickers: tuple[str, ...]) -> None:
         super().__init__(client=client)
-        self.output_fingerprints: dict[str, list[str]] = {ticker: [] for ticker in TICKERS}
+        self.output_fingerprints: dict[str, list[str]] = {ticker: [] for ticker in tickers}
         self.parse_calls = 0
 
     def extract_guidance_document(self, document, *, text=None):
@@ -65,24 +66,52 @@ class ScenarioResult:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
+    parser.add_argument(
+        "--tickers",
+        nargs="+",
+        default=list(TICKERS),
+        help="Explicit SEC-only ticker universe; no downstream CERI stages are scheduled.",
+    )
+    parser.add_argument(
+        "--scenarios",
+        nargs="+",
+        choices=("shadow_first", "shadow_repeat", "active_warm"),
+        default=("shadow_first", "shadow_repeat", "active_warm"),
+        help="Use shadow_first alone for a one-pass production-universe bootstrap.",
+    )
+    parser.add_argument(
+        "--requests-per-second",
+        type=float,
+        default=None,
+        help="Process-local SEC pacing override for partitioned bootstrap workers.",
+    )
     args = parser.parse_args()
+    tickers = tuple(sorted({str(value).strip().upper() for value in args.tickers if value}))
+    if not tickers:
+        parser.error("at least one ticker is required")
     runtime = get_settings()
+    requests_per_second = args.requests_per_second or runtime.sec_requests_per_second
+    if requests_per_second <= 0 or requests_per_second > 10:
+        parser.error("requests per second must be greater than zero and at most 10")
     config = load_ceri_config()
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     scenarios: list[ScenarioResult] = []
     with Session(engine) as db:
         source_count_before = int(db.scalar(select(func.count(CeriSourceRecord.id))) or 0)
-    for name, mode in (
-        ("shadow_first", SecDocumentIncrementalMode.SHADOW),
-        ("shadow_repeat", SecDocumentIncrementalMode.SHADOW),
-        ("active_warm", SecDocumentIncrementalMode.ACTIVE),
-    ):
+    modes = {
+        "shadow_first": SecDocumentIncrementalMode.SHADOW,
+        "shadow_repeat": SecDocumentIncrementalMode.SHADOW,
+        "active_warm": SecDocumentIncrementalMode.ACTIVE,
+    }
+    for name in args.scenarios:
         result = run_scenario(
             name=name,
-            mode=mode,
+            mode=modes[name],
             runtime=runtime,
             config=config,
             stamp=stamp,
+            tickers=tickers,
+            requests_per_second=requests_per_second,
         )
         scenarios.append(result)
         print(json.dumps(asdict(result), sort_keys=True), flush=True)
@@ -96,27 +125,14 @@ def main() -> int:
                 .order_by(CeriSecDocumentExtraction.status)
             )
         }
-    first, repeat, active = scenarios
-    checks = {
-        "shadow_output_parity": first.output_fingerprint == repeat.output_fingerprint,
-        "shadow_record_count_parity": first.guidance_records == repeat.guidance_records,
-        "repeat_would_skip_all_discovered": (
-            repeat.documents_would_skip == repeat.documents_discovered
-        ),
-        "active_zero_filing_downloads": active.filing_downloads == 0,
-        "active_zero_parsing": active.parsing_calls == 0,
-        "active_zero_extraction_records": active.guidance_records == 0,
-        "active_skipped_all_discovered": active.documents_skipped == active.documents_discovered,
-        "repeated_bytes_reduction_gt_95pct": active.bytes_downloaded
-        < first.bytes_downloaded * 0.05,
-        "repeated_elapsed_reduction_gt_80pct": active.elapsed_seconds
-        < first.elapsed_seconds * 0.20,
-    }
+    checks = _certification_checks(scenarios)
     report = {
         "generated_at": datetime.now(UTC).isoformat(),
-        "tickers": list(TICKERS),
+        "tickers": list(tickers),
+        "processor_signature": sec_guidance_processor_signature(),
         "runtime": {
             "sec_requests_per_second": runtime.sec_requests_per_second,
+            "certification_requests_per_second": requests_per_second,
             "sec_http_timeout_seconds": runtime.sec_http_timeout_seconds,
             "sec_form4_enabled": runtime.sec_form4_enabled,
             "default_incremental_mode": runtime.sec_document_incremental_mode.value,
@@ -129,14 +145,19 @@ def main() -> int:
         "passed": all(checks.values()),
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = args.output_dir / f"sec_incremental_certification_{stamp}.json"
+    output_path = args.output_dir / f"sec_incremental_recertification_{stamp}.json"
     output_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    markdown_path = args.output_dir / f"sec_incremental_recertification_{stamp}.md"
+    markdown_path.write_text(_markdown_report(report), encoding="utf-8")
     print(f"certification_output={output_path.resolve()}", flush=True)
+    print(f"certification_markdown={markdown_path.resolve()}", flush=True)
     print(f"certification_passed={report['passed']}", flush=True)
     return 0 if report["passed"] else 1
 
 
-def run_scenario(*, name, mode, runtime, config, stamp) -> ScenarioResult:
+def run_scenario(
+    *, name, mode, runtime, config, stamp, tickers, requests_per_second
+) -> ScenarioResult:
     settings = Settings(
         sec_document_incremental_mode=mode,
         sec_document_lease_seconds=runtime.sec_document_lease_seconds,
@@ -145,17 +166,17 @@ def run_scenario(*, name, mode, runtime, config, stamp) -> ScenarioResult:
     client = SecEdgarClient(
         SecClientConfig(
             user_agent=runtime.sec_user_agent,
-            requests_per_second=runtime.sec_requests_per_second,
+            requests_per_second=requests_per_second,
             timeout_seconds=runtime.sec_http_timeout_seconds,
         )
     )
-    provider = CertificationProvider(client=client)
+    provider = CertificationProvider(client=client, tickers=tickers)
     registry = CeriProviderRegistry(providers={"sec": provider}, config=config)
     service = CeriIngestionService(config=config, registry=registry, settings=settings)
     per_ticker = {}
     started = time.perf_counter()
     with Session(engine) as db:
-        for ticker in TICKERS:
+        for ticker in tickers:
             ticker_started = time.perf_counter()
             result = service.ingest(
                 db,
@@ -202,6 +223,92 @@ def run_scenario(*, name, mode, runtime, config, stamp) -> ScenarioResult:
         output_fingerprint=hashlib.sha256("\n".join(fingerprints).encode()).hexdigest(),
         per_ticker=per_ticker,
     )
+
+
+def _markdown_report(report: dict) -> str:
+    scenarios = {item["name"]: item for item in report["scenarios"]}
+    lines = [
+        "# SEC Incremental Re-Certification",
+        "",
+        f"Generated: `{report['generated_at']}`",
+        f"Processor signature: `{report['processor_signature']}`",
+        f"Tickers: `{', '.join(report['tickers'])}`",
+        "",
+        "| Scenario | Mode | Discovered | Filing downloads | Skipped | "
+        "Parsing calls | SEC requests | Bytes | Elapsed (s) |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for name in ("shadow_first", "shadow_repeat", "active_warm"):
+        item = scenarios.get(name)
+        if item is None:
+            continue
+        lines.append(
+            f"| {name} | {item['mode']} | {item['documents_discovered']} | "
+            f"{item['filing_downloads']} | {item['documents_skipped']} | "
+            f"{item['parsing_calls']} | {item['sec_requests']} | "
+            f"{item['bytes_downloaded']} | {item['elapsed_seconds']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Checks",
+            "",
+            *[
+                f"- [{'x' if passed else ' '}] {name}"
+                for name, passed in report["checks"].items()
+            ],
+            "",
+            f"Overall: **{'PASS' if report['passed'] else 'FAIL'}**",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _certification_checks(scenarios: list[ScenarioResult]) -> dict[str, bool]:
+    by_name = {item.name: item for item in scenarios}
+    checks = {
+        f"{item.name}_all_tickers_ready": all(
+            values.get("run_evidence_status") == "READY"
+            and values.get("status") == "COMPLETED"
+            for values in item.per_ticker.values()
+        )
+        for item in scenarios
+    }
+    first = by_name.get("shadow_first")
+    repeat = by_name.get("shadow_repeat")
+    active = by_name.get("active_warm")
+    if first is not None:
+        checks["shadow_downloaded_all_discovered"] = (
+            first.documents_downloaded == first.documents_discovered
+        )
+    if first is not None and repeat is not None:
+        checks.update(
+            shadow_output_parity=first.output_fingerprint == repeat.output_fingerprint,
+            shadow_record_count_parity=first.guidance_records == repeat.guidance_records,
+            repeat_would_skip_all_discovered=(
+                repeat.documents_would_skip == repeat.documents_discovered
+            ),
+        )
+    if active is not None:
+        checks.update(
+            active_zero_filing_downloads=active.filing_downloads == 0,
+            active_zero_parsing=active.parsing_calls == 0,
+            active_zero_extraction_records=active.guidance_records == 0,
+            active_skipped_all_discovered=(
+                active.documents_skipped == active.documents_discovered
+            ),
+        )
+    if first is not None and active is not None:
+        checks.update(
+            repeated_bytes_reduction_gt_95pct=(
+                active.bytes_downloaded < first.bytes_downloaded * 0.05
+            ),
+            repeated_elapsed_reduction_gt_80pct=(
+                active.elapsed_seconds < first.elapsed_seconds * 0.20
+            ),
+        )
+    return checks
 
 
 if __name__ == "__main__":

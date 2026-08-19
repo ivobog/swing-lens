@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from app.models.tables import BackgroundJob
@@ -6,8 +8,10 @@ from app.services.background_worker import (
     CancelRequested,
     JobDeferred,
     execute_job,
+    log_worker_startup_configuration,
     run_worker_once,
 )
+from app.settings import SecDocumentIncrementalMode, Settings
 
 
 @pytest.fixture(autouse=True)
@@ -38,6 +42,27 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 
     assert result == {"handled": True}
     assert calls["job"] is job
+
+
+def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
+    class Db:
+        def scalar(self, _statement):
+            return "0048_sec_guidance_normalization_performance"
+
+    settings = Settings(
+        _env_file=None,
+        ceri_provider_ingest_enabled=True,
+        sec_document_incremental_mode=SecDocumentIncrementalMode.OFF,
+    )
+
+    with caplog.at_level(logging.CRITICAL):
+        summary = log_worker_startup_configuration(
+            Db(), settings=settings, worker_id="worker-test"
+        )
+
+    assert summary["sec_incremental_mode"] == "OFF"
+    assert summary["sec_processor_signature"].startswith("sec-guidance:")
+    assert "legacy repeated-download path" in caplog.text
 
 
 def test_execute_job_exposes_heartbeat_to_handler_until_it_returns() -> None:

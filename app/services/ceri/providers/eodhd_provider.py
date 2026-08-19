@@ -19,7 +19,12 @@ from app.services.ceri.dtos import (
 )
 from app.services.ceri.enums import CeriDataset, CeriProviderCapability, ExportPolicy
 from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
-from app.services.ceri.providers.eodhd_mapping import eodhd_symbol, period_type, provider_date
+from app.services.ceri.providers.eodhd_mapping import (
+    canonical_ticker_from_eodhd_symbol,
+    eodhd_symbol,
+    period_type,
+    provider_date,
+)
 from app.settings import get_settings
 
 
@@ -113,7 +118,11 @@ class EodhdCeriProvider:
             return []
         return [
             ProviderCompany(
-                self.name, symbol, symbol.split(".")[0], symbol.split(".", 1)[1], query.cik
+                self.name,
+                symbol,
+                canonical_ticker_from_eodhd_symbol(symbol),
+                symbol.rsplit(".", 1)[1],
+                query.cik,
             )
         ]
 
@@ -297,7 +306,7 @@ class EodhdCeriProvider:
             else None
         )
         payload = {
-            "ticker": symbol.split(".")[0],
+            "ticker": canonical_ticker_from_eodhd_symbol(symbol),
             "provider_company_id": symbol,
             "metric": "EPS_DILUTED",
             "period_type": ptype,
@@ -345,12 +354,12 @@ class EodhdCeriProvider:
             )
             lifecycle_status = _news_status(text, expected_date=expected_date)
             issuer_relevance, relevance_reason = _issuer_relevance(
-                symbol.split(".")[0],
+                canonical_ticker_from_eodhd_symbol(symbol),
                 row.get("relatedTickers") or row.get("symbols"),
                 title,
             )
             payload = {
-                "ticker": symbol.split(".")[0],
+                "ticker": canonical_ticker_from_eodhd_symbol(symbol),
                 "provider_company_id": symbol,
                 "provider_terms_version": self.terms_version,
                 "category": category,
@@ -404,7 +413,7 @@ class EodhdCeriProvider:
         )
         provider_observed_at = supplied_provider_observed_at or fallback_observed_at
         payload = {
-            "ticker": symbol.split(".")[0],
+            "ticker": canonical_ticker_from_eodhd_symbol(symbol),
             "provider_company_id": symbol,
             "provider_terms_version": self.terms_version,
             "period_type": ptype,

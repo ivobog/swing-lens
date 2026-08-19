@@ -53,6 +53,27 @@ def test_historical_alias_validity_dates_are_respected() -> None:
     assert result.company_id == 1
 
 
+def test_prepare_prefetches_companies_and_aliases_only_once() -> None:
+    company = CeriCompany(id=1, ticker="ABC", exchange="NYSE")
+    alias = CeriCompanyAlias(
+        id=2,
+        company_id=1,
+        provider="manual",
+        alias_type="ticker",
+        alias_value="OLD",
+        confidence="High",
+    )
+    db = PrefetchDb([[company], [alias]])
+    resolver = CeriIdentityResolver()
+
+    resolver.prepare(db)
+    resolver.prepare(db)
+    result = resolver.resolve_source_record(db, _source({"ticker": "OLD"}))
+
+    assert result.company_id == 1
+    assert db.select_count == 2
+
+
 def _source(payload: dict, source_date: date | None = None) -> CeriSourceRecord:
     return CeriSourceRecord(
         id=10,
@@ -68,3 +89,21 @@ def _source(payload: dict, source_date: date | None = None) -> CeriSourceRecord:
 
 class FakeDb:
     pass
+
+
+class PrefetchRows:
+    def __init__(self, rows) -> None:
+        self._rows = rows
+
+    def all(self):
+        return self._rows
+
+
+class PrefetchDb:
+    def __init__(self, rows) -> None:
+        self._rows = list(rows)
+        self.select_count = 0
+
+    def scalars(self, _statement):
+        self.select_count += 1
+        return PrefetchRows(self._rows.pop(0))

@@ -6,6 +6,10 @@ from datetime import UTC, datetime
 from app.services.ceri.dtos import EarningsRequest, EstimateRequest
 from app.services.ceri.enums import CeriMetric, CeriPeriodType
 from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
+from app.services.ceri.providers.eodhd_mapping import (
+    canonical_ticker_from_eodhd_symbol,
+    eodhd_symbol,
+)
 from app.services.ceri.providers.eodhd_provider import EodhdCeriProvider
 from app.settings import Settings
 
@@ -20,6 +24,13 @@ def test_eodhd_provider_reads_api_key_from_application_settings(monkeypatch) -> 
     provider = EodhdCeriProvider()
 
     assert provider.client.config.api_key == "from-settings"
+
+
+def test_eodhd_symbol_maps_us_share_class_to_provider_notation() -> None:
+    assert eodhd_symbol("MOG.A", "US") == "MOG-A.US"
+    assert eodhd_symbol("BRK.B", "NYSE") == "BRK-B.US"
+    assert eodhd_symbol("AAPL.US", "US") == "AAPL.US"
+    assert canonical_ticker_from_eodhd_symbol("MOG-A.US") == "MOG.A"
 
 
 def test_eodhd_default_transport_buffers_body_before_response_closes(monkeypatch) -> None:
@@ -117,6 +128,40 @@ def test_eodhd_trends_flattens_symbol_grouped_response() -> None:
     )
 
     assert [record.payload["consensus"] for record in records] == ["2.0", "1.9"]
+
+
+def test_eodhd_share_class_records_retain_canonical_ticker() -> None:
+    payload = [
+        {
+            "code": "MOG-A.US",
+            "period": "0q",
+            "date": "2026-09-30",
+            "earningsEstimateAvg": 2.0,
+        }
+    ]
+    requested_urls: list[str] = []
+    client = EodhdHttpClient(
+        EodhdClientConfig(api_key="secret"),
+        transport=lambda url, _timeout: requested_urls.append(url) or payload,
+    )
+
+    records = list(
+        EodhdCeriProvider(
+            client=client,
+            clock=lambda: datetime(2026, 8, 8, 12, tzinfo=UTC),
+        ).fetch_estimate_snapshots(
+            EstimateRequest(
+                None,
+                "MOG.A",
+                (CeriMetric.EPS_DILUTED,),
+                (CeriPeriodType.CURRENT_QUARTER,),
+            )
+        )
+    )
+
+    assert "symbols=MOG-A.US" in requested_urls[0]
+    assert records[0].payload["ticker"] == "MOG.A"
+    assert records[0].payload["provider_company_id"] == "MOG-A.US"
 
 
 def test_eodhd_official_earnings_schema_maps_reported_result_and_zero_values() -> None:
