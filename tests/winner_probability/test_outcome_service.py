@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+import pytest
+
 from app.models.tables import (
     EntryDataStatus,
     FirstEvent,
@@ -73,9 +75,39 @@ def test_pending_rows_mature_exactly_once_when_due_selector_runs_again() -> None
     second = service.process_due_outcomes(db, now=now)
 
     assert first.matured == 1
+    assert first.warnings == 2
+    assert forward.spy_return_pct is None
+    assert forward.sector_return_pct is None
+    assert forward.beat_spy is None
+    assert forward.beat_sector is None
+    assert set(forward.metadata_json["warnings"]) == {
+        "missing_spy_benchmark_data",
+        "missing_xlk_benchmark_data",
+    }
     assert second.processed == 0
     assert len(repository.forward_outcomes) == 1
     assert forward.revision == 1
+
+
+def test_unexpected_programming_errors_abort_the_maturation_attempt(monkeypatch) -> None:
+    repository = FakeOutcomeRepository(
+        predictions=[_prediction()],
+        forward_outcomes=[_forward()],
+        target_stop_outcomes=[],
+        bars={},
+    )
+    service = OutcomeMaturationService(repository=repository)
+    monkeypatch.setattr(
+        service,
+        "process_forward_outcome",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("fixture bug")),
+    )
+
+    with pytest.raises(TypeError, match="fixture bug"):
+        service.process_due_outcomes(
+            FakeOutcomeDb(repository),
+            now=datetime(2026, 8, 10, 21, 0, tzinfo=UTC),
+        )
 
 
 def test_signal_close_diagnostic_uses_signal_close_and_stays_isolated() -> None:
@@ -133,6 +165,7 @@ def test_missing_entry_bar_keeps_outcome_pending_and_marks_entry_missing() -> No
     )
 
     assert result.pending == 1
+    assert result.reason_counts == {"missing_entry_bar": 1}
     assert forward.status == OutcomeStatus.PENDING
     assert forward.metadata_json["pending_reason"] == "missing_entry_bar"
     assert prediction.entry_data_status == EntryDataStatus.MISSING

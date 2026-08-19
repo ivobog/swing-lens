@@ -10,7 +10,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob
+from app.models.tables import BackgroundJob, WinnerProcessingRun
 from app.services.background_queue import QueueClaimGroup, worker_queue_filter
 from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redacted_token_metadata
@@ -482,6 +482,18 @@ def recover_stale_jobs(db: Session, stale_after_seconds: int) -> int:
             finished_at=now,
             status="STALE_RECOVERED",
         )
+        if isinstance(db, Session):
+            db.execute(
+                update(WinnerProcessingRun)
+                .where(WinnerProcessingRun.background_job_id == job.id)
+                .where(WinnerProcessingRun.status == JobStatus.RUNNING)
+                .values(
+                    status="LOST",
+                    completed_at=now,
+                    terminal_reason_code="LEASE_EXPIRED_SUPERSEDED",
+                    error_message="Background job lease expired; execution was superseded.",
+                )
+            )
         recovered_count += 1
 
     if recovered_count:

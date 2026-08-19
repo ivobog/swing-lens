@@ -867,9 +867,7 @@ class Pre11CompatibilityWriteService:
                 continue
             latest_replay = db.scalar(
                 select(WinnerTrainingOutcomeReplay)
-                .where(
-                    WinnerTrainingOutcomeReplay.eligibility_decision_id == decision.id
-                )
+                .where(WinnerTrainingOutcomeReplay.eligibility_decision_id == decision.id)
                 .order_by(WinnerTrainingOutcomeReplay.revision.desc())
                 .limit(1)
             )
@@ -919,6 +917,23 @@ class Pre11CompatibilityWriteService:
             db.add(replay)
             replays.append(replay)
         db.flush()
+        # Compatibility decisions and replays are first-class material
+        # training evidence.  Advance the same durable desired watermark used
+        # by native maturation; deterministic hashes make an unchanged replay
+        # a no-op.  Imports stay local to avoid the policy-constant dependency
+        # used by cohort_generation_service at module initialization.
+        from app.services.winner_probability.cohort_refresh_planner import (
+            CohortRefreshPlanner,
+        )
+        from app.settings import get_settings
+
+        CohortRefreshPlanner().request_for_current_evidence(
+            db,
+            outcome_definition=outcome_definition,
+            config=config,
+            enqueue_refresh=get_settings().winner_probability_auto_cohort_refresh_enabled,
+            observed_at=now,
+        )
         return tuple(decisions), tuple(replays)
 
 

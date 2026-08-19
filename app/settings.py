@@ -158,6 +158,11 @@ class Settings(BaseSettings):
     winner_probability_config_path: Path = Field(default=Path("config/winner_probability.yaml"))
     winner_probability_admin_enabled: bool = False
     winner_probability_auto_maturation_enabled: bool = False
+    winner_probability_auto_cohort_refresh_enabled: bool = False
+    winner_cohort_refresh_v2_enabled: bool = False
+    winner_cohort_refresh_max_groups_per_slice: int = 100
+    winner_cohort_refresh_max_wall_seconds: float = 45.0
+    winner_latest_rescore_max_predictions_per_slice: int = 250
     setup_lifecycle_enabled: bool = False
     setup_lifecycle_pipeline_step_enabled: bool = False
     setup_latest_bar_projection_enabled: bool = True
@@ -339,10 +344,25 @@ class Settings(BaseSettings):
             raise ValueError("job_worker_heartbeat_interval_seconds must be positive")
         if self.job_worker_heartbeat_interval_seconds >= self.job_worker_heartbeat_timeout_seconds:
             raise ValueError("job_worker_heartbeat_interval_seconds must be less than the timeout")
+        if (
+            self.winner_probability_auto_cohort_refresh_enabled
+            and not self.winner_cohort_refresh_v2_enabled
+        ):
+            raise ValueError(
+                "winner_probability_auto_cohort_refresh_enabled requires "
+                "winner_cohort_refresh_v2_enabled"
+            )
+        if self.winner_cohort_refresh_max_groups_per_slice < 1:
+            raise ValueError("winner_cohort_refresh_max_groups_per_slice must be positive")
+        if self.winner_cohort_refresh_max_wall_seconds <= 0:
+            raise ValueError("winner_cohort_refresh_max_wall_seconds must be positive")
+        if not 1 <= self.winner_latest_rescore_max_predictions_per_slice <= 500:
+            raise ValueError(
+                "winner_latest_rescore_max_predictions_per_slice must be positive and at most 500"
+            )
         if self.db_monitor_full_trace_ms < self.db_monitor_slow_query_ms:
             raise ValueError(
-                "db_monitor_full_trace_ms must be greater than or equal to "
-                "db_monitor_slow_query_ms"
+                "db_monitor_full_trace_ms must be greater than or equal to db_monitor_slow_query_ms"
             )
         if self.ceri_legacy_pipeline_scheduling_enabled and self.ceri_batched_workflow_enabled:
             raise ValueError("legacy and batched CERI pipeline scheduling cannot both be enabled")

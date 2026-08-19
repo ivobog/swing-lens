@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -47,9 +47,24 @@ class OutcomeMaturationResult:
     target_stop_matured: int = 0
     warnings: int = 0
     failed: int = 0
+    material_changes: tuple[MaterialOutcomeChange, ...] = ()
+    reason_counts: dict[str, int] = field(default_factory=dict)
 
-    def as_dict(self) -> dict[str, int]:
-        return self.__dict__.copy()
+    def as_dict(self) -> dict[str, Any]:
+        payload = {key: value for key, value in self.__dict__.items() if key != "material_changes"}
+        payload["material_evidence_changes"] = len(self.material_changes)
+        return payload
+
+
+@dataclass(frozen=True)
+class MaterialOutcomeChange:
+    prediction_id: int
+    forward_outcome_id: int
+    forward_revision_id: int
+    target_stop_outcome_id: int
+    target_stop_revision_id: int
+    outcome_definition_id: int
+    material_for_active_contract: bool = True
 
 
 @dataclass(frozen=True)
@@ -58,6 +73,13 @@ class ForwardCalculation:
     ticker_bars: list[PriceBar]
     lineage_bars: list[PriceBar]
     warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class OutcomeBatchContext:
+    predictions: dict[int, WinnerPredictionSnapshot]
+    bars_by_ticker: dict[str, list[PriceBar]]
+    target_stops_by_prediction: dict[int, list[WinnerTargetStopOutcome]]
 
 
 class OutcomeMaturationService:
@@ -97,11 +119,34 @@ class OutcomeMaturationService:
         for outcome in outcomes:
             if should_cancel is not None and should_cancel():
                 raise OutcomeMaturationCancelled("winner outcome maturation was cancelled")
-            try:
-                self.process_forward_outcome(db, outcome, now=now, totals=totals)
-            except Exception:
-                totals.failed += 1
+            self.process_forward_outcome(db, outcome, now=now, totals=totals)
         return totals.to_result()
+
+    def process_current_revisions(
+        self,
+        db: Session,
+        *,
+        now: datetime | None = None,
+        limit: int = 500,
+        forward_outcome_ids: tuple[int, ...] = (),
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> OutcomeMaturationResult:
+        now = now or _utcnow()
+        outcomes = self.repository.get_current_matured_forward_outcomes(
+            db, limit=limit, forward_outcome_ids=forward_outcome_ids
+        )
+        context = self.build_batch_context(db, outcomes)
+        totals = _MutableOutcomeCounts()
+        for outcome in outcomes:
+            if should_cancel is not None and should_cancel():
+                raise OutcomeMaturationCancelled("winner outcome revision check was cancelled")
+            self.process_forward_outcome(db, outcome, now=now, totals=totals, context=context)
+        return totals.to_result()
+
+    def build_batch_context(
+        self, db: Session, outcomes: list[WinnerForwardOutcome]
+    ) -> OutcomeBatchContext:
+        return self.repository.load_batch_context(db, outcomes)
 
     def process_forward_outcome(
         self,
@@ -110,28 +155,40 @@ class OutcomeMaturationService:
         *,
         now: datetime | None = None,
         totals: _MutableOutcomeCounts | None = None,
+        context: OutcomeBatchContext | None = None,
     ) -> OutcomeMaturationResult:
         now = now or _utcnow()
         totals = totals or _MutableOutcomeCounts()
         totals.processed += 1
+        outcome.last_attempted_at = now
 
         if not is_horizon_complete(outcome.due_session, now):
-            _mark_pending(outcome, "horizon_not_complete")
+            _mark_pending(outcome, "horizon_not_complete", now=now)
             totals.pending += 1
+            totals.add_reason("horizon_not_complete")
             return totals.to_result()
 
-        prediction = self.repository.get_prediction(db, outcome.prediction_id)
+        prediction = (
+            context.predictions.get(outcome.prediction_id)
+            if context is not None
+            else self.repository.get_prediction(db, outcome.prediction_id)
+        )
         if prediction is None:
             _mark_excluded(outcome, "prediction_not_found")
             totals.excluded += 1
+            totals.add_reason("prediction_not_found")
             return totals.to_result()
 
-        calculation = self._calculate_forward(db, prediction, outcome, now=now)
+        calculation = self._calculate_forward(db, prediction, outcome, now=now, context=context)
         if calculation is None:
             if outcome.status == OutcomeStatus.EXCLUDED:
                 totals.excluded += 1
+                totals.add_reason(
+                    str((outcome.metadata_json or {}).get("exclusion_reason") or "excluded")
+                )
             else:
                 totals.pending += 1
+                totals.add_reason(outcome.pending_reason_code or "retryable_prerequisite")
             return totals.to_result()
 
         before_revision = outcome.revision
@@ -147,14 +204,32 @@ class OutcomeMaturationService:
             totals.revised += 1
         totals.warnings += len(calculation.warnings)
 
-        for target_stop in self.repository.get_target_stop_outcomes_for_forward(
-            db,
-            prediction_id=prediction.id,
-            entry_model=matured_outcome.entry_model,
-            horizon_sessions=matured_outcome.horizon_sessions,
-        ):
-            if self._mature_target_stop(db, target_stop, matured_outcome, calculation, now=now):
+        target_stops = (
+            context.target_stops_by_prediction.get(prediction.id, [])
+            if context is not None
+            else self.repository.get_target_stop_outcomes_for_forward(
+                db,
+                prediction_id=prediction.id,
+                entry_model=matured_outcome.entry_model,
+                horizon_sessions=matured_outcome.horizon_sessions,
+            )
+        )
+        for target_stop in target_stops:
+            matured_target, material = self._mature_target_stop(
+                db, target_stop, matured_outcome, calculation, now=now
+            )
+            if material:
                 totals.target_stop_matured += 1
+                totals.material_changes.append(
+                    MaterialOutcomeChange(
+                        prediction_id=prediction.id,
+                        forward_outcome_id=matured_outcome.id,
+                        forward_revision_id=matured_outcome.id,
+                        target_stop_outcome_id=matured_target.id,
+                        target_stop_revision_id=matured_target.id,
+                        outcome_definition_id=matured_target.outcome_definition_id,
+                    )
+                )
 
         return totals.to_result()
 
@@ -165,29 +240,38 @@ class OutcomeMaturationService:
         outcome: WinnerForwardOutcome,
         *,
         now: datetime,
+        context: OutcomeBatchContext | None = None,
     ) -> ForwardCalculation | None:
         if outcome.entry_session is None or outcome.due_session is None:
-            _mark_pending(outcome, "unresolved_entry_or_due_session")
+            _mark_pending(outcome, "unresolved_entry_or_due_session", now=now)
             return None
 
-        ticker_bars = self.repository.load_bars(
-            db,
-            prediction.ticker,
-            start_date=outcome.entry_session,
-            end_date=outcome.due_session,
+        ticker_bars = (
+            _bars_in_range(
+                context.bars_by_ticker.get(prediction.ticker.upper(), []),
+                outcome.entry_session,
+                outcome.due_session,
+            )
+            if context is not None
+            else self.repository.load_bars(
+                db,
+                prediction.ticker,
+                start_date=outcome.entry_session,
+                end_date=outcome.due_session,
+            )
         )
         if not ticker_bars:
             prediction.entry_data_status = EntryDataStatus.MISSING
-            _mark_pending(outcome, "missing_entry_bar")
+            _mark_pending(outcome, "missing_entry_bar", now=now)
             return None
         entry_bar = _bar_by_date(ticker_bars, outcome.entry_session)
         due_bar = _bar_by_date(ticker_bars, outcome.due_session)
         if entry_bar is None:
             prediction.entry_data_status = EntryDataStatus.MISSING
-            _mark_pending(outcome, "missing_entry_bar")
+            _mark_pending(outcome, "missing_entry_bar", now=now)
             return None
         if not _has_required_sessions(ticker_bars, outcome.entry_session, outcome.due_session):
-            _mark_pending(outcome, "missing_horizon_bar")
+            _mark_pending(outcome, "missing_horizon_bar", now=now)
             return None
         validation_error = _validate_bars(ticker_bars)
         if validation_error:
@@ -196,7 +280,7 @@ class OutcomeMaturationService:
             return None
 
         if due_bar is None:
-            _mark_pending(outcome, "missing_due_bar")
+            _mark_pending(outcome, "missing_due_bar", now=now)
             return None
 
         entry_price = _entry_price(outcome.entry_model, entry_bar)
@@ -206,6 +290,8 @@ class OutcomeMaturationService:
             return None
 
         prediction.entry_data_status = EntryDataStatus.AVAILABLE
+        outcome.pending_reason_code = None
+        outcome.retry_not_before_at = None
         exit_price = Decimal(str(due_bar.close))
         close_return = _return_pct(exit_price, entry_price)
         mfe, sessions_to_mfe = _max_excursion(ticker_bars, entry_price, field_name="high")
@@ -220,6 +306,7 @@ class OutcomeMaturationService:
             entry_price_from_model=outcome.entry_model,
             lineage_bars=lineage_bars,
             warnings=warnings,
+            context=context,
         )
         sector_return = self._sector_return(
             db,
@@ -227,6 +314,7 @@ class OutcomeMaturationService:
             outcome,
             lineage_bars=lineage_bars,
             warnings=warnings,
+            context=context,
         )
         lineage_hash, source_cutoff = _source_lineage(lineage_bars)
         values = {
@@ -274,12 +362,21 @@ class OutcomeMaturationService:
         entry_price_from_model: str,
         lineage_bars: list[PriceBar],
         warnings: list[str],
+        context: OutcomeBatchContext | None = None,
     ) -> Decimal | None:
-        bars = self.repository.load_bars(
-            db,
-            ticker,
-            start_date=outcome.entry_session,
-            end_date=outcome.due_session,
+        bars = (
+            _bars_in_range(
+                context.bars_by_ticker.get(ticker.upper(), []),
+                outcome.entry_session,
+                outcome.due_session,
+            )
+            if context is not None
+            else self.repository.load_bars(
+                db,
+                ticker,
+                start_date=outcome.entry_session,
+                end_date=outcome.due_session,
+            )
         )
         if not bars or not _has_required_sessions(bars, outcome.entry_session, outcome.due_session):
             warnings.append(f"missing_{ticker.lower()}_benchmark_data")
@@ -307,6 +404,7 @@ class OutcomeMaturationService:
         *,
         lineage_bars: list[PriceBar],
         warnings: list[str],
+        context: OutcomeBatchContext | None = None,
     ) -> Decimal | None:
         sector = _prediction_sector(prediction)
         proxy = _sector_proxy(sector)
@@ -320,6 +418,7 @@ class OutcomeMaturationService:
             entry_price_from_model=outcome.entry_model,
             lineage_bars=lineage_bars,
             warnings=warnings,
+            context=context,
         )
 
     def _mature_target_stop(
@@ -330,7 +429,7 @@ class OutcomeMaturationService:
         calculation: ForwardCalculation,
         *,
         now: datetime,
-    ) -> bool:
+    ) -> tuple[WinnerTargetStopOutcome, bool]:
         evaluation = self.target_stop_service.evaluate(
             bars=calculation.ticker_bars,
             entry_price=Decimal(str(forward_outcome.entry_price)),
@@ -367,7 +466,7 @@ class OutcomeMaturationService:
             values,
             now=now,
         )
-        return changed or matured.revision > before_revision
+        return matured, changed or matured.revision > before_revision
 
 
 class WinnerOutcomeRepository:
@@ -384,54 +483,114 @@ class WinnerOutcomeRepository:
     ) -> list[WinnerForwardOutcome]:
         statement = (
             select(WinnerForwardOutcome)
-                .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
-                .where(WinnerForwardOutcome.is_current_revision.is_(True))
-                .where(WinnerForwardOutcome.due_session <= completed_on)
-                # Try never-attempted outcomes before retrying rows already
-                # blocked by missing bars. Otherwise the same old missing rows
-                # consume most of every bounded batch and starve later horizons.
-                .order_by(
-                    case(
-                        (
-                            WinnerForwardOutcome.metadata_json["pending_reason"]
-                            .as_string()
-                            .is_(None),
-                            0,
-                        ),
-                        else_=1,
+            .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
+            .where(WinnerForwardOutcome.is_current_revision.is_(True))
+            .where(WinnerForwardOutcome.due_session <= completed_on)
+            .where(
+                (WinnerForwardOutcome.retry_not_before_at.is_(None))
+                | (WinnerForwardOutcome.retry_not_before_at <= _utcnow())
+            )
+            # Try never-attempted outcomes before retrying rows already
+            # blocked by missing bars. Otherwise the same old missing rows
+            # consume most of every bounded batch and starve later horizons.
+            .order_by(
+                case(
+                    (
+                        WinnerForwardOutcome.metadata_json["pending_reason"].as_string().is_(None),
+                        0,
                     ),
-                    WinnerForwardOutcome.due_session,
-                    WinnerForwardOutcome.id,
-                )
-                .limit(limit)
+                    else_=1,
+                ),
+                WinnerForwardOutcome.due_session,
+                WinnerForwardOutcome.id,
+            )
+            .limit(limit)
         )
         if entry_model is not None:
             statement = statement.where(WinnerForwardOutcome.entry_model == entry_model)
         if horizon_sessions is not None:
-            statement = statement.where(
-                WinnerForwardOutcome.horizon_sessions == horizon_sessions
-            )
+            statement = statement.where(WinnerForwardOutcome.horizon_sessions == horizon_sessions)
         if due_session is not None:
             statement = statement.where(WinnerForwardOutcome.due_session <= due_session)
         if exclude_ids:
             statement = statement.where(WinnerForwardOutcome.id.not_in(exclude_ids))
         return list(db.scalars(statement))
 
+    def load_batch_context(
+        self,
+        db: Session,
+        outcomes: list[WinnerForwardOutcome],
+    ) -> OutcomeBatchContext:
+        prediction_ids = sorted({row.prediction_id for row in outcomes})
+        predictions = {
+            row.id: row
+            for row in db.scalars(
+                select(WinnerPredictionSnapshot).where(
+                    WinnerPredictionSnapshot.id.in_(prediction_ids)
+                )
+            )
+        }
+        target_stops: dict[int, list[WinnerTargetStopOutcome]] = {}
+        for row in db.scalars(
+            select(WinnerTargetStopOutcome)
+            .where(WinnerTargetStopOutcome.prediction_id.in_(prediction_ids))
+            .where(WinnerTargetStopOutcome.is_current_revision.is_(True))
+            .order_by(WinnerTargetStopOutcome.prediction_id, WinnerTargetStopOutcome.id)
+        ):
+            target_stops.setdefault(row.prediction_id, []).append(row)
+        symbols = {BENCHMARK_TICKER}
+        sectors = {_prediction_sector(prediction) for prediction in predictions.values()}
+        sector_proxies = {sector: _sector_proxy(sector) for sector in sectors}
+        for prediction in predictions.values():
+            symbols.add(prediction.ticker.upper())
+            proxy = sector_proxies.get(_prediction_sector(prediction))
+            if proxy:
+                symbols.add(proxy)
+        starts = [row.entry_session for row in outcomes if row.entry_session is not None]
+        ends = [row.due_session for row in outcomes if row.due_session is not None]
+        bars_by_ticker: dict[str, list[PriceBar]] = {}
+        if starts and ends and symbols:
+            raw_bars = list(
+                db.scalars(
+                    select(PriceBar)
+                    .where(PriceBar.ticker.in_(sorted(symbols)))
+                    .where(PriceBar.timeframe == "1 day")
+                    .where(PriceBar.what_to_show.in_(("ADJUSTED_LAST", "TRADES")))
+                    .where(PriceBar.bar_date >= min(starts))
+                    .where(PriceBar.bar_date <= max(ends))
+                    .order_by(PriceBar.ticker, PriceBar.bar_date, PriceBar.id)
+                )
+            )
+            by_basis: dict[tuple[str, str], list[PriceBar]] = {}
+            for bar in raw_bars:
+                by_basis.setdefault((bar.ticker.upper(), bar.what_to_show), []).append(bar)
+            for symbol in symbols:
+                bars_by_ticker[symbol] = by_basis.get((symbol, "ADJUSTED_LAST")) or by_basis.get(
+                    (symbol, "TRADES"), []
+                )
+        return OutcomeBatchContext(
+            predictions=predictions,
+            bars_by_ticker=bars_by_ticker,
+            target_stops_by_prediction=target_stops,
+        )
+
     def get_current_matured_forward_outcomes(
         self,
         db: Session,
         *,
         limit: int,
+        forward_outcome_ids: tuple[int, ...] = (),
     ) -> list[WinnerForwardOutcome]:
-        return list(
-            db.scalars(
-                select(WinnerForwardOutcome)
-                .where(WinnerForwardOutcome.status == OutcomeStatus.MATURED)
-                .where(WinnerForwardOutcome.is_current_revision.is_(True))
-                .order_by(WinnerForwardOutcome.id)
-                .limit(limit)
-            )
+        statement = (
+            select(WinnerForwardOutcome)
+            .where(WinnerForwardOutcome.status == OutcomeStatus.MATURED)
+            .where(WinnerForwardOutcome.is_current_revision.is_(True))
+            .order_by(WinnerForwardOutcome.id)
+            .limit(limit)
         )
+        if forward_outcome_ids:
+            statement = statement.where(WinnerForwardOutcome.id.in_(forward_outcome_ids))
+        return list(db.scalars(statement))
 
     def get_prediction(
         self,
@@ -485,9 +644,19 @@ class _MutableOutcomeCounts:
     target_stop_matured: int = 0
     warnings: int = 0
     failed: int = 0
+    material_changes: list[MaterialOutcomeChange] = field(default_factory=list)
+    reason_counts: dict[str, int] = field(default_factory=dict)
+
+    def add_reason(self, reason: str) -> None:
+        self.reason_counts[reason] = self.reason_counts.get(reason, 0) + 1
 
     def to_result(self) -> OutcomeMaturationResult:
-        return OutcomeMaturationResult(**self.__dict__)
+        return OutcomeMaturationResult(
+            **{
+                **self.__dict__,
+                "material_changes": tuple(self.material_changes),
+            }
+        )
 
 
 def _has_required_sessions(bars: list[PriceBar], start: date | None, end: date | None) -> bool:
@@ -532,9 +701,7 @@ def _entry_price(entry_model: str, entry_bar: PriceBar) -> Decimal | None:
 
 
 def _return_pct(exit_price: Decimal, entry_price: Decimal) -> Decimal:
-    return ((exit_price - entry_price) / entry_price * Decimal("100")).quantize(
-        Decimal("0.000001")
-    )
+    return ((exit_price - entry_price) / entry_price * Decimal("100")).quantize(Decimal("0.000001"))
 
 
 def _max_excursion(
@@ -610,14 +777,28 @@ def _sector_proxy(sector: str | None) -> str | None:
     return str(proxy).upper() if proxy else None
 
 
-def _mark_pending(outcome: WinnerForwardOutcome, reason: str) -> None:
+def _mark_pending(
+    outcome: WinnerForwardOutcome,
+    reason: str,
+    *,
+    now: datetime,
+) -> None:
     outcome.status = OutcomeStatus.PENDING
+    outcome.pending_reason_code = reason
+    outcome.last_attempted_at = now
+    outcome.retry_not_before_at = now + timedelta(minutes=15)
     outcome.metadata_json = {**(outcome.metadata_json or {}), "pending_reason": reason}
 
 
 def _mark_excluded(outcome: WinnerForwardOutcome, reason: str) -> None:
     outcome.status = OutcomeStatus.EXCLUDED
+    outcome.pending_reason_code = None
+    outcome.retry_not_before_at = None
     outcome.metadata_json = {**(outcome.metadata_json or {}), "exclusion_reason": reason}
+
+
+def _bars_in_range(bars: list[PriceBar], start_date: date, end_date: date) -> list[PriceBar]:
+    return [row for row in bars if start_date <= row.bar_date <= end_date]
 
 
 def _latest_completed_for(now: datetime) -> date:

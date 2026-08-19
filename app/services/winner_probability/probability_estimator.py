@@ -5,14 +5,17 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
     EstimateKind,
     EstimateSource,
     EvidenceGrade,
+    WinnerCohortDefinition,
+    WinnerCohortGeneration,
     WinnerCohortStatistic,
+    WinnerEvidenceManifestMember,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
@@ -115,6 +118,172 @@ class ProbabilityEstimator:
             config=config,
             reconstruction_method=None,
             model_version_id=model_version_id,
+        )
+
+    def create_latest_rescore_from_generation(
+        self,
+        db: Session,
+        *,
+        prediction: WinnerPredictionSnapshot,
+        outcome_definition: WinnerOutcomeDefinition,
+        generation: WinnerCohortGeneration,
+        config: WinnerProbabilityConfig | None = None,
+        model_version_id: int | None = None,
+    ) -> ProbabilityEstimateResult:
+        """Create a bounded v2 rescore from already-materialized statistics.
+
+        This path never loads historical evidence.  Exact evidence identity is
+        inherited from the selected generation statistic's shared manifest.
+        """
+        config = config or load_winner_probability_config()
+        self.model_registry.ensure_can_serve_latest_rescore(db, model_version_id=model_version_id)
+        if generation.status != "PUBLISHED":
+            raise ValueError("latest rescore requires a PUBLISHED cohort generation")
+        expected_contract = (
+            generation.outcome_definition_id == outcome_definition.id
+            and generation.feature_schema_version == config.feature_schema.version
+            and generation.calculation_version == config.engine.calculation_version
+            and generation.config_hash == config.config_hash
+        )
+        if not expected_contract:
+            raise ValueError("cohort generation is incompatible with the rescore contract")
+        existing = db.scalar(
+            select(WinnerProbabilityEstimate)
+            .where(WinnerProbabilityEstimate.prediction_id == prediction.id)
+            .where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition.id)
+            .where(WinnerProbabilityEstimate.estimate_kind == ESTIMATE_KIND_LATEST_RESCORE)
+            .where(WinnerProbabilityEstimate.cohort_generation_id == generation.id)
+            .where(WinnerProbabilityEstimate.source_version == COHORT_BASELINE_SOURCE_VERSION)
+        )
+        if existing is not None:
+            return ProbabilityEstimateResult(
+                estimate=existing,
+                status="duplicate",
+                evidence=(),
+                selected_cohort=None,
+                statistics=None,
+            )
+
+        keys = self.cohort_definition_service.cohort_keys_for_prediction(prediction, config)
+        rows = db.execute(
+            select(WinnerCohortDefinition, WinnerCohortStatistic)
+            .join(
+                WinnerCohortStatistic,
+                WinnerCohortStatistic.cohort_definition_id == WinnerCohortDefinition.id,
+            )
+            .where(WinnerCohortStatistic.generation_id == generation.id)
+            .where(WinnerCohortDefinition.cohort_key.in_([key.key for key in keys]))
+        ).all()
+        by_key = {definition.cohort_key: statistic for definition, statistic in rows}
+        selected_key: CohortKey | None = None
+        selected_statistic: WinnerCohortStatistic | None = None
+        for level, key in zip(config.cohort.hierarchy, keys, strict=True):
+            statistic = by_key.get(key.key)
+            if statistic is None:
+                continue
+            interval_width = _statistic_interval_width(statistic)
+            if (
+                statistic.effective_n >= Decimal(level.min_effective_n)
+                and interval_width <= Decimal(str(config.cohort.max_interval_width))
+                and statistic.evidence_grade != EvidenceGrade.INSUFFICIENT
+            ):
+                selected_key = key
+                selected_statistic = statistic
+                break
+
+        broadest = by_key.get(keys[-1].key) if keys else None
+        statistic = selected_statistic or broadest
+        insufficient_reasons = [] if selected_statistic is not None else ["no_eligible_cohort"]
+        if selected_statistic is not None and db.scalar(
+            select(
+                exists()
+                .where(
+                    WinnerEvidenceManifestMember.manifest_id
+                    == selected_statistic.evidence_manifest_id
+                )
+                .where(
+                    or_(
+                        WinnerEvidenceManifestMember.prediction_id == prediction.id,
+                        (
+                            WinnerEvidenceManifestMember.episode_id == prediction.episode_id
+                            if prediction.episode_id is not None
+                            else False
+                        ),
+                    )
+                )
+            )
+        ):
+            # Retrospective self-inclusion requires a separately tested
+            # leave-one-episode-out workflow.  Never serve the contaminated
+            # statistic as a normal latest rescore.
+            selected_key = None
+            selected_statistic = None
+            insufficient_reasons = ["historical_self_exclusion_required"]
+        estimate = WinnerProbabilityEstimate(
+            prediction_id=prediction.id,
+            outcome_definition_id=outcome_definition.id,
+            estimate_kind=ESTIMATE_KIND_LATEST_RESCORE,
+            source=(
+                EstimateSource.COHORT
+                if selected_statistic is not None
+                else EstimateSource.INSUFFICIENT
+            ),
+            source_version=COHORT_BASELINE_SOURCE_VERSION,
+            cohort_definition_id=(
+                selected_statistic.cohort_definition_id if selected_statistic is not None else None
+            ),
+            model_version_id=model_version_id,
+            evidence_manifest_id=(statistic.evidence_manifest_id if statistic else None),
+            cohort_generation_id=generation.id,
+            training_cutoff_at=generation.training_cutoff_at,
+            point_probability=(
+                selected_statistic.posterior_probability if selected_statistic is not None else None
+            ),
+            lower_bound=(selected_statistic.lower_bound if selected_statistic else None),
+            upper_bound=(selected_statistic.upper_bound if selected_statistic else None),
+            interval_width=(
+                _statistic_interval_width(selected_statistic)
+                if selected_statistic is not None
+                else None
+            ),
+            sample_n=statistic.sample_n if statistic else 0,
+            effective_n=statistic.effective_n if statistic else Decimal("0"),
+            evidence_grade=(
+                selected_statistic.evidence_grade
+                if selected_statistic is not None
+                else EvidenceGrade.INSUFFICIENT
+            ),
+            insufficient_reasons_json=insufficient_reasons,
+            expected_return_pct=_metadata_decimal(statistic, "mean_return_pct"),
+            median_return_pct=statistic.median_return_pct if statistic else None,
+            median_mfe_pct=statistic.median_mfe_pct if statistic else None,
+            median_mae_pct=statistic.median_mae_pct if statistic else None,
+            target_first_rate=_metadata_decimal(statistic, "target_first_rate"),
+            config_hash=config.config_hash,
+            feature_schema_version=config.feature_schema.version,
+            evidence_manifest_hash=(statistic.evidence_manifest_hash if statistic else None),
+            metadata_json={
+                "cohort_generation_id": generation.id,
+                "generation_key": generation.generation_key,
+                "watermark_hash": generation.watermark_hash,
+                "cohort_statistic_id": (
+                    selected_statistic.id if selected_statistic is not None else None
+                ),
+                "wins": str(statistic.wins if statistic is not None else Decimal("0")),
+                "selected_cohort_level": (selected_key.level if selected_key is not None else None),
+                "selected_cohort_key": (selected_key.key if selected_key is not None else None),
+                "calculation_version": config.engine.calculation_version,
+                "request_timestamp_is_identity": False,
+            },
+        )
+        db.add(estimate)
+        db.flush()
+        return ProbabilityEstimateResult(
+            estimate=estimate,
+            status="estimated" if selected_statistic is not None else "insufficient",
+            evidence=(),
+            selected_cohort=selected_key,
+            statistics=None,
         )
 
     def _create_estimate(
@@ -590,6 +759,19 @@ def _estimate_metadata(
 
 def _str_or_none(value) -> str | None:
     return str(value) if value is not None else None
+
+
+def _statistic_interval_width(statistic: WinnerCohortStatistic) -> Decimal:
+    if statistic.upper_bound is None or statistic.lower_bound is None:
+        return Decimal("Infinity")
+    return Decimal(str(statistic.upper_bound)) - Decimal(str(statistic.lower_bound))
+
+
+def _metadata_decimal(statistic: WinnerCohortStatistic | None, key: str) -> Decimal | None:
+    if statistic is None:
+        return None
+    value = (statistic.metadata_json or {}).get(key)
+    return Decimal(str(value)) if value is not None else None
 
 
 def _evidence_composition(evidence: tuple[EvidenceOutcome, ...]) -> dict[str, Any]:

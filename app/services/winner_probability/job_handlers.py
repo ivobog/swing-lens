@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session
 from app.models.tables import (
     BackgroundJob,
     PredictionEligibility,
+    WinnerCohortGeneration,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
     WinnerProcessingRun,
 )
 from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
-from app.services.background_worker import CancelRequested
+from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 from app.services.winner_probability.backfill import (
     BackfillRequest,
@@ -27,6 +28,17 @@ from app.services.winner_probability.capture_service import (
     WinnerPredictionCaptureCancelled,
     WinnerPredictionCaptureService,
 )
+from app.services.winner_probability.cohort_generation_service import (
+    CohortGenerationService,
+    CohortGenerationStatus,
+    EvidenceWatermarkService,
+    contract_for,
+)
+from app.services.winner_probability.cohort_materialization_service import (
+    CohortMaterializationCancelled,
+    CohortMaterializationService,
+)
+from app.services.winner_probability.cohort_refresh_planner import CohortRefreshPlanner
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.decision_time_estimate_service import (
     DecisionTimeEstimateService,
@@ -40,11 +52,13 @@ from app.services.winner_probability.outcome_service import (
 )
 from app.services.winner_probability.probability_estimator import ProbabilityEstimator
 from app.services.winner_probability.repository import WinnerProbabilityRepository
+from app.settings import get_settings
 
 WINNER_PREDICTION_CAPTURE = "WINNER_PREDICTION_CAPTURE"
 WINNER_OUTCOME_MATURATION = "WINNER_OUTCOME_MATURATION"
 WINNER_OUTCOME_REVISION_CHECK = "WINNER_OUTCOME_REVISION_CHECK"
 WINNER_COHORT_REFRESH = "WINNER_COHORT_REFRESH"
+WINNER_LATEST_RESCORE = "WINNER_LATEST_RESCORE"
 WINNER_MODEL_TRAINING = "WINNER_MODEL_TRAINING"
 WINNER_SIMILARITY_CACHE = "WINNER_SIMILARITY_CACHE"
 WINNER_HISTORICAL_BACKFILL = "WINNER_HISTORICAL_BACKFILL"
@@ -72,8 +86,18 @@ class WinnerCohortRefreshResult:
     duplicate: int = 0
     insufficient: int = 0
     failed: int = 0
+    generation_id: int | None = None
+    generation_key: str | None = None
+    evidence_rows_loaded: int = 0
+    planned_groups: int = 0
+    completed_groups: int = 0
+    groups_in_slice: int = 0
+    manifest_members_inserted: int = 0
+    continuation_required: bool = False
+    desired_watermark_advanced: bool = False
+    no_op: bool = False
 
-    def as_dict(self) -> dict[str, int]:
+    def as_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()
 
 
@@ -84,12 +108,20 @@ class WinnerCohortRefreshService:
         repository: WinnerProbabilityRepository | None = None,
         decision_time_estimate_service: DecisionTimeEstimateService | None = None,
         probability_estimator: ProbabilityEstimator | None = None,
+        watermark_service: EvidenceWatermarkService | None = None,
+        generation_service: CohortGenerationService | None = None,
+        materialization_service: CohortMaterializationService | None = None,
     ) -> None:
         self.repository = repository or WinnerProbabilityRepository()
         self.decision_time_estimate_service = (
             decision_time_estimate_service or DecisionTimeEstimateService(self.repository)
         )
         self.probability_estimator = probability_estimator or ProbabilityEstimator()
+        self.watermark_service = watermark_service or EvidenceWatermarkService()
+        self.generation_service = generation_service or CohortGenerationService()
+        self.materialization_service = materialization_service or CohortMaterializationService(
+            generation_service=self.generation_service
+        )
 
     def refresh_cohorts(
         self,
@@ -98,6 +130,9 @@ class WinnerCohortRefreshService:
         outcome_definition_id: str | None = None,
         training_cutoff_at: datetime | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        lease_guard: Callable[[], None] | None = None,
+        max_groups: int = 100,
+        max_wall_seconds: float = 45.0,
     ) -> WinnerCohortRefreshResult:
         config = load_winner_probability_config()
         outcome_definition = self._outcome_definition(
@@ -106,30 +141,58 @@ class WinnerCohortRefreshService:
             calculation_version=config.engine.calculation_version,
             default_definition_id=config.primary_outcome_definition.id,
         )
-        counts = _MutableCohortRefreshCounts()
-        training_cutoff_at = training_cutoff_at or _utcnow()
-        for prediction in _eligible_predictions(db):
-            if should_cancel is not None and should_cancel():
-                raise WinnerCohortRefreshCancelled("winner cohort refresh was cancelled")
-            counts.processed += 1
-            try:
-                result = self.probability_estimator.create_latest_rescore(
-                    db,
-                    prediction=prediction,
-                    outcome_definition=outcome_definition,
-                    as_of=training_cutoff_at,
-                    config=config,
+        # Legacy payload cutoffs are audit-only. Material identity comes from
+        # the durable evidence watermark and never from request wall time.
+        del training_cutoff_at
+        lease_guard = lease_guard or (lambda: None)
+        should_cancel = should_cancel or (lambda: False)
+        advance = self.watermark_service.advance_to_current_material_evidence(
+            db,
+            outcome_definition=outcome_definition,
+            config=config,
+        )
+        state = advance.state
+        if (
+            state.published_generation_id is not None
+            and state.published_watermark_hash == state.desired_watermark_hash
+        ):
+            published = self.generation_service.published_for_state(db, state)
+            if published is not None:
+                return WinnerCohortRefreshResult(
+                    generation_id=published.id,
+                    generation_key=published.generation_key,
+                    completed_groups=published.completed_group_count,
+                    planned_groups=int(published.planned_group_count or 0),
+                    no_op=True,
                 )
-            except Exception:
-                counts.failed += 1
-                continue
-            if result.status == "duplicate":
-                counts.duplicate += 1
-            elif result.status == "insufficient":
-                counts.insufficient += 1
-            else:
-                counts.estimated += 1
-        return counts.to_result()
+        generation = self.generation_service.capture_or_resume(
+            db,
+            state=state,
+            contract=contract_for(outcome_definition, config),
+        )
+        materialized = self.materialization_service.materialize_slice(
+            db,
+            generation=generation,
+            outcome_definition=outcome_definition,
+            config=config,
+            lease_guard=lease_guard,
+            should_cancel=should_cancel,
+            max_groups=max_groups,
+            max_wall_seconds=max_wall_seconds,
+        )
+        return WinnerCohortRefreshResult(
+            processed=materialized.groups_in_slice,
+            generation_id=materialized.generation_id,
+            generation_key=materialized.generation_key,
+            evidence_rows_loaded=materialized.evidence_rows_loaded,
+            planned_groups=materialized.planned_groups,
+            completed_groups=materialized.completed_groups,
+            groups_in_slice=materialized.groups_in_slice,
+            manifest_members_inserted=materialized.manifest_members_inserted,
+            continuation_required=materialized.continuation_required,
+            desired_watermark_advanced=materialized.desired_watermark_advanced,
+            no_op=materialized.no_op,
+        )
 
     def _outcome_definition(
         self,
@@ -172,7 +235,9 @@ def implemented_winner_job_handlers() -> dict[str, WinnerJobHandler]:
     return {
         WINNER_PREDICTION_CAPTURE: execute_prediction_capture_job,
         WINNER_OUTCOME_MATURATION: execute_outcome_maturation_job,
+        WINNER_OUTCOME_REVISION_CHECK: execute_outcome_revision_check_job,
         WINNER_COHORT_REFRESH: execute_cohort_refresh_job,
+        WINNER_LATEST_RESCORE: execute_latest_rescore_job,
         WINNER_HISTORICAL_BACKFILL: execute_historical_backfill_job,
     }
 
@@ -242,6 +307,7 @@ def execute_prediction_capture_job(
             status=JobStatus.FAILED,
             started_at=started_at,
             error=str(exc),
+            reason_code=type(exc).__name__.upper(),
         )
         raise
 
@@ -304,6 +370,7 @@ def execute_outcome_maturation_job(
                 max_batches=max_batches,
                 due_session=due_session,
                 should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+                lease_guard=lambda: _heartbeat_only(job),
             )
         else:
             result = outcome_service.process_due_outcomes(  # type: ignore[union-attr]
@@ -328,19 +395,12 @@ def execute_outcome_maturation_job(
             status=JobStatus.FAILED,
             started_at=started_at,
             error=str(exc),
+            reason_code=type(exc).__name__.upper(),
         )
         raise
 
     counts = result.as_dict()
-    status = (
-        JobStatus.PARTIAL
-        if (
-            counts.get("failed", 0)
-            or counts.get("failed_h5", 0)
-            or counts.get("pending_h5_after_cycle", 0)
-        )
-        else JobStatus.COMPLETED
-    )
+    status = classify_maturation_status(counts)
     if status == JobStatus.PARTIAL:
         job.status = JobStatus.PARTIAL
     _finish_processing_run(
@@ -357,16 +417,43 @@ def execute_outcome_maturation_job(
             "unvisited_queue_depth": counts.get("unvisited_h5_after_cycle"),
         },
     )
-    if counts.get("target_stop_matured", 0):
-        definition_id = config.primary_outcome_definition.id
-        refresh_cutoff_at = _utcnow()
+    definition_id = config.primary_outcome_definition.id
+    if isinstance(db, Session):
+        definition = WinnerProbabilityRepository().get_outcome_definition(
+            db,
+            definition_id=definition_id,
+            calculation_version=config.engine.calculation_version,
+        )
+        if definition is None:
+            raise ValueError(f"Winner outcome definition was not found: {definition_id}")
+        planned = CohortRefreshPlanner().request_for_current_evidence(
+            db,
+            outcome_definition=definition,
+            config=config,
+            observed_at=now,
+            enqueue_refresh=(
+                bool(counts.get("target_stop_matured", 0))
+                and get_settings().winner_probability_auto_cohort_refresh_enabled
+            ),
+        )
+        refresh_state = planned.watermark.state
+        observed = now or _utcnow()
+        if counts.get("scan_completed"):
+            refresh_state.last_full_scan_at = observed
+        if not counts.get("pending_h5_after_cycle", 0):
+            refresh_state.last_zero_due_backlog_at = observed
+        refresh_state.current_due_count = int(counts.get("pending_h5_after_cycle", 0) or 0)
+        refresh_state.current_deferred_count = int(counts.get("deferred_pending_h5", 0) or 0)
+        oldest_due = counts.get("oldest_due_h5_session")
+        refresh_state.oldest_due_session = (
+            datetime.fromisoformat(str(oldest_due)).date() if oldest_due else None
+        )
+        db.flush()
+    elif counts.get("target_stop_matured", 0):
         enqueue_job(
             db,
             WINNER_COHORT_REFRESH,
-            {
-                "outcome_definition_id": definition_id,
-                "training_cutoff_at": refresh_cutoff_at.isoformat(),
-            },
+            {"outcome_definition_id": definition_id},
             request_key=f"winner:cohort-refresh:{definition_id}",
         )
     if counts.get("unvisited_h5_after_cycle", 0):
@@ -378,6 +465,86 @@ def execute_outcome_maturation_job(
         )
     return {
         "job_type": WINNER_OUTCOME_MATURATION,
+        "processing_run_id": processing_run.id,
+        "status": status,
+        **counts,
+    }
+
+
+def execute_outcome_revision_check_job(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    outcome_service: OutcomeMaturationService | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    payload = job.payload_json or {}
+    limit = _optional_int(payload, "limit") or 500
+    forward_outcome_ids = tuple(_int_list(payload, "forward_outcome_ids", required=False))
+    config = load_winner_probability_config()
+    processing_run = _start_processing_run(
+        db,
+        job=job,
+        process_type=WINNER_OUTCOME_REVISION_CHECK,
+        run_id=None,
+        config_hash=config.config_hash,
+    )
+    started_at = processing_run.started_at or _utcnow()
+    outcome_service = outcome_service or OutcomeMaturationService()
+    try:
+        result = outcome_service.process_current_revisions(
+            db,
+            now=now,
+            limit=limit,
+            forward_outcome_ids=forward_outcome_ids,
+            should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+        )
+    except OutcomeMaturationCancelled as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.CANCELLED,
+            started_at=started_at,
+            error=str(exc),
+        )
+        raise CancelRequested(str(exc)) from exc
+    except Exception as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.FAILED,
+            started_at=started_at,
+            error=str(exc),
+            reason_code=type(exc).__name__.upper(),
+        )
+        raise
+    counts = result.as_dict()
+    status = JobStatus.PARTIAL if counts.get("failed", 0) else JobStatus.COMPLETED
+    _finish_processing_run(
+        db,
+        processing_run,
+        status=status,
+        started_at=started_at,
+        counts=counts,
+        checkpoint={"last_completed_phase": "outcome_revision_check"},
+    )
+    if counts.get("target_stop_matured", 0) and isinstance(db, Session):
+        definition = WinnerProbabilityRepository().get_outcome_definition(
+            db,
+            definition_id=config.primary_outcome_definition.id,
+            calculation_version=config.engine.calculation_version,
+        )
+        if definition is None:
+            raise ValueError("active Winner outcome definition was not found")
+        CohortRefreshPlanner().request_for_current_evidence(
+            db,
+            outcome_definition=definition,
+            config=config,
+            observed_at=now,
+            enqueue_refresh=get_settings().winner_probability_auto_cohort_refresh_enabled,
+        )
+    return {
+        "job_type": WINNER_OUTCOME_REVISION_CHECK,
         "processing_run_id": processing_run.id,
         "status": status,
         **counts,
@@ -396,6 +563,13 @@ def execute_cohort_refresh_job(
         datetime.fromisoformat(str(payload["training_cutoff_at"]))
         if payload.get("training_cutoff_at")
         else None
+    )
+    settings = get_settings()
+    max_groups = (
+        _optional_int(payload, "max_groups") or settings.winner_cohort_refresh_max_groups_per_slice
+    )
+    max_wall_seconds = float(
+        payload.get("max_wall_seconds") or settings.winner_cohort_refresh_max_wall_seconds
     )
     config = load_winner_probability_config()
     processing_run = _start_processing_run(
@@ -416,8 +590,11 @@ def execute_cohort_refresh_job(
             else None,
             training_cutoff_at=training_cutoff_at,
             should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+            lease_guard=lambda: _heartbeat_only(job),
+            max_groups=max_groups,
+            max_wall_seconds=max_wall_seconds,
         )
-    except WinnerCohortRefreshCancelled as exc:
+    except (WinnerCohortRefreshCancelled, CohortMaterializationCancelled) as exc:
         _finish_processing_run(
             db,
             processing_run,
@@ -433,10 +610,12 @@ def execute_cohort_refresh_job(
             status=JobStatus.FAILED,
             started_at=started_at,
             error=str(exc),
+            reason_code=type(exc).__name__.upper(),
         )
         raise
 
     counts = result.as_dict()
+    processing_run.cohort_generation_id = result.generation_id
     status = JobStatus.PARTIAL if counts.get("failed", 0) else JobStatus.COMPLETED
     if status == JobStatus.PARTIAL:
         job.status = JobStatus.PARTIAL
@@ -447,15 +626,170 @@ def execute_cohort_refresh_job(
         started_at=started_at,
         counts=counts,
         checkpoint={
-            "last_completed_phase": "cohort_refresh",
+            "last_completed_phase": (
+                "cohort_refresh_slice" if result.continuation_required else "cohort_refresh"
+            ),
             "outcome_definition_id": outcome_definition_id or config.primary_outcome_definition.id,
+            "generation_id": result.generation_id,
+            "completed_groups": result.completed_groups,
+            "planned_groups": result.planned_groups,
         },
     )
+    if result.continuation_required:
+        processing_run.terminal_reason_code = "SLICE_COMPLETE"
+        db.flush()
+        _heartbeat_only(job)
+        raise JobDeferred("winner cohort generation continuation", delay_seconds=1)
     return {
         "job_type": WINNER_COHORT_REFRESH,
         "processing_run_id": processing_run.id,
         "status": status,
         **counts,
+    }
+
+
+def execute_latest_rescore_job(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    probability_estimator: ProbabilityEstimator | None = None,
+) -> dict[str, Any]:
+    """Rescore one frozen target manifest against one published generation."""
+    payload = dict(job.payload_json or {})
+    config = load_winner_probability_config()
+    processing_run = _start_processing_run(
+        db,
+        job=job,
+        process_type=WINNER_LATEST_RESCORE,
+        run_id=None,
+        config_hash=config.config_hash,
+    )
+    started_at = processing_run.started_at or _utcnow()
+    probability_estimator = probability_estimator or ProbabilityEstimator()
+    generation_service = CohortGenerationService()
+    repository = WinnerProbabilityRepository()
+
+    try:
+        definition = repository.get_outcome_definition(
+            db,
+            definition_id=str(
+                payload.get("outcome_definition_id") or config.primary_outcome_definition.id
+            ),
+            calculation_version=config.engine.calculation_version,
+        )
+        if definition is None:
+            raise ValueError("active Winner outcome definition was not found")
+        generation_id = _optional_int(payload, "cohort_generation_id")
+        generation = (
+            db.get(WinnerCohortGeneration, generation_id)
+            if generation_id is not None
+            else generation_service.get_published_cohort_generation(
+                db, contract=contract_for(definition, config)
+            )
+        )
+        if generation is None:
+            raise ValueError("no published cohort generation is available")
+        processing_run.cohort_generation_id = generation.id
+
+        target_ids = payload.get("target_prediction_ids")
+        if target_ids is None:
+            target_ids = _freeze_latest_rescore_targets(db, payload)
+            payload = {
+                **payload,
+                "target_prediction_ids": target_ids,
+                "planned": len(target_ids),
+                "cursor_prediction_id": 0,
+                "cohort_generation_id": generation.id,
+            }
+            job.payload_json = dict(payload)
+            db.flush()
+            _heartbeat_only(job)
+        target_ids = sorted({_coerce_int(value, "target_prediction_ids") for value in target_ids})
+        if len(target_ids) > 10_000:
+            raise ValueError("latest rescore target manifest exceeds the 10,000-row safety cap")
+        batch_size = min(
+            500,
+            max(
+                1,
+                _optional_int(payload, "batch_size")
+                or get_settings().winner_latest_rescore_max_predictions_per_slice,
+            ),
+        )
+        cursor = _optional_int(payload, "cursor_prediction_id") or 0
+        batch_ids = [prediction_id for prediction_id in target_ids if prediction_id > cursor][
+            :batch_size
+        ]
+        predictions = {
+            row.id: row
+            for row in db.scalars(
+                select(WinnerPredictionSnapshot).where(WinnerPredictionSnapshot.id.in_(batch_ids))
+            )
+        }
+        counts = {"processed": 0, "estimated": 0, "duplicate": 0, "insufficient": 0}
+        if generation.status != CohortGenerationStatus.PUBLISHED:
+            counts["stale_generation"] = 1
+            batch_ids = []
+        for prediction_id in batch_ids:
+            _heartbeat_only(job)
+            if generation.status != CohortGenerationStatus.PUBLISHED:
+                counts["stale_generation"] = 1
+                break
+            prediction = predictions.get(prediction_id)
+            if prediction is None:
+                counts["insufficient"] += 1
+            else:
+                result = probability_estimator.create_latest_rescore_from_generation(
+                    db,
+                    prediction=prediction,
+                    outcome_definition=definition,
+                    generation=generation,
+                    config=config,
+                )
+                counts[result.status] += 1
+            counts["processed"] += 1
+            payload = {**payload, "cursor_prediction_id": prediction_id}
+            job.payload_json = dict(payload)
+            db.flush()
+        _heartbeat_only(job)
+    except Exception as exc:
+        _finish_processing_run(
+            db,
+            processing_run,
+            status=JobStatus.FAILED,
+            started_at=started_at,
+            error=str(exc),
+            reason_code=type(exc).__name__.upper(),
+        )
+        raise
+
+    cursor = int(payload.get("cursor_prediction_id") or 0)
+    remaining = sum(prediction_id > cursor for prediction_id in target_ids)
+    checkpoint = {
+        "phase": "RESCORE",
+        "cohort_generation_id": generation.id,
+        "last_prediction_id": cursor or None,
+        "completed": len(target_ids) - remaining,
+        "planned": len(target_ids),
+    }
+    _finish_processing_run(
+        db,
+        processing_run,
+        status=JobStatus.COMPLETED,
+        started_at=started_at,
+        counts={**counts, "remaining": remaining},
+        checkpoint=checkpoint,
+    )
+    if remaining and not counts.get("stale_generation"):
+        processing_run.terminal_reason_code = "SLICE_COMPLETE"
+        db.flush()
+        raise JobDeferred("winner latest rescore continuation", delay_seconds=1)
+    return {
+        "job_type": WINNER_LATEST_RESCORE,
+        "processing_run_id": processing_run.id,
+        "status": JobStatus.COMPLETED,
+        "cohort_generation_id": generation.id,
+        **counts,
+        "remaining": remaining,
     }
 
 
@@ -511,6 +845,7 @@ def execute_historical_backfill_job(
             status=JobStatus.FAILED,
             started_at=started_at,
             error=str(exc),
+            reason_code=type(exc).__name__.upper(),
         )
         raise
 
@@ -554,22 +889,54 @@ def _start_processing_run(
     config_hash: str | None,
 ) -> WinnerProcessingRun:
     now = _utcnow()
+    prior_running: list[WinnerProcessingRun] = []
+    attempt_no = 1
+    if isinstance(db, Session) and job.id is not None:
+        prior_running = list(
+            db.scalars(
+                select(WinnerProcessingRun)
+                .where(WinnerProcessingRun.background_job_id == job.id)
+                .where(WinnerProcessingRun.status == JobStatus.RUNNING)
+                .with_for_update()
+            )
+        )
+        attempt_no = (
+            int(
+                db.scalar(
+                    select(func.max(WinnerProcessingRun.attempt_no)).where(
+                        WinnerProcessingRun.background_job_id == job.id
+                    )
+                )
+                or 0
+            )
+            + 1
+        )
+        for prior in prior_running:
+            prior.status = "SUPERSEDED"
+            prior.completed_at = now
+            prior.terminal_reason_code = "NEW_ATTEMPT_SUPERSEDED"
+    token_metadata = redacted_token_metadata(job.execution_token)
     processing_run = WinnerProcessingRun(
         background_job_id=job.id,
         run_id=run_id,
         process_type=process_type,
         status=JobStatus.RUNNING,
         config_hash=config_hash,
+        attempt_no=attempt_no,
+        attempt_correlation_id=token_metadata.get("execution_token_hash"),
         started_at=now,
         counts_json={},
         checkpoint_json={},
         metadata_json={
             "background_job_type": job.job_type,
-            **redacted_token_metadata(job.execution_token),
+            **token_metadata,
             "lease_owner": job.lease_owner,
         },
     )
     db.add(processing_run)
+    db.flush()
+    for prior in prior_running:
+        prior.superseded_by_processing_run_id = processing_run.id
     db.flush()
     return processing_run
 
@@ -584,6 +951,7 @@ def _finish_processing_run(
     checkpoint: dict[str, Any] | None = None,
     source_cutoff_at: datetime | None = None,
     error: str | None = None,
+    reason_code: str | None = None,
 ) -> None:
     completed_at = _utcnow()
     processing_run.status = status
@@ -592,7 +960,11 @@ def _finish_processing_run(
         processing_run.source_cutoff_at = source_cutoff_at
     processing_run.counts_json = counts or processing_run.counts_json or {}
     processing_run.checkpoint_json = checkpoint or processing_run.checkpoint_json or {}
+    if checkpoint is not None:
+        processing_run.last_checkpoint_at = completed_at
     processing_run.error_message = _safe_error(error) if error else None
+    if reason_code is not None:
+        processing_run.terminal_reason_code = reason_code
     processing_run.metadata_json = {
         **(processing_run.metadata_json or {}),
         "duration_seconds": (completed_at - started_at).total_seconds(),
@@ -605,6 +977,12 @@ def _heartbeat_and_check_cancel(db: Session, job: BackgroundJob) -> bool:
     if callable(heartbeat):
         heartbeat()
     return is_cancel_requested(db, job.id)
+
+
+def _heartbeat_only(job: BackgroundJob) -> None:
+    heartbeat = getattr(job, "_heartbeat", None)
+    if callable(heartbeat):
+        heartbeat()
 
 
 def _latest_source_cutoff_at(db: Session, run_id: int) -> datetime | None:
@@ -629,6 +1007,35 @@ def _eligible_predictions(db: Session) -> list[WinnerPredictionSnapshot]:
                 WinnerPredictionSnapshot.id.asc(),
             )
         )
+    )
+
+
+def _freeze_latest_rescore_targets(db: Session, payload: dict[str, Any]) -> list[int]:
+    scope = payload.get("scope")
+    if not isinstance(scope, dict):
+        raise ValueError("latest rescore requires an explicit scope")
+    scope_type = str(scope.get("type") or "").upper()
+    if scope_type == "RUN":
+        run_id = _coerce_int(scope.get("run_id"), "scope.run_id")
+        return list(
+            db.scalars(
+                select(WinnerPredictionSnapshot.id)
+                .where(WinnerPredictionSnapshot.run_id == run_id)
+                .where(
+                    WinnerPredictionSnapshot.eligibility_status == PredictionEligibility.ELIGIBLE
+                )
+                .where(WinnerPredictionSnapshot.superseded_at.is_(None))
+                .order_by(WinnerPredictionSnapshot.id.asc())
+            )
+        )
+    if scope_type in {"PREDICTION_IDS", "EXPLICIT_PREDICTIONS"}:
+        values = scope.get("prediction_ids")
+        if not isinstance(values, list | tuple):
+            raise ValueError("explicit latest rescore scope requires prediction_ids")
+        return sorted({_coerce_int(value, "scope.prediction_ids") for value in values})
+    raise ValueError(
+        "latest rescore scope must be RUN or EXPLICIT_PREDICTIONS; "
+        "ALL_HISTORICAL_ELIGIBLE is not supported"
     )
 
 
@@ -673,6 +1080,17 @@ def _safe_error(error: str | None) -> str | None:
     if error is None:
         return None
     return str(redact_sensitive(error)).replace("\n", " ").strip()[:500]
+
+
+def classify_maturation_status(counts: dict[str, Any]) -> str:
+    """Classify execution health independently from deferred market data."""
+    return (
+        JobStatus.PARTIAL
+        if counts.get("failed", 0)
+        or counts.get("failed_h5", 0)
+        or counts.get("unvisited_h5_after_cycle", 0)
+        else JobStatus.COMPLETED
+    )
 
 
 def _utcnow() -> datetime:

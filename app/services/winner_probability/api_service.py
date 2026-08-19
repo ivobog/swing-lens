@@ -24,12 +24,17 @@ from app.models.tables import (
     WinnerSimilarityLink,
     WinnerTargetStopOutcome,
 )
+from app.services.winner_probability.cohort_generation_service import (
+    CohortGenerationService,
+    contract_for,
+)
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.dtos import (
     WinnerProbabilityApiQuery,
     WinnerProbabilityFilters,
 )
 from app.services.winner_probability.model_registry import ModelRegistry, ModelRegistryError
+from app.settings import get_settings
 
 ERROR_INVALID_OUTCOME_DEFINITION = "INVALID_OUTCOME_DEFINITION"
 ERROR_PREDICTION_NOT_FOUND = "PREDICTION_NOT_FOUND"
@@ -399,6 +404,26 @@ class WinnerProbabilityApiService:
             .where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition_id)
             .where(WinnerProbabilityEstimate.estimate_kind == estimate_kind)
         )
+        if estimate_kind == EstimateKind.LATEST_RESCORE:
+            if get_settings().winner_cohort_refresh_v2_enabled:
+                definition = db.get(WinnerOutcomeDefinition, outcome_definition_id)
+                config = load_winner_probability_config()
+                published = (
+                    CohortGenerationService().get_published_cohort_generation(
+                        db, contract=contract_for(definition, config)
+                    )
+                    if definition is not None
+                    else None
+                )
+                if published is None:
+                    return None
+                statement = statement.where(
+                    WinnerProbabilityEstimate.cohort_generation_id == published.id
+                )
+            else:
+                statement = statement.where(
+                    WinnerProbabilityEstimate.cohort_generation_id.is_(None)
+                )
         cutoff = _cutoff_from_query(query)
         if cutoff is not None:
             statement = statement.where(WinnerProbabilityEstimate.created_at <= cutoff)
