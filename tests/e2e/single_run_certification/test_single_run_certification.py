@@ -52,7 +52,7 @@ from single_run_certification.reporting import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ALEMBIC_HEAD = "0030_fix_ceri_estimate_snapshot_identity"
-TERMINAL_PIPELINE_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
+TERMINAL_PIPELINE_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}
 
 
 @dataclass(frozen=True)

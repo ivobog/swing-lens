@@ -19,6 +19,7 @@ from app.services.pipeline_executor import (
     _schedule_ceri_provider_ingest,
     execute_full_pipeline,
 )
+from app.services.pipeline_prerequisites import CeriBootstrapRequiredError
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
 from app.services.ranking_profile_service import RankingPipelineResult
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
@@ -167,6 +168,148 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
     assert "technical_cache_hits" in db.pipeline.result_json["performance"]
     assert result.performance["phase"] == 1
     assert {step.status for step in db.steps} == {PipelineStepStatus.COMPLETED}
+
+
+def test_sec_preflight_blocks_before_expensive_pipeline_stages() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_provider_ingest_enabled=True)
+    calls: list[str] = []
+    dependencies = replace(
+        _dependencies(calls),
+        ceri_provider_ingest_enabled=True,
+        validate_pipeline_preflight=lambda *_args: (_ for _ in ()).throw(
+            CeriBootstrapRequiredError(
+                "bootstrap required",
+                diagnostics={"readiness": {"ready_tickers": 0}},
+            )
+        ),
+    )
+
+    with pytest.raises(CeriBootstrapRequiredError):
+        execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert calls == []
+    assert db.pipeline.status == PipelineStatus.BLOCKED
+    assert db.pipeline.result_json["blocked_reason"] == "SEC_BOOTSTRAP_REQUIRED"
+    assert db.steps[0].status == PipelineStepStatus.BLOCKED
+    assert all(step.status == PipelineStepStatus.PENDING for step in db.steps[1:])
+
+
+def test_repaired_initial_preflight_restarts_same_pipeline_from_validation() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_provider_ingest_enabled=True)
+    db.steps[0].status = PipelineStepStatus.BLOCKED
+    db.pipeline.status = PipelineStatus.BLOCKED
+    calls: list[str] = []
+    dependencies = replace(
+        _dependencies(
+            calls,
+            combined_results=[
+                CombinedResult(
+                    run_id=7,
+                    ticker="MSFT",
+                    is_complete=True,
+                    has_warning=False,
+                )
+            ],
+        ),
+        ceri_provider_ingest_enabled=True,
+        validate_pipeline_preflight=lambda *_args: {"complete": True},
+        schedule_ceri_provider_ingest=lambda *_args: calls.append("ceri_schedule") or 1,
+    )
+
+    result = execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        resume_from_step="VALIDATING_RUN",
+    )
+
+    assert result.status == PipelineStatus.COMPLETED
+    assert calls[0] == "fundamentals"
+    assert "ceri_schedule" in calls
+    assert db.steps[0].retry_count == 1
+
+
+def test_resume_from_ceri_does_not_reexecute_completed_expensive_stages() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_provider_ingest_enabled=True)
+    ceri_index = next(
+        index for index, step in enumerate(db.steps) if step.step_name == "CERI_PROVIDER_INGEST"
+    )
+    for step in db.steps[:ceri_index]:
+        step.status = PipelineStepStatus.COMPLETED
+    db.steps[ceri_index].status = PipelineStepStatus.BLOCKED
+    db.pipeline.status = PipelineStatus.BLOCKED
+    db.pipeline.result_json.update(
+        {
+            "fundamental_scores": 1,
+            "technical_scores": 1,
+            "combined_results": 1,
+            "ranking_results": 5,
+            "ranking_profiles": 5,
+            "ranking_status": "COMPLETED",
+            "market_data_mode": "IB_GATEWAY",
+        }
+    )
+    calls: list[str] = []
+
+    def schedule(_db, _run_id):
+        calls.append("ceri_schedule")
+        return 4
+
+    dependencies = replace(
+        _dependencies(calls, winner_capture_enabled=True),
+        ceri_provider_ingest_enabled=True,
+        schedule_ceri_provider_ingest=schedule,
+        validate_pipeline_preflight=lambda *_args: {"complete": True},
+        validate_resume_checkpoint=lambda *_args: {"validated": True},
+    )
+
+    result = execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        resume_from_step="CERI_PROVIDER_INGEST",
+    )
+
+    assert calls == ["ceri_schedule", "winner_capture"]
+    assert result.status == PipelineStatus.COMPLETED
+    assert all(
+        step.retry_count == 0
+        for step in db.steps
+        if step.step_order < db.steps[ceri_index].step_order
+    )
+
+
+def test_resume_preflight_reblocks_ceri_stage_without_enqueue() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_provider_ingest_enabled=True)
+    ceri_index = next(
+        index for index, step in enumerate(db.steps) if step.step_name == "CERI_PROVIDER_INGEST"
+    )
+    for step in db.steps[:ceri_index]:
+        step.status = PipelineStepStatus.COMPLETED
+    db.steps[ceri_index].status = PipelineStepStatus.FAILED
+    db.pipeline.status = PipelineStatus.FAILED
+    calls: list[str] = []
+    dependencies = replace(
+        _dependencies(calls),
+        ceri_provider_ingest_enabled=True,
+        validate_resume_checkpoint=lambda *_args: {"validated": True},
+        validate_pipeline_preflight=lambda *_args: (_ for _ in ()).throw(
+            CeriBootstrapRequiredError("still cold")
+        ),
+        schedule_ceri_provider_ingest=lambda *_args: calls.append("enqueue"),
+    )
+
+    with pytest.raises(CeriBootstrapRequiredError):
+        execute_full_pipeline(
+            db,
+            pipeline_run_id=3,
+            dependencies=dependencies,
+            resume_from_step="CERI_PROVIDER_INGEST",
+        )
+
+    assert calls == []
+    assert db.pipeline.status == PipelineStatus.BLOCKED
+    assert db.steps[ceri_index].status == PipelineStepStatus.BLOCKED
 
 
 def test_execute_full_pipeline_runs_winner_capture_when_enabled() -> None:
@@ -930,6 +1073,7 @@ class PipelineExecutorFakeDb:
         self,
         tickers: list[str],
         ceri_enabled: bool = False,
+        ceri_provider_ingest_enabled: bool = False,
         setup_lifecycle_enabled: bool = False,
     ) -> None:
         self.pipeline = PipelineRun(
@@ -958,7 +1102,7 @@ class PipelineExecutorFakeDb:
             for index, step_name in enumerate(
                 pipeline_step_names(
                     ceri_run_capture_enabled=ceri_enabled,
-                    ceri_provider_ingest_enabled=False,
+                    ceri_provider_ingest_enabled=ceri_provider_ingest_enabled,
                     setup_lifecycle_pipeline_step_enabled=setup_lifecycle_enabled,
                 ),
                 start=1,
@@ -978,6 +1122,18 @@ class PipelineExecutorFakeDb:
         return None
 
     def scalar(self, _statement):
+        params = _statement.compile().params
+        requested_step = next(
+            (
+                value
+                for value in params.values()
+                if isinstance(value, str)
+                and any(step.step_name == value for step in self.steps)
+            ),
+            None,
+        )
+        if requested_step is not None:
+            return next(step for step in self.steps if step.step_name == requested_step)
         step = self.steps[self._step_index]
         self._step_index += 1
         return step

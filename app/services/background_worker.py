@@ -4,7 +4,7 @@ import logging
 import os
 import socket
 from collections.abc import Callable, Iterable, Mapping
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from typing import Any
 
@@ -19,6 +19,7 @@ from app.services.background_job_service import (
     JobStatus,
     claim_next_job,
     heartbeat_job,
+    mark_job_blocked,
     mark_job_cancelled,
     mark_job_completed,
     mark_job_deferred,
@@ -31,6 +32,12 @@ from app.services.background_queue import (
     build_worker_claim_groups,
     normalize_worker_queues,
 )
+from app.services.ceri.sec.processor_lifecycle import (
+    fence_worker_against_active_processor,
+    lifecycle_state,
+    register_deployed_processor,
+)
+from app.services.pipeline_prerequisites import PipelineBlockedError
 from app.services.worker_registry import (
     heartbeat_worker,
     mark_worker_stopping,
@@ -82,6 +89,7 @@ def run_worker(
             hostname=hostname,
             process_id=process_id,
         )
+        register_deployed_processor(db)
         log_worker_startup_configuration(db, settings=settings, worker_id=worker_id)
         db.commit()
     except Exception:
@@ -106,6 +114,15 @@ def run_worker(
 
     try:
         while not runtime_stop_event.is_set():
+            if (
+                settings.ceri_provider_ingest_enabled
+                and settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
+            ):
+                fence_db = session_factory()
+                try:
+                    fence_worker_against_active_processor(fence_db)
+                finally:
+                    fence_db.close()
             ran_job = run_worker_once(
                 worker_id=worker_id,
                 queues=queue_names,
@@ -161,12 +178,24 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
         config_hash=None,
         calculation_version=None,
     )
+    try:
+        processor_state = lifecycle_state(db)
+    except AttributeError:
+        # Lightweight unit-test/session doubles may only implement the schema
+        # revision scalar used above. Real database errors remain fail-closed.
+        processor_state = None
     return {
         "ceri_enabled": settings.ceri_enabled,
         "ceri_batched_workflow_enabled": settings.ceri_batched_workflow_enabled,
         "ceri_provider_ingest_enabled": settings.ceri_provider_ingest_enabled,
         "sec_incremental_mode": settings.sec_document_incremental_mode.value,
         "sec_processor_signature": sec_guidance_processor_signature(),
+        "sec_active_processor_signature": (
+            processor_state.active_signature if processor_state is not None else None
+        ),
+        "sec_processor_compatible": (
+            processor_state.deployed_is_active if processor_state is not None else None
+        ),
         "sec_readiness_policy": settings.sec_readiness_policy.value,
         "sec_requests_per_second": settings.sec_requests_per_second,
         "database_schema_revision": schema_revision,
@@ -181,7 +210,13 @@ def log_worker_startup_configuration(
     settings: Settings,
     worker_id: str,
 ) -> dict[str, Any]:
-    summary = worker_startup_configuration(db, settings=settings)
+    summary = {
+        **worker_startup_configuration(db, settings=settings),
+        "worker_id": worker_id,
+        "worker_process_id": os.getpid(),
+        "worker_hostname": socket.gethostname(),
+        "worker_started_at": datetime.now(UTC).isoformat(),
+    }
     logger.info(
         "job.worker.startup_configuration %s",
         summary,
@@ -333,6 +368,24 @@ def run_worker_once(
             db.rollback()
             logger.warning("job.lease_lost", extra={"job_id": job.id, "job_type": job.job_type})
             return True
+        except PipelineBlockedError as exc:
+            db.rollback()
+            mark_job_blocked(
+                db,
+                job,
+                exc,
+                reason_code=exc.reason_code,
+                diagnostics=exc.diagnostics,
+                execution_token=execution_token,
+            )
+            logger.warning(
+                "job.blocked",
+                extra={
+                    "job_id": job.id,
+                    "job_type": job.job_type,
+                    "reason_code": exc.reason_code,
+                },
+            )
         except Exception as exc:
             db.rollback()
             mark_job_failed_or_retry(db, job, exc, execution_token=execution_token)
@@ -423,6 +476,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
             pipeline_run_id=int(pipeline_run_id),
             should_cancel=should_cancel,
             lease_guard=lease_guard,
+            resume_from_step=job.payload_json.get("resume_from_step"),
         )
     except PipelineCancelled as exc:
         raise CancelRequested(str(exc)) from exc

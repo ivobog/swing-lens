@@ -28,6 +28,7 @@ from app.models.ceri_tables import (
 
 CERI_TABLE_NAMES = {
     "ceri_companies",
+    "ceri_sec_processor_releases",
     "ceri_company_aliases",
     "ceri_ingestion_runs",
     "ceri_source_records",

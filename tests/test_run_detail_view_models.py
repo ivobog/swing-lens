@@ -432,6 +432,53 @@ def test_pipeline_progress_template_renders_steps(monkeypatch) -> None:
     assert "Cancel pipeline" in html
 
 
+def test_pipeline_progress_template_exposes_blocked_sec_diagnostics(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=7, filename="sample.csv", row_count=180, status="COMPLETED")
+    pipeline = {
+        "pipeline_run_id": 99,
+        "status": "BLOCKED",
+        "current_step": "CERI_PROVIDER_INGEST",
+        "current_step_label": "CERI Provider Ingest",
+        "created_at": "",
+        "started_at": "",
+        "completed_at": "",
+        "message": "blocked",
+        "error_message": None,
+        "job_status": "BLOCKED",
+        "job_cancel_requested": False,
+        "completed_steps": 8,
+        "total_steps": 10,
+        "percentage": 80.0,
+        "steps": [],
+        "result": {
+            "blocked_reason": "SEC_BOOTSTRAP_REQUIRED",
+            "blocked_diagnostics": {
+                "readiness": {
+                    "processor_signature": "sec-guidance:current",
+                    "requested_tickers": 180,
+                    "ready_tickers": 136,
+                    "blocking_tickers": ["AAA", "BBB"],
+                }
+            },
+        },
+    }
+
+    html = templates.get_template("pipeline_progress.html").render(
+        run=run,
+        pipeline=pipeline,
+        terminal_statuses=["COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"],
+        status_url="/runs/7/pipeline/99/status",
+    )
+
+    assert "Pipeline blocked before execution" in html
+    assert "sec-guidance:current" in html
+    assert "180" in html
+    assert "136" in html
+    assert "Resume from CERI" in html
+    assert 'action="/runs/7/pipeline/99/resume"' in html
+
+
 def test_run_detail_collapses_secondary_tables_by_default(monkeypatch) -> None:
     monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
     run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")

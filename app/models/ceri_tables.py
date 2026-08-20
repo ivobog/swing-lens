@@ -35,6 +35,13 @@ class CeriCompany(Base):
     exchange: Mapped[str | None] = mapped_column(String(32))
     company_name: Mapped[str | None] = mapped_column(Text)
     cik: Mapped[str | None] = mapped_column(String(32))
+    sec_applicability: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="REQUIRED", server_default="REQUIRED"
+    )
+    sec_applicability_reason: Mapped[str | None] = mapped_column(Text)
+    sec_applicability_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     current_provider_ids_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -46,6 +53,45 @@ class CeriCompany(Base):
     __table_args__ = (
         UniqueConstraint("ticker", "exchange", name="uq_ceri_companies_ticker_exchange"),
         Index("ix_ceri_companies_cik", "cik"),
+        CheckConstraint(
+            "sec_applicability IN ('REQUIRED', 'NOT_APPLICABLE')",
+            name="ck_ceri_companies_sec_applicability",
+        ),
+    )
+
+
+class CeriSecProcessorRelease(Base):
+    """Auditable SEC processor certification and ACTIVE-promotion boundary."""
+
+    __tablename__ = "ceri_sec_processor_releases"
+
+    processor_signature: Mapped[str] = mapped_column(Text, primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    deployed_git_sha: Mapped[str | None] = mapped_column(Text)
+    certification_evidence_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    certified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    certified_by: Mapped[str | None] = mapped_column(Text)
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    activated_by: Mapped[str | None] = mapped_column(Text)
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('DEPLOYED', 'CERTIFIED', 'ACTIVE', 'RETIRED')",
+            name="ck_ceri_sec_processor_releases_status",
+        ),
+        Index("ix_ceri_sec_processor_releases_status", "status"),
+        Index(
+            "uq_ceri_sec_processor_releases_active",
+            "status",
+            unique=True,
+            postgresql_where=text("status = 'ACTIVE'"),
+        ),
     )
 
 
@@ -1148,6 +1194,7 @@ class CeriProviderRequestTelemetry(Base):
 
 CERI_TABLES = (
     CeriCompany.__table__,
+    CeriSecProcessorRelease.__table__,
     CeriCompanyAlias.__table__,
     CeriIngestionRun.__table__,
     CeriProcessingRun.__table__,

@@ -341,6 +341,37 @@ def test_cancel_pipeline_route_requests_cancel_and_redirects(monkeypatch) -> Non
     assert response.headers["location"] == "/runs/7/pipeline/99"
 
 
+def test_resume_pipeline_route_queues_checkpoint_and_redirects(monkeypatch) -> None:
+    status = PipelineStatusDto(
+        pipeline_run_id=99,
+        upload_run_id=7,
+        status="BLOCKED",
+        current_step="CERI_PROVIDER_INGEST",
+        requested_by=None,
+        started_at=None,
+        completed_at=None,
+        created_at=None,
+        message="blocked",
+        error_message=None,
+        background_job_id=42,
+        steps=[],
+    )
+    calls = {}
+    monkeypatch.setattr(run_routes, "get_pipeline_status", lambda _db, _pipeline_id: status)
+    monkeypatch.setattr(
+        run_routes,
+        "resume_pipeline",
+        lambda _db, pipeline_id: calls.setdefault("pipeline_id", pipeline_id),
+    )
+    db = RouteFakeDb()
+
+    response = run_routes.resume_run_pipeline_action(run_id=7, pipeline_id=99, db=db)
+
+    assert calls["pipeline_id"] == 99
+    assert db.commits == 1
+    assert response.headers["location"] == "/runs/7/pipeline/99"
+
+
 class FundamentalFakeDb:
     def __init__(self, raw_rows: list[RawCompanyRow]) -> None:
         self.raw_rows = raw_rows

@@ -688,6 +688,32 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-job-metric]", data.job_status || "None");
   setText(root, "[data-pipeline-cancel-metric]", data.job_cancel_requested ? "Requested" : "No");
   const result = data.result || {};
+  const blockedPanel = root.querySelector("[data-pipeline-blocked]");
+    if (blockedPanel) {
+    const blocked = result.blocked_diagnostics || {};
+    const readiness = blocked.readiness || {};
+    const processor = blocked.processor || {};
+    blockedPanel.hidden = data.status !== "BLOCKED";
+    setText(root, "[data-pipeline-blocked-reason]", (result.blocked_reason || "Prerequisite required").replaceAll("_", " "));
+    setText(root, "[data-pipeline-blocked-processor]", readiness.processor_signature || processor.deployed_signature || "Unknown");
+    setText(root, "[data-pipeline-blocked-universe]", readiness.requested_tickers || 0);
+    setText(root, "[data-pipeline-blocked-ready]", readiness.ready_tickers || 0);
+      setText(root, "[data-pipeline-blocked-missing]", (readiness.blocking_tickers || []).length);
+    }
+    const resumeAction = root.querySelector("[data-pipeline-resume]");
+    if (resumeAction) {
+      resumeAction.hidden = !(
+        ["BLOCKED", "FAILED", "PARTIAL"].includes(data.status)
+        && ["VALIDATING_RUN", "CERI_PROVIDER_INGEST"].includes(data.current_step)
+      );
+      setText(
+        root,
+        "[data-pipeline-resume-label]",
+        data.current_step === "CERI_PROVIDER_INGEST"
+          ? "Resume from CERI"
+          : "Retry pipeline preflight",
+      );
+    }
   setText(root, "[data-pipeline-ranking-status]", result.ranking_status || "Pending");
   setText(root, "[data-pipeline-ranking-profiles]", result.ranking_profiles || 0);
   setText(root, "[data-pipeline-ranking-results]", result.ranking_results || 0);
