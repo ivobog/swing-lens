@@ -201,7 +201,8 @@ def _readiness_engine(
             text(
                 "insert into background_workers "
                 "(worker_id, queues_json, started_at, heartbeat_at) "
-                "values ('test-worker', '[]', :started_at, :heartbeat_at)"
+                "values ('test-worker', '[\"interactive\",\"broker\",\"background\"]', "
+                ":started_at, :heartbeat_at)"
             ),
             {"started_at": heartbeat_at, "heartbeat_at": heartbeat_at},
         )

@@ -347,6 +347,7 @@ def test_shadow_output_uses_existing_record_idempotency_then_active_skips(
         assert second.inserted == 0
         assert second.deduplicated == first.inserted
         assert second.documents_would_skip == 1
+        assert second.documents_cache_reused == 1
         extraction = db.scalar(select(CeriSecDocumentExtraction))
         assert extraction is not None
         assert extraction.status == SecExtractionStatus.COMPLETED_WITH_RECORDS.value
@@ -361,7 +362,56 @@ def test_shadow_output_uses_existing_record_idempotency_then_active_skips(
         db.commit()
         assert active.documents_downloaded == 0
         assert active.documents_skipped == 1
-        assert client.download_calls == 2
+        assert client.download_calls == 1
+    engine.dispose()
+
+
+def test_processor_signature_change_reuses_cached_filing_body(
+    disposable_postgres_database: str,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    config = load_ceri_config()
+    client = _FakeSecClient(
+        "The company expects full year revenue guidance of $100 to $110 million."
+    )
+    provider = SecCeriProvider(client=client)
+    registry = CeriProviderRegistry(providers={"sec": provider}, config=config)
+
+    with Session(engine) as db:
+        monkeypatch.setattr(
+            "app.services.ceri.sec.incremental_ingestion.sec_guidance_processor_signature",
+            lambda: "sec-guidance:old",
+        )
+        old = CeriIngestionService(
+            config=config,
+            registry=registry,
+            settings=_settings(SecDocumentIncrementalMode.SHADOW, cache_dir=tmp_path),
+        ).ingest(db, _request("signature-old"))
+        db.commit()
+
+        monkeypatch.setattr(
+            "app.services.ceri.sec.incremental_ingestion.sec_guidance_processor_signature",
+            lambda: "sec-guidance:new",
+        )
+        request = _request("signature-new")
+        request = CeriIngestionRequest(
+            **{**request.__dict__, "scope": {"ticker": "TEST", "repair": True}}
+        )
+        new = CeriIngestionService(
+            config=config,
+            registry=registry,
+            settings=_settings(SecDocumentIncrementalMode.SHADOW, cache_dir=tmp_path),
+        ).ingest(db, request)
+        db.commit()
+
+        assert old.documents_downloaded == 1
+        assert new.documents_downloaded == 0
+        assert new.documents_cache_reused == 1
+        assert client.download_calls == 1
+        assert db.query(CeriSecDocumentExtraction).count() == 2
     engine.dispose()
 
 
@@ -394,6 +444,17 @@ def test_claim_is_single_owner_stale_safe_and_signature_versioned(
         assert owner.acquired
 
     with Session(engine) as second:
+        resumed = states.claim(
+            second,
+            document_id=document_id,
+            dataset="guidance",
+            processor_signature="v1",
+            worker_id="worker-1",
+            lease_seconds=900,
+        )
+        second.commit()
+        assert resumed.acquired and resumed.stale_recovered
+        assert resumed.execution_token != owner.execution_token
         rejected = states.claim(
             second,
             document_id=document_id,
@@ -406,7 +467,7 @@ def test_claim_is_single_owner_stale_safe_and_signature_versioned(
         assert not rejected.acquired
         second.execute(
             update(CeriSecDocumentExtraction)
-            .where(CeriSecDocumentExtraction.id == owner.extraction_id)
+            .where(CeriSecDocumentExtraction.id == resumed.extraction_id)
             .values(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
         )
         second.commit()
@@ -455,12 +516,17 @@ def test_claim_is_single_owner_stale_safe_and_signature_versioned(
     engine.dispose()
 
 
-def _settings(mode: SecDocumentIncrementalMode) -> Settings:
+def _settings(
+    mode: SecDocumentIncrementalMode,
+    *,
+    cache_dir=None,
+) -> Settings:
     return Settings(
         _env_file=None,
         sec_document_incremental_mode=mode,
         sec_document_lease_seconds=900,
         sec_document_retry_base_seconds=1,
+        **({"cache_dir": cache_dir} if cache_dir is not None else {}),
     )
 
 

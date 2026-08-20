@@ -139,6 +139,35 @@ def test_start_pipeline_coalesces_matching_active_pipeline_request() -> None:
     assert len(db.background_jobs) == 1
 
 
+def test_start_pipeline_reuses_preparing_pipeline_after_parent_job_finishes() -> None:
+    upload_run = UploadRun(id=7, filename="sample.csv", status="COMPLETED")
+    existing_pipeline = PipelineRun(
+        id=3,
+        upload_run_id=7,
+        status=PipelineStatus.PREPARING,
+        current_step="VALIDATING_RUN",
+        result_json={"background_job_id": 11, "repair_job_id": 11},
+    )
+    repair_job = BackgroundJob(
+        id=11,
+        job_type="SEC_READINESS_REPAIR",
+        status=JobStatus.RUNNING,
+        payload_json={"pipeline_run_id": 3},
+    )
+    db = FakeDb(
+        upload_runs={7: upload_run},
+        pipeline_runs={3: existing_pipeline},
+        background_jobs={11: repair_job},
+    )
+
+    returned = start_pipeline(db, upload_run_id=7)
+
+    assert returned is existing_pipeline
+    assert returned.__dict__.get("_coalesced") is True
+    assert len(db.pipeline_runs) == 1
+    assert len(db.background_jobs) == 1
+
+
 def test_pipeline_step_names_insert_setup_lifecycle_only_when_enabled() -> None:
     assert pipeline_step_names(setup_lifecycle_pipeline_step_enabled=False) == PIPELINE_STEP_NAMES
 

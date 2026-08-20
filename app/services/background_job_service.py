@@ -502,12 +502,46 @@ def recover_stale_jobs(db: Session, stale_after_seconds: int) -> int:
         .where(BackgroundJob.lease_expires_at < now)
     ).all()
 
+    eligible = [
+        job
+        for job in stale_jobs
+        if job.status == JobStatus.RUNNING
+        and job.lease_expires_at is not None
+        and job.lease_expires_at < now
+    ]
+    return _recover_jobs(db, eligible, now=now)
+
+
+def recover_abandoned_jobs_for_worker(
+    db: Session,
+    *,
+    worker_id: str,
+    heartbeat_timeout_seconds: int,
+) -> int:
+    """Requeue work abandoned when the same durable worker identity restarts."""
+    now = _utcnow()
+    heartbeat_cutoff = now - timedelta(seconds=heartbeat_timeout_seconds)
+    abandoned_jobs = db.scalars(
+        select(BackgroundJob)
+        .where(BackgroundJob.status == JobStatus.RUNNING)
+        .where(BackgroundJob.worker_id == worker_id)
+        .where(BackgroundJob.heartbeat_at.is_not(None))
+        .where(BackgroundJob.heartbeat_at < heartbeat_cutoff)
+    ).all()
+    eligible = [
+        job
+        for job in abandoned_jobs
+        if job.status == JobStatus.RUNNING
+        and job.worker_id == worker_id
+        and job.heartbeat_at is not None
+        and job.heartbeat_at < heartbeat_cutoff
+    ]
+    return _recover_jobs(db, eligible, now=now)
+
+
+def _recover_jobs(db: Session, jobs: Iterable[BackgroundJob], *, now: datetime) -> int:
     recovered_count = 0
-    for job in stale_jobs:
-        if job.status != JobStatus.RUNNING:
-            continue
-        if job.lease_expires_at is None or job.lease_expires_at >= now:
-            continue
+    for job in jobs:
         old_worker_id = job.worker_id
         old_execution_token = job.execution_token
         job.locked_at = None

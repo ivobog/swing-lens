@@ -95,6 +95,7 @@ from app.services.score_card_view_service import build_score_cards
 from app.services.sector_rotation_repository import SectorRotationRepository
 from app.services.technical_display_fields import technical_v4_details_by_ticker
 from app.services.technical_score_service import score_run_technicals
+from app.services.worker_registry import has_live_worker_for_job
 from app.settings import get_settings
 from app.templates import templates
 
@@ -644,6 +645,23 @@ def run_full_pipeline_action(
             },
         )
     if settings.use_durable_pipeline:
+        if not has_live_worker_for_job(
+            db,
+            job_type="FULL_PIPELINE",
+            heartbeat_timeout_seconds=getattr(
+                settings, "job_worker_heartbeat_timeout_seconds", 30
+            ),
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "DURABLE_WORKER_UNAVAILABLE",
+                    "message": (
+                        "Run Full Pipeline is temporarily unavailable because no live "
+                        "durable worker can process it."
+                    ),
+                },
+            )
         try:
             pipeline = start_pipeline(
                 db,
@@ -1791,7 +1809,11 @@ def _pipeline_status_payload(
         "status": status.status,
         "current_step": status.current_step,
         "current_step_label": (
-            status.current_step.replace("_", " ").title() if status.current_step else ""
+            "Preparing SEC evidence"
+            if status.status == "PREPARING"
+            else status.current_step.replace("_", " ").title()
+            if status.current_step
+            else ""
         ),
         "requested_by": status.requested_by,
         "started_at": status.started_at,

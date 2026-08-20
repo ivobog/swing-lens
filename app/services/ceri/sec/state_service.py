@@ -165,8 +165,13 @@ class SecDocumentStateService:
             or current.status == SecExtractionStatus.FAILED_PERMANENT
         ):
             return SecDocumentClaim(False, current.id, current.status, None)
+        same_worker_restart = (
+            current.status == SecExtractionStatus.RUNNING and current.worker_id == worker_id
+        )
         stale = current.status == SecExtractionStatus.RUNNING and (
-            current.lease_expires_at is None or current.lease_expires_at <= now
+            same_worker_restart
+            or current.lease_expires_at is None
+            or current.lease_expires_at <= now
         )
         token = uuid4().hex
         eligible = or_(
@@ -186,6 +191,7 @@ class SecDocumentStateService:
             and_(
                 CeriSecDocumentExtraction.status == SecExtractionStatus.RUNNING.value,
                 or_(
+                    CeriSecDocumentExtraction.worker_id == worker_id,
                     CeriSecDocumentExtraction.lease_expires_at.is_(None),
                     CeriSecDocumentExtraction.lease_expires_at <= now,
                 ),
@@ -230,6 +236,7 @@ class SecDocumentStateService:
         record_count: int,
         content_hash: str,
         content_bytes: int,
+        downloaded: bool = True,
     ) -> None:
         now = _utcnow()
         status = (
@@ -259,9 +266,31 @@ class SecDocumentStateService:
             raise RuntimeError("SEC extraction lease was lost before completion")
         extraction = db.get(CeriSecDocumentExtraction, extraction_id)
         assert extraction is not None
+        document_values = {
+            "last_content_hash": content_hash,
+            "last_content_bytes": content_bytes,
+            "last_seen_at": now,
+        }
+        if downloaded:
+            document_values["last_downloaded_at"] = now
         db.execute(
             update(CeriSecFilingDocument)
             .where(CeriSecFilingDocument.id == extraction.document_id)
+            .values(**document_values)
+        )
+
+    def record_downloaded_content(
+        self,
+        db: Session,
+        *,
+        document_id: int,
+        content_hash: str,
+        content_bytes: int,
+    ) -> None:
+        now = _utcnow()
+        db.execute(
+            update(CeriSecFilingDocument)
+            .where(CeriSecFilingDocument.id == document_id)
             .values(
                 last_downloaded_at=now,
                 last_content_hash=content_hash,

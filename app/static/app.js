@@ -688,6 +688,16 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-job-metric]", data.job_status || "None");
   setText(root, "[data-pipeline-cancel-metric]", data.job_cancel_requested ? "Requested" : "No");
   const result = data.result || {};
+  const repair = result.sec_repair || {};
+  const repairPanel = root.querySelector("[data-pipeline-repair]");
+  if (repairPanel) {
+    repairPanel.hidden = data.status !== "PREPARING";
+    setText(root, "[data-pipeline-repair-stage]", (repair.repair_stage || "Preparing run").replaceAll("_", " "));
+    setText(root, "[data-pipeline-repair-ready]", repair.ready_tickers || 0);
+    setText(root, "[data-pipeline-repair-total]", repair.total_tickers || 0);
+    setText(root, "[data-pipeline-repair-completed]", repair.repaired_tickers || 0);
+    setText(root, "[data-pipeline-repair-unresolved]", (repair.unresolved_tickers || []).length);
+  }
   const blockedPanel = root.querySelector("[data-pipeline-blocked]");
     if (blockedPanel) {
     const blocked = result.blocked_diagnostics || {};

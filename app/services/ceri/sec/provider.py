@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.services.ceri.dtos import (
@@ -42,6 +42,8 @@ class SecCeriProvider:
         *,
         client: SecEdgarClient | None = None,
         extractor: GuidanceExtractionService | None = None,
+        guidance_lookback_days: int | None = None,
+        guidance_max_documents_per_ticker: int | None = None,
     ) -> None:
         self.client = client or SecEdgarClient(
             config=SecClientConfig(
@@ -51,7 +53,13 @@ class SecCeriProvider:
             )
         )
         self.extractor = extractor or GuidanceExtractionService()
-        self._ticker_cik: dict[str, str] | None = None
+        self.guidance_lookback_days = guidance_lookback_days or int(
+            os.getenv("SEC_GUIDANCE_LOOKBACK_DAYS", "730")
+        )
+        self.guidance_max_documents_per_ticker = guidance_max_documents_per_ticker or int(
+            os.getenv("SEC_GUIDANCE_MAX_DOCUMENTS_PER_TICKER", "5")
+        )
+        self._ticker_ciks: dict[str, tuple[str, ...]] | None = None
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
@@ -138,7 +146,25 @@ class SecCeriProvider:
         return iter(records)
 
     def resolve_cik(self, ticker: str) -> str | None:
-        return self._cik_for_ticker(ticker)
+        candidates = self.resolve_cik_candidates(ticker)
+        return candidates[0] if len(candidates) == 1 else None
+
+    def resolve_cik_candidates(self, ticker: str) -> tuple[str, ...]:
+        if self._ticker_ciks is None:
+            grouped: dict[str, set[str]] = {}
+            for row in self.client.company_tickers().values():
+                if not isinstance(row, dict) or not row.get("ticker"):
+                    continue
+                raw_cik = row.get("cik_str")
+                if raw_cik is None:
+                    continue
+                symbol = str(row["ticker"]).strip().upper()
+                cik = str(raw_cik).split(".")[0].zfill(10)
+                grouped.setdefault(symbol, set()).add(cik)
+            self._ticker_ciks = {
+                symbol: tuple(sorted(ciks)) for symbol, ciks in grouped.items()
+            }
+        return self._ticker_ciks.get(ticker.upper(), ())
 
     def discover_guidance_documents(
         self, request: GuidanceRequest, *, cik: str | None = None
@@ -152,15 +178,18 @@ class SecCeriProvider:
         accessions = recent.get("accessionNumber", [])
         documents = recent.get("primaryDocument", [])
         filing_dates = recent.get("filingDate", [])
+        upper_bound = request.end or datetime.now(UTC).date()
+        lower_bound = request.start or (upper_bound - timedelta(days=self.guidance_lookback_days))
         selected: list[SecGuidanceDocument] = []
         for form, accession, document, filing_date in zip(
             forms, accessions, documents, filing_dates, strict=False
         ):
             if form not in GUIDANCE_FORMS:
                 continue
-            if request.start and str(filing_date)[:10] < request.start.isoformat():
+            parsed_filing_date = _parse_filing_date(filing_date)
+            if parsed_filing_date is None:
                 continue
-            if request.end and str(filing_date)[:10] > request.end.isoformat():
+            if parsed_filing_date < lower_bound or parsed_filing_date > upper_bound:
                 continue
             selected.append(
                 SecGuidanceDocument(
@@ -172,7 +201,20 @@ class SecCeriProvider:
                     filing_date=str(filing_date),
                 )
             )
-        return tuple(selected)
+        selected.sort(
+            key=lambda item: (item.filing_date, item.accession_number, item.document_name),
+            reverse=True,
+        )
+        # Preserve form diversity (latest 8-K, 10-Q, 10-K, 6-K, 20-F as
+        # applicable), then fill the remaining bound with the newest filings.
+        prioritized: list[SecGuidanceDocument] = []
+        seen_forms: set[str] = set()
+        for item in selected:
+            if item.form not in seen_forms:
+                prioritized.append(item)
+                seen_forms.add(item.form)
+        prioritized.extend(item for item in selected if item not in prioritized)
+        return tuple(prioritized[: self.guidance_max_documents_per_ticker])
 
     def download_guidance_document(self, document: SecGuidanceDocument) -> str:
         return self.client.archive_document(
@@ -231,20 +273,18 @@ class SecCeriProvider:
         return iter(())
 
     def _cik_for_ticker(self, ticker: str) -> str | None:
-        if self._ticker_cik is None:
-            raw = self.client.company_tickers()
-            self._ticker_cik = {
-                str(row.get("ticker", "")).upper(): str(row.get("cik_str", ""))
-                .split(".")[0]
-                .zfill(10)
-                for row in raw.values()
-                if isinstance(row, dict) and row.get("ticker") and row.get("cik_str") is not None
-            }
-        return self._ticker_cik.get(ticker.upper())
+        return self.resolve_cik(ticker)
 
 
 def _date_time(value: Any) -> datetime:
     return datetime.fromisoformat(str(value)[:10]).replace(tzinfo=UTC)
+
+
+def _parse_filing_date(value: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
 
 
 def _unit_from_text(text: str, *, metric: str | None = None) -> str | None:

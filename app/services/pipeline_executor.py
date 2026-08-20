@@ -52,7 +52,10 @@ from app.services.market_regime_command_center import MarketRegimeCommandCenterS
 from app.services.market_regime_dtos import MarketRegimeCommandCenterDto
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_performance import PipelinePerformanceTracker
-from app.services.pipeline_prerequisites import PipelineBlockedError
+from app.services.pipeline_prerequisites import (
+    CeriBootstrapRequiredError,
+    PipelineBlockedError,
+)
 from app.services.pipeline_service import (
     MarketDataPolicy,
     PipelineStatus,
@@ -161,6 +164,7 @@ class PipelineExecutionResult:
 @dataclass(frozen=True)
 class PipelineExecutionDependencies:
     validate_pipeline_preflight: Callable[[Session, list[str]], dict[str, Any]] | None = None
+    schedule_sec_readiness_repair: Callable[..., Any] | None = None
     validate_resume_checkpoint: Callable[[Session, int, str], dict[str, Any]] | None = None
     recalculate_fundamentals: Callable[[Session, int], list[Any]] = recalculate_run_fundamentals
     build_fetch_plan: Callable[..., FetchPlan] = build_fetch_plan
@@ -285,9 +289,7 @@ def execute_full_pipeline(
             ):
                 result["failure_reason"] = IBGatewayUnavailable.code
                 result["market_data_mode"] = "BLOCKED"
-                raise IBGatewayUnavailable(
-                    f"{IBGatewayUnavailable.code}: {ib_health.message}"
-                )
+                raise IBGatewayUnavailable(f"{IBGatewayUnavailable.code}: {ib_health.message}")
             cache_fallback = ib_health.status != IBGatewayHealthState.READY
             if cache_fallback:
                 result["market_data_mode"] = "CACHE_FALLBACK"
@@ -628,6 +630,20 @@ def execute_full_pipeline(
         _record_performance_metrics(final_status, result["performance"])
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
+    except CeriBootstrapRequiredError as exc:
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
+        result["performance"] = performance.snapshot()
+        _schedule_sec_prerequisite_repair(
+            db,
+            pipeline,
+            exc,
+            result=result,
+            resume_from_step="VALIDATING_RUN",
+            lease_guard=lease_guard,
+            scheduler=dependencies.schedule_sec_readiness_repair,
+        )
+        return _to_execution_result(pipeline, result)
     except PipelineBlockedError as exc:
         if overlap_coordinator is not None:
             overlap_coordinator.abort()
@@ -679,9 +695,7 @@ def _execute_resumed_pipeline(
     dependencies: PipelineExecutionDependencies,
 ) -> PipelineExecutionResult:
     if resume_from_step != CERI_PIPELINE_PROVIDER_INGEST_STEP:
-        raise ValueError(
-            "The durable resume path currently supports CERI_PROVIDER_INGEST only."
-        )
+        raise ValueError("The durable resume path currently supports CERI_PROVIDER_INGEST only.")
     performance = PipelinePerformanceTracker()
     result = _empty_result(pipeline, upload_run)
     result.update(_public_result(pipeline.result_json or {}))
@@ -703,9 +717,7 @@ def _execute_resumed_pipeline(
             else _validate_resume_checkpoint(db, pipeline, upload_run.id, resume_from_step)
         )
         result["resume_checkpoint"] = checkpoint
-        result["technical_error_count"] = int(
-            checkpoint.get("technical_error_count") or 0
-        )
+        result["technical_error_count"] = int(checkpoint.get("technical_error_count") or 0)
         result["market_regime_low_confidence"] = int(
             result.get("market_regime_confidence") == "low"
         )
@@ -782,6 +794,18 @@ def _execute_resumed_pipeline(
         _record_performance_metrics(final_status, result["performance"])
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
+    except CeriBootstrapRequiredError as exc:
+        result["performance"] = performance.snapshot()
+        _schedule_sec_prerequisite_repair(
+            db,
+            pipeline,
+            exc,
+            result=result,
+            resume_from_step=resume_from_step,
+            lease_guard=lease_guard,
+            scheduler=dependencies.schedule_sec_readiness_repair,
+        )
+        return _to_execution_result(pipeline, result)
     except PipelineBlockedError as exc:
         result["performance"] = performance.snapshot()
         result["blocked_reason"] = exc.reason_code
@@ -854,9 +878,7 @@ def _validate_resume_checkpoint(
     if ranking_rows <= 0:
         raise ValueError("Resume checkpoint has no persisted ranking rows.")
     technical_scores = list(
-        db.scalars(
-            select(TechnicalScore).where(TechnicalScore.run_id == upload_run_id)
-        ).all()
+        db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == upload_run_id)).all()
     )
     context_counts = {
         "market_regime_snapshots": int(
@@ -877,10 +899,7 @@ def _validate_resume_checkpoint(
         ),
     }
     if any(count <= 0 for count in context_counts.values()):
-        raise ValueError(
-            "Resume checkpoint is missing required market context: "
-            f"{context_counts}."
-        )
+        raise ValueError(f"Resume checkpoint is missing required market context: {context_counts}.")
     return {
         "resume_from_step": resume_from_step,
         "expected_tickers": expected,
@@ -894,10 +913,7 @@ def _validate_resume_checkpoint(
 
 def _run_ticker_count(db: Session, model: type, run_id: int) -> int:
     return int(
-        db.scalar(
-            select(func.count(distinct(model.ticker))).where(model.run_id == run_id)
-        )
-        or 0
+        db.scalar(select(func.count(distinct(model.ticker))).where(model.run_id == run_id)) or 0
     )
 
 
@@ -933,6 +949,15 @@ def _pipeline_step(
     try:
         yield step
     except JobLeaseLost:
+        raise
+    except CeriBootstrapRequiredError:
+        step.status = PipelineStepStatus.PENDING
+        step.completed_at = None
+        step.error_message = None
+        step.message = "Waiting for automatic SEC preparation."
+        if performance is not None:
+            performance.finish_step(step_name, PipelineStatus.PREPARING)
+        _save_progress(db, lease_guard=lease_guard)
         raise
     except PipelineBlockedError as exc:
         step.status = PipelineStepStatus.BLOCKED
@@ -1104,6 +1129,33 @@ def _mark_pipeline_blocked(
     _save_progress(db, lease_guard=lease_guard)
 
 
+def _schedule_sec_prerequisite_repair(
+    db: Session,
+    pipeline: PipelineRun,
+    exc: CeriBootstrapRequiredError,
+    *,
+    result: dict[str, Any],
+    resume_from_step: str,
+    lease_guard: Callable[[], None] | None = None,
+    scheduler: Callable[..., Any] | None = None,
+) -> None:
+    from app.services.ceri.sec.readiness_repair import schedule_sec_readiness_repair
+
+    result["sec_preflight"] = exc.diagnostics
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        **_public_result(result),
+    }
+    schedule = scheduler or schedule_sec_readiness_repair
+    schedule(
+        db,
+        pipeline=pipeline,
+        diagnostics=exc.diagnostics,
+        resume_from_step=resume_from_step,
+    )
+    _save_progress(db, lease_guard=lease_guard)
+
+
 def _cancel_unfinished_steps(db: Session, pipeline_run_id: int) -> None:
     for step in db.scalars(
         select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_run_id)
@@ -1178,9 +1230,7 @@ def _apply_ib_execution_status(
 
 def _apply_market_session_metadata(result: dict[str, Any], plan: FetchPlan) -> None:
     expected = [
-        item.freshness_threshold_date
-        for item in plan.items
-        if item.freshness_threshold_date
+        item.freshness_threshold_date for item in plan.items if item.freshness_threshold_date
     ]
     actual = [
         item.latest_bar_date
