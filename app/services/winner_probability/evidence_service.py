@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.models.tables import (
     OutcomeStatus,
     PredictionEligibility,
+    PriceBar,
+    PriceBarRevision,
     WinnerForwardOutcome,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
@@ -26,6 +28,7 @@ from app.services.winner_probability.pre11_compatibility_service import (
     EVIDENCE_ORIGIN_NATIVE,
     EVIDENCE_ORIGIN_PRE11,
     TRAINING_FAMILY,
+    _hash,
 )
 from app.services.winner_probability.trading_session_service import latest_completed_session
 from app.services.winner_probability.training_eligibility import TrainingEligibilityPolicy
@@ -203,6 +206,9 @@ class EvidenceService:
             <= int(watermark.get("training_replay_id") or 0)
         )
         candidates = rows + replay_rows
+        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(
+            db, candidates
+        )
         if progress_guard is not None:
             progress_guard()
         completed_session = latest_completed_session(training_cutoff_at)
@@ -338,6 +344,18 @@ class EvidenceService:
             lambda row: row.prediction.prediction_as_of_date >= rolling_start,
         )
         apply(
+            "replay_lineage_reproducible",
+            lambda row: (
+                row.evidence_origin != EVIDENCE_ORIGIN_PRE11
+                or _replay_lineage_is_reproducible(
+                    row.target_stop_outcome,
+                    row.forward_outcome,
+                    price_bars=lineage_price_bars,
+                    price_bar_revisions=lineage_price_bar_revisions,
+                )
+            ),
+        )
+        apply(
             "no_revised_after_cutoff_leakage",
             lambda row: (
                 _source_revision_cutoff(row) is not None
@@ -411,6 +429,9 @@ class EvidenceService:
             outcome_definition=outcome_definition,
         )
         rows = native_rows + replay_rows
+        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(
+            db, rows
+        )
         completed_session = latest_completed_session(training_cutoff_at)
         rolling_start = _subtract_years(
             training_cutoff_at.date(), config.cohort.rolling_window_years
@@ -547,6 +568,18 @@ class EvidenceService:
             lambda row: row.prediction.prediction_as_of_date >= rolling_start,
         )
         apply(
+            "replay_lineage_reproducible",
+            lambda row: (
+                row.evidence_origin != EVIDENCE_ORIGIN_PRE11
+                or _replay_lineage_is_reproducible(
+                    row.target_stop_outcome,
+                    row.forward_outcome,
+                    price_bars=lineage_price_bars,
+                    price_bar_revisions=lineage_price_bar_revisions,
+                )
+            ),
+        )
+        apply(
             "no_revised_after_cutoff_leakage",
             lambda row: (
                 _source_revision_cutoff(row) is not None
@@ -660,6 +693,90 @@ def _source_revision_cutoff(row: EvidenceOutcome) -> datetime | None:
     if row.evidence_origin == EVIDENCE_ORIGIN_PRE11:
         return row.target_stop_outcome.source_revision_cutoff_at
     return row.forward_outcome.source_revision_cutoff_at
+
+
+def _load_replay_lineage_rows(
+    db: Session,
+    rows: tuple[EvidenceOutcome, ...],
+) -> tuple[dict[int, PriceBar], dict[int, PriceBarRevision]]:
+    """Load every replay lineage identity in two bounded set queries."""
+    if not isinstance(db, Session):
+        return {}, {}
+    bar_ids: set[int] = set()
+    revision_ids: set[int] = set()
+    for row in rows:
+        if row.evidence_origin != EVIDENCE_ORIGIN_PRE11:
+            continue
+        lineage = row.target_stop_outcome.bar_lineage_json or {}
+        for item in lineage.get("bars") or ():
+            if not isinstance(item, dict):
+                continue
+            if item.get("price_bar_id") is not None:
+                bar_ids.add(int(item["price_bar_id"]))
+            if item.get("price_bar_revision_id") is not None:
+                revision_ids.add(int(item["price_bar_revision_id"]))
+    price_bars = (
+        {row.id: row for row in db.scalars(select(PriceBar).where(PriceBar.id.in_(bar_ids)))}
+        if bar_ids
+        else {}
+    )
+    revisions = (
+        {
+            row.id: row
+            for row in db.scalars(
+                select(PriceBarRevision).where(PriceBarRevision.id.in_(revision_ids))
+            )
+        }
+        if revision_ids
+        else {}
+    )
+    return price_bars, revisions
+
+
+def _replay_lineage_is_reproducible(
+    replay: WinnerTrainingOutcomeReplay,
+    forward_outcome: WinnerForwardOutcome,
+    *,
+    price_bars: dict[int, PriceBar],
+    price_bar_revisions: dict[int, PriceBarRevision],
+) -> bool:
+    lineage = replay.bar_lineage_json or {}
+    bars = lineage.get("bars")
+    if not isinstance(bars, list) or len(bars) != replay.horizon_sessions:
+        return False
+    if _hash({"bars": tuple(bars)}) != replay.source_bar_lineage_hash:
+        return False
+    if replay.source_forward_outcome_id != forward_outcome.id or int(
+        lineage.get("source_forward_outcome_revision", -1)
+    ) != int(forward_outcome.revision):
+        return False
+    for item in bars:
+        if not isinstance(item, dict):
+            return False
+        bar_id = item.get("price_bar_id")
+        expected_hash = item.get("data_hash")
+        if not bar_id or not expected_hash:
+            return False
+        revision_id = item.get("price_bar_revision_id")
+        if revision_id is not None:
+            revision = price_bar_revisions.get(int(revision_id))
+            if (
+                revision is None
+                or revision.price_bar_id != bar_id
+                or revision.new_data_hash != expected_hash
+                or revision.revision_number != item.get("revision_count")
+                or revision.observed_at > replay.source_revision_cutoff_at
+            ):
+                return False
+            continue
+        bar = price_bars.get(int(bar_id))
+        if (
+            bar is None
+            or bar.data_hash != expected_hash
+            or bar.revision_count != item.get("revision_count")
+        ):
+            return False
+    return True
 
 
 def _matured_before_cutoff(

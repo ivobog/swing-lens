@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -249,6 +249,40 @@ def test_estimate_api_payload_labels_cohort_baseline_without_model() -> None:
         "oldest_evidence_date": "2026-08-04",
         "newest_evidence_date": "2026-08-06",
     }
+
+
+def test_estimate_api_payload_recovers_generation_composition_from_manifest() -> None:
+    class ManifestCompositionResult:
+        def one(self):
+            return (0, 80, date(2026, 8, 4), date(2026, 8, 6))
+
+    class ManifestCompositionDb(EstimatePayloadFakeDb):
+        def __init__(self) -> None:
+            super().__init__()
+            self.info: dict[str, object] = {}
+            self.execute_calls = 0
+
+        def execute(self, _statement):
+            self.execute_calls += 1
+            return ManifestCompositionResult()
+
+    db = ManifestCompositionDb()
+    estimate = _estimate(model_version_id=None)
+    estimate.evidence_manifest_id = 5
+
+    first = _estimate_payload(db, estimate)
+    second = _estimate_payload(db, estimate)
+
+    assert first["evidence_composition"] == {
+        "native_1_1_n": 0,
+        "pre11_compatible_n": 80,
+        "reconstructed_label_n": 80,
+        "compatibility_policy_version": "owpe-pre11-eligibility-1.0.0",
+        "oldest_evidence_date": "2026-08-04",
+        "newest_evidence_date": "2026-08-06",
+    }
+    assert second["evidence_composition"] == first["evidence_composition"]
+    assert db.execute_calls == 1
 
 
 def test_run_row_hydrates_persisted_ranking_provenance() -> None:

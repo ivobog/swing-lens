@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,7 +13,67 @@ from app.models.tables import (
 )
 from app.services.winner_probability.cohort_definition import CohortKey
 from app.services.winner_probability.config import load_winner_probability_config
-from app.services.winner_probability.evidence_service import EvidenceService
+from app.services.winner_probability.evidence_service import (
+    EvidenceService,
+    _replay_lineage_is_reproducible,
+)
+from app.services.winner_probability.pre11_compatibility_service import _hash
+
+
+def test_replay_lineage_filter_rejects_bar_changed_after_classification() -> None:
+    bars = [
+        {
+            "price_bar_id": 41,
+            "price_bar_revision_id": None,
+            "data_hash": "reviewed",
+            "revision_count": 0,
+        }
+    ]
+    replay = SimpleNamespace(
+        id=7,
+        horizon_sessions=1,
+        bar_lineage_json={"bars": bars, "source_forward_outcome_revision": 1},
+        source_bar_lineage_hash=_hash({"bars": tuple(bars)}),
+        source_forward_outcome_id=31,
+        source_revision_cutoff_at=datetime(2026, 8, 14, tzinfo=UTC),
+    )
+    forward = SimpleNamespace(id=31, revision=1)
+    changed = SimpleNamespace(id=41, data_hash="changed", revision_count=1)
+
+    assert not _replay_lineage_is_reproducible(
+        replay,
+        forward,
+        price_bars={41: changed},
+        price_bar_revisions={},
+    )
+
+
+def test_replay_lineage_filter_accepts_exact_unrevised_bar() -> None:
+    bars = [
+        {
+            "price_bar_id": 41,
+            "price_bar_revision_id": None,
+            "data_hash": "reviewed",
+            "revision_count": 0,
+        }
+    ]
+    replay = SimpleNamespace(
+        id=7,
+        horizon_sessions=1,
+        bar_lineage_json={"bars": bars, "source_forward_outcome_revision": 1},
+        source_bar_lineage_hash=_hash({"bars": tuple(bars)}),
+        source_forward_outcome_id=31,
+        source_revision_cutoff_at=datetime(2026, 8, 14, tzinfo=UTC),
+    )
+    forward = SimpleNamespace(id=31, revision=1)
+    reviewed = SimpleNamespace(id=41, data_hash="reviewed", revision_count=0)
+
+    assert _replay_lineage_is_reproducible(
+        replay,
+        forward,
+        price_bars={41: reviewed},
+        price_bar_revisions={},
+    )
 
 
 def test_evidence_excludes_future_current_dependent_and_reconstructed_rows() -> None:

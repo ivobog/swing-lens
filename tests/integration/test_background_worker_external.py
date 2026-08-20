@@ -292,7 +292,7 @@ def test_active_external_job_survives_uvicorn_restart(
 
 
 def _wait_for_worker(engine, worker_id: str) -> BackgroundWorker:
-    deadline = time.monotonic() + 15
+    deadline = time.monotonic() + (60 if sys.platform == "win32" else 15)
     while time.monotonic() < deadline:
         with Session(engine) as db:
             worker = db.get(BackgroundWorker, worker_id)
@@ -326,7 +326,7 @@ def _wait_for_new_heartbeat(engine, worker_id: str, previous: datetime) -> None:
 
 
 def _wait_for_url(url: str, *, process: subprocess.Popen[str]) -> None:
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + (60 if sys.platform == "win32" else 30)
     while time.monotonic() < deadline:
         if process.poll() is not None:
             stdout, stderr = process.communicate()
