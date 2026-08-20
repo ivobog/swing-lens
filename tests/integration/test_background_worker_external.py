@@ -131,6 +131,7 @@ def test_external_worker_process_registers_and_stops_gracefully(
         "JOB_POLL_INTERVAL_SECONDS": "0.2",
         "JOB_WORKER_HEARTBEAT_INTERVAL_SECONDS": "0.2",
         "JOB_WORKER_HEARTBEAT_TIMEOUT_SECONDS": "5",
+        "CERI_PROVIDER_INGEST_ENABLED": "false",
     }
     creationflags = (
         subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
@@ -154,7 +155,16 @@ def test_external_worker_process_registers_and_stops_gracefully(
     )
     web_process = None
     try:
-        worker = _wait_for_worker(engine, "process-worker")
+        try:
+            worker = _wait_for_worker(engine, "process-worker")
+        except AssertionError:
+            if process.poll() is not None:
+                stdout, stderr = process.communicate(timeout=5)
+                pytest.fail(
+                    "external worker exited before registration:\n"
+                    f"stdout={stdout}\nstderr={stderr}"
+                )
+            raise
         assert worker.queues_json == ["interactive", "broker", "background"]
         assert worker.stopping_at is None
         first_heartbeat = worker.heartbeat_at
@@ -219,6 +229,7 @@ def test_active_external_job_survives_uvicorn_restart(
         "JOB_POLL_INTERVAL_SECONDS": "0.1",
         "JOB_WORKER_HEARTBEAT_INTERVAL_SECONDS": "0.2",
         "JOB_WORKER_HEARTBEAT_TIMEOUT_SECONDS": "5",
+        "CERI_PROVIDER_INGEST_ENABLED": "false",
     }
     worker_process = subprocess.Popen(
         [sys.executable, "tests/external_worker_probe_runner.py"],

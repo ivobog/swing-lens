@@ -309,7 +309,7 @@ def _ceri_report(db: Session, upload_run_id: int, now: datetime) -> dict[str, An
         return {"available": False, "job_volume": 0}
     created_at = min(job.created_at for job in jobs)
     completed_values = [job.completed_at for job in jobs if job.completed_at is not None]
-    terminal_statuses = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "STALE"}
+    terminal_statuses = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED", "STALE"}
     all_terminal = all(job.status in terminal_statuses for job in jobs)
     request_key_counts = Counter(job.request_key for job in jobs if job.request_key)
     queue_delays = [

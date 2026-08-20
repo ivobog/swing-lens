@@ -5,12 +5,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.models.ceri_tables import CeriCompany, CeriIngestionRun
+from app.models.ceri_tables import CeriCompany, CeriIngestionRun, CeriSecSyncState
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, enqueue_job
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.ceri import batched_job_handlers
 from app.services.ceri.batched_job_handlers import (
+    _require_terminal_stage,
     execute_feature_batch_job,
     execute_provider_ingest_batch_job,
     execute_run_finalize_job,
@@ -20,11 +21,14 @@ from app.services.ceri.batched_workflow import (
     CERI_NORMALIZE_BATCH,
     CERI_PROVIDER_INGEST_BATCH,
     CERI_RUN_FINALIZE,
+    _ensure_ceri_companies,
     build_ceri_batched_workflow_plan,
     sec_readiness_coverage,
 )
+from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_rebuild_service import CeriFeatureRebuildResult
 from app.services.ceri.orchestration import CeriIngestionResult, CeriIngestionService
+from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
 from app.settings import SecDocumentIncrementalMode, Settings
 
 
@@ -73,6 +77,59 @@ def test_402_ticker_plan_is_deterministic_bounded_and_under_sanity_target() -> N
         if spec.job_type == CERI_FEATURE_BATCH
     ) == 50
     assert sum(spec.job_type == CERI_RUN_FINALIZE for spec in plan.jobs) == 1
+
+
+def test_provider_ticker_scope_excludes_sec_not_applicable_symbols() -> None:
+    plan = build_ceri_batched_workflow_plan(
+        run_id=95,
+        tickers=["AAA", "FOREIGN"],
+        config_hash="config-a",
+        settings=Settings(
+            _env_file=None,
+            ceri_provider_batch_size=25,
+            ceri_normalization_batch_size=50,
+            ceri_feature_batch_size=50,
+        ),
+        provider_datasets={"sec": (CeriDataset.GUIDANCE,)},
+        provider_tickers={"sec": ("AAA",)},
+    )
+
+    sec_jobs = [
+        job
+        for job in plan.jobs
+        if job.job_type in {CERI_PROVIDER_INGEST_BATCH, CERI_NORMALIZE_BATCH}
+    ]
+    assert sec_jobs
+    assert all(job.payload["tickers"] == ["AAA"] for job in sec_jobs)
+    feature_job = next(job for job in plan.jobs if job.job_type == CERI_FEATURE_BATCH)
+    assert feature_job.payload["tickers"] == ["AAA", "FOREIGN"]
+
+
+def test_company_ensure_preserves_existing_non_us_not_applicable_mapping() -> None:
+    existing = CeriCompany(
+        ticker="FOREIGN",
+        exchange="NYSE",
+        sec_applicability="NOT_APPLICABLE",
+        sec_applicability_reason="reviewed non-SEC security",
+    )
+
+    class Db:
+        def __init__(self):
+            self.added = []
+
+        def scalars(self, _statement):
+            return [existing]
+
+        def add(self, value):
+            self.added.append(value)
+
+        def flush(self):
+            pass
+
+    db = Db()
+    _ensure_ceri_companies(db, ["FOREIGN"])
+
+    assert db.added == []
 
 
 def test_workflow_stage_identity_coalesces_completed_jobs() -> None:
@@ -255,7 +312,13 @@ def test_sec_readiness_coverage_requires_current_signature_per_ticker() -> None:
                 CeriCompany(id=2, ticker="AMZN", cik="0001018724"),
                 CeriCompany(id=3, ticker="MISS", cik=None),
             ],
-            ["0001041668"],
+            [
+                CeriSecSyncState(
+                    cik="0001041668",
+                    dataset="guidance",
+                    processor_signature="sec-guidance:eed017654682a0c9",
+                )
+            ],
         ]
     )
 
@@ -417,6 +480,28 @@ def test_feature_batch_cancellation_never_checkpoints_unfinished_ticker(monkeypa
 
     assert job.operational_metadata_json["ceri_batch"]["completed_tickers"] == ["T1"]
     assert "T2" not in job.operational_metadata_json["ceri_batch"]["results"]
+
+
+def test_barrier_blocks_after_unsuccessful_terminal_upstream_batch() -> None:
+    upstream = BackgroundJob(
+        id=9,
+        job_type=CERI_FEATURE_BATCH,
+        workflow_key="workflow-blocked",
+        request_key="workflow-blocked:feature:1",
+        status=JobStatus.BLOCKED,
+        payload_json={},
+    )
+
+    with pytest.raises(CeriUpstreamStageBlockedError) as raised:
+        _require_terminal_stage(
+            FakeDb(stage_jobs=[upstream]),
+            "workflow-blocked",
+            CERI_FEATURE_BATCH,
+            expected=1,
+        )
+
+    assert raised.value.reason_code == "CERI_UPSTREAM_STAGE_UNSUCCESSFUL"
+    assert raised.value.diagnostics["jobs"] == [{"job_id": 9, "status": "BLOCKED"}]
 
 
 def test_finalizer_enqueues_exactly_one_capture_for_repeated_execution(monkeypatch) -> None:

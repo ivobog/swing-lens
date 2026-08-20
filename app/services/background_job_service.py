@@ -17,7 +17,7 @@ from app.services.redaction import redact_sensitive, redacted_token_metadata
 
 ERROR_MESSAGE_MAX_LENGTH = 500
 RETRY_DELAYS_SECONDS = (60, 180, 600)
-TERMINAL_JOB_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "STALE"}
+TERMINAL_JOB_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED", "STALE"}
 DEFAULT_LEASE_SECONDS = 900
 LEASE_EVENT_MAX_COUNT = 50
 
@@ -32,6 +32,7 @@ class JobStatus:
     COMPLETED = "COMPLETED"
     PARTIAL = "PARTIAL"
     FAILED = "FAILED"
+    BLOCKED = "BLOCKED"
     CANCELLED = "CANCELLED"
     STALE = "STALE"
 
@@ -316,6 +317,57 @@ def mark_job_cancelled(
     _finish_job(db, job, JobStatus.CANCELLED, result=result, execution_token=execution_token)
     job.requested_cancel = True
     db.flush()
+
+
+def mark_job_blocked(
+    db: Session,
+    job: BackgroundJob,
+    error: Exception,
+    *,
+    reason_code: str,
+    diagnostics: dict[str, Any] | None = None,
+    execution_token: str | None = None,
+) -> None:
+    expected_token = _expected_execution_token(job, execution_token)
+    now = _utcnow()
+    result = {
+        "status": JobStatus.BLOCKED,
+        "reason_code": reason_code,
+        "diagnostics": diagnostics or {},
+    }
+    metadata = _with_attempt_finished(
+        job.operational_metadata_json,
+        finished_at=now,
+        status=JobStatus.BLOCKED,
+    )
+    metadata["blocked"] = {
+        "reason_code": reason_code,
+        "diagnostics": redact_sensitive(diagnostics or {}),
+        "blocked_at": now.isoformat(),
+    }
+    _apply_running_job_update(
+        db,
+        job,
+        expected_token,
+        {
+            "status": JobStatus.BLOCKED,
+            "result_json": redact_sensitive(result),
+            "error_message": _safe_error(error),
+            "locked_at": None,
+            "heartbeat_at": None,
+            "lease_expires_at": None,
+            "worker_id": None,
+            "lease_owner": None,
+            "execution_token": None,
+            "completed_at": now,
+            "operational_metadata_json": metadata,
+        },
+    )
+    operational_metrics.increment(
+        "swinglens_jobs_finished_total",
+        job_type=job.job_type,
+        status=JobStatus.BLOCKED,
+    )
 
 
 def mark_job_failed_or_retry(

@@ -23,6 +23,17 @@
           <button type="submit" data-loading-label="Cancelling...">Cancel pipeline</button>
         </form>
       {% endif %}
+      <form
+        method="post"
+        action="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/resume"
+        data-loading-form
+        data-pipeline-resume
+        {% if not (pipeline.status in ['BLOCKED', 'FAILED', 'PARTIAL'] and pipeline.current_step in ['VALIDATING_RUN', 'CERI_PROVIDER_INGEST']) %}hidden{% endif %}
+      >
+        <button type="submit" data-loading-label="Queuing resume..." data-pipeline-resume-label>
+          {{ 'Resume from CERI' if pipeline.current_step == 'CERI_PROVIDER_INGEST' else 'Retry pipeline preflight' }}
+        </button>
+      </form>
     </div>
   </div>
 
@@ -40,6 +51,18 @@
   {% else %}
     <div class="alert section-gap" data-pipeline-message role="status" aria-live="polite" hidden></div>
   {% endif %}
+  {% set blocked = pipeline_result.get('blocked_diagnostics', {}) %}
+  {% set readiness = blocked.get('readiness', {}) %}
+  {% set processor = blocked.get('processor', {}) %}
+    <div class="alert section-gap" role="alert" data-pipeline-blocked {% if pipeline.status != 'BLOCKED' %}hidden{% endif %}>
+      <strong>Pipeline blocked before execution</strong><br>
+      Reason: <span data-pipeline-blocked-reason>{{ pipeline_result.get('blocked_reason', 'Prerequisite required')|replace('_', ' ')|title }}</span><br>
+      Processor: <span data-pipeline-blocked-processor>{{ readiness.get('processor_signature', processor.get('deployed_signature', 'Unknown')) }}</span><br>
+      Universe: <span data-pipeline-blocked-universe>{{ readiness.get('requested_tickers', 0) }}</span> tickers<br>
+      Ready: <span data-pipeline-blocked-ready>{{ readiness.get('ready_tickers', 0) }}</span><br>
+      Not ready: <span data-pipeline-blocked-missing>{{ readiness.get('blocking_tickers', [])|length }}</span><br>
+      Repair the reported mappings/bootstrap certification, then resume from the blocked stage.
+    </div>
   {% if duplicate_action %}
     <div class="alert section-gap" role="status" aria-live="polite">
       Already running: this request was coalesced into Pipeline {{ pipeline.pipeline_run_id }}.

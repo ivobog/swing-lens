@@ -40,7 +40,7 @@ PIPELINE_STEP_NAMES = (
     "CAPTURING_WINNER_PREDICTIONS",
 )
 
-PIPELINE_TERMINAL_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
+PIPELINE_TERMINAL_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}
 
 
 class MarketDataPolicy(StrEnum):
@@ -67,6 +67,7 @@ class PipelineStatus:
     COMPLETED = "COMPLETED"
     PARTIAL = "PARTIAL"
     FAILED = "FAILED"
+    BLOCKED = "BLOCKED"
     CANCELLED = "CANCELLED"
 
 
@@ -75,6 +76,7 @@ class PipelineStepStatus:
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    BLOCKED = "BLOCKED"
     CANCELLED = "CANCELLED"
     SKIPPED = "SKIPPED"
 
@@ -316,6 +318,76 @@ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
         "swinglens_pipelines_cancel_requested_total",
         status=pipeline.status,
     )
+    return pipeline
+
+
+def resume_pipeline(
+    db: Session,
+    pipeline_run_id: int,
+    *,
+    resume_from_step: str | None = None,
+) -> PipelineRun:
+    pipeline = db.get(PipelineRun, pipeline_run_id)
+    if pipeline is None:
+        raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
+    if pipeline.status not in {
+        PipelineStatus.BLOCKED,
+        PipelineStatus.FAILED,
+        PipelineStatus.PARTIAL,
+    }:
+        raise ValueError("Only BLOCKED, FAILED, or PARTIAL pipelines can be resumed.")
+    steps = _load_pipeline_steps(db, pipeline_run_id)
+    target = resume_from_step or next(
+        (
+            step.step_name
+            for step in steps
+            if step.status
+            in {
+                PipelineStepStatus.BLOCKED,
+                PipelineStepStatus.FAILED,
+                PipelineStepStatus.PENDING,
+            }
+        ),
+        None,
+    )
+    if target is None:
+        raise ValueError("Pipeline has no incomplete stage to resume.")
+    target_step = next((step for step in steps if step.step_name == target), None)
+    if target_step is None:
+        raise ValueError(f"Pipeline has no stage named {target}.")
+    invalid_prior = [
+        step.step_name
+        for step in steps
+        if step.step_order < target_step.step_order
+        and step.status not in {PipelineStepStatus.COMPLETED, PipelineStepStatus.SKIPPED}
+    ]
+    if invalid_prior:
+        raise ValueError(
+            "Cannot resume while prior stages are incomplete: " + ", ".join(invalid_prior)
+        )
+    request_key = (
+        f"resume-pipeline:{pipeline.id}:from:{target}:attempt:{target_step.retry_count + 1}"
+    )
+    job = enqueue_job(
+        db,
+        job_type=FULL_PIPELINE_JOB_TYPE,
+        payload={"pipeline_run_id": pipeline.id, "resume_from_step": target},
+        related_run_id=pipeline.upload_run_id,
+        priority=PIPELINE_JOB_PRIORITY,
+        max_retries=PIPELINE_JOB_MAX_RETRIES,
+        request_key=request_key,
+    )
+    pipeline.status = PipelineStatus.PENDING
+    pipeline.current_step = target
+    pipeline.completed_at = None
+    pipeline.message = f"Pipeline resume queued from {target}."
+    pipeline.error_message = None
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "background_job_id": job.id,
+        "resume_from_step": target,
+    }
+    db.flush()
     return pipeline
 
 

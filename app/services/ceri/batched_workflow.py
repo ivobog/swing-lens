@@ -8,13 +8,19 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriCompany, CeriSecSyncState
+from app.models.ceri_tables import CeriCompany
 from app.models.tables import RawCompanyRow
 from app.services.background_job_service import enqueue_job
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.sec.processor_lifecycle import require_deployed_processor_active
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from app.services.ceri.sec.readiness_diagnostics import (
+    SecTickerReadinessCategory,
+    diagnose_sec_readiness,
+)
+from app.services.pipeline_prerequisites import CeriBootstrapRequiredError
 from app.settings import (
     SecDocumentIncrementalMode,
     SecReadinessPolicy,
@@ -87,6 +93,7 @@ def build_ceri_batched_workflow_plan(
     config_hash: str,
     settings: Settings | None = None,
     provider_datasets: Mapping[str, tuple[CeriDataset, ...]] = DEFAULT_PROVIDER_DATASETS,
+    provider_tickers: Mapping[str, Iterable[str]] | None = None,
 ) -> CeriBatchedWorkflowPlan:
     runtime_settings = settings or get_settings()
     symbols = tuple(
@@ -104,10 +111,23 @@ def build_ceri_batched_workflow_plan(
     normalization_count = 0
 
     for provider, datasets in sorted(provider_datasets.items()):
+        provider_symbols = (
+            tuple(
+                sorted(
+                    {
+                        str(ticker).strip().upper()
+                        for ticker in provider_tickers.get(provider, ())
+                        if str(ticker).strip()
+                    }
+                )
+            )
+            if provider_tickers is not None and provider in provider_tickers
+            else symbols
+        )
         for dataset in sorted(datasets, key=lambda item: (DATASET_PRIORITIES[item], item.value)):
             priority = DATASET_PRIORITIES[dataset]
             for batch_index, batch in enumerate(
-                _chunks(symbols, runtime_settings.ceri_provider_batch_size),
+                _chunks(provider_symbols, runtime_settings.ceri_provider_batch_size),
                 start=1,
             ):
                 request_key = (
@@ -132,7 +152,7 @@ def build_ceri_batched_workflow_plan(
                 )
                 provider_count += 1
             for batch_index, batch in enumerate(
-                _chunks(symbols, runtime_settings.ceri_normalization_batch_size),
+                _chunks(provider_symbols, runtime_settings.ceri_normalization_batch_size),
                 start=1,
             ):
                 request_key = (
@@ -216,6 +236,7 @@ def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkf
     _ensure_ceri_companies(db, tickers)
     registry = CeriProviderRegistry()
     provider_datasets: dict[str, tuple[CeriDataset, ...]] = {}
+    provider_ticker_scopes: dict[str, tuple[str, ...]] = {}
     for provider, datasets in DEFAULT_PROVIDER_DATASETS.items():
         try:
             capabilities = registry.capabilities(provider)
@@ -225,40 +246,55 @@ def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkf
             dataset for dataset in datasets if dataset in capabilities.datasets
         )
     if CeriDataset.GUIDANCE in provider_datasets.get("sec", ()):
-        coverage = sec_readiness_coverage(db, tickers=tickers)
+        lifecycle = require_deployed_processor_active(db)
+        readiness = diagnose_sec_readiness(
+            db,
+            tickers=tickers,
+            processor_signature=lifecycle.active_signature or lifecycle.deployed_signature,
+        )
         logger.info(
             "ceri.sec.preflight",
             extra={
                 "run_id": run_id,
                 "sec_incremental_mode": runtime_settings.sec_document_incremental_mode.value,
                 "sec_readiness_policy": runtime_settings.sec_readiness_policy.value,
-                "sec_processor_signature": coverage.processor_signature,
-                "requested_tickers": coverage.requested_tickers,
-                "ready_tickers": coverage.ready_tickers,
-                "missing_tickers": list(coverage.missing_tickers),
-                "missing_ciks": list(coverage.missing_ciks),
+                "sec_processor_signature": readiness.processor_signature,
+                "requested_tickers": readiness.requested_tickers,
+                "ready_tickers": readiness.ready_tickers,
+                "readiness_counts": readiness.counts(),
+                "blocking_tickers": list(readiness.blocking_tickers),
             },
         )
         if (
             runtime_settings.sec_document_incremental_mode
             is SecDocumentIncrementalMode.ACTIVE
             and runtime_settings.sec_readiness_policy is SecReadinessPolicy.REQUIRE_READY
-            and not coverage.complete
+            and not readiness.complete
         ):
-            missing = ", ".join(coverage.missing_tickers[:25])
-            suffix = "..." if len(coverage.missing_tickers) > 25 else ""
-            raise RuntimeError(
+            missing = ", ".join(readiness.blocking_tickers[:25])
+            suffix = "..." if len(readiness.blocking_tickers) > 25 else ""
+            raise CeriBootstrapRequiredError(
                 "SEC ACTIVE preflight rejected the CERI workflow before enqueue: "
-                f"{coverage.ready_tickers}/{coverage.requested_tickers} tickers are ready for "
-                f"processor signature {coverage.processor_signature}; bootstrap required for "
-                f"{missing}{suffix}."
+                f"{readiness.ready_tickers}/{readiness.requested_tickers} tickers are accepted "
+                f"for processor signature {readiness.processor_signature}; bootstrap or mapping "
+                f"repair required for {missing}{suffix}.",
+                diagnostics={
+                    "processor": lifecycle.as_dict(),
+                    "readiness": readiness.as_dict(),
+                },
             )
+        provider_ticker_scopes["sec"] = tuple(
+            item.ticker
+            for item in readiness.tickers
+            if item.category is not SecTickerReadinessCategory.SEC_NOT_APPLICABLE
+        )
     plan = build_ceri_batched_workflow_plan(
         run_id=run_id,
         tickers=tickers,
         config_hash=load_ceri_config().config_hash,
         settings=runtime_settings,
         provider_datasets=provider_datasets,
+        provider_tickers=provider_ticker_scopes,
     )
     for spec in plan.jobs:
         enqueue_job(
@@ -278,53 +314,37 @@ def sec_readiness_coverage(
     db: Session,
     *,
     tickers: Iterable[str],
+    processor_signature: str | None = None,
 ) -> SecReadinessCoverage:
-    symbols = tuple(sorted({str(ticker).strip().upper() for ticker in tickers if ticker}))
-    signature = sec_guidance_processor_signature()
-    companies = list(
-        db.scalars(select(CeriCompany).where(CeriCompany.ticker.in_(symbols))).all()
+    signature = processor_signature or sec_guidance_processor_signature()
+    readiness = diagnose_sec_readiness(
+        db,
+        tickers=tickers,
+        processor_signature=signature,
     )
-    by_ticker: dict[str, list[CeriCompany]] = {}
-    for company in companies:
-        by_ticker.setdefault(company.ticker.upper(), []).append(company)
-    ciks = {str(company.cik) for company in companies if company.cik}
-    ready_ciks = set(
-        db.scalars(
-            select(CeriSecSyncState.cik).where(
-                CeriSecSyncState.cik.in_(ciks),
-                CeriSecSyncState.dataset == CeriDataset.GUIDANCE.value,
-                CeriSecSyncState.processor_signature == signature,
-            )
-        ).all()
-    ) if ciks else set()
-    ready: set[str] = set()
-    missing_tickers: list[str] = []
-    missing_ciks: set[str] = set()
-    for ticker in symbols:
-        matching = by_ticker.get(ticker, [])
-        ticker_ciks = {str(company.cik) for company in matching if company.cik}
-        if ticker_ciks & ready_ciks:
-            ready.add(ticker)
-            continue
-        missing_tickers.append(ticker)
-        missing_ciks.update(ticker_ciks)
     return SecReadinessCoverage(
         processor_signature=signature,
-        requested_tickers=len(symbols),
-        ready_tickers=len(ready),
-        missing_tickers=tuple(missing_tickers),
-        missing_ciks=tuple(sorted(missing_ciks)),
+        requested_tickers=readiness.requested_tickers,
+        ready_tickers=readiness.ready_tickers,
+        missing_tickers=readiness.blocking_tickers,
+        missing_ciks=tuple(
+            sorted(
+                {
+                    cik
+                    for item in readiness.tickers
+                    if not item.accepted
+                    for cik in item.ciks
+                }
+            )
+        ),
     )
 
 
 def _ensure_ceri_companies(db: Session, tickers: Iterable[str]) -> None:
-    existing = {
-        (company.ticker.upper(), (company.exchange or "").upper())
-        for company in db.scalars(select(CeriCompany))
-    }
+    existing = {company.ticker.upper() for company in db.scalars(select(CeriCompany))}
     for ticker in tickers:
         symbol = ticker.upper()
-        if (symbol, "US") in existing:
+        if symbol in existing:
             continue
         db.add(
             CeriCompany(
@@ -333,7 +353,7 @@ def _ensure_ceri_companies(db: Session, tickers: Iterable[str]) -> None:
                 current_provider_ids_json={"eodhd": f"{symbol}.US"},
             )
         )
-        existing.add((symbol, "US"))
+        existing.add(symbol)
     db.flush()
 
 

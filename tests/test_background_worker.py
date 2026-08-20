@@ -11,6 +11,7 @@ from app.services.background_worker import (
     log_worker_startup_configuration,
     run_worker_once,
 )
+from app.services.pipeline_prerequisites import CeriBootstrapRequiredError
 from app.settings import SecDocumentIncrementalMode, Settings
 
 
@@ -62,6 +63,9 @@ def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
 
     assert summary["sec_incremental_mode"] == "OFF"
     assert summary["sec_processor_signature"].startswith("sec-guidance:")
+    assert summary["worker_id"] == "worker-test"
+    assert summary["worker_process_id"] > 0
+    assert summary["worker_started_at"].endswith("+00:00")
     assert "legacy repeated-download path" in caplog.text
 
 
@@ -210,6 +214,57 @@ def test_worker_defers_barrier_without_consuming_retry(monkeypatch: pytest.Monke
     assert ran is True
     assert calls == [(7.0, "upstream pending", "token", 2)]
     assert db.rollback_count == 0
+
+
+def test_worker_blocks_deterministic_prerequisite_without_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = BackgroundJob(
+        id=1,
+        job_type="TEST_JOB",
+        status=JobStatus.RUNNING,
+        execution_token="token",
+        retry_count=2,
+        max_retries=3,
+    )
+    db = FakeWorkerDb()
+    calls = []
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: job,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_job",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_job_failed_or_retry",
+        lambda *_args, **_kwargs: calls.append("retry"),
+    )
+
+    def mark_blocked(_db, _job, _exc, **kwargs):
+        calls.append((kwargs["reason_code"], _job.retry_count))
+
+    monkeypatch.setattr("app.services.background_worker.mark_job_blocked", mark_blocked)
+
+    ran = run_worker_once(
+        worker_id="worker-a",
+        stale_after_seconds=60,
+        session_factory=lambda: db,
+        handlers={
+            "TEST_JOB": lambda *_args: (_ for _ in ()).throw(
+                CeriBootstrapRequiredError("bootstrap required")
+            )
+        },
+    )
+
+    assert ran is True
+    assert calls == [("SEC_BOOTSTRAP_REQUIRED", 2)]
+    assert db.rollback_count == 1
 
 
 class FakeWorkerDb:

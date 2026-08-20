@@ -43,6 +43,7 @@ from app.services.ceri.orchestration import (
 )
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
 from app.settings import get_settings
 
 CERI_CAPTURE_RUN = "CERI_CAPTURE_RUN"
@@ -440,6 +441,23 @@ def _require_terminal_stage(
         raise JobDeferred(
             f"waiting for terminal {job_type} batches",
             delay_seconds=get_settings().ceri_barrier_retry_seconds,
+        )
+    unsuccessful = [
+        job
+        for job in jobs
+        if job.status not in {JobStatus.COMPLETED, JobStatus.PARTIAL}
+    ]
+    if unsuccessful:
+        raise CeriUpstreamStageBlockedError(
+            f"Cannot continue after unsuccessful terminal {job_type} batches.",
+            diagnostics={
+                "workflow_key": workflow_key,
+                "upstream_job_type": job_type,
+                "jobs": [
+                    {"job_id": row.id, "status": row.status}
+                    for row in unsuccessful
+                ],
+            },
         )
 
 

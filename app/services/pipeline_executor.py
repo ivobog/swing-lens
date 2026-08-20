@@ -8,15 +8,20 @@ from decimal import Decimal
 from inspect import Parameter, signature
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
     CombinedResult,
+    FundamentalScore,
     IBFetchRun,
+    MarketRegimeSnapshot,
     PipelineRun,
     PipelineStep,
+    RankingResult,
     RawCompanyRow,
+    SectorRotationSnapshot,
+    TechnicalScore,
     UploadRun,
 )
 from app.services.background_job_service import JobLeaseLost, enqueue_job
@@ -27,6 +32,7 @@ from app.services.ceri.constants import (
 )
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.job_handlers import CERI_PROVIDER_INGEST
+from app.services.ceri.sec.pipeline_preflight import validate_sec_pipeline_preflight
 from app.services.combined_decision import refresh_combined_results
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
@@ -46,6 +52,7 @@ from app.services.market_regime_command_center import MarketRegimeCommandCenterS
 from app.services.market_regime_dtos import MarketRegimeCommandCenterDto
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_performance import PipelinePerformanceTracker
+from app.services.pipeline_prerequisites import PipelineBlockedError
 from app.services.pipeline_service import (
     MarketDataPolicy,
     PipelineStatus,
@@ -153,6 +160,8 @@ class PipelineExecutionResult:
 
 @dataclass(frozen=True)
 class PipelineExecutionDependencies:
+    validate_pipeline_preflight: Callable[[Session, list[str]], dict[str, Any]] | None = None
+    validate_resume_checkpoint: Callable[[Session, int, str], dict[str, Any]] | None = None
     recalculate_fundamentals: Callable[[Session, int], list[Any]] = recalculate_run_fundamentals
     build_fetch_plan: Callable[..., FetchPlan] = build_fetch_plan
     execute_fetch_plan: Callable[..., IBFetchRun] = execute_fetch_plan
@@ -187,10 +196,21 @@ def execute_full_pipeline(
     should_cancel: Callable[[], bool] | None = None,
     lease_guard: Callable[[], None] | None = None,
     dependencies: PipelineExecutionDependencies | None = None,
+    resume_from_step: str | None = None,
 ) -> PipelineExecutionResult:
     dependencies = dependencies or PipelineExecutionDependencies()
     pipeline = _require_pipeline(db, pipeline_run_id)
     upload_run = _require_upload_run(db, pipeline.upload_run_id)
+    if resume_from_step is not None and resume_from_step != "VALIDATING_RUN":
+        return _execute_resumed_pipeline(
+            db,
+            pipeline=pipeline,
+            upload_run=upload_run,
+            resume_from_step=resume_from_step,
+            should_cancel=should_cancel or (lambda: False),
+            lease_guard=lease_guard,
+            dependencies=dependencies,
+        )
     should_cancel = should_cancel or (lambda: False)
     performance = PipelinePerformanceTracker()
     cache_hits_before = operational_metrics.total(
@@ -238,6 +258,13 @@ def execute_full_pipeline(
             if not tickers:
                 raise ValueError("No uploaded tickers are available for this run.")
             result["uploaded_rows"] = upload_run.row_count or len(tickers)
+            if _ceri_provider_ingest_enabled(dependencies):
+                validate = dependencies.validate_pipeline_preflight
+                result["sec_preflight"] = (
+                    validate(db, tickers)
+                    if validate is not None
+                    else validate_sec_pipeline_preflight(db, tickers=tickers)
+                )
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
@@ -601,6 +628,15 @@ def execute_full_pipeline(
         _record_performance_metrics(final_status, result["performance"])
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
+    except PipelineBlockedError as exc:
+        if overlap_coordinator is not None:
+            overlap_coordinator.abort()
+        result["performance"] = performance.snapshot()
+        result["blocked_reason"] = exc.reason_code
+        result["blocked_diagnostics"] = exc.diagnostics
+        _record_performance_metrics(PipelineStatus.BLOCKED, result["performance"])
+        _mark_pipeline_blocked(db, pipeline, exc, result=result, lease_guard=lease_guard)
+        raise
     except IBGatewayUnavailable as exc:
         if overlap_coordinator is not None:
             overlap_coordinator.abort()
@@ -632,6 +668,239 @@ def execute_full_pipeline(
         raise
 
 
+def _execute_resumed_pipeline(
+    db: Session,
+    *,
+    pipeline: PipelineRun,
+    upload_run: UploadRun,
+    resume_from_step: str,
+    should_cancel: Callable[[], bool],
+    lease_guard: Callable[[], None] | None,
+    dependencies: PipelineExecutionDependencies,
+) -> PipelineExecutionResult:
+    if resume_from_step != CERI_PIPELINE_PROVIDER_INGEST_STEP:
+        raise ValueError(
+            "The durable resume path currently supports CERI_PROVIDER_INGEST only."
+        )
+    performance = PipelinePerformanceTracker()
+    result = _empty_result(pipeline, upload_run)
+    result.update(_public_result(pipeline.result_json or {}))
+    result.update(
+        {
+            "pipeline_run_id": pipeline.id,
+            "upload_run_id": upload_run.id,
+            "blocked_reason": None,
+            "blocked_diagnostics": None,
+            "resumed_from_step": resume_from_step,
+        }
+    )
+    try:
+        tickers = _tickers_for_run(db, upload_run.id)
+        validate_checkpoint = dependencies.validate_resume_checkpoint
+        checkpoint = (
+            validate_checkpoint(db, upload_run.id, resume_from_step)
+            if validate_checkpoint is not None
+            else _validate_resume_checkpoint(db, pipeline, upload_run.id, resume_from_step)
+        )
+        result["resume_checkpoint"] = checkpoint
+        result["technical_error_count"] = int(
+            checkpoint.get("technical_error_count") or 0
+        )
+        result["market_regime_low_confidence"] = int(
+            result.get("market_regime_confidence") == "low"
+        )
+        _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
+        _raise_if_cancelled(should_cancel)
+        with _pipeline_step(
+            db,
+            pipeline,
+            CERI_PIPELINE_PROVIDER_INGEST_STEP,
+            lease_guard=lease_guard,
+            performance=performance,
+        ):
+            validate_preflight = dependencies.validate_pipeline_preflight
+            result["sec_preflight"] = (
+                validate_preflight(db, tickers)
+                if validate_preflight is not None
+                else validate_sec_pipeline_preflight(db, tickers=tickers)
+            )
+            schedule = dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
+            result["ceri_provider_jobs"] = int(schedule(db, upload_run.id) or 0)
+
+        if _setup_lifecycle_pipeline_step_enabled(dependencies):
+            _raise_if_cancelled(should_cancel)
+            with _pipeline_step(
+                db,
+                pipeline,
+                SLSE_PIPELINE_CAPTURE_STEP,
+                lease_guard=lease_guard,
+                performance=performance,
+            ):
+                capture = dependencies.capture_setup_signals or _capture_setup_signals
+                capture_result = capture(db, upload_run.id)
+                _apply_setup_lifecycle_capture_result(
+                    result,
+                    capture_result,
+                    performance=performance,
+                )
+            _raise_if_cancelled(should_cancel)
+            with _pipeline_step(
+                db,
+                pipeline,
+                SLSE_PIPELINE_EVALUATION_STEP,
+                lease_guard=lease_guard,
+                performance=performance,
+            ):
+                evaluate = dependencies.evaluate_setup_lifecycles or _evaluate_setup_lifecycles
+                evaluation_result = _invoke_setup_evaluation(
+                    evaluate,
+                    db,
+                    upload_run.id,
+                    capture_result=(
+                        capture_result if _setup_capture_handoff_enabled(dependencies) else None
+                    ),
+                )
+                _apply_setup_lifecycle_evaluation_result(result, evaluation_result)
+
+        _raise_if_cancelled(should_cancel)
+        with _pipeline_step(
+            db,
+            pipeline,
+            "CAPTURING_WINNER_PREDICTIONS",
+            lease_guard=lease_guard,
+            performance=performance,
+        ):
+            if _winner_probability_capture_enabled(dependencies):
+                capture = dependencies.capture_winner_predictions or _capture_winner_predictions
+                winner_result = capture(db, upload_run.id)
+                _apply_winner_capture_result(result, winner_result)
+            else:
+                result["winner_prediction_capture_skipped"] = 1
+
+        result["performance"] = performance.snapshot()
+        final_status = _final_pipeline_status(result)
+        _record_performance_metrics(final_status, result["performance"])
+        _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
+        return _to_execution_result(pipeline, result)
+    except PipelineBlockedError as exc:
+        result["performance"] = performance.snapshot()
+        result["blocked_reason"] = exc.reason_code
+        result["blocked_diagnostics"] = exc.diagnostics
+        _mark_pipeline_blocked(db, pipeline, exc, result=result, lease_guard=lease_guard)
+        raise
+    except JobLeaseLost:
+        raise
+    except PipelineCancelled:
+        result["performance"] = performance.snapshot()
+        _mark_pipeline_cancelled(db, pipeline, result=result, lease_guard=lease_guard)
+        raise
+    except Exception as exc:
+        rollback = getattr(db, "rollback", None)
+        if callable(rollback):
+            rollback()
+            pipeline = _require_pipeline(db, pipeline.id)
+        result["performance"] = performance.snapshot()
+        _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
+        raise
+
+
+def _validate_resume_checkpoint(
+    db: Session,
+    pipeline: PipelineRun,
+    upload_run_id: int,
+    resume_from_step: str,
+) -> dict[str, Any]:
+    steps = list(
+        db.scalars(
+            select(PipelineStep)
+            .where(PipelineStep.pipeline_run_id == pipeline.id)
+            .order_by(PipelineStep.step_order)
+        ).all()
+    )
+    target = next((step for step in steps if step.step_name == resume_from_step), None)
+    if target is None:
+        raise ValueError(f"Pipeline has no resume step named {resume_from_step}.")
+    invalid = [
+        step.step_name
+        for step in steps
+        if step.step_order < target.step_order
+        and step.status not in {PipelineStepStatus.COMPLETED, PipelineStepStatus.SKIPPED}
+    ]
+    if invalid:
+        raise ValueError(
+            "Cannot resume because prior stages are not complete: " + ", ".join(invalid)
+        )
+
+    expected = len(_tickers_for_run(db, upload_run_id))
+    checks = {
+        "fundamental_scores": _run_ticker_count(db, FundamentalScore, upload_run_id),
+        "technical_scores": _run_ticker_count(db, TechnicalScore, upload_run_id),
+        "combined_results": _run_ticker_count(db, CombinedResult, upload_run_id),
+        "ranking_results": _run_ticker_count(db, RankingResult, upload_run_id),
+    }
+    if any(checks[name] != expected for name in checks):
+        raise ValueError(
+            "Resume checkpoint invariant failed: "
+            f"expected {expected} distinct tickers, observed {checks}."
+        )
+    ranking_rows = int(
+        db.scalar(
+            select(func.count())
+            .select_from(RankingResult)
+            .where(RankingResult.run_id == upload_run_id)
+        )
+        or 0
+    )
+    if ranking_rows <= 0:
+        raise ValueError("Resume checkpoint has no persisted ranking rows.")
+    technical_scores = list(
+        db.scalars(
+            select(TechnicalScore).where(TechnicalScore.run_id == upload_run_id)
+        ).all()
+    )
+    context_counts = {
+        "market_regime_snapshots": int(
+            db.scalar(
+                select(func.count())
+                .select_from(MarketRegimeSnapshot)
+                .where(MarketRegimeSnapshot.run_id == upload_run_id)
+            )
+            or 0
+        ),
+        "sector_rotation_snapshots": int(
+            db.scalar(
+                select(func.count())
+                .select_from(SectorRotationSnapshot)
+                .where(SectorRotationSnapshot.run_id == upload_run_id)
+            )
+            or 0
+        ),
+    }
+    if any(count <= 0 for count in context_counts.values()):
+        raise ValueError(
+            "Resume checkpoint is missing required market context: "
+            f"{context_counts}."
+        )
+    return {
+        "resume_from_step": resume_from_step,
+        "expected_tickers": expected,
+        **checks,
+        "ranking_rows": ranking_rows,
+        "technical_error_count": _technical_error_count(technical_scores),
+        **context_counts,
+        "validated": True,
+    }
+
+
+def _run_ticker_count(db: Session, model: type, run_id: int) -> int:
+    return int(
+        db.scalar(
+            select(func.count(distinct(model.ticker))).where(model.run_id == run_id)
+        )
+        or 0
+    )
+
+
 @contextmanager
 def _pipeline_step(
     db: Session,
@@ -646,6 +915,7 @@ def _pipeline_step(
         PipelineStepStatus.RUNNING,
         PipelineStepStatus.COMPLETED,
         PipelineStepStatus.FAILED,
+        PipelineStepStatus.BLOCKED,
         PipelineStepStatus.CANCELLED,
     }:
         step.retry_count = (step.retry_count or 0) + 1
@@ -663,6 +933,15 @@ def _pipeline_step(
     try:
         yield step
     except JobLeaseLost:
+        raise
+    except PipelineBlockedError as exc:
+        step.status = PipelineStepStatus.BLOCKED
+        step.completed_at = _utcnow()
+        step.error_message = _safe_message(str(exc))
+        step.message = f"Blocked: {exc.reason_code}"
+        if performance is not None:
+            performance.finish_step(step_name, step.status)
+        _save_progress(db, lease_guard=lease_guard)
         raise
     except PipelineCancelled:
         step.status = PipelineStepStatus.CANCELLED
@@ -801,6 +1080,27 @@ def _mark_pipeline_failed(
             **(pipeline.result_json or {}),
             **_public_result(result),
         }
+    _save_progress(db, lease_guard=lease_guard)
+
+
+def _mark_pipeline_blocked(
+    db: Session,
+    pipeline: PipelineRun,
+    exc: PipelineBlockedError,
+    *,
+    result: dict[str, Any] | None = None,
+    lease_guard: Callable[[], None] | None = None,
+) -> None:
+    pipeline.status = PipelineStatus.BLOCKED
+    pipeline.completed_at = _utcnow()
+    pipeline.message = "Pipeline blocked before execution."
+    pipeline.error_message = _safe_message(str(exc))
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        **(_public_result(result) if result is not None else {}),
+        "blocked_reason": exc.reason_code,
+        "blocked_diagnostics": exc.diagnostics,
+    }
     _save_progress(db, lease_guard=lease_guard)
 
 

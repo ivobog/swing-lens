@@ -12,6 +12,7 @@ from app.services.pipeline_service import (
     cancel_pipeline,
     get_pipeline_status,
     pipeline_step_names,
+    resume_pipeline,
     start_pipeline,
 )
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
@@ -369,6 +370,48 @@ def test_cancel_pipeline_running_pipeline_preserves_active_status() -> None:
     assert pipeline.status == PipelineStatus.RUNNING
     assert pipeline.completed_at is None
     assert pipeline.message == "Pipeline cancellation requested."
+
+
+def test_resume_pipeline_queues_checkpoint_job_without_rewriting_completed_steps() -> None:
+    pipeline = PipelineRun(
+        id=3,
+        upload_run_id=7,
+        status=PipelineStatus.BLOCKED,
+        current_step="CERI_PROVIDER_INGEST",
+        result_json={"background_job_id": 10},
+    )
+    steps = [
+        PipelineStep(
+            id=1,
+            pipeline_run_id=3,
+            step_name="VALIDATING_RUN",
+            step_order=1,
+            status=PipelineStepStatus.COMPLETED,
+            retry_count=0,
+        ),
+        PipelineStep(
+            id=2,
+            pipeline_run_id=3,
+            step_name="CERI_PROVIDER_INGEST",
+            step_order=2,
+            status=PipelineStepStatus.BLOCKED,
+            retry_count=0,
+        ),
+    ]
+    db = FakeDb(pipeline_runs={3: pipeline}, pipeline_steps=steps)
+
+    returned = resume_pipeline(db, 3)
+
+    assert returned.status == PipelineStatus.PENDING
+    assert returned.current_step == "CERI_PROVIDER_INGEST"
+    assert steps[0].status == PipelineStepStatus.COMPLETED
+    assert steps[0].retry_count == 0
+    job = next(iter(db.background_jobs.values()))
+    assert job.payload_json == {
+        "pipeline_run_id": 3,
+        "resume_from_step": "CERI_PROVIDER_INGEST",
+    }
+    assert pipeline.result_json["background_job_id"] == job.id
 
 
 class FakeScalarResult:

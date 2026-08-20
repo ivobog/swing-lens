@@ -72,6 +72,7 @@ from app.services.pipeline_service import (
     PipelineStatusDto,
     cancel_pipeline,
     get_pipeline_status,
+    resume_pipeline,
     start_pipeline,
 )
 from app.services.ranking_profile_config import get_ranking_profile
@@ -785,6 +786,29 @@ def cancel_run_pipeline_action(
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/runs/{run_id}/pipeline/{pipeline_id}/resume")
+@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="resumes a blocked local pipeline checkpoint")
+def resume_run_pipeline_action(
+    run_id: int,
+    pipeline_id: int,
+    db: DbSession,
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    try:
+        existing = get_pipeline_status(db, pipeline_id)
+        if existing.upload_run_id != run_id:
+            raise HTTPException(status_code=404, detail="Pipeline run not found for this run.")
+        resume_pipeline(db, pipeline_id)
+        db.commit()
+        return RedirectResponse(
+            url=f"/runs/{run_id}/pipeline/{pipeline_id}",
+            status_code=303,
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/runs/{run_id}/ib/test")
