@@ -15,7 +15,7 @@ from sqlalchemy.pool import NullPool
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
 from app.services.redaction import redact_text
-from app.services.worker_registry import live_workers
+from app.services.worker_registry import has_live_worker_for_job, live_workers
 from app.settings import Settings
 
 
@@ -60,17 +60,20 @@ class ReadinessService:
             migrations = self._migration_check()
             jobs = self._jobs_check()
             worker = self._worker_check()
+            sec = self._sec_provider_check()
         else:
             dependency_message = "skipped: database unavailable"
             migrations = ReadinessCheck(False, dependency_message)
             jobs = ReadinessCheck(False, dependency_message)
             worker = ReadinessCheck(False, dependency_message)
+            sec = ReadinessCheck(False, dependency_message)
         checks = {
             "database": database,
             "migrations": migrations,
             "storage": self._storage_check(),
             "worker": worker,
             "jobs": jobs,
+            "sec": sec,
         }
         status = "ok" if all(check.ok for check in checks.values()) else "degraded"
         return ReadinessReport(status=status, checks=checks)
@@ -138,12 +141,49 @@ class ReadinessService:
                     ),
                     now=self.now,
                 )
+                capable = has_live_worker_for_job(
+                    session,
+                    job_type="FULL_PIPELINE",
+                    heartbeat_timeout_seconds=(
+                        self.settings.job_worker_heartbeat_timeout_seconds
+                    ),
+                    now=self.now,
+                )
         except SQLAlchemyError as exc:
             return ReadinessCheck(False, _safe_message(exc))
         if not workers:
             return ReadinessCheck(False, "no live durable worker heartbeat")
+        if not capable:
+            return ReadinessCheck(False, "no live worker can process FULL_PIPELINE")
         worker_ids = ",".join(worker.worker_id for worker in workers)
         return ReadinessCheck(True, f"live:{worker_ids}")
+
+    def _sec_provider_check(self) -> ReadinessCheck:
+        if not self.settings.ceri_provider_ingest_enabled:
+            return ReadinessCheck(True, "not required")
+        try:
+            from app.services.ceri.config import load_ceri_config
+            from app.services.ceri.enums import (
+                CeriDataset,
+                CeriProvider,
+                CeriProviderCapability,
+            )
+            from app.services.ceri.sec.processor_lifecycle import lifecycle_state
+
+            config = load_ceri_config()
+            guidance = config.datasets.get(CeriDataset.GUIDANCE)
+            capabilities = config.providers.capabilities.get(CeriProvider.SEC, ())
+            with Session(self.engine) as session:
+                processor = lifecycle_state(session)
+            if not guidance or not guidance.enabled:
+                return ReadinessCheck(False, "SEC guidance dataset is disabled")
+            if CeriProviderCapability.GUIDANCE not in capabilities:
+                return ReadinessCheck(False, "SEC guidance capability is not configured")
+            if not processor.deployed_is_active:
+                return ReadinessCheck(False, "deployed SEC processor is not ACTIVE")
+        except (OSError, SQLAlchemyError, ValueError) as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        return ReadinessCheck(True, f"ready:{processor.active_signature}")
 
     def _jobs_check(self) -> ReadinessCheck:
         try:

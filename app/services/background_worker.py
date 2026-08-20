@@ -25,6 +25,7 @@ from app.services.background_job_service import (
     mark_job_deferred,
     mark_job_failed_or_retry,
     mark_job_partial,
+    recover_abandoned_jobs_for_worker,
     recover_stale_jobs,
 )
 from app.services.background_queue import (
@@ -129,16 +130,12 @@ def run_worker(
                 stale_after_seconds=settings.job_stale_after_seconds,
                 heartbeat_timeout_seconds=settings.job_worker_heartbeat_timeout_seconds,
                 fairness_enabled=settings.queue_fairness_enabled,
-                max_consecutive_interactive=(
-                    settings.job_max_consecutive_interactive_claims
-                ),
+                max_consecutive_interactive=(settings.job_max_consecutive_interactive_claims),
                 age_promotion_seconds=settings.job_age_promotion_seconds,
                 claim_state=claim_state,
                 session_factory=session_factory,
                 handlers=handlers,
-                schedule_winner_probability=(
-                    settings.winner_probability_auto_maturation_enabled
-                ),
+                schedule_winner_probability=(settings.winner_probability_auto_maturation_enabled),
             )
             if stop_after_one:
                 return
@@ -146,9 +143,7 @@ def run_worker(
                 runtime_stop_event.wait(settings.job_poll_interval_seconds)
     finally:
         runtime_stop_event.set()
-        heartbeat_thread.join(
-            timeout=max(1.0, settings.job_worker_heartbeat_interval_seconds * 2)
-        )
+        heartbeat_thread.join(timeout=max(1.0, settings.job_worker_heartbeat_interval_seconds * 2))
         db = session_factory()
         try:
             mark_worker_stopping(
@@ -290,6 +285,16 @@ def run_worker_once(
         queue_names = normalize_worker_queues(queues)
         hostname = socket.gethostname()
         process_id = os.getpid()
+        abandoned_count = recover_abandoned_jobs_for_worker(
+            db,
+            worker_id=worker_id,
+            heartbeat_timeout_seconds=heartbeat_timeout_seconds,
+        )
+        if abandoned_count:
+            logger.info(
+                "job.restarted_worker_recovered",
+                extra={"count": abandoned_count, "worker_id": worker_id},
+            )
         register_worker(
             db,
             worker_id=worker_id,
@@ -334,6 +339,7 @@ def run_worker_once(
 
         execution_token = job.execution_token
         try:
+
             def heartbeat() -> None:
                 heartbeat_job(
                     db,
@@ -440,6 +446,7 @@ def execute_job(
 
 def default_job_handlers() -> dict[str, JobHandler]:
     from app.services.ceri.job_handlers import implemented_ceri_job_handlers
+    from app.services.ceri.sec.readiness_repair import SEC_READINESS_REPAIR_JOB_TYPE
     from app.services.ib_market_intelligence.job_handlers import (
         implemented_ib_intelligence_job_handlers,
     )
@@ -452,6 +459,7 @@ def default_job_handlers() -> dict[str, JobHandler]:
 
     return {
         "FULL_PIPELINE": _execute_full_pipeline_job,
+        SEC_READINESS_REPAIR_JOB_TYPE: _execute_sec_readiness_repair_job,
         MARKET_DATA_PREWARM: execute_market_data_prewarm_job,
         **implemented_ib_intelligence_job_handlers(),
         **implemented_ceri_job_handlers(),
@@ -488,3 +496,29 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
     except PipelineCancelled as exc:
         raise CancelRequested(str(exc)) from exc
     return result.__dict__
+
+
+def _execute_sec_readiness_repair_job(
+    db: Session,
+    job: BackgroundJob,
+) -> dict[str, Any] | None:
+    from app.services.background_job_service import is_cancel_requested
+    from app.services.ceri.sec.readiness_repair import (
+        SecReadinessRepairCancelled,
+        execute_sec_readiness_repair,
+    )
+
+    def should_cancel() -> bool:
+        heartbeat = getattr(job, "_heartbeat", None)
+        if callable(heartbeat):
+            heartbeat()
+        return is_cancel_requested(db, job.id)
+
+    try:
+        return execute_sec_readiness_repair(
+            db,
+            job,
+            should_cancel=should_cancel,
+        )
+    except SecReadinessRepairCancelled as exc:
+        raise CancelRequested(str(exc)) from exc

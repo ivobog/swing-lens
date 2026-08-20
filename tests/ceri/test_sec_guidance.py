@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from app.services.ceri.dtos import GuidanceRequest
 from app.services.ceri.sec import processor_signature
 from app.services.ceri.sec.client import SecClientConfig
@@ -70,3 +72,71 @@ def test_extractor_version_change_changes_processor_signature(monkeypatch) -> No
     )
 
     assert processor_signature.sec_guidance_processor_signature() != before
+
+
+def test_guidance_discovery_is_newest_first_date_bounded_and_count_bounded() -> None:
+    class Client:
+        config = SecClientConfig()
+        requests = 0
+        failures = 0
+        last_success_at = None
+
+        def submissions(self, _cik):
+            return {
+                "filings": {
+                    "recent": {
+                        "form": ["8-K", "10-Q", "8-K", "8-K", "S-1"],
+                        "accessionNumber": ["old", "middle", "newest", "future", "ignored"],
+                        "primaryDocument": [
+                            "old.htm",
+                            "middle.htm",
+                            "new.htm",
+                            "future.htm",
+                            "s1.htm",
+                        ],
+                        "filingDate": [
+                            "2024-01-01",
+                            "2026-02-01",
+                            "2026-07-01",
+                            "2027-01-01",
+                            "2026-08-01",
+                        ],
+                    }
+                }
+            }
+
+    provider = SecCeriProvider(
+        client=Client(),
+        guidance_lookback_days=730,
+        guidance_max_documents_per_ticker=1,
+    )
+    documents = provider.discover_guidance_documents(
+        GuidanceRequest(
+            company_id=None,
+            ticker="TEST",
+            start=None,
+            end=date(2026, 8, 20),
+        ),
+        cik="123456",
+    )
+
+    assert [item.accession_number for item in documents] == ["newest"]
+
+
+def test_conflicting_exact_sec_ticker_metadata_is_not_collapsed_or_guessed() -> None:
+    class Client:
+        config = SecClientConfig()
+        requests = 0
+        failures = 0
+        last_success_at = None
+
+        def company_tickers(self):
+            return {
+                "0": {"ticker": "DUP", "cik_str": 111111},
+                "1": {"ticker": "DUP", "cik_str": 222222},
+            }
+
+    provider = SecCeriProvider(client=Client())
+
+    assert provider.resolve_cik_candidates("DUP") == ("0000111111", "0000222222")
+    assert provider.resolve_cik("DUP") is None

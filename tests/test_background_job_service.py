@@ -16,6 +16,7 @@ from app.services.background_job_service import (
     mark_job_deferred,
     mark_job_failed_or_retry,
     mark_job_partial,
+    recover_abandoned_jobs_for_worker,
     recover_stale_jobs,
     request_job_cancel,
 )
@@ -332,6 +333,25 @@ def test_recover_stale_jobs_requeues_jobs_with_retries_remaining() -> None:
     assert "execution_token" not in lease_event
     assert lease_event["execution_token_hash"]
     assert db.flushes == 1
+
+
+def test_restarted_worker_recovers_abandoned_job_before_long_lease_expires() -> None:
+    abandoned = _running_job(
+        lease_expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+    abandoned.heartbeat_at = datetime.now(UTC) - timedelta(seconds=45)
+    db = FakeDb(stale_jobs=[abandoned])
+
+    count = recover_abandoned_jobs_for_worker(
+        db,
+        worker_id="worker-a",
+        heartbeat_timeout_seconds=30,
+    )
+
+    assert count == 1
+    assert abandoned.status == JobStatus.QUEUED
+    assert abandoned.execution_token is None
+    assert abandoned.worker_id is None
 
 
 def test_recover_stale_jobs_marks_exhausted_jobs_stale() -> None:

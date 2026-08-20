@@ -207,6 +207,8 @@ class Settings(BaseSettings):
     sec_form4_enabled: bool = False
     sec_document_incremental_mode: SecDocumentIncrementalMode = SecDocumentIncrementalMode.OFF
     sec_readiness_policy: SecReadinessPolicy = SecReadinessPolicy.REQUIRE_READY
+    sec_guidance_lookback_days: int = Field(default=730, ge=30, le=3650)
+    sec_guidance_max_documents_per_ticker: int = Field(default=5, ge=1, le=100)
     sec_document_lease_seconds: int = Field(default=900, ge=60, le=7200)
     sec_document_retry_base_seconds: int = Field(default=30, ge=1, le=3600)
     runs_default_page_size: int = 25

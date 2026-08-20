@@ -50,6 +50,7 @@ class MarketDataPolicy(StrEnum):
 
 class PipelineStatus:
     PENDING = "PENDING"
+    PREPARING = "PREPARING"
     RUNNING = "RUNNING"
     WAITING_FOR_MARKET_DATA = "WAITING_FOR_MARKET_DATA"
     SCORING_FUNDAMENTALS = "SCORING_FUNDAMENTALS"
@@ -134,6 +135,28 @@ def start_pipeline(
         ceri_provider_ingest_enabled=ceri_provider_ingest_enabled,
         setup_lifecycle_pipeline_step_enabled=setup_lifecycle_pipeline_step_enabled,
     )
+    authoritative = _authoritative_pipeline_for_run(db, upload_run_id)
+    if authoritative is not None:
+        if _is_recoverable_sec_block(authoritative):
+            from app.services.ceri.sec.readiness_repair import (
+                schedule_sec_readiness_repair,
+            )
+
+            diagnostics = dict(
+                (authoritative.result_json or {}).get("blocked_diagnostics") or {}
+            )
+            schedule_sec_readiness_repair(
+                db,
+                pipeline=authoritative,
+                diagnostics=diagnostics,
+            )
+        authoritative._coalesced = True
+        operational_metrics.increment(
+            "swinglens_pipelines_coalesced_total",
+            status=authoritative.status,
+        )
+        return authoritative
+
     request_key = _pipeline_request_key(upload_run_id, step_names, policy)
     existing_job = active_job_for_request_key(db, FULL_PIPELINE_JOB_TYPE, request_key)
     existing_pipeline = _pipeline_for_job(db, existing_job)
@@ -391,6 +414,56 @@ def resume_pipeline(
     return pipeline
 
 
+def enqueue_pipeline_after_sec_repair(
+    db: Session,
+    pipeline: PipelineRun,
+    *,
+    processor_signature: str,
+    resume_from_step: str = "VALIDATING_RUN",
+) -> BackgroundJob:
+    step = next(
+        (
+            item
+            for item in _load_pipeline_steps(db, pipeline.id)
+            if item.step_name == resume_from_step
+        ),
+        None,
+    )
+    if step is None:
+        raise ValueError(f"Pipeline has no {resume_from_step} stage.")
+    request_key = (
+        f"resume-pipeline:{pipeline.id}:after-sec-repair:{processor_signature}:"
+        f"from:{resume_from_step}"
+    )
+    job = enqueue_job(
+        db,
+        job_type=FULL_PIPELINE_JOB_TYPE,
+        payload={"pipeline_run_id": pipeline.id, "resume_from_step": resume_from_step},
+        related_run_id=pipeline.upload_run_id,
+        priority=PIPELINE_JOB_PRIORITY,
+        max_retries=PIPELINE_JOB_MAX_RETRIES,
+        request_key=request_key,
+    )
+    pipeline.status = PipelineStatus.PENDING
+    pipeline.current_step = resume_from_step
+    pipeline.completed_at = None
+    pipeline.message = "SEC preparation completed; pipeline continuation queued."
+    pipeline.error_message = None
+    step.status = PipelineStepStatus.PENDING
+    step.completed_at = None
+    step.message = "SEC preparation completed; continuing pipeline."
+    step.error_message = None
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "background_job_id": job.id,
+        "resume_from_step": resume_from_step,
+        "blocked_reason": None,
+        "blocked_diagnostics": None,
+    }
+    db.flush()
+    return job
+
+
 def _load_pipeline_steps(db: Session, pipeline_run_id: int) -> list[PipelineStep]:
     return list(
         db.scalars(
@@ -422,6 +495,43 @@ def _pipeline_request_key(
     return (
         f"full-pipeline:run:{upload_run_id}:policy:{market_data_policy.value}:"
         f"steps:{','.join(step_names)}"
+    )
+
+
+def _authoritative_pipeline_for_run(
+    db: Session,
+    upload_run_id: int,
+) -> PipelineRun | None:
+    local_rows = getattr(db, "pipeline_runs", None)
+    if local_rows is not None:
+        candidates = local_rows.values() if isinstance(local_rows, dict) else local_rows
+        rows = [
+            row
+            for row in candidates
+            if isinstance(row, PipelineRun) and row.upload_run_id == upload_run_id
+        ]
+    else:
+        rows = list(
+            db.scalars(
+                select(PipelineRun)
+                .where(PipelineRun.upload_run_id == upload_run_id)
+                .order_by(PipelineRun.id.desc())
+            ).all()
+        )
+    for pipeline in sorted(rows, key=lambda row: int(row.id or 0), reverse=True):
+        if pipeline.status not in PIPELINE_TERMINAL_STATUSES or _is_recoverable_sec_block(
+            pipeline
+        ):
+            return pipeline
+    return None
+
+
+def _is_recoverable_sec_block(pipeline: PipelineRun) -> bool:
+    result = pipeline.result_json or {}
+    return (
+        pipeline.status == PipelineStatus.BLOCKED
+        and result.get("blocked_reason") == "SEC_BOOTSTRAP_REQUIRED"
+        and pipeline.current_step in {None, "VALIDATING_RUN", "CERI_PROVIDER_INGEST"}
     )
 
 

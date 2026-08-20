@@ -199,6 +199,7 @@ def test_full_pipeline_uses_durable_pipeline_when_feature_flag_enabled(monkeypat
         lambda: SimpleNamespace(use_durable_pipeline=True),
     )
     monkeypatch.setattr(run_routes, "check_status", lambda **_kwargs: _ready_ib_status())
+    monkeypatch.setattr(run_routes, "has_live_worker_for_job", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         run_routes,
         "start_pipeline",
@@ -241,6 +242,7 @@ def test_full_pipeline_explicit_cache_fallback_enqueues_degraded_policy(monkeypa
         lambda: SimpleNamespace(use_durable_pipeline=True),
     )
     monkeypatch.setattr(run_routes, "check_status", lambda **_kwargs: _offline_ib_status())
+    monkeypatch.setattr(run_routes, "has_live_worker_for_job", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         run_routes,
         "start_pipeline",
@@ -258,6 +260,28 @@ def test_full_pipeline_explicit_cache_fallback_enqueues_degraded_policy(monkeypa
     assert response.headers["location"] == "/runs/7/pipeline/100"
     assert calls["market_data_policy"] == "ALLOW_CACHE_FALLBACK"
     assert calls["ib_preflight_status"]["api_connected"] is False
+
+
+def test_full_pipeline_rejects_enqueue_when_durable_worker_is_unavailable(monkeypatch) -> None:
+    monkeypatch.setattr(
+        run_routes,
+        "get_settings",
+        lambda: SimpleNamespace(
+            use_durable_pipeline=True,
+            job_worker_heartbeat_timeout_seconds=30,
+        ),
+    )
+    monkeypatch.setattr(run_routes, "check_status", lambda **_kwargs: _ready_ib_status())
+    monkeypatch.setattr(run_routes, "has_live_worker_for_job", lambda *_args, **_kwargs: False)
+    calls = []
+    monkeypatch.setattr(run_routes, "start_pipeline", lambda *args, **kwargs: calls.append(kwargs))
+
+    with pytest.raises(HTTPException) as raised:
+        run_routes.run_full_pipeline_action(run_id=7, db=RouteFakeDb())
+
+    assert raised.value.status_code == 503
+    assert raised.value.detail["code"] == "DURABLE_WORKER_UNAVAILABLE"
+    assert calls == []
 
 
 def test_pipeline_status_route_returns_progress_payload(monkeypatch) -> None:

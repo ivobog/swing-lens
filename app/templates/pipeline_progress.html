@@ -52,6 +52,7 @@
     <div class="alert section-gap" data-pipeline-message role="status" aria-live="polite" hidden></div>
   {% endif %}
   {% set blocked = pipeline_result.get('blocked_diagnostics', {}) %}
+  {% set sec_repair = pipeline_result.get('sec_repair', {}) %}
   {% set readiness = blocked.get('readiness', {}) %}
   {% set processor = blocked.get('processor', {}) %}
     <div class="alert section-gap" role="alert" data-pipeline-blocked {% if pipeline.status != 'BLOCKED' %}hidden{% endif %}>
@@ -61,7 +62,14 @@
       Universe: <span data-pipeline-blocked-universe>{{ readiness.get('requested_tickers', 0) }}</span> tickers<br>
       Ready: <span data-pipeline-blocked-ready>{{ readiness.get('ready_tickers', 0) }}</span><br>
       Not ready: <span data-pipeline-blocked-missing>{{ readiness.get('blocking_tickers', [])|length }}</span><br>
-      Repair the reported mappings/bootstrap certification, then resume from the blocked stage.
+      Automatic preparation finished, but SwingLens could not safely resolve every prerequisite.
+    </div>
+    <div class="alert section-gap" role="status" data-pipeline-repair {% if pipeline.status != 'PREPARING' %}hidden{% endif %}>
+      <strong data-pipeline-repair-stage>{{ sec_repair.get('repair_stage', 'Preparing run')|replace('_', ' ')|title }}</strong><br>
+      SEC preparation: <span data-pipeline-repair-ready>{{ sec_repair.get('ready_tickers', 0) }}</span> /
+      <span data-pipeline-repair-total>{{ sec_repair.get('total_tickers', 0) }}</span> ready<br>
+      Automatically repaired: <span data-pipeline-repair-completed>{{ sec_repair.get('repaired_tickers', 0) }}</span><br>
+      Unresolved: <span data-pipeline-repair-unresolved>{{ sec_repair.get('unresolved_tickers', [])|length }}</span>
     </div>
   {% if duplicate_action %}
     <div class="alert section-gap" role="status" aria-live="polite">

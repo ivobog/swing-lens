@@ -18,6 +18,10 @@ from app.settings import SecDocumentIncrementalMode, Settings
 @pytest.fixture(autouse=True)
 def _stub_worker_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
+        "app.services.background_worker.recover_abandoned_jobs_for_worker",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
         "app.services.background_worker.register_worker",
         lambda *_args, **_kwargs: None,
     )

@@ -57,6 +57,7 @@ class CeriIngestionResult:
     warnings: int
     documents_discovered: int = 0
     documents_downloaded: int = 0
+    documents_cache_reused: int = 0
     documents_skipped: int = 0
     documents_would_skip: int = 0
     readiness_state: str | None = None
@@ -119,6 +120,7 @@ class CeriIngestionService:
                 dataset_policy=dataset_policy,
                 ingestion_run=ingestion_run,
                 should_cancel=should_cancel,
+                reuse_completed_documents=bool((request.scope or {}).get("repair")),
             )
 
         requested = fetched = inserted = deduplicated = corrected = quarantined = failed = 0
@@ -212,6 +214,7 @@ class CeriIngestionService:
         dataset_policy,
         ingestion_run: CeriIngestionRun,
         should_cancel,
+        reuse_completed_documents: bool,
     ) -> CeriIngestionResult:
         from app.services.ceri.sec.incremental_ingestion import (
             SecGuidanceIncrementalIngestionService,
@@ -236,6 +239,7 @@ class CeriIngestionService:
                 worker_id=str(
                     (request.scope or {}).get("worker_id") or self.settings.job_worker_id
                 ),
+                reuse_completed_documents=reuse_completed_documents,
             )
             status = "PARTIAL" if outcome.failed or outcome.quarantined else "COMPLETED"
         except SecIncrementalCancelled:
@@ -277,6 +281,7 @@ class CeriIngestionService:
         values.update(
             documents_discovered=outcome.documents_discovered,
             documents_downloaded=outcome.documents_downloaded,
+            documents_cache_reused=outcome.documents_cache_reused,
             documents_skipped=outcome.documents_skipped,
             documents_would_skip=outcome.documents_would_skip,
             readiness_state=outcome.readiness_state,
@@ -342,6 +347,7 @@ class CeriIngestionService:
             warnings=run.warning_count,
             documents_discovered=int(telemetry.get("documents_discovered") or 0),
             documents_downloaded=int(telemetry.get("documents_downloaded") or 0),
+            documents_cache_reused=int(telemetry.get("documents_cache_reused") or 0),
             documents_skipped=int(telemetry.get("documents_skipped") or 0),
             documents_would_skip=int(telemetry.get("documents_would_skip") or 0),
             readiness_state=telemetry.get("readiness_state"),

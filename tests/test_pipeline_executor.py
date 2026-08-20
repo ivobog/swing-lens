@@ -111,6 +111,17 @@ def test_ceri_provider_schedule_routes_exclusively_to_batched_workflow(
     assert calls == [95]
 
 
+def _fake_sec_repair_schedule(_db, *, pipeline, **_kwargs):
+    pipeline.status = PipelineStatus.PREPARING
+    pipeline.completed_at = None
+    pipeline.message = "Preparing SEC evidence automatically."
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "repair_scheduled": True,
+    }
+    return SimpleNamespace(id=99)
+
+
 def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
     calls = []
@@ -170,7 +181,7 @@ def test_execute_full_pipeline_completes_when_cached_market_data_is_ready() -> N
     assert {step.status for step in db.steps} == {PipelineStepStatus.COMPLETED}
 
 
-def test_sec_preflight_blocks_before_expensive_pipeline_stages() -> None:
+def test_sec_preflight_schedules_automatic_repair_before_expensive_pipeline_stages() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_provider_ingest_enabled=True)
     calls: list[str] = []
     dependencies = replace(
@@ -182,15 +193,16 @@ def test_sec_preflight_blocks_before_expensive_pipeline_stages() -> None:
                 diagnostics={"readiness": {"ready_tickers": 0}},
             )
         ),
+        schedule_sec_readiness_repair=_fake_sec_repair_schedule,
     )
 
-    with pytest.raises(CeriBootstrapRequiredError):
-        execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
 
     assert calls == []
-    assert db.pipeline.status == PipelineStatus.BLOCKED
-    assert db.pipeline.result_json["blocked_reason"] == "SEC_BOOTSTRAP_REQUIRED"
-    assert db.steps[0].status == PipelineStepStatus.BLOCKED
+    assert result.status == PipelineStatus.PREPARING
+    assert db.pipeline.status == PipelineStatus.PREPARING
+    assert db.pipeline.result_json["repair_scheduled"] is True
+    assert db.steps[0].status == PipelineStepStatus.PENDING
     assert all(step.status == PipelineStepStatus.PENDING for step in db.steps[1:])
 
 
@@ -279,7 +291,7 @@ def test_resume_from_ceri_does_not_reexecute_completed_expensive_stages() -> Non
     )
 
 
-def test_resume_preflight_reblocks_ceri_stage_without_enqueue() -> None:
+def test_resume_preflight_schedules_repair_without_ceri_enqueue() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_provider_ingest_enabled=True)
     ceri_index = next(
         index for index, step in enumerate(db.steps) if step.step_name == "CERI_PROVIDER_INGEST"
@@ -297,19 +309,20 @@ def test_resume_preflight_reblocks_ceri_stage_without_enqueue() -> None:
             CeriBootstrapRequiredError("still cold")
         ),
         schedule_ceri_provider_ingest=lambda *_args: calls.append("enqueue"),
+        schedule_sec_readiness_repair=_fake_sec_repair_schedule,
     )
 
-    with pytest.raises(CeriBootstrapRequiredError):
-        execute_full_pipeline(
-            db,
-            pipeline_run_id=3,
-            dependencies=dependencies,
-            resume_from_step="CERI_PROVIDER_INGEST",
-        )
+    result = execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        resume_from_step="CERI_PROVIDER_INGEST",
+    )
 
     assert calls == []
-    assert db.pipeline.status == PipelineStatus.BLOCKED
-    assert db.steps[ceri_index].status == PipelineStepStatus.BLOCKED
+    assert result.status == PipelineStatus.PREPARING
+    assert db.pipeline.status == PipelineStatus.PREPARING
+    assert db.steps[ceri_index].status == PipelineStepStatus.PENDING
 
 
 def test_execute_full_pipeline_runs_winner_capture_when_enabled() -> None:

@@ -12,6 +12,7 @@ from app.models.ceri_tables import CeriCompany, CeriIngestionRun
 from app.services.ceri.dtos import GuidanceRequest
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.observability import ceri_metrics
+from app.services.ceri.sec.content_cache import SecDocumentContentCache
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider, SecGuidanceDocument
 from app.services.ceri.sec.readiness_service import (
@@ -48,6 +49,7 @@ class SecIncrementalOutcome:
     failed: int = 0
     documents_discovered: int = 0
     documents_downloaded: int = 0
+    documents_cache_reused: int = 0
     documents_skipped: int = 0
     documents_would_skip: int = 0
     documents_zero_records: int = 0
@@ -64,6 +66,7 @@ class SecIncrementalOutcome:
             for key in (
                 "documents_discovered",
                 "documents_downloaded",
+                "documents_cache_reused",
                 "documents_skipped",
                 "documents_would_skip",
                 "documents_zero_records",
@@ -82,11 +85,13 @@ class SecGuidanceIncrementalIngestionService:
         settings: Settings,
         source_records: CeriSourceRecordService,
         state: SecDocumentStateService | None = None,
+        content_cache: SecDocumentContentCache | None = None,
         processor_signature: str | None = None,
     ) -> None:
         self.settings = settings
         self.source_records = source_records
         self.state = state or SecDocumentStateService()
+        self.content_cache = content_cache or SecDocumentContentCache(settings.cache_dir)
         self.processor_signature = processor_signature or sec_guidance_processor_signature()
 
     def ingest(
@@ -102,6 +107,7 @@ class SecGuidanceIncrementalIngestionService:
         historical_backfill: bool,
         should_cancel=None,
         worker_id: str | None = None,
+        reuse_completed_documents: bool = False,
     ) -> SecIncrementalOutcome:
         outcome = SecIncrementalOutcome()
         mode = self.settings.sec_document_incremental_mode
@@ -167,6 +173,7 @@ class SecGuidanceIncrementalIngestionService:
                 outcome=outcome,
                 should_cancel=should_cancel,
                 worker_id=worker_id or self.settings.job_worker_id,
+                reuse_completed_documents=reuse_completed_documents,
             ):
                 break
         if (
@@ -206,6 +213,7 @@ class SecGuidanceIncrementalIngestionService:
         outcome: SecIncrementalOutcome,
         should_cancel,
         worker_id: str,
+        reuse_completed_documents: bool,
     ) -> bool:
         registered = self.state.register_document(
             db,
@@ -238,6 +246,13 @@ class SecGuidanceIncrementalIngestionService:
                     dataset=CeriDataset.GUIDANCE.value,
                 )
                 return True
+            if reuse_completed_documents:
+                outcome.documents_skipped += 1
+                ceri_metrics.increment(
+                    "ceri_ingestion_sec_documents_skipped_total",
+                    dataset=CeriDataset.GUIDANCE.value,
+                )
+                return True
 
         claim = None
         if not completed:
@@ -259,8 +274,29 @@ class SecGuidanceIncrementalIngestionService:
                 # The claim must be durable before synchronous SEC I/O begins.
                 db.commit()
         try:
-            filing_text = provider.download_guidance_document(document)
-            outcome.documents_downloaded += 1
+            filing_text = (
+                self.content_cache.load(
+                    document,
+                    expected_hash=registered.last_content_hash,
+                )
+                if registered.last_content_hash
+                else None
+            )
+            downloaded = filing_text is None
+            if filing_text is None:
+                filing_text = provider.download_guidance_document(document)
+                self.content_cache.store(document, filing_text)
+                outcome.documents_downloaded += 1
+                content_bytes = len(filing_text.encode("utf-8"))
+                self.state.record_downloaded_content(
+                    db,
+                    document_id=registered.id,
+                    content_hash=hashlib.sha256(filing_text.encode("utf-8")).hexdigest(),
+                    content_bytes=content_bytes,
+                )
+                db.commit()
+            else:
+                outcome.documents_cache_reused += 1
             records = provider.extract_guidance_document(document, text=filing_text)
             if _cancelled(should_cancel):
                 if claim and claim.acquired and claim.execution_token:
@@ -303,6 +339,7 @@ class SecGuidanceIncrementalIngestionService:
                     record_count=len(records),
                     content_hash=hashlib.sha256(filing_text.encode("utf-8")).hexdigest(),
                     content_bytes=content_bytes,
+                    downloaded=downloaded,
                 )
             # Source records and the authoritative successful state commit together.
             db.commit()

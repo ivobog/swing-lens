@@ -218,7 +218,7 @@
     <span class="summary-item"><strong>{{ setup_lifecycle_context.active_episode_count }}</strong> active episodes</span>
     <span class="summary-item">{{ setup_lifecycle_context.latest_status or "No evaluation yet" }}</span>
   </div>
-  {% if latest_pipeline and latest_pipeline.status in ["PENDING", "RUNNING", "CANCELLING"] %}
+  {% if latest_pipeline and latest_pipeline.status in ["PENDING", "PREPARING", "RUNNING", "CANCELLING"] %}
     <div class="alert section-gap" role="status">
       Pipeline {{ latest_pipeline.pipeline_run_id }} is already {{ latest_pipeline.status|lower }} for this run.
       Duplicate full-pipeline starts will open the active job instead of queueing another copy.

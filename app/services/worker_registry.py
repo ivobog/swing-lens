@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundWorker
-from app.services.background_queue import normalize_worker_queues
+from app.services.background_queue import job_queue_class, normalize_worker_queues
 
 
 def register_worker(
@@ -37,8 +37,7 @@ def register_worker(
     elif (
         worker.stopping_at is None
         and worker.heartbeat_at is not None
-        and worker.heartbeat_at
-        >= registered_at - timedelta(seconds=heartbeat_timeout_seconds)
+        and worker.heartbeat_at >= registered_at - timedelta(seconds=heartbeat_timeout_seconds)
         and (worker.hostname != host or worker.process_id != pid)
     ):
         raise RuntimeError(f"worker_id {clean_worker_id!r} is already active")
@@ -126,4 +125,22 @@ def live_workers(
             .where(BackgroundWorker.heartbeat_at >= threshold)
             .order_by(BackgroundWorker.worker_id)
         ).all()
+    )
+
+
+def has_live_worker_for_job(
+    db: Session,
+    *,
+    job_type: str,
+    heartbeat_timeout_seconds: int,
+    now: datetime | None = None,
+) -> bool:
+    required_queue = job_queue_class(job_type)
+    return any(
+        required_queue in set(worker.queues_json or [])
+        for worker in live_workers(
+            db,
+            heartbeat_timeout_seconds=heartbeat_timeout_seconds,
+            now=now,
+        )
     )
