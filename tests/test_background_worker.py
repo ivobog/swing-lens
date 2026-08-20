@@ -54,6 +54,9 @@ def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
         _env_file=None,
         ceri_provider_ingest_enabled=True,
         sec_document_incremental_mode=SecDocumentIncrementalMode.OFF,
+        winner_probability_auto_maturation_enabled=True,
+        winner_probability_auto_cohort_refresh_enabled=False,
+        winner_cohort_refresh_v2_enabled=True,
     )
 
     with caplog.at_level(logging.CRITICAL):
@@ -66,6 +69,9 @@ def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     assert summary["worker_id"] == "worker-test"
     assert summary["worker_process_id"] > 0
     assert summary["worker_started_at"].endswith("+00:00")
+    assert summary["winner_probability_auto_maturation_enabled"] is True
+    assert summary["winner_probability_auto_cohort_refresh_enabled"] is False
+    assert summary["winner_cohort_refresh_v2_enabled"] is True
     assert "legacy repeated-download path" in caplog.text
 
 

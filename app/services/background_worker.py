@@ -201,6 +201,13 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
         "database_schema_revision": schema_revision,
         "deployment_git_sha": identity.get("git_sha"),
         "deployment_git_dirty": identity.get("git_dirty"),
+        "winner_probability_auto_maturation_enabled": (
+            settings.winner_probability_auto_maturation_enabled
+        ),
+        "winner_probability_auto_cohort_refresh_enabled": (
+            settings.winner_probability_auto_cohort_refresh_enabled
+        ),
+        "winner_cohort_refresh_v2_enabled": settings.winner_cohort_refresh_v2_enabled,
     }
 
 

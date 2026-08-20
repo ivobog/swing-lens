@@ -26,7 +26,7 @@ from app.services.winner_probability.pre11_compatibility_service import (
     POLICY_VERSION,
 )
 
-COHORT_ALGORITHM_VERSION = "cohort-v2"
+COHORT_ALGORITHM_VERSION = "cohort-v2.1"
 ELIGIBILITY_POLICY_VERSION = "training-eligibility-v1"
 
 

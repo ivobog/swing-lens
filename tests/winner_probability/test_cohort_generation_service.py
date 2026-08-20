@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from app.services.winner_probability.cohort_generation_service import (
+    COHORT_ALGORITHM_VERSION,
     CohortGenerationStatus,
     EvidenceWatermark,
     WinnerCohortContract,
@@ -10,6 +11,10 @@ from app.services.winner_probability.cohort_generation_service import (
     canonical_watermark_hash,
     validate_generation_transition,
 )
+
+
+def test_cohort_algorithm_version_advances_for_replay_lineage_contract() -> None:
+    assert COHORT_ALGORITHM_VERSION == "cohort-v2.1"
 
 
 def _contract() -> WinnerCohortContract:

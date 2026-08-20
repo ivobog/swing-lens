@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -16,6 +16,7 @@ from app.models.tables import (
     WinnerCalibrationBin,
     WinnerDriftMetric,
     WinnerEstimateEvidenceMember,
+    WinnerEvidenceManifestMember,
     WinnerForwardOutcome,
     WinnerModelVersion,
     WinnerOutcomeDefinition,
@@ -34,6 +35,11 @@ from app.services.winner_probability.dtos import (
     WinnerProbabilityFilters,
 )
 from app.services.winner_probability.model_registry import ModelRegistry, ModelRegistryError
+from app.services.winner_probability.pre11_compatibility_service import (
+    EVIDENCE_ORIGIN_NATIVE,
+    EVIDENCE_ORIGIN_PRE11,
+    POLICY_VERSION,
+)
 from app.settings import get_settings
 
 ERROR_INVALID_OUTCOME_DEFINITION = "INVALID_OUTCOME_DEFINITION"
@@ -781,16 +787,65 @@ def _estimate_payload(
         "config_hash": row.config_hash,
         "feature_schema_version": row.feature_schema_version,
         "evidence_manifest_hash": row.evidence_manifest_hash,
-        "evidence_composition": {
-            "native_1_1_n": metadata.get("native_1_1_n", 0),
-            "pre11_compatible_n": metadata.get("pre11_compatible_n", 0),
-            "reconstructed_label_n": metadata.get("reconstructed_label_n", 0),
-            "compatibility_policy_version": metadata.get("compatibility_policy_version"),
-            "oldest_evidence_date": metadata.get("oldest_evidence_date"),
-            "newest_evidence_date": metadata.get("newest_evidence_date"),
-        },
+        "evidence_composition": _evidence_composition_payload(db, row, metadata),
         "metadata": metadata,
     }
+
+
+def _evidence_composition_payload(
+    db: Session | None,
+    row: WinnerProbabilityEstimate,
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    composition = {
+        "native_1_1_n": metadata.get("native_1_1_n", 0),
+        "pre11_compatible_n": metadata.get("pre11_compatible_n", 0),
+        "reconstructed_label_n": metadata.get("reconstructed_label_n", 0),
+        "compatibility_policy_version": metadata.get("compatibility_policy_version"),
+        "oldest_evidence_date": metadata.get("oldest_evidence_date"),
+        "newest_evidence_date": metadata.get("newest_evidence_date"),
+    }
+    represented_n = int(composition["native_1_1_n"] or 0) + int(
+        composition["pre11_compatible_n"] or 0
+    )
+    if (
+        db is None
+        or row.evidence_manifest_id is None
+        or row.sample_n is None
+        or represented_n == row.sample_n
+    ):
+        return composition
+
+    cache = db.info.setdefault("winner_evidence_manifest_composition", {})
+    manifest_id = int(row.evidence_manifest_id)
+    if manifest_id not in cache:
+        native_n, pre11_n, oldest_date, newest_date = db.execute(
+            select(
+                func.count().filter(
+                    WinnerEvidenceManifestMember.evidence_origin == EVIDENCE_ORIGIN_NATIVE
+                ),
+                func.count().filter(
+                    WinnerEvidenceManifestMember.evidence_origin == EVIDENCE_ORIGIN_PRE11
+                ),
+                func.min(WinnerPredictionSnapshot.prediction_as_of_date),
+                func.max(WinnerPredictionSnapshot.prediction_as_of_date),
+            )
+            .select_from(WinnerEvidenceManifestMember)
+            .join(
+                WinnerPredictionSnapshot,
+                WinnerPredictionSnapshot.id == WinnerEvidenceManifestMember.prediction_id,
+            )
+            .where(WinnerEvidenceManifestMember.manifest_id == manifest_id)
+        ).one()
+        cache[manifest_id] = {
+            "native_1_1_n": int(native_n or 0),
+            "pre11_compatible_n": int(pre11_n or 0),
+            "reconstructed_label_n": int(pre11_n or 0),
+            "compatibility_policy_version": POLICY_VERSION if pre11_n else None,
+            "oldest_evidence_date": _iso(oldest_date),
+            "newest_evidence_date": _iso(newest_date),
+        }
+    return dict(cache[manifest_id])
 
 
 def _outcome_definition_payload(row: WinnerOutcomeDefinition) -> dict[str, Any]:
