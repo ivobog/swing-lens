@@ -8,7 +8,8 @@ uv sync --frozen --extra dev
 Copy-Item .env.example .env
 docker compose up -d postgres
 uv run alembic upgrade head
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+uv run python -m app.serve --host 127.0.0.1 --port 8000
+uv run python -m app.worker_supervisor --worker-id local-worker-1 --queues interactive,broker,background
 ```
 
 Confirm `http://127.0.0.1:8000/health` and `http://127.0.0.1:8000/ready`.

@@ -180,3 +180,12 @@ run_routes.check_status = _deterministic_route_check_status
 ib_gateway_admin_routes.check_status = _deterministic_route_check_status
 
 __all__ = ["app"]
+
+
+if __name__ == "__main__":
+    from app.services.background_worker import run_worker
+
+    run_worker(
+        worker_id=os.environ["JOB_WORKER_ID"],
+        queues=("interactive", "broker", "background"),
+    )

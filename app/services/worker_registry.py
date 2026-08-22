@@ -21,6 +21,7 @@ def register_worker(
     hostname: str | None = None,
     process_id: int | None = None,
     now: datetime | None = None,
+    instance_id: str | None = None,
 ) -> BackgroundWorker:
     clean_worker_id = worker_id.strip()
     if not clean_worker_id:
@@ -48,6 +49,7 @@ def register_worker(
     worker.queues_json = queue_names
     worker.hostname = host
     worker.process_id = pid
+    worker.instance_id = instance_id or worker.instance_id
     if replace_registration:
         worker.started_at = registered_at
     worker.heartbeat_at = registered_at
@@ -63,6 +65,10 @@ def heartbeat_worker(
     hostname: str | None = None,
     process_id: int | None = None,
     now: datetime | None = None,
+    instance_id: str | None = None,
+    rss_bytes: int | None = None,
+    private_bytes: int | None = None,
+    memory_status: str | None = None,
 ) -> BackgroundWorker:
     worker = db.get(BackgroundWorker, worker_id)
     if worker is None:
@@ -74,6 +80,14 @@ def heartbeat_worker(
     )
     worker.heartbeat_at = now or datetime.now(UTC)
     worker.stopping_at = None
+    if instance_id is not None:
+        worker.instance_id = instance_id
+    if rss_bytes is not None:
+        worker.rss_bytes = rss_bytes
+    if private_bytes is not None:
+        worker.private_bytes = private_bytes
+    if memory_status is not None:
+        worker.memory_status = memory_status
     db.flush()
     return worker
 

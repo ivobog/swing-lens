@@ -201,9 +201,13 @@ def execute_full_pipeline(
     lease_guard: Callable[[], None] | None = None,
     dependencies: PipelineExecutionDependencies | None = None,
     resume_from_step: str | None = None,
+    progress_callback: Callable[..., None] | None = None,
+    memory_probe: Callable[..., None] | None = None,
+    execution_token: str | None = None,
 ) -> PipelineExecutionResult:
     dependencies = dependencies or PipelineExecutionDependencies()
     pipeline = _require_pipeline(db, pipeline_run_id)
+    pipeline._job_progress_callback = progress_callback
     upload_run = _require_upload_run(db, pipeline.upload_run_id)
     if resume_from_step is not None and resume_from_step != "VALIDATING_RUN":
         return _execute_resumed_pipeline(
@@ -214,6 +218,9 @@ def execute_full_pipeline(
             should_cancel=should_cancel or (lambda: False),
             lease_guard=lease_guard,
             dependencies=dependencies,
+            progress_callback=progress_callback,
+            memory_probe=memory_probe,
+            execution_token=execution_token,
         )
     should_cancel = should_cancel or (lambda: False)
     performance = PipelinePerformanceTracker()
@@ -361,11 +368,22 @@ def execute_full_pipeline(
                 )
             fetch_run = None
             if plan.estimated_request_count and not cache_fallback:
+                resumable_fetch_run_id = db.scalar(
+                    select(IBFetchRun.id)
+                    .where(IBFetchRun.run_id == upload_run.id)
+                    .where(IBFetchRun.status == "RUNNING")
+                    .order_by(IBFetchRun.id.desc())
+                    .limit(1)
+                )
                 fetch_kwargs: dict[str, Any] = {
                     "db": db,
                     "plan": plan,
                     "include_benchmarks": True,
                     "should_cancel": should_cancel,
+                    "fetch_run_id": resumable_fetch_run_id,
+                    "progress_callback": progress_callback,
+                    "memory_probe": memory_probe,
+                    "execution_token": execution_token,
                 }
                 if overlap_coordinator is not None:
                     fetch_kwargs["on_ticker_ready"] = overlap_coordinator.on_ticker_ready
@@ -693,6 +711,9 @@ def _execute_resumed_pipeline(
     should_cancel: Callable[[], bool],
     lease_guard: Callable[[], None] | None,
     dependencies: PipelineExecutionDependencies,
+    progress_callback: Callable[..., None] | None = None,
+    memory_probe: Callable[..., None] | None = None,
+    execution_token: str | None = None,
 ) -> PipelineExecutionResult:
     if resume_from_step != CERI_PIPELINE_PROVIDER_INGEST_STEP:
         raise ValueError("The durable resume path currently supports CERI_PROVIDER_INGEST only.")
@@ -945,6 +966,7 @@ def _pipeline_step(
     step.error_message = None
     if performance is not None:
         performance.start_step(step_name)
+    _report_job_stage_progress(db, pipeline, step_name)
     _save_progress(db, lease_guard=lease_guard)
     try:
         yield step
@@ -990,7 +1012,14 @@ def _pipeline_step(
         step.completed_at = _utcnow()
         if performance is not None:
             performance.finish_step(step_name, step.status)
+        _report_job_stage_progress(db, pipeline, step_name)
         _save_progress(db, lease_guard=lease_guard)
+
+
+def _report_job_stage_progress(db: Session, pipeline: PipelineRun, stage: str) -> None:
+    callback = getattr(pipeline, "_job_progress_callback", None)
+    if callable(callback):
+        callback(db, stage=stage, current_item=None)
 
 
 def _require_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:

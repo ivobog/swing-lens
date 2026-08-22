@@ -12,6 +12,7 @@ from app.db import get_db
 from app.models.ceri_tables import CeriScoreSnapshot
 from app.models.tables import (
     BackgroundJob,
+    BackgroundWorker,
     CombinedResult,
     MarketRegimeSnapshot,
     RankingResult,
@@ -285,9 +286,7 @@ def run_detail_page(
             "raw_preview": rows[:10],
             "fundamental_by_ticker": fundamental_by_ticker,
             "technical_by_ticker": technical_by_ticker,
-            "technical_details_by_ticker": technical_v4_details_by_ticker(
-                run.technical_scores
-            ),
+            "technical_details_by_ticker": technical_v4_details_by_ticker(run.technical_scores),
             "combined_by_ticker": combined_by_ticker,
             "combined_results": combined_results,
             "decision_counts": decision_counts,
@@ -632,10 +631,7 @@ def run_full_pipeline_action(
             },
         ) from exc
     ib_preflight = check_status(settings=settings)
-    if (
-        policy is MarketDataPolicy.REQUIRE_IB
-        and ib_preflight.status != IBGatewayHealthState.READY
-    ):
+    if policy is MarketDataPolicy.REQUIRE_IB and ib_preflight.status != IBGatewayHealthState.READY:
         raise HTTPException(
             status_code=409,
             detail={
@@ -648,9 +644,7 @@ def run_full_pipeline_action(
         if not has_live_worker_for_job(
             db,
             job_type="FULL_PIPELINE",
-            heartbeat_timeout_seconds=getattr(
-                settings, "job_worker_heartbeat_timeout_seconds", 30
-            ),
+            heartbeat_timeout_seconds=getattr(settings, "job_worker_heartbeat_timeout_seconds", 30),
         ):
             raise HTTPException(
                 status_code=503,
@@ -734,10 +728,7 @@ def run_full_pipeline_action(
         else "pipeline-refreshed"
     )
     if fetch_run is not None:
-        message = (
-            f"IB fetch {fetch_run.id} completed before downstream scoring. "
-            f"{message}"
-        )
+        message = f"IB fetch {fetch_run.id} completed before downstream scoring. {message}"
     elif status == "pipeline-cache-fallback":
         message = f"Explicit cached-data fallback used. {message}"
     db.commit()
@@ -951,8 +942,8 @@ def fetch_run_ib_bars_action(
             force_full_backfill=force_full_backfill,
         )
         fetch_run = create_queued_fetch_run(db, plan, options)
+        submit_fetch_job(db, fetch_run.id, plan, options)
         db.commit()
-        submit_fetch_job(fetch_run.id, plan, options)
         return _redirect_to_fetch_progress(
             run_id=run_id,
             fetch_run_id=fetch_run.id,
@@ -1092,8 +1083,8 @@ def _resume_fetch_action(
         fetch_run, plan, options = resume_fetch_job(db, fetch_run_id)
         if fetch_run.run_id != run_id:
             raise HTTPException(status_code=404, detail="IB fetch run not found for this run.")
+        submit_fetch_job(db, fetch_run.id, plan, options)
         db.commit()
-        submit_fetch_job(fetch_run.id, plan, options)
         return _redirect_to_fetch_progress(
             run_id=run_id,
             fetch_run_id=fetch_run.id,
@@ -1748,11 +1739,7 @@ def _coverage_actions(coverage: OhlcvCoverageSummary) -> dict[str, str]:
         "not_ready": {"missing", "stale", "insufficient", "missing_volume", "contract_failed"},
     }
     return {
-        name: ", ".join(
-            item.ticker
-            for item in coverage.items
-            if item.status in target_statuses
-        )
+        name: ", ".join(item.ticker for item in coverage.items if item.status in target_statuses)
         for name, target_statuses in statuses.items()
     }
 
@@ -1803,6 +1790,9 @@ def _pipeline_status_payload(
     completed_steps = sum(step["status"] in {"COMPLETED", "SKIPPED"} for step in steps)
     total_steps = len(steps)
     job = db.get(BackgroundJob, status.background_job_id) if status.background_job_id else None
+    worker = (
+        db.get(BackgroundWorker, job.worker_id) if job is not None and job.worker_id else None
+    )
     return {
         "pipeline_run_id": status.pipeline_run_id,
         "upload_run_id": status.upload_run_id,
@@ -1824,6 +1814,24 @@ def _pipeline_status_payload(
         "background_job_id": status.background_job_id,
         "job_status": job.status if job else None,
         "job_cancel_requested": bool(job.requested_cancel) if job else False,
+        "worker_id": job.worker_id if job else None,
+        "worker_heartbeat_at": worker.heartbeat_at if worker else None,
+        "lease_renewed_at": job.heartbeat_at if job else None,
+        "worker_pid": worker.process_id if worker else None,
+        "worker_memory_status": worker.memory_status if worker else None,
+        "worker_rss_bytes": worker.rss_bytes if worker else None,
+        "worker_private_bytes": worker.private_bytes if worker else None,
+        "last_progress_at": job.last_progress_at if job else None,
+        "progress_sequence": job.progress_sequence if job else 0,
+        "progress_stage": job.progress_stage if job else None,
+        "current_item": job.progress_current_item if job else None,
+        "last_completed_item": job.progress_last_completed_item if job else None,
+        "processed_item_count": job.progress_processed if job else 0,
+        "total_item_count": job.progress_total if job else None,
+        "checkpoint_version": job.checkpoint_version if job else None,
+        "stall_detected_at": job.stall_detected_at if job else None,
+        "recovery_count": job.recovery_count if job else 0,
+        "job_error": job.error_message if job else None,
         "result": status.result_json or {},
         "completed_steps": completed_steps,
         "total_steps": total_steps,

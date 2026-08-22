@@ -687,6 +687,26 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-job-status]", data.job_status || "");
   setText(root, "[data-pipeline-job-metric]", data.job_status || "None");
   setText(root, "[data-pipeline-cancel-metric]", data.job_cancel_requested ? "Requested" : "No");
+  setText(root, "[data-pipeline-items-processed]", data.processed_item_count || 0);
+  setText(root, "[data-pipeline-items-total]", data.total_item_count || 0);
+  setText(root, "[data-pipeline-current-item]", data.current_item || "None");
+  setText(root, "[data-pipeline-last-progress]", data.last_progress_at || "None");
+  setText(root, "[data-pipeline-worker-heartbeat]", data.worker_heartbeat_at || "None");
+  setText(root, "[data-pipeline-lease-renewed]", data.lease_renewed_at || "None");
+  setText(root, "[data-pipeline-worker-id]", data.worker_id || "None");
+  setText(root, "[data-pipeline-recovery-count]", data.recovery_count || 0);
+  setText(root, "[data-pipeline-worker-memory]", data.worker_memory_status || "Unknown");
+  const workerHealth = root.querySelector("[data-pipeline-worker-health]");
+  if (workerHealth) {
+    workerHealth.hidden = !["STALLED", "RECOVERING"].includes(data.job_status);
+    if (data.job_status === "STALLED") {
+      workerHealth.textContent =
+        "The worker process was fenced because this job stopped making useful progress.";
+    } else if (data.job_status === "RECOVERING") {
+      workerHealth.textContent =
+        "Automatic recovery is in progress from the last durable checkpoint.";
+    }
+  }
   const result = data.result || {};
   const repair = result.sec_repair || {};
   const repairPanel = root.querySelector("[data-pipeline-repair]");

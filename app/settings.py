@@ -44,10 +44,12 @@ class Settings(BaseSettings):
     db_monitor_slow_query_ms: float = Field(default=100.0, ge=0)
     db_monitor_full_trace_ms: float = Field(default=250.0, ge=0)
     db_monitor_full_stack_for_all_sql: bool = False
-    db_monitor_retention_days: int = Field(default=8, ge=1, le=365)
+    db_monitor_retention_days: int = Field(default=3, ge=1, le=365)
     db_monitor_log_dir: Path = Field(default=Path("logs/db-monitor"))
     db_monitor_queue_size: int = Field(default=10_000, ge=1)
     db_monitor_max_file_mb: int = Field(default=100, ge=1)
+    db_monitor_max_files: int = Field(default=32, ge=2, le=10_000)
+    db_monitor_max_total_mb: int = Field(default=1024, ge=10)
     db_monitor_max_stack_frames: int = Field(default=20, ge=1, le=100)
     db_monitor_n_plus_one_threshold: int = Field(default=10, ge=2)
     db_monitor_activity_sampler_enabled: bool = False
@@ -150,6 +152,16 @@ class Settings(BaseSettings):
     job_worker_heartbeat_interval_seconds: float = 5.0
     job_worker_heartbeat_timeout_seconds: int = 30
     job_worker_id: str = "local-worker-1"
+    job_progress_timeout_seconds: int = Field(default=300, ge=30, le=86_400)
+    job_market_data_progress_timeout_seconds: int = Field(default=360, ge=30, le=86_400)
+    job_long_stage_progress_timeout_seconds: int = Field(default=1800, ge=60, le=86_400)
+    job_watchdog_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
+    worker_memory_warning_mb: int = Field(default=4096, ge=128)
+    worker_memory_critical_mb: int = Field(default=6144, ge=256)
+    worker_memory_profile_interval_items: int = Field(default=25, ge=1, le=10_000)
+    worker_memory_tracemalloc_enabled: bool = False
+    worker_memory_top_allocations: int = Field(default=10, ge=1, le=50)
+    worker_shutdown_grace_seconds: float = Field(default=15.0, ge=1.0, le=300.0)
     queue_fairness_enabled: bool = False
     job_max_consecutive_interactive_claims: int = 4
     job_age_promotion_seconds: int = 300

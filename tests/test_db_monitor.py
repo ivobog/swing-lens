@@ -243,9 +243,7 @@ def test_full_stack_is_threshold_gated(monkeypatch: pytest.MonkeyPatch) -> None:
     all_stack_monitor.install(all_stack_engine)
     with all_stack_engine.connect() as connection:
         connection.scalar(text("SELECT 1"))
-    all_stack_record = next(
-        row for row in all_stack_writer.records if row["record_type"] == "sql"
-    )
+    all_stack_record = next(row for row in all_stack_writer.records if row["record_type"] == "sql")
     assert all_stack_record["application_stack"]
 
 
@@ -320,6 +318,50 @@ def test_rotation_and_retention(tmp_path: Path) -> None:
 
     assert not old_path.exists()
     assert len(list(tmp_path.glob("sql-*.jsonl"))) >= 2
+
+
+def test_retention_bounds_file_count_and_total_size(tmp_path: Path) -> None:
+    writer = JsonlTelemetryWriter(
+        tmp_path,
+        retention_days=30,
+        queue_size=10,
+        max_file_mb=1,
+        max_files=3,
+        max_total_mb=1,
+    )
+    now = datetime.now(UTC).timestamp()
+    for index in range(8):
+        path = tmp_path / f"sql-2026-08-22-p1.{index}.jsonl"
+        path.write_bytes(b"x" * 300_000)
+        os.utime(path, (now + index, now + index))
+
+    writer._apply_retention()
+
+    retained = list(tmp_path.glob("sql-*.jsonl"))
+    assert len(retained) <= 3
+    assert sum(path.stat().st_size for path in retained) <= 1024 * 1024
+
+
+def test_retention_protects_active_stream_then_prunes_it_when_inactive(tmp_path: Path) -> None:
+    writer = JsonlTelemetryWriter(
+        tmp_path,
+        retention_days=30,
+        queue_size=10,
+        max_file_mb=1,
+        max_files=2,
+        max_total_mb=1,
+    )
+    paths = [tmp_path / f"sql-2026-08-22-p{index}.jsonl" for index in range(3)]
+    now = datetime.now(UTC).timestamp()
+    for index, path in enumerate(paths):
+        path.write_bytes(b"x" * 100)
+        os.utime(path, (now + index, now + index))
+
+    writer._apply_retention(protected_paths={paths[0]})
+    assert paths[0].exists()
+
+    writer._apply_retention()
+    assert len(list(tmp_path.glob("sql-*.jsonl"))) <= 2
 
 
 def test_normalization_removes_literals_comments_and_placeholder_names() -> None:

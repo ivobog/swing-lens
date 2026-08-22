@@ -136,17 +136,13 @@ class ReadinessService:
             with Session(self.engine) as session:
                 workers = live_workers(
                     session,
-                    heartbeat_timeout_seconds=(
-                        self.settings.job_worker_heartbeat_timeout_seconds
-                    ),
+                    heartbeat_timeout_seconds=(self.settings.job_worker_heartbeat_timeout_seconds),
                     now=self.now,
                 )
                 capable = has_live_worker_for_job(
                     session,
                     job_type="FULL_PIPELINE",
-                    heartbeat_timeout_seconds=(
-                        self.settings.job_worker_heartbeat_timeout_seconds
-                    ),
+                    heartbeat_timeout_seconds=(self.settings.job_worker_heartbeat_timeout_seconds),
                     now=self.now,
                 )
         except SQLAlchemyError as exc:
@@ -155,6 +151,16 @@ class ReadinessService:
             return ReadinessCheck(False, "no live durable worker heartbeat")
         if not capable:
             return ReadinessCheck(False, "no live worker can process FULL_PIPELINE")
+        pressured = [
+            worker
+            for worker in workers
+            if str(worker.memory_status or "").upper() in {"WARNING", "CRITICAL"}
+        ]
+        if pressured:
+            detail = ",".join(
+                f"{worker.worker_id}:{str(worker.memory_status).lower()}" for worker in pressured
+            )
+            return ReadinessCheck(False, f"worker_memory_pressure:{detail}")
         worker_ids = ",".join(worker.worker_id for worker in workers)
         return ReadinessCheck(True, f"live:{worker_ids}")
 
@@ -188,11 +194,17 @@ class ReadinessService:
     def _jobs_check(self) -> ReadinessCheck:
         try:
             with Session(self.engine) as session:
-                stale_count = _stale_job_count(session, self.now)
+                stale_count, stalled_count, recovering_count = _unhealthy_job_counts(
+                    session, self.now
+                )
         except SQLAlchemyError as exc:
             return ReadinessCheck(False, _safe_message(exc))
         if stale_count:
             return ReadinessCheck(False, f"stale_running_jobs:{stale_count}")
+        if stalled_count:
+            return ReadinessCheck(False, f"stalled_jobs:{stalled_count}")
+        if recovering_count:
+            return ReadinessCheck(False, f"recovering_jobs:{recovering_count}")
         return ReadinessCheck(True, "ok")
 
 
@@ -203,8 +215,8 @@ def _probe_directory(directory: Path) -> None:
     probe.unlink(missing_ok=True)
 
 
-def _stale_job_count(session: Session, now: datetime) -> int:
-    return int(
+def _unhealthy_job_counts(session: Session, now: datetime) -> tuple[int, int, int]:
+    stale = int(
         session.scalar(
             select(func.count())
             .select_from(BackgroundJob)
@@ -214,6 +226,23 @@ def _stale_job_count(session: Session, now: datetime) -> int:
         )
         or 0
     )
+    stalled = int(
+        session.scalar(
+            select(func.count())
+            .select_from(BackgroundJob)
+            .where(BackgroundJob.status == JobStatus.STALLED)
+        )
+        or 0
+    )
+    recovering = int(
+        session.scalar(
+            select(func.count())
+            .select_from(BackgroundJob)
+            .where(BackgroundJob.status == JobStatus.RECOVERING)
+        )
+        or 0
+    )
+    return stale, stalled, recovering
 
 
 def _repository_alembic_heads() -> list[str]:

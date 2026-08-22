@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import MetaData, Table, insert, select, update
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -35,9 +35,11 @@ class JobStatus:
     BLOCKED = "BLOCKED"
     CANCELLED = "CANCELLED"
     STALE = "STALE"
+    STALLED = "STALLED"
+    RECOVERING = "RECOVERING"
 
 
-ACTIVE_JOB_STATUSES = (JobStatus.QUEUED, JobStatus.RUNNING)
+ACTIVE_JOB_STATUSES = (JobStatus.QUEUED, JobStatus.RECOVERING, JobStatus.RUNNING)
 
 
 def enqueue_job(
@@ -52,6 +54,17 @@ def enqueue_job(
     workflow_key: str | None = None,
     coalesce: bool = True,
 ) -> BackgroundJob:
+    if not _database_has_job_progress_columns(db):
+        return _enqueue_pre_migration_job(
+            db,
+            job_type=job_type,
+            payload=payload,
+            related_run_id=related_run_id,
+            priority=priority,
+            max_retries=max_retries,
+            run_after=run_after,
+            request_key=request_key,
+        )
     if workflow_key and request_key and coalesce:
         existing = workflow_stage_job(db, workflow_key, job_type, request_key)
         if existing is not None:
@@ -144,6 +157,18 @@ def _database_has_workflow_column(db: Session) -> bool:
     get_bind = getattr(db, "get_bind", None)
     if not callable(get_bind):
         return True
+
+
+def _database_has_job_progress_columns(db: Session) -> bool:
+    get_bind = getattr(db, "get_bind", None)
+    if not callable(get_bind):
+        return True
+    bind = get_bind()
+    try:
+        names = {column["name"] for column in sa_inspect(bind).get_columns("background_jobs")}
+        return "last_progress_at" in names
+    except Exception:
+        return True
     bind = get_bind()
     try:
         return any(
@@ -165,8 +190,9 @@ def _enqueue_pre_migration_job(
     run_after: datetime | None,
     request_key: str | None,
 ) -> BackgroundJob:
+    legacy_jobs = Table("background_jobs", MetaData(), autoload_with=db.get_bind())
     job_id = db.scalar(
-        insert(BackgroundJob.__table__)
+        insert(legacy_jobs)
         .values(
             job_type=job_type,
             related_run_id=related_run_id,
@@ -180,11 +206,22 @@ def _enqueue_pre_migration_job(
             run_after=run_after or _utcnow(),
             operational_metadata_json={},
         )
-        .returning(BackgroundJob.id)
+        .returning(legacy_jobs.c.id)
     )
-    job = db.scalar(select(BackgroundJob).where(BackgroundJob.id == job_id))
-    if job is None:
-        raise RuntimeError("Background job insert did not return a row.")
+    job = BackgroundJob(
+        id=job_id,
+        job_type=job_type,
+        related_run_id=related_run_id,
+        request_key=request_key,
+        status=JobStatus.QUEUED,
+        priority=priority,
+        payload_json=payload,
+        retry_count=0,
+        max_retries=max_retries,
+        requested_cancel=False,
+        run_after=run_after or _utcnow(),
+        operational_metadata_json={},
+    )
     operational_metrics.increment("swinglens_jobs_enqueued_total", job_type=job_type)
     return job
 
@@ -255,6 +292,9 @@ def claim_next_job(
     job.lease_expires_at = _lease_expiry(now, lease_seconds)
     job.started_at = job.started_at or now
     job.error_message = None
+    job.last_progress_at = now
+    job.progress_sequence = int(job.progress_sequence or 0) + 1
+    job.stall_detected_at = None
     job.operational_metadata_json = _with_attempt_started(
         _with_lease_event(
             job.operational_metadata_json,
@@ -270,8 +310,177 @@ def claim_next_job(
     return job
 
 
+def record_job_progress(
+    db: Session,
+    *,
+    job_id: int,
+    execution_token: str,
+    stage: str,
+    current_item: str | None = None,
+    last_completed_item: str | None = None,
+    processed: int | None = None,
+    total: int | None = None,
+    checkpoint_version: str = "job-progress-v1",
+) -> None:
+    """Persist useful progress and fence the caller in the same transaction."""
+    now = _utcnow()
+    values: dict[str, Any] = {
+        "last_progress_at": now,
+        "progress_sequence": BackgroundJob.progress_sequence + 1,
+        "progress_stage": stage,
+        "progress_current_item": current_item,
+        "checkpoint_version": checkpoint_version,
+    }
+    if last_completed_item is not None:
+        values["progress_last_completed_item"] = last_completed_item
+    if processed is not None:
+        values["progress_processed"] = processed
+    if total is not None:
+        values["progress_total"] = total
+    result = db.execute(
+        update(BackgroundJob)
+        .where(BackgroundJob.id == job_id)
+        .where(BackgroundJob.status == JobStatus.RUNNING)
+        .where(BackgroundJob.execution_token == execution_token)
+        .values(**values)
+    )
+    if result.rowcount != 1:
+        raise JobLeaseLost(f"Background job {job_id} progress owner was fenced.")
+    operational_metrics.increment("swinglens_job_progress_total", stage=stage)
+
+
+def fence_stalled_jobs(
+    db: Session,
+    *,
+    default_timeout_seconds: int,
+    market_data_timeout_seconds: int,
+    now: datetime | None = None,
+    worker_id: str | None = None,
+    long_stage_timeout_seconds: int = 1800,
+) -> list[int]:
+    """Fence live-but-not-progressing executions without trusting lease freshness."""
+    observed_at = now or _utcnow()
+    query = (
+        select(BackgroundJob)
+        .where(BackgroundJob.status == JobStatus.RUNNING)
+        .where(BackgroundJob.last_progress_at.is_not(None))
+        .with_for_update(skip_locked=True)
+    )
+    if worker_id is not None:
+        query = query.where(BackgroundJob.worker_id == worker_id)
+    fenced: list[int] = []
+    for job in db.scalars(query).all():
+        if job.progress_stage == "FETCHING_MARKET_DATA":
+            timeout = market_data_timeout_seconds
+        elif job.progress_stage in {
+            "SCORING_TECHNICALS",
+            "CERI_PROVIDER_INGEST",
+            "CAPTURING_CERI",
+            "CAPTURING_SETUP_LIFECYCLE",
+            "EVALUATING_SETUP_LIFECYCLE",
+        }:
+            timeout = long_stage_timeout_seconds
+        else:
+            timeout = default_timeout_seconds
+        if job.last_progress_at is None or job.last_progress_at >= observed_at - timedelta(
+            seconds=timeout
+        ):
+            continue
+        old_token = job.execution_token
+        job.status = JobStatus.STALLED
+        job.stall_detected_at = observed_at
+        job.error_message = (
+            f"No useful progress in {timeout}s at {job.progress_stage or 'unknown stage'}"
+        )
+        job.worker_id = None
+        job.lease_owner = None
+        job.execution_token = None
+        job.locked_at = None
+        job.heartbeat_at = None
+        job.lease_expires_at = None
+        job.operational_metadata_json = _with_lease_event(
+            job.operational_metadata_json,
+            event_type="PROGRESS_STALLED_FENCED",
+            occurred_at=observed_at,
+            worker_id=worker_id,
+            execution_token=old_token,
+        )
+        fenced.append(job.id)
+        operational_metrics.increment("swinglens_jobs_stalled_total", job_type=job.job_type)
+    db.flush()
+    return fenced
+
+
+def requeue_stalled_jobs(
+    db: Session,
+    *,
+    job_ids: Iterable[int] | None = None,
+    now: datetime | None = None,
+) -> int:
+    observed_at = now or _utcnow()
+    query = select(BackgroundJob).where(BackgroundJob.status == JobStatus.STALLED)
+    if job_ids is not None:
+        query = query.where(BackgroundJob.id.in_(tuple(job_ids)))
+    recovered = 0
+    for job in db.scalars(query.with_for_update(skip_locked=True)).all():
+        job.status = JobStatus.RECOVERING
+        job.recovery_count = int(job.recovery_count or 0) + 1
+        job.operational_metadata_json = _with_lease_event(
+            job.operational_metadata_json,
+            event_type="PROGRESS_RECOVERY_QUEUED",
+            occurred_at=observed_at,
+            worker_id=None,
+            execution_token=None,
+        )
+        job.run_after = observed_at
+        recovered += 1
+    db.flush()
+    return recovered
+
+
+def fence_jobs_for_worker(
+    db: Session,
+    *,
+    worker_id: str,
+    reason: str,
+    now: datetime | None = None,
+) -> list[int]:
+    """Fence jobs after a supervisor has proven their owning process exited."""
+    observed_at = now or _utcnow()
+    fenced: list[int] = []
+    jobs = db.scalars(
+        select(BackgroundJob)
+        .where(BackgroundJob.status == JobStatus.RUNNING)
+        .where(BackgroundJob.worker_id == worker_id)
+        .with_for_update(skip_locked=True)
+    ).all()
+    for job in jobs:
+        old_token = job.execution_token
+        job.status = JobStatus.STALLED
+        job.stall_detected_at = observed_at
+        job.error_message = _safe_error(reason)
+        job.worker_id = None
+        job.lease_owner = None
+        job.execution_token = None
+        job.locked_at = None
+        job.heartbeat_at = None
+        job.lease_expires_at = None
+        job.operational_metadata_json = _with_lease_event(
+            job.operational_metadata_json,
+            event_type="WORKER_PROCESS_FENCED",
+            occurred_at=observed_at,
+            worker_id=worker_id,
+            execution_token=old_token,
+        )
+        fenced.append(job.id)
+    db.flush()
+    return fenced
+
+
 def _claim_ready_job_id(db: Session, group: QueueClaimGroup) -> int | None:
-    query = select(BackgroundJob.id).where(BackgroundJob.status == JobStatus.QUEUED)
+    query = select(BackgroundJob.id).where(
+        BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RECOVERING))
+    )
     query = query.where(BackgroundJob.run_after <= _utcnow())
     if group.queues:
         queue_filter = worker_queue_filter(group.queues)
@@ -583,9 +792,7 @@ def _recover_jobs(db: Session, jobs: Iterable[BackgroundJob], *, now: datetime) 
         recovered_count += 1
 
     if recovered_count:
-        operational_metrics.increment(
-            "swinglens_jobs_stale_recovered_total", value=recovered_count
-        )
+        operational_metrics.increment("swinglens_jobs_stale_recovered_total", value=recovered_count)
 
     db.flush()
     return recovered_count

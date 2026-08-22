@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import signal
 import socket
 import subprocess
 import sys
@@ -22,7 +23,7 @@ import psycopg
 import pytest
 from playwright.sync_api import Page, sync_playwright
 from psycopg import sql
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
 from app.models.tables import PriceBar
@@ -108,7 +109,7 @@ def certification_environment(
         "DEBUG": "false",
         "ALLOW_PUBLIC_BIND": "false",
         "USE_DURABLE_PIPELINE": "true",
-        "JOB_WORKER_ENABLED": "true",
+        "JOB_WORKER_ENABLED": "false",
         "JOB_POLL_INTERVAL_SECONDS": "0.05",
         "JOB_STALE_AFTER_SECONDS": "120",
         "JOB_WORKER_ID": f"certification-{execution_id}",
@@ -180,8 +181,31 @@ def certification_environment(
         stderr=subprocess.STDOUT,
         text=True,
     )
+    worker_log = artifact_dir / "logs" / "worker.log"
+    worker_log_handle = worker_log.open("w", encoding="utf-8")
+    worker_creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+    worker_process = subprocess.Popen(
+        [
+            sys.executable,
+            str(
+                REPO_ROOT / "tests" / "e2e" / "single_run_certification" / "certification_server.py"
+            ),
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        stdout=worker_log_handle,
+        stderr=subprocess.STDOUT,
+        text=True,
+        creationflags=worker_creationflags,
+    )
     try:
         _wait_healthy(process, base_url, server_log)
+        _wait_worker_ready(
+            worker_process,
+            database_url,
+            env["JOB_WORKER_ID"],
+            worker_log,
+        )
         environment_payload = {
             "execution_id": execution_id,
             "git_commit": _git_commit(),
@@ -219,7 +243,18 @@ def certification_environment(
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+        if worker_process.poll() is None:
+            if sys.platform == "win32":
+                worker_process.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                worker_process.terminate()
+            try:
+                worker_process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                worker_process.kill()
+                worker_process.wait(timeout=5)
         log_handle.close()
+        worker_log_handle.close()
         _drop_database(admin, database_name)
         admin.close()
 
@@ -357,11 +392,7 @@ def test_single_run_comprehensive_e2e_certification(
             "run evidence graph includes Winner Evidence maturation processing lineage",
             area="Winner Evidence",
             expected=True,
-            actual=[
-                entry["table"]
-                for entry in graph["tables"]
-                if "winner" in entry["table"]
-            ],
+            actual=[entry["table"] for entry in graph["tables"] if "winner" in entry["table"]],
         )
         recorder.check(
             any(
@@ -1038,9 +1069,7 @@ def _compare_winner(page: Page, engine, recorder: CertificationRecorder, run_id:
             actual=gui["Probability"],
         )
         evidence_grade = (
-            str(db["evidence_grade"])
-            if db["evidence_grade"] is not None
-            else "Missing"
+            str(db["evidence_grade"]) if db["evidence_grade"] is not None else "Missing"
         )
         recorder.check(
             gui["Grade"].strip() == evidence_grade,
@@ -1116,9 +1145,9 @@ def _mature_winner_evidence(
     page.locator(
         'form[action="/api/winner-probability/outcomes/process"] button[type="submit"]'
     ).click()
-    page.locator(
-        'form[action="/api/winner-probability/outcomes/process"] output'
-    ).wait_for(state="visible", timeout=10_000)
+    page.locator('form[action="/api/winner-probability/outcomes/process"] output').wait_for(
+        state="visible", timeout=10_000
+    )
 
     deadline = time.monotonic() + 60
     job: dict = {}
@@ -1141,8 +1170,7 @@ def _mature_winner_evidence(
     job_result = job.get("result_json") or {}
     expected_job_status = (
         "PARTIAL"
-        if int(job_result.get("failed_h5", 0))
-        or int(job_result.get("pending_h5_after_cycle", 0))
+        if int(job_result.get("failed_h5", 0)) or int(job_result.get("pending_h5_after_cycle", 0))
         else "COMPLETED"
     )
     recorder.check(
@@ -1288,15 +1316,13 @@ def _mature_winner_evidence(
     recorder.check(
         bool(matured_forward)
         and all(
-            row["status"] == "MATURED" and row["matured_at"] is not None
-            for row in matured_forward
+            row["status"] == "MATURED" and row["matured_at"] is not None for row in matured_forward
         ),
         "ALFA primary NEXT_OPEN H5 outcome matured from later bars",
         area="Winner Evidence",
         expected="MATURED with timestamp",
         actual=[
-            {"status": row["status"], "matured_at": row["matured_at"]}
-            for row in matured_forward
+            {"status": row["status"], "matured_at": row["matured_at"]} for row in matured_forward
         ],
     )
     recorder.check(
@@ -1455,9 +1481,7 @@ def _compare_matured_outcomes(
                 "Revision": str(row["revision"]),
             }
         )
-    normalized_gui = [
-        {field: value.strip() for field, value in row.items()} for row in gui_rows
-    ]
+    normalized_gui = [{field: value.strip() for field, value in row.items()} for row in gui_rows]
     for index, expected_row in enumerate(expected, start=1):
         recorder.check(
             expected_row in normalized_gui,
@@ -1482,20 +1506,23 @@ def _compare_lifecycle(page: Page, engine, recorder: CertificationRecorder, run_
         page,
         {"Ticker", "Date", "Family", "Source", "State", "Actionability", "Confidence"},
     )
-    lifecycle_count = int(query_rows(
-        engine,
-        """
+    lifecycle_count = int(
+        query_rows(
+            engine,
+            """
         select count(*) as value from setup_lifecycle_events
         where evaluation_run_id in (
           select id from setup_lifecycle_evaluation_runs where source_run_id=:run_id
         ) and is_current_version is true
           and event_type in ('EPISODE_OPENED','STATE_TRANSITION','PHASE_TRANSITION')
         """,
-        {"run_id": run_id},
-    )[0]["value"])
-    signal_count = int(query_rows(
-        engine,
-        """
+            {"run_id": run_id},
+        )[0]["value"]
+    )
+    signal_count = int(
+        query_rows(
+            engine,
+            """
         select count(*) as value from signal_change_events e
         where evaluation_run_id in (
           select id from setup_lifecycle_evaluation_runs where source_run_id=:run_id
@@ -1504,8 +1531,9 @@ def _compare_lifecycle(page: Page, engine, recorder: CertificationRecorder, run_
           where s.id=e.current_snapshot_id and s.is_canonical is true
         )
         """,
-        {"run_id": run_id},
-    )[0]["value"])
+            {"run_id": run_id},
+        )[0]["value"]
+    )
     response = page.request.get(
         f"{page.url.split('/runs/', 1)[0]}/api/setup-lifecycle/changes?run_id={run_id}&limit=500"
     )
@@ -2178,6 +2206,34 @@ def _wait_healthy(process: subprocess.Popen, base_url: str, log_path: Path) -> N
         except (OSError, urllib.error.URLError):
             time.sleep(0.2)
     raise RuntimeError(f"certification server did not become healthy; see {log_path}")
+
+
+def _wait_worker_ready(
+    process: subprocess.Popen,
+    database_url: str,
+    worker_id: str,
+    log_path: Path,
+) -> None:
+    engine = create_engine(database_url)
+    try:
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError(f"certification worker stopped early; see {log_path}")
+            with engine.connect() as connection:
+                heartbeat = connection.scalar(
+                    text(
+                        "select heartbeat_at from background_workers "
+                        "where worker_id=:worker_id and stopping_at is null"
+                    ),
+                    {"worker_id": worker_id},
+                )
+            if heartbeat is not None:
+                return
+            time.sleep(0.1)
+    finally:
+        engine.dispose()
+    raise RuntimeError(f"certification worker did not become ready; see {log_path}")
 
 
 def _drop_database(admin, database_name: str) -> None:

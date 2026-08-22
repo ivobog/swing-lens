@@ -102,11 +102,14 @@ def test_postgresql_worker_registry_and_queue_allowlist(
             now=now + timedelta(seconds=4),
         )
         db.commit()
-        assert live_workers(
-            db,
-            heartbeat_timeout_seconds=30,
-            now=now + timedelta(seconds=5),
-        ) == []
+        assert (
+            live_workers(
+                db,
+                heartbeat_timeout_seconds=30,
+                now=now + timedelta(seconds=5),
+            )
+            == []
+        )
 
     inspector = inspect(engine)
     assert "background_workers" in inspector.get_table_names()
@@ -132,10 +135,10 @@ def test_external_worker_process_registers_and_stops_gracefully(
         "JOB_WORKER_HEARTBEAT_INTERVAL_SECONDS": "0.2",
         "JOB_WORKER_HEARTBEAT_TIMEOUT_SECONDS": "5",
         "CERI_PROVIDER_INGEST_ENABLED": "false",
+        "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": "false",
+        "WORKER_MEMORY_TRACEMALLOC_ENABLED": "false",
     }
-    creationflags = (
-        subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-    )
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
     process = subprocess.Popen(
         [
             sys.executable,
@@ -161,8 +164,7 @@ def test_external_worker_process_registers_and_stops_gracefully(
             if process.poll() is not None:
                 stdout, stderr = process.communicate(timeout=5)
                 pytest.fail(
-                    "external worker exited before registration:\n"
-                    f"stdout={stdout}\nstderr={stderr}"
+                    f"external worker exited before registration:\nstdout={stdout}\nstderr={stderr}"
                 )
             raise
         assert worker.queues_json == ["interactive", "broker", "background"]
@@ -230,6 +232,8 @@ def test_active_external_job_survives_uvicorn_restart(
         "JOB_WORKER_HEARTBEAT_INTERVAL_SECONDS": "0.2",
         "JOB_WORKER_HEARTBEAT_TIMEOUT_SECONDS": "5",
         "CERI_PROVIDER_INGEST_ENABLED": "false",
+        "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": "false",
+        "WORKER_MEMORY_TRACEMALLOC_ENABLED": "false",
     }
     worker_process = subprocess.Popen(
         [sys.executable, "tests/external_worker_probe_runner.py"],
@@ -241,7 +245,22 @@ def test_active_external_job_survives_uvicorn_restart(
     )
     web_process = None
     try:
-        _wait_for_job_status(engine, probe_id, "RUNNING")
+        try:
+            _wait_for_job_status(engine, probe_id, "RUNNING")
+        except AssertionError:
+            if worker_process.poll() is not None:
+                stdout, stderr = worker_process.communicate(timeout=5)
+                pytest.fail(
+                    f"external probe worker exited before claim:\nstdout={stdout}\nstderr={stderr}"
+                )
+            with Session(engine) as diagnostics_db:
+                observed_job = diagnostics_db.get(BackgroundJob, probe_id)
+                workers = diagnostics_db.scalars(select(BackgroundWorker)).all()
+                pytest.fail(
+                    "external probe worker stayed alive without claiming; "
+                    f"job_status={observed_job.status if observed_job else None}; "
+                    f"workers={[(row.worker_id, row.heartbeat_at) for row in workers]}"
+                )
         worker = _wait_for_worker(engine, "active-probe-worker")
         _wait_for_new_heartbeat(
             engine,
@@ -330,9 +349,7 @@ def _wait_for_url(url: str, *, process: subprocess.Popen[str]) -> None:
     while time.monotonic() < deadline:
         if process.poll() is not None:
             stdout, stderr = process.communicate()
-            raise AssertionError(
-                f"web process exited {process.returncode}: {stdout}\n{stderr}"
-            )
+            raise AssertionError(f"web process exited {process.returncode}: {stdout}\n{stderr}")
         try:
             with urlopen(url, timeout=1) as response:  # noqa: S310
                 if response.status == 200:

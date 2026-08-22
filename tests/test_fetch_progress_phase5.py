@@ -54,7 +54,7 @@ def test_fetch_progress_template_renders_polling_and_recovery_actions(monkeypatc
     )
 
     assert "IB Fetch 11" in html
-    assert 'data-fetch-progress' in html
+    assert "data-fetch-progress" in html
     assert 'data-status-url="/runs/7/ib/fetches/11/status"' in html
     assert "Retry failed items" in html
     assert "Resume remaining items" in html
@@ -122,7 +122,7 @@ def test_retry_failed_route_queues_resume_and_redirects_to_progress(monkeypatch)
     monkeypatch.setattr(
         run_routes,
         "submit_fetch_job",
-        lambda fetch_run_id, _plan, _options: calls.setdefault("submitted", fetch_run_id),
+        lambda _db, fetch_run_id, _plan, _options: calls.setdefault("submitted", fetch_run_id),
     )
     db = RouteFakeDb()
 

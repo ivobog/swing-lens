@@ -9,6 +9,7 @@ from app.services.background_job_service import (
     claim_next_job,
     default_retry_delay,
     enqueue_job,
+    fence_stalled_jobs,
     heartbeat_job,
     is_cancel_requested,
     mark_job_cancelled,
@@ -19,6 +20,7 @@ from app.services.background_job_service import (
     recover_abandoned_jobs_for_worker,
     recover_stale_jobs,
     request_job_cancel,
+    requeue_stalled_jobs,
 )
 
 
@@ -446,6 +448,32 @@ def test_default_retry_delay_uses_capped_schedule() -> None:
     assert default_retry_delay(2) == timedelta(seconds=180)
     assert default_retry_delay(3) == timedelta(seconds=600)
     assert default_retry_delay(99) == timedelta(seconds=600)
+
+
+def test_live_worker_without_progress_is_fenced_and_recovering() -> None:
+    now = datetime.now(UTC)
+    job = _running_job()
+    job.heartbeat_at = now
+    job.last_progress_at = now - timedelta(minutes=10)
+    job.progress_stage = "FETCHING_MARKET_DATA"
+    db = FakeDb(stale_jobs=[job])
+
+    fenced = fence_stalled_jobs(
+        db,
+        default_timeout_seconds=60,
+        market_data_timeout_seconds=120,
+        now=now,
+        worker_id="worker-a",
+    )
+
+    assert fenced == [job.id]
+    assert job.status == JobStatus.STALLED
+    assert job.execution_token is None
+    assert job.worker_id is None
+    db.stale_jobs = [job]
+    assert requeue_stalled_jobs(db, job_ids=fenced, now=now) == 1
+    assert job.status == JobStatus.RECOVERING
+    assert job.recovery_count == 1
 
 
 def _running_job(

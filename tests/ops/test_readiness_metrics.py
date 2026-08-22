@@ -93,9 +93,7 @@ def test_readiness_uses_live_external_worker_heartbeat_even_when_embedded_is_dis
     assert report.checks["worker"].message == "live:test-worker"
 
 
-def test_readiness_degrades_for_stale_external_worker_heartbeat(
-    tmp_path, monkeypatch
-) -> None:
+def test_readiness_degrades_for_stale_external_worker_heartbeat(tmp_path, monkeypatch) -> None:
     now = datetime(2026, 8, 12, 13, tzinfo=UTC)
     engine = _readiness_engine(
         alembic_revision="head",
@@ -155,13 +153,9 @@ def test_job_and_export_paths_emit_operational_metrics() -> None:
     prometheus = operational_metrics.as_prometheus()
     assert 'swinglens_jobs_enqueued_total{job_type="FULL_PIPELINE"} 1' in prometheus
     assert (
-        'swinglens_jobs_finished_total{job_type="FULL_PIPELINE",status="COMPLETED"} 1'
-        in prometheus
+        'swinglens_jobs_finished_total{job_type="FULL_PIPELINE",status="COMPLETED"} 1' in prometheus
     )
-    assert (
-        'swinglens_exports_generated_total{schema_id="swinglens.test.export.v1"} 1'
-        in prometheus
-    )
+    assert 'swinglens_exports_generated_total{schema_id="swinglens.test.export.v1"} 1' in prometheus
     assert 'swinglens_export_rows_total{schema_id="swinglens.test.export.v1"} 1' in prometheus
     assert operational_metrics.total("swinglens_jobs_finished_total") == 1
     assert (
@@ -194,14 +188,15 @@ def _readiness_engine(
                 "create table background_workers ("
                 "worker_id text primary key, queues_json text not null, hostname text, "
                 "process_id integer, started_at timestamp not null, "
-                "heartbeat_at timestamp not null, stopping_at timestamp)"
+                "heartbeat_at timestamp not null, stopping_at timestamp, "
+                "instance_id text, rss_bytes integer, private_bytes integer, memory_status text)"
             )
         )
         connection.execute(
             text(
                 "insert into background_workers "
                 "(worker_id, queues_json, started_at, heartbeat_at) "
-                "values ('test-worker', '[\"interactive\",\"broker\",\"background\"]', "
+                'values (\'test-worker\', \'["interactive","broker","background"]\', '
                 ":started_at, :heartbeat_at)"
             ),
             {"started_at": heartbeat_at, "heartbeat_at": heartbeat_at},

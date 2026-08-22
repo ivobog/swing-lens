@@ -23,6 +23,11 @@ class OperationalMetricRegistry:
         with self._lock:
             self._counters[key] += float(value)
 
+    def set_gauge(self, name: str, value: float, **labels: Any) -> None:
+        key = (name, _label_tuple(labels))
+        with self._lock:
+            self._counters[key] = float(value)
+
     def samples(self) -> list[MetricSample]:
         with self._lock:
             rows = [
