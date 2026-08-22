@@ -51,6 +51,18 @@
   {% else %}
     <div class="alert section-gap" data-pipeline-message role="status" aria-live="polite" hidden></div>
   {% endif %}
+  <div
+    class="alert section-gap"
+    role="status"
+    data-pipeline-worker-health
+    {% if pipeline.job_status not in ['STALLED', 'RECOVERING'] %}hidden{% endif %}
+  >
+    {% if pipeline.job_status == 'STALLED' %}
+      The worker process was fenced because this job stopped making useful progress.
+    {% else %}
+      Automatic recovery is in progress from the last durable checkpoint.
+    {% endif %}
+  </div>
   {% set blocked = pipeline_result.get('blocked_diagnostics', {}) %}
   {% set sec_repair = pipeline_result.get('sec_repair', {}) %}
   {% set readiness = blocked.get('readiness', {}) %}
@@ -113,6 +125,38 @@
     <div class="metric">
       <span>Cancel</span>
       <strong data-pipeline-cancel-metric>{{ "Requested" if pipeline.job_cancel_requested else "No" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Items</span>
+      <strong><span data-pipeline-items-processed>{{ pipeline.processed_item_count or 0 }}</span> / <span data-pipeline-items-total>{{ pipeline.total_item_count or 0 }}</span></strong>
+    </div>
+    <div class="metric">
+      <span>Current item</span>
+      <strong data-pipeline-current-item>{{ pipeline.current_item or "None" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Last progress</span>
+      <strong data-pipeline-last-progress>{{ pipeline.last_progress_at or "None" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Worker heartbeat</span>
+      <strong data-pipeline-worker-heartbeat>{{ pipeline.worker_heartbeat_at or "None" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Lease renewed</span>
+      <strong data-pipeline-lease-renewed>{{ pipeline.lease_renewed_at or "None" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Worker</span>
+      <strong data-pipeline-worker-id>{{ pipeline.worker_id or "None" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Recoveries</span>
+      <strong data-pipeline-recovery-count>{{ pipeline.recovery_count or 0 }}</strong>
+    </div>
+    <div class="metric">
+      <span>Worker memory</span>
+      <strong data-pipeline-worker-memory>{{ pipeline.worker_memory_status or "Unknown" }}</strong>
     </div>
     <div class="metric">
       <span>Ranking status</span>

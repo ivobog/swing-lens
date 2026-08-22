@@ -109,9 +109,7 @@ class SqlSummary:
     total_sql_ms: float = 0.0
     maximum_sql_ms: float = 0.0
     fingerprint_calls: Counter[str] = field(default_factory=Counter)
-    fingerprint_ms: defaultdict[str, float] = field(
-        default_factory=lambda: defaultdict(float)
-    )
+    fingerprint_ms: defaultdict[str, float] = field(default_factory=lambda: defaultdict(float))
     fingerprint_sql: dict[str, str] = field(default_factory=dict)
     fingerprint_callers: dict[str, dict[str, Any]] = field(default_factory=dict)
     flush_count: int = 0
@@ -183,9 +181,7 @@ class SqlSummary:
                 else (time.perf_counter() - self.started_at) * 1000.0
             )
             sql_time_pct = (
-                (self.total_sql_ms / total_duration_ms) * 100.0
-                if total_duration_ms > 0
-                else None
+                (self.total_sql_ms / total_duration_ms) * 100.0 if total_duration_ms > 0 else None
             )
             return {
                 "total_duration_ms": round(total_duration_ms, 3),
@@ -196,8 +192,7 @@ class SqlSummary:
                 "sql_delete_count": self.operation_counts["DELETE"],
                 "sql_other_count": self.query_count
                 - sum(
-                    self.operation_counts[name]
-                    for name in ("SELECT", "INSERT", "UPDATE", "DELETE")
+                    self.operation_counts[name] for name in ("SELECT", "INSERT", "UPDATE", "DELETE")
                 ),
                 "total_sql_ms": round(self.total_sql_ms, 3),
                 "maximum_sql_ms": round(self.maximum_sql_ms, 3),
@@ -217,9 +212,7 @@ class SqlSummary:
                 "most_repeated_query_calls": self.fingerprint_calls[most_repeated]
                 if most_repeated
                 else 0,
-                "most_repeated_query_total_ms": round(
-                    self.fingerprint_ms[most_repeated], 3
-                )
+                "most_repeated_query_total_ms": round(self.fingerprint_ms[most_repeated], 3)
                 if most_repeated
                 else 0.0,
                 "top_expensive_queries": [
@@ -273,11 +266,15 @@ class JsonlTelemetryWriter:
         retention_days: int,
         queue_size: int,
         max_file_mb: int,
+        max_files: int = 32,
+        max_total_mb: int = 1024,
         flush_interval_seconds: float = 1.0,
     ) -> None:
         self.log_dir = Path(log_dir)
         self.retention_days = max(1, retention_days)
         self.max_file_bytes = max(1, max_file_mb) * 1024 * 1024
+        self.max_files = max(2, max_files)
+        self.max_total_bytes = max(1, max_total_mb) * 1024 * 1024
         self.flush_interval_seconds = max(0.05, flush_interval_seconds)
         self.queue: queue.Queue[dict[str, Any] | None] = queue.Queue(maxsize=max(1, queue_size))
         self.records_written = 0
@@ -387,6 +384,7 @@ class JsonlTelemetryWriter:
         stream = None
         stream_path: Path | None = None
         next_flush = time.monotonic() + self.flush_interval_seconds
+        next_retention = time.monotonic() + 60.0
         try:
             self.log_dir.mkdir(parents=True, exist_ok=True)
             self._apply_retention()
@@ -403,6 +401,11 @@ class JsonlTelemetryWriter:
                     if stream is not None and time.monotonic() >= next_flush:
                         stream.flush()
                         next_flush = time.monotonic() + self.flush_interval_seconds
+                    if time.monotonic() >= next_retention:
+                        self._apply_retention(
+                            protected_paths={stream_path} if stream_path is not None else None
+                        )
+                        next_retention = time.monotonic() + 60.0
                     if self._stop.is_set() and self.queue.empty():
                         break
                     continue
@@ -415,7 +418,7 @@ class JsonlTelemetryWriter:
                         desired_path.parent.mkdir(parents=True, exist_ok=True)
                         stream = desired_path.open("a", encoding="utf-8", buffering=64 * 1024)
                         stream_path = desired_path
-                        self._apply_retention()
+                        self._apply_retention(protected_paths={stream_path})
                     dropped = self._take_drop_report()
                     if dropped:
                         self._write_line(
@@ -437,6 +440,11 @@ class JsonlTelemetryWriter:
                     if time.monotonic() >= next_flush:
                         stream.flush()
                         next_flush = time.monotonic() + self.flush_interval_seconds
+                    if time.monotonic() >= next_retention:
+                        self._apply_retention(
+                            protected_paths={stream_path} if stream_path is not None else None
+                        )
+                        next_retention = time.monotonic() + 60.0
                 except Exception:
                     with self._lock:
                         self.write_errors += 1
@@ -497,13 +505,36 @@ class JsonlTelemetryWriter:
             self._pending_drop_report = 0
             return count
 
-    def _apply_retention(self) -> None:
+    def _apply_retention(self, *, protected_paths: set[Path] | None = None) -> None:
+        protected = {path.resolve() for path in protected_paths or ()}
         cutoff = datetime.now(UTC) - timedelta(days=self.retention_days)
         for path in self.log_dir.glob("sql-*.jsonl"):
+            if path.resolve() in protected:
+                continue
             try:
                 modified = datetime.fromtimestamp(path.stat().st_mtime, UTC)
                 if modified < cutoff:
                     path.unlink()
+            except OSError:
+                continue
+        retained: list[tuple[Path, int, float]] = []
+        for path in self.log_dir.glob("sql-*.jsonl"):
+            try:
+                stat = path.stat()
+                retained.append((path, stat.st_size, stat.st_mtime))
+            except OSError:
+                continue
+        retained.sort(key=lambda item: (item[2], item[0].name), reverse=True)
+        retained_bytes = 0
+        for index, (path, size, _modified) in enumerate(retained):
+            if path.resolve() in protected:
+                retained_bytes += size
+                continue
+            if index < self.max_files and retained_bytes + size <= self.max_total_bytes:
+                retained_bytes += size
+                continue
+            try:
+                path.unlink()
             except OSError:
                 continue
 
@@ -521,6 +552,8 @@ class DatabaseMonitor:
             retention_days=int(settings.db_monitor_retention_days),
             queue_size=int(settings.db_monitor_queue_size),
             max_file_mb=int(settings.db_monitor_max_file_mb),
+            max_files=int(settings.db_monitor_max_files),
+            max_total_mb=int(settings.db_monitor_max_total_mb),
         )
         self._installed_engines: set[int] = set()
 
@@ -554,9 +587,7 @@ class DatabaseMonitor:
                 return
             context._swinglens_db_monitor_start_ns = time.perf_counter_ns()
             context._swinglens_db_monitor_caller = application_caller() or _UNKNOWN_CALLER
-            context._swinglens_db_monitor_parameter_shape = parameter_shape(
-                parameters, executemany
-            )
+            context._swinglens_db_monitor_parameter_shape = parameter_shape(parameters, executemany)
             context._swinglens_db_monitor_recorded = False
         except Exception:
             return
@@ -852,9 +883,7 @@ class DatabaseMonitorMiddleware:
             if message["type"] == "http.response.start":
                 status_code = int(message["status"])
                 headers = list(message.get("headers", []))
-                headers = [
-                    (key, value) for key, value in headers if key.lower() != b"x-request-id"
-                ]
+                headers = [(key, value) for key, value in headers if key.lower() != b"x-request-id"]
                 headers.append((b"x-request-id", request_id.encode("ascii")))
                 message = {**message, "headers": headers}
             await send(message)

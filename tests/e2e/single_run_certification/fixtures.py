@@ -564,6 +564,9 @@ def _seed_winner_history(db: Session, decoy_run_id: int) -> None:
 
 
 def _seed_ceri_manual_evidence(db: Session) -> tuple[list[int], list[int], int]:
+    recent_guidance_at = (
+        datetime.now(UTC).replace(hour=20, minute=15, second=0, microsecond=0) - timedelta(days=3)
+    ).isoformat()
     for ticker in CANONICAL_TICKERS:
         db.add(
             CeriCompany(
@@ -618,8 +621,10 @@ def _seed_ceri_manual_evidence(db: Session) -> tuple[list[int], list[int], int]:
                 "point": str(100 + ticker_index * 10),
                 "currency": "USD",
                 "confidence": "high" if ticker != "GOLF" else "low",
-                "announced_at": "2026-08-06T20:15:00Z",
-                "published_at": "2026-08-06T20:15:00Z",
+                # Keep this deterministic fixture inside the production
+                # guidance freshness window used by the capture date.
+                "announced_at": recent_guidance_at,
+                "published_at": recent_guidance_at,
             }
         )
         records[CeriDataset.CATALYSTS].append(

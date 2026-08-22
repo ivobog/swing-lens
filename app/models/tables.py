@@ -1169,6 +1169,13 @@ class IBFetchRun(Base):
         server_default="0",
     )
     message: Mapped[str | None] = mapped_column(Text)
+    last_progress_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    progress_sequence: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
 
     run: Mapped[UploadRun | None] = relationship(back_populates="ib_fetch_runs")
     items: Mapped[list["IBFetchItem"]] = relationship(
@@ -1241,10 +1248,17 @@ class IBFetchItem(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
+    execution_token: Mapped[str | None] = mapped_column(Text)
 
     fetch_run: Mapped[IBFetchRun] = relationship(back_populates="items")
 
     __table_args__ = (
+        UniqueConstraint(
+            "fetch_run_id",
+            "ticker",
+            "what_to_show",
+            name="uq_ib_fetch_items_run_ticker_feed",
+        ),
         Index("idx_ib_fetch_items_fetch_run_id", "fetch_run_id"),
         Index("idx_ib_fetch_items_ticker", "ticker"),
         Index("idx_ib_fetch_items_status", "status"),
@@ -1418,6 +1432,31 @@ class BackgroundJob(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_progress_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    progress_sequence: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    progress_stage: Mapped[str | None] = mapped_column(Text)
+    progress_current_item: Mapped[str | None] = mapped_column(Text)
+    progress_last_completed_item: Mapped[str | None] = mapped_column(Text)
+    progress_processed: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    progress_total: Mapped[int | None] = mapped_column(BigInteger)
+    checkpoint_version: Mapped[str | None] = mapped_column(Text)
+    stall_detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recovery_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
     operational_metadata_json: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
@@ -1437,6 +1476,7 @@ class BackgroundJob(Base):
         Index("idx_background_jobs_locked_at", "locked_at"),
         Index("idx_background_jobs_lease_expires_at", "lease_expires_at"),
         Index("idx_background_jobs_execution_token", "execution_token"),
+        Index("idx_background_jobs_progress_watchdog", "status", "last_progress_at"),
         Index("idx_background_jobs_request_key", "request_key"),
         Index(
             "idx_background_jobs_queue_claim",
@@ -1482,6 +1522,10 @@ class BackgroundWorker(Base):
     )
     hostname: Mapped[str | None] = mapped_column(Text)
     process_id: Mapped[int | None] = mapped_column(Integer)
+    instance_id: Mapped[str | None] = mapped_column(Text)
+    rss_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    private_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    memory_status: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

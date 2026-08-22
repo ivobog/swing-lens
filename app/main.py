@@ -2,7 +2,6 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from copy import copy
-from threading import Event, Thread
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -29,7 +28,6 @@ from app.routers import (
     winner_probability_routes,
 )
 from app.security import install_trusted_host_middleware, issue_local_admin_csrf_token
-from app.services.background_worker import run_worker
 from app.settings import Settings, get_settings
 
 settings = get_settings()
@@ -65,40 +63,18 @@ def _introspection_routes(routes: list[BaseRoute]) -> list[BaseRoute]:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     worker_settings: Settings = app.state.settings
-    worker_stop_event: Event | None = None
-    worker_thread: Thread | None = None
     database_health_sampler = DatabaseHealthSampler(worker_settings)
     database_health_sampler.start()
-
     if worker_settings.job_worker_enabled:
-        worker_stop_event = Event()
-        worker_thread = Thread(
-            target=run_worker,
-            kwargs={
-                "settings": worker_settings,
-                "stop_event": worker_stop_event,
-            },
-            name=f"swinglens-{worker_settings.job_worker_id}",
-            daemon=True,
-        )
-        worker_thread.start()
-        logger.info(
-            "job.worker.started",
-            extra={"worker_id": worker_settings.job_worker_id},
+        logger.warning(
+            "JOB_WORKER_ENABLED is ignored by the web process; start the isolated durable "
+            "worker with `uv run python -m app.worker` or the supervised worker command."
         )
 
     try:
         yield
     finally:
         database_health_sampler.stop()
-        if worker_stop_event is not None:
-            worker_stop_event.set()
-        if worker_thread is not None:
-            worker_thread.join(timeout=5)
-            logger.info(
-                "job.worker.stopped",
-                extra={"worker_id": worker_settings.job_worker_id},
-            )
 
 
 def create_app(app_settings: Settings | None = None) -> FastAPI:

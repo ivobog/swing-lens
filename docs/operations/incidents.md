@@ -10,7 +10,8 @@ data-recovery risk. Keep notes with timestamps, command output, backup IDs, and 
 3. If `database` fails, verify `.env` `DATABASE_URL`, `docker compose ps`, and PostgreSQL logs.
 4. If `migrations` fails, stop writes and run `uv run alembic current` and `uv run alembic heads`.
 5. If `storage` fails, verify permissions on `UPLOAD_DIR`, `EXPORT_DIR`, and `CACHE_DIR`.
-6. If `worker` fails, start the embedded worker or disable durable pipeline for local diagnostics.
+6. If `worker` fails, inspect the supervisor event and durable job state; the supervisor fences
+   the former owner, requeues from checkpoint, and starts a replacement worker automatically.
 7. If `jobs` fails, follow the stale-job runbook below.
 
 ## Stale Or Failed Jobs
@@ -25,7 +26,7 @@ data-recovery risk. Keep notes with timestamps, command output, backup IDs, and 
    limit 50;
    ```
 
-3. Restart the app/worker process if the embedded worker stopped.
+3. Verify the independent worker supervisor is running. Never enable an embedded API worker.
 4. Let normal stale-job recovery requeue expired leases.
 5. For repeated failures, preserve the job row, redacted `error_message`, and related run ID before
    retrying manually.

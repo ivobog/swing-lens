@@ -1,13 +1,15 @@
 from collections import defaultdict
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from time import perf_counter
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.tables import IBFetchItem, IBFetchRun
+from app.services.background_job_service import JobLeaseLost
 from app.services.bar_cache_service import cache_bars
 from app.services.ib_api import IB
 from app.services.ib_connection import create_ib_client
@@ -26,6 +28,7 @@ from app.services.ib_rate_limiter import (
     rate_limit_config_from_settings,
 )
 from app.services.operational_metrics import operational_metrics
+from app.services.process_memory import WorkerMemoryCritical
 from app.services.us_market_calendar import is_latest_daily_bar_current
 from app.settings import Settings, get_settings
 
@@ -56,6 +59,9 @@ def execute_fetch_plan(
     fetch_run_id: int | None = None,
     should_cancel: Callable[[], bool] | None = None,
     on_ticker_ready: Callable[[TickerReadyEvent], None] | None = None,
+    progress_callback: Callable[..., None] | None = None,
+    execution_token: str | None = None,
+    memory_probe: Callable[[Session, int, int, str], None] | None = None,
 ) -> IBFetchRun:
     settings = settings or get_settings()
     rate_limiter = rate_limiter or IbHistoricalRateLimiter(
@@ -76,7 +82,7 @@ def execute_fetch_plan(
             decision=decision,
         )
     ib = ib_client_factory() if ib_client_factory else create_ib_client()
-    completed_by_ticker: dict[str, list[IBFetchItem]] = defaultdict(list)
+    completed_by_ticker: dict[str, list[str]] = defaultdict(list)
     expected_by_ticker: dict[str, int] = defaultdict(int)
     notified_tickers: set[str] = set()
     performance: dict[str, float] = {
@@ -87,6 +93,8 @@ def execute_fetch_plan(
     for plan_item in plan.items:
         expected_by_ticker[plan_item.ticker.upper()] += 1
     execution_items = _benchmark_first_items(plan.items, settings.ib_benchmark_symbols)
+    total_items = len(execution_items)
+    db.commit()
 
     try:
         if hasattr(ib, "RequestTimeout"):
@@ -98,41 +106,93 @@ def execute_fetch_plan(
             timeout=settings.ib_timeout_seconds,
             readonly=True,
         )
-        for plan_item in execution_items:
+        for item_index, plan_item in enumerate(execution_items, start=1):
             if should_cancel and should_cancel():
-                _mark_run_cancelled(fetch_run)
+                _mark_run_cancelled(fetch_run, db)
                 db.flush()
                 db.commit()
                 break
-            fetch_item = _create_fetch_item(fetch_run, plan_item)
-            db.add(fetch_item)
-            db.flush()
-            _execute_plan_item(
-                db=db,
-                ib=ib,
-                fetch_item=fetch_item,
-                plan_item=plan_item,
-                rate_limiter=rate_limiter,
-                settings=settings,
-                force_refresh=force_refresh,
-                force_full_backfill=force_full_backfill,
-                performance=performance,
-                should_cancel=should_cancel,
-            )
-            cancel_after_item = bool(should_cancel and should_cancel())
-            _refresh_run_totals(fetch_run)
-            if cancel_after_item:
-                _mark_run_cancelled(fetch_run)
-            db.commit()
+            with _bounded_item_session(db) as item_db:
+                item_run = _load_fetch_run(item_db, fetch_run.id)
+                fetch_item = _existing_fetch_item(item_db, fetch_run.id, plan_item)
+                if fetch_item is not None and fetch_item.status in {"SUCCESS", "FAILED", "SKIPPED"}:
+                    _record_ticker_completion(
+                        ticker=fetch_item.ticker,
+                        status=fetch_item.status,
+                        completed_by_ticker=completed_by_ticker,
+                        expected_by_ticker=expected_by_ticker,
+                        notified_tickers=notified_tickers,
+                        on_ticker_ready=on_ticker_ready,
+                    )
+                    if progress_callback is not None:
+                        progress_callback(
+                            item_db,
+                            stage="FETCHING_MARKET_DATA",
+                            current_item=plan_item.ticker,
+                            last_completed_item=plan_item.ticker,
+                            processed=item_index,
+                            total=total_items,
+                        )
+                    item_db.commit()
+                    continue
+                if fetch_item is None:
+                    fetch_item = _create_fetch_item(item_run, plan_item)
+                    item_db.add(fetch_item)
+                else:
+                    _reset_interrupted_item(fetch_item, plan_item)
+                fetch_item.execution_token = execution_token
+                item_db.flush()
+                if progress_callback is not None:
+                    progress_callback(
+                        item_db,
+                        stage="FETCHING_MARKET_DATA",
+                        current_item=plan_item.ticker,
+                        processed=item_index - 1,
+                        total=total_items,
+                    )
+                item_db.commit()
+                _execute_plan_item(
+                    db=item_db,
+                    ib=ib,
+                    fetch_item=fetch_item,
+                    plan_item=plan_item,
+                    rate_limiter=rate_limiter,
+                    settings=settings,
+                    force_refresh=force_refresh,
+                    force_full_backfill=force_full_backfill,
+                    performance=performance,
+                    should_cancel=should_cancel,
+                )
+                cancel_after_item = bool(should_cancel and should_cancel())
+                _increment_run_totals(item_run, fetch_item)
+                item_run.last_progress_at = datetime.now(UTC)
+                item_run.progress_sequence = int(item_run.progress_sequence or 0) + 1
+                if cancel_after_item:
+                    _mark_run_cancelled(item_run, item_db, refresh=False)
+                if progress_callback is not None:
+                    progress_callback(
+                        item_db,
+                        stage="FETCHING_MARKET_DATA",
+                        current_item=plan_item.ticker,
+                        last_completed_item=plan_item.ticker,
+                        processed=item_index,
+                        total=total_items,
+                    )
+                item_db.commit()
             _record_ticker_completion(
-                fetch_item=fetch_item,
+                ticker=fetch_item.ticker,
+                status=fetch_item.status,
                 completed_by_ticker=completed_by_ticker,
                 expected_by_ticker=expected_by_ticker,
                 notified_tickers=notified_tickers,
                 on_ticker_ready=on_ticker_ready,
             )
+            if memory_probe is not None:
+                memory_probe(item_db, item_index, total_items, plan_item.ticker)
             if cancel_after_item:
                 break
+    except (JobLeaseLost, WorkerMemoryCritical):
+        raise
     except Exception as exc:
         fetch_run.status = "FAILED"
         fetch_run.completed_at = datetime.now(UTC)
@@ -144,9 +204,12 @@ def execute_fetch_plan(
         if ib.isConnected():
             ib.disconnect()
 
+    if isinstance(db, Session):
+        db.expire_all()
+        fetch_run = _load_fetch_run(db, fetch_run.id)
     if fetch_run.status == "RUNNING":
         fetch_run.completed_at = datetime.now(UTC)
-        _refresh_run_totals(fetch_run)
+        _refresh_run_totals(fetch_run, db)
         fetch_run.status = _final_run_status(fetch_run)
         fetch_run.message = _run_message(fetch_run)
         db.flush()
@@ -218,6 +281,60 @@ def _create_fetch_item(fetch_run: IBFetchRun, plan_item: FetchPlanItem) -> IBFet
         unchanged=0,
         attempt_count=0,
     )
+
+
+def _bounded_item_session(db: Session):
+    if not isinstance(db, Session):
+        return nullcontext(db)
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    return factory()
+
+
+def _load_fetch_run(db: Session, fetch_run_id: int) -> IBFetchRun:
+    if not isinstance(db, Session):
+        return next(
+            row
+            for row in getattr(db, "added", [])
+            if isinstance(row, IBFetchRun) and row.id == fetch_run_id
+        )
+    fetch_run = db.get(IBFetchRun, fetch_run_id)
+    if fetch_run is None:
+        raise ValueError(f"IB fetch run {fetch_run_id} was not found.")
+    return fetch_run
+
+
+def _existing_fetch_item(
+    db: Session,
+    fetch_run_id: int,
+    plan_item: FetchPlanItem,
+) -> IBFetchItem | None:
+    if not isinstance(db, Session):
+        return None
+    return db.scalar(
+        select(IBFetchItem)
+        .where(IBFetchItem.fetch_run_id == fetch_run_id)
+        .where(IBFetchItem.ticker == plan_item.ticker)
+        .where(IBFetchItem.what_to_show == plan_item.what_to_show)
+    )
+
+
+def _reset_interrupted_item(fetch_item: IBFetchItem, plan_item: FetchPlanItem) -> None:
+    fetch_item.action = plan_item.action.value
+    fetch_item.duration = plan_item.duration
+    fetch_item.bar_size = plan_item.bar_size
+    fetch_item.status = "PLANNED"
+    fetch_item.reason = plan_item.reason
+    fetch_item.decision_metadata_json = _decision_metadata(plan_item)
+    fetch_item.current_bar_count = plan_item.current_bar_count
+    fetch_item.fetched = 0
+    fetch_item.inserted = 0
+    fetch_item.updated = 0
+    fetch_item.revised = 0
+    fetch_item.unchanged = 0
+    fetch_item.attempt_count = 0
+    fetch_item.started_at = None
+    fetch_item.completed_at = None
+    fetch_item.error_message = None
 
 
 def _execute_plan_item(
@@ -404,14 +521,67 @@ def _mark_failed(fetch_item: IBFetchItem, message: str) -> None:
     fetch_item.completed_at = datetime.now(UTC)
 
 
-def _mark_run_cancelled(fetch_run: IBFetchRun) -> None:
+def _mark_run_cancelled(
+    fetch_run: IBFetchRun,
+    db: Session | None = None,
+    *,
+    refresh: bool = True,
+) -> None:
     fetch_run.status = "CANCELLED"
     fetch_run.completed_at = datetime.now(UTC)
-    _refresh_run_totals(fetch_run)
+    if refresh:
+        _refresh_run_totals(fetch_run, db)
     fetch_run.message = "IB fetch was cancelled."
 
 
-def _refresh_run_totals(fetch_run: IBFetchRun) -> None:
+def _increment_run_totals(fetch_run: IBFetchRun, fetch_item: IBFetchItem) -> None:
+    """Maintain O(1) counters after one durable, previously incomplete item."""
+    fetch_run.executed_request_count = int(fetch_run.executed_request_count or 0) + int(
+        (fetch_item.attempt_count or 0) > 0
+    )
+    fetch_run.skipped_count = int(fetch_run.skipped_count or 0) + int(
+        fetch_item.status == "SKIPPED"
+    )
+    fetch_run.success_count = int(fetch_run.success_count or 0) + int(
+        fetch_item.status == "SUCCESS"
+    )
+    fetch_run.failure_count = int(fetch_run.failure_count or 0) + int(fetch_item.status == "FAILED")
+    for name in ("fetched", "inserted", "updated", "revised", "unchanged"):
+        total_name = f"{name}_count"
+        setattr(
+            fetch_run,
+            total_name,
+            int(getattr(fetch_run, total_name) or 0) + int(getattr(fetch_item, name) or 0),
+        )
+
+
+def _refresh_run_totals(fetch_run: IBFetchRun, db: Session | None = None) -> None:
+    if isinstance(db, Session):
+        totals = db.execute(
+            select(
+                func.count().filter(IBFetchItem.attempt_count > 0),
+                func.count().filter(IBFetchItem.status == "SKIPPED"),
+                func.count().filter(IBFetchItem.status == "SUCCESS"),
+                func.count().filter(IBFetchItem.status == "FAILED"),
+                func.coalesce(func.sum(IBFetchItem.fetched), 0),
+                func.coalesce(func.sum(IBFetchItem.inserted), 0),
+                func.coalesce(func.sum(IBFetchItem.updated), 0),
+                func.coalesce(func.sum(IBFetchItem.revised), 0),
+                func.coalesce(func.sum(IBFetchItem.unchanged), 0),
+            ).where(IBFetchItem.fetch_run_id == fetch_run.id)
+        ).one()
+        (
+            fetch_run.executed_request_count,
+            fetch_run.skipped_count,
+            fetch_run.success_count,
+            fetch_run.failure_count,
+            fetch_run.fetched_count,
+            fetch_run.inserted_count,
+            fetch_run.updated_count,
+            fetch_run.revised_count,
+            fetch_run.unchanged_count,
+        ) = (int(value or 0) for value in totals)
+        return
     items = fetch_run.items or []
     fetch_run.executed_request_count = sum((item.attempt_count or 0) > 0 for item in items)
     fetch_run.skipped_count = sum(item.status == "SKIPPED" for item in items)
@@ -495,22 +665,23 @@ def _benchmark_first_items(
 
 def _record_ticker_completion(
     *,
-    fetch_item: IBFetchItem,
-    completed_by_ticker: dict[str, list[IBFetchItem]],
+    ticker: str,
+    status: str,
+    completed_by_ticker: dict[str, list[str]],
     expected_by_ticker: dict[str, int],
     notified_tickers: set[str],
     on_ticker_ready: Callable[[TickerReadyEvent], None] | None,
 ) -> None:
     if on_ticker_ready is None:
         return
-    ticker = fetch_item.ticker.upper()
-    completed_by_ticker[ticker].append(fetch_item)
+    ticker = ticker.upper()
+    completed_by_ticker[ticker].append(status)
     if ticker in notified_tickers:
         return
     if len(completed_by_ticker[ticker]) < expected_by_ticker[ticker]:
         return
     notified_tickers.add(ticker)
-    statuses = tuple(item.status for item in completed_by_ticker[ticker])
+    statuses = tuple(completed_by_ticker[ticker])
     event = TickerReadyEvent(
         ticker=ticker,
         statuses=statuses,

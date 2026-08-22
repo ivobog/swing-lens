@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
@@ -25,6 +26,7 @@ from app.services.background_job_service import (
     mark_job_deferred,
     mark_job_failed_or_retry,
     mark_job_partial,
+    record_job_progress,
     recover_abandoned_jobs_for_worker,
     recover_stale_jobs,
 )
@@ -38,7 +40,15 @@ from app.services.ceri.sec.processor_lifecycle import (
     lifecycle_state,
     register_deployed_processor,
 )
+from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_prerequisites import PipelineBlockedError
+from app.services.process_memory import (
+    WorkerMemoryCritical,
+    memory_status,
+    process_memory_snapshot,
+    runtime_memory_diagnostics,
+    start_memory_tracing,
+)
 from app.services.worker_registry import (
     heartbeat_worker,
     mark_worker_stopping,
@@ -78,8 +88,11 @@ def run_worker(
     handlers = handlers or default_job_handlers()
     hostname = socket.gethostname()
     process_id = os.getpid()
+    instance_id = uuid4().hex
     claim_state = WorkerClaimState()
     runtime_stop_event = stop_event or Event()
+    if settings.worker_memory_tracemalloc_enabled:
+        start_memory_tracing()
     db = session_factory()
     try:
         register_worker(
@@ -89,6 +102,7 @@ def run_worker(
             heartbeat_timeout_seconds=settings.job_worker_heartbeat_timeout_seconds,
             hostname=hostname,
             process_id=process_id,
+            instance_id=instance_id,
         )
         register_deployed_processor(db)
         log_worker_startup_configuration(db, settings=settings, worker_id=worker_id)
@@ -104,6 +118,9 @@ def run_worker(
             "worker_id": worker_id,
             "hostname": hostname,
             "process_id": process_id,
+            "instance_id": instance_id,
+            "memory_warning_mb": settings.worker_memory_warning_mb,
+            "memory_critical_mb": settings.worker_memory_critical_mb,
             "interval_seconds": settings.job_worker_heartbeat_interval_seconds,
             "session_factory": session_factory,
             "stop_event": runtime_stop_event,
@@ -241,6 +258,9 @@ def _worker_heartbeat_loop(
     worker_id: str,
     hostname: str,
     process_id: int,
+    instance_id: str,
+    memory_warning_mb: int,
+    memory_critical_mb: int,
     interval_seconds: float,
     session_factory: sessionmaker[Session],
     stop_event: Event,
@@ -248,11 +268,20 @@ def _worker_heartbeat_loop(
     while not stop_event.wait(interval_seconds):
         db = session_factory()
         try:
+            snapshot = process_memory_snapshot(process_id)
             heartbeat_worker(
                 db,
                 worker_id,
                 hostname=hostname,
                 process_id=process_id,
+                instance_id=instance_id,
+                rss_bytes=snapshot.rss_bytes,
+                private_bytes=snapshot.private_bytes,
+                memory_status=memory_status(
+                    snapshot,
+                    warning_mb=memory_warning_mb,
+                    critical_mb=memory_critical_mb,
+                ),
             )
             db.commit()
         except Exception:
@@ -447,6 +476,7 @@ def execute_job(
 def default_job_handlers() -> dict[str, JobHandler]:
     from app.services.ceri.job_handlers import implemented_ceri_job_handlers
     from app.services.ceri.sec.readiness_repair import SEC_READINESS_REPAIR_JOB_TYPE
+    from app.services.ib_fetch_job_service import IB_FETCH_JOB_TYPE, execute_durable_fetch_job
     from app.services.ib_market_intelligence.job_handlers import (
         implemented_ib_intelligence_job_handlers,
     )
@@ -459,6 +489,7 @@ def default_job_handlers() -> dict[str, JobHandler]:
 
     return {
         "FULL_PIPELINE": _execute_full_pipeline_job,
+        IB_FETCH_JOB_TYPE: execute_durable_fetch_job,
         SEC_READINESS_REPAIR_JOB_TYPE: _execute_sec_readiness_repair_job,
         MARKET_DATA_PREWARM: execute_market_data_prewarm_job,
         **implemented_ib_intelligence_job_handlers(),
@@ -485,6 +516,51 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
         lease_guard()
         return is_cancel_requested(db, job.id)
 
+    execution_token = str(job.execution_token or "")
+    settings = get_settings()
+
+    def progress_callback(progress_db: Session, **progress: Any) -> None:
+        record_job_progress(
+            progress_db,
+            job_id=job.id,
+            execution_token=execution_token,
+            **progress,
+        )
+
+    def memory_probe(
+        item_db: Session,
+        item_index: int,
+        total_items: int,
+        ticker: str,
+    ) -> None:
+        if item_index % settings.worker_memory_profile_interval_items:
+            return
+        diagnostics = runtime_memory_diagnostics(
+            item_db,
+            top_allocation_count=settings.worker_memory_top_allocations,
+        )
+        state = memory_status(
+            process_memory_snapshot(),
+            warning_mb=settings.worker_memory_warning_mb,
+            critical_mb=settings.worker_memory_critical_mb,
+        )
+        diagnostics.update(
+            item_index=item_index,
+            total_items=total_items,
+            ticker=ticker,
+            memory_status=state,
+        )
+        logger.info("job.memory_checkpoint %s", diagnostics, extra={"job_id": job.id})
+        operational_metrics.set_gauge(
+            "swinglens_worker_memory_bytes",
+            float(diagnostics["private_bytes"] or diagnostics["rss_bytes"]),
+            worker_id=str(job.worker_id or "unknown"),
+        )
+        if state == "CRITICAL":
+            raise WorkerMemoryCritical(
+                f"Worker memory reached the critical budget after {ticker}; checkpoint preserved."
+            )
+
     try:
         result = execute_full_pipeline(
             db=db,
@@ -492,6 +568,9 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
             should_cancel=should_cancel,
             lease_guard=lease_guard,
             resume_from_step=job.payload_json.get("resume_from_step"),
+            progress_callback=progress_callback,
+            memory_probe=memory_probe,
+            execution_token=execution_token,
         )
     except PipelineCancelled as exc:
         raise CancelRequested(str(exc)) from exc

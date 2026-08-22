@@ -1,21 +1,36 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
-from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from threading import Event, Lock
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db import SessionLocal
-from app.models.tables import IBFetchRun
+from app.models.tables import BackgroundJob, IBFetchRun
+from app.services.background_job_service import (
+    active_job_for_request_key,
+    enqueue_job,
+    is_cancel_requested,
+    record_job_progress,
+    request_job_cancel,
+)
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan
+from app.services.operational_metrics import operational_metrics
+from app.services.process_memory import (
+    WorkerMemoryCritical,
+    memory_status,
+    process_memory_snapshot,
+    runtime_memory_diagnostics,
+)
+from app.settings import get_settings
 
 FETCH_TERMINAL_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
 ITEM_TERMINAL_STATUSES = {"SUCCESS", "FAILED", "SKIPPED"}
+IB_FETCH_JOB_TYPE = "IB_FETCH"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -23,12 +38,6 @@ class FetchJobOptions:
     include_benchmarks: bool = True
     force_refresh: bool = False
     force_full_backfill: bool = False
-
-
-_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ib-fetch")
-_lock = Lock()
-_cancel_events: dict[int, Event] = {}
-_futures: dict[int, Future] = {}
 
 
 def create_queued_fetch_run(
@@ -54,16 +63,29 @@ def create_queued_fetch_run(
 
 
 def submit_fetch_job(
+    db: Session,
     fetch_run_id: int,
     plan: FetchPlan,
     options: FetchJobOptions,
-) -> None:
-    cancel_event = Event()
-    with _lock:
-        _cancel_events[fetch_run_id] = cancel_event
-        future = _executor.submit(_run_fetch_job, fetch_run_id, plan, options, cancel_event)
-        _futures[fetch_run_id] = future
-        future.add_done_callback(lambda _future: _forget_job(fetch_run_id))
+) -> BackgroundJob:
+    """Queue an IB fetch durably; the web process never executes broker work."""
+    what_to_show_values = sorted({item.what_to_show for item in plan.items})
+    return enqueue_job(
+        db,
+        IB_FETCH_JOB_TYPE,
+        {
+            "fetch_run_id": fetch_run_id,
+            "run_id": plan.run_id,
+            "tickers": plan.requested_tickers,
+            "include_benchmarks": options.include_benchmarks,
+            "force_refresh": options.force_refresh,
+            "force_full_backfill": options.force_full_backfill,
+            "what_to_show_values": what_to_show_values,
+        },
+        related_run_id=plan.run_id,
+        request_key=_request_key(fetch_run_id),
+        max_retries=3,
+    )
 
 
 def cancel_fetch_job(db: Session, fetch_run_id: int) -> dict[str, Any]:
@@ -71,24 +93,19 @@ def cancel_fetch_job(db: Session, fetch_run_id: int) -> dict[str, Any]:
     if fetch_run is None:
         raise ValueError(f"IB fetch run {fetch_run_id} was not found.")
 
-    with _lock:
-        cancel_event = _cancel_events.get(fetch_run_id)
-        future = _futures.get(fetch_run_id)
-        if cancel_event:
-            cancel_event.set()
-        cancelled_before_start = bool(future and future.cancel())
-        future_exists = future is not None
-
     if fetch_run.status in FETCH_TERMINAL_STATUSES:
         return fetch_progress(fetch_run)
 
-    if cancelled_before_start or (fetch_run.status == "QUEUED" and not future_exists):
+    job = active_job_for_request_key(db, IB_FETCH_JOB_TYPE, _request_key(fetch_run_id))
+    if job is not None:
+        request_job_cancel(db, job.id)
+    if fetch_run.status == "QUEUED":
         fetch_run.status = "CANCELLED"
         fetch_run.message = "IB fetch was cancelled before it started."
     else:
         fetch_run.message = "Cancellation requested; the current IB request will finish first."
     db.flush()
-    return fetch_progress(fetch_run, cancel_requested=True)
+    return fetch_progress(fetch_run, cancel_requested=job is not None)
 
 
 def resume_fetch_job(
@@ -130,7 +147,8 @@ def get_fetch_progress(db: Session, fetch_run_id: int) -> dict[str, Any]:
     fetch_run = _load_fetch_run(db, fetch_run_id)
     if fetch_run is None:
         raise ValueError(f"IB fetch run {fetch_run_id} was not found.")
-    return fetch_progress(fetch_run, cancel_requested=_is_cancel_requested(fetch_run_id))
+    job = active_job_for_request_key(db, IB_FETCH_JOB_TYPE, _request_key(fetch_run_id))
+    return fetch_progress(fetch_run, cancel_requested=bool(job and job.requested_cancel))
 
 
 def fetch_progress(fetch_run: IBFetchRun, cancel_requested: bool = False) -> dict[str, Any]:
@@ -188,37 +206,84 @@ def fetch_progress(fetch_run: IBFetchRun, cancel_requested: bool = False) -> dic
     }
 
 
-def _run_fetch_job(
-    fetch_run_id: int,
-    plan: FetchPlan,
-    options: FetchJobOptions,
-    cancel_event: Event,
-) -> None:
-    db = SessionLocal()
-    try:
-        execute_fetch_plan(
-            db=db,
-            plan=plan,
-            include_benchmarks=options.include_benchmarks,
-            force_refresh=options.force_refresh,
-            force_full_backfill=options.force_full_backfill,
-            fetch_run_id=fetch_run_id,
-            should_cancel=cancel_event.is_set,
+def execute_durable_fetch_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
+    payload = job.payload_json or {}
+    fetch_run_id = int(payload["fetch_run_id"])
+    plan = build_fetch_plan(
+        db=db,
+        tickers=[str(value) for value in payload.get("tickers", [])],
+        run_id=payload.get("run_id"),
+        include_benchmarks=bool(payload.get("include_benchmarks", True)),
+        force_refresh=bool(payload.get("force_refresh", False)),
+        force_full_backfill=bool(payload.get("force_full_backfill", False)),
+        what_to_show_values=tuple(
+            payload.get("what_to_show_values") or ("ADJUSTED_LAST", "TRADES")
+        ),
+    )
+    execution_token = str(job.execution_token or "")
+
+    def should_cancel() -> bool:
+        heartbeat = getattr(job, "_heartbeat", None)
+        if callable(heartbeat):
+            heartbeat()
+        return is_cancel_requested(db, job.id)
+
+    def progress_callback(progress_db: Session, **progress: Any) -> None:
+        record_job_progress(
+            progress_db,
+            job_id=job.id,
+            execution_token=execution_token,
+            **progress,
         )
-    finally:
-        db.close()
+
+    settings = get_settings()
+
+    def memory_probe(item_db: Session, item_index: int, total: int, ticker: str) -> None:
+        if item_index % settings.worker_memory_profile_interval_items:
+            return
+        diagnostics = runtime_memory_diagnostics(
+            item_db,
+            top_allocation_count=settings.worker_memory_top_allocations,
+        )
+        state = memory_status(
+            process_memory_snapshot(),
+            warning_mb=settings.worker_memory_warning_mb,
+            critical_mb=settings.worker_memory_critical_mb,
+        )
+        diagnostics.update(
+            item_index=item_index,
+            total_items=total,
+            ticker=ticker,
+            memory_status=state,
+        )
+        logger.info("job.memory_checkpoint %s", diagnostics, extra={"job_id": job.id})
+        operational_metrics.set_gauge(
+            "swinglens_worker_memory_bytes",
+            float(diagnostics["private_bytes"] or diagnostics["rss_bytes"]),
+            worker_id=str(job.worker_id or "unknown"),
+        )
+        if state == "CRITICAL":
+            raise WorkerMemoryCritical(
+                f"Worker memory reached the critical budget after {ticker}; checkpoint preserved."
+            )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=plan,
+        include_benchmarks=bool(payload.get("include_benchmarks", True)),
+        force_refresh=bool(payload.get("force_refresh", False)),
+        force_full_backfill=bool(payload.get("force_full_backfill", False)),
+        fetch_run_id=fetch_run_id,
+        should_cancel=should_cancel,
+        progress_callback=progress_callback,
+        execution_token=execution_token,
+        memory_probe=memory_probe,
+    )
+    return fetch_progress(fetch_run)
 
 
-def _forget_job(fetch_run_id: int) -> None:
-    with _lock:
-        _cancel_events.pop(fetch_run_id, None)
-        _futures.pop(fetch_run_id, None)
-
-
-def _is_cancel_requested(fetch_run_id: int) -> bool:
-    with _lock:
-        event = _cancel_events.get(fetch_run_id)
-        return bool(event and event.is_set())
+def _request_key(fetch_run_id: int) -> str:
+    return f"ib-fetch:{fetch_run_id}"
 
 
 def _load_fetch_run(db: Session, fetch_run_id: int) -> IBFetchRun | None:

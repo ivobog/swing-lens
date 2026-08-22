@@ -191,7 +191,8 @@ def test_execute_fetch_plan_commits_current_item_before_historical_request(monke
         settings=Settings(ib_max_retries=1),
     )
 
-    assert observed == {"status": "RUNNING", "commits": 1}
+    assert observed["status"] == "RUNNING"
+    assert observed["commits"] >= 1
     assert fetch_run.status == "COMPLETED"
     assert fetch_run.items[0].status == "SUCCESS"
 
