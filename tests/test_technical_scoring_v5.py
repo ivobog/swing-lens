@@ -19,7 +19,10 @@ from app.services.setup_quality_v5 import calculate_setup_quality, select_setup
 from app.services.technical_indicators import load_pine_defaults
 from app.services.technical_score_service import build_technical_score
 from app.services.technical_score_v4 import technical_score_v4_from_base_score
-from app.services.technical_score_v5 import technical_score_v5_from_base_score
+from app.services.technical_score_v5 import (
+    build_v5_input_signature,
+    technical_score_v5_from_base_score,
+)
 from app.services.technical_scoring_v5_config import load_technical_scoring_v5_config
 from app.services.technical_strength_v5 import calculate_technical_strength
 from app.services.trigger_quality import calculate_trigger_quality
@@ -32,6 +35,83 @@ def test_v5_config_has_validated_weight_groups() -> None:
     assert sum(config["technical_strength"]["weights"].values()) == 1
     assert sum(config["leadership"]["weights"].values()) == 1
     assert sum(config["composite"]["risk_off"].values()) == 1
+
+
+@pytest.mark.parametrize(
+    ("channel", "key", "value"),
+    [
+        ("derived", "stock_roc10", 7.0),
+        ("contraction", "vcp_score", 8.5),
+        ("box", "breakout_quality_score", 8.5),
+        ("stage", "stage", "Stage 4"),
+        ("climax", "climax_risk_score", 8.5),
+        ("regime", "regime", "Correction"),
+        ("data_readiness", "data_quality_score", 6.0),
+        ("adaptive", "volume_percentile_252", 99.0),
+    ],
+)
+def test_v5_signature_changes_for_every_explainability_input_channel(
+    channel: str,
+    key: str,
+    value: object,
+) -> None:
+    config = load_technical_scoring_v5_config()
+    base = _base()
+    leadership = rank_leadership_v5([_leadership_row(base)], config["leadership"])["AAA"]
+    sector = resolve_sector_benchmark("Technology", config["sector_benchmarks"]["mapping"])
+    baseline = build_v5_input_signature(
+        base,
+        leadership=leadership,
+        sector_resolution=sector,
+        v5_config_hash="config-a",
+    )
+    debug = {**base.debug}
+    if channel == "derived":
+        debug["derived"] = {**base.debug["derived"], key: value}
+    else:
+        explainability = {**base.debug["explainability"]}
+        explainability[channel] = {**explainability[channel], key: value}
+        debug["explainability"] = explainability
+    changed = build_v5_input_signature(
+        replace(base, debug=debug),
+        leadership=leadership,
+        sector_resolution=sector,
+        v5_config_hash="config-a",
+    )
+
+    assert changed != baseline
+
+
+def test_v5_signature_covers_base_leadership_sector_and_config_but_not_timestamps() -> None:
+    config = load_technical_scoring_v5_config()
+    base = _base()
+    leadership = rank_leadership_v5([_leadership_row(base)], config["leadership"])["AAA"]
+    sector = resolve_sector_benchmark("Technology", config["sector_benchmarks"]["mapping"])
+
+    def signature(
+        candidate: PineReplicaScore = base,
+        *,
+        candidate_leadership=leadership,
+        candidate_sector=sector,
+        candidate_config_hash: str = "config-a",
+    ) -> str:
+        return build_v5_input_signature(
+            candidate,
+            leadership=candidate_leadership,
+            sector_resolution=candidate_sector,
+            v5_config_hash=candidate_config_hash,
+        )
+
+    baseline = signature()
+    assert signature(replace(base, suggested_stop=95.0)) != baseline
+    lower_leadership = replace(leadership, leadership_score=leadership.leadership_score - 1.0)
+    assert signature(candidate_leadership=lower_leadership) != baseline
+    unsupported = resolve_sector_benchmark(
+        "Marine Shipping", config["sector_benchmarks"]["mapping"]
+    )
+    assert signature(candidate_sector=unsupported) != baseline
+    assert signature(candidate_config_hash="config-b") != baseline
+    assert signature(replace(base, debug={**base.debug, "generated_at": "tomorrow"})) == baseline
 
 
 def test_v5_settings_and_migration_are_shadow_safe_by_default() -> None:
@@ -792,6 +872,18 @@ def _base(
         data_quality_score=10.0,
         warning_flags=(),
     )
+
+
+def _leadership_row(base: PineReplicaScore) -> dict[str, object]:
+    derived = base.debug["derived"]
+    return {
+        "ticker": base.ticker,
+        "roc21": derived["stock_roc_short"],
+        "roc63": derived["stock_roc_medium"],
+        "roc126": derived["stock_roc_long"],
+        "benchmark_rs_score": base.relative_strength_score,
+        "residual_momentum_score": derived["residual_momentum_score"],
+    }
 
 
 def _scenario_base(changes: dict) -> PineReplicaScore:

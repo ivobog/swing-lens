@@ -170,4 +170,7 @@ Sector data is loaded once per unique ETF per run after one sector metadata quer
 
 `technical_v5_calibration.py` defines the requested historical comparison columns: ticker, decision date, v4, v5 TS/SQ/EQ/TCS, classification, setup type, market regime, sector, forward 5/10-day returns, and 5/10-day MFE/MAE. It also validates records for Leadership, residual momentum, stage, HTF, trigger, climax, and old-max-setup ablations. No empirical forward-return dataset was supplied or discovered in this implementation task, so no statistical calibration claim is made.
 
-Decision: **READY FOR SHADOW**, not ready for default activation. Code, migration, compatibility, invariants, golden scenarios, and performance boundaries are certified. Default activation should wait for representative historical/shadow observations, forward-return and MFE/MAE analysis by regime/setup/sector, component ablations, and review of large v4/v5 disagreements and unknown/missing-data rates.
+Original certification decision: **READY FOR SHADOW**, not ready for default activation.
+The later empirical shadow decision is maintained separately in
+`docs/technical_scoring_v5_shadow_evaluation.md`; this implementation certificate is not
+retroactively rewritten into an activation claim.

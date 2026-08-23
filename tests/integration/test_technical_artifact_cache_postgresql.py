@@ -37,7 +37,7 @@ def test_only_shadow_certified_artifacts_can_be_active_hits(
         ticker="MSFT",
         adjusted_series_version=12,
         trades_series_version=15,
-        indicator_config_hash="indicator-a",
+        feature_config_hash="feature-a",
         scoring_config_hash="scoring-a",
         technical_engine_version="3.2.0",
     )
@@ -76,7 +76,7 @@ def test_only_shadow_certified_artifacts_can_be_active_hits(
             ticker="MSFT",
             adjusted_series_version=13,
             trades_series_version=15,
-            indicator_config_hash="indicator-a",
+            feature_config_hash="feature-a",
             scoring_config_hash="scoring-a",
             technical_engine_version="3.2.0",
         )

@@ -304,6 +304,7 @@ class TechnicalFeatureArtifact(Base):
     input_signature: Mapped[str] = mapped_column(Text, nullable=False)
     artifact_schema_version: Mapped[str] = mapped_column(Text, nullable=False)
     technical_engine_version: Mapped[str] = mapped_column(Text, nullable=False)
+    feature_config_hash: Mapped[str] = mapped_column(Text, nullable=False)
     scoring_config_hash: Mapped[str] = mapped_column(Text, nullable=False)
     input_versions_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     artifact_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)

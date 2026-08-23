@@ -175,7 +175,7 @@ def test_process_pool_shadow_mode_returns_fresh_score_and_validation_candidate(
         ticker="AAA",
         adjusted_series_version=1,
         trades_series_version=1,
-        indicator_config_hash="indicator",
+        feature_config_hash="feature",
         scoring_config_hash="scoring",
         technical_engine_version="3.2.0",
     )
@@ -225,7 +225,7 @@ def test_process_pool_shadow_mode_returns_fresh_score_and_validation_candidate(
         v4_params=technical_config,
         settings=settings,
         run_id=7,
-        indicator_config_hash="indicator",
+        feature_config_hash="feature",
         scoring_config_hash="scoring",
     )
 

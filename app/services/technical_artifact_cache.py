@@ -26,6 +26,7 @@ class LocalArtifactKey:
     input_signature: str
     artifact_schema_version: str
     technical_engine_version: str
+    feature_config_hash: str
     scoring_config_hash: str
     input_versions: dict[str, Any]
 
@@ -44,7 +45,7 @@ def build_local_artifact_key(
     timeframe: str = "1 day",
     adjusted_series_version: int,
     trades_series_version: int,
-    indicator_config_hash: str,
+    feature_config_hash: str,
     scoring_config_hash: str,
     technical_engine_version: str,
     artifact_schema_version: str = ARTIFACT_SCHEMA_VERSION,
@@ -52,8 +53,7 @@ def build_local_artifact_key(
     input_versions = {
         "adjusted_series_version": adjusted_series_version,
         "trades_series_version": trades_series_version,
-        "indicator_config_hash": indicator_config_hash,
-        "scoring_config_hash": scoring_config_hash,
+        "feature_config_hash": feature_config_hash,
     }
     signature_payload = {
         "ticker": ticker.upper(),
@@ -69,6 +69,7 @@ def build_local_artifact_key(
         input_signature=signature,
         artifact_schema_version=artifact_schema_version,
         technical_engine_version=technical_engine_version,
+        feature_config_hash=feature_config_hash,
         scoring_config_hash=scoring_config_hash,
         input_versions=input_versions,
     )
@@ -188,6 +189,7 @@ def upsert_local_artifact(
             input_signature=key.input_signature,
             artifact_schema_version=key.artifact_schema_version,
             technical_engine_version=key.technical_engine_version,
+            feature_config_hash=key.feature_config_hash,
             scoring_config_hash=key.scoring_config_hash,
             input_versions_json=key.input_versions,
             artifact_json=artifact_json,

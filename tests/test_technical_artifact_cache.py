@@ -24,7 +24,7 @@ def test_local_artifact_signature_is_canonical_and_revision_aware() -> None:
         ticker="msft",
         adjusted_series_version=12,
         trades_series_version=15,
-        indicator_config_hash=config_hash({"ema": 20, "rsi": 14}),
+        feature_config_hash=config_hash({"ema": 20, "rsi": 14}),
         scoring_config_hash="scoring-a",
         technical_engine_version="3.2.0",
     )
@@ -32,7 +32,7 @@ def test_local_artifact_signature_is_canonical_and_revision_aware() -> None:
         ticker="MSFT",
         adjusted_series_version=12,
         trades_series_version=15,
-        indicator_config_hash=config_hash({"rsi": 14, "ema": 20}),
+        feature_config_hash=config_hash({"rsi": 14, "ema": 20}),
         scoring_config_hash="scoring-a",
         technical_engine_version="3.2.0",
     )
@@ -40,7 +40,7 @@ def test_local_artifact_signature_is_canonical_and_revision_aware() -> None:
         ticker="MSFT",
         adjusted_series_version=13,
         trades_series_version=15,
-        indicator_config_hash=first.input_versions["indicator_config_hash"],
+        feature_config_hash=first.input_versions["feature_config_hash"],
         scoring_config_hash="scoring-a",
         technical_engine_version="3.2.0",
     )
@@ -57,8 +57,7 @@ def test_local_artifact_signature_is_canonical_and_revision_aware() -> None:
     [
         ("adjusted_series_version", 13),
         ("trades_series_version", 16),
-        ("indicator_config_hash", "indicator-b"),
-        ("scoring_config_hash", "scoring-b"),
+        ("feature_config_hash", "feature-b"),
         ("technical_engine_version", "3.3.0"),
         ("artifact_schema_version", "2"),
         ("timeframe", "1 hour"),
@@ -73,7 +72,7 @@ def test_local_artifact_signature_invalidates_every_local_dependency(
         "timeframe": "1 day",
         "adjusted_series_version": 12,
         "trades_series_version": 15,
-        "indicator_config_hash": "indicator-a",
+        "feature_config_hash": "feature-a",
         "scoring_config_hash": "scoring-a",
         "technical_engine_version": "3.2.0",
     }
@@ -83,6 +82,22 @@ def test_local_artifact_signature_invalidates_every_local_dependency(
     changed = build_local_artifact_key(**inputs)
 
     assert changed.input_signature != baseline.input_signature
+
+
+def test_local_artifact_signature_ignores_final_scoring_identity() -> None:
+    inputs = {
+        "ticker": "MSFT",
+        "adjusted_series_version": 12,
+        "trades_series_version": 15,
+        "feature_config_hash": "feature-a",
+        "technical_engine_version": "3.2.0",
+    }
+    baseline = build_local_artifact_key(**inputs, scoring_config_hash="v5-baseline")
+    reweighted = build_local_artifact_key(**inputs, scoring_config_hash="v5-reweighted")
+
+    assert reweighted.input_signature == baseline.input_signature
+    assert reweighted.feature_config_hash == baseline.feature_config_hash
+    assert reweighted.scoring_config_hash != baseline.scoring_config_hash
 
 
 def test_series_version_maintenance_is_a_noop_without_changed_series() -> None:
