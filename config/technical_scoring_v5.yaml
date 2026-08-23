@@ -1,0 +1,133 @@
+engine:
+  version: "5.0.0"
+  base_engine_version: "3.2.0"
+
+technical_strength:
+  weights: {trend: 0.52, momentum: 0.30, leadership: 0.18}
+trend:
+  local_weight: 0.75
+  htf_weight: 0.25
+momentum:
+  base_weight: 0.85
+  acceleration_weight: 0.15
+  acceleration_points_per_pct: 0.25
+leadership:
+  scope: run_universe
+  weights:
+    roc21: 0.30
+    roc63: 0.25
+    roc126: 0.15
+    benchmark_rs: 0.15
+    residual_momentum: 0.15
+  leadership_min_percentile: 70
+  renormalize_missing: true
+  require_beta_adjusted_rs: true
+
+sector_benchmarks:
+  enabled: true
+  fallback_to_market_only: true
+  required_for_confidence: false
+  benchmark_rs_mix: {broad_market: 0.70, sector: 0.30}
+  mapping:
+    Technology: XLK
+    Financials: XLF
+    Energy: XLE
+    Industrials: XLI
+    Health Care: XLV
+    Consumer Discretionary: XLY
+    Consumer Staples: XLP
+    Utilities: XLU
+    Real Estate: XLRE
+    Materials: XLB
+    Communication Services: XLC
+
+setup_quality:
+  supported_types: [pullback, vcp, breakout, momentum_continuation, extended_momentum, trend_repair, none]
+  selection:
+    vcp_min_score: 7.0
+    breakout_min_score: 7.0
+  pullback: {primary: 0.70, volume_confirmation: 0.15, trigger_readiness: 0.15}
+  vcp: {primary: 0.75, trend_confirmation: 0.15, trigger_readiness: 0.10}
+  breakout: {primary: 0.75, volume_confirmation: 0.15, base_tightness: 0.10}
+  momentum_continuation: {primary: 0.55, trend_confirmation: 0.25, execution_readiness: 0.20}
+  extended_momentum: {primary: 0.70, execution_readiness: 0.30}
+  trend_repair: {primary: 0.70, trend_confirmation: 0.30}
+
+trigger:
+  far_below_atr: 2.0
+  approaching_atr: 1.0
+  near_atr: 0.25
+  freshly_triggered_atr: -0.5
+  extended_atr: -1.5
+  scores:
+    invalidated: 0.0
+    too_far_below: 2.0
+    approaching: 4.0
+    near: 7.0
+    at_trigger: 9.0
+    freshly_triggered: 10.0
+    beyond_trigger: 7.0
+    extended_beyond_trigger: 3.0
+    not_applicable: 5.0
+
+risk:
+  secondary_risk_weight: 0.20
+  stock_specific_thresholds:
+    rsi_warn: 75.0
+    rsi_danger: 80.0
+    distribution_count: 3
+  stock_specific_points:
+    extension_warn: 1.0
+    extension_danger: 1.5
+    rsi_warn: 0.8
+    rsi_danger: 0.7
+    near_resistance: 0.7
+    heavy_red: 1.5
+    distribution: 1.5
+    failed_breakout: 2.0
+    gap_exhaustion: 1.5
+    liquidity_warning: 0.8
+    atr_warn: 0.7
+    atr_danger: 1.0
+    rs_weak: 1.0
+    rs_neutral: 0.4
+    sector_weak: 0.7
+    htf_weak: 1.0
+    htf_neutral: 0.3
+    heavy_mid_ma_break: 1.0
+entry_quality:
+  weights: {risk_control: 0.50, execution: 0.30, trigger: 0.20}
+execution:
+  preferred_stop_atr_min: 1.0
+  preferred_stop_atr_max: 2.5
+  stop_atr_outer_min: 0.5
+  stop_atr_outer_max: 4.0
+  reward_risk_target: 3.0
+  fallback_target_discount: 0.70
+  weights: {reward_risk: 0.35, stop_geometry: 0.30, liquidity: 0.20, stop_validity: 0.15}
+stage:
+  modifiers:
+    stage_2: 0.25
+    stage_1_to_2: 0.10
+    stage_1: 0.00
+    unknown: -0.10
+    stage_3: -0.50
+    stage_4: -1.00
+danger_caps:
+  detection:
+    climax_risk_min: 7.0
+    extension_percentile_min: 90.0
+    extension_pct_min: 15.0
+    rsi_min: 75.0
+  entry_quality:
+    failed_breakout: 3.5
+    climax_reversal_risk: 4.0
+    blowoff_top: 3.0
+    distribution_risk: 4.5
+    late_stage_extension: 5.0
+composite:
+  bull_trend: {technical_strength: 0.45, setup_quality: 0.35, entry_quality: 0.20}
+  choppy: {technical_strength: 0.35, setup_quality: 0.35, entry_quality: 0.30}
+  risk_off: {technical_strength: 0.25, setup_quality: 0.25, entry_quality: 0.50}
+confidence:
+  factors: {high: 1.00, normal: 0.85, low: 0.50, error: 0.00}

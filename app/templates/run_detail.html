@@ -910,9 +910,22 @@
                 {% endif %}
               </td>
               <td>
-                {{ "%.2f"|format(result.dual_score) if result.dual_score is not none else "" }}
-                {% if result.technical_classification %}
-                  <span class="muted-line">{{ result.technical_classification }}</span>
+                {% if technical_details.get("technical_composite_score") is number %}
+                  <span class="muted-line">Technical V5{% if technical_details.get("v5_rollout_mode") == "shadow" %} (shadow){% endif %}</span>
+                  {{ "%.2f"|format(technical_details.get("technical_composite_score")) }}
+                  <span class="muted-line">S {{ "%.1f"|format(technical_details.get("technical_strength_score")) }} / Q {{ "%.1f"|format(technical_details.get("setup_quality_score")) }} / E {{ "%.1f"|format(technical_details.get("entry_quality_score")) }}</span>
+                  {% if technical_details.get("v5_classification") %}
+                    {% if technical_details.get("danger_state") %}
+                      <span class="badge badge-danger">{{ technical_details.get("v5_classification") }} · {{ technical_details.get("danger_state")|replace('_', ' ') }}</span>
+                    {% else %}
+                      <span class="muted-line">{{ technical_details.get("v5_classification") }}</span>
+                    {% endif %}
+                  {% endif %}
+                {% else %}
+                  {{ "%.2f"|format(result.dual_score) if result.dual_score is not none else "" }}
+                  {% if result.technical_classification %}
+                    <span class="muted-line">{{ result.technical_classification }}</span>
+                  {% endif %}
                 {% endif %}
               </td>
               <td>
@@ -1007,6 +1020,30 @@
                         <dd>{{ technical_details.get("technical_version", "") }}</dd>
                         <dt>Score</dt>
                         <dd>{{ "%.2f"|format(technical.dual_score) if technical.dual_score is not none else "" }}</dd>
+                        {% if technical_details.get("technical_composite_score") is number %}
+                          <dt>V5 Composite</dt>
+                          <dd>{{ "%.2f"|format(technical_details.get("technical_composite_score")) }}</dd>
+                          <dt>V5 Strength</dt>
+                          <dd>{{ "%.2f"|format(technical_details.get("technical_strength_score")) }}</dd>
+                          <dt>V5 Setup Quality</dt>
+                          <dd>{{ "%.2f"|format(technical_details.get("setup_quality_score")) }} · {{ technical_details.get("setup_type", "") }}</dd>
+                          <dt>V5 Entry Quality</dt>
+                          <dd>{{ "%.2f"|format(technical_details.get("entry_quality_score")) }}</dd>
+                          <dt>V5 Confidence-adjusted</dt>
+                          <dd>{{ "%.2f"|format(technical_details.get("confidence_adjusted_score")) }}</dd>
+                          <dt>Trigger / Stop ATR</dt>
+                          <dd>{{ technical_details.get("trigger_distance_atr", "") }} / {{ technical_details.get("stop_distance_atr", "") }}</dd>
+                          <dt>Sector benchmark</dt>
+                          <dd>{{ technical_details.get("sector_benchmark_symbol", "") or "Market-only fallback" }}</dd>
+                          <dt>Residual momentum</dt>
+                          <dd>{{ technical_details.get("residual_momentum_score", "") }}</dd>
+                          <dt>V5 Risk / Execution / Trigger</dt>
+                          <dd>{{ technical_details.get("combined_risk", "") }} / {{ technical_details.get("execution_quality", "") }} / {{ technical_details.get("trigger_quality", "") }}</dd>
+                          {% if technical_details.get("danger_state") %}
+                            <dt>Danger</dt>
+                            <dd><span class="badge badge-danger">{{ technical_details.get("danger_state")|replace('_', ' ') }}</span></dd>
+                          {% endif %}
+                        {% endif %}
                         <dt>Trend</dt>
                         <dd>{{ "%.2f"|format(technical.trend_score) if technical.trend_score is not none else "" }}</dd>
                         <dt>Momentum</dt>

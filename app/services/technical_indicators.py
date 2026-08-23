@@ -463,6 +463,7 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     features["plus_di_rising"] = features["plus_di"] > features["plus_di"].shift(1)
     features["rsi_rising"] = features["rsi14"] > features["rsi14"].shift(1)
 
+    features["roc10"] = roc_pct(close, 10)
     features["roc21"] = roc_pct(close, params["market_rs"]["rocShortLen"])
     features["roc63"] = roc_pct(close, params["market_rs"]["rocMediumLen"])
     features["roc126"] = roc_pct(close, params["market_rs"]["rocLongLen"])
@@ -645,16 +646,26 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         raw_stop = structure_stop
     else:
         raw_stop = atr_stop
-    features["suggested_stop"] = raw_stop.where(
-        raw_stop.notna() & (raw_stop < close),
-        atr_stop,
+    valid_configured_stop = raw_stop.notna() & (raw_stop < close)
+    features["suggested_stop"] = raw_stop.where(valid_configured_stop, atr_stop)
+    configured_stop_source = {
+        "SMA50": "SMA50",
+        "Structure": "STRUCTURE",
+        "Structure + ATR": "STRUCTURE_ATR",
+    }.get(stop_target["stopMode"], "ATR")
+    features["stop_source"] = np.where(
+        valid_configured_stop,
+        configured_stop_source,
+        "ATR_FALLBACK",
     )
     features["entry_risk_pct"] = (close - features["suggested_stop"]) / close * 100
     entry_risk = close - features["suggested_stop"]
     base_height = (features["previous_resistance"] - features["recent_low_after_high"]).clip(
         lower=0.0,
     )
-    if stop_target["targetMode"] == "Prior High":
+    if stop_target["targetMode"] == "Prior Resistance":
+        raw_target = features["previous_resistance"]
+    elif stop_target["targetMode"] == "Prior High":
         raw_target = features["prior_high"]
     elif stop_target["targetMode"] == "Measured Move":
         raw_target = features["previous_resistance"] + base_height
@@ -663,9 +674,18 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     else:
         raw_target = close + entry_risk * stop_target["targetRewardMultiple"]
     fallback_target = close + entry_risk * stop_target["targetRewardMultiple"]
-    features["suggested_target"] = raw_target.where(
-        raw_target.notna() & (raw_target > close),
-        fallback_target,
+    valid_configured_target = raw_target.notna() & (raw_target > close)
+    features["suggested_target"] = raw_target.where(valid_configured_target, fallback_target)
+    configured_target_source = {
+        "Prior Resistance": "PRIOR_RESISTANCE",
+        "Prior High": "PRIOR_HIGH",
+        "Measured Move": "MEASURED_MOVE",
+        "ATR Target": "ATR_TARGET",
+    }.get(stop_target["targetMode"], "R_MULTIPLE_FALLBACK")
+    features["target_source"] = np.where(
+        valid_configured_target,
+        configured_target_source,
+        "R_MULTIPLE_FALLBACK",
     )
     features["reward_risk"] = (features["suggested_target"] - close) / (
         close - features["suggested_stop"]
