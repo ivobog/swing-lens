@@ -145,17 +145,12 @@ def technical_score_v5_from_base_score(
     action = _action(classification, regime_key, setup.setup_type)
     residual = _optional_num(derived.get("residual_momentum_score"))
     cfg_hash = config_hash(v5_config)
-    input_signature = hashlib.sha256(
-        canonical_json(
-            {
-                "ticker": base.ticker.upper(),
-                "derived": derived,
-                "leadership": asdict(leadership) if leadership else None,
-                "sector_resolution": asdict(sector_resolution),
-                "config_hash": cfg_hash,
-            }
-        ).encode("utf-8")
-    ).hexdigest()
+    input_signature = build_v5_input_signature(
+        base,
+        leadership=leadership,
+        sector_resolution=sector_resolution,
+        v5_config_hash=cfg_hash,
+    )
     debug = _explainability(
         base=base,
         config_hash_value=cfg_hash,
@@ -206,6 +201,54 @@ def technical_score_v5_from_base_score(
         trigger_quality=trigger,
         debug=debug,
     )
+
+
+def build_v5_input_signature(
+    base: PineReplicaScore,
+    *,
+    leadership: LeadershipV5Result | None,
+    sector_resolution: SectorBenchmarkResolution,
+    v5_config_hash: str,
+) -> str:
+    """Hash every deterministic input that can affect a persisted v5 result.
+
+    Cross-sectional Leadership and sector resolution are supplied separately from the
+    ticker-local Pine result.  The remaining v5 inputs live partly in ``derived`` and
+    partly in explainability channels, so those channels must be named explicitly; in
+    particular, Stage, Climax Risk, regime, contraction, and box evidence are not
+    guaranteed to be duplicated in ``derived``.
+    """
+
+    explainability = _dict(base.debug.get("explainability"))
+    payload = {
+        "ticker": base.ticker.upper(),
+        "base": {
+            "local_trend_score": base.local_trend_score,
+            "htf_score": base.htf_score,
+            "momentum_score": base.momentum_score,
+            "setup_score": base.setup_score,
+            "classification": base.classification,
+            "suggested_stop": base.suggested_stop,
+            "suggested_target": base.suggested_target,
+            "reward_risk": base.reward_risk,
+            "technical_confidence": base.technical_confidence,
+            "data_quality_score": base.data_quality_score,
+            "missing_data": base.missing_data,
+            "warning_flags": base.warning_flags,
+        },
+        "derived": _dict(base.debug.get("derived")),
+        "contraction": _dict(explainability.get("contraction")),
+        "box": _dict(explainability.get("box")),
+        "stage": _dict(explainability.get("stage")),
+        "climax": _dict(explainability.get("climax")),
+        "regime": _dict(explainability.get("regime")),
+        "data_readiness": _dict(explainability.get("data_readiness")),
+        "adaptive": _dict(explainability.get("adaptive")),
+        "leadership": asdict(leadership) if leadership else None,
+        "sector_resolution": asdict(sector_resolution),
+        "v5_config_hash": v5_config_hash,
+    }
+    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
 
 def regime_weight_key(regime: str, regime_payload: dict[str, Any] | None = None) -> str:

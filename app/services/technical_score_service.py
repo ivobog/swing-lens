@@ -97,7 +97,7 @@ def score_run_technicals(
         if calculate_v5
         else TechnicalV5RunContext(resolutions={}, sector_features={})
     )
-    indicator_config_hash = config_hash(pine_params)
+    feature_config_hash = config_hash({"pine": pine_params, "v4_features": v4_params})
     scoring_config_hash = config_hash(
         {"v4": v4_params, "v5": v5_params} if calculate_v5 else v4_params
     )
@@ -116,7 +116,7 @@ def score_run_technicals(
             v4_params=v4_params,
             settings=settings,
             run_id=run_id,
-            indicator_config_hash=indicator_config_hash,
+            feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
         )
     elif (
@@ -136,7 +136,7 @@ def score_run_technicals(
             shadow_compare=settings.technical_pure_boundary_shadow_compare_enabled,
             run_id=run_id,
             settings=settings,
-            indicator_config_hash=indicator_config_hash,
+            feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
         )
     else:
@@ -298,7 +298,9 @@ class TechnicalScoringOverlapCoordinator:
         self.pine_params = load_pine_defaults()
         self.v4_params = load_technical_scoring_v4_config()
         self.v5_params = load_technical_scoring_v5_config()
-        self.indicator_config_hash = config_hash(self.pine_params)
+        self.feature_config_hash = config_hash(
+            {"pine": self.pine_params, "v4_features": self.v4_params}
+        )
         self.scoring_config_hash = config_hash(
             {"v4": self.v4_params, "v5": self.v5_params}
             if getattr(self.settings, "technical_v5_enabled", False)
@@ -455,7 +457,7 @@ class TechnicalScoringOverlapCoordinator:
                 db=self.db,
                 ticker=ticker,
                 settings=self.settings,
-                indicator_config_hash=self.indicator_config_hash,
+                feature_config_hash=self.feature_config_hash,
                 scoring_config_hash=self.scoring_config_hash,
             )
             item = _build_work_item(
@@ -588,7 +590,7 @@ class TechnicalScoringOverlapCoordinator:
             shadow_compare=False,
             run_id=self.run_id,
             settings=self.settings,
-            indicator_config_hash=self.indicator_config_hash,
+            feature_config_hash=self.feature_config_hash,
             scoring_config_hash=self.scoring_config_hash,
         )
         _record_technical_duration(
@@ -733,7 +735,7 @@ def _score_tickers_pure_sequential(
     shadow_compare: bool,
     run_id: int,
     settings: Settings,
-    indicator_config_hash: str,
+    feature_config_hash: str,
     scoring_config_hash: str,
 ) -> list[PineReplicaScore | TechnicalScore]:
     results: list[PineReplicaScore | TechnicalScore] = []
@@ -744,7 +746,7 @@ def _score_tickers_pure_sequential(
                 db=db,
                 ticker=ticker,
                 settings=settings,
-                indicator_config_hash=indicator_config_hash,
+                feature_config_hash=feature_config_hash,
                 scoring_config_hash=scoring_config_hash,
             )
             item = _build_work_item(
@@ -826,7 +828,7 @@ def _score_tickers_process_pool(
     v4_params: dict[str, Any],
     settings: Settings,
     run_id: int,
-    indicator_config_hash: str,
+    feature_config_hash: str,
     scoring_config_hash: str,
 ) -> list[PineReplicaScore | TechnicalScore]:
     items: list[tuple[int, TechnicalWorkItem]] = []
@@ -838,7 +840,7 @@ def _score_tickers_process_pool(
                 db=db,
                 ticker=ticker,
                 settings=settings,
-                indicator_config_hash=indicator_config_hash,
+                feature_config_hash=feature_config_hash,
                 scoring_config_hash=scoring_config_hash,
             )
             items.append(
@@ -942,7 +944,7 @@ def _score_tickers_process_pool(
             shadow_compare=False,
             run_id=run_id,
             settings=settings,
-            indicator_config_hash=indicator_config_hash,
+            feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
         )
 
@@ -1007,7 +1009,7 @@ def _artifact_cache_context(
     db: Session,
     ticker: str,
     settings: Settings,
-    indicator_config_hash: str,
+    feature_config_hash: str,
     scoring_config_hash: str,
 ) -> tuple[LocalArtifactKey | None, dict[str, Any] | None]:
     cache_reads = settings.technical_artifact_cache_reads_enabled
@@ -1021,7 +1023,7 @@ def _artifact_cache_context(
         ticker=ticker,
         adjusted_series_version=versions["ADJUSTED_LAST"],
         trades_series_version=versions["TRADES"],
-        indicator_config_hash=indicator_config_hash,
+        feature_config_hash=feature_config_hash,
         scoring_config_hash=scoring_config_hash,
         technical_engine_version=ENGINE_VERSION,
     )

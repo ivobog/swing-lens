@@ -26,7 +26,10 @@ leadership universe, applies `technical_score_v4_from_base_score`, and persists 
 
 ## Compatibility and cache boundaries
 
-The local artifact cache remains ticker-local.  Its scoring hash includes the v5 config
-when v5 shadow or active calculation is enabled.  Cross-sectional Leadership is never
-cached as a local artifact.  Sector ETF identity/data participates in the run-level market
-signature used by stale-result fencing.
+The local artifact cache remains ticker-local. Its input signature now uses a dedicated
+feature-generation hash (Pine plus the v4 feature-generation contract); final v4/v5
+scoring identity is retained as provenance but does not invalidate local OHLCV/indicator
+artifacts. Pure v5 weight, cap, confidence, and composite changes therefore reuse the
+same local features, while a Pine/v4 feature-generation change invalidates them.
+Cross-sectional Leadership is never cached as a local artifact. Sector ETF identity/data
+participates in the run-level market signature used by stale-result fencing.
