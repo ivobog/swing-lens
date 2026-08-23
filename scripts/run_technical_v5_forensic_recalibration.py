@@ -330,6 +330,18 @@ def _enrich(frame: pd.DataFrame, *, skip_features: bool) -> pd.DataFrame:
                 "rsi": _optional(derived.get("rsi")),
                 "atr_percentile": _optional(adaptive.get("atr_percentile_252")),
                 "volume_percentile": _optional(adaptive.get("volume_percentile_252")),
+                "volume_confirmation": _optional_bool(
+                    derived.get("breakout_volume_confirmed")
+                ),
+                "strong_close_ratio": _optional(derived.get("strong_close")),
+                "breakout_volume_confirmed": _optional_bool(
+                    derived.get("bullish_breakout_volume")
+                ),
+                "breakout_volume_percentile": _optional(
+                    adaptive.get("volume_percentile_252")
+                ),
+                "gap_up_pct": _feature_or(feature, "gap_up_pct", derived.get("gap_up_pct")),
+                "gap_exhaustion": _optional_bool(derived.get("gap_exhaustion")),
                 "climax_score": _optional(climax.get("climax_risk_score")),
                 "base_setup_score": _optional(raw.get("setup_score")),
                 "vcp_score": _optional(contraction.get("vcp_score")),
@@ -1238,6 +1250,12 @@ def _optional(value: Any) -> float | None:
         return float(value) if value is not None and pd.notna(value) else None
     except (TypeError, ValueError):
         return None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    return bool(value)
 
 
 def _number(value: Any, default: float = 0.0) -> float:

@@ -1,0 +1,62 @@
+research:
+  version: "5.1.0-research.1"
+  dataset_version: "technical-v5-shadow-forensic-v2"
+  production_enabled: false
+  active_extension_threshold_set: balanced_v1
+  v4_secondary_sort_band_size: 0.5
+  minimum_promotion_dates: 50
+  preferred_promotion_dates: 80
+
+# These two fixed sets are sensitivity checks, not a search grid. A state is promoted
+# when two inputs agree at a severity level; Stage 4 and severe climax risk are hard
+# overrides. Candidate ranking uses balanced_v1 only.
+extension_threshold_sets:
+  balanced_v1:
+    ema20_extension_pct: [4.0, 7.0, 12.0]
+    sma50_extension_pct: [8.0, 14.0, 22.0]
+    ema20_extension_atr: [1.0, 2.0, 3.0]
+    sma50_extension_atr: [2.25, 3.75, 5.0]
+    extension_percentile: [60.0, 80.0, 95.0]
+    rsi: [60.0, 70.0, 78.0]
+    roc10: [5.0, 12.0, 20.0]
+    roc21: [8.0, 18.0, 30.0]
+    climax_risk: [1.0, 4.0, 7.0]
+    trigger_extension_atr: [0.5, 1.5, 2.5]
+  conservative_v1:
+    ema20_extension_pct: [5.0, 8.0, 15.0]
+    sma50_extension_pct: [10.0, 16.0, 25.0]
+    ema20_extension_atr: [1.25, 2.25, 3.5]
+    sma50_extension_atr: [2.5, 4.0, 5.5]
+    extension_percentile: [70.0, 85.0, 97.5]
+    rsi: [65.0, 72.0, 80.0]
+    roc10: [7.0, 14.0, 24.0]
+    roc21: [10.0, 20.0, 35.0]
+    climax_risk: [1.5, 5.0, 7.0]
+    trigger_extension_atr: [0.75, 1.75, 3.0]
+
+trigger_policy:
+  eligible_states:
+    - APPROACHING
+    - NEAR
+    - AT_TRIGGER
+    - FRESHLY_TRIGGERED
+    - BEYOND_TRIGGER
+    - NOT_APPLICABLE
+  preference:
+    FRESHLY_TRIGGERED: 0
+    NEAR: 1
+    AT_TRIGGER: 2
+    APPROACHING: 3
+    BEYOND_TRIGGER: 4
+    NOT_APPLICABLE: 5
+    EXTENDED_BEYOND_TRIGGER: 6
+    TOO_FAR_BELOW: 7
+    INVALIDATED: 8
+
+danger:
+  labels:
+    - Failed breakout
+    - Distribution risk
+    - Climax reversal risk
+    - Blowoff top
+    - Late-stage extension

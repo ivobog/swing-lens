@@ -1,0 +1,67 @@
+{
+  "immutable_baselines": {
+    "V4_BASELINE": {
+      "candidate_id": "V4_BASELINE",
+      "candidate_version": "4.0.0",
+      "config_hash": "2be86010063a1d2de93294ddd193c43fecb7c5149192bd4faffe0e5e149f0d73",
+      "dataset_signature": "04b0932e74b33abe663975f952cabe6ba369477f6f72879c726986329355bf4e",
+      "dataset_version": "technical-v5-shadow-forensic-v2",
+      "decision_date_coverage": {
+        "count": 10,
+        "dates": [
+          "2026-07-17",
+          "2026-07-31",
+          "2026-08-03",
+          "2026-08-04",
+          "2026-08-05",
+          "2026-08-06",
+          "2026-08-07",
+          "2026-08-10",
+          "2026-08-20",
+          "2026-08-21"
+        ],
+        "first": "2026-07-17",
+        "last": "2026-08-21"
+      },
+      "engine_version": "4.0.0",
+      "git_commit": "6b3ec7b19ecd8cc7d7a47be6d39a817fb444c9ae",
+      "input_signature_count": 4800,
+      "migration_head": "0053_split_artifact_identity"
+    },
+    "V5_BASELINE": {
+      "candidate_id": "V5_BASELINE",
+      "candidate_version": "5.0.0",
+      "config_hash": "ad813416d238476c98b2f03c94175396247be7a9c1a6bf5a65ae095018672ae4",
+      "dataset_signature": "04b0932e74b33abe663975f952cabe6ba369477f6f72879c726986329355bf4e",
+      "dataset_version": "technical-v5-shadow-forensic-v2",
+      "decision_date_coverage": {
+        "count": 10,
+        "dates": [
+          "2026-07-17",
+          "2026-07-31",
+          "2026-08-03",
+          "2026-08-04",
+          "2026-08-05",
+          "2026-08-06",
+          "2026-08-07",
+          "2026-08-10",
+          "2026-08-20",
+          "2026-08-21"
+        ],
+        "first": "2026-07-17",
+        "last": "2026-08-21"
+      },
+      "engine_version": "5.0.0",
+      "git_commit": "6b3ec7b19ecd8cc7d7a47be6d39a817fb444c9ae",
+      "input_signature_count": 4800,
+      "migration_head": "0053_split_artifact_identity"
+    }
+  },
+  "research_candidates": {
+    "active_extension_threshold_set": "balanced_v1",
+    "candidate_version": "5.1.0-research.1",
+    "config_hash": "20af962b672513fa396da2a3b528968497958561156be292b66c8b949e1e100b",
+    "git_commit": "6b3ec7b19ecd8cc7d7a47be6d39a817fb444c9ae",
+    "production_enabled": false
+  }
+}
