@@ -3,7 +3,7 @@ import json
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
 from time import perf_counter
 from typing import Any
@@ -14,15 +14,22 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import RawCompanyRow, TechnicalScore
 from app.services.ib_fetch_executor import TickerReadyEvent
+from app.services.leadership_v5 import rank_leadership_v5
 from app.services.operational_metrics import operational_metrics
 from app.services.pine_replica_engine import (
     ENGINE_VERSION,
     PineReplicaScore,
+    relative_strength_score,
     score_from_feature_result,
 )
 from app.services.price_bar_repository import load_preferred_ohlcv_frames
 from app.services.price_series_version_service import load_series_versions
 from app.services.relative_leadership import calculate_beta_adjusted_rs, rank_technical_universe
+from app.services.sector_benchmark_service import (
+    SectorBenchmarkResolution,
+    mark_benchmark_data_missing,
+    resolutions_for_tickers,
+)
 from app.services.technical_artifact_cache import (
     LocalArtifactKey,
     build_local_artifact_key,
@@ -43,7 +50,9 @@ from app.services.technical_score_v4 import (
     TechnicalScoreV4,
     technical_score_v4_from_base_score,
 )
+from app.services.technical_score_v5 import TechnicalScoreV5, technical_score_v5_from_base_score
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
+from app.services.technical_scoring_v5_config import load_technical_scoring_v5_config
 from app.services.technical_work import (
     TechnicalWorkItem,
     TechnicalWorkResult,
@@ -57,6 +66,12 @@ class TechnicalScoringError(ValueError):
     pass
 
 
+@dataclass(frozen=True)
+class TechnicalV5RunContext:
+    resolutions: dict[str, SectorBenchmarkResolution]
+    sector_features: dict[str, dict[str, float | None]]
+
+
 def score_run_technicals(
     db: Session,
     run_id: int,
@@ -66,6 +81,7 @@ def score_run_technicals(
     input_started = perf_counter()
     symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
     v4_params = load_technical_scoring_v4_config()
+    v5_params = load_technical_scoring_v5_config()
     pine_params = load_pine_defaults()
     benchmark_price = _load_price_frame(db, benchmark_ticker)
     market_features = _market_features(benchmark_price, benchmark_ticker)
@@ -73,8 +89,18 @@ def score_run_technicals(
     qqq_market_features = _optional_market_features(db, "QQQ", v4_params)
 
     settings = get_settings()
+    calculate_v5 = getattr(settings, "technical_v5_enabled", False) or getattr(
+        settings, "technical_v5_shadow_compare_enabled", True
+    )
+    v5_context = (
+        _technical_v5_run_context(db, run_id, symbols, v5_params)
+        if calculate_v5
+        else TechnicalV5RunContext(resolutions={}, sector_features={})
+    )
     indicator_config_hash = config_hash(pine_params)
-    scoring_config_hash = config_hash(v4_params)
+    scoring_config_hash = config_hash(
+        {"v4": v4_params, "v5": v5_params} if calculate_v5 else v4_params
+    )
     artifact_cache_active = settings.technical_artifact_cache_writes_enabled
     _record_technical_duration("input_load", input_started, run_id=run_id)
     worker_started = perf_counter()
@@ -133,6 +159,9 @@ def score_run_technicals(
         score_results,
         symbols=symbols,
         v4_params=v4_params,
+        v5_params=v5_params,
+        v5_context=v5_context,
+        settings=settings,
     )
     _record_technical_duration("finalize", finalize_started, run_id=run_id)
     return scores
@@ -145,32 +174,93 @@ def finalize_technical_scores(
     *,
     symbols: list[str] | None = None,
     v4_params: dict[str, Any] | None = None,
+    v5_params: dict[str, Any] | None = None,
+    v5_context: TechnicalV5RunContext | None = None,
+    settings: Settings | None = None,
 ) -> list[TechnicalScore]:
     v4_params = v4_params or load_technical_scoring_v4_config()
+    v5_params = v5_params or load_technical_scoring_v5_config()
+    settings = settings or get_settings()
+    pine_params = load_pine_defaults()
     symbols = symbols or [
         result.ticker.upper()
         for result in score_results
         if isinstance(result, (PineReplicaScore, TechnicalScore))
     ]
-    scored = [
-        result for result in score_results if isinstance(result, PineReplicaScore)
-    ]
+    scored = [result for result in score_results if isinstance(result, PineReplicaScore)]
     leadership = rank_technical_universe(
         [_leadership_rank_input(score) for score in scored],
         v4_params.get("relative_leadership", {}),
     )
-    scores = [
-        build_technical_score(
-            run_id=run_id,
-            score=technical_score_v4_from_base_score(
-                _with_leadership_debug(result, leadership),
-                v4_params,
-            ),
+    calculate_v5 = getattr(settings, "technical_v5_enabled", False) or getattr(
+        settings, "technical_v5_shadow_compare_enabled", True
+    )
+    v5_context = v5_context or (
+        _technical_v5_run_context(db, run_id, symbols, v5_params)
+        if calculate_v5
+        else TechnicalV5RunContext(resolutions={}, sector_features={})
+    )
+    v5_leadership = (
+        rank_leadership_v5(
+            [
+                _leadership_v5_rank_input(
+                    score,
+                    v5_context.resolutions.get(score.ticker.upper()),
+                    v5_context.sector_features,
+                    v5_params["sector_benchmarks"],
+                )
+                for score in scored
+            ],
+            v5_params["leadership"],
         )
-        if isinstance(result, PineReplicaScore)
-        else result
-        for result in score_results
-    ]
+        if calculate_v5
+        else {}
+    )
+    scores: list[TechnicalScore] = []
+    for result in score_results:
+        if not isinstance(result, PineReplicaScore):
+            scores.append(result)
+            continue
+        base_with_v4_leadership = _with_leadership_debug(result, leadership)
+        v4_score = technical_score_v4_from_base_score(base_with_v4_leadership, v4_params)
+        v5_score = None
+        if calculate_v5:
+            resolution = v5_context.resolutions.get(
+                result.ticker.upper(),
+                SectorBenchmarkResolution(
+                    None,
+                    None,
+                    "MISSING_SECTOR",
+                    "sector_not_available; using broad-market RS only",
+                ),
+            )
+            sector_score = _v5_sector_relative_score(
+                result,
+                resolution,
+                v5_context.sector_features,
+            )
+            if resolution.status == "RESOLVED" and sector_score is None:
+                resolution = mark_benchmark_data_missing(resolution)
+            v5_base = _with_v5_sector_debug(result, sector_score)
+            v5_score = technical_score_v5_from_base_score(
+                v5_base,
+                leadership=v5_leadership.get(result.ticker.upper()),
+                sector_resolution=resolution,
+                v5_config=v5_params,
+                pine_config=pine_params,
+            )
+        scores.append(
+            build_technical_score(
+                run_id=run_id,
+                score=v4_score,
+                v5_score=v5_score,
+                v5_active=getattr(settings, "technical_v5_enabled", False),
+                persist_v5=(
+                    getattr(settings, "technical_v5_enabled", False)
+                    or getattr(settings, "technical_v5_persist_shadow_results", True)
+                ),
+            )
+        )
     if symbols:
         db.execute(
             delete(TechnicalScore).where(
@@ -207,8 +297,14 @@ class TechnicalScoringOverlapCoordinator:
         self.lease_guard = lease_guard or (lambda: None)
         self.pine_params = load_pine_defaults()
         self.v4_params = load_technical_scoring_v4_config()
+        self.v5_params = load_technical_scoring_v5_config()
         self.indicator_config_hash = config_hash(self.pine_params)
-        self.scoring_config_hash = config_hash(self.v4_params)
+        self.scoring_config_hash = config_hash(
+            {"v4": self.v4_params, "v5": self.v5_params}
+            if getattr(self.settings, "technical_v5_enabled", False)
+            or getattr(self.settings, "technical_v5_shadow_compare_enabled", True)
+            else self.v4_params
+        )
         self._ready: set[str] = set()
         self._pending: set[str] = set()
         self._results: dict[str, PineReplicaScore | TechnicalScore] = {}
@@ -216,9 +312,7 @@ class TechnicalScoringOverlapCoordinator:
         self._futures: dict[Any, str] = {}
         self._submitted_market_signatures: dict[str, str] = {}
         self._required_market_tickers = {
-            ticker.strip().upper()
-            for ticker in (required_market_tickers or ())
-            if ticker.strip()
+            ticker.strip().upper() for ticker in (required_market_tickers or ()) if ticker.strip()
         }
         self._wait_for_market_events = bool(
             wait_for_market_events and self._required_market_tickers
@@ -233,9 +327,7 @@ class TechnicalScoringOverlapCoordinator:
         self._worker_started_at = perf_counter()
         self._executor: ProcessPoolExecutor | None = None
         try:
-            self._executor = ProcessPoolExecutor(
-                max_workers=_technical_worker_count(self.settings)
-            )
+            self._executor = ProcessPoolExecutor(max_workers=_technical_worker_count(self.settings))
         except Exception as exc:
             self._activate_sequential_fallback(exc)
 
@@ -301,9 +393,7 @@ class TechnicalScoringOverlapCoordinator:
                     )
             ordered = [self._results[ticker] for ticker in self.symbols]
             self._persist_completed_artifacts()
-            _record_technical_duration(
-                "worker_span", self._worker_started_at, run_id=self.run_id
-            )
+            _record_technical_duration("worker_span", self._worker_started_at, run_id=self.run_id)
             finalize_started = perf_counter()
             scores = finalize_technical_scores(
                 self.db,
@@ -311,6 +401,8 @@ class TechnicalScoringOverlapCoordinator:
                 ordered,
                 symbols=self.symbols,
                 v4_params=self.v4_params,
+                v5_params=self.v5_params,
+                settings=self.settings,
             )
             _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
             return scores
@@ -445,9 +537,7 @@ class TechnicalScoringOverlapCoordinator:
                 self._cancelled = True
                 raise TechnicalScoringError("Technical overlap was cancelled.")
             artifact_key = (
-                LocalArtifactKey(**work_result.artifact_key)
-                if work_result.artifact_key
-                else None
+                LocalArtifactKey(**work_result.artifact_key) if work_result.artifact_key else None
             )
             _persist_local_artifact(
                 self.db,
@@ -516,6 +606,8 @@ class TechnicalScoringOverlapCoordinator:
             results,
             symbols=self.symbols,
             v4_params=self.v4_params,
+            v5_params=self.v5_params,
+            settings=self.settings,
         )
         _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
         return scores
@@ -552,8 +644,7 @@ class TechnicalScoringOverlapCoordinator:
             ticker
             for ticker in self.symbols
             if ticker in self._results
-            and self._submitted_market_signatures.get(ticker)
-            != self._market_input_signature
+            and self._submitted_market_signatures.get(ticker) != self._market_input_signature
         ]
         if not stale_tickers:
             return
@@ -817,9 +908,7 @@ def _score_tickers_process_pool(
                             work_result,
                             artifact_key,
                             run_id=run_id,
-                            enabled=(
-                                settings.technical_artifact_cache_shadow_validation_enabled
-                            ),
+                            enabled=(settings.technical_artifact_cache_shadow_validation_enabled),
                         )
                     except Exception as exc:
                         results[index] = unavailable_technical_score(
@@ -942,9 +1031,7 @@ def _artifact_cache_context(
         db,
         key,
         usage=(
-            "shadow"
-            if settings.technical_artifact_cache_shadow_validation_enabled
-            else "active"
+            "shadow" if settings.technical_artifact_cache_shadow_validation_enabled else "active"
         ),
     )
     return key, artifact.artifact_json if artifact is not None else None
@@ -987,17 +1074,12 @@ def _record_shadow_validation(
         return
     fresh_fingerprint = _technical_score_digest(result.score)
     cached_fingerprint = (
-        _technical_score_digest(result.shadow_score)
-        if result.shadow_score is not None
-        else None
+        _technical_score_digest(result.shadow_score) if result.shadow_score is not None else None
     )
     record_local_artifact_shadow_validation(
         db,
         key,
-        matched=(
-            result.shadow_error is None
-            and cached_fingerprint == fresh_fingerprint
-        ),
+        matched=(result.shadow_error is None and cached_fingerprint == fresh_fingerprint),
         fresh_fingerprint=fresh_fingerprint,
         cached_fingerprint=cached_fingerprint,
         run_id=run_id,
@@ -1175,24 +1257,50 @@ def unavailable_technical_score(
 def build_technical_score(
     run_id: int,
     score: PineReplicaScore | TechnicalScoreV4,
+    *,
+    v5_score: TechnicalScoreV5 | None = None,
+    v5_active: bool = False,
+    persist_v5: bool = True,
 ) -> TechnicalScore:
     base_score = _base_score(score)
     debug = score.debug if isinstance(score, TechnicalScoreV4) else base_score.debug
-    dual_score = (
+    v4_dual_score = (
         score.final_v4_score if isinstance(score, TechnicalScoreV4) else base_score.dual_score
     )
-    classification = (
+    v4_classification = (
         score.final_v4_classification
         if isinstance(score, TechnicalScoreV4)
         else base_score.classification
     )
-    action_bias = (
+    v4_action_bias = (
         score.final_v4_action if isinstance(score, TechnicalScoreV4) else base_score.action_bias
     )
-    confidence = base_score.technical_confidence or (
+    v4_confidence = base_score.technical_confidence or (
         "low" if base_score.insufficient_data else "normal"
     )
     v4_fields = _v4_persistence_fields(debug)
+    use_v5 = bool(v5_active and v5_score is not None)
+    dual_score = v5_score.technical_composite_score if use_v5 else v4_dual_score
+    classification = v5_score.classification if use_v5 else v4_classification
+    action_bias = v5_score.action_bias if use_v5 else v4_action_bias
+    confidence = v5_score.technical_confidence if use_v5 else v4_confidence
+    v5_fields = _v5_persistence_fields(
+        v5_score if persist_v5 else None,
+        v4_score=v4_dual_score,
+        v4_classification=v4_classification,
+        v4_confidence=v4_confidence,
+        active=use_v5,
+    )
+    if use_v5:
+        v4_fields = {
+            **v4_fields,
+            "technical_engine_version": v5_score.engine_version,
+            "data_quality_score": _to_decimal(v5_score.data_quality_score),
+            "stage": v5_score.setup_quality.stage,
+            "market_regime": v5_score.debug["composite"]["regime"],
+            "feature_flags_json": list(v5_score.feature_flags),
+            "warning_flags_json": list(v5_score.warning_flags),
+        }
     return TechnicalScore(
         run_id=run_id,
         ticker=base_score.ticker.upper(),
@@ -1203,12 +1311,8 @@ def build_technical_score(
         risk_score=_to_decimal(base_score.risk_score),
         market_score=_to_decimal(base_score.market_score),
         relative_strength_score=_to_decimal(base_score.relative_strength_score),
-        sector_relative_strength_score=_to_decimal(
-            base_score.sector_relative_strength_score
-        ),
-        combined_relative_strength_score=_to_decimal(
-            base_score.combined_relative_strength_score
-        ),
+        sector_relative_strength_score=_to_decimal(base_score.sector_relative_strength_score),
+        combined_relative_strength_score=_to_decimal(base_score.combined_relative_strength_score),
         htf_score=_to_decimal(base_score.htf_score),
         dual_score=_to_decimal(dual_score),
         classification=classification,
@@ -1220,6 +1324,7 @@ def build_technical_score(
         entry_risk_pct=_to_decimal(base_score.entry_risk_pct),
         technical_confidence=confidence,
         **v4_fields,
+        **v5_fields,
         insufficient_data=base_score.insufficient_data,
         missing_data_json=base_score.missing_data,
         debug_json=debug,
@@ -1290,6 +1395,101 @@ def _sector_benchmark_price(
     return _load_price_frame(db, sector_symbol)
 
 
+def _technical_v5_run_context(
+    db: Session,
+    run_id: int,
+    symbols: list[str],
+    v5_params: dict[str, Any],
+) -> TechnicalV5RunContext:
+    sector_result = db.execute(
+        select(RawCompanyRow.ticker, RawCompanyRow.sector).where(RawCompanyRow.run_id == run_id)
+    )
+    sector_rows = sector_result.all() if hasattr(sector_result, "all") else []
+    sectors: dict[str, str | None] = {symbol.upper(): None for symbol in symbols}
+    for ticker, sector in sector_rows:
+        normalized = str(ticker).strip().upper()
+        if normalized in sectors and (sectors[normalized] is None or str(sector or "").strip()):
+            sectors[normalized] = sector
+    resolutions = resolutions_for_tickers(sectors, v5_params["sector_benchmarks"])
+    sector_features: dict[str, dict[str, float | None]] = {}
+    for symbol in sorted(
+        {
+            resolution.benchmark_symbol
+            for resolution in resolutions.values()
+            if resolution.status == "RESOLVED" and resolution.benchmark_symbol
+        }
+    ):
+        frame = _load_price_frame(db, symbol)
+        features = _benchmark_roc_features(frame)
+        if features:
+            sector_features[symbol] = features
+    resolutions = {
+        ticker: (
+            mark_benchmark_data_missing(resolution)
+            if resolution.status == "RESOLVED"
+            and resolution.benchmark_symbol not in sector_features
+            else resolution
+        )
+        for ticker, resolution in resolutions.items()
+    }
+    return TechnicalV5RunContext(resolutions=resolutions, sector_features=sector_features)
+
+
+def _benchmark_roc_features(frame: pd.DataFrame) -> dict[str, float | None]:
+    if frame.empty or "close" not in frame:
+        return {}
+    close = pd.to_numeric(frame["close"], errors="coerce").dropna()
+    if close.empty:
+        return {}
+    return {
+        f"roc{lookback}": (
+            round(float((close.iloc[-1] / close.iloc[-lookback - 1] - 1.0) * 100.0), 4)
+            if len(close) > lookback
+            else None
+        )
+        for lookback in (21, 63, 126)
+    }
+
+
+def _v5_sector_relative_score(
+    score: PineReplicaScore,
+    resolution: SectorBenchmarkResolution | None,
+    sector_features: dict[str, dict[str, float | None]],
+) -> float | None:
+    if resolution is None or resolution.status != "RESOLVED" or not resolution.benchmark_symbol:
+        return None
+    benchmark = sector_features.get(resolution.benchmark_symbol)
+    if not benchmark or any(benchmark.get(f"roc{lookback}") is None for lookback in (21, 63, 126)):
+        return None
+    derived = _dict(score.debug.get("derived"))
+    stock = {
+        21: _optional_float(derived.get("stock_roc_short")),
+        63: _optional_float(derived.get("stock_roc_medium")),
+        126: _optional_float(derived.get("stock_roc_long")),
+    }
+    if any(stock[lookback] is None for lookback in stock):
+        return None
+    differences = {
+        lookback: float(stock[lookback]) - float(benchmark[f"roc{lookback}"]) for lookback in stock
+    }
+    return relative_strength_score(
+        rs_above_sma=sum(differences.values()) > 0,
+        rs_roc_short=differences[21],
+        rs_roc_medium=differences[63],
+        rs_roc_long=differences[126],
+        beats_short=differences[21] > 0,
+        beats_medium=differences[63] > 0,
+        beats_long=differences[126] > 0,
+        rs_new_high_value=False,
+    )
+
+
+def _with_v5_sector_debug(score: PineReplicaScore, sector_score: float | None) -> PineReplicaScore:
+    debug = {**(score.debug or {})}
+    debug["derived"] = {**_dict(debug.get("derived")), "v5_sector_rs_score": sector_score}
+    return replace(score, debug=debug)
+
+
 def _market_features(price: pd.DataFrame, ticker: str) -> dict[str, Any]:
     if price.empty:
         return {}
@@ -1323,9 +1523,7 @@ def _market_frames_signature(
             if column in frame.columns
         ]
         digest.update("|".join(columns).encode("utf-8"))
-        digest.update(
-            pd.util.hash_pandas_object(frame[columns], index=False).values.tobytes()
-        )
+        digest.update(pd.util.hash_pandas_object(frame[columns], index=False).values.tobytes())
     return digest.hexdigest()
 
 
@@ -1356,6 +1554,31 @@ def _leadership_rank_input(score: PineReplicaScore) -> dict[str, Any]:
         "benchmark_rs_score": score.relative_strength_score,
         "dual_score": score.dual_score,
         "setup_score": score.setup_score,
+    }
+
+
+def _leadership_v5_rank_input(
+    score: PineReplicaScore,
+    resolution: SectorBenchmarkResolution | None,
+    sector_features: dict[str, dict[str, float | None]],
+    sector_config: dict[str, Any],
+) -> dict[str, Any]:
+    derived = _dict(score.debug.get("derived"))
+    sector_score = _v5_sector_relative_score(score, resolution, sector_features)
+    benchmark_rs = float(score.relative_strength_score)
+    if sector_score is not None:
+        mix = sector_config["benchmark_rs_mix"]
+        benchmark_rs = round(
+            benchmark_rs * float(mix["broad_market"]) + sector_score * float(mix["sector"]),
+            4,
+        )
+    return {
+        "ticker": score.ticker,
+        "roc21": _optional_float(derived.get("stock_roc_short")),
+        "roc63": _optional_float(derived.get("stock_roc_medium")),
+        "roc126": _optional_float(derived.get("stock_roc_long")),
+        "benchmark_rs_score": benchmark_rs,
+        "residual_momentum_score": _optional_float(derived.get("residual_momentum_score")),
     }
 
 
@@ -1401,6 +1624,15 @@ def _to_decimal(value: float | None) -> Decimal | None:
     return Decimal(str(round(float(value), 4)))
 
 
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return round(float(value), 4)
+    except (TypeError, ValueError):
+        return None
+
+
 def _base_score(score: PineReplicaScore | TechnicalScoreV4) -> PineReplicaScore:
     return score.base_score if isinstance(score, TechnicalScoreV4) else score
 
@@ -1429,13 +1661,81 @@ def _v4_persistence_fields(debug: dict[str, Any] | None) -> dict[str, Any]:
         "atr_percentile_252": _to_decimal(adaptive.get("atr_percentile_252")),
         "volume_percentile_252": _to_decimal(adaptive.get("volume_percentile_252")),
         "range_percentile_252": _to_decimal(adaptive.get("range_percentile_252")),
-        "extension_percentile_252": _to_decimal(
-            adaptive.get("extension_percentile_252")
-        ),
+        "extension_percentile_252": _to_decimal(adaptive.get("extension_percentile_252")),
         "feature_flags_json": _list_or_none(explainability.get("feature_flags")),
         "warning_flags_json": _list_or_none(explainability.get("warning_flags")),
         "sub_tags_json": _list_or_none(explainability.get("sub_tags")),
         "v4_debug_json": explainability or None,
+    }
+
+
+def _v5_persistence_fields(
+    score: TechnicalScoreV5 | None,
+    *,
+    v4_score: float,
+    v4_classification: str,
+    v4_confidence: str,
+    active: bool,
+) -> dict[str, Any]:
+    if score is None:
+        return {
+            "technical_strength_score": None,
+            "setup_quality_score": None,
+            "entry_quality_score": None,
+            "technical_composite_score": None,
+            "confidence_adjusted_score": None,
+            "leadership_v5_score": None,
+            "residual_momentum_score": None,
+            "trigger_distance_atr": None,
+            "stop_distance_atr": None,
+            "stage_modifier": None,
+            "setup_type": None,
+            "sector_benchmark_symbol": None,
+            "v5_debug_json": None,
+        }
+    debug = {
+        **score.debug,
+        "rollout": {"mode": "active" if active else "shadow", "dual_score_mirrors_tcs": active},
+        "shadow_comparison": {
+            "ticker": score.ticker,
+            "v4_score": round(float(v4_score), 4),
+            "v5_technical_strength": score.technical_strength_score,
+            "v5_setup_quality": score.setup_quality_score,
+            "v5_entry_quality": score.entry_quality_score,
+            "v5_composite": score.technical_composite_score,
+            "v4_classification": v4_classification,
+            "v5_classification": score.classification,
+            "score_delta": round(score.technical_composite_score - float(v4_score), 4),
+            "danger_difference": {
+                "v4": v4_classification
+                if v4_classification
+                in {
+                    "Failed breakout",
+                    "Climax reversal risk",
+                    "Blowoff top",
+                    "Distribution risk",
+                    "Late-stage extension",
+                }
+                else None,
+                "v5": score.entry_quality.danger_state,
+            },
+            "confidence_difference": {"v4": v4_confidence, "v5": score.technical_confidence},
+        },
+    }
+    return {
+        "technical_strength_score": _to_decimal(score.technical_strength_score),
+        "setup_quality_score": _to_decimal(score.setup_quality_score),
+        "entry_quality_score": _to_decimal(score.entry_quality_score),
+        "technical_composite_score": _to_decimal(score.technical_composite_score),
+        "confidence_adjusted_score": _to_decimal(score.confidence_adjusted_score),
+        "leadership_v5_score": _to_decimal(score.leadership_v5_score),
+        "residual_momentum_score": _to_decimal(score.residual_momentum_score),
+        "trigger_distance_atr": _to_decimal(score.trigger_distance_atr),
+        "stop_distance_atr": _to_decimal(score.stop_distance_atr),
+        "stage_modifier": _to_decimal(score.stage_modifier),
+        "setup_type": score.setup_type,
+        "sector_benchmark_symbol": score.sector_benchmark_symbol,
+        "v5_debug_json": debug,
     }
 
 

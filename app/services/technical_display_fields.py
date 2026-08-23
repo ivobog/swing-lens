@@ -5,7 +5,7 @@ from app.models.tables import TechnicalScore
 
 def technical_v4_summary_fields(score: TechnicalScore | None) -> dict[str, Any]:
     details = technical_v4_detail_fields(score)
-    return {
+    summary = {
         "technical_version": details["technical_version"],
         "technical_stage": details["stage"],
         "technical_regime": details["market_regime"],
@@ -16,6 +16,16 @@ def technical_v4_summary_fields(score: TechnicalScore | None) -> dict[str, Any]:
         "technical_warnings": details["warning_flags"],
         "technical_sub_tags": details["sub_tags"],
     }
+    if details["technical_composite_score"] is not None:
+        summary.update(
+            technical_strength_score=details["technical_strength_score"],
+            technical_setup_quality_score=details["setup_quality_score"],
+            technical_entry_quality_score=details["entry_quality_score"],
+            technical_composite_score=details["technical_composite_score"],
+            technical_confidence_adjusted_score=details["confidence_adjusted_score"],
+            technical_setup_type=details["setup_type"],
+        )
+    return summary
 
 
 def technical_v4_detail_fields(score: TechnicalScore | None) -> dict[str, Any]:
@@ -27,6 +37,10 @@ def technical_v4_detail_fields(score: TechnicalScore | None) -> dict[str, Any]:
     regime = _dict(explainability.get("regime"))
     leadership = _dict(explainability.get("leadership"))
     climax = _dict(explainability.get("climax"))
+    v5 = _dict(_value(score, "v5_debug_json"))
+    v5_entry = _dict(v5.get("entry_quality"))
+    v5_execution = _dict(v5_entry.get("execution"))
+    v5_trigger = _dict(_dict(v5.get("setup_quality")).get("trigger"))
 
     return {
         "technical_version": _first_present(
@@ -86,6 +100,26 @@ def technical_v4_detail_fields(score: TechnicalScore | None) -> dict[str, Any]:
         or _list_text(explainability.get("warning_flags")),
         "sub_tags": _list_text(_value(score, "sub_tags_json"))
         or _list_text(explainability.get("sub_tags")),
+        "technical_strength_score": _value(score, "technical_strength_score"),
+        "setup_quality_score": _value(score, "setup_quality_score"),
+        "entry_quality_score": _value(score, "entry_quality_score"),
+        "technical_composite_score": _value(score, "technical_composite_score"),
+        "confidence_adjusted_score": _value(score, "confidence_adjusted_score"),
+        "leadership_v5_score": _value(score, "leadership_v5_score"),
+        "residual_momentum_score": _value(score, "residual_momentum_score"),
+        "trigger_distance_atr": _value(score, "trigger_distance_atr"),
+        "stop_distance_atr": _value(score, "stop_distance_atr"),
+        "setup_type": _value(score, "setup_type") or "",
+        "sector_benchmark_symbol": _value(score, "sector_benchmark_symbol") or "",
+        "stage_modifier": _value(score, "stage_modifier"),
+        "risk_control": v5_entry.get("risk_control", ""),
+        "combined_risk": v5_entry.get("combined_risk", ""),
+        "execution_quality": v5_execution.get("score", ""),
+        "trigger_quality": v5_trigger.get("quality", ""),
+        "danger_state": v5_entry.get("danger_state", ""),
+        "v5_classification": v5.get("classification", ""),
+        "v5_action_bias": v5.get("action_bias", ""),
+        "v5_rollout_mode": _dict(v5.get("rollout")).get("mode", ""),
     }
 
 

@@ -94,6 +94,16 @@ def test_calculate_technical_features_latest_values() -> None:
     assert result.debug["row_count"] == 320
 
 
+def test_prior_resistance_target_records_its_actual_source() -> None:
+    params = load_pine_defaults()
+    params["stop_target"]["targetMode"] = "Prior Resistance"
+
+    result = calculate_technical_features(_synthetic_ohlcv(rows=320), ticker="TEST", params=params)
+
+    assert result.latest["suggested_target"] == result.latest["previous_resistance"]
+    assert result.latest["target_source"] == "PRIOR_RESISTANCE"
+
+
 def test_green_beats_red_uses_pine_sma_semantics() -> None:
     frame = _synthetic_ohlcv(rows=320)
     last_ten = frame.tail(10).index

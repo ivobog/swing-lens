@@ -992,6 +992,14 @@ def _derive_inputs(
     all_filters_ok = market["gate_ok"] and rs_gate_ok and htf_gate_ok
 
     return {
+        "close": close,
+        "ema10": _num(latest.get("ema10")),
+        "ema20": _num(latest.get("ema20")),
+        "sma50": _num(latest.get("sma50")),
+        "previous_resistance": _num(latest.get("previous_resistance")),
+        "prior_high": _num(latest.get("prior_high")),
+        "stop_source": latest.get("stop_source"),
+        "target_source": latest.get("target_source"),
         "above_pullback_ema": close > _num(latest.get("ema20")),
         "pullback_above_mid": _num(latest.get("ema20")) > _num(latest.get("sma50")),
         "mid_above_trend": _num(latest.get("sma50")) > _num(latest.get("sma150")),
@@ -1032,6 +1040,7 @@ def _derive_inputs(
         "rs_roc_short": _num(rs_features.get("benchmark_rs_roc21")),
         "rs_roc_medium": _num(rs_features.get("benchmark_rs_roc63")),
         "rs_new_high": _bool(rs_features.get("benchmark_rs_new_high")),
+        "stock_roc10": _num(latest.get("roc10")),
         "stock_roc_short": _num(latest.get("roc21")),
         "stock_roc_medium": _num(latest.get("roc63")),
         "stock_roc_long": _num(latest.get("roc126")),
@@ -1083,6 +1092,11 @@ def _derive_inputs(
         "upper_wick_pct": _num(latest.get("upper_wick_pct")),
         "candle_range": _num(latest.get("candle_range")),
         "atr": _num(latest.get("atr14")),
+        "rolling_beta_63": rs_features.get("rolling_beta_63"),
+        "rolling_beta_126": rs_features.get("rolling_beta_126"),
+        "residual_return_21": rs_features.get("residual_return_21"),
+        "residual_return_63": rs_features.get("residual_return_63"),
+        "residual_momentum_score": rs_features.get("residual_momentum_score"),
     }
 
 

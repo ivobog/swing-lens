@@ -138,6 +138,9 @@ class Settings(BaseSettings):
     technical_artifact_cache_enabled: bool = False
     technical_artifact_cache_write_enabled: bool = False
     technical_artifact_cache_shadow_read_enabled: bool = False
+    technical_v5_enabled: bool = False
+    technical_v5_shadow_compare_enabled: bool = True
+    technical_v5_persist_shadow_results: bool = True
     fetch_technical_overlap_enabled: bool = False
     market_data_prewarm_enabled: bool = False
     market_data_prewarm_max_tickers: int = 1000
