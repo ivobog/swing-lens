@@ -2,7 +2,9 @@
 
 ## Scope and invariant
 
-Audit point: commit `eb6798ee990e268b2ef808bb0747465220b9b0e7`, plus the shadow-calibration changes in this worktree.
+Audit point: commit `e897625c6ffba4a0eb553e4a58fe132b6032ce6d`, plus the
+forensic-recalibration changes in this worktree. The frozen empirical baseline remains
+config hash `ad813416d238476c98b2f03c94175396247be7a9c1a6bf5a65ae095018672ae4`.
 
 When v5 is active, `TechnicalScore.dual_score`, classification, action, confidence, and engine version mirror v5. The adjacent persisted `trend_score`, `momentum_score`, `setup_score`, `risk_score`, `market_score`, `relative_strength_score`, and `combined_relative_strength_score` remain local/base or v4-style fields. No consumer may infer that those adjacent columns mathematically compose the active `dual_score`.
 
@@ -34,3 +36,29 @@ When v5 is active, `TechnicalScore.dual_score`, classification, action, confiden
 The persistence, UI, export, combined-score, market-participation, and sector-aggregation paths are v5-safe. Ranking profiles, Setup Lifecycle/alerts, Winner Evidence, and their v4-trained golden contracts block default activation. Limited feature-flag activation would require isolating those consumers or explicitly keeping them on v4 while the user-facing technical total uses v5.
 
 No production-default setting was changed by this audit.
+
+## Forensic re-audit update (2026-08-23)
+
+The dependency search was repeated across application services, routers, templates,
+static UI, exports, scripts and the Winner/SLSE/lifecycle test contracts for
+`dual_score`, `trend_score`, `momentum_score`, `setup_score`, `risk_score`,
+`market_score`, `classification`, `action_bias` and `technical_engine_version`.
+
+The prior classifications remain valid:
+
+- `V5_SAFE`: persistence/schema, run UI/display, distinct v5 export fields, combined
+  decision, confidence presence, market participation, sector aggregation and the
+  compatibility score's opaque consumers.
+- `V4_ONLY_INTENTIONAL`: Pine/v4 feature generation, relative-leadership v4 logic and
+  historical Winner reproduction. These must not reinterpret captured v4 evidence.
+- `NEEDS_UPGRADE`: ranking-profile orchestration, lifecycle adapters/query/episode and
+  alert transit, and the IB market-intelligence journal's incomplete v5 provenance.
+- `BLOCKS_DEFAULT_ACTIVATION`: ranking component penalties/gates, lifecycle snapshot
+  schema and alert thresholds, Winner capture/feature contracts, and SLSE golden
+  corpora/thresholds.
+
+No consumer was upgraded in this pass because the unresolved paths require empirical
+threshold/version contracts, not a mechanical field rename. The newly proven historical
+sector-data reconstruction defect is isolated to research reconstruction and does not
+make any blocking consumer safe. G8 therefore remains **FAIL** and default activation
+remains forbidden.
