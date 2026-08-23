@@ -1,5 +1,15 @@
 # Technical Scoring v5.0 shadow calibration and evaluation
 
+> **Forensic erratum (2026-08-23):** The historical reconstruction did not mark a
+> mapped sector benchmark as data-missing when the ETF series was wholly absent. Mapped
+> rows therefore received a phantom 0.7 sector-weak risk point. The original dataset is
+> preserved as `V5_BASELINE`; the reconstruction defect is fixed for future campaigns.
+> The named `V5_SECTOR_DATA_FIX` sensitivity raises TCS by 0.045 points on average but
+> still trails v4 on the two-date holdout (2.126% vs 2.476% 10-day top-20 return).
+> Consequently, the earlier A11 result must not be interpreted as evidence about sector
+> RS predictive value; actual sector-only value was untestable because ETF histories
+> were absent. See `technical_scoring_v5_forensic_recalibration_report.md`.
+
 ## 1. Executive verdict
 
 **CONTINUE SHADOW**

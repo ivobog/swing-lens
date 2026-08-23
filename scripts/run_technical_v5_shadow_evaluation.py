@@ -345,8 +345,7 @@ def _reconstruct(
                 restored_cache[sector_key] = (sector_frame, None)
             sector_frame = restored_cache[sector_key][0]
             sector_features = _roc_features_at(sector_frame, decision_date)
-            if not sector_features:
-                resolution = mark_benchmark_data_missing(resolution)
+        resolution = _sector_resolution_with_data(resolution, sector_features)
 
         base = _base_score(raw, feature_row, residual, resolution, sector_features)
         decision_close = _optional_num(base.debug["derived"].get("close"))
@@ -1481,6 +1480,15 @@ def _sector_score(
         diffs[126] > 0,
         False,
     )
+
+
+def _sector_resolution_with_data(
+    resolution: SectorBenchmarkResolution,
+    sector_features: dict[str, float | None],
+) -> SectorBenchmarkResolution:
+    if resolution.benchmark_symbol and not sector_features:
+        return mark_benchmark_data_missing(resolution)
+    return resolution
 
 
 def _roc_features_at(frame: pd.DataFrame, decision_date: date) -> dict[str, float | None]:
