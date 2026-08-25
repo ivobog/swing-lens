@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 import app.models  # noqa: F401 - registers every mapped table
 from app.db import Base
 from app.services.readiness_service import ReadinessService
+from app.services.supervisor_registry import acquire_supervisor
 from app.services.worker_registry import register_worker
 from app.settings import Settings
 from scripts.ops.evidence_manifest import (
@@ -90,14 +91,28 @@ def test_populated_multi_module_backup_restore_preserves_evidence(
             write_comparison_report(comparison, comparison_path)
             readiness_settings = _readiness_settings(tmp_path, restored_url)
             with Session(restored_engine) as session:
+                registered_at = datetime.now(UTC)
                 register_worker(
                     session,
                     worker_id=readiness_settings.job_worker_id,
-                    queues=("background",),
+                    queues=("interactive", "background"),
                     heartbeat_timeout_seconds=(
                         readiness_settings.job_worker_heartbeat_timeout_seconds
                     ),
+                    now=registered_at,
                 )
+                supervisor = acquire_supervisor(
+                    session,
+                    worker_id=readiness_settings.job_worker_id,
+                    instance_id="qa-restore-supervisor",
+                    process_id=os.getpid(),
+                    process_started_at=registered_at,
+                    heartbeat_timeout_seconds=(
+                        readiness_settings.job_worker_heartbeat_timeout_seconds
+                    ),
+                    now=registered_at,
+                )
+                assert supervisor is not None
                 session.commit()
             readiness = ReadinessService(
                 engine=restored_engine,
@@ -110,7 +125,7 @@ def test_populated_multi_module_backup_restore_preserves_evidence(
     assert comparison.passed is True
     assert comparison.row_count_mismatches == {}
     assert comparison.content_hash_mismatches == {}
-    assert readiness.status == "ok"
+    assert readiness.status == "ok", readiness.response_checks()
     assert readiness.database_ok is True
     assert readiness.checks["migrations"].ok is True
     assert set(expected_manifest.tables) == set(DEFAULT_EVIDENCE_TABLES)
