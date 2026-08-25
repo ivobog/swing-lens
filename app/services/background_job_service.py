@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import MetaData, Table, insert, select, update
+from sqlalchemy import MetaData, Table, case, insert, select, update
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ RETRY_DELAYS_SECONDS = (60, 180, 600)
 TERMINAL_JOB_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED", "STALE"}
 DEFAULT_LEASE_SECONDS = 900
 LEASE_EVENT_MAX_COUNT = 50
+logger = logging.getLogger(__name__)
 
 
 class JobLeaseLost(RuntimeError):
@@ -260,6 +262,7 @@ def active_job_for_request_key(
 def claim_next_job(
     db: Session,
     worker_id: str,
+    worker_instance_id: str | None = None,
     lease_seconds: int = DEFAULT_LEASE_SECONDS,
     queues: Iterable[str] | None = None,
     claim_groups: Iterable[QueueClaimGroup] | None = None,
@@ -285,6 +288,7 @@ def claim_next_job(
     execution_token = uuid4().hex
     job.status = JobStatus.RUNNING
     job.worker_id = worker_id
+    job.worker_instance_id = worker_instance_id
     job.lease_owner = worker_id
     job.execution_token = execution_token
     job.locked_at = now
@@ -295,7 +299,7 @@ def claim_next_job(
     job.last_progress_at = now
     job.progress_sequence = int(job.progress_sequence or 0) + 1
     job.stall_detected_at = None
-    job.operational_metadata_json = _with_attempt_started(
+    metadata = _with_attempt_started(
         _with_lease_event(
             job.operational_metadata_json,
             event_type="CLAIMED",
@@ -306,6 +310,12 @@ def claim_next_job(
         job=job,
         started_at=now,
     )
+    metadata["progress_watchdog"] = {
+        "progress_sequence": job.progress_sequence,
+        "unchanged_since": now.isoformat(),
+        "observed_at": now.isoformat(),
+    }
+    job.operational_metadata_json = metadata
     db.flush()
     return job
 
@@ -321,6 +331,7 @@ def record_job_progress(
     processed: int | None = None,
     total: int | None = None,
     checkpoint_version: str = "job-progress-v1",
+    only_if_advanced: bool = False,
 ) -> None:
     """Persist useful progress and fence the caller in the same transaction."""
     now = _utcnow()
@@ -336,15 +347,38 @@ def record_job_progress(
     if processed is not None:
         values["progress_processed"] = processed
     if total is not None:
-        values["progress_total"] = total
-    result = db.execute(
+        if processed is not None and total < processed:
+            raise ValueError("progress total cannot be less than processed work")
+        values["progress_total"] = case(
+            (BackgroundJob.progress_total.is_(None), total),
+            (BackgroundJob.progress_total < total, total),
+            else_=BackgroundJob.progress_total,
+        )
+    statement = (
         update(BackgroundJob)
         .where(BackgroundJob.id == job_id)
         .where(BackgroundJob.status == JobStatus.RUNNING)
         .where(BackgroundJob.execution_token == execution_token)
-        .values(**values)
     )
+    if only_if_advanced and processed is not None:
+        statement = statement.where(BackgroundJob.progress_processed < processed)
+    result = db.execute(statement.values(**values))
     if result.rowcount != 1:
+        if only_if_advanced:
+            owner = db.execute(
+                select(
+                    BackgroundJob.status,
+                    BackgroundJob.execution_token,
+                    BackgroundJob.progress_processed,
+                ).where(BackgroundJob.id == job_id)
+            ).one_or_none()
+            if (
+                owner is not None
+                and owner[0] == JobStatus.RUNNING
+                and owner[1] == execution_token
+                and int(owner[2] or 0) >= int(processed or 0)
+            ):
+                return
         raise JobLeaseLost(f"Background job {job_id} progress owner was fenced.")
     operational_metrics.increment("swinglens_job_progress_total", stage=stage)
 
@@ -356,6 +390,8 @@ def fence_stalled_jobs(
     market_data_timeout_seconds: int,
     now: datetime | None = None,
     worker_id: str | None = None,
+    worker_instance_id: str | None = None,
+    worker_heartbeat_at: datetime | None = None,
     long_stage_timeout_seconds: int = 1800,
 ) -> list[int]:
     """Fence live-but-not-progressing executions without trusting lease freshness."""
@@ -368,6 +404,8 @@ def fence_stalled_jobs(
     )
     if worker_id is not None:
         query = query.where(BackgroundJob.worker_id == worker_id)
+    if worker_instance_id is not None:
+        query = query.where(BackgroundJob.worker_instance_id == worker_instance_id)
     fenced: list[int] = []
     for job in db.scalars(query).all():
         if job.progress_stage == "FETCHING_MARKET_DATA":
@@ -375,6 +413,8 @@ def fence_stalled_jobs(
         elif job.progress_stage in {
             "SCORING_TECHNICALS",
             "CERI_PROVIDER_INGEST",
+            "CERI_NORMALIZE",
+            "CERI_FEATURE_REBUILD",
             "CAPTURING_CERI",
             "CAPTURING_SETUP_LIFECYCLE",
             "EVALUATING_SETUP_LIFECYCLE",
@@ -382,17 +422,60 @@ def fence_stalled_jobs(
             timeout = long_stage_timeout_seconds
         else:
             timeout = default_timeout_seconds
-        if job.last_progress_at is None or job.last_progress_at >= observed_at - timedelta(
-            seconds=timeout
-        ):
+        metadata = dict(job.operational_metadata_json or {})
+        observation = dict(metadata.get("progress_watchdog") or {})
+        current_sequence = int(job.progress_sequence or 0)
+        has_observed_sequence = "progress_sequence" in observation
+        observed_sequence = int(observation.get("progress_sequence", current_sequence))
+        if has_observed_sequence and observed_sequence != current_sequence:
+            unchanged_since = observed_at
+            decision = "HEALTHY_PROGRESS_SEQUENCE_ADVANCED"
+        else:
+            raw_unchanged_since = observation.get("unchanged_since")
+            try:
+                unchanged_since = datetime.fromisoformat(str(raw_unchanged_since))
+            except (TypeError, ValueError):
+                unchanged_since = job.last_progress_at or observed_at
+            decision = "HEALTHY_WITHIN_PROGRESS_TIMEOUT"
+        if unchanged_since.tzinfo is None:
+            unchanged_since = unchanged_since.replace(tzinfo=UTC)
+        worker_age = _age_seconds(observed_at, worker_heartbeat_at)
+        lease_age = _age_seconds(observed_at, job.heartbeat_at)
+        progress_age = _age_seconds(observed_at, job.last_progress_at)
+        observation = {
+            "progress_sequence": current_sequence,
+            "unchanged_since": unchanged_since.isoformat(),
+            "observed_at": observed_at.isoformat(),
+        }
+        metadata["progress_watchdog"] = observation
+        job.operational_metadata_json = metadata
+        if unchanged_since >= observed_at - timedelta(seconds=timeout):
+            decision_context = {
+                    "job_id": job.id,
+                    "run_id": job.related_run_id,
+                    "job_type": job.job_type,
+                    "worker_heartbeat_age_seconds": worker_age,
+                    "job_lease_heartbeat_age_seconds": lease_age,
+                    "job_progress_age_seconds": progress_age,
+                    "progress_sequence": current_sequence,
+                    "stage": job.progress_stage,
+                    "stall_threshold_seconds": timeout,
+                    "decision": decision,
+                }
+            logger.info(
+                "job.watchdog.decision %s", decision_context, extra=decision_context
+            )
             continue
         old_token = job.execution_token
         job.status = JobStatus.STALLED
         job.stall_detected_at = observed_at
+        decision = "STALL_PROGRESS_SEQUENCE_FROZEN"
         job.error_message = (
-            f"No useful progress in {timeout}s at {job.progress_stage or 'unknown stage'}"
+            f"Useful progress sequence {current_sequence} remained frozen for {timeout}s "
+            f"at {job.progress_stage or 'UNSPECIFIED'}; lease heartbeat age={lease_age}s"
         )
         job.worker_id = None
+        job.worker_instance_id = None
         job.lease_owner = None
         job.execution_token = None
         job.locked_at = None
@@ -406,6 +489,21 @@ def fence_stalled_jobs(
             execution_token=old_token,
         )
         fenced.append(job.id)
+        decision_context = {
+                "job_id": job.id,
+                "run_id": job.related_run_id,
+                "job_type": job.job_type,
+                "worker_heartbeat_age_seconds": worker_age,
+                "job_lease_heartbeat_age_seconds": lease_age,
+                "job_progress_age_seconds": progress_age,
+                "progress_sequence": current_sequence,
+                "stage": job.progress_stage,
+                "stall_threshold_seconds": timeout,
+                "decision": decision,
+            }
+        logger.warning(
+            "job.watchdog.decision %s", decision_context, extra=decision_context
+        )
         operational_metrics.increment("swinglens_jobs_stalled_total", job_type=job.job_type)
     db.flush()
     return fenced
@@ -443,6 +541,7 @@ def fence_jobs_for_worker(
     *,
     worker_id: str,
     reason: str,
+    worker_instance_id: str | None = None,
     now: datetime | None = None,
 ) -> list[int]:
     """Fence jobs after a supervisor has proven their owning process exited."""
@@ -452,6 +551,11 @@ def fence_jobs_for_worker(
         select(BackgroundJob)
         .where(BackgroundJob.status == JobStatus.RUNNING)
         .where(BackgroundJob.worker_id == worker_id)
+        .where(
+            BackgroundJob.worker_instance_id == worker_instance_id
+            if worker_instance_id is not None
+            else BackgroundJob.worker_id == worker_id
+        )
         .with_for_update(skip_locked=True)
     ).all()
     for job in jobs:
@@ -460,6 +564,7 @@ def fence_jobs_for_worker(
         job.stall_detected_at = observed_at
         job.error_message = _safe_error(reason)
         job.worker_id = None
+        job.worker_instance_id = None
         job.lease_owner = None
         job.execution_token = None
         job.locked_at = None
@@ -566,6 +671,7 @@ def mark_job_blocked(
             "heartbeat_at": None,
             "lease_expires_at": None,
             "worker_id": None,
+            "worker_instance_id": None,
             "lease_owner": None,
             "execution_token": None,
             "completed_at": now,
@@ -596,6 +702,7 @@ def mark_job_failed_or_retry(
         "heartbeat_at": None,
         "lease_expires_at": None,
         "worker_id": None,
+        "worker_instance_id": None,
         "lease_owner": None,
         "execution_token": None,
         "operational_metadata_json": _with_attempt_finished(
@@ -642,6 +749,7 @@ def mark_job_deferred(
         "heartbeat_at": None,
         "lease_expires_at": None,
         "worker_id": None,
+        "worker_instance_id": None,
         "lease_owner": None,
         "execution_token": None,
         "operational_metadata_json": _with_attempt_finished(
@@ -671,6 +779,7 @@ def request_job_cancel(db: Session, job_id: int) -> BackgroundJob:
         job.heartbeat_at = None
         job.lease_expires_at = None
         job.worker_id = None
+        job.worker_instance_id = None
         job.lease_owner = None
         job.execution_token = None
 
@@ -757,6 +866,7 @@ def _recover_jobs(db: Session, jobs: Iterable[BackgroundJob], *, now: datetime) 
         job.heartbeat_at = None
         job.lease_expires_at = None
         job.worker_id = None
+        job.worker_instance_id = None
         job.lease_owner = None
         job.execution_token = None
         job.error_message = "Recovered after stale worker lock."
@@ -820,6 +930,7 @@ def _finish_job(
         "heartbeat_at": None,
         "lease_expires_at": None,
         "worker_id": None,
+        "worker_instance_id": None,
         "lease_owner": None,
         "execution_token": None,
         "completed_at": now,
@@ -1030,3 +1141,10 @@ def _safe_error(error: str | Exception) -> str:
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _age_seconds(observed_at: datetime, value: datetime | None) -> int | None:
+    if value is None:
+        return None
+    comparable = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    return max(0, int((observed_at - comparable).total_seconds()))

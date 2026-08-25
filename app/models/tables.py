@@ -1429,6 +1429,7 @@ class BackgroundJob(Base):
         server_default="false",
     )
     worker_id: Mapped[str | None] = mapped_column(Text)
+    worker_instance_id: Mapped[str | None] = mapped_column(Text)
     lease_owner: Mapped[str | None] = mapped_column(Text)
     execution_token: Mapped[str | None] = mapped_column(Text)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -1490,6 +1491,12 @@ class BackgroundJob(Base):
         Index("idx_background_jobs_locked_at", "locked_at"),
         Index("idx_background_jobs_lease_expires_at", "lease_expires_at"),
         Index("idx_background_jobs_execution_token", "execution_token"),
+        Index(
+            "idx_background_jobs_worker_instance",
+            "worker_id",
+            "worker_instance_id",
+            "status",
+        ),
         Index("idx_background_jobs_progress_watchdog", "status", "last_progress_at"),
         Index("idx_background_jobs_request_key", "request_key"),
         Index(
@@ -1537,6 +1544,14 @@ class BackgroundWorker(Base):
     hostname: Mapped[str | None] = mapped_column(Text)
     process_id: Mapped[int | None] = mapped_column(Integer)
     instance_id: Mapped[str | None] = mapped_column(Text)
+    launcher_process_id: Mapped[int | None] = mapped_column(Integer)
+    process_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    generation: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
     rss_bytes: Mapped[int | None] = mapped_column(BigInteger)
     private_bytes: Mapped[int | None] = mapped_column(BigInteger)
     memory_status: Mapped[str | None] = mapped_column(Text)
@@ -1553,6 +1568,38 @@ class BackgroundWorker(Base):
     stopping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (Index("idx_background_workers_heartbeat", "heartbeat_at"),)
+
+
+class BackgroundSupervisor(Base):
+    __tablename__ = "background_supervisors"
+
+    worker_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    instance_id: Mapped[str] = mapped_column(Text, nullable=False)
+    hostname: Mapped[str] = mapped_column(Text, nullable=False)
+    process_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    process_started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+    generation: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    stopping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (Index("idx_background_supervisors_heartbeat", "heartbeat_at"),)
 
 
 class PredictionEligibility:

@@ -231,6 +231,33 @@ def test_provider_batch_continues_after_partial_ticker_failure(monkeypatch) -> N
     assert job.status == JobStatus.PARTIAL
 
 
+def test_ceri_checkpoint_updates_durable_progress_fields_monotonically(monkeypatch) -> None:
+    monkeypatch.setattr(
+        batched_job_handlers,
+        "ceri_flags",
+        lambda: SimpleNamespace(provider_ingest=True),
+    )
+
+    class Service:
+        def ingest(self, _db, request, **_kwargs):
+            return SimpleNamespace(as_dict=lambda: {"status": "COMPLETED", "failed": 0})
+
+    job = _provider_batch_job(["T0", "T1", "T2"])
+    result = execute_provider_ingest_batch_job(FakeDb(), job, ingestion_service=Service())
+
+    assert result["processed_tickers"] == 3
+    assert job.progress_stage == "CERI_PROVIDER_INGEST"
+    assert job.progress_processed == 3
+    assert job.progress_total == 3
+    assert job.progress_sequence == 3
+    assert job.last_progress_at is not None
+    assert job.progress_last_completed_item == "T2"
+    assert job.checkpoint_version == "CERI_PROVIDER_INGEST_BATCH:3:T2"
+    checkpoint = job.operational_metadata_json["ceri_batch"]
+    assert checkpoint["checkpoint_id"] == job.checkpoint_version
+    assert checkpoint["processed"] == 3
+
+
 def test_active_batched_sec_provider_routes_through_incremental_service(monkeypatch) -> None:
     monkeypatch.setattr(
         batched_job_handlers,

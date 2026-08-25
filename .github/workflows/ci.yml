@@ -195,3 +195,47 @@ jobs:
           name: performance-report
           path: test-results/
           if-no-files-found: warn
+
+  windows-durable-worker-recovery:
+    name: Windows Durable Worker Recovery Gate
+    runs-on: windows-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up PostgreSQL
+        uses: ikalnytskyi/action-setup-postgres@v8
+        with:
+          username: postgres
+          password: postgres
+          database: postgres
+          port: 5432
+
+      - name: Sync dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Run repeated Windows worker-kill recovery gate
+        run: >-
+          uv run pytest -q tests/e2e/test_windows_durable_worker_recovery.py
+          --junitxml=test-results/windows-durable-worker-recovery.xml
+
+      - name: Publish recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-durable-worker-recovery
+          path: test-results/windows-durable-worker-recovery.xml
+          if-no-files-found: error

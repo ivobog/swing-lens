@@ -55,6 +55,12 @@ def test_stalled_owner_is_fenced_and_late_checkpoint_rolls_back(
                 heartbeat_at=now,
                 last_progress_at=now - timedelta(minutes=10),
                 progress_stage="FETCHING_MARKET_DATA",
+                operational_metadata_json={
+                    "progress_watchdog": {
+                        "progress_sequence": 1,
+                        "unchanged_since": (now - timedelta(minutes=10)).isoformat(),
+                    }
+                },
             )
         )
     with sessions() as watchdog:

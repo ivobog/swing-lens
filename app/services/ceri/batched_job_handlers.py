@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any
@@ -16,6 +17,7 @@ from app.services.background_job_service import (
     JobStatus,
     enqueue_job,
     is_cancel_requested,
+    record_job_progress,
 )
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.ceri.batched_workflow import (
@@ -47,6 +49,12 @@ from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
 from app.settings import get_settings
 
 CERI_CAPTURE_RUN = "CERI_CAPTURE_RUN"
+logger = logging.getLogger(__name__)
+CERI_PROGRESS_STAGES = {
+    CERI_PROVIDER_INGEST_BATCH: "CERI_PROVIDER_INGEST",
+    CERI_NORMALIZE_BATCH: "CERI_NORMALIZE",
+    CERI_FEATURE_BATCH: "CERI_FEATURE_REBUILD",
+}
 
 
 def implemented_batched_ceri_job_handlers():
@@ -115,11 +123,17 @@ def execute_provider_ingest_batch_job(
                 "error": _safe_error(exc),
             }
         completed.add(ticker)
-        _save_checkpoint(job, completed=completed, results=results)
+        _save_checkpoint(
+            db,
+            job,
+            completed=completed,
+            results=results,
+            total=len(tickers),
+            last_completed=ticker,
+        )
         if index % checkpoint_interval == 0:
             if _heartbeat_and_cancel(db, job):
                 raise CancelRequested("CERI provider batch cancelled.")
-    _save_checkpoint(job, completed=completed, results=results)
     if failed:
         job.status = JobStatus.PARTIAL
     return {
@@ -207,11 +221,17 @@ def execute_normalize_batch_job(
                 results[ticker] = result.as_dict()
             failed += int(results[ticker].get("failed") or 0)
         completed.add(ticker)
-        _save_checkpoint(job, completed=completed, results=results)
+        _save_checkpoint(
+            db,
+            job,
+            completed=completed,
+            results=results,
+            total=len(tickers),
+            last_completed=ticker,
+        )
         if index % checkpoint_interval == 0:
             if _heartbeat_and_cancel(db, job):
                 raise CancelRequested("CERI normalization batch cancelled.")
-    _save_checkpoint(job, completed=completed, results=results)
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
         job.status = JobStatus.PARTIAL
     return {
@@ -317,13 +337,19 @@ def execute_feature_batch_job(
         results[ticker] = values
         failed += int(values.get("failed") or 0)
         completed.add(ticker)
-        _save_checkpoint(job, completed=completed, results=results)
+        _save_checkpoint(
+            db,
+            job,
+            completed=completed,
+            results=results,
+            total=len(tickers),
+            last_completed=ticker,
+        )
         # Make feature rows, processing-run completion, and the ticker
         # checkpoint durable in that order. This also bounds retry work to one
         # ticker without discarding the shared read-only batch context.
         if _heartbeat_and_cancel(db, job):
             raise CancelRequested("CERI feature batch cancelled.")
-    _save_checkpoint(job, completed=completed, results=results)
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
         job.status = JobStatus.PARTIAL
     family_timings: dict[str, int] = {}
@@ -469,18 +495,77 @@ def _checkpoint_state(job: BackgroundJob) -> tuple[set[str], dict[str, dict[str,
 
 
 def _save_checkpoint(
+    db: Session,
     job: BackgroundJob,
     *,
     completed: set[str],
     results: dict[str, dict[str, Any]],
+    total: int,
+    last_completed: str,
 ) -> None:
     metadata = dict(job.operational_metadata_json or {})
+    previous = dict(metadata.get("ceri_batch") or {})
+    previous_completed = {
+        str(ticker).upper() for ticker in previous.get("completed_tickers") or []
+    }
+    processed = len(completed)
+    if processed <= len(previous_completed):
+        return
+    checkpoint_at = datetime.now(UTC)
+    checkpoint_id = f"{job.job_type}:{processed}:{last_completed}"
     metadata["ceri_batch"] = {
         "completed_tickers": sorted(completed),
         "results": results,
-        "updated_at": datetime.now(UTC).isoformat(),
+        "checkpoint_id": checkpoint_id,
+        "processed": processed,
+        "total": total,
+        "updated_at": checkpoint_at.isoformat(),
     }
     job.operational_metadata_json = metadata
+    stage = CERI_PROGRESS_STAGES.get(job.job_type, "CERI_BATCH")
+    if isinstance(db, Session) and job.id is not None and job.execution_token:
+        record_job_progress(
+            db,
+            job_id=job.id,
+            execution_token=str(job.execution_token),
+            stage=stage,
+            current_item=last_completed,
+            last_completed_item=last_completed,
+            processed=processed,
+            total=total,
+            checkpoint_version=checkpoint_id,
+            only_if_advanced=True,
+        )
+    else:
+        job.last_progress_at = checkpoint_at
+        job.progress_sequence = int(job.progress_sequence or 0) + 1
+        job.progress_stage = stage
+        job.progress_current_item = last_completed
+        job.progress_last_completed_item = last_completed
+        job.progress_processed = max(int(job.progress_processed or 0), processed)
+        job.progress_total = max(int(job.progress_total or 0), total)
+        job.checkpoint_version = checkpoint_id
+    progress_context = {
+            "job_id": job.id,
+            "run_id": job.related_run_id,
+            "job_type": job.job_type,
+            "stage": stage,
+            "progress_current": processed,
+            "progress_total": total,
+            "progress_seq": int(job.progress_sequence or 0),
+            "last_progress_at": (
+                job.last_progress_at.isoformat()
+                if job.last_progress_at
+                else checkpoint_at.isoformat()
+            ),
+            "worker_instance_id": job.worker_instance_id,
+            "checkpoint_id": checkpoint_id,
+        }
+    logger.info(
+        "job.progress.checkpoint %s",
+        progress_context,
+        extra=progress_context,
+    )
 
 
 def _heartbeat_and_cancel(db: Session, job: BackgroundJob, *, heartbeat: bool = True) -> bool:

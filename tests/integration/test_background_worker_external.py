@@ -44,15 +44,23 @@ def test_postgresql_worker_registry_and_queue_allowlist(
             now=now,
         )
         db.commit()
+        worker = db.get(BackgroundWorker, "worker-a")
+        assert worker is not None
+        worker_instance_id = worker.instance_id
+        assert worker_instance_id
+        assert worker.process_started_at == now
+        assert worker.generation == 1
 
     with Session(engine) as db:
         claimed = claim_next_job(
             db,
             worker_id="worker-a",
+            worker_instance_id=worker_instance_id,
             queues=("broker",),
         )
         assert claimed is not None
         assert claimed.job_type == "IB_HISTOGRAM_FETCH"
+        assert claimed.worker_instance_id == worker_instance_id
         db.rollback()
 
     with Session(engine) as db:

@@ -12,9 +12,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
-from app.models.tables import BackgroundJob
+from app.models.tables import BackgroundJob, BackgroundWorker
 from app.services.background_job_service import JobStatus
 from app.services.redaction import redact_text
+from app.services.supervisor_registry import live_supervisors
 from app.services.worker_registry import has_live_worker_for_job, live_workers
 from app.settings import Settings
 
@@ -59,18 +60,27 @@ class ReadinessService:
         if database.ok:
             migrations = self._migration_check()
             jobs = self._jobs_check()
+            supervisor = self._supervisor_check()
+            worker_registered = self._worker_registration_check()
+            worker_heartbeat = self._worker_heartbeat_check()
             worker = self._worker_check()
             sec = self._sec_provider_check()
         else:
             dependency_message = "skipped: database unavailable"
             migrations = ReadinessCheck(False, dependency_message)
             jobs = ReadinessCheck(False, dependency_message)
+            supervisor = ReadinessCheck(False, dependency_message)
+            worker_registered = ReadinessCheck(False, dependency_message)
+            worker_heartbeat = ReadinessCheck(False, dependency_message)
             worker = ReadinessCheck(False, dependency_message)
             sec = ReadinessCheck(False, dependency_message)
         checks = {
             "database": database,
             "migrations": migrations,
             "storage": self._storage_check(),
+            "supervisor": supervisor,
+            "worker_registered": worker_registered,
+            "worker_heartbeat": worker_heartbeat,
             "worker": worker,
             "jobs": jobs,
             "sec": sec,
@@ -163,6 +173,73 @@ class ReadinessService:
             return ReadinessCheck(False, f"worker_memory_pressure:{detail}")
         worker_ids = ",".join(worker.worker_id for worker in workers)
         return ReadinessCheck(True, f"live:{worker_ids}")
+
+    def _supervisor_check(self) -> ReadinessCheck:
+        if not self.settings.job_worker_enabled:
+            return ReadinessCheck(True, "not managed")
+        try:
+            with Session(self.engine) as session:
+                supervisors = live_supervisors(
+                    session,
+                    heartbeat_timeout_seconds=(
+                        self.settings.job_worker_heartbeat_timeout_seconds
+                    ),
+                    now=self.now,
+                )
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        matching = [
+            row for row in supervisors if row.worker_id == self.settings.job_worker_id
+        ]
+        if not matching:
+            return ReadinessCheck(False, "no live durable worker supervisor heartbeat")
+        row = matching[0]
+        return ReadinessCheck(
+            True, f"live:{row.worker_id}:{row.instance_id}:generation-{row.generation}"
+        )
+
+    def _worker_registration_check(self) -> ReadinessCheck:
+        if not self.settings.use_durable_pipeline:
+            return ReadinessCheck(True, "not required")
+        try:
+            with Session(self.engine) as session:
+                registrations = list(
+                    session.scalars(
+                        select(BackgroundWorker)
+                        .where(BackgroundWorker.stopping_at.is_(None))
+                        .order_by(BackgroundWorker.worker_id)
+                    ).all()
+                )
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        if not registrations:
+            return ReadinessCheck(False, "no active durable worker registration")
+        valid = [
+            row
+            for row in registrations
+            if row.instance_id and row.process_id and row.process_started_at
+        ]
+        if not valid:
+            return ReadinessCheck(False, "worker registration lacks process-instance identity")
+        return ReadinessCheck(True, "registered:" + ",".join(row.worker_id for row in valid))
+
+    def _worker_heartbeat_check(self) -> ReadinessCheck:
+        if not self.settings.use_durable_pipeline:
+            return ReadinessCheck(True, "not required")
+        try:
+            with Session(self.engine) as session:
+                workers = live_workers(
+                    session,
+                    heartbeat_timeout_seconds=(
+                        self.settings.job_worker_heartbeat_timeout_seconds
+                    ),
+                    now=self.now,
+                )
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        if not workers:
+            return ReadinessCheck(False, "no fresh durable worker heartbeat")
+        return ReadinessCheck(True, "fresh:" + ",".join(row.worker_id for row in workers))
 
     def _sec_provider_check(self) -> ReadinessCheck:
         if not self.settings.ceri_provider_ingest_enabled:
