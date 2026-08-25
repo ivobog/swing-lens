@@ -27,10 +27,9 @@ from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 
 @pytest.fixture(autouse=True)
 def _disable_optional_runtime_flags(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "app.services.pipeline_executor.ceri_flags",
-        lambda: CeriFeatureFlags(True, False, False, False, False, False, False),
-    )
+    flags = CeriFeatureFlags(True, False, False, False, False, False, False)
+    monkeypatch.setattr("app.services.pipeline_executor.ceri_flags", lambda: flags)
+    monkeypatch.setattr("app.services.pipeline_service.ceri_flags", lambda: flags)
     monkeypatch.setattr(
         "app.services.pipeline_executor.get_settings",
         lambda: type(

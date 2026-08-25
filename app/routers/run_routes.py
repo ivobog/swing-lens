@@ -94,7 +94,10 @@ from app.services.resource_limits import (
 )
 from app.services.score_card_view_service import build_score_cards
 from app.services.sector_rotation_repository import SectorRotationRepository
-from app.services.technical_display_fields import technical_v4_details_by_ticker
+from app.services.technical_display_fields import (
+    technical_score_displays_by_ticker,
+    technical_v4_details_by_ticker,
+)
 from app.services.technical_score_service import score_run_technicals
 from app.services.worker_registry import has_live_worker_for_job
 from app.settings import get_settings
@@ -287,6 +290,10 @@ def run_detail_page(
             "fundamental_by_ticker": fundamental_by_ticker,
             "technical_by_ticker": technical_by_ticker,
             "technical_details_by_ticker": technical_v4_details_by_ticker(run.technical_scores),
+            "technical_score_displays_by_ticker": technical_score_displays_by_ticker(
+                run.technical_scores,
+                combined_results,
+            ),
             "combined_by_ticker": combined_by_ticker,
             "combined_results": combined_results,
             "decision_counts": decision_counts,

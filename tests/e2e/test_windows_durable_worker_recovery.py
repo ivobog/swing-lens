@@ -45,6 +45,8 @@ def test_windows_worker_kill_self_heals_repeatedly(
         "WORKER_MEMORY_TRACEMALLOC_ENABLED": "false",
     }
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+    supervisor_log_path = tmp_path / f"worker-supervisor-{cycle}.log"
+    supervisor_log = supervisor_log_path.open("w", encoding="utf-8")
     supervisor = subprocess.Popen(
         [
             sys.executable,
@@ -57,8 +59,8 @@ def test_windows_worker_kill_self_heals_repeatedly(
         ],
         cwd=os.getcwd(),
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=supervisor_log,
+        stderr=subprocess.STDOUT,
         text=True,
         creationflags=creationflags,
     )
@@ -73,8 +75,12 @@ def test_windows_worker_kill_self_heals_repeatedly(
                 capture_output=True,
                 text=True,
             )
-            stdout, stderr = supervisor.communicate(timeout=10)
-            pytest.fail(f"{exc}\nsupervisor stdout={stdout}\nsupervisor stderr={stderr}")
+            supervisor.wait(timeout=10)
+            supervisor_log.flush()
+            pytest.fail(
+                f"{exc}\nsupervisor log="
+                f"{supervisor_log_path.read_text(encoding='utf-8', errors='replace')}"
+            )
         assert worker.process_id != supervisor_state.process_id
         assert worker.instance_id
         assert worker.process_started_at
@@ -108,8 +114,12 @@ def test_windows_worker_kill_self_heals_repeatedly(
                 capture_output=True,
                 text=True,
             )
-            stdout, stderr = supervisor.communicate(timeout=10)
-            pytest.fail(f"{exc}\nsupervisor stdout={stdout}\nsupervisor stderr={stderr}")
+            supervisor.wait(timeout=10)
+            supervisor_log.flush()
+            pytest.fail(
+                f"{exc}\nsupervisor log="
+                f"{supervisor_log_path.read_text(encoding='utf-8', errors='replace')}"
+            )
         assert replacement.process_id
         completed = _wait_for_status(engine, job_id, JobStatus.COMPLETED, timeout=150)
         assert completed.progress_processed == 10
@@ -168,6 +178,7 @@ def test_windows_worker_kill_self_heals_repeatedly(
                     capture_output=True,
                     text=True,
                 )
+        supervisor_log.close()
         engine.dispose()
 
 
