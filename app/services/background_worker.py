@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import socket
+import time
 from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
@@ -42,6 +43,7 @@ from app.services.ceri.sec.processor_lifecycle import (
 )
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_prerequisites import PipelineBlockedError
+from app.services.process_identity import process_started_at
 from app.services.process_memory import (
     WorkerMemoryCritical,
     memory_status,
@@ -88,6 +90,7 @@ def run_worker(
     handlers = handlers or default_job_handlers()
     hostname = socket.gethostname()
     process_id = os.getpid()
+    process_start = process_started_at(process_id)
     instance_id = uuid4().hex
     claim_state = WorkerClaimState()
     runtime_stop_event = stop_event or Event()
@@ -103,9 +106,11 @@ def run_worker(
             hostname=hostname,
             process_id=process_id,
             instance_id=instance_id,
+            process_start=process_start,
         )
-        register_deployed_processor(db)
-        log_worker_startup_configuration(db, settings=settings, worker_id=worker_id)
+        # Publish the canonical worker process identity before expensive provider/config
+        # startup checks. The supervisor can now distinguish a slow-but-alive startup
+        # from a missing worker and will not create a thundering herd of replacements.
         db.commit()
     except Exception:
         db.rollback()
@@ -130,6 +135,27 @@ def run_worker(
     )
     heartbeat_thread.start()
 
+    startup_db = session_factory()
+    try:
+        register_deployed_processor(startup_db)
+        log_worker_startup_configuration(
+            startup_db,
+            settings=settings,
+            worker_id=worker_id,
+            instance_id=instance_id,
+            process_start=process_start,
+        )
+        startup_db.commit()
+    except Exception:
+        startup_db.rollback()
+        runtime_stop_event.set()
+        heartbeat_thread.join(
+            timeout=max(1.0, settings.job_worker_heartbeat_interval_seconds * 2)
+        )
+        raise
+    finally:
+        startup_db.close()
+
     try:
         while not runtime_stop_event.is_set():
             if (
@@ -143,6 +169,7 @@ def run_worker(
                     fence_db.close()
             ran_job = run_worker_once(
                 worker_id=worker_id,
+                worker_instance_id=instance_id,
                 queues=queue_names,
                 stale_after_seconds=settings.job_stale_after_seconds,
                 heartbeat_timeout_seconds=settings.job_worker_heartbeat_timeout_seconds,
@@ -168,6 +195,7 @@ def run_worker(
                 worker_id,
                 hostname=hostname,
                 process_id=process_id,
+                instance_id=instance_id,
             )
             db.commit()
         except Exception:
@@ -228,11 +256,15 @@ def log_worker_startup_configuration(
     *,
     settings: Settings,
     worker_id: str,
+    instance_id: str | None = None,
+    process_start: datetime | None = None,
 ) -> dict[str, Any]:
     summary = {
         **worker_startup_configuration(db, settings=settings),
         "worker_id": worker_id,
+        "worker_instance_id": instance_id,
         "worker_process_id": os.getpid(),
+        "worker_process_started_at": (process_start or datetime.now(UTC)).isoformat(),
         "worker_hostname": socket.gethostname(),
         "worker_started_at": datetime.now(UTC).isoformat(),
     }
@@ -297,6 +329,7 @@ def _worker_heartbeat_loop(
 def run_worker_once(
     *,
     worker_id: str,
+    worker_instance_id: str | None = None,
     queues: Iterable[str] | None = None,
     stale_after_seconds: int,
     heartbeat_timeout_seconds: int = 30,
@@ -331,6 +364,7 @@ def run_worker_once(
             heartbeat_timeout_seconds=heartbeat_timeout_seconds,
             hostname=hostname,
             process_id=process_id,
+            instance_id=worker_instance_id,
         )
         recovered_count = recover_stale_jobs(db, stale_after_seconds)
         if recovered_count:
@@ -356,6 +390,7 @@ def run_worker_once(
         job = claim_next_job(
             db,
             worker_id,
+            worker_instance_id=worker_instance_id,
             lease_seconds=stale_after_seconds,
             queues=queue_names,
             claim_groups=claim_groups,
@@ -364,7 +399,15 @@ def run_worker_once(
             db.commit()
             return False
         claim_state.record(job.job_type)
-        logger.info("job.claimed", extra={"job_id": job.id, "job_type": job.job_type})
+        logger.info(
+            "job.claimed",
+            extra={
+                "job_id": job.id,
+                "job_type": job.job_type,
+                "worker_id": worker_id,
+                "worker_instance_id": worker_instance_id,
+            },
+        )
 
         execution_token = job.execution_token
         try:
@@ -381,6 +424,7 @@ def run_worker_once(
                     worker_id,
                     hostname=hostname,
                     process_id=process_id,
+                    instance_id=worker_instance_id,
                 )
                 db.commit()
 
@@ -489,6 +533,7 @@ def default_job_handlers() -> dict[str, JobHandler]:
 
     return {
         "FULL_PIPELINE": _execute_full_pipeline_job,
+        "WORKER_RECOVERY_PROBE": _execute_worker_recovery_probe,
         IB_FETCH_JOB_TYPE: execute_durable_fetch_job,
         SEC_READINESS_REPAIR_JOB_TYPE: _execute_sec_readiness_repair_job,
         MARKET_DATA_PREWARM: execute_market_data_prewarm_job,
@@ -497,6 +542,47 @@ def default_job_handlers() -> dict[str, JobHandler]:
         **implemented_setup_lifecycle_job_handlers(),
         **implemented_winner_job_handlers(),
     }
+
+
+def _execute_worker_recovery_probe(db: Session, job: BackgroundJob) -> dict[str, Any]:
+    """Internal release-gate job for checkpoint/reclaim process recovery tests."""
+    from app.services.background_job_service import is_cancel_requested
+
+    payload = job.payload_json or {}
+    total = max(1, int(payload.get("total_checkpoints") or 10))
+    delay_seconds = max(0.0, float(payload.get("checkpoint_delay_seconds") or 0.1))
+    metadata = dict(job.operational_metadata_json or {})
+    checkpoint = dict(metadata.get("worker_recovery_probe") or {})
+    completed = min(total, int(checkpoint.get("completed") or 0))
+    execution_token = str(job.execution_token or "")
+    for index in range(completed + 1, total + 1):
+        if is_cancel_requested(db, job.id):
+            raise CancelRequested("Worker recovery probe cancelled.")
+        metadata = dict(job.operational_metadata_json or {})
+        metadata["worker_recovery_probe"] = {
+            "completed": index,
+            "total": total,
+            "checkpoint_id": f"worker-recovery-probe:{index}",
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+        job.operational_metadata_json = metadata
+        record_job_progress(
+            db,
+            job_id=job.id,
+            execution_token=execution_token,
+            stage="WORKER_RECOVERY_PROBE",
+            current_item=str(index),
+            last_completed_item=str(index),
+            processed=index,
+            total=total,
+            checkpoint_version=f"worker-recovery-probe:{index}",
+            only_if_advanced=True,
+        )
+        heartbeat = getattr(job, "_heartbeat", None)
+        if callable(heartbeat):
+            heartbeat()
+        time.sleep(delay_seconds)
+    return {"completed": total, "resumed_from": completed}
 
 
 def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any] | None:

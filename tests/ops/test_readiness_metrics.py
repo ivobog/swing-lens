@@ -189,15 +189,27 @@ def _readiness_engine(
                 "worker_id text primary key, queues_json text not null, hostname text, "
                 "process_id integer, started_at timestamp not null, "
                 "heartbeat_at timestamp not null, stopping_at timestamp, "
-                "instance_id text, rss_bytes integer, private_bytes integer, memory_status text)"
+                "instance_id text, launcher_process_id integer, process_started_at timestamp, "
+                "generation integer not null default 0, rss_bytes integer, "
+                "private_bytes integer, memory_status text)"
+            )
+        )
+        connection.execute(
+            text(
+                "create table background_supervisors ("
+                "worker_id text primary key, instance_id text not null, hostname text not null, "
+                "process_id integer not null, process_started_at timestamp not null, "
+                "generation integer not null, started_at timestamp not null, "
+                "heartbeat_at timestamp not null, stopping_at timestamp)"
             )
         )
         connection.execute(
             text(
                 "insert into background_workers "
-                "(worker_id, queues_json, started_at, heartbeat_at) "
+                "(worker_id, queues_json, process_id, instance_id, process_started_at, "
+                "generation, started_at, heartbeat_at) "
                 'values (\'test-worker\', \'["interactive","broker","background"]\', '
-                ":started_at, :heartbeat_at)"
+                "123, 'instance-a', :started_at, 1, :started_at, :heartbeat_at)"
             ),
             {"started_at": heartbeat_at, "heartbeat_at": heartbeat_at},
         )

@@ -15,6 +15,9 @@ class ReadinessResponse(BaseModel):
     database_ok: bool
     local_dirs_ok: bool
     migrations_ok: bool | None = None
+    supervisor_ok: bool | None = None
+    worker_registered: bool | None = None
+    worker_heartbeat_fresh: bool | None = None
     worker_ok: bool | None = None
     jobs_ok: bool | None = None
     checks: dict[str, str]

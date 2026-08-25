@@ -68,13 +68,15 @@ uv run alembic upgrade head
 uv run python -m app.serve --host 127.0.0.1 --port 8000
 ```
 
-Run the durable worker under its independent watchdog in a second terminal:
+For externally managed deployments, run the durable worker supervisor with:
 
 ```powershell
 uv run python -m app.worker_supervisor --worker-id local-worker-1 --queues interactive,broker,background
 ```
 
-The API process never executes pipeline or broker jobs. `app.worker_supervisor` fences and
+When `JOB_WORKER_ENABLED=true`, the API automatically maintains that supervisor as a child
+process and restarts it if it exits. The API process never executes pipeline or broker jobs.
+`app.worker_supervisor` fences and
 restarts a worker that exits, exceeds its memory budget, or remains alive without durable job
 progress. For source-editing sessions only, `python -m app.serve --reload` enables reload with
 runtime logs, outputs, artifacts, caches, and generated data excluded from file watching. Do not

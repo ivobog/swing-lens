@@ -9,6 +9,7 @@ from app.services.background_job_service import (
     claim_next_job,
     default_retry_delay,
     enqueue_job,
+    fence_jobs_for_worker,
     fence_stalled_jobs,
     heartbeat_job,
     is_cancel_requested,
@@ -474,6 +475,85 @@ def test_live_worker_without_progress_is_fenced_and_recovering() -> None:
     assert requeue_stalled_jobs(db, job_ids=fenced, now=now) == 1
     assert job.status == JobStatus.RECOVERING
     assert job.recovery_count == 1
+
+
+def test_structural_progress_advance_prevents_false_stall_after_300_seconds() -> None:
+    now = datetime.now(UTC)
+    job = _running_job()
+    job.heartbeat_at = now
+    job.last_progress_at = now - timedelta(minutes=10)
+    job.progress_stage = "CERI_PROVIDER_INGEST"
+    job.progress_sequence = 146
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 145,
+            "unchanged_since": (now - timedelta(minutes=10)).isoformat(),
+        }
+    }
+    db = FakeDb(stale_jobs=[job])
+
+    assert fence_stalled_jobs(
+        db,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=300,
+        long_stage_timeout_seconds=300,
+        now=now,
+        worker_id="worker-a",
+    ) == []
+    observation = job.operational_metadata_json["progress_watchdog"]
+    assert observation["progress_sequence"] == 146
+    assert observation["unchanged_since"] == now.isoformat()
+
+
+def test_fresh_worker_and_lease_heartbeats_do_not_mask_frozen_progress_sequence() -> None:
+    now = datetime.now(UTC)
+    job = _running_job()
+    job.heartbeat_at = now
+    job.last_progress_at = now - timedelta(minutes=6)
+    job.progress_stage = "CERI_PROVIDER_INGEST"
+    job.progress_sequence = 145
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 145,
+            "unchanged_since": (now - timedelta(minutes=6)).isoformat(),
+        }
+    }
+    db = FakeDb(stale_jobs=[job])
+
+    assert fence_stalled_jobs(
+        db,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=300,
+        long_stage_timeout_seconds=300,
+        now=now,
+        worker_id="worker-a",
+    ) == [job.id]
+    assert job.status == JobStatus.STALLED
+    assert "sequence 145 remained frozen" in job.error_message
+
+
+def test_worker_recycle_preserves_more_than_one_hundred_queued_jobs() -> None:
+    queued = [
+        BackgroundJob(id=index, job_type="FULL_PIPELINE", status=JobStatus.QUEUED)
+        for index in range(1, 106)
+    ]
+    running = _running_job()
+    running.id = 1000
+    running.worker_instance_id = "instance-a"
+    db = FakeDb(stale_jobs=[running], jobs=queued)
+
+    fenced = fence_jobs_for_worker(
+        db,
+        worker_id="worker-a",
+        worker_instance_id="instance-a",
+        reason="worker crashed",
+    )
+    assert fenced == [1000]
+    assert requeue_stalled_jobs(db, job_ids=fenced) == 1
+
+    assert all(job.status == JobStatus.QUEUED for job in queued)
+    assert running.status == JobStatus.RECOVERING
+    assert len(queued) == 105
 
 
 def _running_job(

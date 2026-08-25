@@ -28,6 +28,7 @@ from app.routers import (
     winner_probability_routes,
 )
 from app.security import install_trusted_host_middleware, issue_local_admin_csrf_token
+from app.services.supervisor_process_manager import SupervisorProcessManager
 from app.settings import Settings, get_settings
 
 settings = get_settings()
@@ -65,15 +66,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     worker_settings: Settings = app.state.settings
     database_health_sampler = DatabaseHealthSampler(worker_settings)
     database_health_sampler.start()
+    supervisor_manager: SupervisorProcessManager | None = None
     if worker_settings.job_worker_enabled:
-        logger.warning(
-            "JOB_WORKER_ENABLED is ignored by the web process; start the isolated durable "
-            "worker with `uv run python -m app.worker` or the supervised worker command."
+        supervisor_manager = SupervisorProcessManager(worker_settings)
+        supervisor_manager.start()
+        app.state.supervisor_manager = supervisor_manager
+        logger.info(
+            "JOB_WORKER_ENABLED is maintaining an out-of-process durable worker supervisor.",
+            extra={"worker_id": worker_settings.job_worker_id},
         )
 
     try:
         yield
     finally:
+        if supervisor_manager is not None:
+            supervisor_manager.stop()
         database_health_sampler.stop()
 
 
