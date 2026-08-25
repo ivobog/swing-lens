@@ -34,6 +34,7 @@ from app.routers.run_routes import (
 )
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
 from app.services.ohlcv_coverage_service import OhlcvCoverageItem, OhlcvCoverageSummary
+from app.services.technical_display_fields import technical_score_display_fields
 from app.templates import templates
 
 
@@ -817,6 +818,114 @@ def test_run_detail_template_renders_v4_technical_details(monkeypatch) -> None:
     assert "2.20" in html
     assert "VCP; Stage 2" in html
     assert "missing_benchmark_data" in html
+
+
+def test_run_detail_template_renders_v4_active_before_v5_shadow(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
+    technical = _technical("MSFT")
+    technical.classification = "Clean bull pullback"
+    technical.technical_engine_version = "4.0.0"
+    technical.technical_composite_score = Decimal("7.51")
+    technical.technical_strength_score = Decimal("7.6")
+    technical.setup_quality_score = Decimal("7.0")
+    technical.entry_quality_score = Decimal("7.7")
+    technical.v5_debug_json = {
+        "classification": "Volatility contraction setup",
+        "rollout": {"mode": "shadow"},
+    }
+    combined = _combined("MSFT", "Candidate", is_complete=True, has_warning=False)
+    combined.dual_score = Decimal("8.44")
+    combined.technical_classification = "Clean bull pullback"
+    display = technical_score_display_fields(technical, combined)
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        combined_results=[combined],
+        technical_by_ticker={"MSFT": technical},
+        technical_score_displays_by_ticker={"MSFT": display},
+        warning_badges_by_ticker={"MSFT": []},
+    )
+
+    assert html.index("V4 ACTIVE") < html.index("V5 SHADOW")
+    assert html.index("Clean bull pullback") < html.index("Volatility contraction setup")
+    assert "8.44" in html
+    assert "7.51" in html
+    assert "Δ -0.93" in html
+    assert "S 7.6 / Q 7.0 / E 7.7" in html
+    assert "Feeds Final / Decision" in html
+    assert 'data-active-technical-score="8.44"' in html
+    assert 'data-active-technical-version="V4"' in html
+    assert 'data-v4-score="8.44"' in html
+    assert 'data-v5-score="7.51"' in html
+    assert 'data-v5-rollout-mode="shadow"' in html
+    assert 'data-v4-classification="Clean bull pullback"' in html
+    assert 'data-v5-classification="Volatility contraction setup"' in html
+    assert 'data-technical-score="8.44"' in html
+    assert display["active"]["score"] == combined.dual_score == technical.dual_score
+
+
+def test_run_detail_template_renders_v5_active_before_v4_legacy(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
+    technical = _technical("MSFT")
+    technical.dual_score = Decimal("8.12")
+    technical.classification = "Volatility contraction setup"
+    technical.technical_engine_version = "5.0.0"
+    technical.technical_composite_score = Decimal("8.12")
+    technical.v4_debug_json = {
+        "final_v4_score": 8.44,
+        "final_v4_classification": "Clean bull pullback",
+    }
+    technical.v5_debug_json = {
+        "classification": "Volatility contraction setup",
+        "rollout": {"mode": "active"},
+    }
+    combined = _combined("MSFT", "Candidate", is_complete=True, has_warning=False)
+    combined.dual_score = Decimal("8.12")
+    combined.technical_classification = "Volatility contraction setup"
+    display = technical_score_display_fields(technical, combined)
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        combined_results=[combined],
+        technical_by_ticker={"MSFT": technical},
+        technical_score_displays_by_ticker={"MSFT": display},
+        warning_badges_by_ticker={"MSFT": []},
+    )
+
+    assert html.index("V5 ACTIVE") < html.index("V4 LEGACY")
+    assert "Feeds Final / Decision" in html
+    assert 'data-active-technical-score="8.12"' in html
+    assert 'data-active-technical-version="V5"' in html
+    assert 'data-v5-rollout-mode="active"' in html
+    assert 'data-technical-score="8.12"' in html
+    assert display["active"]["score"] == combined.dual_score == technical.dual_score
+
+
+def test_run_detail_template_renders_historical_v4_without_v5_placeholder(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
+    technical = _technical("MSFT")
+    technical.classification = "Clean bull pullback"
+    technical.technical_engine_version = "4.0.0"
+    combined = _combined("MSFT", "Candidate", is_complete=True, has_warning=False)
+    combined.dual_score = Decimal("8.44")
+    combined.technical_classification = "Clean bull pullback"
+    display = technical_score_display_fields(technical, combined)
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        combined_results=[combined],
+        technical_by_ticker={"MSFT": technical},
+        technical_score_displays_by_ticker={"MSFT": display},
+        warning_badges_by_ticker={"MSFT": []},
+    )
+
+    assert "V4 ACTIVE" in html
+    assert "V5 SHADOW" not in html
+    assert "V4 LEGACY" not in html
+    assert 'data-v5-score=""' in html
 
 
 def test_ib_fetch_plan_template_preserves_options_for_execution(monkeypatch) -> None:

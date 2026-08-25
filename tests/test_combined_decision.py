@@ -10,6 +10,7 @@ from app.services.combined_decision import (
     combine_row_decision,
     reconstruct_combined_score_from_debug,
 )
+from app.services.technical_display_fields import technical_score_display_fields
 
 TODAY = date(2026, 7, 7)
 
@@ -166,6 +167,58 @@ def test_combined_decision_carries_v4_warning_flags_to_cockpit_payload() -> None
     assert "market_risk_off" in decision.warning_flags
     assert "stage_4_downtrend" in decision.warning_flags
     assert decision.has_warning is True
+
+
+def test_v5_shadow_display_does_not_change_combined_decision_semantics() -> None:
+    fundamental = _fundamental("SHOP", "Clean compounder", "8.8")
+    baseline_technical = _technical(
+        "SHOP",
+        "Clean bull pullback",
+        "8.44",
+        risk_score="2.5",
+    )
+    shadow_technical = _technical(
+        "SHOP",
+        "Clean bull pullback",
+        "8.44",
+        risk_score="2.5",
+    )
+    shadow_technical.technical_engine_version = "4.0.0"
+    shadow_technical.technical_composite_score = Decimal("7.51")
+    shadow_technical.technical_strength_score = Decimal("7.6")
+    shadow_technical.setup_quality_score = Decimal("7.0")
+    shadow_technical.entry_quality_score = Decimal("7.7")
+    shadow_technical.v5_debug_json = {
+        "classification": "Volatility contraction setup",
+        "rollout": {"mode": "shadow"},
+    }
+
+    baseline = combine_row_decision(
+        _row("SHOP"),
+        fundamental,
+        baseline_technical,
+        config=_config(),
+    )
+    with_shadow = combine_row_decision(
+        _row("SHOP"),
+        fundamental,
+        shadow_technical,
+        config=_config(),
+    )
+    combined_model = _to_model(run_id=1, final_rank=1, decision=with_shadow)
+    display = technical_score_display_fields(shadow_technical, combined_model)
+
+    assert with_shadow == baseline
+    assert with_shadow.final_score == baseline.final_score
+    assert with_shadow.dual_score == baseline.dual_score == 8.44
+    assert with_shadow.combined_decision == baseline.combined_decision
+    assert with_shadow.earnings_risk_level == baseline.earnings_risk_level
+    assert with_shadow.earnings_warning_flags == baseline.earnings_warning_flags
+    assert with_shadow.warning_flags == baseline.warning_flags
+    assert cockpit_sort_key(with_shadow) == cockpit_sort_key(baseline)
+    assert display["active"]["version"] == "V4"
+    assert display["comparison"]["role"] == "SHADOW"
+    assert display["active"]["score"] == combined_model.dual_score == shadow_technical.dual_score
 
 
 def test_combined_decision_missing_technical_waits_for_data() -> None:

@@ -408,6 +408,54 @@ dd {
   font-size: 12px;
 }
 
+.technical-score-stack {
+  display: grid;
+  gap: 8px;
+  min-width: 170px;
+}
+
+.technical-score-active,
+.technical-score-comparison {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+}
+
+.technical-score-comparison {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.technical-score-value {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.technical-score-classification {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.technical-score-lineage {
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.technical-comparison-score {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.technical-comparison-score span {
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .ceri-change-group {
   padding-top: 16px;
   border-top: 1px solid var(--border);

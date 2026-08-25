@@ -1,6 +1,124 @@
 from typing import Any
 
-from app.models.tables import TechnicalScore
+from app.models.tables import CombinedResult, TechnicalScore
+
+
+def technical_score_display_fields(
+    score: TechnicalScore | None,
+    combined: CombinedResult | None = None,
+) -> dict[str, Any]:
+    """Build the rollout-aware score hierarchy shown in the decision cockpit.
+
+    The combined result is the preferred source for the active score and classification
+    because those persisted values are the inputs that produced Final / Decision. V5
+    columns alone never imply that V5 is active.
+    """
+    v5 = _dict(_value(score, "v5_debug_json"))
+    rollout_mode = str(_dict(v5.get("rollout")).get("mode") or "").lower()
+    engine_version = str(_value(score, "technical_engine_version") or "")
+    v5_active = engine_version.startswith("5.") or rollout_mode == "active"
+    active_score = _first_present(
+        _value(combined, "dual_score"),
+        _value(score, "dual_score"),
+    )
+    active_classification = _first_present(
+        _value(combined, "technical_classification"),
+        _value(score, "classification"),
+    )
+    v4_debug = _explainability(score)
+    shadow_comparison = _dict(v5.get("shadow_comparison"))
+    v5_score = _value(score, "technical_composite_score")
+
+    if v5_active:
+        v4_score = _first_present(
+            v4_debug.get("final_v4_score"),
+            shadow_comparison.get("v4_score"),
+        )
+        v4_classification = _first_present(
+            v4_debug.get("final_v4_classification"),
+            shadow_comparison.get("v4_classification", ""),
+        )
+        active = _score_tier(
+            version="V5",
+            role="ACTIVE",
+            score=active_score,
+            classification=active_classification,
+            strength=_value(score, "technical_strength_score"),
+            setup_quality=_value(score, "setup_quality_score"),
+            entry_quality=_value(score, "entry_quality_score"),
+            danger_state=_v5_danger_state(v5),
+            setup_type=_value(score, "setup_type"),
+            confidence_adjusted_score=_value(score, "confidence_adjusted_score"),
+        )
+        comparison = (
+            _score_tier(
+                version="V4",
+                role="LEGACY",
+                score=v4_score,
+                classification=v4_classification,
+            )
+            if v4_score is not None or v4_classification
+            else None
+        )
+    else:
+        v4_score = active_score
+        v4_classification = active_classification
+        active = _score_tier(
+            version="V4",
+            role="ACTIVE",
+            score=active_score,
+            classification=active_classification,
+        )
+        comparison = (
+            _score_tier(
+                version="V5",
+                role="SHADOW",
+                score=v5_score,
+                classification=v5.get("classification", ""),
+                delta=_score_delta(v5_score, active_score),
+                strength=_value(score, "technical_strength_score"),
+                setup_quality=_value(score, "setup_quality_score"),
+                entry_quality=_value(score, "entry_quality_score"),
+                danger_state=_v5_danger_state(v5),
+                setup_type=_value(score, "setup_type"),
+                confidence_adjusted_score=_value(score, "confidence_adjusted_score"),
+            )
+            if v5_score is not None
+            else None
+        )
+
+    v5_classification = (
+        active_classification
+        if v5_active
+        else (comparison or {}).get("classification", "")
+    )
+    effective_rollout_mode = rollout_mode or (
+        "active" if v5_active else "shadow" if v5_score is not None else ""
+    )
+    return {
+        "active": active,
+        "comparison": comparison,
+        "feeds_combined_decision": active["version"],
+        "v4_score": v4_score,
+        "v5_score": v5_score,
+        "v4_classification": v4_classification,
+        "v5_classification": v5_classification,
+        "v5_rollout_mode": effective_rollout_mode,
+    }
+
+
+def technical_score_displays_by_ticker(
+    scores: list[TechnicalScore],
+    combined_results: list[CombinedResult],
+) -> dict[str, dict[str, Any]]:
+    combined_by_ticker = {result.ticker: result for result in combined_results}
+    return {
+        score.ticker: technical_score_display_fields(
+            score,
+            combined_by_ticker.get(score.ticker),
+        )
+        for score in scores
+    }
 
 
 def technical_v4_summary_fields(score: TechnicalScore | None) -> dict[str, Any]:
@@ -132,6 +250,48 @@ def technical_v4_details_by_ticker(
     }
 
 
+def _score_tier(
+    *,
+    version: str,
+    role: str,
+    score: Any,
+    classification: Any,
+    delta: float | None = None,
+    strength: Any = None,
+    setup_quality: Any = None,
+    entry_quality: Any = None,
+    danger_state: Any = "",
+    setup_type: Any = "",
+    confidence_adjusted_score: Any = None,
+) -> dict[str, Any]:
+    return {
+        "version": version,
+        "role": role,
+        "score": score,
+        "classification": classification or "",
+        "delta": delta,
+        "strength": strength,
+        "setup_quality": setup_quality,
+        "entry_quality": entry_quality,
+        "danger_state": danger_state or "",
+        "setup_type": setup_type or "",
+        "confidence_adjusted_score": confidence_adjusted_score,
+    }
+
+
+def _v5_danger_state(v5: dict[str, Any]) -> str:
+    return str(_dict(v5.get("entry_quality")).get("danger_state") or "")
+
+
+def _score_delta(comparison: Any, active: Any) -> float | None:
+    if comparison is None or active is None:
+        return None
+    try:
+        return round(float(comparison) - float(active), 4)
+    except (TypeError, ValueError):
+        return None
+
+
 def _explainability(score: TechnicalScore | None) -> dict[str, Any]:
     if score is None:
         return {}
@@ -146,7 +306,7 @@ def _dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _value(score: TechnicalScore | None, attribute: str) -> Any:
+def _value(score: Any, attribute: str) -> Any:
     if score is None:
         return None
     return getattr(score, attribute, None)

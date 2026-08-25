@@ -8,6 +8,7 @@
 {% set fundamental_by_ticker = fundamental_by_ticker|default({}) %}
 {% set technical_by_ticker = technical_by_ticker|default({}) %}
 {% set technical_details_by_ticker = technical_details_by_ticker|default({}) %}
+{% set technical_score_displays_by_ticker = technical_score_displays_by_ticker|default({}) %}
 {% set combined_by_ticker = combined_by_ticker|default({}) %}
 {% set combined_results = combined_results|default([]) %}
 {% set decision_counts = decision_counts|default({}) %}
@@ -847,6 +848,9 @@
             {% set fundamental = fundamental_by_ticker.get(result.ticker) %}
             {% set technical = technical_by_ticker.get(result.ticker) %}
             {% set technical_details = technical_details_by_ticker.get(result.ticker, {}) %}
+            {% set technical_display = technical_score_displays_by_ticker.get(result.ticker) %}
+            {% set active_technical = technical_display.get("active", {}) if technical_display else {} %}
+            {% set comparison_technical = technical_display.get("comparison") if technical_display else none %}
             {% set warning_flags = result.warning_flags_json or [] %}
             {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
             {% set winner_prediction_id = winner_probability_context.prediction_by_ticker.get(result.ticker) %}
@@ -863,10 +867,18 @@
               data-sector="{{ result.sector or '' }}"
               data-decision="{{ result.combined_decision or '' }}"
               data-fundamental-label="{{ result.fundamental_label or '' }}"
-              data-technical-classification="{{ result.technical_classification or '' }}"
+              data-technical-classification="{{ active_technical.get('classification', result.technical_classification or '') }}"
               data-final-score="{{ result.final_score if result.final_score is not none else '' }}"
               data-fundamental-score="{{ result.fundamental_score if result.fundamental_score is not none else '' }}"
-              data-technical-score="{{ result.dual_score if result.dual_score is not none else '' }}"
+              data-active-technical-score="{{ active_technical.get('score', result.dual_score) if active_technical.get('score', result.dual_score) is not none else '' }}"
+              data-active-technical-version="{{ active_technical.get('version', '') }}"
+              data-v4-score="{{ technical_display.get('v4_score', '') if technical_display and technical_display.get('v4_score') is not none else '' }}"
+              data-v5-score="{{ technical_display.get('v5_score', '') if technical_display and technical_display.get('v5_score') is not none else '' }}"
+              data-v5-rollout-mode="{{ technical_display.get('v5_rollout_mode', '') if technical_display else '' }}"
+              data-v4-classification="{{ technical_display.get('v4_classification', '') if technical_display else '' }}"
+              data-v5-classification="{{ technical_display.get('v5_classification', '') if technical_display else '' }}"
+              {# Compatibility alias: data-technical-score always means the ACTIVE production input. #}
+              data-technical-score="{{ active_technical.get('score', result.dual_score) if active_technical.get('score', result.dual_score) is not none else '' }}"
               data-incomplete="{{ 'true' if not result.is_complete else 'false' }}"
               data-has-warning="{{ 'true' if result.has_warning else 'false' }}"
               data-warning-count="{{ warning_flags|length }}"
@@ -910,17 +922,37 @@
                 {% endif %}
               </td>
               <td>
-                {% if technical_details.get("technical_composite_score") is number %}
-                  <span class="muted-line">Technical V5{% if technical_details.get("v5_rollout_mode") == "shadow" %} (shadow){% endif %}</span>
-                  {{ "%.2f"|format(technical_details.get("technical_composite_score")) }}
-                  <span class="muted-line">S {{ "%.1f"|format(technical_details.get("technical_strength_score")) }} / Q {{ "%.1f"|format(technical_details.get("setup_quality_score")) }} / E {{ "%.1f"|format(technical_details.get("entry_quality_score")) }}</span>
-                  {% if technical_details.get("v5_classification") %}
-                    {% if technical_details.get("danger_state") %}
-                      <span class="badge badge-danger">{{ technical_details.get("v5_classification") }} · {{ technical_details.get("danger_state")|replace('_', ' ') }}</span>
-                    {% else %}
-                      <span class="muted-line">{{ technical_details.get("v5_classification") }}</span>
+                {% if technical_display %}
+                  <div class="technical-score-stack">
+                    <div class="technical-score-active">
+                      <span class="badge badge-success">{{ active_technical.get("version") }} ACTIVE</span>
+                      {% if active_technical.get("score") is number %}
+                        <strong class="technical-score-value">{{ "%.2f"|format(active_technical.get("score")) }}</strong>
+                      {% endif %}
+                      {% if active_technical.get("classification") %}
+                        <span class="technical-score-classification">{{ active_technical.get("classification") }}</span>
+                      {% endif %}
+                      <span class="technical-score-lineage" title="This active technical score feeds the combined Final score and Decision.">Feeds Final / Decision</span>
+                    </div>
+                    {% if comparison_technical %}
+                      <div class="technical-score-comparison">
+                        <span class="badge badge-muted">{{ comparison_technical.get("version") }} {{ comparison_technical.get("role") }}</span>
+                        <span class="technical-comparison-score">
+                          {% if comparison_technical.get("score") is number %}{{ "%.2f"|format(comparison_technical.get("score")) }}{% endif %}
+                          {% if comparison_technical.get("delta") is number %}<span>Δ {{ "%+.2f"|format(comparison_technical.get("delta")) }}</span>{% endif %}
+                        </span>
+                        {% if comparison_technical.get("classification") %}
+                          <span class="muted-line">{{ comparison_technical.get("classification") }}</span>
+                        {% endif %}
+                        {% if comparison_technical.get("strength") is number and comparison_technical.get("setup_quality") is number and comparison_technical.get("entry_quality") is number %}
+                          <span class="muted-line">S {{ "%.1f"|format(comparison_technical.get("strength")) }} / Q {{ "%.1f"|format(comparison_technical.get("setup_quality")) }} / E {{ "%.1f"|format(comparison_technical.get("entry_quality")) }}</span>
+                        {% endif %}
+                        {% if comparison_technical.get("danger_state") %}
+                          <span class="muted-line">Danger: {{ comparison_technical.get("danger_state")|replace('_', ' ') }}</span>
+                        {% endif %}
+                      </div>
                     {% endif %}
-                  {% endif %}
+                  </div>
                 {% else %}
                   {{ "%.2f"|format(result.dual_score) if result.dual_score is not none else "" }}
                   {% if result.technical_classification %}
