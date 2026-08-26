@@ -323,11 +323,21 @@ class EodhdCeriProvider:
             "acquisition_policy": policy_kind,
             "provider_consensus_semantics": consensus_semantics,
         }
+        if event_kind == "UPCOMING":
+            # The scheduled report date is a business/event date, not a
+            # publication or provider-observation timestamp.  The explicit
+            # semantic marker also makes corrected rows supersede legacy rows
+            # whose future event date was stored as published_at.
+            payload["source_timestamp_semantics"] = "EVENT_DATE_NOT_PUBLICATION_V1"
         yield self._record(
             CeriDataset.EARNINGS,
             provider_id,
             payload,
-            _first_present(row, "report_date", "reportDate"),
+            (
+                _first_present(row, "report_date", "reportDate")
+                if event_kind == "REPORTED"
+                else None
+            ),
         )
 
     def fetch_guidance(self, request: GuidanceRequest) -> Iterable[RawProviderRecord]:

@@ -31,6 +31,18 @@ def test_sparse_analyst_coverage_lowers_confidence() -> None:
     assert "analyst_sample_sparse" in result.warnings
 
 
+def test_estimate_freshness_does_not_use_another_dataset_age() -> None:
+    result = CeriConfidenceService().calculate(
+        as_of_session=date(2026, 8, 25),
+        revision_features=[_feature(upward_count=6, downward_count=2)],
+        dataset_freshness_days={"estimates": 0, "earnings": 11, "guidance": 12},
+    )
+
+    freshness = next(entry for entry in result.ledger if entry.name == "freshness")
+    assert freshness.value == 10.0
+    assert "estimate_data_stale" not in result.warnings
+
+
 def _feature(
     *,
     as_of_session: date = date(2026, 8, 1),

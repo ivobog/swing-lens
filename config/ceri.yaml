@@ -1,7 +1,7 @@
 engine:
   enabled: false
-  calculation_version: ceri-1.2.0
-  config_version: 2026-08-14-changes-alerts-remediation-r1
+  calculation_version: ceri-1.3.0
+  config_version: 2026-08-26-freshness-semantics-r1
   timezone: America/New_York
   daily_cutoff_time: "16:15"
   effective_session_policy: AFTER_HOURS_NEXT_COMPLETED_US_SESSION

@@ -257,11 +257,12 @@ def alert_business_identity(rule_id: str, change: CeriChangeEvent) -> dict[str, 
             "rule_id": rule_id,
             "guidance_event_id": change.guidance_event_id,
         }
-    identity_type = (
-        "RISK_TRANSITION"
-        if change_type in {CeriChangeType.RISK_ESCALATED, CeriChangeType.RISK_DEESCALATED}
-        else "OPPORTUNITY_TRANSITION"
-    )
+    if change_type in {CeriChangeType.RISK_ESCALATED, CeriChangeType.RISK_DEESCALATED}:
+        identity_type = "RISK_TRANSITION"
+    elif change_type in {CeriChangeType.DATA_STALE, CeriChangeType.DATA_REFRESHED}:
+        identity_type = "DATA_QUALITY_TRANSITION"
+    else:
+        identity_type = "OPPORTUNITY_TRANSITION"
     return {
         "identity_type": identity_type,
         "rule_id": rule_id,

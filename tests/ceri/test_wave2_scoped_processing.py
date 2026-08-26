@@ -147,6 +147,22 @@ def test_standalone_change_rebuild_honors_company_scope() -> None:
     assert detector.score_companies == [1]
 
 
+def test_run_scoped_change_rebuild_uses_prior_snapshot_outside_scope() -> None:
+    prior = _snapshot(1, 1)
+    prior.run_id = 10
+    current = _snapshot(2, 1)
+    current.run_id = 11
+    detector = RecordingDetector()
+    db = RowDb({CeriScoreSnapshot: [prior, current]})
+
+    CeriChangeRebuildService(detector=detector).rebuild(
+        db,
+        CeriChangeRebuildRequest(run_id=11),
+    )
+
+    assert detector.score_comparisons == [(current.id, prior.id)]
+
+
 def test_alert_rebuild_request_key_is_stable_across_job_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -373,9 +389,13 @@ class RecordingDetector:
         self.score_companies = []
         self.revision_companies = []
         self.guidance_companies = []
+        self.score_comparisons = []
 
     def detect_score_changes(self, _db, *, current, prior, scope):
         self.score_companies.append(current.company_id)
+        self.score_comparisons.append(
+            (current.id, prior.id if prior is not None else None)
+        )
         return ChangeDetectionResult(1, 0)
 
     def detect_catalyst_revision(self, _db, *, revision, prior_revision, company_id):

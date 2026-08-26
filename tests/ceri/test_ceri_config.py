@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -26,7 +27,7 @@ def test_valid_default_ceri_yaml_loads() -> None:
     config = load_ceri_config()
 
     assert config.engine.enabled is False
-    assert config.engine.calculation_version == "ceri-1.2.0"
+    assert config.engine.calculation_version == "ceri-1.3.0"
     assert config.revision.pct_change_unit == "PERCENTAGE_POINTS"
     assert config.engine.timezone == "America/New_York"
     assert config.engine.daily_cutoff_time.hour == 16
@@ -38,6 +39,27 @@ def test_valid_default_ceri_yaml_loads() -> None:
     assert config.missing_values.preserve_nulls is True
     assert config.currency_conversion.require_verified_basis is True
     assert len(config.config_hash) == 64
+
+
+def test_default_loader_resolves_runtime_settings_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = _config_with_mutation(
+        tmp_path,
+        lambda config: config["engine"].update({"config_version": "settings-path-test"}),
+    )
+    monkeypatch.setattr(
+        "app.settings.get_settings",
+        lambda: SimpleNamespace(
+            ceri_config_path=path,
+            ceri_taxonomy_path=Path("config/ceri_catalyst_taxonomy.yaml"),
+        ),
+    )
+
+    config = load_ceri_config()
+
+    assert config.engine.config_version == "settings-path-test"
 
 
 def test_config_hash_is_stable_for_semantically_identical_input() -> None:

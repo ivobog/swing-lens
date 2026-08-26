@@ -89,6 +89,7 @@ class CeriSnapshotService:
             "subscores": [asdict(entry) for entry in confidence.ledger],
             "gates": list(confidence.gates),
             "caps": list(confidence.caps),
+            "freshness": confidence.freshness_details or {},
         }
         event_risk_ledger = {
             "score": event_risk.score,

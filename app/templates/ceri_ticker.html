@@ -131,6 +131,22 @@
   </section>
 
   <section class="panel section-gap">
+    <div class="panel-header compact-header"><div><h2>Feed Freshness and Evidence Age</h2></div></div>
+    {% for dataset, state in ((payload.source_freshness if payload.source_freshness is defined else {}) or {}).items() %}
+      <div class="evidence-row">
+        <strong>{{ dataset|title }}</strong>
+        <span>Provider feed: {{ state.provider_feed_status|title }}{% if state.provider_feed_age_days is not none %} · {{ state.provider_feed_age_days }}d{% endif %}</span>
+        <span>Last successful check: {{ state.provider_last_successful_check_at or "N/A" }}</span>
+        <span>Evidence retrieval: {{ state.evidence_status|title }}{% if state.evidence_retrieval_age_days is not none %} · {{ state.evidence_retrieval_age_days }}d{% endif %}</span>
+        <span>Observation age: {{ state.evidence_observation_age_days if state.evidence_observation_age_days is not none else "N/A" }}d · {{ state.timestamp_quality or "UNKNOWN" }}</span>
+        {% if state.ignored_future_timestamp_fields %}<span>Ignored future event/business timestamp fields: {{ state.ignored_future_timestamp_fields|join(", ") }}</span>{% endif %}
+      </div>
+    {% else %}
+      <p>No feed or evidence freshness diagnostics are available.</p>
+    {% endfor %}
+  </section>
+
+  <section class="panel section-gap">
     <div class="panel-header compact-header"><div><h2>Catalyst Timeline</h2></div></div>
     {% if payload.events %}
       <div class="timeline-list section-gap">
