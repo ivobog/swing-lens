@@ -521,7 +521,8 @@ class FakeCeriQueryService:
     def operations_conflicts(self, _db, _query):
         return {"items": [{"id": 2, "conflict_flags": ["provider_disagreement"]}]}
 
-    def operations_stale(self, _db, _query):
+    def operations_stale(self, _db, _query, *, known_total=None):
+        assert known_total == 1
         return {
             "items": [
                 {

@@ -273,6 +273,18 @@ class CeriSourceRecord(Base):
         Index("ix_ceri_source_records_quarantine", "quarantine_reason"),
         Index("ix_ceri_source_records_provider_retrieved", "provider", "retrieved_at"),
         Index(
+            "ix_ceri_source_records_freshness",
+            provider,
+            dataset,
+            func.coalesce(observed_at, published_at, ingested_at).desc(),
+        ),
+        Index(
+            "ix_ceri_source_records_dataset_freshness",
+            dataset,
+            func.coalesce(observed_at, published_at, ingested_at),
+            postgresql_include=["observed_at", "published_at", "ingested_at"],
+        ),
+        Index(
             "ix_ceri_source_records_provider_source_timestamp",
             "provider",
             "source_timestamp",
