@@ -331,6 +331,7 @@ def ceri_operations_page(request: Request, db: DbSession) -> HTMLResponse:
         lambda: CeriQueryService().operations_stale(
             db,
             _list_query(sort="stale_days", direction="desc", limit=50),
+            known_total=operations["stale_count"],
         )
     )
     return templates.TemplateResponse(

@@ -4,6 +4,9 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import load_only
 
 from app.models.ceri_tables import (
     CeriAlertEvent,
@@ -17,6 +20,9 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.services.ceri.query_service import (
+    _SOURCE_RECORD_OPERATIONS_COLUMNS,
+    OPERATIONS_DETAIL_LIMIT,
+    OPERATIONS_REPRODUCTION_SAMPLE_LIMIT,
     CeriListQuery,
     CeriQueryError,
     CeriQueryFilters,
@@ -27,6 +33,18 @@ from app.services.ceri.query_service import (
 )
 
 NOW = datetime(2026, 8, 2, 12, tzinfo=UTC)
+
+
+def test_operations_projection_excludes_large_source_payloads_and_bounds_details() -> None:
+    statement = select(CeriSourceRecord).options(
+        load_only(*_SOURCE_RECORD_OPERATIONS_COLUMNS)
+    )
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "raw_json" not in sql
+    assert "company_hint_json" in sql
+    assert "quarantine_reason" in sql
+    assert OPERATIONS_REPRODUCTION_SAMPLE_LIMIT < OPERATIONS_DETAIL_LIMIT
 
 
 def test_latest_filters_sorts_pages_and_preserves_nulls() -> None:
