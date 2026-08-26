@@ -88,6 +88,21 @@ def test_summary_uses_full_population_and_explicit_zero_risk_predicate(
     assert "Summary population 177" in response.text
 
 
+def test_run_page_reuses_one_query_service_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    instances = []
+
+    def factory():
+        service = FakeCeriQueryService()
+        instances.append(service)
+        return service
+
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", factory)
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/runs/104/ceri")
+
+    assert response.status_code == 200
+    assert len(instances) == 1
+
+
 def test_ceri_dashboard_renders_empty_state(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: EmptyCeriQueryService())
     app = _app(ceri_ui_enabled=True)
@@ -338,9 +353,7 @@ class FakeCeriQueryService:
             "has_previous": query.offset > 0,
             "has_next": query.offset + query.limit < 177,
             "previous_offset": max(0, query.offset - query.limit) if query.offset else None,
-            "next_offset": query.offset + query.limit
-            if query.offset + query.limit < 177
-            else None,
+            "next_offset": query.offset + query.limit if query.offset + query.limit < 177 else None,
             "start_item": query.offset + 1,
             "end_item": min(177, query.offset + query.limit),
             "summary": {
@@ -506,7 +519,8 @@ class FakeCeriQueryService:
             "purge_previews": [],
         }
 
-    def operations_quarantine(self, _db, _query):
+    def operations_quarantine(self, _db, _query, *, known_total=None):
+        assert known_total == 1
         return {
             "items": [
                 {
@@ -518,7 +532,8 @@ class FakeCeriQueryService:
             ]
         }
 
-    def operations_conflicts(self, _db, _query):
+    def operations_conflicts(self, _db, _query, *, known_total=None):
+        assert known_total == 1
         return {"items": [{"id": 2, "conflict_flags": ["provider_disagreement"]}]}
 
     def operations_stale(self, _db, _query, *, known_total=None):

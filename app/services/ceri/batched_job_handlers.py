@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriIngestionRun
 from app.models.tables import BackgroundJob
-from app.observability.db_monitor import current_sql_summary_snapshot
+from app.observability.db_monitor import current_sql_summary_snapshot, job_phase
 from app.services.background_job_service import (
     TERMINAL_JOB_STATUSES,
     JobStatus,
@@ -93,21 +93,26 @@ def execute_provider_ingest_batch_job(
             raise CancelRequested("CERI provider batch cancelled.")
         request_key = f"{workflow_key}:ingest:{provider}:{dataset.value}:{ticker}"
         try:
-            result = service.ingest(
-                db,
-                CeriIngestionRequest(
-                    provider=provider,
-                    dataset=dataset,
-                    ticker=ticker,
-                    request_key=request_key,
-                    scope={
-                        "ticker": ticker,
-                        "run_id": job.related_run_id,
-                        "worker_id": job.worker_id,
-                    },
-                ),
-                should_cancel=lambda: _heartbeat_and_cancel(db, job),
-            )
+            with job_phase(
+                "provider_network_and_persistence",
+                provider=provider,
+                dataset=dataset.value,
+            ):
+                result = service.ingest(
+                    db,
+                    CeriIngestionRequest(
+                        provider=provider,
+                        dataset=dataset,
+                        ticker=ticker,
+                        request_key=request_key,
+                        scope={
+                            "ticker": ticker,
+                            "run_id": job.related_run_id,
+                            "worker_id": job.worker_id,
+                        },
+                    ),
+                    should_cancel=lambda: _heartbeat_and_cancel(db, job),
+                )
             result_values = result.as_dict()
             failed += int(result_values.get("failed") or 0)
             results[ticker] = result_values
@@ -183,9 +188,7 @@ def execute_normalize_batch_job(
                 "error": "provider batch produced no ingestion run",
             }
         else:
-            processing_key = (
-                f"{workflow_key}:normalize-ticker:{provider}:{dataset.value}:{ticker}"
-            )
+            processing_key = f"{workflow_key}:normalize-ticker:{provider}:{dataset.value}:{ticker}"
             processing, _ = CeriProcessingRunService().create_or_get(
                 db,
                 job_type=CERI_NORMALIZE_BATCH,
@@ -204,18 +207,15 @@ def execute_normalize_batch_job(
                 }
             else:
                 try:
-                    result = service.normalize(
-                        db,
-                        processing_run=processing,
-                        ingestion_run_id=ingestion_run.id,
-                        should_cancel=lambda: _heartbeat_and_cancel(
-                            db, job, heartbeat=False
-                        ),
-                        checkpoint_interval=checkpoint_interval,
-                        checkpoint_callback=lambda _checkpoint: _heartbeat_and_cancel(
-                            db, job
-                        ),
-                    )
+                    with job_phase("parse_transform_and_persistence", dataset=dataset.value):
+                        result = service.normalize(
+                            db,
+                            processing_run=processing,
+                            ingestion_run_id=ingestion_run.id,
+                            should_cancel=lambda: _heartbeat_and_cancel(db, job, heartbeat=False),
+                            checkpoint_interval=checkpoint_interval,
+                            checkpoint_callback=lambda _checkpoint: _heartbeat_and_cancel(db, job),
+                        )
                 except CeriNormalizationCancelled as exc:
                     raise CancelRequested(str(exc)) from exc
                 results[ticker] = result.as_dict()
@@ -363,8 +363,7 @@ def execute_feature_batch_job(
             int(value.get("companies_rebuilt") or 0) for value in results.values()
         ),
         "companies_skipped_unchanged": sum(
-            int(value.get("companies_skipped_unchanged") or 0)
-            for value in results.values()
+            int(value.get("companies_skipped_unchanged") or 0) for value in results.values()
         ),
         "features_inserted": sum(
             int(value.get("features_inserted") or 0) for value in results.values()
@@ -377,9 +376,7 @@ def execute_feature_batch_job(
         ),
         "batch_total_ms": int((perf_counter() - batch_started) * 1000),
         "load_context_ms": int(getattr(batch_context, "load_context_ms", 0) or 0),
-        "persistence_ms": sum(
-            int(value.get("persistence_ms") or 0) for value in results.values()
-        ),
+        "persistence_ms": sum(int(value.get("persistence_ms") or 0) for value in results.values()),
         "revision_compute_ms": family_timings.get("revisions", 0),
         "surprise_compute_ms": family_timings.get("earnings_surprise", 0),
         "guidance_compute_ms": family_timings.get("guidance", 0),
@@ -469,9 +466,7 @@ def _require_terminal_stage(
             delay_seconds=get_settings().ceri_barrier_retry_seconds,
         )
     unsuccessful = [
-        job
-        for job in jobs
-        if job.status not in {JobStatus.COMPLETED, JobStatus.PARTIAL}
+        job for job in jobs if job.status not in {JobStatus.COMPLETED, JobStatus.PARTIAL}
     ]
     if unsuccessful:
         raise CeriUpstreamStageBlockedError(
@@ -479,10 +474,7 @@ def _require_terminal_stage(
             diagnostics={
                 "workflow_key": workflow_key,
                 "upstream_job_type": job_type,
-                "jobs": [
-                    {"job_id": row.id, "status": row.status}
-                    for row in unsuccessful
-                ],
+                "jobs": [{"job_id": row.id, "status": row.status} for row in unsuccessful],
             },
         )
 
@@ -505,9 +497,7 @@ def _save_checkpoint(
 ) -> None:
     metadata = dict(job.operational_metadata_json or {})
     previous = dict(metadata.get("ceri_batch") or {})
-    previous_completed = {
-        str(ticker).upper() for ticker in previous.get("completed_tickers") or []
-    }
+    previous_completed = {str(ticker).upper() for ticker in previous.get("completed_tickers") or []}
     processed = len(completed)
     if processed <= len(previous_completed):
         return
@@ -546,21 +536,19 @@ def _save_checkpoint(
         job.progress_total = max(int(job.progress_total or 0), total)
         job.checkpoint_version = checkpoint_id
     progress_context = {
-            "job_id": job.id,
-            "run_id": job.related_run_id,
-            "job_type": job.job_type,
-            "stage": stage,
-            "progress_current": processed,
-            "progress_total": total,
-            "progress_seq": int(job.progress_sequence or 0),
-            "last_progress_at": (
-                job.last_progress_at.isoformat()
-                if job.last_progress_at
-                else checkpoint_at.isoformat()
-            ),
-            "worker_instance_id": job.worker_instance_id,
-            "checkpoint_id": checkpoint_id,
-        }
+        "job_id": job.id,
+        "run_id": job.related_run_id,
+        "job_type": job.job_type,
+        "stage": stage,
+        "progress_current": processed,
+        "progress_total": total,
+        "progress_seq": int(job.progress_sequence or 0),
+        "last_progress_at": (
+            job.last_progress_at.isoformat() if job.last_progress_at else checkpoint_at.isoformat()
+        ),
+        "worker_instance_id": job.worker_instance_id,
+        "checkpoint_id": checkpoint_id,
+    }
     logger.info(
         "job.progress.checkpoint %s",
         progress_context,

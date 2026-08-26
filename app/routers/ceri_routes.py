@@ -155,15 +155,16 @@ def ceri_run_page(
     limit: int = 50,
     offset: int = 0,
 ) -> HTMLResponse:
+    service = CeriQueryService()
     payload, ui_error = _ui_payload_or_empty(
-        lambda: CeriQueryService().run(
+        lambda: service.run(
             db,
             run_id,
             _list_query(sort=sort, direction=direction, limit=limit, offset=offset),
         )
     )
     changes, _changes_error = _ui_payload_or_empty(
-        lambda: CeriQueryService().changes(
+        lambda: service.changes(
             db,
             _list_query(sort="created_at", direction="desc", limit=25),
         )
@@ -314,21 +315,24 @@ def ceri_changes_page(
     dependencies=[Depends(_require_ceri_ui)],
 )
 def ceri_operations_page(request: Request, db: DbSession) -> HTMLResponse:
-    operations = CeriQueryService().operations_status(db)
+    service = CeriQueryService()
+    operations = service.operations_status(db)
     quarantine, _quarantine_error = _ui_payload_or_empty(
-        lambda: CeriQueryService().operations_quarantine(
+        lambda: service.operations_quarantine(
             db,
             _list_query(sort="ingested_at", direction="desc", limit=50),
+            known_total=operations["quarantined_count"],
         )
     )
     conflicts, _conflict_error = _ui_payload_or_empty(
-        lambda: CeriQueryService().operations_conflicts(
+        lambda: service.operations_conflicts(
             db,
             _list_query(sort="id", direction="desc", limit=50),
+            known_total=operations["conflicted_count"],
         )
     )
     stale, _stale_error = _ui_payload_or_empty(
-        lambda: CeriQueryService().operations_stale(
+        lambda: service.operations_stale(
             db,
             _list_query(sort="stale_days", direction="desc", limit=50),
             known_total=operations["stale_count"],

@@ -44,17 +44,27 @@ class Settings(BaseSettings):
     db_monitor_slow_query_ms: float = Field(default=100.0, ge=0)
     db_monitor_full_trace_ms: float = Field(default=250.0, ge=0)
     db_monitor_full_stack_for_all_sql: bool = False
-    db_monitor_retention_days: int = Field(default=3, ge=1, le=365)
+    db_monitor_retention_days: int = Field(default=14, ge=7, le=365)
     db_monitor_log_dir: Path = Field(default=Path("logs/db-monitor"))
+    db_monitor_test_log_dir: Path = Field(default=Path("logs/db-monitor-test"))
+    db_monitor_process_role: str = "auto"
     db_monitor_queue_size: int = Field(default=10_000, ge=1)
     db_monitor_max_file_mb: int = Field(default=100, ge=1)
-    db_monitor_max_files: int = Field(default=32, ge=2, le=10_000)
-    db_monitor_max_total_mb: int = Field(default=1024, ge=10)
+    db_monitor_max_files: int = Field(default=512, ge=32, le=10_000)
+    db_monitor_max_total_mb: int = Field(default=16384, ge=1024)
+    db_monitor_health_interval_seconds: float = Field(default=60.0, ge=5)
     db_monitor_max_stack_frames: int = Field(default=20, ge=1, le=100)
     db_monitor_n_plus_one_threshold: int = Field(default=10, ge=2)
-    db_monitor_activity_sampler_enabled: bool = False
+    db_monitor_parameter_digest_enabled: bool = True
+    db_monitor_long_transaction_ms: float = Field(default=5000.0, ge=100)
+    db_monitor_pool_wait_event_ms: float = Field(default=5.0, ge=0)
+    db_monitor_activity_sampler_enabled: bool = True
     db_monitor_activity_threshold_ms: float = Field(default=1500.0, ge=100)
-    db_monitor_activity_sample_interval_seconds: float = Field(default=10.0, ge=1)
+    db_monitor_idle_transaction_threshold_ms: float = Field(default=5000.0, ge=100)
+    db_monitor_activity_sample_interval_seconds: float = Field(default=1.0, ge=0.5)
+    application_version: str = "0.1.0"
+    deployment_id: str = "local-development"
+    ceri_feature_rebuild_impl_version: str = "batch-prefetch-v1"
 
     upload_dir: Path = Field(default=Path("data/uploads"))
     export_dir: Path = Field(default=Path("data/exports"))

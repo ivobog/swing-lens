@@ -36,9 +36,7 @@ NOW = datetime(2026, 8, 2, 12, tzinfo=UTC)
 
 
 def test_operations_projection_excludes_large_source_payloads_and_bounds_details() -> None:
-    statement = select(CeriSourceRecord).options(
-        load_only(*_SOURCE_RECORD_OPERATIONS_COLUMNS)
-    )
+    statement = select(CeriSourceRecord).options(load_only(*_SOURCE_RECORD_OPERATIONS_COLUMNS))
     sql = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "raw_json" not in sql
@@ -680,6 +678,32 @@ def test_run_missing_raises_stable_error_code() -> None:
 
     assert exc.value.code == "RUN_NOT_FOUND"
     assert exc.value.status_code == 404
+
+
+def test_run_snapshot_query_is_scoped_and_instance_cache_reuses_rows() -> None:
+    row = _snapshot(11, "MSFT")
+
+    class ScalarResult:
+        def all(self):
+            return [row]
+
+    class RecordingDb:
+        def __init__(self) -> None:
+            self.statements = []
+
+        def scalars(self, statement):
+            self.statements.append(statement)
+            return ScalarResult()
+
+    db = RecordingDb()
+    service = CeriQueryService()
+    rows = service._filtered_snapshots(db, CeriQueryFilters(run_id=1))
+    sql = str(db.statements[0].compile(dialect=postgresql.dialect()))
+
+    assert rows == [row]
+    assert "ceri_score_snapshots.run_id =" in sql
+    assert service._snapshots_for_ids(db, {11}) == {11: row}
+    assert len(db.statements) == 1
 
 
 def _snapshot(

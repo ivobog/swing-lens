@@ -160,6 +160,9 @@ class CeriListQuery:
 class CeriQueryService:
     def __init__(self, config: CeriConfig | None = None) -> None:
         self.config = config or load_ceri_config()
+        # Instance-scoped only: route handlers may safely reuse already-loaded rows,
+        # while separate requests always receive a fresh service and cache.
+        self._score_snapshots_by_id: dict[int, CeriScoreSnapshot] = {}
 
     def latest(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
@@ -273,14 +276,21 @@ class CeriQueryService:
     def changes(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
         company_by_id = _company_by_id(db)
-        snapshots = {row.id: row for row in _load(db, CeriScoreSnapshot)}
+        change_rows = _load(db, CeriChangeEvent)
+        referenced_snapshot_ids = {
+            snapshot_id
+            for change in change_rows
+            for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
+            if snapshot_id is not None
+        }
+        snapshots = self._snapshots_for_ids(db, referenced_snapshot_ids)
         revisions = {row.id: row for row in _load(db, CeriCatalystEventRevision)}
         revision_features = {row.id: row for row in _load(db, CeriRevisionFeature)}
         events = {row.id: row for row in _load(db, CeriCatalystEvent)}
         guidance = {row.id: row for row in _load(db, CeriGuidanceEvent)}
         latest_snapshot_ids = _latest_snapshot_ids_by_company(snapshots.values())
         items = []
-        for change in _load(db, CeriChangeEvent):
+        for change in change_rows:
             ticker = company_by_id.get(change.company_id, {}).get("ticker")
             if query.filters.ticker and ticker != _ticker(query.filters.ticker):
                 continue
@@ -492,9 +502,15 @@ class CeriQueryService:
             },
         )
 
-    def operations_quarantine(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+    def operations_quarantine(
+        self,
+        db: Session,
+        query: CeriListQuery,
+        *,
+        known_total: int | None = None,
+    ) -> dict[str, Any]:
         if not _uses_fixture_collections(db):
-            return self._database_operations_quarantine(db, query)
+            return self._database_operations_quarantine(db, query, known_total=known_total)
         items = [
             _source_record_payload(source)
             for source in _load(db, CeriSourceRecord)
@@ -506,9 +522,15 @@ class CeriQueryService:
             sort_aliases={"ingested_at": "ingested_at", "provider": "provider", "id": "id"},
         )
 
-    def operations_conflicts(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+    def operations_conflicts(
+        self,
+        db: Session,
+        query: CeriListQuery,
+        *,
+        known_total: int | None = None,
+    ) -> dict[str, Any]:
         if not _uses_fixture_collections(db):
-            return self._database_operations_conflicts(db, query)
+            return self._database_operations_conflicts(db, query, known_total=known_total)
         items = []
         for revision in _load(db, CeriCatalystEventRevision):
             if revision.conflict_flags_json:
@@ -744,6 +766,8 @@ class CeriQueryService:
         self,
         db: Session,
         query: CeriListQuery,
+        *,
+        known_total: int | None = None,
     ) -> dict[str, Any]:
         self._validate_operations_sort(
             query,
@@ -754,18 +778,27 @@ class CeriQueryService:
             },
         )
         predicate = CeriSourceRecord.quarantine_reason.is_not(None)
-        total = int(
-            db.scalar(select(func.count()).select_from(CeriSourceRecord).where(predicate)) or 0
+        total = (
+            int(known_total)
+            if known_total is not None
+            else int(
+                db.scalar(select(func.count()).select_from(CeriSourceRecord).where(predicate)) or 0
+            )
         )
         statement = (
             select(CeriSourceRecord)
             .options(load_only(*_SOURCE_RECORD_OPERATIONS_COLUMNS))
             .where(predicate)
-            .order_by(*_database_ordering(query, {
-                "ingested_at": CeriSourceRecord.ingested_at,
-                "provider": CeriSourceRecord.provider,
-                "id": CeriSourceRecord.id,
-            }))
+            .order_by(
+                *_database_ordering(
+                    query,
+                    {
+                        "ingested_at": CeriSourceRecord.ingested_at,
+                        "provider": CeriSourceRecord.provider,
+                        "id": CeriSourceRecord.id,
+                    },
+                )
+            )
             .offset(query.offset)
             .limit(query.limit)
         )
@@ -776,19 +809,23 @@ class CeriQueryService:
         self,
         db: Session,
         query: CeriListQuery,
+        *,
+        known_total: int | None = None,
     ) -> dict[str, Any]:
         self._validate_operations_sort(query, {"id": None, "effective_session": None})
         catalyst_predicate = _nonempty_json(CeriCatalystEventRevision.conflict_flags_json)
         feature_predicate = cast(CeriRevisionFeature.warnings_json, String).ilike("%conflict%")
-        catalyst_count = int(
-            db.scalar(
-                select(func.count())
-                .select_from(CeriCatalystEventRevision)
-                .where(catalyst_predicate)
-            )
-            or 0
-        )
+        catalyst_count = 0
         feature_count = 0
+        if known_total is None:
+            catalyst_count = int(
+                db.scalar(
+                    select(func.count())
+                    .select_from(CeriCatalystEventRevision)
+                    .where(catalyst_predicate)
+                )
+                or 0
+            )
         candidate_limit = query.offset + query.limit
         catalysts = list(
             db.scalars(
@@ -800,12 +837,15 @@ class CeriQueryService:
         )
         items = [_catalyst_revision_payload(row) for row in catalysts]
         if query.filters.has_conflicts is not False:
-            feature_count = int(
-                db.scalar(
-                    select(func.count()).select_from(CeriRevisionFeature).where(feature_predicate)
+            if known_total is None:
+                feature_count = int(
+                    db.scalar(
+                        select(func.count())
+                        .select_from(CeriRevisionFeature)
+                        .where(feature_predicate)
+                    )
+                    or 0
                 )
-                or 0
-            )
             features = db.scalars(
                 select(CeriRevisionFeature)
                 .where(feature_predicate)
@@ -822,7 +862,7 @@ class CeriQueryService:
         page_items = ordered[query.offset : query.offset + query.limit]
         return _page_payload(
             page_items,
-            total=catalyst_count + feature_count,
+            total=int(known_total) if known_total is not None else catalyst_count + feature_count,
             query=query,
         )
 
@@ -842,16 +882,12 @@ class CeriQueryService:
             predicate = _dataset_stale_predicate(dataset, max_days)
             if known_total is None:
                 total += int(
-                    db.scalar(
-                        select(func.count()).select_from(CeriSourceRecord).where(predicate)
-                    )
+                    db.scalar(select(func.count()).select_from(CeriSourceRecord).where(predicate))
                     or 0
                 )
             if query.sort == "stale_days":
                 primary = (
-                    observed_at.asc()
-                    if query.direction.lower() == "desc"
-                    else observed_at.desc()
+                    observed_at.asc() if query.direction.lower() == "desc" else observed_at.desc()
                 )
             elif query.sort == "dataset":
                 primary = (
@@ -988,9 +1024,7 @@ class CeriQueryService:
             .limit(OPERATIONS_DETAIL_LIMIT)
         ).all()
         purge_audits = db.scalars(
-            select(CeriPurgeAudit)
-            .order_by(CeriPurgeAudit.id.desc())
-            .limit(OPERATIONS_DETAIL_LIMIT)
+            select(CeriPurgeAudit).order_by(CeriPurgeAudit.id.desc()).limit(OPERATIONS_DETAIL_LIMIT)
         ).all()
         errors = _operations_errors(db)
         deployments = _operations_deployments(db)
@@ -1055,9 +1089,7 @@ class CeriQueryService:
                 "ceri_snapshot_reproduction_failure_count": reproduction_failures,
                 "ceri_snapshot_reproduction_checked_count": reproduction_checked,
                 "ceri_snapshot_reproduction_total_count": reproduction_total,
-                "ceri_snapshot_reproduction_truncated": (
-                    reproduction_checked < reproduction_total
-                ),
+                "ceri_snapshot_reproduction_truncated": (reproduction_checked < reproduction_total),
             },
             "dataset_freshness": self._dataset_freshness(freshness_records),
             "ingestion_status": ingestion_status,
@@ -1156,16 +1188,16 @@ class CeriQueryService:
     def _filtered_snapshots(
         self, db: Session, filters: CeriQueryFilters
     ) -> list[CeriScoreSnapshot]:
-        if filters.ticker and not _uses_fixture_collections(db):
-            snapshot_rows = list(
-                db.scalars(
-                    select(CeriScoreSnapshot).where(
-                        CeriScoreSnapshot.ticker == _ticker(filters.ticker)
-                    )
-                ).all()
-            )
+        if (filters.run_id is not None or filters.ticker) and not _uses_fixture_collections(db):
+            predicates = []
+            if filters.run_id is not None:
+                predicates.append(CeriScoreSnapshot.run_id == filters.run_id)
+            if filters.ticker:
+                predicates.append(CeriScoreSnapshot.ticker == _ticker(filters.ticker))
+            snapshot_rows = list(db.scalars(select(CeriScoreSnapshot).where(*predicates)).all())
         else:
             snapshot_rows = _load(db, CeriScoreSnapshot)
+        self._remember_snapshots(snapshot_rows)
         snapshots = []
         catalyst_company_ids: set[int] | None = None
         if filters.catalyst_category:
@@ -1213,6 +1245,33 @@ class CeriQueryService:
                 continue
             snapshots.append(snapshot)
         return snapshots
+
+    def _remember_snapshots(self, snapshots: list[CeriScoreSnapshot]) -> None:
+        for snapshot in snapshots:
+            if snapshot.id is not None:
+                self._score_snapshots_by_id[int(snapshot.id)] = snapshot
+
+    def _snapshots_for_ids(
+        self,
+        db: Session,
+        snapshot_ids: set[int],
+    ) -> dict[int, CeriScoreSnapshot]:
+        missing_ids = snapshot_ids.difference(self._score_snapshots_by_id)
+        if missing_ids:
+            if _uses_fixture_collections(db):
+                rows = [row for row in _load(db, CeriScoreSnapshot) if row.id in missing_ids]
+            else:
+                rows = list(
+                    db.scalars(
+                        select(CeriScoreSnapshot).where(CeriScoreSnapshot.id.in_(missing_ids))
+                    ).all()
+                )
+            self._remember_snapshots(rows)
+        return {
+            snapshot_id: self._score_snapshots_by_id[snapshot_id]
+            for snapshot_id in snapshot_ids
+            if snapshot_id in self._score_snapshots_by_id
+        }
 
     def _event_matches(
         self,
@@ -1306,8 +1365,7 @@ class CeriQueryService:
         records: list[CeriIngestionRun] | list[_FreshnessRecord],
     ) -> list[dict[str, Any]]:
         thresholds = {
-            dataset.value: policy.max_stale_days
-            for dataset, policy in self.config.datasets.items()
+            dataset.value: policy.max_stale_days for dataset, policy in self.config.datasets.items()
         }
         now = datetime.now(UTC)
         if records and isinstance(records[0], _FreshnessRecord):
@@ -1344,8 +1402,7 @@ class CeriQueryService:
                 if record.dataset in thresholds
             }
             coverage = {
-                (record.provider, record.dataset): record.coverage or {}
-                for record in records
+                (record.provider, record.dataset): record.coverage or {} for record in records
             }
         else:
             states = global_feed_freshness_from_runs(
@@ -1795,8 +1852,7 @@ def _snapshot_freshness(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, A
             if run.status == "COMPLETED"
             and run.completed_at is not None
             and run.completed_at <= snapshot.cutoff_at
-            and str((run.scope_json or {}).get("ticker") or "").upper()
-            == snapshot.ticker.upper()
+            and str((run.scope_json or {}).get("ticker") or "").upper() == snapshot.ticker.upper()
         ]
     else:
         ticker_expression = func.upper(CeriIngestionRun.scope_json["ticker"].astext)
@@ -1816,8 +1872,7 @@ def _snapshot_freshness(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, A
         ticker=snapshot.ticker,
         cutoff_at=snapshot.cutoff_at,
         max_stale_days={
-            dataset.value: policy.max_stale_days
-            for dataset, policy in config.datasets.items()
+            dataset.value: policy.max_stale_days for dataset, policy in config.datasets.items()
         },
         timezone_name=config.engine.timezone,
     )
@@ -1832,9 +1887,7 @@ def _snapshot_freshness(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, A
                 "semantic": "PROVIDER_FEED_FRESHNESS",
                 "provider_feed_status": feed.status,
                 "provider_feed_age_days": feed.age_days,
-                "provider_last_successful_check_at": _value(
-                    feed.last_successful_check_at
-                ),
+                "provider_last_successful_check_at": _value(feed.last_successful_check_at),
                 "evidence_status": "UNAVAILABLE",
                 "evidence_retrieval_age_days": None,
                 "evidence_observation_age_days": None,
@@ -1854,9 +1907,7 @@ def _snapshot_freshness(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, A
                 "semantic": "PROVIDER_FEED_FRESHNESS",
                 "provider_feed_status": feed.status,
                 "provider_feed_age_days": feed.age_days,
-                "provider_last_successful_check_at": _value(
-                    feed.last_successful_check_at
-                ),
+                "provider_last_successful_check_at": _value(feed.last_successful_check_at),
                 "evidence_status": "UNAVAILABLE",
                 "evidence_retrieval_age_days": None,
                 "evidence_observation_age_days": None,
@@ -2045,9 +2096,7 @@ def _evidence_diagnostics(
         result[dataset] = {
             "source_present": any(row.dataset == dataset for row in sources),
             "source_status": source_status,
-            "source_age_days": state.get(
-                "evidence_retrieval_age_days", state.get("age_days")
-            ),
+            "source_age_days": state.get("evidence_retrieval_age_days", state.get("age_days")),
             "normalized_count": normalized[dataset],
             "eligible_count": eligible[dataset],
             "selected_count": selected[dataset],
@@ -2870,9 +2919,7 @@ def _nonempty_json(column):
 
 
 def _grouped_counts(db: Session, column) -> dict[str, int]:
-    rows = db.execute(
-        select(column, func.count()).group_by(column).order_by(column)
-    ).all()
+    rows = db.execute(select(column, func.count()).group_by(column).order_by(column)).all()
     return {str(key): int(count) for key, count in rows}
 
 
@@ -2893,10 +2940,7 @@ def _operations_errors(db: Session) -> list[dict[str, Any]]:
         .order_by(CeriProcessingRun.id.desc())
         .limit(OPERATIONS_DETAIL_LIMIT)
     ).all()
-    items = [
-        {"run_id": row.id, "job_type": None, "errors": row.errors_json}
-        for row in ingestion
-    ]
+    items = [{"run_id": row.id, "job_type": None, "errors": row.errors_json} for row in ingestion]
     items.extend(
         {"run_id": row.id, "job_type": row.job_type, "errors": row.errors_json}
         for row in processing

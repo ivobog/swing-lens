@@ -89,7 +89,7 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     app = SwingLensFastAPI(
         title=app_settings.app_name,
         debug=app_settings.debug,
-        version="0.1.0",
+        version=app_settings.application_version,
         lifespan=lifespan,
     )
     app.state.settings = app_settings

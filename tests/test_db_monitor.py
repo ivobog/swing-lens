@@ -19,9 +19,15 @@ from app.models.tables import BackgroundJob
 from app.observability import db_monitor as monitor_module
 from app.observability.db_monitor import (
     DatabaseMonitor,
+    ExecutionScope,
     JsonlTelemetryWriter,
+    MonitoredQueuePool,
+    begin_scope,
     current_scope_fields,
+    finish_scope,
     normalize_sql,
+    parameter_digest,
+    resolve_process_role,
     safe_error_summary,
 )
 from app.services.background_job_service import JobStatus
@@ -207,6 +213,8 @@ def test_background_job_context_correlates_query_and_is_cleared(
     assert query["worker_id"] == "worker-observe"
     summary = next(row for row in writer.records if row["record_type"] == "job_summary")
     assert summary["sql_query_count"] == 1
+    assert summary["attempt"] == 1
+    assert summary["job_phases"]["job_handler"]["count"] == 1
     assert summary["job_started_at"] <= summary["job_finished_at"]
     assert current_scope_fields() == {"origin_type": "UNKNOWN"}
 
@@ -370,6 +378,161 @@ def test_normalization_removes_literals_comments_and_placeholder_names() -> None
     assert first == second
     assert "Alice" not in first
     assert "run_id" not in first
+
+
+def test_normalization_canonicalizes_in_list_cardinality() -> None:
+    three = normalize_sql("SELECT * FROM x WHERE ticker IN (:a, :b, :c)")
+    five = normalize_sql("SELECT * FROM x WHERE ticker IN (:a, :b, :c, :d, :e)")
+
+    assert three == five
+    assert "IN (?*)" in three
+
+
+def test_parameter_digest_is_keyed_stable_and_never_contains_values() -> None:
+    first = parameter_digest({"ticker": "PRIVATE", "run_id": 7}, False)
+    same = parameter_digest({"run_id": 7, "ticker": "PRIVATE"}, False)
+    different = parameter_digest({"ticker": "OTHER", "run_id": 7}, False)
+
+    assert first == same
+    assert first != different
+    assert "PRIVATE" not in str(first)
+
+
+def test_role_specific_writer_directories_are_independent(tmp_path: Path) -> None:
+    worker = DatabaseMonitor(
+        Settings(
+            database_url="sqlite+pysqlite:///:memory:",
+            db_monitor_log_dir=tmp_path,
+            db_monitor_test_log_dir=tmp_path / "tests",
+            db_monitor_process_role="worker",
+        )
+    )
+    web = DatabaseMonitor(
+        Settings(
+            database_url="sqlite+pysqlite:///:memory:",
+            db_monitor_log_dir=tmp_path,
+            db_monitor_test_log_dir=tmp_path / "tests",
+            db_monitor_process_role="web",
+        )
+    )
+
+    assert worker.writer.log_dir == tmp_path / "worker"
+    assert web.writer.log_dir == tmp_path / "web"
+    assert worker.writer.log_dir != web.writer.log_dir
+    assert worker.writer.retention_days >= 7
+    assert worker.writer.max_files >= 32
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        ([r"C:\repo\app\serve.py"], "web"),
+        ([r"C:\repo\app\worker.py"], "worker"),
+        ([r"C:\repo\app\worker_supervisor.py"], "supervisor"),
+        ([r"scripts\start_full_week_sql_audit.py"], "diagnostic"),
+        ([r"C:\repo\scripts\inspect.py"], "diagnostic"),
+    ],
+)
+def test_process_role_detects_python_module_file_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+    expected: str,
+) -> None:
+    monkeypatch.setattr(monitor_module.sys, "argv", argv)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    assert resolve_process_role("auto") == expected
+
+
+def test_monitor_health_contains_retention_and_queue_proof(tmp_path: Path) -> None:
+    writer = JsonlTelemetryWriter(
+        tmp_path,
+        retention_days=14,
+        queue_size=10,
+        max_file_mb=1,
+        max_files=512,
+        max_total_mb=8192,
+        base_metadata={"process_role": "worker"},
+    )
+    record = writer._health_record()
+
+    assert record["record_type"] == "monitor_health"
+    assert record["telemetry_queue_capacity"] == 10
+    assert record["retention_days"] == 14
+    assert record["max_files"] == 512
+    assert record["process_role"] == "worker"
+
+
+def test_pool_and_transaction_timing_are_scoped_and_cleared(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = MemoryWriter()
+    monitor = _monitor(writer)
+    monkeypatch.setattr(monitor_module, "_global_monitor", monitor)
+    engine = create_engine("sqlite+pysqlite:///:memory:", poolclass=MonitoredQueuePool)
+    monitor.install(engine)
+    handle = begin_scope(ExecutionScope(origin_type="HTTP", request_id="pool-1"))
+    with engine.begin() as connection:
+        connection.scalar(text("SELECT 1"))
+    summary = finish_scope(handle, record_type="request_summary", total_duration_ms=1.0)
+
+    assert summary["pool_checkout_count"] == 1
+    assert summary["transaction_count"] == 1
+    assert summary["pool_wait_max_ms"] >= 0
+    assert current_scope_fields() == {"origin_type": "UNKNOWN"}
+
+
+@pytest.mark.parametrize("terminal_status", [JobStatus.PARTIAL, JobStatus.CANCELLED])
+def test_background_job_summary_records_non_success_terminal_status(
+    monkeypatch: pytest.MonkeyPatch,
+    terminal_status: str,
+) -> None:
+    writer = MemoryWriter()
+    monitor = _monitor(writer)
+    monkeypatch.setattr(monitor_module, "_global_monitor", monitor)
+    job = BackgroundJob(
+        id=82,
+        job_type="TEST_JOB",
+        status=JobStatus.RUNNING,
+        retry_count=1,
+        payload_json={},
+    )
+
+    def handler(_db, current_job):
+        current_job.status = terminal_status
+        return {"status": str(terminal_status)}
+
+    execute_job(object(), job, {"TEST_JOB": handler})
+    summary = next(row for row in writer.records if row["record_type"] == "job_summary")
+
+    assert summary["attempt"] == 2
+    assert summary["job_status_at_scope_end"] == str(terminal_status)
+    assert current_scope_fields() == {"origin_type": "UNKNOWN"}
+
+
+def test_failed_background_job_still_emits_summary_and_clears_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = MemoryWriter()
+    monitor = _monitor(writer)
+    monkeypatch.setattr(monitor_module, "_global_monitor", monitor)
+    job = BackgroundJob(
+        id=83,
+        job_type="FAIL_JOB",
+        status=JobStatus.RUNNING,
+        retry_count=0,
+        payload_json={},
+    )
+
+    def handler(_db, _job):
+        raise RuntimeError("expected test failure")
+
+    with pytest.raises(RuntimeError, match="expected test failure"):
+        execute_job(object(), job, {"FAIL_JOB": handler})
+    summary = next(row for row in writer.records if row["record_type"] == "job_summary")
+
+    assert summary["outcome"] == "FAILURE"
+    assert current_scope_fields() == {"origin_type": "UNKNOWN"}
 
 
 def test_error_summary_redacts_quoted_values_and_url_credentials() -> None:
