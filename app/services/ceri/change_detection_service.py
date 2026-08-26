@@ -268,9 +268,17 @@ class CeriChangeDetectionService:
             elif acceleration_delta <= -threshold:
                 changes[CeriChangeType.REVISION_DECELERATED] = {"delta": acceleration_delta}
         if _has_stale_warning(current) and not _has_stale_warning(prior):
-            changes[CeriChangeType.DATA_STALE] = {"warnings": current.warnings_json}
+            changes[CeriChangeType.DATA_STALE] = {
+                "warnings": current.warnings_json,
+                "freshness": (current.confidence_ledger_json or {}).get("freshness") or {},
+            }
         if not _has_stale_warning(current) and _has_stale_warning(prior):
-            changes[CeriChangeType.DATA_REFRESHED] = {"prior_warnings": prior.warnings_json}
+            changes[CeriChangeType.DATA_REFRESHED] = {
+                "prior_warnings": prior.warnings_json,
+                "freshness": (current.confidence_ledger_json or {}).get("freshness") or {},
+                "prior_freshness": (prior.confidence_ledger_json or {}).get("freshness")
+                or {},
+            }
         current_conflicts = _has_conflict_warning(current)
         prior_conflicts = _has_conflict_warning(prior)
         if current_conflicts and not prior_conflicts:

@@ -86,21 +86,23 @@
   </div>
 
   <div class="panel">
-    <div class="panel-header compact-header"><div><h2>Freshness and Quota</h2></div></div>
+    <div class="panel-header compact-header"><div><h2>Provider Feed Freshness and Quota</h2></div></div>
     <div class="table-wrap section-gap">
       <table>
-        <caption>Dataset freshness by provider.</caption>
-        <thead><tr><th scope="col">Provider</th><th scope="col">Dataset</th><th scope="col">Age</th><th scope="col">Status</th></tr></thead>
+        <caption>Provider-global last successful checks and per-ticker feed coverage.</caption>
+        <thead><tr><th scope="col">Provider</th><th scope="col">Dataset</th><th scope="col">Last successful check</th><th scope="col">Feed age</th><th scope="col">Feed status</th><th scope="col">Ticker coverage</th></tr></thead>
         <tbody>
           {% for row in operations.dataset_freshness %}
             <tr>
               <td>{{ row.provider }}</td>
               <td>{{ row.dataset }}</td>
+              <td>{{ row.latest_successful_check_at if row.latest_successful_check_at is defined and row.latest_successful_check_at else "N/A" }}</td>
               <td>{{ row.age_days if row.age_days is not none else "N/A" }} days</td>
-              <td>{{ "Fresh" if row.fresh else "Stale or unavailable" }}</td>
+              <td>{{ row.status|title if row.status is defined else ("Fresh" if row.fresh else "Stale or unavailable") }}</td>
+              <td>{% if row.ticker_coverage is defined and row.ticker_coverage %}Fresh {{ row.ticker_coverage.fresh }} · Stale {{ row.ticker_coverage.stale }} · Missing {{ row.ticker_coverage.missing }} / {{ row.ticker_coverage.total }}{% else %}N/A{% endif %}</td>
             </tr>
           {% else %}
-            <tr><td colspan="4">No freshness records yet.</td></tr>
+            <tr><td colspan="6">No provider check records yet.</td></tr>
           {% endfor %}
         </tbody>
       </table>

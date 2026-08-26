@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import String, and_, cast, func, or_, select
+from sqlalchemy import String, and_, cast, func, or_, select, text
 from sqlalchemy.orm import Session, load_only
 
 from app.models.ceri_tables import (
@@ -51,6 +51,13 @@ from app.services.ceri.constants import (
 )
 from app.services.ceri.enums import CeriDataset, HistoricalViewMode
 from app.services.ceri.feature_flags import ceri_flags
+from app.services.ceri.freshness_service import (
+    FeedFreshness,
+    evidence_observation_timestamp,
+    freshness_age_days,
+    global_feed_freshness_from_runs,
+    ticker_feed_freshness_from_runs,
+)
 from app.services.ceri.guidance_normalizer import guidance_eligibility_reason
 from app.services.ceri.provider_cost_ledger import ProviderCostLedger
 from app.services.ceri.snapshot_service import CeriSnapshotService
@@ -84,9 +91,8 @@ _SOURCE_RECORD_OPERATIONS_COLUMNS = (
 class _FreshnessRecord:
     provider: str
     dataset: str
-    observed_at: datetime | None
-    published_at: datetime | None = None
-    ingested_at: datetime | None = None
+    last_successful_check_at: datetime | None
+    coverage: dict[str, int] | None = None
 
 
 class CeriQueryError(ValueError):
@@ -663,7 +669,7 @@ class CeriQueryService:
                 ),
                 "ceri_snapshot_reproduction_failure_count": reproduction_failures,
             },
-            "dataset_freshness": self._dataset_freshness(source_records),
+            "dataset_freshness": self._dataset_freshness(ingestion_runs),
             "ingestion_status": dict(Counter(run.status for run in ingestion_runs)),
             "processing_status": dict(Counter(run.status for run in processing_runs)),
             "quota_state": [
@@ -963,7 +969,7 @@ class CeriQueryService:
             _snapshot_reproduction_failure_count(db, self.config)
         )
 
-        freshness_records = _database_freshness_records(db)
+        freshness_records = _database_freshness_records(db, self.config)
 
         quota_rows = db.execute(
             select(
@@ -1297,44 +1303,74 @@ class CeriQueryService:
 
     def _dataset_freshness(
         self,
-        source_records: list[CeriSourceRecord],
+        records: list[CeriIngestionRun] | list[_FreshnessRecord],
     ) -> list[dict[str, Any]]:
-        latest: dict[tuple[str, str], CeriSourceRecord] = {}
-        for source in source_records:
-            key = (source.provider, source.dataset)
-            current = latest.get(key)
-            current_time = (
-                current.observed_at or current.published_at or current.ingested_at
-                if current
-                else None
+        thresholds = {
+            dataset.value: policy.max_stale_days
+            for dataset, policy in self.config.datasets.items()
+        }
+        now = datetime.now(UTC)
+        if records and isinstance(records[0], _FreshnessRecord):
+            states = {
+                (record.provider, record.dataset): FeedFreshness(
+                    provider=record.provider,
+                    dataset=record.dataset,
+                    last_successful_check_at=record.last_successful_check_at,
+                    age_days=(
+                        freshness_age_days(
+                            now,
+                            record.last_successful_check_at,
+                            timezone_name=self.config.engine.timezone,
+                        )
+                        if record.last_successful_check_at is not None
+                        else None
+                    ),
+                    max_stale_days=thresholds[record.dataset],
+                    status=(
+                        "UNAVAILABLE"
+                        if record.last_successful_check_at is None
+                        else "FRESH"
+                        if freshness_age_days(
+                            now,
+                            record.last_successful_check_at,
+                            timezone_name=self.config.engine.timezone,
+                        )
+                        <= thresholds[record.dataset]
+                        else "STALE"
+                    ),
+                    scope="PROVIDER_GLOBAL",
+                )
+                for record in records
+                if record.dataset in thresholds
+            }
+            coverage = {
+                (record.provider, record.dataset): record.coverage or {}
+                for record in records
+            }
+        else:
+            states = global_feed_freshness_from_runs(
+                records,
+                cutoff_at=now,
+                max_stale_days=thresholds,
+                timezone_name=self.config.engine.timezone,
             )
-            source_time = source.observed_at or source.published_at or source.ingested_at
-            if current is None or (source_time and current_time and source_time > current_time):
-                latest[key] = source
-        rows = []
-        now = datetime.now(UTC).date()
-        for (provider, dataset), source in sorted(latest.items()):
-            observed = source.observed_at or source.published_at or source.ingested_at
-            try:
-                dataset_key = CeriDataset(dataset)
-            except ValueError:
-                dataset_key = None
-            dataset_config = self.config.datasets.get(dataset_key) if dataset_key else None
-            max_stale_days = dataset_config.max_stale_days if dataset_config else None
-            age_days = (now - observed.date()).days if observed else None
-            rows.append(
-                {
-                    "provider": provider,
-                    "dataset": dataset,
-                    "latest_observed_at": _value(observed),
-                    "age_days": age_days,
-                    "max_stale_days": max_stale_days,
-                    "fresh": None
-                    if age_days is None or max_stale_days is None
-                    else age_days <= max_stale_days,
-                }
-            )
-        return rows
+            coverage = {}
+        return [
+            {
+                "provider": provider,
+                "dataset": dataset,
+                "scope": state.scope,
+                "semantic": "PROVIDER_FEED_FRESHNESS",
+                "latest_successful_check_at": _value(state.last_successful_check_at),
+                "latest_observed_at": _value(state.last_successful_check_at),
+                "age_days": state.age_days,
+                "max_stale_days": state.max_stale_days,
+                "status": state.status,
+                "fresh": state.status == "FRESH",
+                "ticker_coverage": coverage.get((provider, dataset), {}),
+            }
+            for (provider, dataset), state in sorted(states.items())
+        ]
 
 
 def _score_snapshot_payload(
@@ -1752,35 +1788,114 @@ def _snapshot_freshness(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, A
         )
     else:
         sources = []
+    if _uses_fixture_collections(db):
+        provider_checks = [
+            run
+            for run in _load(db, CeriIngestionRun)
+            if run.status == "COMPLETED"
+            and run.completed_at is not None
+            and run.completed_at <= snapshot.cutoff_at
+            and str((run.scope_json or {}).get("ticker") or "").upper()
+            == snapshot.ticker.upper()
+        ]
+    else:
+        ticker_expression = func.upper(CeriIngestionRun.scope_json["ticker"].astext)
+        provider_checks = list(
+            db.scalars(
+                select(CeriIngestionRun).where(
+                    CeriIngestionRun.status == "COMPLETED",
+                    CeriIngestionRun.completed_at.is_not(None),
+                    CeriIngestionRun.completed_at <= snapshot.cutoff_at,
+                    ticker_expression == snapshot.ticker.upper(),
+                )
+            ).all()
+        )
+    config = load_ceri_config()
+    feed_states = ticker_feed_freshness_from_runs(
+        provider_checks,
+        ticker=snapshot.ticker,
+        cutoff_at=snapshot.cutoff_at,
+        max_stale_days={
+            dataset.value: policy.max_stale_days
+            for dataset, policy in config.datasets.items()
+        },
+        timezone_name=config.engine.timezone,
+    )
     result: dict[str, Any] = {}
     for dataset in CeriDataset:
         matching = [source for source in sources if source.dataset == dataset.value]
+        feed = feed_states[dataset.value]
         if not matching:
-            result[dataset.value] = {"status": "UNAVAILABLE", "age_days": None}
+            result[dataset.value] = {
+                "status": feed.status,
+                "age_days": feed.age_days,
+                "semantic": "PROVIDER_FEED_FRESHNESS",
+                "provider_feed_status": feed.status,
+                "provider_feed_age_days": feed.age_days,
+                "provider_last_successful_check_at": _value(
+                    feed.last_successful_check_at
+                ),
+                "evidence_status": "UNAVAILABLE",
+                "evidence_retrieval_age_days": None,
+                "evidence_observation_age_days": None,
+                "timestamp_quality": None,
+            }
             continue
-        latest = max(
-            matching,
-            key=lambda source: (
-                source.retrieved_at
-                or source.observed_at
-                or source.published_at
-                or source.ingested_at
-            ),
+        eligible = [
+            source
+            for source in matching
+            if (source.retrieved_at or source.ingested_at) is not None
+            and (source.retrieved_at or source.ingested_at) <= snapshot.cutoff_at
+        ]
+        if not eligible:
+            result[dataset.value] = {
+                "status": feed.status,
+                "age_days": feed.age_days,
+                "semantic": "PROVIDER_FEED_FRESHNESS",
+                "provider_feed_status": feed.status,
+                "provider_feed_age_days": feed.age_days,
+                "provider_last_successful_check_at": _value(
+                    feed.last_successful_check_at
+                ),
+                "evidence_status": "UNAVAILABLE",
+                "evidence_retrieval_age_days": None,
+                "evidence_observation_age_days": None,
+                "timestamp_quality": None,
+            }
+            continue
+        latest = max(eligible, key=lambda source: source.retrieved_at or source.ingested_at)
+        retrieval_stamp = latest.retrieved_at or latest.ingested_at
+        retrieval_age = freshness_age_days(
+            snapshot.cutoff_at,
+            retrieval_stamp,
+            timezone_name=config.engine.timezone,
         )
-        stamp = (
-            latest.retrieved_at or latest.observed_at or latest.published_at or latest.ingested_at
+        observation = evidence_observation_timestamp(
+            latest,
+            reference_at=snapshot.cutoff_at,
         )
-        age = max(0, (snapshot.cutoff_at.date() - stamp.date()).days)
-        threshold = load_ceri_config().datasets[dataset].max_stale_days
+        observation_age = freshness_age_days(
+            snapshot.cutoff_at,
+            observation.value,
+            timezone_name=config.engine.timezone,
+        )
+        threshold = config.datasets[dataset].max_stale_days
         result[dataset.value] = {
-            "status": "AVAILABLE" if age <= threshold else "STALE",
-            "age_days": age,
-            "known_at": _value(stamp),
-            "timestamp_quality": (
-                "RETRIEVAL_ONLY"
-                if latest.source_timestamp is None and latest.published_at is None
-                else "SOURCE_TIMESTAMP"
-            ),
+            "status": feed.status,
+            "age_days": feed.age_days,
+            "semantic": "PROVIDER_FEED_FRESHNESS",
+            "provider_feed_status": feed.status,
+            "provider_feed_age_days": feed.age_days,
+            "provider_last_successful_check_at": _value(feed.last_successful_check_at),
+            "evidence_status": "AVAILABLE" if retrieval_age <= threshold else "STALE",
+            "evidence_retrieval_age_days": retrieval_age,
+            "evidence_last_retrieved_at": _value(retrieval_stamp),
+            "evidence_observation_age_days": observation_age,
+            "evidence_last_observed_at": _value(observation.value),
+            "evidence_timestamp_field": observation.field_name,
+            "ignored_future_timestamp_fields": list(observation.ignored_future_fields),
+            "known_at": _value(observation.value),
+            "timestamp_quality": observation.quality,
         }
     return result
 
@@ -1921,7 +2036,7 @@ def _evidence_diagnostics(
     result: dict[str, Any] = {}
     for dataset in normalized:
         state = freshness.get(dataset) or {}
-        raw_status = state.get("status", "UNAVAILABLE")
+        raw_status = state.get("evidence_status", state.get("status", "UNAVAILABLE"))
         source_status = (
             "FRESH"
             if raw_status == "AVAILABLE"
@@ -1930,7 +2045,9 @@ def _evidence_diagnostics(
         result[dataset] = {
             "source_present": any(row.dataset == dataset for row in sources),
             "source_status": source_status,
-            "source_age_days": state.get("age_days"),
+            "source_age_days": state.get(
+                "evidence_retrieval_age_days", state.get("age_days")
+            ),
             "normalized_count": normalized[dataset],
             "eligible_count": eligible[dataset],
             "selected_count": selected[dataset],
@@ -2330,6 +2447,16 @@ def _humanize_change_type(value: str) -> str:
 
 
 def _data_quality_summary(delta: dict[str, Any]) -> str:
+    freshness = delta.get("freshness") or {}
+    if freshness:
+        status = str(freshness.get("status") or "UNKNOWN").title()
+        dataset = str(freshness.get("dataset") or "data").title()
+        age = freshness.get("age_days")
+        threshold = freshness.get("max_stale_days")
+        return (
+            f"{dataset} provider feed {status.lower()} · age {_number(age)} days"
+            f" · threshold {_number(threshold)} days"
+        )
     if delta.get("warnings"):
         return ", ".join(str(value) for value in delta["warnings"])
     if delta.get("prior_warnings"):
@@ -2659,26 +2786,71 @@ def _database_stale_count(db: Session, dataset_max_stale: dict[str, int]) -> int
     )
 
 
-def _database_freshness_records(db: Session) -> list[_FreshnessRecord]:
+def _database_freshness_records(db: Session, config: CeriConfig) -> list[_FreshnessRecord]:
     pairs = db.execute(
         select(CeriIngestionRun.provider, CeriIngestionRun.dataset)
         .group_by(CeriIngestionRun.provider, CeriIngestionRun.dataset)
         .order_by(CeriIngestionRun.provider, CeriIngestionRun.dataset)
     ).all()
-    observed_at = _source_observed_at()
     records = []
+    tracked_tickers = {
+        str(ticker).upper() for ticker in db.scalars(select(CeriCompany.ticker)).all()
+    }
+    total_tickers = len(tracked_tickers)
+    now = datetime.now(UTC)
     for provider, dataset in pairs:
         latest = db.scalar(
-            select(observed_at)
+            select(CeriIngestionRun.completed_at)
             .where(
-                CeriSourceRecord.provider == provider,
-                CeriSourceRecord.dataset == dataset,
+                CeriIngestionRun.provider == provider,
+                CeriIngestionRun.dataset == dataset,
+                CeriIngestionRun.status == "COMPLETED",
+                CeriIngestionRun.completed_at.is_not(None),
             )
-            .order_by(observed_at.desc())
+            .order_by(CeriIngestionRun.completed_at.desc())
             .limit(1)
         )
-        if latest is not None:
-            records.append(_FreshnessRecord(provider, dataset, latest))
+        threshold = config.datasets.get(CeriDataset(dataset))
+        coverage_rows = db.execute(
+            select(
+                func.upper(CeriIngestionRun.scope_json["ticker"].astext),
+                func.max(CeriIngestionRun.completed_at),
+            )
+            .where(
+                CeriIngestionRun.provider == provider,
+                CeriIngestionRun.dataset == dataset,
+                CeriIngestionRun.status == "COMPLETED",
+                CeriIngestionRun.completed_at.is_not(None),
+                CeriIngestionRun.scope_json["ticker"].astext.is_not(None),
+            )
+            .group_by(text("1"))
+        ).all()
+        fresh = stale = 0
+        for ticker_value, completed_at in coverage_rows:
+            if str(ticker_value).upper() not in tracked_tickers:
+                continue
+            age = freshness_age_days(
+                now,
+                completed_at,
+                timezone_name=config.engine.timezone,
+            )
+            if threshold is not None and age <= threshold.max_stale_days:
+                fresh += 1
+            else:
+                stale += 1
+        records.append(
+            _FreshnessRecord(
+                provider,
+                dataset,
+                latest,
+                {
+                    "total": total_tickers,
+                    "fresh": fresh,
+                    "stale": stale,
+                    "missing": max(0, total_tickers - fresh - stale),
+                },
+            )
+        )
     return records
 
 

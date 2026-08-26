@@ -62,15 +62,24 @@ class CeriChangeRebuildService:
         changes = duplicates = failed = 0
         change_ids: list[int] = []
         errors: list[dict[str, Any]] = []
+        comparison_history: dict[int, list[CeriScoreSnapshot]] = {}
+        for snapshot in _load(db, CeriScoreSnapshot):
+            comparison_history.setdefault(snapshot.company_id, []).append(snapshot)
         grouped: dict[int, list[CeriScoreSnapshot]] = {}
         for snapshot in snapshots:
             grouped.setdefault(snapshot.company_id, []).append(snapshot)
         for company_id, rows in grouped.items():
             try:
-                rows.sort(key=lambda row: (row.as_of_session, row.cutoff_at, row.id or 0))
-                for index, current in enumerate(rows):
+                rows.sort(key=_snapshot_sort_key)
+                company_history = comparison_history.get(company_id, [])
+                for current in rows:
                     prior, _comparison_state, _excluded = select_prior_comparison(
-                        current, rows[:index]
+                        current,
+                        [
+                            candidate
+                            for candidate in company_history
+                            if _snapshot_sort_key(candidate) < _snapshot_sort_key(current)
+                        ],
                     )
                     result = self.detector.detect_score_changes(
                         db,
@@ -135,7 +144,6 @@ class CeriChangeRebuildService:
             errors=tuple(errors),
             change_ids=tuple(dict.fromkeys(change_ids)),
         )
-
     def _snapshots(self, db: Session, request: CeriChangeRebuildRequest) -> list[CeriScoreSnapshot]:
         rows = _load(db, CeriScoreSnapshot)
         ids = set(request.company_ids or ())
@@ -242,6 +250,10 @@ class CeriChangeRebuildService:
         for company_rows in grouped.values():
             company_rows.sort(key=lambda row: (row.effective_session or date.min, row.id or 0))
         return grouped
+
+
+def _snapshot_sort_key(snapshot: CeriScoreSnapshot) -> tuple[date, datetime, int]:
+    return (snapshot.as_of_session, snapshot.cutoff_at, snapshot.id or 0)
 
 
 def _load(db: Session, model: Any) -> list[Any]:

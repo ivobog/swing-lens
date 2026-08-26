@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
+from typing import Any
 
 from app.models.ceri_tables import CeriRevisionFeature
 from app.services.ceri.config import CeriConfig, load_ceri_config
@@ -29,6 +30,7 @@ class ConfidenceResult:
     ledger: tuple[ConfidenceLedgerEntry, ...] = ()
     gates: tuple[str, ...] = ()
     caps: tuple[str, ...] = ()
+    freshness_details: dict[str, Any] | None = None
 
 
 class CeriConfidenceService:
@@ -60,6 +62,12 @@ class CeriConfidenceService:
             ]
             source_quality = sum(quality_values) / len(quality_values) if quality_values else None
         freshness = _freshness_score(dataset_freshness_days, self.config)
+        estimate_age = (
+            dataset_freshness_days.get(CeriDataset.ESTIMATES.value)
+            if dataset_freshness_days
+            else None
+        )
+        estimate_limit = self.config.datasets[CeriDataset.ESTIMATES].max_stale_days
         analyst = _analyst_score(self.config.revision.minimum_analyst_count, revision_features)
         timestamp = _timestamp_score(revision_features)
         estimate_coverage = min(10.0, coverage_pct / 10.0)
@@ -67,7 +75,7 @@ class CeriConfidenceService:
         weights = self.config.confidence.weights
         values = (
             ("source_quality", source_quality, "accepted_revision_feature_quality"),
-            ("freshness", freshness, "dataset_known_or_retrieved_age"),
+            ("freshness", freshness, "estimate_provider_feed_last_successful_check_age"),
             ("estimate_coverage", estimate_coverage, "required_metric_period_window_slots"),
             ("analyst_sample", analyst, "accepted_estimate_revision_counts"),
             ("timestamp_quality", timestamp, "accepted_evidence_timestamp_provenance"),
@@ -97,7 +105,7 @@ class CeriConfidenceService:
             warnings.append("analyst_sample_sparse")
         if freshness is None:
             warnings.append("dataset_freshness_unavailable")
-        elif freshness < 6.0:
+        elif estimate_age is not None and estimate_age > estimate_limit:
             warnings.append("estimate_data_stale")
         label = self._label(score)
         if not available:
@@ -117,6 +125,19 @@ class CeriConfidenceService:
             caps=tuple(caps),
             reasons=tuple(reasons),
             warnings=tuple(warnings),
+            freshness_details={
+                "semantic": "PROVIDER_FEED_FRESHNESS",
+                "dataset": CeriDataset.ESTIMATES.value,
+                "age_days": estimate_age,
+                "max_stale_days": estimate_limit,
+                "status": (
+                    "UNAVAILABLE"
+                    if estimate_age is None
+                    else "FRESH"
+                    if estimate_age <= estimate_limit
+                    else "STALE"
+                ),
+            },
         )
 
     def _label(self, score: float) -> CeriConfidenceLabel:
@@ -135,16 +156,15 @@ def _freshness_score(
 ) -> float | None:
     if not dataset_freshness_days:
         return None
-    ages = [age for age in dataset_freshness_days.values() if age is not None]
-    if not ages:
+    estimate_age = dataset_freshness_days.get(CeriDataset.ESTIMATES.value)
+    if estimate_age is None:
         return None
-    worst_age = max(ages)
     estimate_limit = config.datasets[CeriDataset.ESTIMATES].max_stale_days
-    if worst_age <= 1:
+    if estimate_age <= 1:
         return 10.0
-    if worst_age <= estimate_limit:
+    if estimate_age <= estimate_limit:
         return 7.0
-    return max(0.0, 7.0 - float(worst_age - estimate_limit))
+    return max(0.0, 7.0 - float(estimate_age - estimate_limit))
 
 
 def _analyst_score(minimum: int, features: list[CeriRevisionFeature]) -> float | None:

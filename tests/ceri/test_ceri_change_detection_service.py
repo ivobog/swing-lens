@@ -158,6 +158,34 @@ def test_guidance_and_conflict_transitions_are_persisted() -> None:
     assert types == {"GUIDANCE_RAISED", "DATA_STALE", "CONFLICT_OPENED"}
 
 
+def test_fresh_stale_stale_fresh_emits_only_transition_changes() -> None:
+    service = CeriChangeDetectionService()
+    fresh = _snapshot(1, opportunity=4.0, risk=1.0)
+    stale = _snapshot(2, opportunity=4.0, risk=1.0)
+    still_stale = _snapshot(3, opportunity=4.0, risk=1.0)
+    refreshed = _snapshot(4, opportunity=4.0, risk=1.0)
+    stale.warnings_json = ["estimate_data_stale"]
+    still_stale.warnings_json = ["estimate_data_stale"]
+
+    first_db = FakeDb(scalar_queue=[None])
+    repeated_db = FakeDb()
+    refreshed_db = FakeDb(scalar_queue=[None])
+
+    first = service.detect_score_changes(first_db, current=stale, prior=fresh)
+    repeated = service.detect_score_changes(
+        repeated_db, current=still_stale, prior=stale
+    )
+    final = service.detect_score_changes(
+        refreshed_db, current=refreshed, prior=still_stale
+    )
+
+    assert first.changes == 1
+    assert first_db.added[0].change_type == "DATA_STALE"
+    assert repeated.changes == 0
+    assert final.changes == 1
+    assert refreshed_db.added[0].change_type == "DATA_REFRESHED"
+
+
 def _snapshot(
     snapshot_id: int, *, opportunity: float | None, risk: float | None
 ) -> CeriScoreSnapshot:

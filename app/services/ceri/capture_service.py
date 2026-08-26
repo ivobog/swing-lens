@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -15,9 +15,9 @@ from app.models.ceri_tables import (
     CeriEarningsActual,
     CeriEstimateSnapshot,
     CeriGuidanceEvent,
+    CeriIngestionRun,
     CeriRevisionFeature,
     CeriScoreSnapshot,
-    CeriSourceRecord,
 )
 from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import RawCompanyRow
@@ -26,9 +26,9 @@ from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureServic
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.confidence_service import CeriConfidenceService
-from app.services.ceri.enums import CeriDataset
 from app.services.ceri.event_risk_service import CeriEventRiskService
 from app.services.ceri.feature_flags import ceri_flags
+from app.services.ceri.freshness_service import ticker_feed_freshness_from_runs
 from app.services.ceri.guidance_normalizer import guidance_eligibility_reason
 from app.services.ceri.opportunity_score_service import CeriOpportunityScoreService
 from app.services.ceri.price_response_service import CeriPriceResponseService
@@ -116,6 +116,11 @@ class CeriRunCaptureService:
         companies_by_ticker = _companies_for_tickers(
             db, {str(row.ticker).upper() for row in rows}
         )
+        provider_checks_by_ticker = _provider_checks_for_tickers(
+            db,
+            {str(row.ticker).upper() for row in rows},
+            cutoff_at,
+        )
         company_ids = {company.id for company in companies_by_ticker.values()}
         features_by_company = _revision_features_for_companies(
             db, company_ids, cutoff_at.date()
@@ -195,12 +200,11 @@ class CeriRunCaptureService:
                 confidence = self.confidence.calculate(
                     as_of_session=cutoff_at.date(),
                     revision_features=features,
-                    dataset_freshness_days=_confidence_freshness_days(
-                        db,
-                        company_id=company.id,
+                    dataset_freshness_days=_provider_feed_freshness_days(
+                        provider_checks_by_ticker.get(str(row.ticker).upper(), []),
+                        ticker=str(row.ticker),
                         cutoff_at=cutoff_at,
-                        revision_features=features,
-                        earnings=earnings,
+                        config=self.snapshot_service.config,
                     ),
                     conflict_penalty=float(company_conflicted),
                 )
@@ -795,60 +799,53 @@ def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:
     return sorted(ids)
 
 
-def _confidence_freshness_days(
-    db: Session,
+def _provider_feed_freshness_days(
+    runs: list[CeriIngestionRun],
     *,
-    company_id: int,
+    ticker: str,
     cutoff_at: datetime,
-    revision_features: list[CeriRevisionFeature],
-    earnings: list[CeriEarningsActual],
+    config,
 ) -> dict[str, int | None]:
-    source_ids = set(_source_ids(revision_features))
-    source_ids.update(row.source_record_id for row in earnings if row.source_record_id is not None)
-    guidance = _guidance_for_company(db, company_id, cutoff_at.date())
-    source_ids.update(row.source_record_id for row in guidance if row.source_record_id is not None)
-    company_event_ids = {
-        row.id
-        for row in _scalars(
-            db, select(CeriCatalystEvent).where(CeriCatalystEvent.company_id == company_id)
-        )
-    }
-    catalyst_source_ids = (
-        {
-            row.source_record_id
-            for row in _scalars(
-                db,
-                select(CeriCatalystEventRevision).where(
-                    CeriCatalystEventRevision.source_record_id.is_not(None),
-                    CeriCatalystEventRevision.catalyst_event_id.in_(company_event_ids),
-                ),
-            )
-            if row.source_record_id is not None
-        }
-        if company_event_ids
-        else set()
+    if not hasattr(config, "datasets") or not hasattr(config.engine, "timezone"):
+        # Lightweight test/dry-run snapshot adapters may intentionally expose
+        # only version identity.  In that case freshness is unavailable rather
+        # than fabricated.
+        return {}
+    states = ticker_feed_freshness_from_runs(
+        runs,
+        ticker=ticker,
+        cutoff_at=cutoff_at,
+        max_stale_days={
+            dataset.value: policy.max_stale_days
+            for dataset, policy in config.datasets.items()
+        },
+        timezone_name=config.engine.timezone,
     )
-    source_ids.update(catalyst_source_ids)
-    records = (
-        _scalars(
-            db,
-            select(CeriSourceRecord).where(CeriSourceRecord.id.in_(source_ids)),
-        )
-        if source_ids
-        else []
+    return {dataset: state.age_days for dataset, state in states.items()}
+
+
+def _provider_checks_for_tickers(
+    db: Session,
+    tickers: set[str],
+    cutoff_at: datetime,
+) -> dict[str, list[CeriIngestionRun]]:
+    if not tickers:
+        return {}
+    ticker_expression = func.upper(CeriIngestionRun.scope_json["ticker"].astext)
+    runs = _scalars(
+        db,
+        select(CeriIngestionRun).where(
+            CeriIngestionRun.status == "COMPLETED",
+            CeriIngestionRun.completed_at.is_not(None),
+            CeriIngestionRun.completed_at <= cutoff_at,
+            ticker_expression.in_(sorted(tickers)),
+        ),
     )
-    result: dict[str, int | None] = {}
-    for dataset in CeriDataset:
-        stamps = [
-            row.retrieved_at or row.observed_at or row.published_at or row.ingested_at
-            for row in records
-            if row.dataset == dataset.value
-        ]
-        stamps = [stamp for stamp in stamps if stamp is not None and stamp <= cutoff_at]
-        result[dataset.value] = (
-            max(0, (cutoff_at.date() - max(stamps).date()).days) if stamps else None
-        )
-    return result
+    grouped: dict[str, list[CeriIngestionRun]] = {}
+    for run in runs:
+        ticker = str((run.scope_json or {}).get("ticker") or "").upper()
+        grouped.setdefault(ticker, []).append(run)
+    return grouped
 
 
 def _quarantined_count(db: Session) -> int:

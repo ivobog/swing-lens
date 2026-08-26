@@ -227,9 +227,17 @@ class CeriConfig:
 
 
 def load_ceri_config(
-    path: Path = CERI_CONFIG_PATH,
-    taxonomy_path: Path = CERI_TAXONOMY_PATH,
+    path: Path | None = None,
+    taxonomy_path: Path | None = None,
 ) -> CeriConfig:
+    if path is None or taxonomy_path is None:
+        # Resolve the runtime settings lazily to avoid a settings/config import
+        # cycle and to make CERI_CONFIG_PATH/CERI_TAXONOMY_PATH authoritative.
+        from app.settings import get_settings
+
+        settings = get_settings()
+        path = path or settings.ceri_config_path
+        taxonomy_path = taxonomy_path or settings.ceri_taxonomy_path
     raw = _load_yaml(path, "ceri config")
     for section in REQUIRED_CONFIG_SECTIONS:
         if section not in raw:
