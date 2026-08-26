@@ -2,21 +2,23 @@ from __future__ import annotations
 
 import atexit
 import hashlib
+import hmac
 import json
 import os
 import queue
 import re
 import socket
+import subprocess
 import sys
 import threading
 import time
 import uuid
 from collections import Counter, defaultdict
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from types import FrameType
@@ -24,7 +26,9 @@ from typing import Any
 
 from sqlalchemy import Engine, event, text
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import QueuePool
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +41,10 @@ _URL_CREDENTIAL_RE = re.compile(r"(://[^:/\s]+:)[^@/\s]+(@)")
 _NUMBER_LITERAL_RE = re.compile(r"(?<![\w$])-?\d+(?:\.\d+)?(?![\w$])")
 _PLACEHOLDER_RE = re.compile(
     r"%\([^)]+\)s|%s|(?<!:):\w+|\$\d+|\?",
+    re.IGNORECASE,
+)
+_IN_PLACEHOLDERS_RE = re.compile(
+    r"\bIN\s*\(\s*\?(?:\s*,\s*\?)*\s*\)",
     re.IGNORECASE,
 )
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -55,6 +63,8 @@ _UNKNOWN_CALLER: dict[str, Any] = {
     "function": "UNKNOWN",
     "module": None,
 }
+_PARAMETER_DIGEST_KEY = os.urandom(32)
+_PROCESS_STARTED_AT = datetime.now(UTC).isoformat()
 
 
 @dataclass
@@ -70,6 +80,7 @@ class ExecutionScope:
     run_id: int | str | None = None
     worker_id: str | None = None
     workflow_key: str | None = None
+    attempt: int | None = None
     ticker: str | None = None
     company: str | None = None
     asgi_scope: dict[str, Any] | None = field(default=None, repr=False)
@@ -94,6 +105,7 @@ class ExecutionScope:
                 "run_id": self.run_id,
                 "worker_id": self.worker_id,
                 "workflow_key": self.workflow_key,
+                "attempt": self.attempt,
                 "ticker": self.ticker,
                 "company": self.company,
             }.items()
@@ -116,6 +128,16 @@ class SqlSummary:
     flush_new: int = 0
     flush_dirty: int = 0
     flush_deleted: int = 0
+    pool_checkout_count: int = 0
+    pool_timeout_count: int = 0
+    pool_overflow_count: int = 0
+    pool_wait_total_ms: float = 0.0
+    pool_wait_max_ms: float = 0.0
+    transaction_count: int = 0
+    transaction_total_ms: float = 0.0
+    transaction_max_ms: float = 0.0
+    phase_ms: defaultdict[str, float] = field(default_factory=lambda: defaultdict(float))
+    phase_counts: Counter[str] = field(default_factory=Counter)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def add_sql(self, record: Mapping[str, Any]) -> None:
@@ -140,6 +162,25 @@ class SqlSummary:
             self.flush_new += new
             self.flush_dirty += dirty
             self.flush_deleted += deleted
+
+    def add_pool_checkout(self, *, wait_ms: float, overflow: bool, timed_out: bool) -> None:
+        with self._lock:
+            self.pool_checkout_count += 0 if timed_out else 1
+            self.pool_timeout_count += int(timed_out)
+            self.pool_overflow_count += int(overflow)
+            self.pool_wait_total_ms += wait_ms
+            self.pool_wait_max_ms = max(self.pool_wait_max_ms, wait_ms)
+
+    def add_transaction(self, duration_ms: float) -> None:
+        with self._lock:
+            self.transaction_count += 1
+            self.transaction_total_ms += duration_ms
+            self.transaction_max_ms = max(self.transaction_max_ms, duration_ms)
+
+    def add_phase(self, name: str, duration_ms: float) -> None:
+        with self._lock:
+            self.phase_counts[name] += 1
+            self.phase_ms[name] += duration_ms
 
     def snapshot(
         self,
@@ -239,6 +280,24 @@ class SqlSummary:
                 "orm_flush_new": self.flush_new,
                 "orm_flush_dirty": self.flush_dirty,
                 "orm_flush_deleted": self.flush_deleted,
+                "pool_checkout_count": self.pool_checkout_count,
+                "pool_timeout_count": self.pool_timeout_count,
+                "pool_overflow_count": self.pool_overflow_count,
+                "pool_wait_total_ms": round(self.pool_wait_total_ms, 3),
+                "pool_wait_mean_ms": round(self.pool_wait_total_ms / self.pool_checkout_count, 3)
+                if self.pool_checkout_count
+                else 0.0,
+                "pool_wait_max_ms": round(self.pool_wait_max_ms, 3),
+                "transaction_count": self.transaction_count,
+                "transaction_total_ms": round(self.transaction_total_ms, 3),
+                "transaction_max_ms": round(self.transaction_max_ms, 3),
+                "job_phases": {
+                    name: {
+                        "count": self.phase_counts[name],
+                        "total_ms": round(duration, 3),
+                    }
+                    for name, duration in sorted(self.phase_ms.items())
+                },
             }
 
 
@@ -256,6 +315,70 @@ _execution_scope: ContextVar[ExecutionScope | None] = ContextVar(
 _sql_summary: ContextVar[SqlSummary | None] = ContextVar("db_monitor_sql_summary", default=None)
 
 
+def resolve_process_role(configured_role: str | None = None) -> str:
+    configured = str(configured_role or "auto").strip().lower()
+    if configured and configured != "auto":
+        return re.sub(r"[^a-z0-9_-]+", "-", configured).strip("-") or "unknown"
+    argv = " ".join(sys.argv).lower().replace("\\", "/")
+    if "pytest" in argv or os.getenv("PYTEST_CURRENT_TEST"):
+        return "test"
+    if "app.worker_supervisor" in argv or "/app/worker_supervisor.py" in argv:
+        return "supervisor"
+    if "app.worker" in argv or "/app/worker.py" in argv:
+        return "worker"
+    if "app.serve" in argv or "/app/serve.py" in argv or "uvicorn" in argv:
+        return "web"
+    if (
+        argv.startswith("scripts/")
+        or "/scripts/" in argv
+        or "diagnostic" in argv
+        or "profile" in argv
+    ):
+        return "diagnostic"
+    return "cli"
+
+
+@lru_cache(maxsize=1)
+def _git_metadata() -> dict[str, Any]:
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=_PROJECT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        ).stdout.strip()
+        dirty = bool(
+            subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=no"],
+                cwd=_PROJECT_ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            ).stdout.strip()
+        )
+        return {"git_commit": commit or None, "git_dirty": dirty}
+    except Exception:
+        return {"git_commit": os.getenv("GIT_COMMIT"), "git_dirty": None}
+
+
+def process_metadata(settings: Any, process_role: str) -> dict[str, Any]:
+    return {
+        "process_role": process_role,
+        "process_id": os.getpid(),
+        "hostname": _HOSTNAME,
+        "process_started_at": _PROCESS_STARTED_AT,
+        "application_version": getattr(settings, "application_version", None),
+        "deployment_id": getattr(settings, "deployment_id", None),
+        "feature_rebuild_impl_version": getattr(
+            settings, "ceri_feature_rebuild_impl_version", None
+        ),
+        **_git_metadata(),
+    }
+
+
 class JsonlTelemetryWriter:
     """Bounded, nonblocking JSONL sink with daily/size rotation and retention."""
 
@@ -269,6 +392,8 @@ class JsonlTelemetryWriter:
         max_files: int = 32,
         max_total_mb: int = 1024,
         flush_interval_seconds: float = 1.0,
+        health_interval_seconds: float = 60.0,
+        base_metadata: Mapping[str, Any] | None = None,
     ) -> None:
         self.log_dir = Path(log_dir)
         self.retention_days = max(1, retention_days)
@@ -276,6 +401,8 @@ class JsonlTelemetryWriter:
         self.max_files = max(2, max_files)
         self.max_total_bytes = max(1, max_total_mb) * 1024 * 1024
         self.flush_interval_seconds = max(0.05, flush_interval_seconds)
+        self.health_interval_seconds = max(5.0, health_interval_seconds)
+        self.base_metadata = dict(base_metadata or {})
         self.queue: queue.Queue[dict[str, Any] | None] = queue.Queue(maxsize=max(1, queue_size))
         self.records_written = 0
         self.records_dropped = 0
@@ -286,6 +413,9 @@ class JsonlTelemetryWriter:
         self._stop = threading.Event()
         self._pending_drop_report = 0
         self._fatal_error = False
+        self._writer_latency_total_ms = 0.0
+        self._writer_latency_max_ms = 0.0
+        self._writer_latency_samples = 0
 
     def start(self) -> None:
         with self._lock:
@@ -308,6 +438,7 @@ class JsonlTelemetryWriter:
                         "monitor_log_directory": str(self.log_dir.resolve()),
                         "records_written": 0,
                         "db_monitor_dropped_records": 0,
+                        **self.base_metadata,
                     }
                 )
             except queue.Full:
@@ -322,7 +453,9 @@ class JsonlTelemetryWriter:
                 return False
             if self._thread is None or not self._thread.is_alive():
                 self.start()
-            self.queue.put_nowait(record)
+            queued = dict(record)
+            queued["_telemetry_enqueued_ns"] = time.perf_counter_ns()
+            self.queue.put_nowait(queued)
             return True
         except queue.Full:
             with self._lock:
@@ -353,6 +486,7 @@ class JsonlTelemetryWriter:
                         "db_monitor_dropped_records": self.records_dropped,
                         "write_errors": self.write_errors,
                         "monitor_stopping": True,
+                        **self.base_metadata,
                     }
                 )
             except queue.Full:
@@ -378,6 +512,12 @@ class JsonlTelemetryWriter:
                 "queue_capacity": self.queue.maxsize,
                 "writer_alive": bool(self._thread and self._thread.is_alive()),
                 "fatal_error": self._fatal_error,
+                "writer_latency_mean_ms": round(
+                    self._writer_latency_total_ms / self._writer_latency_samples, 3
+                )
+                if self._writer_latency_samples
+                else 0.0,
+                "writer_latency_max_ms": round(self._writer_latency_max_ms, 3),
             }
 
     def _run(self) -> None:
@@ -385,6 +525,7 @@ class JsonlTelemetryWriter:
         stream_path: Path | None = None
         next_flush = time.monotonic() + self.flush_interval_seconds
         next_retention = time.monotonic() + 60.0
+        next_health = time.monotonic() + self.health_interval_seconds
         try:
             self.log_dir.mkdir(parents=True, exist_ok=True)
             self._apply_retention()
@@ -406,10 +547,24 @@ class JsonlTelemetryWriter:
                             protected_paths={stream_path} if stream_path is not None else None
                         )
                         next_retention = time.monotonic() + 60.0
+                    if stream is not None and time.monotonic() >= next_health:
+                        self._write_line(stream, self._health_record())
+                        next_health = time.monotonic() + self.health_interval_seconds
                     if self._stop.is_set() and self.queue.empty():
                         break
                     continue
                 try:
+                    enqueued_ns = item.pop("_telemetry_enqueued_ns", None)
+                    if enqueued_ns is not None:
+                        latency_ms = max(
+                            0.0, (time.perf_counter_ns() - int(enqueued_ns)) / 1_000_000
+                        )
+                        with self._lock:
+                            self._writer_latency_total_ms += latency_ms
+                            self._writer_latency_max_ms = max(
+                                self._writer_latency_max_ms, latency_ms
+                            )
+                            self._writer_latency_samples += 1
                     desired_path = self._path_for(item)
                     if stream_path != desired_path:
                         if stream is not None:
@@ -429,6 +584,7 @@ class JsonlTelemetryWriter:
                                 "db_monitor_dropped_records": dropped,
                                 "db_monitor_dropped_records_total": self.records_dropped,
                                 "records_written": self.records_written,
+                                **self.base_metadata,
                             },
                         )
                     self._write_line(stream, item)
@@ -445,6 +601,9 @@ class JsonlTelemetryWriter:
                             protected_paths={stream_path} if stream_path is not None else None
                         )
                         next_retention = time.monotonic() + 60.0
+                    if time.monotonic() >= next_health:
+                        self._write_line(stream, self._health_record())
+                        next_health = time.monotonic() + self.health_interval_seconds
                 except Exception:
                     with self._lock:
                         self.write_errors += 1
@@ -499,6 +658,68 @@ class JsonlTelemetryWriter:
         with self._lock:
             self.records_written += 1
 
+    def _health_record(self) -> dict[str, Any]:
+        files = []
+        for pattern in ("sql-*.jsonl", "sql-*.jsonl.gz"):
+            for path in self.log_dir.glob(pattern):
+                try:
+                    stat = path.stat()
+                    files.append((path, stat.st_size, stat.st_mtime))
+                except OSError:
+                    continue
+        oldest = min((item[2] for item in files), default=None)
+        newest = max((item[2] for item in files), default=None)
+        oldest_queue_age_ms = self._oldest_queue_age_ms()
+        with self._lock:
+            latency_mean = (
+                self._writer_latency_total_ms / self._writer_latency_samples
+                if self._writer_latency_samples
+                else 0.0
+            )
+            return {
+                "record_type": "monitor_health",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "records_written": self.records_written,
+                "records_dropped": self.records_dropped,
+                "writer_errors": self.write_errors,
+                "telemetry_queue_depth": self.queue.qsize(),
+                "telemetry_queue_capacity": self.queue.maxsize,
+                "writer_latency_mean_ms": round(latency_mean, 3),
+                "writer_latency_max_ms": round(self._writer_latency_max_ms, 3),
+                "oldest_queue_age_ms": oldest_queue_age_ms,
+                "current_files": len(files),
+                "current_bytes": sum(item[1] for item in files),
+                "oldest_retained_timestamp": datetime.fromtimestamp(oldest, UTC).isoformat()
+                if oldest is not None
+                else None,
+                "newest_retained_timestamp": datetime.fromtimestamp(newest, UTC).isoformat()
+                if newest is not None
+                else None,
+                "retention_days": self.retention_days,
+                "max_files": self.max_files,
+                "max_total_bytes": self.max_total_bytes,
+                **self.base_metadata,
+            }
+
+    def _oldest_queue_age_ms(self) -> float:
+        try:
+            with self.queue.mutex:
+                oldest = next(
+                    (
+                        item.get("_telemetry_enqueued_ns")
+                        for item in self.queue.queue
+                        if isinstance(item, Mapping) and item.get("_telemetry_enqueued_ns")
+                    ),
+                    None,
+                )
+            return (
+                round(max(0.0, (time.perf_counter_ns() - int(oldest)) / 1_000_000), 3)
+                if oldest is not None
+                else 0.0
+            )
+        except Exception:
+            return 0.0
+
     def _take_drop_report(self) -> int:
         with self._lock:
             count = self._pending_drop_report
@@ -547,13 +768,34 @@ class DatabaseMonitor:
         self.full_stack_for_all_sql = bool(settings.db_monitor_full_stack_for_all_sql)
         self.max_stack_frames = int(settings.db_monitor_max_stack_frames)
         self.n_plus_one_threshold = int(settings.db_monitor_n_plus_one_threshold)
+        self.parameter_digest_enabled = bool(
+            getattr(settings, "db_monitor_parameter_digest_enabled", True)
+        )
+        self.long_transaction_ms = float(
+            getattr(settings, "db_monitor_long_transaction_ms", 5000.0)
+        )
+        self.pool_wait_event_ms = float(getattr(settings, "db_monitor_pool_wait_event_ms", 5.0))
+        self.process_role = resolve_process_role(
+            getattr(settings, "db_monitor_process_role", "auto")
+        )
+        self.base_metadata = process_metadata(settings, self.process_role)
+        root_log_dir = Path(
+            getattr(settings, "db_monitor_test_log_dir", "logs/db-monitor-test")
+            if self.process_role == "test"
+            else settings.db_monitor_log_dir
+        )
+        role_log_dir = root_log_dir / self.process_role
         self.writer = writer or JsonlTelemetryWriter(
-            Path(settings.db_monitor_log_dir),
+            role_log_dir,
             retention_days=int(settings.db_monitor_retention_days),
             queue_size=int(settings.db_monitor_queue_size),
             max_file_mb=int(settings.db_monitor_max_file_mb),
-            max_files=int(settings.db_monitor_max_files),
-            max_total_mb=int(settings.db_monitor_max_total_mb),
+            max_files=int(getattr(settings, "db_monitor_max_files", 512)),
+            max_total_mb=int(getattr(settings, "db_monitor_max_total_mb", 8192)),
+            health_interval_seconds=float(
+                getattr(settings, "db_monitor_health_interval_seconds", 60.0)
+            ),
+            base_metadata=self.base_metadata,
         )
         self._installed_engines: set[int] = set()
 
@@ -564,6 +806,9 @@ class DatabaseMonitor:
             event.listen(engine, "before_cursor_execute", self.before_cursor_execute)
             event.listen(engine, "after_cursor_execute", self.after_cursor_execute)
             event.listen(engine, "handle_error", self.handle_error)
+            event.listen(engine, "begin", self.transaction_begin)
+            event.listen(engine, "commit", self.transaction_end)
+            event.listen(engine, "rollback", self.transaction_end)
         except Exception:
             return
         self._installed_engines.add(id(engine))
@@ -585,9 +830,12 @@ class DatabaseMonitor:
         try:
             if not self.enabled or _monitoring_excluded(context):
                 return
-            context._swinglens_db_monitor_start_ns = time.perf_counter_ns()
             context._swinglens_db_monitor_caller = application_caller() or _UNKNOWN_CALLER
             context._swinglens_db_monitor_parameter_shape = parameter_shape(parameters, executemany)
+            context._swinglens_db_monitor_parameter_digest = (
+                parameter_digest(parameters, executemany) if self.parameter_digest_enabled else None
+            )
+            context._swinglens_db_monitor_start_ns = time.perf_counter_ns()
             context._swinglens_db_monitor_recorded = False
         except Exception:
             return
@@ -636,7 +884,16 @@ class DatabaseMonitor:
         if not self.enabled:
             return False
         try:
-            return self.writer.enqueue(record)
+            enriched = {**self.base_metadata, **record}
+            enriched.setdefault(
+                "process",
+                {
+                    "id": os.getpid(),
+                    "hostname": _HOSTNAME,
+                    "role": self.process_role,
+                },
+            )
+            return self.writer.enqueue(enriched)
         except Exception:
             return False
 
@@ -683,6 +940,7 @@ class DatabaseMonitor:
                 "_swinglens_db_monitor_parameter_shape",
                 parameter_shape(parameters, executemany),
             ),
+            "parameter_digest": getattr(context, "_swinglens_db_monitor_parameter_digest", None),
             "python_caller": caller,
             "thread": {
                 "id": threading.get_ident(),
@@ -691,6 +949,7 @@ class DatabaseMonitor:
             "process": {
                 "id": os.getpid(),
                 "hostname": _HOSTNAME,
+                "role": self.process_role,
             },
             **current_scope_fields(),
         }
@@ -703,6 +962,46 @@ class DatabaseMonitor:
         if summary is not None:
             summary.add_sql(record)
         self.emit(record)
+
+    def transaction_begin(self, connection: Any) -> None:
+        try:
+            connection.info.setdefault("swinglens_transaction_stack", []).append(
+                {
+                    "started_ns": time.perf_counter_ns(),
+                    "transaction_start": datetime.now(UTC).isoformat(),
+                    "scope": current_scope_fields(),
+                    "summary": _sql_summary.get(),
+                }
+            )
+        except Exception:
+            return
+
+    def transaction_end(self, connection: Any) -> None:
+        try:
+            stack = connection.info.get("swinglens_transaction_stack") or []
+            if not stack:
+                return
+            transaction = stack.pop()
+            duration_ms = max(
+                0.0,
+                (time.perf_counter_ns() - int(transaction["started_ns"])) / 1_000_000,
+            )
+            summary = transaction.get("summary")
+            if summary is not None:
+                summary.add_transaction(duration_ms)
+            if duration_ms >= self.long_transaction_ms:
+                self.emit(
+                    {
+                        "record_type": "long_transaction",
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "transaction_start": transaction["transaction_start"],
+                        "transaction_end": datetime.now(UTC).isoformat(),
+                        "duration_ms": round(duration_ms, 3),
+                        **dict(transaction.get("scope") or {}),
+                    }
+                )
+        except Exception:
+            return
 
 
 _global_monitor: DatabaseMonitor | None = None
@@ -796,8 +1095,10 @@ def background_job_scope(
     run_id: int | str | None = None,
     worker_id: str | None = None,
     workflow_key: str | None = None,
+    attempt: int | None = None,
     ticker: str | None = None,
     company: str | None = None,
+    job_status_getter: Callable[[], str | None] | None = None,
 ) -> Iterator[SqlSummary]:
     monitor = get_database_monitor()
     if monitor is None or not monitor.enabled:
@@ -813,6 +1114,7 @@ def background_job_scope(
             run_id=run_id,
             worker_id=worker_id,
             workflow_key=workflow_key,
+            attempt=attempt,
             ticker=ticker,
             company=company,
         )
@@ -824,6 +1126,12 @@ def background_job_scope(
         outcome = "FAILURE"
         raise
     finally:
+        final_job_status = None
+        if job_status_getter is not None:
+            try:
+                final_job_status = job_status_getter()
+            except Exception:
+                final_job_status = None
         finish_scope(
             handle,
             record_type="job_summary",
@@ -832,7 +1140,30 @@ def background_job_scope(
                 "outcome": outcome,
                 "job_started_at": started_at,
                 "job_finished_at": datetime.now(UTC).isoformat(),
+                "job_status_at_scope_end": final_job_status,
             },
+        )
+
+
+@contextmanager
+def job_phase(name: str, **extra: Any) -> Iterator[None]:
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        duration_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
+        summary = _sql_summary.get()
+        if summary is not None:
+            summary.add_phase(name, duration_ms)
+        emit_monitor_record(
+            {
+                "record_type": "job_phase",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "phase": name,
+                "duration_ms": round(duration_ms, 3),
+                **current_scope_fields(),
+                **extra,
+            }
         )
 
 
@@ -910,7 +1241,8 @@ def normalize_sql(statement: str) -> str:
     value = _STRING_LITERAL_RE.sub("?", value)
     value = _PLACEHOLDER_RE.sub("?", value)
     value = _NUMBER_LITERAL_RE.sub("?", value)
-    return _WHITESPACE_RE.sub(" ", value).strip()
+    value = _WHITESPACE_RE.sub(" ", value).strip()
+    return _IN_PLACEHOLDERS_RE.sub("IN (?*)", value)
 
 
 def query_fingerprint(normalized_sql: str) -> str:
@@ -959,6 +1291,87 @@ def parameter_shape(parameters: Any, executemany: bool) -> dict[str, Any]:
         }
     except Exception:
         return {"shape": "unknown", "parameter_count": None, "parameter_types": []}
+
+
+def parameter_digest(parameters: Any, executemany: bool) -> str | None:
+    """Keyed, process-local equality token; parameter values and key are never persisted."""
+    if parameters is None or executemany:
+        return None
+    try:
+        encoded = json.dumps(
+            _digestable_parameter_value(parameters),
+            separators=(",", ":"),
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8", errors="replace")
+        if len(encoded) > 64 * 1024:
+            return None
+        return hmac.new(_PARAMETER_DIGEST_KEY, encoded, hashlib.sha256).hexdigest()
+    except Exception:
+        return None
+
+
+def _digestable_parameter_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _digestable_parameter_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (list, tuple)):
+        return [_digestable_parameter_value(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return [type(value).__name__, value]
+    if isinstance(value, (datetime, date)):
+        return [type(value).__name__, value.isoformat()]
+    if isinstance(value, bytes):
+        return ["bytes", hashlib.sha256(value).hexdigest()]
+    return [type(value).__name__, str(value)]
+
+
+def record_pool_checkout(*, wait_ms: float, overflow: bool, timed_out: bool) -> None:
+    summary = _sql_summary.get()
+    if summary is not None:
+        summary.add_pool_checkout(
+            wait_ms=wait_ms,
+            overflow=overflow,
+            timed_out=timed_out,
+        )
+    monitor = get_database_monitor()
+    threshold = monitor.pool_wait_event_ms if monitor is not None else 5.0
+    if timed_out or wait_ms >= threshold:
+        emit_monitor_record(
+            {
+                "record_type": "pool_checkout",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "pool_wait_ms": round(wait_ms, 3),
+                "pool_timeout": timed_out,
+                "pool_overflow": overflow,
+                **current_scope_fields(),
+            }
+        )
+
+
+class MonitoredQueuePool(QueuePool):
+    """QueuePool with passive acquisition timing; sizing and timeout semantics are unchanged."""
+
+    def _do_get(self) -> Any:
+        started = time.perf_counter_ns()
+        try:
+            connection = super()._do_get()
+        except SQLAlchemyTimeoutError:
+            record_pool_checkout(
+                wait_ms=(time.perf_counter_ns() - started) / 1_000_000,
+                overflow=False,
+                timed_out=True,
+            )
+            raise
+        wait_ms = (time.perf_counter_ns() - started) / 1_000_000
+        record_pool_checkout(
+            wait_ms=wait_ms,
+            overflow=self.overflow() > 0,
+            timed_out=False,
+        )
+        return connection
 
 
 def meaningful_rowcount(cursor: Any, operation: str) -> int | None:
@@ -1081,6 +1494,9 @@ class DatabaseHealthSampler:
         self.database_url = str(settings.database_url)
         self.interval_seconds = float(settings.db_monitor_activity_sample_interval_seconds)
         self.threshold_ms = float(settings.db_monitor_activity_threshold_ms)
+        self.idle_transaction_threshold_ms = float(
+            getattr(settings, "db_monitor_idle_transaction_threshold_ms", 5000.0)
+        )
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._engine: Engine | None = None
@@ -1125,22 +1541,35 @@ class DatabaseHealthSampler:
                 text(
                     """
                     SELECT pid,
-                           EXTRACT(EPOCH FROM (clock_timestamp() - query_start)) * 1000
+                           EXTRACT(EPOCH FROM (
+                               clock_timestamp() - COALESCE(xact_start, query_start)
+                           )) * 1000
                                AS duration_ms,
-                           state, wait_event_type, wait_event,
+                           EXTRACT(EPOCH FROM (clock_timestamp() - xact_start)) * 1000
+                               AS transaction_duration_ms,
+                           state, wait_event_type, wait_event, application_name,
                            pg_blocking_pids(pid) AS blocking_pids,
                            query
                     FROM pg_stat_activity
                     WHERE datname = current_database()
                       AND pid <> pg_backend_pid()
-                      AND state <> 'idle'
-                      AND query_start IS NOT NULL
-                      AND clock_timestamp() - query_start
-                          >= (:threshold_ms * interval '1 millisecond')
-                    ORDER BY query_start
+                      AND (
+                          (state = 'active' AND query_start IS NOT NULL
+                           AND clock_timestamp() - query_start
+                               >= (:threshold_ms * interval '1 millisecond'))
+                          OR wait_event_type = 'Lock'
+                          OR cardinality(pg_blocking_pids(pid)) > 0
+                          OR (state = 'idle in transaction' AND xact_start IS NOT NULL
+                              AND clock_timestamp() - xact_start
+                                  >= (:idle_transaction_threshold_ms * interval '1 millisecond'))
+                      )
+                    ORDER BY COALESCE(xact_start, query_start)
                     """
                 ),
-                {"threshold_ms": self.threshold_ms},
+                {
+                    "threshold_ms": self.threshold_ms,
+                    "idle_transaction_threshold_ms": self.idle_transaction_threshold_ms,
+                },
             ).mappings()
             records = []
             for row in rows:
@@ -1151,8 +1580,10 @@ class DatabaseHealthSampler:
                     "pid": row["pid"],
                     "duration_ms": round(float(row["duration_ms"] or 0), 3),
                     "state": row["state"],
+                    "transaction_duration_ms": round(float(row["transaction_duration_ms"] or 0), 3),
                     "wait_event_type": row["wait_event_type"],
                     "wait_event": row["wait_event"],
+                    "application_name": row["application_name"],
                     "blocking_pids": list(row["blocking_pids"] or []),
                     "normalized_sql": normalized,
                     "query_fingerprint": query_fingerprint(normalized),

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal
 from app.models.tables import BackgroundJob
-from app.observability.db_monitor import background_job_scope
+from app.observability.db_monitor import background_job_scope, job_phase
 from app.services.background_job_service import (
     JobLeaseLost,
     JobStatus,
@@ -149,9 +149,7 @@ def run_worker(
     except Exception:
         startup_db.rollback()
         runtime_stop_event.set()
-        heartbeat_thread.join(
-            timeout=max(1.0, settings.job_worker_heartbeat_interval_seconds * 2)
-        )
+        heartbeat_thread.join(timeout=max(1.0, settings.job_worker_heartbeat_interval_seconds * 2))
         raise
     finally:
         startup_db.close()
@@ -508,10 +506,13 @@ def execute_job(
             run_id=run_id,
             worker_id=job.worker_id,
             workflow_key=workflow_key,
+            attempt=int(job.retry_count or 0) + 1,
             ticker=str(ticker) if ticker else None,
             company=str(company) if company else None,
+            job_status_getter=lambda: str(job.status) if job.status is not None else None,
         ):
-            return handler(db, job)
+            with job_phase("job_handler"):
+                return handler(db, job)
     finally:
         if heartbeat is not None and hasattr(job, "_heartbeat"):
             delattr(job, "_heartbeat")
@@ -648,16 +649,17 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
             )
 
     try:
-        result = execute_full_pipeline(
-            db=db,
-            pipeline_run_id=int(pipeline_run_id),
-            should_cancel=should_cancel,
-            lease_guard=lease_guard,
-            resume_from_step=job.payload_json.get("resume_from_step"),
-            progress_callback=progress_callback,
-            memory_probe=memory_probe,
-            execution_token=execution_token,
-        )
+        with job_phase("pipeline_execution"):
+            result = execute_full_pipeline(
+                db=db,
+                pipeline_run_id=int(pipeline_run_id),
+                should_cancel=should_cancel,
+                lease_guard=lease_guard,
+                resume_from_step=job.payload_json.get("resume_from_step"),
+                progress_callback=progress_callback,
+                memory_probe=memory_probe,
+                execution_token=execution_token,
+            )
     except PipelineCancelled as exc:
         raise CancelRequested(str(exc)) from exc
     return result.__dict__
@@ -680,10 +682,11 @@ def _execute_sec_readiness_repair_job(
         return is_cancel_requested(db, job.id)
 
     try:
-        return execute_sec_readiness_repair(
-            db,
-            job,
-            should_cancel=should_cancel,
-        )
+        with job_phase("sec_readiness_repair"):
+            return execute_sec_readiness_repair(
+                db,
+                job,
+                should_cancel=should_cancel,
+            )
     except SecReadinessRepairCancelled as exc:
         raise CancelRequested(str(exc)) from exc

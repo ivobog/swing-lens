@@ -16,6 +16,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerProcessingRun,
 )
+from app.observability.db_monitor import job_phase
 from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.redaction import redact_sensitive, redacted_token_metadata
@@ -365,23 +366,24 @@ def execute_outcome_maturation_job(
     started_at = processing_run.started_at or _utcnow()
 
     try:
-        if orchestration_service is not None:
-            result = orchestration_service.drain_due(
-                db,
-                now=now,
-                batch_size=limit,
-                max_batches=max_batches,
-                due_session=due_session,
-                should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
-                lease_guard=lambda: _heartbeat_only(job),
-            )
-        else:
-            result = outcome_service.process_due_outcomes(  # type: ignore[union-attr]
-                db,
-                now=now,
-                limit=limit,
-                should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
-            )
+        with job_phase("outcome_calculation_and_persistence"):
+            if orchestration_service is not None:
+                result = orchestration_service.drain_due(
+                    db,
+                    now=now,
+                    batch_size=limit,
+                    max_batches=max_batches,
+                    due_session=due_session,
+                    should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+                    lease_guard=lambda: _heartbeat_only(job),
+                )
+            else:
+                result = outcome_service.process_due_outcomes(  # type: ignore[union-attr]
+                    db,
+                    now=now,
+                    limit=limit,
+                    should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+                )
     except OutcomeMaturationCancelled as exc:
         _finish_processing_run(
             db,

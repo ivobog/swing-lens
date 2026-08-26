@@ -16,6 +16,7 @@ from app.models.ceri_tables import (
     CeriScoreSnapshot,
 )
 from app.models.tables import BackgroundJob
+from app.observability.db_monitor import job_phase
 from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
 from app.services.background_worker import CancelRequested
 from app.services.ceri.alert_service import CeriAlertService
@@ -299,7 +300,8 @@ def execute_capture_run_job(
         if change_job_id is not None:
             values["change_job_id"] = change_job_id
         return values
-    result = (capture_service or CeriRunCaptureService()).capture_run(db, run_id)
+    with job_phase("capture_calculation_and_persistence"):
+        result = (capture_service or CeriRunCaptureService()).capture_run(db, run_id)
     values = result.as_dict()
     CeriProcessingRunService().finish(
         db,
@@ -341,8 +343,7 @@ def execute_change_detection_job(
     )
     if not created and processing.status == "COMPLETED":
         change_ids = tuple(
-            int(value)
-            for value in (processing.checkpoint_json or {}).get("change_ids", [])
+            int(value) for value in (processing.checkpoint_json or {}).get("change_ids", [])
         )
         values = {
             "job_type": CERI_CHANGE_DETECTION,
@@ -360,17 +361,18 @@ def execute_change_detection_job(
         if alert_job_id is not None:
             values["alert_job_id"] = alert_job_id
         return values
-    result = (change_service or CeriChangeRebuildService()).rebuild(
-        db,
-        CeriChangeRebuildRequest(
-            company_ids=_optional_int_tuple(payload.get("company_ids")),
-            ticker=payload.get("ticker"),
-            run_id=_optional_int(payload.get("run_id")),
-            from_session=_optional_date(payload.get("from_session")),
-            to_session=_optional_date(payload.get("to_session")),
-            changed_since=_optional_datetime(payload.get("changed_since")),
-        ),
-    )
+    with job_phase("change_calculation_and_persistence"):
+        result = (change_service or CeriChangeRebuildService()).rebuild(
+            db,
+            CeriChangeRebuildRequest(
+                company_ids=_optional_int_tuple(payload.get("company_ids")),
+                ticker=payload.get("ticker"),
+                run_id=_optional_int(payload.get("run_id")),
+                from_session=_optional_date(payload.get("from_session")),
+                to_session=_optional_date(payload.get("to_session")),
+                changed_since=_optional_datetime(payload.get("changed_since")),
+            ),
+        )
     raw_change_ids = getattr(result, "change_ids", None)
     change_ids = tuple(int(value) for value in (raw_change_ids or ()))
     CeriProcessingRunService().finish(
@@ -402,11 +404,7 @@ def execute_change_detection_job(
             payload=payload,
             change_ids=change_ids,
         )
-        if (
-            change_ids
-            or (raw_change_ids is None and result.changes)
-            or job.workflow_key
-        )
+        if (change_ids or (raw_change_ids is None and result.changes) or job.workflow_key)
         and processing.status == "COMPLETED"
         else None
     )
@@ -812,9 +810,7 @@ def _enqueue_capture_after_features(
 
 def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: int) -> int | None:
     request_key = (
-        f"{job.workflow_key}:change"
-        if job.workflow_key
-        else f"ceri:change-rebuild:run:{run_id}"
+        f"{job.workflow_key}:change" if job.workflow_key else f"ceri:change-rebuild:run:{run_id}"
     )
     change_job = enqueue_job(
         db,
