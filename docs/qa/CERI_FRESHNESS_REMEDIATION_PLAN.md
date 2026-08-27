@@ -12,6 +12,7 @@
 8. Resolve runtime config paths from application settings.
 9. Bump calculation/config versions so v1.2 and v1.3 snapshots are non-comparable; this prevents a synthetic bulk `DATA_REFRESHED` transition at the semantic boundary.
 10. Make scoped change rebuilds select comparison history outside the requested output scope, preventing historical snapshot comparison metadata from being reset.
+11. Derive legacy freshness-alert validity at query time: hide pre-provider-feed stale alerts from the active feed while retaining them under the Invalidated forensic filter.
 
 ## Deployment/reprocessing
 

@@ -32,6 +32,8 @@ def classify_legacy_alert(
         and change.comparison_state != ComparisonState.COMPARABLE.value
     ):
         return AlertValidity.INVALID_LEGACY
+    if uses_legacy_freshness_semantics(change):
+        return AlertValidity.INVALID_LEGACY
     if change.change_type.startswith("OPPORTUNITY_") and (
         change.from_snapshot_id is None or change.to_snapshot_id is None
     ):
@@ -49,9 +51,28 @@ def classify_legacy_alert(
     return AlertValidity.VALID_HISTORICAL
 
 
-def invalidation_reason(validity: AlertValidity) -> str | None:
+def invalidation_reason(
+    validity: AlertValidity,
+    *,
+    change: CeriChangeEvent | None = None,
+) -> str | None:
+    if (
+        validity is AlertValidity.INVALID_LEGACY
+        and change is not None
+        and change.change_type in {"DATA_STALE", "DATA_REFRESHED"}
+    ):
+        return "Legacy data freshness alert predates provider-feed freshness semantics."
     return {
         AlertValidity.INVALID_LEGACY: "Underlying change is invalid under corrected semantics.",
         AlertValidity.ORPHANED: "Underlying change-event lineage is missing.",
         AlertValidity.DUPLICATE: "A deterministic alert identity already exists.",
     }.get(validity)
+
+
+def uses_legacy_freshness_semantics(change: CeriChangeEvent | None) -> bool:
+    return bool(
+        change is not None
+        and change.change_type in {"DATA_STALE", "DATA_REFRESHED"}
+        and ((change.delta_json or {}).get("freshness") or {}).get("semantic")
+        != "PROVIDER_FEED_FRESHNESS"
+    )

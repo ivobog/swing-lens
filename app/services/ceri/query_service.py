@@ -59,6 +59,12 @@ from app.services.ceri.freshness_service import (
     ticker_feed_freshness_from_runs,
 )
 from app.services.ceri.guidance_normalizer import guidance_eligibility_reason
+from app.services.ceri.legacy_alert_audit import (
+    AlertValidity,
+    classify_legacy_alert,
+    invalidation_reason,
+    uses_legacy_freshness_semantics,
+)
 from app.services.ceri.provider_cost_ledger import ProviderCostLedger
 from app.services.ceri.snapshot_service import CeriSnapshotService
 
@@ -460,13 +466,29 @@ class CeriQueryService:
         changes = {row.id: row for row in _load(db, CeriChangeEvent)}
         rules = {row.id: row for row in _load(db, CeriAlertRule)}
         latest_snapshot_ids = _latest_snapshot_ids_by_company(snapshots.values())
+        current_catalyst_revision_ids = {
+            revision.id
+            for revision in revisions.values()
+            if revision.id is not None and revision.is_current
+        }
         items = []
         for alert in _load(db, CeriAlertEvent):
             if query.filters.ticker and alert.ticker.upper() != _ticker(query.filters.ticker):
                 continue
-            if query.filters.alert_status and alert.status != query.filters.alert_status:
-                continue
             change = changes.get(alert.source_change_event_id)
+            validity = classify_legacy_alert(
+                alert,
+                change=change,
+                latest_snapshot_ids=latest_snapshot_ids,
+                current_catalyst_revision_ids=current_catalyst_revision_ids,
+            )
+            invalid_legacy_freshness = uses_legacy_freshness_semantics(change)
+            effective_status = "INVALIDATED" if invalid_legacy_freshness else alert.status
+            if query.filters.alert_status:
+                if effective_status != query.filters.alert_status:
+                    continue
+            elif effective_status == "INVALIDATED":
+                continue
             change_payload = (
                 _change_payload(
                     change,
@@ -483,6 +505,22 @@ class CeriQueryService:
                 else None
             )
             item = _alert_payload(alert, change=change_payload, rule=rules.get(alert.alert_rule_id))
+            item["status"] = effective_status
+            item["validity_classification"] = (
+                AlertValidity.INVALID_LEGACY.value
+                if invalid_legacy_freshness
+                else alert.validity_classification
+            )
+            item["invalidated_reason"] = (
+                invalidation_reason(validity, change=change)
+                if invalid_legacy_freshness
+                else None
+            ) or alert.invalidated_reason
+            item["actionable"] = effective_status not in {"INVALIDATED", "DISMISSED"}
+            item["technical"]["persisted_status"] = alert.status
+            item["technical"]["effective_validity"] = item[
+                "validity_classification"
+            ]
             if query.filters.importance and item["importance"] != query.filters.importance:
                 continue
             if query.filters.signal_class and item["signal_class"] != query.filters.signal_class:

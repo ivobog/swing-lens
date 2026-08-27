@@ -56,7 +56,7 @@
     <label><span>Forensic catalyst rows</span><input name="include_ineligible" type="checkbox" value="true" {{ "checked" if filters.include_ineligible else "" }}> Include ineligible</label>
     <label><span>Alert status</span>
       <select name="status">
-        <option value="" {{ "selected" if not filters.status else "" }}>Any</option>
+        <option value="" {{ "selected" if not filters.status else "" }}>Valid only</option>
         {% for option in ["UNREAD", "ACKNOWLEDGED", "DISMISSED", "INVALIDATED"] %}
           <option value="{{ option }}" {{ "selected" if filters.status == option else "" }}>{{ option|title }}</option>
         {% endfor %}
