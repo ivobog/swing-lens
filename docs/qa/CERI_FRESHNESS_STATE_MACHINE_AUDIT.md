@@ -26,4 +26,6 @@ Classification: `SNAPSHOT_CAPTURE_BUG`, Medium. `CeriChangeRebuildService` now s
 
 Using provider-feed freshness as the product semantic, all 303 historical `DATA_STALE` changes had a successful estimate check age of 0 days at their snapshot cutoff. Therefore the historical stale transitions/302 alerts are semantically false even though their fresh-to-stale edges were correctly detected under v1.2. They remain immutable for audit. A separate administrative classification/backfill may mark them legacy-semantic-invalid, but this investigation performs no mutation.
 
+The active alert query now performs that classification without a database rewrite: a `DATA_STALE`/`DATA_REFRESHED` change lacking `freshness.semantic=PROVIDER_FEED_FRESHNESS` is projected as `INVALID_LEGACY`, status `INVALIDATED`, and non-actionable. Default alert views exclude it; the Invalidated filter preserves forensic access. The persisted alert status, change, snapshot, and source evidence remain untouched.
+
 Event Risk was not affected by the confidence-generated `estimate_data_stale`: capture passed `stale` to Event Risk only from revision-feature warnings, and revision features do not generate that warning. A/ADSK `RISK_ESCALATED` rows were earnings-proximity transitions, not stale penalties.

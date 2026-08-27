@@ -31,7 +31,8 @@ No evidence supports `PROVIDER_REFRESH_BUG`, `FEATURE_REBUILD_BUG`, or `ALERT_DE
 - TDD red: new suite failed at missing canonical freshness implementation.
 - Focused post-fix: 75 passed.
 - Full post-fix CERI suite before the scoped-rebuild finding: 416 passed in 25.24s. Final suite result is recorded after the additional regression test.
-- Final full post-fix CERI suite: **418 passed in 23.52s**; `ruff check app/services/ceri tests/ceri` passed.
+- Initial full post-fix CERI suite: **418 passed in 23.52s**.
+- Alert-feed follow-up: **422 passed in 77.21s**; `ruff check app/services/ceri tests/ceri` passed.
 - Read-only live Ops verification: estimates/catalysts/earnings/guidance provider feed ages are non-negative; EODHD earnings changed from -70 to 0 without changing database rows.
 - Live AGNC API: estimate feed age 0; evidence retrieval age 8; earnings future `published_at` ignored with `RETRIEVAL_ONLY` quality.
 
@@ -43,6 +44,7 @@ No evidence supports `PROVIDER_REFRESH_BUG`, `FEATURE_REBUILD_BUG`, or `ALERT_DE
 - Event Risk was not changed by these warnings.
 - No duplicate stale alerts exist; refresh symmetry works at the change layer.
 - The 303 stale change rows have valid comparable from/to transitions, but their destination snapshot comparison metadata was later reset by scoped rebuild; the code path is fixed and historical data was not mutated.
+- The default Alerts feed now projects all 302 pre-provider-feed stale alerts as `INVALID_LEGACY`, non-actionable, and hidden. They remain available through the `INVALIDATED` forensic filter; persisted evidence and delivery rows are unchanged.
 
 ## Final result
 

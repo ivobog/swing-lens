@@ -672,6 +672,65 @@ def test_events_changes_alerts_and_operations_payloads_are_queryable() -> None:
     assert status["quarantined_count"] == 1
 
 
+def test_alert_feed_hides_legacy_stale_by_default_but_keeps_forensic_access() -> None:
+    prior = _snapshot(20, "MSFT")
+    current = _snapshot(21, "MSFT")
+    current.calculation_version = "ceri-1.2.0"
+    change = CeriChangeEvent(
+        id=30,
+        company_id=1,
+        from_snapshot_id=prior.id,
+        to_snapshot_id=current.id,
+        change_type="DATA_STALE",
+        severity="INFO",
+        importance="INFO",
+        signal_class="DATA_QUALITY",
+        comparison_state="COMPARABLE",
+        delta_json={"warnings": ["estimate_data_stale"]},
+        dedup_key="legacy-stale",
+        created_at=NOW,
+    )
+    alert = CeriAlertEvent(
+        id=31,
+        source_change_event_id=change.id,
+        event_key="legacy-stale-alert",
+        ticker="MSFT",
+        severity="INFO",
+        importance="INFO",
+        signal_class="DATA_QUALITY",
+        status="UNREAD",
+        validity_classification="VALID_CURRENT",
+        created_at=NOW,
+    )
+    db = FakeDb(
+        {
+            CeriCompany: [_company()],
+            CeriScoreSnapshot: [prior, current],
+            CeriChangeEvent: [change],
+            CeriAlertEvent: [alert],
+        }
+    )
+    service = CeriQueryService()
+
+    active = service.alerts(
+        db,
+        CeriListQuery(CeriQueryFilters(), sort="created_at"),
+    )
+    invalidated = service.alerts(
+        db,
+        CeriListQuery(
+            CeriQueryFilters(alert_status="INVALIDATED"),
+            sort="created_at",
+        ),
+    )
+
+    assert active["total"] == 0
+    assert invalidated["total"] == 1
+    assert invalidated["items"][0]["status"] == "INVALIDATED"
+    assert invalidated["items"][0]["validity_classification"] == "INVALID_LEGACY"
+    assert invalidated["items"][0]["actionable"] is False
+
+
 def test_run_missing_raises_stable_error_code() -> None:
     with pytest.raises(CeriQueryError) as exc:
         CeriQueryService().run(FakeDb(), 404, CeriListQuery(CeriQueryFilters()))

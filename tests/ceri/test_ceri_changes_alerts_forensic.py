@@ -207,6 +207,33 @@ def test_legacy_alert_duplicate_identity_is_invalidated_without_deletion() -> No
     )
 
 
+def test_pre_provider_feed_data_stale_alert_is_invalid_legacy() -> None:
+    legacy = _change("DATA_STALE")
+    legacy.delta_json = {"warnings": ["estimate_data_stale"]}
+    canonical = _change("DATA_STALE")
+    canonical.delta_json = {
+        "warnings": ["estimate_data_stale"],
+        "freshness": {"semantic": "PROVIDER_FEED_FRESHNESS"},
+    }
+
+    assert (
+        classify_legacy_alert(
+            _alert(6),
+            change=legacy,
+            latest_snapshot_ids={legacy.to_snapshot_id},
+        )
+        is AlertValidity.INVALID_LEGACY
+    )
+    assert (
+        classify_legacy_alert(
+            _alert(7),
+            change=canonical,
+            latest_snapshot_ids={canonical.to_snapshot_id},
+        )
+        is AlertValidity.VALID_CURRENT
+    )
+
+
 def test_default_trader_feed_excludes_transition_and_source_arrival_rows() -> None:
     filters = CeriQueryFilters()
     transition = {
