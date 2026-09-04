@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     db_monitor_test_log_dir: Path = Field(default=Path("logs/db-monitor-test"))
     db_monitor_process_role: str = "auto"
     db_monitor_queue_size: int = Field(default=10_000, ge=1)
+    db_monitor_critical_queue_size: int = Field(default=2_048, ge=1)
+    db_monitor_high_queue_size: int = Field(default=4_096, ge=1)
+    db_monitor_p2_pressure_ratio: float = Field(default=0.75, ge=0.1, le=1.0)
+    db_monitor_aggregate_p2_on_pressure: bool = True
     db_monitor_max_file_mb: int = Field(default=100, ge=1)
     db_monitor_max_files: int = Field(default=512, ge=32, le=10_000)
     db_monitor_max_total_mb: int = Field(default=16384, ge=1024)

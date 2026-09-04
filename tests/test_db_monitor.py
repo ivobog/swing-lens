@@ -285,13 +285,122 @@ def test_queue_overflow_is_counted_without_blocking(tmp_path: Path) -> None:
         tmp_path,
         retention_days=8,
         queue_size=1,
+        high_queue_size=1,
         max_file_mb=1,
+        aggregate_p2_on_pressure=False,
     )
     writer._thread = AliveThread()  # type: ignore[assignment]  # controlled saturation
-    writer.queue.put_nowait({"record_type": "already-full"})
+    writer.p1_queue.put_nowait({"record_type": "job_phase"})
 
-    assert writer.enqueue({"record_type": "dropped"}) is False
+    assert writer.enqueue({"record_type": "job_phase"}) is False
     assert writer.status()["db_monitor_dropped_records"] == 1
+
+
+def test_p0_summary_uses_reserved_capacity_when_routine_queue_is_full(tmp_path: Path) -> None:
+    class AliveThread:
+        @staticmethod
+        def is_alive() -> bool:
+            return True
+
+    writer = JsonlTelemetryWriter(
+        tmp_path,
+        retention_days=8,
+        queue_size=1,
+        critical_queue_size=2,
+        high_queue_size=1,
+        max_file_mb=1,
+    )
+    writer._thread = AliveThread()  # type: ignore[assignment]
+    writer.queue.put_nowait({"record_type": "sql"})
+
+    assert writer.enqueue({"record_type": "request_summary"}) is True
+    status = writer.status()
+    assert status["p0_created"] == 1
+    assert status["p0_dropped"] == 0
+    assert status["p0_queue_depth"] == 1
+
+
+def test_routine_sql_is_aggregated_under_pressure(tmp_path: Path) -> None:
+    class AliveThread:
+        @staticmethod
+        def is_alive() -> bool:
+            return True
+
+    writer = JsonlTelemetryWriter(
+        tmp_path,
+        retention_days=8,
+        queue_size=2,
+        critical_queue_size=2,
+        high_queue_size=1,
+        p2_pressure_ratio=0.5,
+        max_file_mb=1,
+    )
+    writer._thread = AliveThread()  # type: ignore[assignment]
+    writer.queue.put_nowait({"record_type": "sql"})
+
+    assert writer.enqueue(
+        {
+            "record_type": "sql",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "duration_ms": 0.7,
+            "slow_query": False,
+            "success": True,
+            "query_fingerprint": "routine-heartbeat",
+            "normalized_sql": "UPDATE background_workers SET heartbeat_at=?",
+            "operation": "UPDATE",
+        }
+    ) is True
+    status = writer.status()
+    assert status["p2_aggregated"] == 1
+    assert status["p2_dropped"] == 0
+
+
+def test_priority_writer_stress_preserves_all_p0_summaries(tmp_path: Path) -> None:
+    writer = JsonlTelemetryWriter(
+        tmp_path,
+        retention_days=8,
+        queue_size=4,
+        critical_queue_size=128,
+        high_queue_size=8,
+        p2_pressure_ratio=0.25,
+        max_file_mb=4,
+        flush_interval_seconds=0.01,
+    )
+    expected_summaries = 50
+    for index in range(5_000):
+        writer.enqueue(
+            {
+                "record_type": "sql",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "duration_ms": 0.5,
+                "slow_query": False,
+                "success": True,
+                "query_fingerprint": "routine-claim-poll",
+                "normalized_sql": "SELECT id FROM background_jobs WHERE status=?",
+                "operation": "SELECT",
+            }
+        )
+        if index % 100 == 0:
+            assert writer.enqueue(
+                {
+                    "record_type": "request_summary",
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "request_id": f"stress-{index}",
+                }
+            )
+    writer.stop(timeout=10)
+
+    records = [
+        json.loads(line)
+        for path in tmp_path.glob("sql-*.jsonl")
+        for line in path.read_text(encoding="utf-8").splitlines()
+    ]
+    summaries = [row for row in records if row["record_type"] == "request_summary"]
+    status = writer.status()
+    assert len(summaries) == expected_summaries
+    assert status["p0_dropped"] == 0
+    assert status["p2_aggregated"] > 0
+    assert any(row["record_type"] == "sql_aggregate" for row in records)
 
 
 def test_rotation_and_retention(tmp_path: Path) -> None:

@@ -8,8 +8,8 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import String, and_, cast, func, or_, select, text
-from sqlalchemy.orm import Session, load_only
+from sqlalchemy import Float, String, and_, case, cast, func, or_, select, text, union_all
+from sqlalchemy.orm import Session, aliased, load_only
 
 from app.models.ceri_tables import (
     CeriAlertEvent,
@@ -39,6 +39,7 @@ from app.services.ceri.api_dtos import (
     CeriTickerDetailDto,
 )
 from app.services.ceri.change_semantics import (
+    CHANGE_GROUP_BY_TYPE,
     ChangeGroup,
     ComparisonState,
     change_dimensions,
@@ -99,6 +100,13 @@ class _FreshnessRecord:
     dataset: str
     last_successful_check_at: datetime | None
     coverage: dict[str, int] | None = None
+
+
+@dataclass(frozen=True)
+class _CeriSnapshotReadContext:
+    """Request-scoped, fully materialized evidence used by DTO construction."""
+
+    collections: dict[type[Any], list[Any]]
 
 
 class CeriQueryError(ValueError):
@@ -281,6 +289,8 @@ class CeriQueryService:
 
     def changes(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
+        if not _uses_fixture_collections(db):
+            return self._database_changes(db, query)
         company_by_id = _company_by_id(db)
         change_rows = _load(db, CeriChangeEvent)
         referenced_snapshot_ids = {
@@ -330,6 +340,156 @@ class CeriQueryService:
             items, snapshots.values(), filters=query.filters
         )
         return payload
+
+    def _database_changes(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        prior = aliased(CeriScoreSnapshot, name="prior_snapshot")
+        current = aliased(CeriScoreSnapshot, name="current_snapshot")
+        revision = aliased(CeriCatalystEventRevision, name="change_revision")
+        event = aliased(CeriCatalystEvent, name="change_event")
+        guidance = aliased(CeriGuidanceEvent, name="change_guidance")
+        latest = _latest_referenced_snapshot_subquery()
+
+        def joined(statement):
+            return (
+                statement.join(CeriCompany, CeriCompany.id == CeriChangeEvent.company_id)
+                .outerjoin(prior, prior.id == CeriChangeEvent.from_snapshot_id)
+                .outerjoin(current, current.id == CeriChangeEvent.to_snapshot_id)
+                .outerjoin(revision, revision.id == CeriChangeEvent.catalyst_revision_id)
+                .outerjoin(event, event.id == revision.catalyst_event_id)
+                .outerjoin(guidance, guidance.id == CeriChangeEvent.guidance_event_id)
+                .outerjoin(latest, latest.c.company_id == CeriChangeEvent.company_id)
+            )
+
+        predicates, is_current = _database_change_predicates(
+            query.filters,
+            company=CeriCompany,
+            prior=prior,
+            current=current,
+            revision=revision,
+            event=event,
+            guidance=guidance,
+            latest=latest,
+        )
+        total = int(
+            db.scalar(joined(select(func.count()).select_from(CeriChangeEvent)).where(*predicates))
+            or 0
+        )
+        sort_column = {
+            "created_at": CeriChangeEvent.created_at,
+            "severity": CeriChangeEvent.severity,
+            "ticker": CeriCompany.ticker,
+            "id": CeriChangeEvent.id,
+        }.get(query.sort)
+        if sort_column is None:
+            raise CeriQueryError("INVALID_SORT", f"Unsupported CERI sort: {query.sort}")
+        primary_order = (
+            sort_column.desc().nullslast()
+            if query.direction.lower() == "desc"
+            else sort_column.asc().nullslast()
+        )
+        rows = db.execute(
+            joined(
+                select(
+                    CeriChangeEvent,
+                    CeriCompany.ticker.label("ticker"),
+                    latest.c.snapshot_id.label("latest_snapshot_id"),
+                ).select_from(CeriChangeEvent)
+            )
+            .where(*predicates)
+            .order_by(primary_order, CeriCompany.ticker.asc(), CeriChangeEvent.id.asc())
+            .offset(query.offset)
+            .limit(query.limit)
+        ).all()
+        changes = [row[0] for row in rows]
+        context = self._change_page_context(db, changes)
+        latest_snapshot_ids = {
+            change.company_id: int(row.latest_snapshot_id)
+            for row, change in zip(rows, changes, strict=True)
+            if row.latest_snapshot_id is not None
+        }
+        items = [
+            _change_payload(
+                change,
+                ticker=row.ticker.upper() if row.ticker else None,
+                snapshots=context["snapshots"],
+                revisions=context["revisions"],
+                revision_features=context["revision_features"],
+                events=context["events"],
+                guidance=context["guidance"],
+                latest_snapshot_ids=latest_snapshot_ids,
+                change_thresholds=self.config.change_thresholds,
+            )
+            for row, change in zip(rows, changes, strict=True)
+        ]
+        pair = (query.filters.from_run_id, query.filters.to_run_id)
+        if pair == (None, None):
+            pair_row = db.execute(
+                joined(
+                    select(prior.run_id, current.run_id, func.count().label("pair_count"))
+                    .select_from(CeriChangeEvent)
+                )
+                .where(*predicates, prior.run_id.is_not(None), current.run_id.is_not(None))
+                .group_by(prior.run_id, current.run_id)
+                .order_by(func.count().desc(), prior.run_id.asc(), current.run_id.asc())
+                .limit(1)
+            ).first()
+            pair = (pair_row[0], pair_row[1]) if pair_row is not None else (None, None)
+        excluded = _excluded_referenced_snapshot_count(db)
+        payload = _page_payload(items, total=total, query=query)
+        payload["comparison_context"] = {
+            "from_run_id": pair[0],
+            "to_run_id": pair[1],
+            "label": (
+                f"Comparing Run {pair[0]} -> Run {pair[1]}"
+                if pair[0] is not None and pair[1] is not None
+                else "Mixed change history"
+            ),
+            "excluded_non_comparable": excluded,
+        }
+        return payload
+
+    def _change_page_context(
+        self, db: Session, changes: list[CeriChangeEvent]
+    ) -> dict[str, dict[int, Any]]:
+        snapshot_ids = {
+            snapshot_id
+            for change in changes
+            for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
+            if snapshot_id is not None
+        }
+        snapshots = self._snapshots_for_ids(db, snapshot_ids)
+        revision_ids = {
+            int(change.catalyst_revision_id)
+            for change in changes
+            if change.catalyst_revision_id is not None
+        }
+        guidance_ids = {
+            int(change.guidance_event_id)
+            for change in changes
+            if change.guidance_event_id is not None
+        }
+        revisions = _entities_by_ids(db, CeriCatalystEventRevision, revision_ids)
+        event_ids = {
+            int(revision.catalyst_event_id)
+            for revision in revisions.values()
+            if revision.catalyst_event_id is not None
+        }
+        revision_feature_ids = {
+            int(feature_id)
+            for snapshot in snapshots.values()
+            for component in (snapshot.component_json or {}).get("components") or []
+            if str(component.get("name") or "").startswith("revision_")
+            for feature_id in component.get("evidence_ids") or []
+        }
+        return {
+            "snapshots": snapshots,
+            "revisions": revisions,
+            "revision_features": _entities_by_ids(
+                db, CeriRevisionFeature, revision_feature_ids
+            ),
+            "events": _entities_by_ids(db, CeriCatalystEvent, event_ids),
+            "guidance": _entities_by_ids(db, CeriGuidanceEvent, guidance_ids),
+        }
 
     def events(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
@@ -457,6 +617,8 @@ class CeriQueryService:
 
     def alerts(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
+        if not _uses_fixture_collections(db):
+            return self._database_alerts(db, query)
         company_by_id = _company_by_id(db)
         snapshots = {row.id: row for row in _load(db, CeriScoreSnapshot)}
         revisions = {row.id: row for row in _load(db, CeriCatalystEventRevision)}
@@ -539,6 +701,158 @@ class CeriQueryService:
                 "id": "id",
             },
         )
+
+    def _database_alerts(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
+        change = aliased(CeriChangeEvent, name="alert_change")
+        revision = aliased(CeriCatalystEventRevision, name="alert_revision")
+        latest = _latest_snapshot_subquery()
+
+        def joined(statement):
+            return (
+                statement.outerjoin(change, change.id == CeriAlertEvent.source_change_event_id)
+                .outerjoin(CeriCompany, CeriCompany.id == change.company_id)
+                .outerjoin(revision, revision.id == change.catalyst_revision_id)
+                .outerjoin(latest, latest.c.company_id == change.company_id)
+            )
+
+        legacy_freshness = and_(
+            change.change_type.in_(("DATA_STALE", "DATA_REFRESHED")),
+            func.coalesce(
+                change.delta_json["freshness"]["semantic"].as_string(), ""
+            )
+            != "PROVIDER_FEED_FRESHNESS",
+        )
+        effective_status = case(
+            (legacy_freshness, "INVALIDATED"), else_=CeriAlertEvent.status
+        )
+        is_current = case(
+            (
+                or_(
+                    and_(
+                        change.to_snapshot_id.is_not(None),
+                        latest.c.snapshot_id == change.to_snapshot_id,
+                    ),
+                    revision.is_current.is_(True),
+                ),
+                True,
+            ),
+            else_=False,
+        )
+        predicates = []
+        filters = query.filters
+        if filters.ticker:
+            predicates.append(CeriAlertEvent.ticker == _ticker(filters.ticker))
+        if filters.alert_status:
+            predicates.append(effective_status == filters.alert_status)
+        else:
+            predicates.append(effective_status != "INVALIDATED")
+        if filters.importance:
+            predicates.append(CeriAlertEvent.importance == filters.importance)
+        if filters.signal_class:
+            predicates.append(CeriAlertEvent.signal_class == filters.signal_class)
+        if filters.history_scope:
+            predicates.append(is_current.is_(filters.history_scope == "CURRENT"))
+
+        total = int(
+            db.scalar(joined(select(func.count()).select_from(CeriAlertEvent)).where(*predicates))
+            or 0
+        )
+        sort_column = {
+            "created_at": CeriAlertEvent.created_at,
+            "severity": CeriAlertEvent.severity,
+            "ticker": CeriAlertEvent.ticker,
+            "status": effective_status,
+            "id": CeriAlertEvent.id,
+        }.get(query.sort)
+        if sort_column is None:
+            raise CeriQueryError("INVALID_SORT", f"Unsupported CERI sort: {query.sort}")
+        primary_order = (
+            sort_column.desc().nullslast()
+            if query.direction.lower() == "desc"
+            else sort_column.asc().nullslast()
+        )
+        rows = db.execute(
+            joined(
+                select(
+                    CeriAlertEvent,
+                    change,
+                    CeriCompany.ticker.label("change_ticker"),
+                    latest.c.snapshot_id.label("latest_snapshot_id"),
+                    effective_status.label("effective_status"),
+                ).select_from(CeriAlertEvent)
+            )
+            .where(*predicates)
+            .order_by(primary_order, CeriAlertEvent.ticker.asc(), CeriAlertEvent.id.asc())
+            .offset(query.offset)
+            .limit(query.limit)
+        ).all()
+        changes = [row[1] for row in rows if row[1] is not None]
+        context = self._change_page_context(db, changes)
+        latest_snapshot_ids = {
+            int(row.latest_snapshot_id)
+            for row in rows
+            if row.latest_snapshot_id is not None
+        }
+        current_revision_ids = {
+            int(item.id)
+            for item in context["revisions"].values()
+            if item.id is not None and item.is_current
+        }
+        rule_ids = {
+            int(row[0].alert_rule_id)
+            for row in rows
+            if row[0].alert_rule_id is not None
+        }
+        rules = _entities_by_ids(db, CeriAlertRule, rule_ids)
+        items = []
+        for row in rows:
+            alert = row[0]
+            source_change = row[1]
+            validity = classify_legacy_alert(
+                alert,
+                change=source_change,
+                latest_snapshot_ids=latest_snapshot_ids,
+                current_catalyst_revision_ids=current_revision_ids,
+            )
+            invalid_legacy_freshness = uses_legacy_freshness_semantics(source_change)
+            change_payload = (
+                _change_payload(
+                    source_change,
+                    ticker=row.change_ticker.upper() if row.change_ticker else None,
+                    snapshots=context["snapshots"],
+                    revisions=context["revisions"],
+                    revision_features=context["revision_features"],
+                    events=context["events"],
+                    guidance=context["guidance"],
+                    latest_snapshot_ids={
+                        source_change.company_id: int(row.latest_snapshot_id)
+                    }
+                    if row.latest_snapshot_id is not None
+                    else {},
+                    change_thresholds=self.config.change_thresholds,
+                )
+                if source_change is not None
+                else None
+            )
+            item = _alert_payload(
+                alert, change=change_payload, rule=rules.get(alert.alert_rule_id)
+            )
+            item["status"] = row.effective_status
+            item["validity_classification"] = (
+                AlertValidity.INVALID_LEGACY.value
+                if invalid_legacy_freshness
+                else alert.validity_classification
+            )
+            item["invalidated_reason"] = (
+                invalidation_reason(validity, change=source_change)
+                if invalid_legacy_freshness
+                else None
+            ) or alert.invalidated_reason
+            item["actionable"] = row.effective_status not in {"INVALIDATED", "DISMISSED"}
+            item["technical"]["persisted_status"] = alert.status
+            item["technical"]["effective_validity"] = item["validity_classification"]
+            items.append(item)
+        return _page_payload(items, total=total, query=query)
 
     def operations_quarantine(
         self,
@@ -1376,11 +1690,12 @@ class CeriQueryService:
             descending=query.direction.lower() == "desc",
         )
         page_snapshots = ordered[query.offset : query.offset + query.limit]
-        lineage_audits = _revision_lineage_audits(db, page_snapshots)
+        read_context = _snapshot_read_context(db, page_snapshots)
+        lineage_audits = _revision_lineage_audits(read_context, page_snapshots)
         page_items = [
             _score_snapshot_payload(
                 snapshot,
-                db=db,
+                db=read_context,
                 revision_lineage_audit=lineage_audits.get(snapshot.id),
             )
             for snapshot in page_snapshots
@@ -2724,6 +3039,179 @@ def _change_matches_filters(item: dict[str, Any], filters: CeriQueryFilters) -> 
     return True
 
 
+def _referenced_snapshot_ids_subquery():
+    return union_all(
+        select(
+            CeriChangeEvent.company_id.label("company_id"),
+            CeriChangeEvent.from_snapshot_id.label("snapshot_id"),
+        ).where(CeriChangeEvent.from_snapshot_id.is_not(None)),
+        select(
+            CeriChangeEvent.company_id.label("company_id"),
+            CeriChangeEvent.to_snapshot_id.label("snapshot_id"),
+        ).where(CeriChangeEvent.to_snapshot_id.is_not(None)),
+    ).subquery("referenced_change_snapshots")
+
+
+def _latest_referenced_snapshot_subquery():
+    referenced = _referenced_snapshot_ids_subquery()
+    ranked = (
+        select(
+            referenced.c.company_id,
+            referenced.c.snapshot_id,
+            func.row_number()
+            .over(
+                partition_by=referenced.c.company_id,
+                order_by=(
+                    CeriScoreSnapshot.cutoff_at.desc().nullslast(),
+                    CeriScoreSnapshot.as_of_session.desc().nullslast(),
+                    CeriScoreSnapshot.id.desc(),
+                ),
+            )
+            .label("snapshot_rank"),
+        )
+        .join(CeriScoreSnapshot, CeriScoreSnapshot.id == referenced.c.snapshot_id)
+        .subquery("ranked_change_snapshots")
+    )
+    return (
+        select(ranked.c.company_id, ranked.c.snapshot_id)
+        .where(ranked.c.snapshot_rank == 1)
+        .subquery("latest_change_snapshot")
+    )
+
+
+def _latest_snapshot_subquery():
+    ranked = select(
+        CeriScoreSnapshot.company_id,
+        CeriScoreSnapshot.id.label("snapshot_id"),
+        func.row_number()
+        .over(
+            partition_by=CeriScoreSnapshot.company_id,
+            order_by=(
+                CeriScoreSnapshot.cutoff_at.desc().nullslast(),
+                CeriScoreSnapshot.as_of_session.desc().nullslast(),
+                CeriScoreSnapshot.id.desc(),
+            ),
+        )
+        .label("snapshot_rank"),
+    ).subquery("ranked_all_snapshots")
+    return (
+        select(ranked.c.company_id, ranked.c.snapshot_id)
+        .where(ranked.c.snapshot_rank == 1)
+        .subquery("latest_snapshot")
+    )
+
+
+def _database_change_predicates(
+    filters: CeriQueryFilters,
+    *,
+    company,
+    prior,
+    current,
+    revision,
+    event,
+    guidance,
+    latest,
+) -> tuple[list[Any], Any]:
+    predicates: list[Any] = []
+    delta = CeriChangeEvent.delta_json
+    catalyst_types = {
+        kind.value
+        for kind, group in CHANGE_GROUP_BY_TYPE.items()
+        if group == ChangeGroup.CATALYSTS
+    }
+    is_current = case(
+        (
+            or_(
+                and_(current.id.is_not(None), latest.c.snapshot_id == current.id),
+                revision.is_current.is_(True),
+            ),
+            True,
+        ),
+        else_=False,
+    )
+    if filters.ticker:
+        predicates.append(company.ticker == _ticker(filters.ticker))
+    if filters.changed_since:
+        predicates.append(CeriChangeEvent.created_at >= filters.changed_since)
+    if filters.from_run_id is not None:
+        predicates.append(prior.run_id == filters.from_run_id)
+    if filters.to_run_id is not None:
+        predicates.append(current.run_id == filters.to_run_id)
+    if filters.change_group:
+        group_types = {
+            kind.value
+            for kind, group in CHANGE_GROUP_BY_TYPE.items()
+            if group.value == filters.change_group
+        }
+        predicates.append(CeriChangeEvent.change_type.in_(group_types))
+    if filters.change_type:
+        predicates.append(CeriChangeEvent.change_type == filters.change_type)
+    if filters.importance:
+        predicates.append(CeriChangeEvent.importance == filters.importance)
+    if filters.signal_class:
+        predicates.append(CeriChangeEvent.signal_class == filters.signal_class)
+    if not filters.include_non_comparable:
+        predicates.append(CeriChangeEvent.comparison_state == ComparisonState.COMPARABLE.value)
+    if not filters.include_ineligible:
+        revision_issuer_relevant = case(
+            (revision.id.is_not(None), revision.issuer_relevance.is_(True)),
+            else_=delta["issuer_relevance"].as_boolean().is_(True),
+        )
+        revision_material = case(
+            (
+                revision.id.is_not(None),
+                or_(revision.materiality.is_not(None), revision.binary_eligible.is_(True)),
+            ),
+            else_=or_(
+                delta["materiality"].as_string().is_not(None),
+                delta["binary_eligible"].as_boolean().is_(True),
+            ),
+        )
+        predicates.append(
+            or_(
+                CeriChangeEvent.change_type.not_in(catalyst_types),
+                and_(revision_issuer_relevant, revision_material),
+            )
+        )
+        guidance_accepted = case(
+            (guidance.id.is_not(None), guidance.accepted_for_scoring.is_(True)),
+            else_=delta["accepted_for_scoring"].as_boolean().is_(True),
+        )
+        predicates.append(
+            or_(
+                ~CeriChangeEvent.change_type.startswith("GUIDANCE_"),
+                guidance_accepted,
+            )
+        )
+    if filters.catalyst_category:
+        predicates.append(
+            func.coalesce(event.category, delta["category"].as_string())
+            == filters.catalyst_category
+        )
+    if filters.history_scope:
+        predicates.append(is_current.is_(filters.history_scope == "CURRENT"))
+    if filters.min_delta is not None:
+        predicates.append(func.abs(cast(delta["delta"].as_string(), Float)) >= filters.min_delta)
+    return predicates, is_current
+
+
+def _excluded_referenced_snapshot_count(db: Session) -> int:
+    referenced = _referenced_snapshot_ids_subquery()
+    distinct_ids = select(referenced.c.snapshot_id).distinct().subquery("distinct_change_snapshots")
+    return int(
+        db.scalar(
+            select(func.count())
+            .select_from(distinct_ids)
+            .join(CeriScoreSnapshot, CeriScoreSnapshot.id == distinct_ids.c.snapshot_id)
+            .where(
+                CeriScoreSnapshot.comparison_state.is_not(None),
+                CeriScoreSnapshot.comparison_state != ComparisonState.COMPARABLE.value,
+            )
+        )
+        or 0
+    )
+
+
 def _comparison_context(
     items: list[dict[str, Any]],
     snapshots: Any,
@@ -3094,6 +3582,118 @@ def _load(db: Session, model):
         return []
     result = scalars(select(model))
     return list(result.all() if hasattr(result, "all") else result)
+
+
+def _snapshot_read_context(
+    db: Session, snapshots: list[CeriScoreSnapshot]
+) -> _CeriSnapshotReadContext:
+    fixture_collections = getattr(db, "collections", None)
+    if isinstance(fixture_collections, dict):
+        return _CeriSnapshotReadContext(
+            {model: list(rows) for model, rows in fixture_collections.items()}
+        )
+
+    company_ids = {int(snapshot.company_id) for snapshot in snapshots}
+    tickers = {snapshot.ticker.upper() for snapshot in snapshots}
+    source_ids = {
+        int(source_id)
+        for snapshot in snapshots
+        for source_id in (snapshot.component_json or {}).get("source_ids") or []
+    }
+    collections: dict[type[Any], list[Any]] = {
+        CeriRevisionFeature: [],
+        CeriGuidanceEvent: [],
+        CeriEarningsActual: [],
+        CeriCatalystEvent: [],
+        CeriCatalystEventRevision: [],
+        CeriSourceRecord: [],
+        CeriEstimateSnapshot: [],
+        CeriPriceResponseFeature: [],
+        CeriIngestionRun: [],
+    }
+    if not company_ids:
+        return _CeriSnapshotReadContext(collections)
+
+    collections[CeriRevisionFeature] = list(
+        db.scalars(
+            select(CeriRevisionFeature).where(CeriRevisionFeature.company_id.in_(company_ids))
+        ).all()
+    )
+    collections[CeriGuidanceEvent] = list(
+        db.scalars(select(CeriGuidanceEvent).where(CeriGuidanceEvent.company_id.in_(company_ids))).all()
+    )
+    event_rows = list(
+        db.scalars(select(CeriCatalystEvent).where(CeriCatalystEvent.company_id.in_(company_ids))).all()
+    )
+    collections[CeriCatalystEvent] = event_rows
+    event_ids = {int(row.id) for row in event_rows if row.id is not None}
+    if event_ids:
+        collections[CeriCatalystEventRevision] = list(
+            db.scalars(
+                select(CeriCatalystEventRevision).where(
+                    CeriCatalystEventRevision.catalyst_event_id.in_(event_ids)
+                )
+            ).all()
+        )
+    if source_ids:
+        collections[CeriSourceRecord] = list(
+            db.scalars(select(CeriSourceRecord).where(CeriSourceRecord.id.in_(source_ids))).all()
+        )
+        collections[CeriEarningsActual] = list(
+            db.scalars(
+                select(CeriEarningsActual).where(
+                    CeriEarningsActual.company_id.in_(company_ids),
+                    CeriEarningsActual.source_record_id.in_(source_ids),
+                )
+            ).all()
+        )
+    feature_estimate_ids = {
+        int(estimate_id)
+        for feature in collections[CeriRevisionFeature]
+        for estimate_id in (feature.current_snapshot_id, feature.baseline_snapshot_id)
+        if estimate_id is not None
+    }
+    estimate_predicates = []
+    if source_ids:
+        estimate_predicates.append(CeriEstimateSnapshot.source_record_id.in_(source_ids))
+    if feature_estimate_ids:
+        estimate_predicates.append(CeriEstimateSnapshot.id.in_(feature_estimate_ids))
+    if estimate_predicates:
+        collections[CeriEstimateSnapshot] = list(
+            db.scalars(
+                select(CeriEstimateSnapshot).where(
+                    CeriEstimateSnapshot.company_id.in_(company_ids),
+                    or_(*estimate_predicates),
+                )
+            ).all()
+        )
+    collections[CeriPriceResponseFeature] = list(
+        db.scalars(
+            select(CeriPriceResponseFeature).where(
+                CeriPriceResponseFeature.company_id.in_(company_ids)
+            )
+        ).all()
+    )
+    max_cutoff = max(snapshot.cutoff_at for snapshot in snapshots if snapshot.cutoff_at is not None)
+    ticker_expression = func.upper(CeriIngestionRun.scope_json["ticker"].astext)
+    collections[CeriIngestionRun] = list(
+        db.scalars(
+            select(CeriIngestionRun).where(
+                CeriIngestionRun.status == "COMPLETED",
+                CeriIngestionRun.completed_at.is_not(None),
+                CeriIngestionRun.completed_at <= max_cutoff,
+                ticker_expression.in_(tickers),
+            )
+        ).all()
+    )
+    return _CeriSnapshotReadContext(collections)
+
+
+def _entities_by_ids(db: Session, model, row_ids: set[int]) -> dict[int, Any]:
+    if not row_ids:
+        return {}
+    rows = db.scalars(select(model).where(model.id.in_(row_ids))).all()
+    return {int(row.id): row for row in rows if row.id is not None}
 
 
 def _uses_fixture_collections(db: Session) -> bool:

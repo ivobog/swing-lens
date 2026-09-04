@@ -66,6 +66,53 @@ _UNKNOWN_CALLER: dict[str, Any] = {
 _PARAMETER_DIGEST_KEY = os.urandom(32)
 _PROCESS_STARTED_AT = datetime.now(UTC).isoformat()
 
+TELEMETRY_P0 = "P0"
+TELEMETRY_P1 = "P1"
+TELEMETRY_P2 = "P2"
+_TELEMETRY_PRIORITIES = (TELEMETRY_P0, TELEMETRY_P1, TELEMETRY_P2)
+_P0_RECORD_TYPES = {
+    "request_summary",
+    "job_summary",
+    "monitor_health",
+    "monitor_status",
+    "telemetry_drop_summary",
+    "long_transaction",
+    "database_health_error",
+}
+
+
+def telemetry_priority(record: Mapping[str, Any]) -> str:
+    """Classify evidence by durability value without inspecting parameter values."""
+    explicit = str(record.get("telemetry_priority") or "").upper()
+    if explicit in _TELEMETRY_PRIORITIES:
+        return explicit
+    record_type = str(record.get("record_type") or "")
+    if record_type in _P0_RECORD_TYPES or "ERROR" in record_type.upper():
+        return TELEMETRY_P0
+    if "AUDIT" in record_type.upper() or "DEPLOYMENT" in record_type.upper():
+        return TELEMETRY_P0
+    if record_type == "sql":
+        if record.get("success") is False or float(record.get("duration_ms") or 0) >= 1000.0:
+            return TELEMETRY_P0
+        if record.get("slow_query") or record.get("application_stack"):
+            return TELEMETRY_P1
+        return TELEMETRY_P2
+    if record_type == "pool_checkout":
+        return (
+            TELEMETRY_P0
+            if record.get("pool_timeout") or record.get("pool_overflow")
+            else TELEMETRY_P1
+        )
+    if record_type == "database_health":
+        return (
+            TELEMETRY_P0
+            if record.get("wait_event_type") == "Lock" or record.get("blocking_pids")
+            else TELEMETRY_P1
+        )
+    if record_type == "orm_flush":
+        return TELEMETRY_P2
+    return TELEMETRY_P1
+
 
 @dataclass
 class ExecutionScope:
@@ -391,6 +438,10 @@ class JsonlTelemetryWriter:
         max_file_mb: int,
         max_files: int = 32,
         max_total_mb: int = 1024,
+        critical_queue_size: int = 2048,
+        high_queue_size: int = 4096,
+        p2_pressure_ratio: float = 0.75,
+        aggregate_p2_on_pressure: bool = True,
         flush_interval_seconds: float = 1.0,
         health_interval_seconds: float = 60.0,
         base_metadata: Mapping[str, Any] | None = None,
@@ -403,7 +454,15 @@ class JsonlTelemetryWriter:
         self.flush_interval_seconds = max(0.05, flush_interval_seconds)
         self.health_interval_seconds = max(5.0, health_interval_seconds)
         self.base_metadata = dict(base_metadata or {})
-        self.queue: queue.Queue[dict[str, Any] | None] = queue.Queue(maxsize=max(1, queue_size))
+        # P0/P1 queues are physically separate from routine SQL so a heartbeat flood
+        # cannot consume the capacity reserved for summaries and incident evidence.
+        self.p0_queue: queue.Queue[dict[str, Any]] = queue.Queue(
+            maxsize=max(1, critical_queue_size)
+        )
+        self.p1_queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=max(1, high_queue_size))
+        self.queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=max(1, queue_size))
+        self.p2_pressure_ratio = min(1.0, max(0.1, float(p2_pressure_ratio)))
+        self.aggregate_p2_on_pressure = bool(aggregate_p2_on_pressure)
         self.records_written = 0
         self.records_dropped = 0
         self.write_errors = 0
@@ -416,6 +475,11 @@ class JsonlTelemetryWriter:
         self._writer_latency_total_ms = 0.0
         self._writer_latency_max_ms = 0.0
         self._writer_latency_samples = 0
+        self._queue_wakeup = threading.Event()
+        self._priority_counts: Counter[str] = Counter()
+        self._queue_high_water: Counter[str] = Counter()
+        self._p2_aggregates: dict[tuple[Any, ...], dict[str, Any]] = {}
+        self._p2_aggregate_limit = 2048
 
     def start(self) -> None:
         with self._lock:
@@ -428,75 +492,81 @@ class JsonlTelemetryWriter:
                 name="swinglens-db-monitor-writer",
                 daemon=True,
             )
-            try:
-                self.queue.put_nowait(
-                    {
-                        "record_type": "monitor_status",
-                        "timestamp": self.started_at.isoformat(),
-                        "monitor_enabled": True,
-                        "monitor_start_time": self.started_at.isoformat(),
-                        "monitor_log_directory": str(self.log_dir.resolve()),
-                        "records_written": 0,
-                        "db_monitor_dropped_records": 0,
-                        **self.base_metadata,
-                    }
-                )
-            except queue.Full:
-                self.records_dropped += 1
             self._thread.start()
+            started_at = self.started_at
+        self.enqueue(
+            {
+                "record_type": "monitor_status",
+                "timestamp": started_at.isoformat(),
+                "monitor_enabled": True,
+                "monitor_start_time": started_at.isoformat(),
+                "monitor_log_directory": str(self.log_dir.resolve()),
+                "records_written": 0,
+                "db_monitor_dropped_records": 0,
+                **self.base_metadata,
+            }
+        )
 
     def enqueue(self, record: dict[str, Any]) -> bool:
+        priority = telemetry_priority(record)
         try:
+            with self._lock:
+                self._priority_counts[f"{priority}_created"] += 1
             if self._fatal_error:
                 with self._lock:
                     self.records_dropped += 1
+                    self._priority_counts[f"{priority}_dropped"] += 1
                 return False
             if self._thread is None or not self._thread.is_alive():
                 self.start()
             queued = dict(record)
+            queued["telemetry_priority"] = priority
             queued["_telemetry_enqueued_ns"] = time.perf_counter_ns()
-            self.queue.put_nowait(queued)
+            target = self._queue_for(priority)
+            if priority == TELEMETRY_P2 and self._p2_under_pressure():
+                return self._shed_p2(queued)
+            if priority == TELEMETRY_P0:
+                target.put(queued, timeout=0.05)
+            else:
+                target.put_nowait(queued)
+            self._record_queue_high_water(priority, target.qsize())
+            self._queue_wakeup.set()
             return True
         except queue.Full:
+            if priority == TELEMETRY_P2 and self.aggregate_p2_on_pressure:
+                return self._shed_p2(queued)
             with self._lock:
                 self.records_dropped += 1
                 self._pending_drop_report += 1
+                self._priority_counts[f"{priority}_dropped"] += 1
             return False
         except Exception:
             with self._lock:
                 self.write_errors += 1
                 self.records_dropped += 1
                 self._pending_drop_report += 1
+                self._priority_counts[f"{priority}_dropped"] += 1
             return False
 
     def stop(self, timeout: float = 3.0) -> None:
         thread = self._thread
         if thread is not None and thread.is_alive() and not self._fatal_error:
-            try:
-                self.queue.put_nowait(
-                    {
-                        "record_type": "monitor_status",
-                        "timestamp": datetime.now(UTC).isoformat(),
-                        "monitor_enabled": True,
-                        "monitor_start_time": (
-                            self.started_at.isoformat() if self.started_at else None
-                        ),
-                        "monitor_log_directory": str(self.log_dir.resolve()),
-                        "records_written": self.records_written,
-                        "db_monitor_dropped_records": self.records_dropped,
-                        "write_errors": self.write_errors,
-                        "monitor_stopping": True,
-                        **self.base_metadata,
-                    }
-                )
-            except queue.Full:
-                with self._lock:
-                    self.records_dropped += 1
+            self.enqueue(
+                {
+                    "record_type": "monitor_status",
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "monitor_enabled": True,
+                    "monitor_start_time": self.started_at.isoformat() if self.started_at else None,
+                    "monitor_log_directory": str(self.log_dir.resolve()),
+                    "records_written": self.records_written,
+                    "db_monitor_dropped_records": self.records_dropped,
+                    "write_errors": self.write_errors,
+                    "monitor_stopping": True,
+                    **self.base_metadata,
+                }
+            )
         self._stop.set()
-        try:
-            self.queue.put_nowait(None)
-        except queue.Full:
-            pass
+        self._queue_wakeup.set()
         if thread is not None:
             thread.join(timeout=timeout)
 
@@ -510,6 +580,9 @@ class JsonlTelemetryWriter:
                 "write_errors": self.write_errors,
                 "queue_depth": self.queue.qsize(),
                 "queue_capacity": self.queue.maxsize,
+                "queue_total_depth": self._queue_depth(),
+                "queue_total_capacity": self._queue_capacity(),
+                **self._priority_snapshot(),
                 "writer_alive": bool(self._thread and self._thread.is_alive()),
                 "fatal_error": self._fatal_error,
                 "writer_latency_mean_ms": round(
@@ -529,17 +602,11 @@ class JsonlTelemetryWriter:
         try:
             self.log_dir.mkdir(parents=True, exist_ok=True)
             self._apply_retention()
-            while not self._stop.is_set() or not self.queue.empty():
-                queue_item_received = False
-                try:
-                    item = self.queue.get(timeout=self.flush_interval_seconds)
-                    queue_item_received = True
-                except queue.Empty:
-                    item = None
+            while not self._stop.is_set() or not self._queues_empty() or self._has_aggregates():
+                source_queue, item = self._next_item()
                 if item is None:
-                    if queue_item_received:
-                        self.queue.task_done()
                     if stream is not None and time.monotonic() >= next_flush:
+                        self._write_p2_aggregates(stream)
                         stream.flush()
                         next_flush = time.monotonic() + self.flush_interval_seconds
                     if time.monotonic() >= next_retention:
@@ -550,7 +617,7 @@ class JsonlTelemetryWriter:
                     if stream is not None and time.monotonic() >= next_health:
                         self._write_line(stream, self._health_record())
                         next_health = time.monotonic() + self.health_interval_seconds
-                    if self._stop.is_set() and self.queue.empty():
+                    if self._stop.is_set() and self._queues_empty() and not self._has_aggregates():
                         break
                     continue
                 try:
@@ -602,6 +669,7 @@ class JsonlTelemetryWriter:
                         )
                         next_retention = time.monotonic() + 60.0
                     if time.monotonic() >= next_health:
+                        self._write_p2_aggregates(stream)
                         self._write_line(stream, self._health_record())
                         next_health = time.monotonic() + self.health_interval_seconds
                 except Exception:
@@ -617,23 +685,26 @@ class JsonlTelemetryWriter:
                     stream = None
                     stream_path = None
                 finally:
-                    self.queue.task_done()
+                    if source_queue is not None:
+                        source_queue.task_done()
         except Exception:
             with self._lock:
                 self._fatal_error = True
                 self.write_errors += 1
             while True:
-                try:
-                    self.queue.get_nowait()
-                except queue.Empty:
+                source_queue, item = self._next_item(wait=False)
+                if item is None:
                     break
-                else:
-                    with self._lock:
-                        self.records_dropped += 1
-                    self.queue.task_done()
+                priority = telemetry_priority(item)
+                with self._lock:
+                    self.records_dropped += 1
+                    self._priority_counts[f"{priority}_dropped"] += 1
+                if source_queue is not None:
+                    source_queue.task_done()
         finally:
             if stream is not None:
                 try:
+                    self._write_p2_aggregates(stream)
                     stream.flush()
                     stream.close()
                 except Exception:
@@ -653,10 +724,16 @@ class JsonlTelemetryWriter:
         return self.log_dir / f"sql-{day}-p{process_id}.{uuid.uuid4().hex}.jsonl"
 
     def _write_line(self, stream: Any, record: Mapping[str, Any]) -> None:
-        stream.write(json.dumps(record, separators=(",", ":"), ensure_ascii=False, default=str))
+        public_record = {key: value for key, value in record.items() if not key.startswith("_")}
+        stream.write(
+            json.dumps(public_record, separators=(",", ":"), ensure_ascii=False, default=str)
+        )
         stream.write("\n")
         with self._lock:
             self.records_written += 1
+            if not record.get("_telemetry_internal_no_count"):
+                priority = telemetry_priority(record)
+                self._priority_counts[f"{priority}_written"] += 1
 
     def _health_record(self) -> dict[str, Any]:
         files = []
@@ -684,6 +761,9 @@ class JsonlTelemetryWriter:
                 "writer_errors": self.write_errors,
                 "telemetry_queue_depth": self.queue.qsize(),
                 "telemetry_queue_capacity": self.queue.maxsize,
+                "telemetry_queue_total_depth": self._queue_depth(),
+                "telemetry_queue_total_capacity": self._queue_capacity(),
+                **self._priority_snapshot(),
                 "writer_latency_mean_ms": round(latency_mean, 3),
                 "writer_latency_max_ms": round(self._writer_latency_max_ms, 3),
                 "oldest_queue_age_ms": oldest_queue_age_ms,
@@ -703,15 +783,15 @@ class JsonlTelemetryWriter:
 
     def _oldest_queue_age_ms(self) -> float:
         try:
-            with self.queue.mutex:
-                oldest = next(
-                    (
-                        item.get("_telemetry_enqueued_ns")
-                        for item in self.queue.queue
+            candidates: list[int] = []
+            for queued_items in (self.p0_queue, self.p1_queue, self.queue):
+                with queued_items.mutex:
+                    candidates.extend(
+                        int(item["_telemetry_enqueued_ns"])
+                        for item in queued_items.queue
                         if isinstance(item, Mapping) and item.get("_telemetry_enqueued_ns")
-                    ),
-                    None,
-                )
+                    )
+            oldest = min(candidates, default=None)
             return (
                 round(max(0.0, (time.perf_counter_ns() - int(oldest)) / 1_000_000), 3)
                 if oldest is not None
@@ -719,6 +799,126 @@ class JsonlTelemetryWriter:
             )
         except Exception:
             return 0.0
+
+    def _queue_for(self, priority: str) -> queue.Queue[dict[str, Any]]:
+        if priority == TELEMETRY_P0:
+            return self.p0_queue
+        if priority == TELEMETRY_P1:
+            return self.p1_queue
+        return self.queue
+
+    def _queue_depth(self) -> int:
+        return self.p0_queue.qsize() + self.p1_queue.qsize() + self.queue.qsize()
+
+    def _queue_capacity(self) -> int:
+        return self.p0_queue.maxsize + self.p1_queue.maxsize + self.queue.maxsize
+
+    def _queues_empty(self) -> bool:
+        return self.p0_queue.empty() and self.p1_queue.empty() and self.queue.empty()
+
+    def _next_item(
+        self, *, wait: bool = True
+    ) -> tuple[queue.Queue[dict[str, Any]] | None, dict[str, Any] | None]:
+        for candidate in (self.p0_queue, self.p1_queue, self.queue):
+            try:
+                return candidate, candidate.get_nowait()
+            except queue.Empty:
+                continue
+        if not wait:
+            return None, None
+        self._queue_wakeup.wait(self.flush_interval_seconds)
+        self._queue_wakeup.clear()
+        for candidate in (self.p0_queue, self.p1_queue, self.queue):
+            try:
+                return candidate, candidate.get_nowait()
+            except queue.Empty:
+                continue
+        return None, None
+
+    def _record_queue_high_water(self, priority: str, depth: int) -> None:
+        with self._lock:
+            self._queue_high_water[priority] = max(self._queue_high_water[priority], depth)
+
+    def _p2_under_pressure(self) -> bool:
+        return self.queue.qsize() / self.queue.maxsize >= self.p2_pressure_ratio
+
+    def _shed_p2(self, record: Mapping[str, Any]) -> bool:
+        if self.aggregate_p2_on_pressure and record.get("record_type") == "sql":
+            caller = record.get("python_caller") or {}
+            bucket = int(time.time() // 10) * 10
+            process = record.get("process") or {}
+            key = (
+                record.get("query_fingerprint"),
+                record.get("process_role") or process.get("role"),
+                caller.get("source_file"),
+                caller.get("function"),
+                bucket,
+            )
+            with self._lock:
+                aggregate = self._p2_aggregates.get(key)
+                if aggregate is None and len(self._p2_aggregates) < self._p2_aggregate_limit:
+                    duration_ms = float(record.get("duration_ms") or 0)
+                    aggregate = {
+                        "record_type": "sql_aggregate",
+                        "telemetry_priority": TELEMETRY_P2,
+                        "timestamp": record.get("timestamp") or datetime.now(UTC).isoformat(),
+                        "bucket_start_epoch": bucket,
+                        "bucket_seconds": 10,
+                        "query_fingerprint": record.get("query_fingerprint"),
+                        "normalized_sql": record.get("normalized_sql"),
+                        "operation": record.get("operation"),
+                        "process_role": key[1],
+                        "python_caller": caller,
+                        "calls": 0,
+                        "total_ms": 0.0,
+                        "min_ms": duration_ms,
+                        "max_ms": duration_ms,
+                        "_telemetry_internal_no_count": True,
+                    }
+                    self._p2_aggregates[key] = aggregate
+                if aggregate is not None:
+                    duration_ms = float(record.get("duration_ms") or 0)
+                    aggregate["calls"] += 1
+                    aggregate["total_ms"] += duration_ms
+                    aggregate["min_ms"] = min(float(aggregate["min_ms"]), duration_ms)
+                    aggregate["max_ms"] = max(float(aggregate["max_ms"]), duration_ms)
+                    self._priority_counts[f"{TELEMETRY_P2}_aggregated"] += 1
+                    return True
+                self._priority_counts[f"{TELEMETRY_P2}_sampled"] += 1
+                return True
+        with self._lock:
+            self._priority_counts[f"{TELEMETRY_P2}_sampled"] += 1
+        return True
+
+    def _has_aggregates(self) -> bool:
+        with self._lock:
+            return bool(self._p2_aggregates)
+
+    def _write_p2_aggregates(self, stream: Any) -> None:
+        with self._lock:
+            aggregates = list(self._p2_aggregates.values())
+            self._p2_aggregates.clear()
+        for aggregate in aggregates:
+            calls = max(1, int(aggregate["calls"]))
+            aggregate["total_ms"] = round(float(aggregate["total_ms"]), 3)
+            aggregate["mean_ms"] = round(float(aggregate["total_ms"]) / calls, 3)
+            aggregate["min_ms"] = round(float(aggregate["min_ms"]), 3)
+            aggregate["max_ms"] = round(float(aggregate["max_ms"]), 3)
+            self._write_line(stream, aggregate)
+
+    def _priority_snapshot(self) -> dict[str, int]:
+        snapshot: dict[str, int] = {}
+        for priority in _TELEMETRY_PRIORITIES:
+            lowered = priority.lower()
+            for action in ("created", "written", "dropped", "sampled", "aggregated"):
+                snapshot[f"{lowered}_{action}"] = self._priority_counts[
+                    f"{priority}_{action}"
+                ]
+            priority_queue = self._queue_for(priority)
+            snapshot[f"{lowered}_queue_depth"] = priority_queue.qsize()
+            snapshot[f"{lowered}_queue_capacity"] = priority_queue.maxsize
+            snapshot[f"{lowered}_queue_high_watermark"] = self._queue_high_water[priority]
+        return snapshot
 
     def _take_drop_report(self) -> int:
         with self._lock:
@@ -792,6 +992,16 @@ class DatabaseMonitor:
             max_file_mb=int(settings.db_monitor_max_file_mb),
             max_files=int(getattr(settings, "db_monitor_max_files", 512)),
             max_total_mb=int(getattr(settings, "db_monitor_max_total_mb", 8192)),
+            critical_queue_size=int(
+                getattr(settings, "db_monitor_critical_queue_size", 2048)
+            ),
+            high_queue_size=int(getattr(settings, "db_monitor_high_queue_size", 4096)),
+            p2_pressure_ratio=float(
+                getattr(settings, "db_monitor_p2_pressure_ratio", 0.75)
+            ),
+            aggregate_p2_on_pressure=bool(
+                getattr(settings, "db_monitor_aggregate_p2_on_pressure", True)
+            ),
             health_interval_seconds=float(
                 getattr(settings, "db_monitor_health_interval_seconds", 60.0)
             ),
