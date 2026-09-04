@@ -1,0 +1,776 @@
+{
+  "window": {
+    "start": "2026-08-26T11:25:41.966762+00:00",
+    "end": "2026-09-04T09:14:30+00:00"
+  },
+  "jobs": 81,
+  "statuses": {
+    "COMPLETED": 81
+  },
+  "versions": {
+    "batch-prefetch-v1": 81
+  },
+  "totals": {
+    "processed_tickers": 3673,
+    "features": 79656,
+    "failed": 0,
+    "ticker_count": 3673,
+    "companies_rebuilt": 3380,
+    "companies_skipped_unchanged": 293,
+    "features_inserted": 83927,
+    "features_updated": 917,
+    "features_deduplicated": 8126,
+    "sql_select_count": 1053,
+    "sql_upsert_write_count": 10079
+  },
+  "rows_loaded": {
+    "companies": 3673,
+    "price_bars": 5772708,
+    "ceri_source_records": 939469,
+    "ceri_catalyst_events": 86311,
+    "ceri_guidance_events": 183901,
+    "ceri_derived_features": 1706,
+    "ceri_earnings_actuals": 43969,
+    "ceri_revision_features": 13440,
+    "ceri_estimate_snapshots": 623535,
+    "ceri_feature_build_states": 579,
+    "ceri_price_response_features": 6170,
+    "ceri_catalyst_event_revisions": 88064
+  },
+  "timings": {
+    "batch_total_ms": {
+      "count": 81,
+      "total": 2817878.0,
+      "mean": 34788.617,
+      "median": 29124.0,
+      "p95": 69457.0,
+      "max": 73378.0
+    },
+    "load_context_ms": {
+      "count": 81,
+      "total": 574293.0,
+      "mean": 7090.037,
+      "median": 5115.0,
+      "p95": 22435.0,
+      "max": 36472.0
+    },
+    "persistence_ms": {
+      "count": 81,
+      "total": 277916.0,
+      "mean": 3431.062,
+      "median": 2820.0,
+      "p95": 7070.0,
+      "max": 9079.0
+    },
+    "revision_compute_ms": {
+      "count": 81,
+      "total": 83453.0,
+      "mean": 1030.284,
+      "median": 826.0,
+      "p95": 2769.0,
+      "max": 5043.0
+    },
+    "surprise_compute_ms": {
+      "count": 81,
+      "total": 302.0,
+      "mean": 3.728,
+      "median": 0.0,
+      "p95": 18.0,
+      "max": 55.0
+    },
+    "guidance_compute_ms": {
+      "count": 81,
+      "total": 43.0,
+      "mean": 0.531,
+      "median": 0.0,
+      "p95": 2.0,
+      "max": 10.0
+    },
+    "catalyst_compute_ms": {
+      "count": 81,
+      "total": 9239.0,
+      "mean": 114.062,
+      "median": 46.0,
+      "p95": 194.0,
+      "max": 3416.0
+    },
+    "price_response_compute_ms": {
+      "count": 81,
+      "total": 43179.0,
+      "mean": 533.074,
+      "median": 407.0,
+      "p95": 1308.0,
+      "max": 1621.0
+    },
+    "confidence_compute_ms": {
+      "count": 81,
+      "total": 433.0,
+      "mean": 5.346,
+      "median": 1.0,
+      "p95": 18.0,
+      "max": 108.0
+    },
+    "monitor_total_duration_ms": {
+      "count": 81,
+      "total": 2824572.853,
+      "mean": 34871.27,
+      "median": 29186.582,
+      "p95": 69534.965,
+      "max": 73429.311
+    },
+    "monitor_total_sql_ms": {
+      "count": 81,
+      "total": 309742.53,
+      "mean": 3823.982,
+      "median": 3175.258,
+      "p95": 8091.866,
+      "max": 11352.219
+    },
+    "monitor_sql_query_count": {
+      "count": 81,
+      "total": 61581.0,
+      "mean": 760.259,
+      "median": 823.0,
+      "p95": 866.0,
+      "max": 868.0
+    },
+    "monitor_sql_select_count": {
+      "count": 81,
+      "total": 15826.0,
+      "mean": 195.383,
+      "median": 214.0,
+      "p95": 214.0,
+      "max": 214.0
+    },
+    "monitor_sql_insert_count": {
+      "count": 81,
+      "total": 17132.0,
+      "mean": 211.506,
+      "median": 226.0,
+      "p95": 250.0,
+      "max": 250.0
+    },
+    "monitor_sql_update_count": {
+      "count": 81,
+      "total": 21863.0,
+      "mean": 269.914,
+      "median": 296.0,
+      "p95": 303.0,
+      "max": 305.0
+    },
+    "monitor_sql_delete_count": {
+      "count": 81,
+      "total": 0.0,
+      "mean": 0.0,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0.0
+    },
+    "monitor_sql_other_count": {
+      "count": 81,
+      "total": 6760.0,
+      "mean": 83.457,
+      "median": 88.0,
+      "p95": 100.0,
+      "max": 100.0
+    },
+    "monitor_orm_flush_count": {
+      "count": 81,
+      "total": 21448.0,
+      "mean": 264.79,
+      "median": 288.0,
+      "p95": 300.0,
+      "max": 300.0
+    },
+    "monitor_pool_wait_total_ms": {
+      "count": 81,
+      "total": 39.611,
+      "mean": 0.489,
+      "median": 0.429,
+      "p95": 0.818,
+      "max": 1.702
+    },
+    "monitor_transaction_total_ms": {
+      "count": 81,
+      "total": 2145121.796,
+      "mean": 26482.985,
+      "median": 21650.193,
+      "p95": 55720.002,
+      "max": 62713.741
+    }
+  },
+  "top_query_fingerprints_ms": [
+    [
+      "05910ec4da7fafeddfa73dd4fb9fb7944df9a6482656a018ff50bc9b866fee5a",
+      73767.116
+    ],
+    [
+      "e2ef0f9194c8c931f6d02bd4183d1fad8ca8d4cae378c8981999529ea278568a",
+      67287.31399999997
+    ],
+    [
+      "14d20db30cd6218681c5cd35c78937432b57b4eb9c18d63495994d85ff052172",
+      23196.099000000006
+    ],
+    [
+      "a6fc7a69e10f8157871fb20d0660f5f00521a1e9742fe6c710d721f78c303826",
+      11623.2
+    ],
+    [
+      "7213f5be693763a93101055b852bd169787c4cae8a3343f7993c2738dbd303b3",
+      10492.378
+    ],
+    [
+      "d3e1b1d5ef5e2de54261778d3b9af989f956080aa01c03bf2ebe7e0d747a05f2",
+      9979.549
+    ],
+    [
+      "3377c3c259aedcf931e780afcd24f2485280fa0bfa8ca9f3a36fb0622acf104e",
+      5540.369000000001
+    ],
+    [
+      "50635f7b42b6c146367689c1cc2e9577dcb10a5abeadde4ddf33749b386dfdb0",
+      2048.2290000000003
+    ],
+    [
+      "2f090c4c88ed60aa4eb4ac4868230f62b2167868322024dd79253b0115d49ea6",
+      1913.419
+    ],
+    [
+      "b8280426d8ee06ea60765bad254dfbb3ea74ccee16539e8aee8cf0a176f18267",
+      1832.666
+    ],
+    [
+      "378d006cb74b63181233394834cf572be1cef3c1fb8f05df762ee8dc32caa874",
+      1746.608
+    ],
+    [
+      "4ebe3bce3e849faa170c61f08b934ed434122d2485c9f0eb17588d2af846a345",
+      1672.063
+    ],
+    [
+      "227326ab89cdcb16490de5c9bd6bd40a3f2b8cf85d52be6c9b6b5f67c7efb97d",
+      1659.4769999999999
+    ],
+    [
+      "88fd16cacbacb03c3ffce25a765df2e7dfaa5dc442017ab0abdb8747d541ffc4",
+      1549.9469999999994
+    ],
+    [
+      "a01e137770600b2d870f16c7c2bc7a5e87cad38c2c969c30fa83ca7da6d94860",
+      1490.228
+    ],
+    [
+      "96bc7ffb8de64b238db7812d4f5ca8735b6099fc9f820d5c9b24147a94c67b48",
+      1453.471
+    ],
+    [
+      "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+      1446.793
+    ],
+    [
+      "5871ad1eeccaac5ac871dc4e24a2e33f43b3e898d7320f03b7c46eb60e6385fa",
+      1430.295
+    ],
+    [
+      "e40b8e8a6ead25025d8be62ff2f09e6d749643dd60d98b29fd7266f26594684f",
+      1340.242
+    ],
+    [
+      "23ef97ab9fcf69f1a55a3904049f5413de47ad521b24d95b0ef34a65369934f6",
+      1306.587
+    ],
+    [
+      "5653095a29adfacf0bc3de1960d019681910fa3e8f1313e10949d873b5c88859",
+      1273.73
+    ],
+    [
+      "cefd460a36155f374e1e0940333b123248e60125e08c0debbc8a5c7d62f3b4b6",
+      1252.728
+    ],
+    [
+      "107917446e313998b1ad73f9508e53a70a8266c92974add10d5df677deae6856",
+      1247.639
+    ],
+    [
+      "8d8931c2bc37c8a0d271c3486aed1b528b84dc383d26b114f8e51343fee4c1e1",
+      1211.987
+    ],
+    [
+      "4ffa9db344f4630db36a4be49da5e06bc51a880aaa6637130255cf161da55613",
+      1152.506
+    ],
+    [
+      "781b06119e2e0b2dd13e8498e8acfa8942655c7488bb27f9ebd4f0cd7a3e19b6",
+      1151.956
+    ],
+    [
+      "18d0ef9bc077ca60fe3dff50c2884fea8d5bbeb0a6aa27210e7cbb1c2b97d88e",
+      1148.337
+    ],
+    [
+      "4c5eb04257bc255cd7f66d0bdfa9d5b438391ef7d2fe5c2319c53c745ba30233",
+      1130.488
+    ],
+    [
+      "a427d51eceaf1cf60516ad16cae5d3f0ce1f111f07f24675c949367f33724e88",
+      1051.017
+    ],
+    [
+      "073409a017145bd4359ad7407916d2c5746af63787dcaf3d1b6801d5adfad336",
+      1036.698
+    ]
+  ],
+  "slowest_jobs": [
+    {
+      "job_id": 41238,
+      "run_id": 143,
+      "status": "COMPLETED",
+      "started_at": "2026-09-02T23:52:34.397612+02:00",
+      "completed_at": "2026-09-02T23:53:48.132406+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 73378,
+      "sql_ms": 8127.253,
+      "sql_calls": 862,
+      "load_context_ms": 11551,
+      "persistence_ms": 8343,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 38302,
+      "run_id": 133,
+      "status": "COMPLETED",
+      "started_at": "2026-08-28T03:54:05.510366+02:00",
+      "completed_at": "2026-08-28T03:55:19.124678+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 73326,
+      "sql_ms": 6764.707,
+      "sql_calls": 865,
+      "load_context_ms": 36369,
+      "persistence_ms": 5114,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 38303,
+      "run_id": 133,
+      "status": "COMPLETED",
+      "started_at": "2026-08-28T03:55:19.218745+02:00",
+      "completed_at": "2026-08-28T03:56:32.216231+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 72639,
+      "sql_ms": 5655.248,
+      "sql_calls": 864,
+      "load_context_ms": 8458,
+      "persistence_ms": 7092,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40704,
+      "run_id": 135,
+      "status": "COMPLETED",
+      "started_at": "2026-08-28T23:10:26.608277+02:00",
+      "completed_at": "2026-08-28T23:11:38.860282+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 71865,
+      "sql_ms": 6115.052,
+      "sql_calls": 864,
+      "load_context_ms": 33140,
+      "persistence_ms": 4912,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 32872,
+      "run_id": 131,
+      "status": "COMPLETED",
+      "started_at": "2026-08-27T00:17:06.953916+02:00",
+      "completed_at": "2026-08-27T00:18:16.794639+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 69457,
+      "sql_ms": 6354.622,
+      "sql_calls": 862,
+      "load_context_ms": 8704,
+      "persistence_ms": 7070,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 41379,
+      "run_id": 145,
+      "status": "COMPLETED",
+      "started_at": "2026-09-03T22:52:57.997286+02:00",
+      "completed_at": "2026-09-03T22:54:07.500886+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 69021,
+      "sql_ms": 5258.811,
+      "sql_calls": 867,
+      "load_context_ms": 6385,
+      "persistence_ms": 6534,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40845,
+      "run_id": 137,
+      "status": "COMPLETED",
+      "started_at": "2026-08-30T00:38:50.412718+02:00",
+      "completed_at": "2026-08-30T00:39:55.994736+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 65190,
+      "sql_ms": 8091.866,
+      "sql_calls": 862,
+      "load_context_ms": 36472,
+      "persistence_ms": 3517,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 41328,
+      "run_id": 144,
+      "status": "COMPLETED",
+      "started_at": "2026-09-03T01:01:22.631527+02:00",
+      "completed_at": "2026-09-03T01:02:26.345231+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 63324,
+      "sql_ms": 5506.62,
+      "sql_calls": 865,
+      "load_context_ms": 6632,
+      "persistence_ms": 9079,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 41474,
+      "run_id": 146,
+      "status": "COMPLETED",
+      "started_at": "2026-09-04T00:16:06.844042+02:00",
+      "completed_at": "2026-09-04T00:17:09.721713+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 62626,
+      "sql_ms": 3760.883,
+      "sql_calls": 863,
+      "load_context_ms": 5209,
+      "persistence_ms": 6520,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40802,
+      "run_id": 136,
+      "status": "COMPLETED",
+      "started_at": "2026-08-29T00:50:07.078250+02:00",
+      "completed_at": "2026-08-29T00:51:09.372490+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 61983,
+      "sql_ms": 4245.322,
+      "sql_calls": 868,
+      "load_context_ms": 5387,
+      "persistence_ms": 6917,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 41325,
+      "run_id": 144,
+      "status": "COMPLETED",
+      "started_at": "2026-09-03T00:59:50.088832+02:00",
+      "completed_at": "2026-09-03T01:00:51.542872+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 61158,
+      "sql_ms": 3316.415,
+      "sql_calls": 867,
+      "load_context_ms": 4540,
+      "persistence_ms": 4349,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40805,
+      "run_id": 136,
+      "status": "COMPLETED",
+      "started_at": "2026-08-29T00:52:48.644222+02:00",
+      "completed_at": "2026-08-29T00:53:49.744045+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 60816,
+      "sql_ms": 4112.836,
+      "sql_calls": 864,
+      "load_context_ms": 5612,
+      "persistence_ms": 7467,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40800,
+      "run_id": 136,
+      "status": "COMPLETED",
+      "started_at": "2026-08-29T00:48:24.072798+02:00",
+      "completed_at": "2026-08-29T00:49:24.889515+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 60143,
+      "sql_ms": 5183.965,
+      "sql_calls": 866,
+      "load_context_ms": 6811,
+      "persistence_ms": 6661,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40940,
+      "run_id": 138,
+      "status": "COMPLETED",
+      "started_at": "2026-08-30T01:47:47.754001+02:00",
+      "completed_at": "2026-08-30T01:48:46.863261+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 58817,
+      "sql_ms": 4948.476,
+      "sql_calls": 835,
+      "load_context_ms": 5473,
+      "persistence_ms": 5789,
+      "companies_rebuilt": 46,
+      "companies_skipped": 4
+    },
+    {
+      "job_id": 40803,
+      "run_id": 136,
+      "status": "COMPLETED",
+      "started_at": "2026-08-29T00:51:09.466997+02:00",
+      "completed_at": "2026-08-29T00:52:08.217279+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 58329,
+      "sql_ms": 4652.931,
+      "sql_calls": 864,
+      "load_context_ms": 6326,
+      "persistence_ms": 6303,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 32871,
+      "run_id": 131,
+      "status": "COMPLETED",
+      "started_at": "2026-08-27T00:16:08.901758+02:00",
+      "completed_at": "2026-08-27T00:17:06.783867+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 56984,
+      "sql_ms": 11199.296,
+      "sql_calls": 865,
+      "load_context_ms": 22435,
+      "persistence_ms": 4635,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40942,
+      "run_id": 138,
+      "status": "COMPLETED",
+      "started_at": "2026-08-30T01:49:15.583786+02:00",
+      "completed_at": "2026-08-30T01:50:12.844874+02:00",
+      "ticker_count": 40,
+      "batch_total_ms": 56979,
+      "sql_ms": 4265.226,
+      "sql_calls": 673,
+      "load_context_ms": 4641,
+      "persistence_ms": 6499,
+      "companies_rebuilt": 37,
+      "companies_skipped": 3
+    },
+    {
+      "job_id": 41380,
+      "run_id": 145,
+      "status": "COMPLETED",
+      "started_at": "2026-09-03T22:54:07.632401+02:00",
+      "completed_at": "2026-09-03T22:55:05.379195+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 56827,
+      "sql_ms": 4758.246,
+      "sql_calls": 864,
+      "load_context_ms": 7839,
+      "persistence_ms": 5355,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 41476,
+      "run_id": 146,
+      "status": "COMPLETED",
+      "started_at": "2026-09-04T00:17:33.544687+02:00",
+      "completed_at": "2026-09-04T00:18:21.284391+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 47506,
+      "sql_ms": 11352.219,
+      "sql_calls": 865,
+      "load_context_ms": 22632,
+      "persistence_ms": 3197,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 41237,
+      "run_id": 143,
+      "status": "COMPLETED",
+      "started_at": "2026-09-02T23:51:46.455276+02:00",
+      "completed_at": "2026-09-02T23:52:34.225777+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 47140,
+      "sql_ms": 6109.17,
+      "sql_calls": 864,
+      "load_context_ms": 11011,
+      "persistence_ms": 4567,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40801,
+      "run_id": 136,
+      "status": "COMPLETED",
+      "started_at": "2026-08-29T00:49:25.111095+02:00",
+      "completed_at": "2026-08-29T00:50:06.995250+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 41472,
+      "sql_ms": 5644.878,
+      "sql_calls": 864,
+      "load_context_ms": 11731,
+      "persistence_ms": 3820,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40706,
+      "run_id": 135,
+      "status": "COMPLETED",
+      "started_at": "2026-08-28T23:12:12.655964+02:00",
+      "completed_at": "2026-08-28T23:12:54.336082+02:00",
+      "ticker_count": 25,
+      "batch_total_ms": 41353,
+      "sql_ms": 2714.883,
+      "sql_calls": 438,
+      "load_context_ms": 3015,
+      "persistence_ms": 4364,
+      "companies_rebuilt": 25,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 41478,
+      "run_id": 146,
+      "status": "COMPLETED",
+      "started_at": "2026-09-04T00:18:59.906456+02:00",
+      "completed_at": "2026-09-04T00:19:42.547300+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 40936,
+      "sql_ms": 9391.506,
+      "sql_calls": 866,
+      "load_context_ms": 18655,
+      "persistence_ms": 3098,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 41077,
+      "run_id": 140,
+      "status": "COMPLETED",
+      "started_at": "2026-09-01T02:47:31.600406+02:00",
+      "completed_at": "2026-09-01T02:48:12.590801+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 40692,
+      "sql_ms": 3159.698,
+      "sql_calls": 823,
+      "load_context_ms": 4110,
+      "persistence_ms": 3682,
+      "companies_rebuilt": 44,
+      "companies_skipped": 6
+    },
+    {
+      "job_id": 41074,
+      "run_id": 140,
+      "status": "COMPLETED",
+      "started_at": "2026-09-01T02:46:06.482763+02:00",
+      "completed_at": "2026-09-01T02:46:46.649609+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 39878,
+      "sql_ms": 3125.32,
+      "sql_calls": 760,
+      "load_context_ms": 3925,
+      "persistence_ms": 3651,
+      "companies_rebuilt": 35,
+      "companies_skipped": 15
+    },
+    {
+      "job_id": 40804,
+      "run_id": 136,
+      "status": "COMPLETED",
+      "started_at": "2026-08-29T00:52:08.347343+02:00",
+      "completed_at": "2026-08-29T00:52:48.544707+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 39783,
+      "sql_ms": 6173.793,
+      "sql_calls": 865,
+      "load_context_ms": 10579,
+      "persistence_ms": 3545,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40844,
+      "run_id": 137,
+      "status": "COMPLETED",
+      "started_at": "2026-08-30T00:38:12.940562+02:00",
+      "completed_at": "2026-08-30T00:38:50.290677+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 37055,
+      "sql_ms": 6121.211,
+      "sql_calls": 863,
+      "load_context_ms": 10436,
+      "persistence_ms": 3773,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40937,
+      "run_id": 138,
+      "status": "COMPLETED",
+      "started_at": "2026-08-30T01:46:12.712729+02:00",
+      "completed_at": "2026-08-30T01:46:51.382114+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 35499,
+      "sql_ms": 3156.276,
+      "sql_calls": 773,
+      "load_context_ms": 3867,
+      "persistence_ms": 3874,
+      "companies_rebuilt": 37,
+      "companies_skipped": 13
+    },
+    {
+      "job_id": 41113,
+      "run_id": 141,
+      "status": "COMPLETED",
+      "started_at": "2026-09-02T01:08:27.145584+02:00",
+      "completed_at": "2026-09-02T01:09:02.971007+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 35476,
+      "sql_ms": 4418.491,
+      "sql_calls": 863,
+      "load_context_ms": 7338,
+      "persistence_ms": 3826,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    },
+    {
+      "job_id": 40984,
+      "run_id": 139,
+      "status": "COMPLETED",
+      "started_at": "2026-09-01T00:34:04.054797+02:00",
+      "completed_at": "2026-09-01T00:34:39.079944+02:00",
+      "ticker_count": 50,
+      "batch_total_ms": 34694,
+      "sql_ms": 4187.801,
+      "sql_calls": 863,
+      "load_context_ms": 6409,
+      "persistence_ms": 3432,
+      "companies_rebuilt": 50,
+      "companies_skipped": 0
+    }
+  ]
+}
