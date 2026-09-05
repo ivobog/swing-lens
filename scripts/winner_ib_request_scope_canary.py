@@ -1,6 +1,6 @@
 """Audited Winner IB request-scope reconstruction and bounded canary tooling.
 
-Planning and auditing are read-only. ``execute-v2`` requires an exact reviewed
+Planning and auditing are read-only. ``execute-v3`` requires an exact reviewed
 artifact hash and explicit write approval. This script never invokes Winner
 maturation, cohort generation, rescoring, estimate generation, or publication.
 """
@@ -33,6 +33,10 @@ from app.services.ib_fetch_plan_service import (
     FetchPlan,
     build_fetch_plan,
 )
+from app.services.ib_fetch_recovery_service import (
+    apply_interrupted_canary_finalization,
+    build_interrupted_canary_finalization_manifest,
+)
 from app.services.ib_historical_request_scope import build_historical_request_scope
 from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.services.winner_probability.market_data_obligation_service import (
@@ -45,10 +49,10 @@ from app.services.winner_probability.temporal_manifest_canonicalization import (
 from app.settings import get_settings
 
 SCHEMA_V1_AUDIT = "swinglens-winner-ib-request-scope-v1-audit"
-SCHEMA_V2_CANARY = "swinglens-winner-ib-request-scope-v2-canary"
-SCHEMA_V2_RESULT = "swinglens-winner-ib-request-scope-v2-result"
+SCHEMA_V3_CANARY = "swinglens-winner-ib-request-scope-v3-canary"
+SCHEMA_V3_RESULT = "swinglens-winner-ib-request-scope-v3-result"
 RECOVERY_MANIFEST_HASH = "f74cdd39c79527573e92e7089a682dda9d780203939d3f247da88fff41f4388b"
-BASES = ("ADJUSTED_LAST", "TRADES")
+BASES = ("TRADES", "ADJUSTED_LAST")
 
 
 def _hash(value: Any) -> str:
@@ -321,6 +325,8 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
                 "bar_size": item.bar_size,
                 "duration": item.duration,
                 "end_datetime": item.request_end_datetime,
+                "end_mode": item.request_end_mode,
+                "reviewed_session_expiry": item.reviewed_session_expiry,
                 "required_missing_dates": required_dates,
                 "required_missing_start": min(required_dates),
                 "required_missing_end": max(required_dates),
@@ -338,7 +344,7 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
             }
         )
     payload: dict[str, Any] = {
-        "schema": SCHEMA_V2_CANARY,
+        "schema": SCHEMA_V3_CANARY,
         "recovery_manifest_hash": RECOVERY_MANIFEST_HASH,
         "completed_session": latest_completed_us_trading_day(),
         "tickers": sorted({ticker.upper() for ticker in tickers}),
@@ -349,24 +355,24 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
     return payload, plan
 
 
-def plan_v2(tickers: list[str], output_dir: Path) -> Path:
+def plan_v3(tickers: list[str], output_dir: Path) -> Path:
     tickers = sorted({ticker.strip().upper() for ticker in tickers if ticker.strip()})
     if not 8 <= len(tickers) <= 12:
-        raise RuntimeError("canary v2 requires 8-12 distinct tickers")
+        raise RuntimeError("canary v3 requires 8-12 distinct tickers")
     with SessionLocal() as db:
         db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
         payload, _ = _preflight_payload(db, tickers)
-        path = output_dir / f"canary_v2_reviewed_{payload['artifact_hash']}.json"
+        path = output_dir / f"canary_v3_reviewed_{payload['artifact_hash']}.json"
         _write_immutable(path, payload)
         print(json.dumps({"path": str(path.resolve()), **_summary(payload)}, indent=2))
         return path
 
 
-def execute_v2(path: Path, *, expected_hash: str, approve_write: bool) -> int:
+def execute_v3(path: Path, *, expected_hash: str, approve_write: bool) -> int:
     if not approve_write:
         raise RuntimeError("--approve-write is required")
     reviewed = json.loads(path.read_text(encoding="utf-8"))
-    if reviewed.get("schema") != SCHEMA_V2_CANARY:
+    if reviewed.get("schema") != SCHEMA_V3_CANARY:
         raise RuntimeError("unsupported canary artifact schema")
     if reviewed.get("artifact_hash") != expected_hash:
         raise RuntimeError("reviewed canary hash mismatch")
@@ -390,7 +396,7 @@ def execute_v2(path: Path, *, expected_hash: str, approve_write: bool) -> int:
         return int(fetch_run.id)
 
 
-def verify_v2(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
+def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
     reviewed = json.loads(path.read_text(encoding="utf-8"))
     by_key = {(row["ticker"], row["what_to_show"]): row for row in reviewed["items"]}
     with SessionLocal() as db:
@@ -421,6 +427,9 @@ def verify_v2(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                     item.duration == reviewed_item["duration"],
                     item.bar_size == reviewed_item["bar_size"],
                     metadata.get("request_end_datetime") == reviewed_item["end_datetime"],
+                    metadata.get("request_end_mode") == reviewed_item["end_mode"],
+                    metadata.get("reviewed_session_expiry")
+                    == reviewed_item["reviewed_session_expiry"],
                     metadata.get("reviewed_start_date") == reviewed_item["reviewed_start"],
                     metadata.get("reviewed_end_date") == reviewed_item["reviewed_end"],
                 )
@@ -428,6 +437,7 @@ def verify_v2(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
             passed = bool(
                 item.status == "SUCCESS"
                 and metadata.get("boundary_status") == "PASS"
+                and metadata.get("provider_result") == "SUCCESS_WITH_BARS"
                 and parameter_match
                 and outside_unchanged
             )
@@ -438,6 +448,9 @@ def verify_v2(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                     "what_to_show": item.what_to_show,
                     "duration": item.duration,
                     "end_datetime": metadata.get("request_end_datetime"),
+                    "end_mode": metadata.get("request_end_mode"),
+                    "reviewed_session_expiry": metadata.get("reviewed_session_expiry"),
+                    "provider_result": metadata.get("provider_result"),
                     "reviewed_start": metadata.get("reviewed_start_date"),
                     "actual_start": metadata.get("actual_start_date"),
                     "actual_end": metadata.get("actual_end_date"),
@@ -483,7 +496,7 @@ def verify_v2(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
             {"outcome_ids": sorted(outcome_ids)},
         )
         payload: dict[str, Any] = {
-            "schema": SCHEMA_V2_RESULT,
+            "schema": SCHEMA_V3_RESULT,
             "reviewed_artifact_hash": reviewed["artifact_hash"],
             "fetch_run_id": fetch_run_id,
             "fetch_run_status": fetch_run.status,
@@ -501,7 +514,7 @@ def verify_v2(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
             "items": results,
         }
         payload["artifact_hash"] = _hash(payload)
-        result_path = output_dir / f"canary_v2_result_{payload['artifact_hash']}.json"
+        result_path = output_dir / f"canary_v3_result_{payload['artifact_hash']}.json"
         _write_immutable(result_path, payload)
         print(json.dumps({"path": str(result_path.resolve()), **_summary(payload)}, indent=2))
         return result_path
@@ -539,6 +552,89 @@ def dry_run_remaining() -> None:
                 },
                 indent=2,
                 default=str,
+            )
+        )
+
+
+def plan_interrupted_finalization(fetch_run_id: int, output_dir: Path) -> Path:
+    with SessionLocal() as db:
+        db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        payload = build_interrupted_canary_finalization_manifest(
+            db,
+            fetch_run_id=fetch_run_id,
+        )
+        path = output_dir / (
+            f"run_{fetch_run_id}_finalization_{payload['manifest_hash']}.json"
+        )
+        _write_immutable(path, payload)
+        print(
+            json.dumps(
+                {
+                    "path": str(path.resolve()),
+                    "manifest_hash": payload["manifest_hash"],
+                    "fetch_run_id": fetch_run_id,
+                    "expected_run_status": payload["expected_run_status"],
+                    "expected_totals": payload["expected_totals"],
+                    "unmaterialized_request_count": payload[
+                        "unmaterialized_request_count"
+                    ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return path
+
+
+def apply_interrupted_finalization(
+    path: Path,
+    *,
+    expected_hash: str,
+    actor: str,
+    request_key: str,
+    approve_write: bool,
+) -> None:
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    with SessionLocal() as db:
+        result = apply_interrupted_canary_finalization(
+            db,
+            manifest=manifest,
+            reviewed_manifest_hash=expected_hash,
+            actor=actor,
+            request_key=request_key,
+            approve_write=approve_write,
+        )
+        db.commit()
+        print(json.dumps(result.__dict__, indent=2, sort_keys=True))
+
+
+def reconcile_successful_run_storage(
+    fetch_run_id: int,
+    *,
+    approve_write: bool,
+) -> None:
+    if not approve_write:
+        raise RuntimeError("--approve-write is required")
+    with SessionLocal() as db:
+        fetch_run = db.get(IBFetchRun, fetch_run_id)
+        if fetch_run is None or fetch_run.status not in {"COMPLETED", "PARTIAL", "FAILED"}:
+            raise RuntimeError("fetch run must exist and be terminal before reconciliation")
+        tickers = sorted(
+            {
+                str(item.ticker).upper()
+                for item in fetch_run.items
+                if item.status == "SUCCESS" and int(item.fetched or 0) > 0
+            }
+        )
+        if not tickers:
+            raise RuntimeError("fetch run has no successful bar-bearing items to reconcile")
+        result = MarketDataObligationService().evaluate(db, tickers=tickers)
+        db.commit()
+        print(
+            json.dumps(
+                {"fetch_run_id": fetch_run_id, "tickers": tickers, **result.__dict__},
+                indent=2,
+                sort_keys=True,
             )
         )
 
@@ -609,31 +705,58 @@ def main() -> None:
     audit = sub.add_parser("audit-v1")
     audit.add_argument("--fetch-run-id", type=int, default=190)
     audit.add_argument("--output-dir", type=Path, required=True)
-    plan = sub.add_parser("plan-v2")
+    plan = sub.add_parser("plan-v3")
     plan.add_argument("--tickers", nargs="+", required=True)
     plan.add_argument("--output-dir", type=Path, required=True)
-    execute = sub.add_parser("execute-v2")
+    execute = sub.add_parser("execute-v3")
     execute.add_argument("--artifact", type=Path, required=True)
     execute.add_argument("--expected-hash", required=True)
     execute.add_argument("--approve-write", action="store_true")
-    verify = sub.add_parser("verify-v2")
+    verify = sub.add_parser("verify-v3")
     verify.add_argument("--artifact", type=Path, required=True)
     verify.add_argument("--fetch-run-id", type=int, required=True)
     verify.add_argument("--output-dir", type=Path, required=True)
+    finalization_plan = sub.add_parser("plan-interrupted-finalization")
+    finalization_plan.add_argument("--fetch-run-id", type=int, required=True)
+    finalization_plan.add_argument("--output-dir", type=Path, required=True)
+    finalization_apply = sub.add_parser("apply-interrupted-finalization")
+    finalization_apply.add_argument("--artifact", type=Path, required=True)
+    finalization_apply.add_argument("--expected-hash", required=True)
+    finalization_apply.add_argument("--actor", required=True)
+    finalization_apply.add_argument("--request-key", required=True)
+    finalization_apply.add_argument("--approve-write", action="store_true")
+    reconcile = sub.add_parser("reconcile-run-storage")
+    reconcile.add_argument("--fetch-run-id", type=int, required=True)
+    reconcile.add_argument("--approve-write", action="store_true")
     sub.add_parser("dry-run-remaining")
     args = parser.parse_args()
     if args.command == "audit-v1":
         audit_v1(args.fetch_run_id, args.output_dir)
-    elif args.command == "plan-v2":
-        plan_v2(args.tickers, args.output_dir)
-    elif args.command == "execute-v2":
-        execute_v2(
+    elif args.command == "plan-v3":
+        plan_v3(args.tickers, args.output_dir)
+    elif args.command == "execute-v3":
+        execute_v3(
             args.artifact,
             expected_hash=args.expected_hash,
             approve_write=args.approve_write,
         )
-    elif args.command == "verify-v2":
-        verify_v2(args.artifact, args.fetch_run_id, args.output_dir)
+    elif args.command == "verify-v3":
+        verify_v3(args.artifact, args.fetch_run_id, args.output_dir)
+    elif args.command == "plan-interrupted-finalization":
+        plan_interrupted_finalization(args.fetch_run_id, args.output_dir)
+    elif args.command == "apply-interrupted-finalization":
+        apply_interrupted_finalization(
+            args.artifact,
+            expected_hash=args.expected_hash,
+            actor=args.actor,
+            request_key=args.request_key,
+            approve_write=args.approve_write,
+        )
+    elif args.command == "reconcile-run-storage":
+        reconcile_successful_run_storage(
+            args.fetch_run_id,
+            approve_write=args.approve_write,
+        )
     else:
         dry_run_remaining()
 

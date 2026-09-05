@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
+from enum import StrEnum
 
 from app.services.us_market_calendar import (
     is_us_trading_day,
     subtract_us_trading_sessions,
 )
+
+
+class HistoricalEndMode(StrEnum):
+    EXPLICIT = "EXPLICIT"
+    CURRENT = "CURRENT"
 
 
 @dataclass(frozen=True)
@@ -21,10 +27,18 @@ class HistoricalRequestScope:
     bar_size: str
     what_to_show: str
     end_datetime: str
+    end_mode: HistoricalEndMode
+    reviewed_session_expiry: date | None
 
     def to_dict(self) -> dict[str, object]:
         return {
-            key: value.isoformat() if isinstance(value, date) else value
+            key: (
+                value.isoformat()
+                if isinstance(value, date)
+                else value.value
+                if isinstance(value, StrEnum)
+                else value
+            )
             for key, value in asdict(self).items()
         }
 
@@ -54,6 +68,8 @@ def build_historical_request_scope(
     start = reviewed_start_for_duration(duration, end=end, bar_size=bar_size)
     if start is None:
         raise ValueError(f"unsupported historical request duration: {duration!r}")
+    adjusted_last = what_to_show.strip().upper() == "ADJUSTED_LAST"
+    end_mode = HistoricalEndMode.CURRENT if adjusted_last else HistoricalEndMode.EXPLICIT
     return HistoricalRequestScope(
         required_start_date=required_start_date,
         required_end_date=required_end_date,
@@ -62,8 +78,34 @@ def build_historical_request_scope(
         duration=duration,
         bar_size=bar_size,
         what_to_show=what_to_show,
-        end_datetime=f"{end:%Y%m%d}-23:59:59",
+        end_datetime="" if adjusted_last else f"{end:%Y%m%d}-23:59:59",
+        end_mode=end_mode,
+        reviewed_session_expiry=end if adjusted_last else None,
     )
+
+
+def validate_reviewed_session_current(
+    scope: HistoricalRequestScope,
+    *,
+    latest_completed_session: date,
+) -> None:
+    """Fail closed when a current-ended request outlives its reviewed session."""
+
+    if scope.end_mode != HistoricalEndMode.CURRENT:
+        return
+    expected = scope.reviewed_session_expiry
+    if expected is None:
+        raise ValueError("Current-ended historical request has no reviewed session expiry.")
+    if latest_completed_session > expected:
+        raise ValueError(
+            "Current-ended historical request scope expired: "
+            f"reviewed session {expected}, latest completed session {latest_completed_session}."
+        )
+    if latest_completed_session < expected:
+        raise ValueError(
+            "Current-ended historical request scope is not yet executable: "
+            f"reviewed session {expected}, latest completed session {latest_completed_session}."
+        )
 
 
 def reviewed_start_for_duration(

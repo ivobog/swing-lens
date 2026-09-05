@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -12,7 +13,11 @@ from app.services.bar_cache_service import _normalize_symbols, cache_bars
 from app.services.ib_api import Contract
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_contract_resolver import cached_contract_to_ib, resolve_us_stock_contract
-from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars
+from app.services.ib_data_fetcher import (
+    HistoricalBar,
+    IBHistoricalRequestError,
+    fetch_daily_bars,
+)
 from app.settings import Settings
 
 
@@ -151,6 +156,51 @@ def test_fetch_daily_bars_uses_reviewed_explicit_end_datetime() -> None:
     )
 
     assert ib.request["endDateTime"] == "20260904-23:59:59"
+
+
+def test_fetch_daily_bars_surfaces_ib_error_callback_321() -> None:
+    class FakeEvent:
+        def __init__(self) -> None:
+            self.handlers = []
+
+        def __iadd__(self, handler):
+            self.handlers.append(handler)
+            return self
+
+        def __isub__(self, handler):
+            self.handlers.remove(handler)
+            return self
+
+        def emit(self, *args):
+            for handler in list(self.handlers):
+                handler(*args)
+
+    class RejectingIB:
+        def __init__(self) -> None:
+            self.errorEvent = FakeEvent()
+
+        def reqHistoricalData(self, *args, **kwargs):
+            self.errorEvent.emit(
+                17,
+                321,
+                "Error validating request: End date not supported with adjusted last",
+                args[0],
+            )
+            return []
+
+    with pytest.raises(IBHistoricalRequestError) as raised:
+        fetch_daily_bars(
+            RejectingIB(),
+            Contract(symbol="AAL", conId=139673266),
+            "ADJUSTED_LAST",
+            settings=Settings(),
+            duration="25 D",
+            end_datetime="20260904-23:59:59",
+        )
+
+    assert raised.value.code == 321
+    assert raised.value.classification == "PROVIDER_REJECTED"
+    assert "End date not supported" in raised.value.provider_message
 
 
 def test_cached_contract_to_ib_rebuilds_resolved_contract() -> None:

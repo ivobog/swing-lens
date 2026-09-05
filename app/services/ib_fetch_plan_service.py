@@ -64,6 +64,8 @@ class FetchPlanItem:
     request_start_date: date | None = None
     request_end_date: date | None = None
     request_end_datetime: str | None = None
+    request_end_mode: str | None = None
+    reviewed_session_expiry: date | None = None
     decision_category: str = "UNKNOWN"
     dependency_roles: tuple[str, ...] = ()
 
@@ -248,6 +250,8 @@ def _build_plan_item(
     missing_end_date = freshness_threshold if missing_start_date else None
     request_end_date = freshness_threshold if duration else None
     request_end_datetime = None
+    request_end_mode = None
+    reviewed_session_expiry = None
     if duration:
         request_scope = build_historical_request_scope(
             required_start_date=missing_start_date,
@@ -259,6 +263,8 @@ def _build_plan_item(
         )
         request_start_date = request_scope.reviewed_start_date
         request_end_datetime = request_scope.end_datetime
+        request_end_mode = request_scope.end_mode.value
+        reviewed_session_expiry = request_scope.reviewed_session_expiry
     coverage_state = _coverage_state(
         current_bar_count=current_bar_count,
         required_bars=coverage.required_rows,
@@ -308,6 +314,8 @@ def _build_plan_item(
         request_start_date=request_start_date,
         request_end_date=request_end_date,
         request_end_datetime=request_end_datetime,
+        request_end_mode=request_end_mode,
+        reviewed_session_expiry=reviewed_session_expiry,
         decision_category=decision_category,
         dependency_roles=dependency_roles,
     )

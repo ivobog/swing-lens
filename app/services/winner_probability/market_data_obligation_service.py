@@ -413,9 +413,19 @@ class MarketDataObligationService:
             if item is None:
                 continue
             if item.status == "FAILED":
-                obligation.status = "FAILED"
-                obligation.failure_reason = "PROVIDER_REQUEST_FAILED"
-                failed += 1
+                provider_result = (item.decision_metadata_json or {}).get("provider_result")
+                if provider_result == "PROVIDER_NO_DATA":
+                    obligation.status = "UNAVAILABLE"
+                    obligation.failure_reason = "PROVIDER_RETURNED_NO_DATA"
+                    unavailable += 1
+                else:
+                    obligation.status = "FAILED"
+                    obligation.failure_reason = (
+                        "PROVIDER_REQUEST_REJECTED"
+                        if provider_result == "PROVIDER_REJECTED"
+                        else "PROVIDER_REQUEST_FAILED"
+                    )
+                    failed += 1
             else:
                 obligation.status = "UNAVAILABLE"
                 obligation.failure_reason = "PROVIDER_RESPONSE_MISSING_REQUIRED_SESSIONS"

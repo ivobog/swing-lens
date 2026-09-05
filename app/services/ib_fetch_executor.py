@@ -14,7 +14,7 @@ from app.services.bar_cache_service import cache_bars
 from app.services.ib_api import IB
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
-from app.services.ib_data_fetcher import fetch_daily_bars
+from app.services.ib_data_fetcher import IBHistoricalRequestError, fetch_daily_bars
 from app.services.ib_fetch_plan_service import (
     FetchAction,
     FetchPlan,
@@ -26,6 +26,7 @@ from app.services.ib_fetch_plan_service import (
 from app.services.ib_historical_request_scope import (
     HistoricalRequestScope,
     build_historical_request_scope,
+    validate_reviewed_session_current,
 )
 from app.services.ib_rate_limiter import (
     IbHistoricalRateLimiter,
@@ -430,7 +431,6 @@ def _execute_plan_item(
     )
 
     for attempt in range(1, settings.ib_max_retries + 1):
-        fetch_item.attempt_count = attempt
         try:
             pacing_started = perf_counter()
             if isinstance(rate_limiter, IbHistoricalRateLimiter):
@@ -442,6 +442,23 @@ def _execute_plan_item(
             if not pacing_ready:
                 _mark_skipped(fetch_item, "Cancellation requested during IB pacing wait.")
                 return
+            try:
+                validate_reviewed_session_current(
+                    scope,
+                    latest_completed_session=latest_completed_us_trading_day(),
+                )
+            except ValueError as exc:
+                fetch_item.decision_metadata_json = _decision_metadata(
+                    plan_item,
+                    action=action,
+                    duration=duration,
+                    scope=scope,
+                    boundary_status="NOT_EXECUTED",
+                    provider_result="REVIEW_SCOPE_EXPIRED",
+                )
+                _mark_failed(fetch_item, str(exc))
+                return
+            fetch_item.attempt_count = attempt
             network_started = perf_counter()
             try:
                 bars = fetch_daily_bars(
@@ -456,6 +473,22 @@ def _execute_plan_item(
             finally:
                 _add_duration(performance, "ib_network_ms", network_started)
             actual_start, actual_end = _validate_returned_scope(bars, scope)
+            if not bars:
+                fetch_item.decision_metadata_json = _decision_metadata(
+                    plan_item,
+                    action=action,
+                    duration=duration,
+                    scope=scope,
+                    actual_start_date=actual_start,
+                    actual_end_date=actual_end,
+                    boundary_status="PASS",
+                    provider_result="PROVIDER_NO_DATA",
+                )
+                _mark_failed(
+                    fetch_item,
+                    "IB returned no bars while required sessions remain missing.",
+                )
+                return
             fetch_item.decision_metadata_json = _decision_metadata(
                 plan_item,
                 action=action,
@@ -464,6 +497,7 @@ def _execute_plan_item(
                 actual_start_date=actual_start,
                 actual_end_date=actual_end,
                 boundary_status="PASS",
+                provider_result="SUCCESS_WITH_BARS",
             )
             cache_started = perf_counter()
             try:
@@ -498,6 +532,29 @@ def _execute_plan_item(
             )
             _mark_failed(fetch_item, str(exc))
             return
+        except IBHistoricalRequestError as exc:
+            fetch_item.decision_metadata_json = _decision_metadata(
+                plan_item,
+                action=action,
+                duration=duration,
+                scope=scope,
+                boundary_status="NOT_EVALUATED",
+                provider_result=exc.classification,
+                provider_error_code=exc.code,
+                provider_error_message=exc.provider_message,
+            )
+            if exc.classification == "PROVIDER_REJECTED" or attempt >= settings.ib_max_retries:
+                _mark_failed(fetch_item, str(exc))
+                return
+            fetch_item.error_message = _safe_message(str(exc))
+            if isinstance(rate_limiter, IbHistoricalRateLimiter):
+                retry_ready = rate_limiter.backoff_after_error(exc, attempt, should_cancel)
+            else:
+                rate_limiter.backoff_after_error(exc, attempt)
+                retry_ready = True
+            if not retry_ready:
+                _mark_skipped(fetch_item, "Cancellation requested during IB retry backoff.")
+                return
         except Exception as exc:
             fetch_item.error_message = _safe_message(str(exc))
             if attempt >= settings.ib_max_retries:
@@ -690,6 +747,9 @@ def _decision_metadata(
     actual_start_date: date | None = None,
     actual_end_date: date | None = None,
     boundary_status: str | None = None,
+    provider_result: str | None = None,
+    provider_error_code: int | None = None,
+    provider_error_message: str | None = None,
 ) -> dict[str, object]:
     effective_action = action or plan_item.action
     latest_current = _latest_date_current(plan_item.latest_bar_date, stale_after_days=0)
@@ -712,9 +772,18 @@ def _decision_metadata(
         "reviewed_start_date": _iso_date(reviewed_start),
         "reviewed_end_date": _iso_date(reviewed_end),
         "request_end_datetime": scope.end_datetime if scope else plan_item.request_end_datetime,
+        "request_end_mode": (
+            scope.end_mode.value if scope else plan_item.request_end_mode
+        ),
+        "reviewed_session_expiry": _iso_date(
+            scope.reviewed_session_expiry if scope else plan_item.reviewed_session_expiry
+        ),
         "actual_start_date": _iso_date(actual_start_date),
         "actual_end_date": _iso_date(actual_end_date),
         "boundary_status": boundary_status,
+        "provider_result": provider_result,
+        "provider_error_code": provider_error_code,
+        "provider_error_message": provider_error_message,
         "decision_category": _decision_category(
             effective_action,
             latest_current=latest_current,
@@ -749,6 +818,16 @@ def _execution_scope(plan_item: FetchPlanItem, duration: str) -> HistoricalReque
         and scope.end_datetime != plan_item.request_end_datetime
     ):
         raise ValueError("Historical request end differs from the reviewed plan scope.")
+    if (
+        plan_item.request_end_mode is not None
+        and scope.end_mode.value != plan_item.request_end_mode
+    ):
+        raise ValueError("Historical request end mode differs from the reviewed plan scope.")
+    if (
+        plan_item.reviewed_session_expiry is not None
+        and scope.reviewed_session_expiry != plan_item.reviewed_session_expiry
+    ):
+        raise ValueError("Historical request expiry differs from the reviewed plan scope.")
     return scope
 
 

@@ -3,8 +3,10 @@ from datetime import date
 import pytest
 
 from app.services.ib_historical_request_scope import (
+    HistoricalEndMode,
     HistoricalRequestScope,
     build_historical_request_scope,
+    validate_reviewed_session_current,
 )
 
 
@@ -62,6 +64,7 @@ def test_scope_has_explicit_deterministic_ib_end_datetime() -> None:
     )
 
     assert scope.end_datetime == "20260904-23:59:59"
+    assert scope.end_mode == HistoricalEndMode.EXPLICIT
     assert scope.to_dict() == {
         "required_start_date": "2026-08-20",
         "required_end_date": "2026-09-04",
@@ -71,7 +74,26 @@ def test_scope_has_explicit_deterministic_ib_end_datetime() -> None:
         "bar_size": "1 day",
         "what_to_show": "TRADES",
         "end_datetime": "20260904-23:59:59",
+        "end_mode": "EXPLICIT",
+        "reviewed_session_expiry": None,
     }
+
+
+def test_adjusted_last_uses_current_end_with_reviewed_session_expiry() -> None:
+    scope = build_historical_request_scope(
+        required_start_date=date(2026, 8, 20),
+        required_end_date=date(2026, 9, 4),
+        duration="20 D",
+        bar_size="1 day",
+        what_to_show="ADJUSTED_LAST",
+    )
+
+    assert scope.end_mode == HistoricalEndMode.CURRENT
+    assert scope.end_datetime == ""
+    assert scope.reviewed_session_expiry == date(2026, 9, 4)
+    validate_reviewed_session_current(scope, latest_completed_session=date(2026, 9, 4))
+    with pytest.raises(ValueError, match="expired"):
+        validate_reviewed_session_current(scope, latest_completed_session=date(2026, 9, 8))
 
 
 def test_scope_rejects_non_session_daily_end() -> None:
@@ -95,6 +117,8 @@ def test_scope_dataclass_is_immutable() -> None:
         bar_size="1 day",
         what_to_show="TRADES",
         end_datetime="20260904-23:59:59",
+        end_mode=HistoricalEndMode.EXPLICIT,
+        reviewed_session_expiry=None,
     )
 
     with pytest.raises(AttributeError):

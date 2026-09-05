@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import app.services.ib_fetch_executor as executor
 from app.models.tables import IBFetchItem
 from app.services.bar_cache_service import BarUpsertSummary
-from app.services.ib_data_fetcher import HistoricalBar
+from app.services.ib_data_fetcher import HistoricalBar, IBHistoricalRequestError
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
 from app.settings import Settings
@@ -249,6 +249,179 @@ def test_execute_fetch_plan_records_passing_returned_footprint(monkeypatch) -> N
     assert metadata["actual_start_date"] == "2026-08-03"
     assert metadata["actual_end_date"] == "2026-08-14"
     assert metadata["boundary_status"] == "PASS"
+    assert metadata["provider_result"] == "SUCCESS_WITH_BARS"
+    assert metadata["request_end_mode"] == "EXPLICIT"
+
+
+def test_provider_rejection_is_failed_with_truthful_run_counters(monkeypatch) -> None:
+    db = FakeDb()
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=139673266), error_message=None
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            IBHistoricalRequestError(
+                code=321,
+                provider_message="End date not supported with adjusted last",
+                classification="PROVIDER_REJECTED",
+            )
+        ),
+    )
+    cache_calls = []
+    monkeypatch.setattr(executor, "cache_bars", lambda *args, **kwargs: cache_calls.append(1))
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=_fetch_plan(_plan_item("AAL", FetchAction.TOP_UP_RECENT, "10 D")),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=3),
+    )
+
+    item = fetch_run.items[0]
+    assert fetch_run.status == "FAILED"
+    assert fetch_run.success_count == 0
+    assert fetch_run.failure_count == 1
+    assert fetch_run.executed_request_count == 1
+    assert item.status == "FAILED"
+    assert item.attempt_count == 1
+    assert item.decision_metadata_json["provider_result"] == "PROVIDER_REJECTED"
+    assert item.decision_metadata_json["provider_error_code"] == 321
+    assert "End date not supported" in item.error_message
+    assert cache_calls == []
+
+
+def test_valid_empty_response_with_missing_sessions_is_not_success(monkeypatch) -> None:
+    db = FakeDb()
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=1), error_message=None
+        ),
+    )
+    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: [])
+    cache_calls = []
+    monkeypatch.setattr(executor, "cache_bars", lambda *args, **kwargs: cache_calls.append(1))
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=_fetch_plan(_plan_item("MSFT", FetchAction.TOP_UP_RECENT, "10 D")),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+
+    item = fetch_run.items[0]
+    assert fetch_run.status == "FAILED"
+    assert item.status == "FAILED"
+    assert item.decision_metadata_json["provider_result"] == "PROVIDER_NO_DATA"
+    assert "required sessions remain missing" in item.error_message
+    assert cache_calls == []
+
+
+def test_current_ended_scope_expires_before_provider_request(monkeypatch) -> None:
+    db = FakeDb()
+    adjusted = replace(
+        _plan_item("AAL", FetchAction.TOP_UP_RECENT, "10 D"),
+        what_to_show="ADJUSTED_LAST",
+        request_end_datetime="",
+        request_end_mode="CURRENT",
+        reviewed_session_expiry=date(2026, 8, 14),
+    )
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=139673266), error_message=None
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "latest_completed_us_trading_day",
+        lambda: date(2026, 8, 17),
+    )
+    fetch_calls = []
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: fetch_calls.append((args, kwargs)),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=_fetch_plan(adjusted),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+
+    item = fetch_run.items[0]
+    assert item.status == "FAILED"
+    assert item.attempt_count == 0
+    assert fetch_run.executed_request_count == 0
+    assert item.decision_metadata_json["provider_result"] == "REVIEW_SCOPE_EXPIRED"
+    assert "expired" in item.error_message
+    assert fetch_calls == []
+
+
+def test_adjusted_last_executes_reviewed_current_end_without_rewriting_parameters(
+    monkeypatch,
+) -> None:
+    db = FakeDb()
+    adjusted = replace(
+        _plan_item("AAL", FetchAction.TOP_UP_RECENT, "10 D"),
+        what_to_show="ADJUSTED_LAST",
+        request_end_datetime="",
+        request_end_mode="CURRENT",
+        reviewed_session_expiry=date(2026, 8, 14),
+    )
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=139673266), error_message=None
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "latest_completed_us_trading_day",
+        lambda: date(2026, 8, 14),
+    )
+    observed = {}
+
+    def fetch(*args, **kwargs):
+        observed.update(kwargs)
+        return [_bar(date(2026, 8, 14))]
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", fetch)
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda *args, **kwargs: BarUpsertSummary(inserted=1),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=_fetch_plan(adjusted),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+
+    metadata = fetch_run.items[0].decision_metadata_json
+    assert fetch_run.status == "COMPLETED"
+    assert observed["end_datetime"] == ""
+    assert observed["duration"] == "10 D"
+    assert observed["bar_size"] == "1 day"
+    assert metadata["request_end_mode"] == "CURRENT"
+    assert metadata["reviewed_session_expiry"] == "2026-08-14"
 
 
 def test_execute_fetch_plan_commits_current_item_before_historical_request(monkeypatch) -> None:
@@ -574,6 +747,22 @@ def _plan_item(
         request_start_date=date(2026, 8, 3),
         request_end_date=date(2026, 8, 14),
         request_end_datetime="20260814-23:59:59",
+        request_end_mode="EXPLICIT",
+    )
+
+
+def _fetch_plan(item: FetchPlanItem) -> FetchPlan:
+    return FetchPlan(
+        run_id=7,
+        requested_tickers=[item.ticker],
+        symbols_including_benchmarks=[item.ticker],
+        items=[item],
+        estimated_request_count=1,
+        estimated_full_backfills=0,
+        estimated_top_ups=1,
+        estimated_refreshes=0,
+        estimated_skips=0,
+        warnings=[],
     )
 
 
