@@ -26,6 +26,7 @@ from app.models.tables import (
     IBFetchRun,
     PriceBar,
     PriceBarRevision,
+    PriceSeriesVersion,
     WinnerMarketDataObligation,
     WinnerPredictionSnapshot,
     WinnerTemporalValidityDecision,
@@ -117,6 +118,18 @@ def _region_hashes(
         "after": [row for row in all_rows if row["bar_date"] > reviewed_end],
     }
     return {name: {"count": len(rows), "sha256": _hash(rows)} for name, rows in regions.items()}
+
+
+def _series_version_snapshot(row: PriceSeriesVersion | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    return {
+        "id": int(row.id),
+        "series_version": int(row.series_version),
+        "bar_count": int(row.bar_count),
+        "first_bar_date": row.first_bar_date,
+        "latest_bar_date": row.latest_bar_date,
+    }
 
 
 def audit_v1(fetch_run_id: int, output_dir: Path) -> Path:
@@ -332,6 +345,15 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
     by_key: dict[tuple[str, str], list[WinnerMarketDataObligation]] = defaultdict(list)
     for row in obligations:
         by_key[(row.ticker_snapshot, row.what_to_show)].append(row)
+    series_versions = {
+        (row.ticker, row.what_to_show): row
+        for row in db.scalars(
+            select(PriceSeriesVersion).where(
+                PriceSeriesVersion.ticker.in_(sorted({ticker.upper() for ticker in tickers})),
+                PriceSeriesVersion.timeframe == "1 day",
+            )
+        )
+    }
     records: list[dict[str, Any]] = []
     for item in sorted(plan.items, key=lambda value: (value.ticker, value.what_to_show)):
         related = by_key[(item.ticker, item.what_to_show)]
@@ -372,6 +394,9 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
                 "required_missing_end": max(required_dates),
                 "reviewed_start": item.request_start_date,
                 "reviewed_end": item.request_end_date,
+                "before_price_series_version": _series_version_snapshot(
+                    series_versions.get((item.ticker, item.what_to_show))
+                ),
                 "associated_outcome_ids": sorted({int(row.forward_outcome_id) for row in related}),
                 "associated_prediction_ids": sorted({int(row.prediction_id) for row in related}),
                 "obligations": [
@@ -472,6 +497,24 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
         fetch_run = db.get(IBFetchRun, fetch_run_id)
         if fetch_run is None:
             raise RuntimeError("canary fetch run was not found")
+        current_series_versions = {
+            (row.ticker, row.what_to_show): row
+            for row in db.scalars(
+                select(PriceSeriesVersion).where(
+                    PriceSeriesVersion.ticker.in_(
+                        sorted({row["ticker"] for row in reviewed["items"]})
+                    ),
+                    PriceSeriesVersion.timeframe == "1 day",
+                )
+            )
+        }
+        historical_counts_unchanged = (
+            reviewed.get("historical_counts") is None
+            or reviewed["historical_counts"] == _historical_counts(db)
+        )
+        quarantine_unchanged = _quarantine_count(db) == int(
+            reviewed.get("quarantined_prediction_count", 1292)
+        )
         results: list[dict[str, Any]] = []
         for item in sorted(fetch_run.items, key=lambda value: (value.ticker, value.what_to_show)):
             key = (item.ticker, item.what_to_show)
@@ -503,6 +546,19 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                 )
             )
             provider_result = metadata.get("provider_result")
+            before_series = reviewed_item.get("before_price_series_version")
+            after_series = _series_version_snapshot(
+                current_series_versions.get((item.ticker, item.what_to_show))
+            )
+            changed = int(item.inserted or 0) + int(item.revised or 0) > 0
+            expected_series_version = (
+                (int(before_series["series_version"]) + 1 if before_series else 1)
+                if changed
+                else (int(before_series["series_version"]) if before_series else None)
+            )
+            series_version_valid = bool(
+                (after_series or {}).get("series_version") == expected_series_version
+            )
             successful = bool(
                 item.status == "SUCCESS"
                 and metadata.get("boundary_status") == "PASS"
@@ -517,6 +573,9 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                 (successful or truthful_soft_failure)
                 and parameter_match
                 and outside_unchanged
+                and series_version_valid
+                and historical_counts_unchanged
+                and quarantine_unchanged
             )
             results.append(
                 {
@@ -536,6 +595,9 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                     "parameter_match": parameter_match,
                     "outside_hashes_unchanged": outside_unchanged,
                     "post_region_hashes": post,
+                    "before_price_series_version": before_series,
+                    "after_price_series_version": after_series,
+                    "price_series_version_valid": series_version_valid,
                     "fetched": int(item.fetched),
                     "inserted": int(item.inserted),
                     "revised": int(item.revised),
@@ -605,6 +667,8 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
             "associated_outcome_count": len(outcome_ids),
             "maturation_ready_count": int(ready or 0),
             "obligation_status_counts": status_counts,
+            "historical_counts_unchanged": historical_counts_unchanged,
+            "quarantine_unchanged": quarantine_unchanged,
             "items": results,
         }
         payload["artifact_hash"] = _hash(payload)
