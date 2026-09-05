@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
@@ -12,6 +11,9 @@ from sqlalchemy.orm import Session
 from app.models.tables import WinnerPredictionSnapshot, WinnerTemporalValidityDecision
 from app.services.us_market_calendar import us_market_session
 from app.services.winner_probability.temporal_integrity import validate_next_open_timing
+from app.services.winner_probability.temporal_manifest_canonicalization import (
+    canonical_manifest_bytes,
+)
 
 
 @dataclass(frozen=True)
@@ -232,13 +234,12 @@ def _quarantine_manifest_hash(items: tuple[TemporalQuarantineItem, ...]) -> str:
     payload = [
         {
             "prediction_id": item.prediction_id,
-            "decision_at": item.decision_at.isoformat(),
-            "entry_session": item.entry_session.isoformat(),
+            "decision_at": item.decision_at,
+            "entry_session": item.entry_session,
             "semantic_input_time_valid": item.semantic_input_time_valid,
             "incident_reason": item.incident_reason,
             "metadata": item.metadata or {},
         }
         for item in items
     ]
-    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical_manifest_bytes(payload)).hexdigest()

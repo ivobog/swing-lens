@@ -1,4 +1,6 @@
 from datetime import UTC, date, datetime
+from decimal import Decimal
+from enum import Enum
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -14,6 +16,10 @@ from app.services.winner_probability.temporal_integrity import (
     TemporalValidityReason,
     TemporalValidityStatus,
     validate_next_open_timing,
+)
+from app.services.winner_probability.temporal_manifest_canonicalization import (
+    canonical_manifest_bytes,
+    canonicalize_manifest_value,
 )
 from app.services.winner_probability.temporal_validation_service import (
     TemporalQuarantineItem,
@@ -169,6 +175,99 @@ def test_quarantine_plan_is_deterministic_and_write_requires_reviewed_hash() -> 
             approve_write=False,
         )
     assert db.write_count == 0
+
+
+def test_manifest_timestamp_offsets_canonicalize_to_same_exact_instant() -> None:
+    values = (
+        datetime(2026, 8, 20, 11, 28, 0, 123456, tzinfo=NY),
+        datetime(2026, 8, 20, 17, 28, 0, 123456, tzinfo=ZoneInfo("Europe/Zurich")),
+        datetime(2026, 8, 20, 15, 28, 0, 123456, tzinfo=UTC),
+    )
+
+    canonical = [canonicalize_manifest_value(value) for value in values]
+
+    assert canonical == ["2026-08-20T15:28:00.123456Z"] * 3
+    assert len({canonical_manifest_bytes({"captured_at": value}) for value in values}) == 1
+
+
+def test_manifest_canonicalization_preserves_microseconds_null_and_date_types() -> None:
+    value = {
+        "captured_at": datetime(2026, 8, 20, 15, 28, 0, 7, tzinfo=UTC),
+        "nullable_timestamp": None,
+        "entry_session": date(2026, 8, 20),
+    }
+
+    canonical = canonicalize_manifest_value(value)
+
+    assert canonical == {
+        "captured_at": "2026-08-20T15:28:00.000007Z",
+        "entry_session": "2026-08-20",
+        "nullable_timestamp": None,
+    }
+
+
+def test_manifest_canonicalization_stabilizes_exact_scalars_and_unordered_reasons() -> None:
+    class Status(Enum):
+        INVALID = "EXECUTION_INVALID"
+
+    left = {
+        "status": Status.INVALID,
+        "eligible": False,
+        "count": 1,
+        "weight": Decimal("1.2300"),
+        "reason_codes": ["SOURCE_AFTER_DECISION", "ENTRY_NOT_AFTER_DECISION"],
+    }
+    right = {
+        "reason_codes": ["ENTRY_NOT_AFTER_DECISION", "SOURCE_AFTER_DECISION"],
+        "weight": Decimal("1.2300"),
+        "count": 1,
+        "eligible": False,
+        "status": "EXECUTION_INVALID",
+    }
+
+    assert canonical_manifest_bytes(left) == canonical_manifest_bytes(right)
+    assert canonicalize_manifest_value(left)["weight"] == "1.2300"
+
+
+def test_manifest_canonicalization_does_not_normalize_different_instants_together() -> None:
+    first = datetime(2026, 8, 20, 15, 28, 0, 123456, tzinfo=UTC)
+    later = datetime(2026, 8, 20, 15, 28, 0, 123457, tzinfo=UTC)
+
+    assert canonical_manifest_bytes({"captured_at": first}) != canonical_manifest_bytes(
+        {"captured_at": later}
+    )
+
+
+def test_quarantine_hash_is_offset_independent_without_changing_entry_session() -> None:
+    prediction = WinnerPredictionSnapshot(
+        id=1,
+        source_data_cutoff_at=datetime(2026, 8, 19, 20, 0, tzinfo=UTC),
+    )
+    service = TemporalValidationService()
+    instants = (
+        datetime(2026, 8, 20, 11, 28, 0, 123456, tzinfo=NY),
+        datetime(2026, 8, 20, 17, 28, 0, 123456, tzinfo=ZoneInfo("Europe/Zurich")),
+        datetime(2026, 8, 20, 15, 28, 0, 123456, tzinfo=UTC),
+    )
+
+    hashes = {
+        service.plan_quarantine(
+            _PredictionReadDb([prediction]),
+            items=(
+                TemporalQuarantineItem(
+                    prediction_id=1,
+                    decision_at=instant,
+                    entry_session=date(2026, 8, 20),
+                    semantic_input_time_valid=None,
+                    incident_reason="PROVEN_RETROACTIVE_NEXT_OPEN",
+                    metadata={"reason_codes": ["B", "A"]},
+                ),
+            ),
+        ).manifest_hash
+        for instant in instants
+    }
+
+    assert len(hashes) == 1
 
 
 class _PredictionReadDb:
