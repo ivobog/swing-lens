@@ -245,7 +245,12 @@ def _valid_ohlc(values: dict[str, Any]) -> bool:
     return low <= min(open_value, close) <= max(open_value, close) <= high
 
 
-def _selected_plan(db, tickers: list[str]) -> FetchPlan:
+def _selected_plan(
+    db,
+    tickers: list[str],
+    *,
+    required_keys: set[tuple[str, str]] | None = None,
+) -> FetchPlan:
     plan = build_fetch_plan(
         db=db,
         tickers=tickers,
@@ -253,9 +258,14 @@ def _selected_plan(db, tickers: list[str]) -> FetchPlan:
         what_to_show_values=BASES,
     )
     requested = {ticker.upper() for ticker in tickers}
-    items = [item for item in plan.items if item.ticker in requested]
-    if len(items) != len(requested) * len(BASES):
-        raise RuntimeError("selected canary did not produce exactly two basis requests per ticker")
+    expected_keys = required_keys or {
+        (ticker, basis) for ticker in requested for basis in BASES
+    }
+    items = [
+        item for item in plan.items if (item.ticker, item.what_to_show) in expected_keys
+    ]
+    if {(item.ticker, item.what_to_show) for item in items} != expected_keys:
+        raise RuntimeError("selected plan does not cover every required ticker/basis")
     if any(
         item.action not in {FetchAction.TOP_UP_RECENT, FetchAction.REFRESH_RECENT} for item in items
     ):
@@ -525,7 +535,10 @@ def dry_run_remaining() -> None:
         db.execute(text("SET TRANSACTION READ ONLY"))
         needs = MarketDataObligationService().recovery_needs(db)
         tickers = sorted({row.ticker for row in needs})
-        plan = _selected_plan(db, tickers) if tickers else None
+        required_keys = {(row.ticker, row.what_to_show) for row in needs}
+        plan = (
+            _selected_plan(db, tickers, required_keys=required_keys) if tickers else None
+        )
         items = plan.items if plan else []
         print(
             json.dumps(
