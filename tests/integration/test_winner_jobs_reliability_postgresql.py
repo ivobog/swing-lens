@@ -6,12 +6,18 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from threading import Barrier
 from time import perf_counter
 
 import pytest
-from sqlalchemy import create_engine, event, func, insert, select
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event, func, insert, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+import app.routers.winner_probability_routes as winner_routes
+from app.db import get_db
+from app.main import create_app
 from app.models.tables import (
     BackgroundJob,
     UploadRun,
@@ -33,6 +39,7 @@ from app.services.background_job_service import (
     claim_next_job,
     enqueue_job,
     heartbeat_job,
+    mark_job_deferred,
     recover_stale_jobs,
 )
 from app.services.background_worker import JobDeferred
@@ -51,11 +58,427 @@ from app.services.winner_probability.cohort_refresh_planner import CohortRefresh
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.job_handlers import (
     WINNER_LATEST_RESCORE,
+    WINNER_MATURATION_WORKFLOW_KEY,
+    WINNER_OUTCOME_MATURATION,
+    enqueue_outcome_maturation_workflow,
     execute_latest_rescore_job,
+    execute_outcome_maturation_job,
+)
+from app.services.winner_probability.outcome_orchestration_service import (
+    H5DrainResult,
 )
 from app.services.winner_probability.outcome_service import WinnerOutcomeRepository
 from app.services.winner_probability.probability_estimator import ProbabilityEstimator
 from app.services.winner_probability.reproduction_service import ReproductionService
+from app.services.winner_probability.scheduler import schedule_primary_h5_maturation
+from app.settings import Settings
+
+
+def test_incident_shape_4227_retry_deferred_rows_creates_no_child(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    observed = datetime(2026, 9, 5, 11, 0, tzinfo=UTC)
+    retry_at = observed + timedelta(minutes=15)
+    with Session(engine) as db:
+        _seed_retry_deferred_outcomes(db, observed=observed, retry_at=retry_at, row_count=4227)
+        root = enqueue_outcome_maturation_workflow(
+            db,
+            payload={"limit": 500, "max_batches": 10},
+            trigger_source="MANUAL",
+        )
+        db.commit()
+        root_id = root.id
+
+    with Session(engine) as db:
+        job = claim_next_job(db, "incident-reproduction-worker")
+        assert job is not None and job.id == root_id
+        db.commit()
+        started = perf_counter()
+        with pytest.raises(JobDeferred, match="RETRY_DEFERRED") as deferred:
+            execute_outcome_maturation_job(db, job, now=observed)
+        elapsed = perf_counter() - started
+        assert deferred.value.delay_seconds == 900
+        assert elapsed < 5
+        mark_job_deferred(
+            db,
+            job,
+            delay=timedelta(seconds=deferred.value.delay_seconds),
+            reason=deferred.value.reason,
+            execution_token=job.execution_token,
+        )
+        db.commit()
+
+    with Session(engine) as db:
+        repeated = enqueue_outcome_maturation_workflow(
+            db, payload={"limit": 500}, trigger_source="MANUAL"
+        )
+        assert repeated.id == root_id
+        assert getattr(repeated, "_coalesced", False)
+        db.commit()
+
+    with Session(engine) as db:
+        jobs = list(
+            db.scalars(
+                select(BackgroundJob).where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION)
+            )
+        )
+        attempt = db.scalar(
+            select(WinnerProcessingRun).where(WinnerProcessingRun.background_job_id == root_id)
+        )
+        assert len(jobs) == 1
+        assert jobs[0].parent_job_id is None
+        assert jobs[0].root_job_id == root_id
+        assert attempt is not None
+        assert attempt.counts_json["due_total"] == 4227
+        assert attempt.counts_json["retry_eligible_now"] == 0
+        assert attempt.counts_json["retry_deferred"] == 4227
+        assert attempt.counts_json["processed_h5"] == 0
+        assert attempt.counts_json["eligible_remaining"] == 0
+        assert attempt.counts_json["continuation_decision"] == "DEFER_SAME_JOB"
+        assert attempt.terminal_reason_code == "RETRY_DEFERRED"
+    engine.dispose()
+
+
+def test_lineage_migration_keeps_historical_jobs_readable(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database, "0056_cover_ceri_freshness")
+    engine = create_engine(disposable_postgres_database)
+    with engine.begin() as connection:
+        legacy_id = connection.scalar(
+            text(
+                """
+                INSERT INTO background_jobs (job_type, status, payload_json)
+                VALUES ('WINNER_OUTCOME_MATURATION', 'COMPLETED', '{}')
+                RETURNING id
+                """
+            )
+        )
+
+    _upgrade(disposable_postgres_database)
+    with Session(engine) as db:
+        legacy = db.get(BackgroundJob, legacy_id)
+        assert legacy is not None
+        assert legacy.status == JobStatus.COMPLETED
+        assert legacy.root_job_id is None
+        assert legacy.parent_job_id is None
+        assert legacy.continuation_depth is None
+        assert legacy.trigger_source is None
+    engine.dispose()
+
+
+@pytest.mark.parametrize("trigger_pair", [("MANUAL", "MANUAL"), ("MANUAL", "SCHEDULER")])
+def test_maturation_single_flight_coalesces_concurrent_root_triggers(
+    disposable_postgres_database: str,
+    trigger_pair: tuple[str, str],
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    barrier = Barrier(2)
+
+    def request(trigger_source: str) -> int:
+        with Session(engine) as db:
+            barrier.wait()
+            if trigger_source == "SCHEDULER":
+                job = schedule_primary_h5_maturation(
+                    db, now=datetime(2026, 9, 5, 11, 0, tzinfo=UTC)
+                )
+            else:
+                job = enqueue_outcome_maturation_workflow(
+                    db, payload={"limit": 500}, trigger_source="MANUAL"
+                )
+            db.commit()
+            return job.id
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        job_ids = list(pool.map(request, trigger_pair))
+
+    assert len(set(job_ids)) == 1
+    with Session(engine) as db:
+        jobs = list(
+            db.scalars(
+                select(BackgroundJob).where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION)
+            )
+        )
+        assert len(jobs) == 1
+        assert jobs[0].workflow_key == WINNER_MATURATION_WORKFLOW_KEY
+        assert jobs[0].root_job_id == jobs[0].id
+        assert jobs[0].continuation_depth == 0
+        with pytest.raises(IntegrityError):
+            enqueue_job(
+                db,
+                WINNER_OUTCOME_MATURATION,
+                {"limit": 500},
+                request_key="forced-duplicate",
+                workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
+                coalesce=False,
+                continuation_depth=0,
+                trigger_source="MANUAL",
+            )
+        db.rollback()
+    engine.dispose()
+
+
+def test_two_concurrent_api_clients_receive_one_maturation_workflow(
+    disposable_postgres_database: str,
+    monkeypatch,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    barrier = Barrier(2)
+    real_enqueue = winner_routes.enqueue_outcome_maturation_workflow
+
+    def synchronized_enqueue(*args, **kwargs):
+        barrier.wait()
+        return real_enqueue(*args, **kwargs)
+
+    monkeypatch.setattr(
+        winner_routes, "enqueue_outcome_maturation_workflow", synchronized_enqueue
+    )
+    app = create_app(
+        Settings(
+            _env_file=None,
+            database_url=disposable_postgres_database,
+            job_worker_enabled=False,
+            winner_probability_admin_enabled=True,
+        )
+    )
+
+    def session_dependency():
+        with Session(engine) as db:
+            yield db
+
+    app.dependency_overrides[get_db] = session_dependency
+
+    def post() -> dict:
+        with TestClient(app) as client:
+            response = client.post("/api/winner-probability/outcomes/process?limit=500")
+            assert response.status_code == 200
+            return response.json()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(lambda _index: post(), range(2)))
+
+    assert responses[0]["job_id"] == responses[1]["job_id"]
+    assert sorted(response["coalesced"] for response in responses) == [False, True]
+    with Session(engine) as db:
+        assert (
+            db.scalar(
+                select(func.count(BackgroundJob.id)).where(
+                    BackgroundJob.job_type == WINNER_OUTCOME_MATURATION
+                )
+            )
+            == 1
+        )
+    engine.dispose()
+
+
+def test_recovered_maturation_job_retains_single_flight_identity(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    expired_at = datetime.now(UTC) - timedelta(minutes=5)
+    with Session(engine) as db:
+        root = enqueue_outcome_maturation_workflow(
+            db, payload={"limit": 500}, trigger_source="SCHEDULER"
+        )
+        root.status = JobStatus.RUNNING
+        root.execution_token = "stale-token"
+        root.worker_id = "stale-worker"
+        root.lease_owner = "stale-worker"
+        root.lease_expires_at = expired_at
+        db.commit()
+        root_id = root.id
+
+    with Session(engine) as db:
+        assert recover_stale_jobs(db, stale_after_seconds=1) == 1
+        db.commit()
+        recovered = db.get(BackgroundJob, root_id)
+        assert recovered is not None
+        assert recovered.status == JobStatus.QUEUED
+        assert recovered.root_job_id == root_id
+        assert recovered.workflow_key == WINNER_MATURATION_WORKFLOW_KEY
+
+        manual = enqueue_outcome_maturation_workflow(
+            db, payload={"limit": 500}, trigger_source="MANUAL"
+        )
+        assert manual.id == root_id
+        assert getattr(manual, "_coalesced", False)
+        db.commit()
+
+    with Session(engine) as db:
+        assert (
+            db.scalar(
+                select(func.count(BackgroundJob.id)).where(
+                    BackgroundJob.job_type == WINNER_OUTCOME_MATURATION
+                )
+            )
+            == 1
+        )
+    engine.dispose()
+
+
+def test_cohort_refresh_and_maturation_remain_independent_single_flights(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        maturation = enqueue_outcome_maturation_workflow(
+            db, payload={"limit": 500}, trigger_source="MANUAL"
+        )
+        cohort = enqueue_job(
+            db,
+            "WINNER_COHORT_REFRESH",
+            {},
+            request_key="winner:cohort-refresh:stage1",
+        )
+        repeated = enqueue_outcome_maturation_workflow(
+            db, payload={"limit": 500}, trigger_source="MANUAL"
+        )
+        db.commit()
+        assert repeated.id == maturation.id
+        assert cohort.id != maturation.id
+
+    with Session(engine) as db:
+        counts = {
+            job_type: count
+            for job_type, count in db.execute(
+                select(BackgroundJob.job_type, func.count(BackgroundJob.id)).group_by(
+                    BackgroundJob.job_type
+                )
+            )
+        }
+        assert counts[WINNER_OUTCOME_MATURATION] == 1
+        assert counts["WINNER_COHORT_REFRESH"] == 1
+    engine.dispose()
+
+
+def test_manual_race_with_continuation_has_one_active_workflow(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        parent = BackgroundJob(
+            job_type=WINNER_OUTCOME_MATURATION,
+            status=JobStatus.PARTIAL,
+            workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
+            request_key="parent",
+            payload_json={},
+            run_after=datetime.now(UTC),
+            continuation_depth=0,
+            trigger_source="MANUAL",
+        )
+        db.add(parent)
+        db.flush()
+        parent.root_job_id = parent.id
+        db.commit()
+        parent_id = parent.id
+
+    def manual() -> int:
+        with Session(engine) as db:
+            job = enqueue_outcome_maturation_workflow(
+                db, payload={"limit": 500}, trigger_source="MANUAL"
+            )
+            db.commit()
+            return job.id
+
+    def continuation() -> int:
+        with Session(engine) as db:
+            job = enqueue_job(
+                db,
+                WINNER_OUTCOME_MATURATION,
+                {"limit": 500, "continuation": True},
+                request_key="continuation-race",
+                workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
+                single_flight_workflow=True,
+                root_job_id=parent_id,
+                parent_job_id=parent_id,
+                continuation_depth=1,
+                trigger_source="CONTINUATION",
+            )
+            db.commit()
+            return job.id
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        job_ids = list(pool.map(lambda call: call(), (manual, continuation)))
+
+    assert len(set(job_ids)) == 1
+    with Session(engine) as db:
+        active_count = db.scalar(
+            select(func.count(BackgroundJob.id)).where(
+                BackgroundJob.job_type == WINNER_OUTCOME_MATURATION,
+                BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RUNNING)),
+            )
+        )
+        assert active_count == 1
+    engine.dispose()
+
+
+def test_useful_slice_persists_one_child_with_root_parent_and_depth(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    observed = datetime(2026, 9, 5, 11, 0, tzinfo=UTC)
+    with Session(engine) as db:
+        _seed_retry_deferred_outcomes(db, observed=observed, retry_at=observed, row_count=1)
+        root = enqueue_outcome_maturation_workflow(
+            db, payload={"limit": 500}, trigger_source="MANUAL"
+        )
+        db.commit()
+        root_id = root.id
+
+    result = H5DrainResult(
+        due_h5_next_open=1200,
+        oldest_due_h5_session=date(2026, 8, 7),
+        oldest_due_h5_age=20,
+        processed_h5=500,
+        matured_h5=0,
+        pending_h5_after_cycle=1200,
+        excluded_h5=0,
+        failed_h5=0,
+        target_stop_matured=0,
+        unvisited_h5_after_cycle=700,
+        last_successful_full_drain_at=None,
+        due_total=1200,
+        retry_eligible_now=1200,
+        retry_deferred=0,
+        unvisited_total=700,
+        eligible_remaining=700,
+    )
+    with Session(engine) as db:
+        job = claim_next_job(db, "useful-slice-worker")
+        assert job is not None and job.id == root_id
+        db.commit()
+        response = execute_outcome_maturation_job(
+            db, job, orchestration_service=_StaticDrain(result), now=observed
+        )
+        db.commit()
+        assert response["continuation_decision"] == "ENQUEUE_CONTINUATION"
+
+    with Session(engine) as db:
+        jobs = list(
+            db.scalars(
+                select(BackgroundJob)
+                .where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION)
+                .order_by(BackgroundJob.id)
+            )
+        )
+        assert len(jobs) == 2
+        parent, child = jobs
+        assert parent.status == JobStatus.PARTIAL
+        assert child.status == JobStatus.QUEUED
+        assert child.workflow_key == parent.workflow_key == WINNER_MATURATION_WORKFLOW_KEY
+        assert child.root_job_id == parent.id
+        assert child.parent_job_id == parent.id
+        assert child.continuation_depth == 1
+        assert child.trigger_source == "CONTINUATION"
+    engine.dispose()
 
 
 def test_watermark_generation_idempotency_and_material_revision(
@@ -550,10 +973,7 @@ def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
                 "winner_prediction_snapshots" in statement for statement in selects
             )
             manifest_memberships = int(
-                db.scalar(
-                    select(func.count()).select_from(WinnerEstimateEvidenceMember)
-                )
-                or 0
+                db.scalar(select(func.count()).select_from(WinnerEstimateEvidenceMember)) or 0
             )
             # Generation manifests have their own member table; use persisted
             # manifest member counts without coupling this assertion to rows
@@ -563,8 +983,7 @@ def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
                     select(func.sum(WinnerEvidenceManifest.member_count))
                     .join(
                         WinnerCohortStatistic,
-                        WinnerCohortStatistic.evidence_manifest_id
-                        == WinnerEvidenceManifest.id,
+                        WinnerCohortStatistic.evidence_manifest_id == WinnerEvidenceManifest.id,
                     )
                     .where(WinnerCohortStatistic.generation_id == generation_id)
                 )
@@ -819,6 +1238,95 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
     return definition
 
 
+class _StaticDrain:
+    def __init__(self, result: H5DrainResult) -> None:
+        self.result = result
+
+    def drain_due(self, _db: Session, **_kwargs) -> H5DrainResult:
+        return self.result
+
+
+def _seed_retry_deferred_outcomes(
+    db: Session,
+    *,
+    observed: datetime,
+    retry_at: datetime,
+    row_count: int,
+) -> None:
+    config = load_winner_probability_config()
+    upload = UploadRun(
+        filename="winner-maturation-reliability.csv",
+        uploaded_at=observed - timedelta(days=30),
+        status="COMPLETED",
+    )
+    db.add(upload)
+    db.flush()
+    primary = config.primary_outcome_definition
+    db.add(
+        WinnerOutcomeDefinition(
+            definition_id=primary.id,
+            label="Winner maturation reliability",
+            entry_model=primary.entry_model,
+            horizon_sessions=primary.horizon_sessions,
+            target_pct=Decimal(str(primary.target_pct)),
+            stop_pct=Decimal(str(primary.stop_pct)),
+            same_bar_conflict_policy=primary.same_bar_conflict_policy,
+            calculation_version=config.engine.calculation_version,
+            config_hash=config.config_hash,
+            is_primary=True,
+            is_active=True,
+            metadata_json={},
+        )
+    )
+    prediction_values = [
+        {
+            "run_id": upload.id,
+            "ticker": f"R{index:05d}",
+            "prediction_as_of_date": date(2026, 8, 3),
+            "source_data_cutoff_at": observed - timedelta(days=20),
+            "entry_schedule_status": "RESOLVED",
+            "entry_data_status": "AVAILABLE",
+            "eligibility_status": "ELIGIBLE",
+            "feature_schema_version": config.feature_schema.version,
+            "feature_vector_hash": f"retry-vector-{index}",
+            "config_hash": config.config_hash,
+            "calculation_version": config.engine.calculation_version,
+            "feature_json": {"setup_family": "breakout"},
+            "source_ids_json": {},
+            "warning_flags_json": [],
+            "lineage_json": {"point_in_time_validated": True},
+        }
+        for index in range(row_count)
+    ]
+    prediction_ids = list(
+        db.scalars(
+            insert(WinnerPredictionSnapshot).returning(WinnerPredictionSnapshot.id),
+            prediction_values,
+        )
+    )
+    db.execute(
+        insert(WinnerForwardOutcome),
+        [
+            {
+                "prediction_id": prediction_id,
+                "entry_model": "NEXT_OPEN",
+                "horizon_sessions": 5,
+                "entry_session": date(2026, 8, 3),
+                "due_session": date(2026, 8, 7),
+                "status": "PENDING",
+                "revision": 1,
+                "is_current_revision": True,
+                "pending_reason_code": "MISSING_HORIZON_BAR",
+                "last_attempted_at": observed,
+                "retry_not_before_at": retry_at,
+                "metadata_json": {"pending_reason": "missing_horizon_bar"},
+            }
+            for prediction_id in prediction_ids
+        ],
+    )
+    db.flush()
+
+
 def _expand_material_evidence(
     db: Session,
     *,
@@ -860,8 +1368,7 @@ def _expand_material_evidence(
     ]
     prediction_ids = list(
         db.scalars(
-            insert(WinnerPredictionSnapshot)
-            .returning(WinnerPredictionSnapshot.id),
+            insert(WinnerPredictionSnapshot).returning(WinnerPredictionSnapshot.id),
             prediction_values,
         )
     )
@@ -1009,11 +1516,11 @@ def _append_material_revision(db: Session, definition_id: int, observed: datetim
     )
 
 
-def _upgrade(database_url: str) -> None:
+def _upgrade(database_url: str, revision: str = "head") -> None:
     env = os.environ.copy()
     env["DATABASE_URL"] = database_url
     subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        [sys.executable, "-m", "alembic", "upgrade", revision],
         check=True,
         cwd=os.getcwd(),
         env=env,

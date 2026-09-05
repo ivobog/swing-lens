@@ -235,6 +235,40 @@ def test_operations_page_exposes_overdue_pending_and_failed_jobs(monkeypatch) ->
     assert "<caption>Recent winner probability processing runs and errors.</caption>" in html
 
 
+def test_operations_page_disables_maturation_button_for_active_workflow(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+
+    html = templates.get_template("winner_probability_operations.html").render(
+        status={
+            "pending_outcomes": 4227,
+            "overdue_pending_outcomes": 4227,
+            "failed_processing_runs": 0,
+            "maturation_queue": {
+                "due_total": 4227,
+                "retry_eligible_now": 0,
+                "retry_deferred": 4227,
+                "earliest_retry_not_before": "2026-09-05T13:15:00+02:00",
+            },
+            "active_maturation_workflow": {
+                "job_id": 10001,
+                "status": "QUEUED",
+                "workflow_key": "winner:h5-next-open:maturation",
+                "root_job_id": 9978,
+                "trigger_source": "MANUAL",
+            },
+            "recent_processing_runs": [],
+        },
+        admin_enabled=True,
+    )
+
+    assert "H5 Calendar Due" in html
+    assert "Retry Eligible Now" in html
+    assert "Retry Deferred" in html
+    assert "winner:h5-next-open:maturation" in html
+    assert 'disabled aria-disabled="true"' in html
+    assert "2026-09-05T13:15:00+02:00" in html
+
+
 def test_model_health_page_renders_calibration_and_drift(monkeypatch) -> None:
     monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
 

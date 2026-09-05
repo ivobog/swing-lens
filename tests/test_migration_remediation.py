@@ -15,6 +15,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from psycopg import sql
 from sqlalchemy import create_engine, func, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
@@ -45,7 +46,8 @@ def _admin_database_url() -> str:
 
 
 def _database_url_for(clean_db_name: str) -> str:
-    return f"postgresql+psycopg://postgres:postgres@127.0.0.1:5432/{clean_db_name}"
+    admin_url = make_url(_admin_database_url().replace("postgresql://", "postgresql+psycopg://", 1))
+    return admin_url.set(database=clean_db_name).render_as_string(hide_password=False)
 
 
 def _connect_admin_or_skip() -> psycopg.Connection:

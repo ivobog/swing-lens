@@ -1395,6 +1395,24 @@ class BackgroundJob(Base):
         deferred=True,
         server_default=text("NULL"),
     )
+    root_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "background_jobs.id",
+            name="fk_background_jobs_root_job",
+            ondelete="SET NULL",
+            use_alter=True,
+        )
+    )
+    parent_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "background_jobs.id",
+            name="fk_background_jobs_parent_job",
+            ondelete="SET NULL",
+            use_alter=True,
+        )
+    )
+    continuation_depth: Mapped[int | None] = mapped_column(Integer)
+    trigger_source: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[int] = mapped_column(
         Integer,
@@ -1513,6 +1531,8 @@ class BackgroundJob(Base):
             "job_type",
             "status",
         ),
+        Index("idx_background_jobs_root_job_id", "root_job_id"),
+        Index("idx_background_jobs_parent_job_id", "parent_job_id"),
         Index(
             "uq_background_jobs_workflow_stage",
             "workflow_key",
@@ -1527,6 +1547,16 @@ class BackgroundJob(Base):
             "request_key",
             unique=True,
             postgresql_where=text("request_key IS NOT NULL AND status IN ('QUEUED', 'RUNNING')"),
+        ),
+        Index(
+            "uq_background_jobs_active_winner_maturation_workflow",
+            "workflow_key",
+            unique=True,
+            postgresql_where=text(
+                "job_type = 'WINNER_OUTCOME_MATURATION' "
+                "AND workflow_key IS NOT NULL "
+                "AND status IN ('QUEUED', 'RUNNING', 'RECOVERING')"
+            ),
         ),
     )
 

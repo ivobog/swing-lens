@@ -55,6 +55,11 @@ def enqueue_job(
     request_key: str | None = None,
     workflow_key: str | None = None,
     coalesce: bool = True,
+    single_flight_workflow: bool = False,
+    root_job_id: int | None = None,
+    parent_job_id: int | None = None,
+    continuation_depth: int | None = None,
+    trigger_source: str | None = None,
 ) -> BackgroundJob:
     if not _database_has_job_progress_columns(db):
         return _enqueue_pre_migration_job(
@@ -67,6 +72,14 @@ def enqueue_job(
             run_after=run_after,
             request_key=request_key,
         )
+    if workflow_key and single_flight_workflow and coalesce:
+        existing = active_job_for_workflow_key(db, job_type, workflow_key)
+        if existing is not None:
+            existing._coalesced = True
+            operational_metrics.increment(
+                "swinglens_jobs_coalesced_total", job_type=job_type, reason="workflow_single_flight"
+            )
+            return existing
     if workflow_key and request_key and coalesce:
         existing = workflow_stage_job(db, workflow_key, job_type, request_key)
         if existing is not None:
@@ -104,10 +117,23 @@ def enqueue_job(
     }
     if workflow_key is not None:
         job_values["workflow_key"] = workflow_key
+    lineage_requested = any(
+        value is not None
+        for value in (root_job_id, parent_job_id, continuation_depth, trigger_source)
+    )
+    if lineage_requested and _database_has_maturation_lineage_columns(db):
+        job_values.update(
+            {
+                "root_job_id": root_job_id,
+                "parent_job_id": parent_job_id,
+                "continuation_depth": continuation_depth,
+                "trigger_source": trigger_source,
+            }
+        )
     job = BackgroundJob(**job_values)
     try:
         begin_nested = getattr(db, "begin_nested", None)
-        if request_key and coalesce and callable(begin_nested):
+        if (request_key or single_flight_workflow) and coalesce and callable(begin_nested):
             with begin_nested():
                 db.add(job)
                 db.flush()
@@ -115,11 +141,15 @@ def enqueue_job(
             db.add(job)
             db.flush()
     except IntegrityError:
-        existing = (
-            workflow_stage_job(db, workflow_key, job_type, request_key)
-            if workflow_key and request_key
-            else active_job_for_request_key(db, job_type, request_key)
-        )
+        if not coalesce:
+            raise
+        existing = None
+        if workflow_key and single_flight_workflow:
+            existing = active_job_for_workflow_key(db, job_type, workflow_key)
+        if existing is None and workflow_key and request_key:
+            existing = workflow_stage_job(db, workflow_key, job_type, request_key)
+        if existing is None:
+            existing = active_job_for_request_key(db, job_type, request_key)
         if existing is None:
             raise
         existing._coalesced = True
@@ -159,6 +189,14 @@ def _database_has_workflow_column(db: Session) -> bool:
     get_bind = getattr(db, "get_bind", None)
     if not callable(get_bind):
         return True
+    bind = get_bind()
+    try:
+        return any(
+            column["name"] == "workflow_key"
+            for column in sa_inspect(bind).get_columns("background_jobs")
+        )
+    except Exception:
+        return True
 
 
 def _database_has_job_progress_columns(db: Session) -> bool:
@@ -171,12 +209,21 @@ def _database_has_job_progress_columns(db: Session) -> bool:
         return "last_progress_at" in names
     except Exception:
         return True
+
+
+def _database_has_maturation_lineage_columns(db: Session) -> bool:
+    get_bind = getattr(db, "get_bind", None)
+    if not callable(get_bind):
+        return True
     bind = get_bind()
     try:
-        return any(
-            column["name"] == "workflow_key"
-            for column in sa_inspect(bind).get_columns("background_jobs")
-        )
+        names = {column["name"] for column in sa_inspect(bind).get_columns("background_jobs")}
+        return {
+            "root_job_id",
+            "parent_job_id",
+            "continuation_depth",
+            "trigger_source",
+        }.issubset(names)
     except Exception:
         return True
 
@@ -257,6 +304,60 @@ def active_job_for_request_key(
         if isinstance(row, BackgroundJob):
             return row
     return None
+
+
+def active_job_for_workflow_key(
+    db: Session,
+    job_type: str,
+    workflow_key: str | None,
+) -> BackgroundJob | None:
+    if not workflow_key:
+        return None
+
+    local_job = _active_workflow_job_from_local_store(db, job_type, workflow_key)
+    if local_job is not None:
+        return local_job
+
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return None
+    result = scalars(
+        select(BackgroundJob)
+        .where(BackgroundJob.job_type == job_type)
+        .where(BackgroundJob.workflow_key == workflow_key)
+        .where(BackgroundJob.status.in_(ACTIVE_JOB_STATUSES))
+        .order_by(BackgroundJob.created_at.asc(), BackgroundJob.id.asc())
+        .limit(1)
+    )
+    rows = result.all() if hasattr(result, "all") else list(result)
+    return next((row for row in rows if isinstance(row, BackgroundJob)), None)
+
+
+def active_job_for_type(db: Session, job_type: str) -> BackgroundJob | None:
+    for attr_name in ("background_jobs", "jobs", "stale_jobs"):
+        rows = getattr(db, attr_name, None)
+        if rows is None:
+            continue
+        candidates = rows.values() if isinstance(rows, dict) else rows
+        for row in candidates:
+            if (
+                isinstance(row, BackgroundJob)
+                and row.job_type == job_type
+                and row.status in ACTIVE_JOB_STATUSES
+            ):
+                return row
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return None
+    result = scalars(
+        select(BackgroundJob)
+        .where(BackgroundJob.job_type == job_type)
+        .where(BackgroundJob.status.in_(ACTIVE_JOB_STATUSES))
+        .order_by(BackgroundJob.created_at.asc(), BackgroundJob.id.asc())
+        .limit(1)
+    )
+    rows = result.all() if hasattr(result, "all") else list(result)
+    return next((row for row in rows if isinstance(row, BackgroundJob)), None)
 
 
 def claim_next_job(
@@ -1024,6 +1125,26 @@ def _active_job_from_local_store(
             if not isinstance(row, BackgroundJob):
                 continue
             if row.job_type != job_type or row.request_key != request_key:
+                continue
+            if row.status in ACTIVE_JOB_STATUSES:
+                return row
+    return None
+
+
+def _active_workflow_job_from_local_store(
+    db: Session,
+    job_type: str,
+    workflow_key: str,
+) -> BackgroundJob | None:
+    for attr_name in ("background_jobs", "jobs", "stale_jobs"):
+        rows = getattr(db, attr_name, None)
+        if rows is None:
+            continue
+        candidates = rows.values() if isinstance(rows, dict) else rows
+        for row in candidates:
+            if not isinstance(row, BackgroundJob):
+                continue
+            if row.job_type != job_type or row.workflow_key != workflow_key:
                 continue
             if row.status in ACTIVE_JOB_STATUSES:
                 return row

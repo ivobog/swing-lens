@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -17,8 +20,14 @@ from app.models.tables import (
     WinnerProcessingRun,
 )
 from app.observability.db_monitor import job_phase
-from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
+from app.services.background_job_service import (
+    JobStatus,
+    active_job_for_type,
+    enqueue_job,
+    is_cancel_requested,
+)
 from app.services.background_worker import CancelRequested, JobDeferred
+from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 from app.services.winner_probability.backfill import (
     BackfillRequest,
@@ -64,6 +73,13 @@ WINNER_MODEL_TRAINING = "WINNER_MODEL_TRAINING"
 WINNER_SIMILARITY_CACHE = "WINNER_SIMILARITY_CACHE"
 WINNER_HISTORICAL_BACKFILL = "WINNER_HISTORICAL_BACKFILL"
 
+WINNER_MATURATION_WORKFLOW_KEY = "winner:h5-next-open:maturation"
+# A default slice can visit 5,000 rows (500 x 10). This permits bounded drains
+# up to five million rows while still making an accidental chain finite.
+MAX_MATURATION_CONTINUATION_DEPTH = 1000
+
+logger = logging.getLogger(__name__)
+
 FEATURE_NOT_ENABLED = "FEATURE_NOT_ENABLED"
 
 WinnerJobHandler = Callable[[Session, BackgroundJob], dict[str, Any] | None]
@@ -78,6 +94,41 @@ class WinnerJobFeatureNotEnabled(RuntimeError):
 
 class WinnerCohortRefreshCancelled(RuntimeError):
     pass
+
+
+def enqueue_outcome_maturation_workflow(
+    db: Session,
+    *,
+    payload: dict[str, Any],
+    trigger_source: str,
+    request_key: str | None = None,
+    priority: int = 100,
+) -> BackgroundJob:
+    """Enqueue or coalesce one root in the global primary-H5 workflow domain."""
+    existing = active_job_for_type(db, WINNER_OUTCOME_MATURATION)
+    if existing is not None:
+        existing._coalesced = True
+        operational_metrics.increment(
+            "swinglens_jobs_coalesced_total",
+            job_type=WINNER_OUTCOME_MATURATION,
+            reason="maturation_active_type",
+        )
+        return existing
+    job = enqueue_job(
+        db,
+        WINNER_OUTCOME_MATURATION,
+        payload,
+        request_key=request_key or f"winner:outcome-maturation:{uuid4().hex}",
+        workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
+        priority=priority,
+        single_flight_workflow=True,
+        continuation_depth=0,
+        trigger_source=trigger_source,
+    )
+    if not getattr(job, "_coalesced", False) and job.root_job_id is None:
+        job.root_job_id = job.id
+        db.flush()
+    return job
 
 
 @dataclass(frozen=True)
@@ -405,8 +456,65 @@ def execute_outcome_maturation_job(
         raise
 
     counts = result.as_dict()
+    processed = int(counts.get("processed_h5", counts.get("processed", 0)) or 0)
+    eligible_remaining = int(counts.get("eligible_remaining", 0) or 0)
+    retry_deferred = int(counts.get("retry_deferred", 0) or 0)
+    pending_after = int(counts.get("pending_h5_after_cycle", 0) or 0)
+    depth = int(job.continuation_depth or 0)
+    root_job_id = job.root_job_id or job.id
+    trigger_source = job.trigger_source or (
+        "RECOVERY" if int(job.recovery_count or 0) > 0 else "UNKNOWN"
+    )
+    continuation_decision = "DRAIN_COMPLETE"
+    continuation_reason = "NO_WORK_REMAINING"
+    defer_until: datetime | None = None
+
+    if processed == 0:
+        operational_metrics.increment("winner_maturation_zero_progress_total")
+        if retry_deferred > 0:
+            continuation_decision = "DEFER_SAME_JOB"
+            continuation_reason = "RETRY_DEFERRED"
+            defer_until = _parse_optional_datetime(counts.get("earliest_retry_not_before"))
+        elif eligible_remaining > 0 or pending_after > 0:
+            continuation_decision = "STOP_ZERO_PROGRESS"
+            continuation_reason = "ZERO_PROGRESS_BLOCKED"
+    elif eligible_remaining > 0:
+        if depth >= MAX_MATURATION_CONTINUATION_DEPTH:
+            continuation_decision = "STOP_CONTINUATION_LIMIT"
+            continuation_reason = "CONTINUATION_LIMIT_REACHED"
+        else:
+            continuation_decision = "ENQUEUE_CONTINUATION"
+            continuation_reason = "CONTINUATION_REQUIRED"
+    elif retry_deferred > 0:
+        continuation_decision = "DEFER_SAME_JOB"
+        continuation_reason = "RETRY_DEFERRED"
+        defer_until = _parse_optional_datetime(counts.get("earliest_retry_not_before"))
+    elif pending_after > 0:
+        continuation_decision = "STOP_NO_ELIGIBLE_WORK"
+        continuation_reason = "NO_RETRY_ELIGIBLE_ROWS"
+
+    counts.update(
+        {
+            "workflow_key": job.workflow_key or WINNER_MATURATION_WORKFLOW_KEY,
+            "root_job_id": root_job_id,
+            "parent_job_id": job.parent_job_id,
+            "continuation_depth": depth,
+            "trigger_source": trigger_source,
+            "continuation_decision": continuation_decision,
+            "continuation_reason": continuation_reason,
+        }
+    )
+    operational_metrics.increment("winner_maturation_jobs_total", trigger_source=trigger_source)
+    operational_metrics.set_gauge("winner_maturation_continuation_depth", depth)
+    for metric_name, field_name in (
+        ("winner_maturation_due_total", "due_total"),
+        ("winner_maturation_retry_eligible", "retry_eligible_now"),
+        ("winner_maturation_retry_deferred", "retry_deferred"),
+    ):
+        operational_metrics.set_gauge(metric_name, int(counts.get(field_name, 0) or 0))
+
     status = classify_maturation_status(counts)
-    if status == JobStatus.PARTIAL:
+    if continuation_decision != "DEFER_SAME_JOB" and status == JobStatus.PARTIAL:
         job.status = JobStatus.PARTIAL
     _finish_processing_run(
         db,
@@ -420,7 +528,10 @@ def execute_outcome_maturation_job(
             "max_batches": max_batches,
             "remaining_queue_depth": counts.get("pending_h5_after_cycle"),
             "unvisited_queue_depth": counts.get("unvisited_h5_after_cycle"),
+            "eligible_remaining": eligible_remaining,
+            "continuation_decision": continuation_decision,
         },
+        reason_code=continuation_reason,
     )
     definition_id = config.primary_outcome_definition.id
     if isinstance(db, Session):
@@ -448,7 +559,7 @@ def execute_outcome_maturation_job(
         if not counts.get("pending_h5_after_cycle", 0):
             refresh_state.last_zero_due_backlog_at = observed
         refresh_state.current_due_count = int(counts.get("pending_h5_after_cycle", 0) or 0)
-        refresh_state.current_deferred_count = int(counts.get("deferred_pending_h5", 0) or 0)
+        refresh_state.current_deferred_count = int(counts.get("retry_deferred", 0) or 0)
         oldest_due = counts.get("oldest_due_h5_session")
         refresh_state.oldest_due_session = (
             datetime.fromisoformat(str(oldest_due)).date() if oldest_due else None
@@ -461,19 +572,56 @@ def execute_outcome_maturation_job(
             {"outcome_definition_id": definition_id},
             request_key=f"winner:cohort-refresh:{definition_id}",
         )
-    if counts.get("unvisited_h5_after_cycle", 0):
+    if continuation_decision == "ENQUEUE_CONTINUATION":
         enqueue_job(
             db,
             WINNER_OUTCOME_MATURATION,
             {"limit": limit, "max_batches": max_batches, "continuation": True},
             request_key=f"winner:h5-next-open:continuation:{processing_run.id}",
+            workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
+            single_flight_workflow=True,
+            root_job_id=root_job_id,
+            parent_job_id=job.id,
+            continuation_depth=depth + 1,
+            trigger_source="CONTINUATION",
         )
-    return {
+        operational_metrics.increment("winner_maturation_continuations_total")
+
+    logger.info(
+        "winner.maturation.continuation_decision",
+        extra={
+            "workflow_key": counts["workflow_key"],
+            "root_job_id": root_job_id,
+            "background_job_id": job.id,
+            "processing_run_id": processing_run.id,
+            "trigger_source": trigger_source,
+            "continuation_depth": depth,
+            "due_total": counts.get("due_total"),
+            "retry_eligible_now": counts.get("retry_eligible_now"),
+            "retry_deferred": retry_deferred,
+            "processed_h5": processed,
+            "matured_h5": counts.get("matured_h5", counts.get("matured")),
+            "eligible_remaining": eligible_remaining,
+            "earliest_retry_not_before": counts.get("earliest_retry_not_before"),
+            "continuation_decision": continuation_decision,
+            "continuation_reason": continuation_reason,
+        },
+    )
+
+    response = {
         "job_type": WINNER_OUTCOME_MATURATION,
         "processing_run_id": processing_run.id,
         "status": status,
         **counts,
     }
+    if continuation_decision == "DEFER_SAME_JOB" and defer_until is not None:
+        observed = now or _utcnow()
+        delay_seconds = max(1, math.ceil((defer_until - observed).total_seconds()))
+        raise JobDeferred(
+            f"{continuation_reason}: Winner maturation retry cooldown is active",
+            delay_seconds=delay_seconds,
+        )
+    return response
 
 
 def execute_outcome_revision_check_job(
@@ -949,6 +1097,11 @@ def _start_processing_run(
             "background_job_type": job.job_type,
             **token_metadata,
             "lease_owner": job.lease_owner,
+            "workflow_key": job.workflow_key,
+            "root_job_id": job.root_job_id,
+            "parent_job_id": job.parent_job_id,
+            "continuation_depth": job.continuation_depth,
+            "trigger_source": job.trigger_source,
         },
     )
     db.add(processing_run)
@@ -1073,6 +1226,15 @@ def _optional_int(payload: dict[str, Any], key: str) -> int | None:
     if value is None:
         return None
     return _coerce_int(value, key)
+
+
+def _parse_optional_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not value:
+        return None
+    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 def _int_list(

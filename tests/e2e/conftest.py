@@ -15,6 +15,7 @@ import psycopg
 import pytest
 from playwright.sync_api import Browser, Page, sync_playwright
 from psycopg import sql
+from sqlalchemy.engine import make_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
@@ -59,7 +60,11 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         pytest.fail(f"Browser tests require disposable PostgreSQL: {exc}")
 
     admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
-    database_url = f"postgresql+psycopg://postgres:postgres@127.0.0.1:5432/{database_name}"
+    database_url = (
+        make_url(admin_url.replace("postgresql://", "postgresql+psycopg://", 1))
+        .set(database=database_name)
+        .render_as_string(hide_password=False)
+    )
     global _LIVE_SERVER_DATABASE_URL
     _LIVE_SERVER_DATABASE_URL = database_url
     runtime_root = tmp_path_factory.mktemp("swinglens-browser")

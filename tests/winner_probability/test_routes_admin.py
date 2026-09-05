@@ -88,9 +88,16 @@ def test_outcome_process_admin_endpoint_queues_maturation_job() -> None:
         "status": JobStatus.QUEUED,
         "limit": 25,
         "coalesced": False,
+        "workflow_key": "winner:h5-next-open:maturation",
+        "root_job_id": 1,
+        "trigger_source": "MANUAL",
     }
     assert db.jobs[0].job_type == WINNER_OUTCOME_MATURATION
     assert db.jobs[0].payload_json == {"limit": 25}
+    assert db.jobs[0].workflow_key == "winner:h5-next-open:maturation"
+    assert db.jobs[0].root_job_id == db.jobs[0].id
+    assert db.jobs[0].continuation_depth == 0
+    assert db.jobs[0].trigger_source == "MANUAL"
     assert db.commits == 1
 
 
@@ -109,6 +116,27 @@ def test_outcome_process_admin_endpoint_rejects_invalid_limit() -> None:
 
     assert response.status_code == 422
     assert db.jobs == []
+
+
+def test_outcome_process_double_click_returns_the_active_workflow() -> None:
+    db = AdminRouteFakeDb(run_exists=True)
+    app = create_app(
+        Settings(
+            _env_file=None,
+            job_worker_enabled=False,
+            winner_probability_admin_enabled=True,
+        )
+    )
+    app.dependency_overrides[get_db] = lambda: db
+    client = TestClient(app)
+
+    first = client.post("/api/winner-probability/outcomes/process?limit=25")
+    second = client.post("/api/winner-probability/outcomes/process?limit=25")
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["job_id"] == second.json()["job_id"]
+    assert second.json()["coalesced"] is True
+    assert len(db.jobs) == 1
 
 
 class AdminRouteFakeDb:

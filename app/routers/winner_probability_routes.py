@@ -36,8 +36,8 @@ from app.services.winner_probability.exports import (
 )
 from app.services.winner_probability.job_handlers import (
     WINNER_COHORT_REFRESH,
-    WINNER_OUTCOME_MATURATION,
     WINNER_PREDICTION_CAPTURE,
+    enqueue_outcome_maturation_workflow,
 )
 from app.services.winner_probability.operations_service import (
     WinnerProbabilityOperationsService,
@@ -577,11 +577,10 @@ def queue_winner_outcome_maturation(
     if limit <= 0 or limit > 5000:
         raise HTTPException(status_code=422, detail="limit must be between 1 and 5000.")
     try:
-        job = enqueue_job(
+        job = enqueue_outcome_maturation_workflow(
             db,
-            job_type=WINNER_OUTCOME_MATURATION,
             payload={"limit": limit},
-            request_key=f"winner:outcome-maturation:limit:{limit}",
+            trigger_source="MANUAL",
         )
         db.commit()
     except Exception:
@@ -593,6 +592,9 @@ def queue_winner_outcome_maturation(
         "status": job.status,
         "limit": limit,
         "coalesced": bool(getattr(job, "_coalesced", False)),
+        "workflow_key": job.workflow_key,
+        "root_job_id": job.root_job_id,
+        "trigger_source": job.trigger_source,
     }
 
 

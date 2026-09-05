@@ -6,14 +6,17 @@ import pytest
 
 from app.models.tables import BackgroundJob, WinnerProcessingRun
 from app.services.background_job_service import JobStatus
-from app.services.background_worker import CancelRequested, default_job_handlers
+from app.services.background_worker import CancelRequested, JobDeferred, default_job_handlers
+from app.services.operational_metrics import operational_metrics
 from app.services.winner_probability.capture_service import (
     WinnerPredictionCaptureCancelled,
     WinnerPredictionCaptureResult,
 )
 from app.services.winner_probability.job_handlers import (
     FEATURE_NOT_ENABLED,
+    MAX_MATURATION_CONTINUATION_DEPTH,
     WINNER_COHORT_REFRESH,
+    WINNER_MATURATION_WORKFLOW_KEY,
     WINNER_MODEL_TRAINING,
     WINNER_OUTCOME_MATURATION,
     WINNER_PREDICTION_CAPTURE,
@@ -199,6 +202,167 @@ def test_outcome_maturation_worker_path_receives_injected_time() -> None:
     assert service.now == fixed_now
 
 
+def test_zero_progress_retry_deferred_slice_never_enqueues_immediate_child(monkeypatch) -> None:
+    operational_metrics.reset()
+    fixed_now = datetime(2026, 9, 5, 11, 0, tzinfo=UTC)
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    service = FakeOrchestrationService(
+        _drain_result(
+            due_total=4227,
+            retry_eligible_now=0,
+            retry_deferred=4227,
+            processed_h5=0,
+            pending_h5_after_cycle=4227,
+            unvisited_h5_after_cycle=4227,
+            unvisited_total=4227,
+            eligible_remaining=0,
+            earliest_retry_not_before="2026-09-05T11:15:00+00:00",
+        )
+    )
+    queued = []
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.enqueue_job",
+        lambda *args, **kwargs: queued.append((args, kwargs)),
+    )
+
+    with pytest.raises(JobDeferred, match="RETRY_DEFERRED") as deferred:
+        execute_outcome_maturation_job(db, job, orchestration_service=service, now=fixed_now)
+
+    assert deferred.value.delay_seconds == 900
+    assert queued == []
+    assert db.processing_runs[0].terminal_reason_code == "RETRY_DEFERRED"
+    assert db.processing_runs[0].counts_json["continuation_decision"] == "DEFER_SAME_JOB"
+    assert operational_metrics.total("winner_maturation_zero_progress_total") == 1
+    assert operational_metrics.total("winner_maturation_due_total") == 4227
+    assert operational_metrics.total("winner_maturation_retry_eligible") == 0
+    assert operational_metrics.total("winner_maturation_retry_deferred") == 4227
+
+
+def test_partial_with_progress_enqueues_exactly_one_child_with_stable_lineage(monkeypatch) -> None:
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    job.root_job_id = job.id
+    job.workflow_key = WINNER_MATURATION_WORKFLOW_KEY
+    job.continuation_depth = 2
+    service = FakeOrchestrationService(
+        _drain_result(
+            due_total=1200,
+            retry_eligible_now=1200,
+            processed_h5=500,
+            matured_h5=500,
+            pending_h5_after_cycle=700,
+            unvisited_h5_after_cycle=700,
+            unvisited_total=700,
+            eligible_remaining=700,
+        )
+    )
+    queued = []
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.enqueue_job",
+        lambda *args, **kwargs: queued.append((args, kwargs)),
+    )
+
+    result = execute_outcome_maturation_job(db, job, orchestration_service=service)
+
+    maturation_children = [item for item in queued if item[0][1] == WINNER_OUTCOME_MATURATION]
+    assert len(maturation_children) == 1
+    _, kwargs = maturation_children[0]
+    assert kwargs["workflow_key"] == WINNER_MATURATION_WORKFLOW_KEY
+    assert kwargs["root_job_id"] == job.id
+    assert kwargs["parent_job_id"] == job.id
+    assert kwargs["continuation_depth"] == 3
+    assert kwargs["trigger_source"] == "CONTINUATION"
+    assert kwargs["single_flight_workflow"] is True
+    assert result["continuation_decision"] == "ENQUEUE_CONTINUATION"
+
+
+def test_progress_with_only_retry_deferred_rows_does_not_enqueue_child(monkeypatch) -> None:
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    service = FakeOrchestrationService(
+        _drain_result(
+            due_total=3,
+            retry_eligible_now=1,
+            retry_deferred=2,
+            processed_h5=1,
+            matured_h5=0,
+            pending_h5_after_cycle=3,
+            unvisited_h5_after_cycle=2,
+            unvisited_total=2,
+            eligible_remaining=0,
+            earliest_retry_not_before="2026-09-05T11:15:00+00:00",
+        )
+    )
+    queued = []
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.enqueue_job",
+        lambda *args, **kwargs: queued.append((args, kwargs)),
+    )
+
+    with pytest.raises(JobDeferred, match="RETRY_DEFERRED"):
+        execute_outcome_maturation_job(db, job, orchestration_service=service)
+
+    assert queued == []
+
+
+def test_processed_but_zero_matured_is_real_progress_and_can_continue(monkeypatch) -> None:
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    service = FakeOrchestrationService(
+        _drain_result(
+            due_total=600,
+            retry_eligible_now=600,
+            processed_h5=500,
+            matured_h5=0,
+            pending_h5_after_cycle=600,
+            unvisited_h5_after_cycle=100,
+            unvisited_total=100,
+            eligible_remaining=100,
+        )
+    )
+    queued = []
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.enqueue_job",
+        lambda *args, **kwargs: queued.append((args, kwargs)),
+    )
+
+    result = execute_outcome_maturation_job(db, job, orchestration_service=service)
+
+    assert len([item for item in queued if item[0][1] == WINNER_OUTCOME_MATURATION]) == 1
+    assert result["continuation_decision"] == "ENQUEUE_CONTINUATION"
+
+
+def test_continuation_depth_circuit_breaker_stops_child(monkeypatch) -> None:
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    job.root_job_id = job.id
+    job.continuation_depth = MAX_MATURATION_CONTINUATION_DEPTH
+    service = FakeOrchestrationService(
+        _drain_result(
+            due_total=2,
+            retry_eligible_now=2,
+            processed_h5=1,
+            matured_h5=1,
+            pending_h5_after_cycle=1,
+            unvisited_h5_after_cycle=1,
+            unvisited_total=1,
+            eligible_remaining=1,
+        )
+    )
+    queued = []
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.enqueue_job",
+        lambda *args, **kwargs: queued.append((args, kwargs)),
+    )
+
+    result = execute_outcome_maturation_job(db, job, orchestration_service=service)
+
+    assert queued == []
+    assert result["continuation_decision"] == "STOP_CONTINUATION_LIMIT"
+    assert db.processing_runs[0].terminal_reason_code == "CONTINUATION_LIMIT_REACHED"
+
+
 def test_cohort_refresh_job_persists_processing_run_and_counts() -> None:
     db = JobHandlerFakeDb()
     job = _job(
@@ -329,3 +493,21 @@ def _job(
         execution_token="token-1",
         lease_owner="worker-a",
     )
+
+
+def _drain_result(**overrides) -> H5DrainResult:
+    values = {
+        "due_h5_next_open": 0,
+        "oldest_due_h5_session": None,
+        "oldest_due_h5_age": None,
+        "processed_h5": 0,
+        "matured_h5": 0,
+        "pending_h5_after_cycle": 0,
+        "excluded_h5": 0,
+        "failed_h5": 0,
+        "target_stop_matured": 0,
+        "unvisited_h5_after_cycle": 0,
+        "last_successful_full_drain_at": None,
+    }
+    values.update(overrides)
+    return H5DrainResult(**values)

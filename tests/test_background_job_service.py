@@ -23,6 +23,7 @@ from app.services.background_job_service import (
     request_job_cancel,
     requeue_stalled_jobs,
 )
+from app.services.winner_probability.job_handlers import enqueue_outcome_maturation_workflow
 
 
 def test_enqueue_job_persists_payload_and_defaults() -> None:
@@ -69,6 +70,52 @@ def test_enqueue_job_coalesces_matching_active_request_key() -> None:
     assert job.__dict__.get("_coalesced") is True
     assert db.added == []
     assert db.flushes == 0
+
+
+def test_enqueue_job_coalesces_active_workflow_across_different_request_keys() -> None:
+    existing = BackgroundJob(
+        id=3,
+        job_type="WINNER_OUTCOME_MATURATION",
+        request_key="manual-a",
+        workflow_key="winner:h5-next-open:maturation",
+        status=JobStatus.RUNNING,
+        payload_json={"limit": 500},
+    )
+    db = FakeDb(jobs=[existing])
+
+    job = enqueue_job(
+        db,
+        job_type="WINNER_OUTCOME_MATURATION",
+        payload={"limit": 1000},
+        request_key="scheduler-b",
+        workflow_key="winner:h5-next-open:maturation",
+        single_flight_workflow=True,
+        trigger_source="SCHEDULER",
+    )
+
+    assert job is existing
+    assert job.__dict__.get("_coalesced") is True
+    assert db.added == []
+
+
+def test_maturation_root_coalesces_pre_migration_active_job_without_workflow_key() -> None:
+    legacy = BackgroundJob(
+        id=9,
+        job_type="WINNER_OUTCOME_MATURATION",
+        request_key="legacy-manual",
+        workflow_key=None,
+        status=JobStatus.RUNNING,
+        payload_json={"limit": 500},
+    )
+    db = FakeDb(jobs=[legacy])
+
+    job = enqueue_outcome_maturation_workflow(
+        db, payload={"limit": 500}, trigger_source="SCHEDULER"
+    )
+
+    assert job is legacy
+    assert job.__dict__.get("_coalesced") is True
+    assert db.added == []
 
 
 def test_claim_next_job_marks_job_running() -> None:
@@ -492,14 +539,17 @@ def test_structural_progress_advance_prevents_false_stall_after_300_seconds() ->
     }
     db = FakeDb(stale_jobs=[job])
 
-    assert fence_stalled_jobs(
-        db,
-        default_timeout_seconds=300,
-        market_data_timeout_seconds=300,
-        long_stage_timeout_seconds=300,
-        now=now,
-        worker_id="worker-a",
-    ) == []
+    assert (
+        fence_stalled_jobs(
+            db,
+            default_timeout_seconds=300,
+            market_data_timeout_seconds=300,
+            long_stage_timeout_seconds=300,
+            now=now,
+            worker_id="worker-a",
+        )
+        == []
+    )
     observation = job.operational_metadata_json["progress_watchdog"]
     assert observation["progress_sequence"] == 146
     assert observation["unchanged_since"] == now.isoformat()

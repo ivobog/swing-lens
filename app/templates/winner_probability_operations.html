@@ -3,6 +3,7 @@
 {% block title %}Winner Probability Operations{% endblock %}
 
 {% block content %}
+{% set maturation_queue = status.maturation_queue|default({}) %}
 <script src="{{ url_for('static', path='/winner_probability.js') }}" defer></script>
 
 <section class="panel winner-probability-hero" data-winner-probability-page>
@@ -27,15 +28,30 @@
 <section class="metric-grid section-gap winner-probability-metrics" aria-label="Outcome operations summary">
   <div class="metric"><span>Pending</span><strong>{{ status.pending_outcomes }}</strong></div>
   <div class="metric"><span>Overdue</span><strong>{{ status.overdue_pending_outcomes }}</strong></div>
+  <div class="metric"><span>H5 Calendar Due</span><strong>{{ maturation_queue.due_total|default(0) }}</strong></div>
+  <div class="metric"><span>Retry Eligible Now</span><strong>{{ maturation_queue.retry_eligible_now|default(0) }}</strong></div>
+  <div class="metric"><span>Retry Deferred</span><strong>{{ maturation_queue.retry_deferred|default(0) }}</strong></div>
   <div class="metric"><span>Failed Runs</span><strong>{{ status.failed_processing_runs }}</strong></div>
 </section>
+
+{% if status.active_maturation_workflow %}
+  <section class="alert section-gap" role="status">
+    Maturation workflow <code>{{ status.active_maturation_workflow.workflow_key }}</code>
+    is {{ status.active_maturation_workflow.status|lower }} as job
+    {{ status.active_maturation_workflow.job_id }} (root {{ status.active_maturation_workflow.root_job_id }},
+    trigger {{ status.active_maturation_workflow.trigger_source }}).
+    {% if maturation_queue.earliest_retry_not_before %}
+      Next retry eligibility begins {{ maturation_queue.earliest_retry_not_before }}.
+    {% endif %}
+  </section>
+{% endif %}
 
 {% if admin_enabled %}
   <section class="panel section-gap">
     <div class="panel-header compact-header"><div><h2>Local Admin</h2></div></div>
     <div class="actions">
       <form method="post" action="/api/winner-probability/outcomes/process" data-winner-json-form>
-        <button type="submit" data-loading-label="Queueing...">Process due outcomes</button>
+        <button type="submit" data-loading-label="Queueing..." {% if status.active_maturation_workflow %}disabled aria-disabled="true" title="A maturation workflow is already active"{% endif %}>Process due outcomes</button>
         <output data-winner-form-output></output>
       </form>
       <form method="post" action="/api/winner-probability/cohorts/refresh" data-winner-json-form>

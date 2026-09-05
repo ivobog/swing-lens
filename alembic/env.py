@@ -1,12 +1,14 @@
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from app.db import Base
-from app.models import ceri_tables  # noqa: F401
-from app.models import ib_market_intelligence_tables  # noqa: F401
-from app.models import tables  # noqa: F401
+from app.models import (
+    ceri_tables,  # noqa: F401
+    ib_market_intelligence_tables,  # noqa: F401
+    tables,  # noqa: F401
+)
 from app.settings import get_settings
 
 config = context.config
@@ -15,7 +17,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# ConfigParser treats percent-encoded credentials as interpolation tokens.
+# Escape only for Alembic's config layer; SQLAlchemy receives the original URL.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 

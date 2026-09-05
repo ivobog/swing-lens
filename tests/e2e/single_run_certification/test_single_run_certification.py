@@ -24,6 +24,7 @@ import pytest
 from playwright.sync_api import Page, sync_playwright
 from psycopg import sql
 from sqlalchemy import create_engine, select, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.models.tables import PriceBar
@@ -84,7 +85,11 @@ def certification_environment(
         pytest.fail(f"BLOCKED: certification requires disposable PostgreSQL: {exc}")
     admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
 
-    database_url = f"postgresql+psycopg://postgres:postgres@127.0.0.1:5432/{database_name}"
+    database_url = (
+        make_url(admin_url.replace("postgresql://", "postgresql+psycopg://", 1))
+        .set(database=database_name)
+        .render_as_string(hide_password=False)
+    )
     runtime_root = tmp_path_factory.mktemp("swinglens-single-run-certification")
     artifact_dir = REPO_ROOT / "test-results" / "single-run-certification" / execution_id
     for relative in (

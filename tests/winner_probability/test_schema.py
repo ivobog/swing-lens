@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.db import Base
 from app.models.tables import (
+    BackgroundJob,
     WinnerEstimateEvidenceMember,
     WinnerForwardOutcome,
     WinnerModelVersion,
@@ -136,6 +137,26 @@ def test_outcome_tables_define_pending_and_revision_identities() -> None:
         "idx_winner_target_stop_outcomes_prediction_definition",
         "idx_winner_target_stop_outcomes_current_revision",
     }.issubset(target_indexes)
+
+
+def test_background_jobs_define_winner_maturation_lineage_and_single_flight() -> None:
+    table = BackgroundJob.__table__
+    indexes = {index.name: index for index in table.indexes}
+
+    assert {
+        "root_job_id",
+        "parent_job_id",
+        "workflow_key",
+        "continuation_depth",
+        "trigger_source",
+    }.issubset(table.c.keys())
+    assert "idx_background_jobs_root_job_id" in indexes
+    assert "idx_background_jobs_parent_job_id" in indexes
+    single_flight = indexes["uq_background_jobs_active_winner_maturation_workflow"]
+    assert single_flight.unique
+    predicate = str(single_flight.dialect_options["postgresql"]["where"])
+    assert "WINNER_OUTCOME_MATURATION" in predicate
+    assert "RECOVERING" in predicate
 
 
 def test_probability_estimate_and_evidence_membership_identities_are_defined() -> None:

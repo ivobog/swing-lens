@@ -480,7 +480,9 @@ class WinnerOutcomeRepository:
         horizon_sessions: int | None = None,
         due_session: date | None = None,
         exclude_ids: tuple[int, ...] = (),
+        retry_as_of: datetime | None = None,
     ) -> list[WinnerForwardOutcome]:
+        retry_as_of = retry_as_of or _utcnow()
         statement = (
             select(WinnerForwardOutcome)
             .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
@@ -488,7 +490,7 @@ class WinnerOutcomeRepository:
             .where(WinnerForwardOutcome.due_session <= completed_on)
             .where(
                 (WinnerForwardOutcome.retry_not_before_at.is_(None))
-                | (WinnerForwardOutcome.retry_not_before_at <= _utcnow())
+                | (WinnerForwardOutcome.retry_not_before_at <= retry_as_of)
             )
             # Try never-attempted outcomes before retrying rows already
             # blocked by missing bars. Otherwise the same old missing rows

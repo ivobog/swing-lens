@@ -10,10 +10,10 @@ def test_scheduler_is_idempotent_per_completed_us_session(monkeypatch) -> None:
     db = FakeSchedulerDb()
     enqueued = []
 
-    def fake_enqueue(_db, job_type, payload, **kwargs):
+    def fake_enqueue(_db, *, payload, **kwargs):
         job = SimpleNamespace(
             id=1,
-            job_type=job_type,
+            job_type="WINNER_OUTCOME_MATURATION",
             payload_json=payload,
             request_key=kwargs["request_key"],
         )
@@ -21,7 +21,7 @@ def test_scheduler_is_idempotent_per_completed_us_session(monkeypatch) -> None:
         db.existing = job
         return job
 
-    monkeypatch.setattr(scheduler, "enqueue_job", fake_enqueue)
+    monkeypatch.setattr(scheduler, "enqueue_outcome_maturation_workflow", fake_enqueue)
     now = datetime(2026, 8, 14, 2, 34, 21, tzinfo=UTC)
 
     first = scheduler.schedule_primary_h5_maturation(db, now=now)

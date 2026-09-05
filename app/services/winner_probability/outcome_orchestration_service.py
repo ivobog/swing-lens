@@ -36,12 +36,27 @@ class H5DrainResult:
     last_zero_due_backlog_at: str | None = None
     material_evidence_changes: int = 0
     reason_counts: dict[str, int] | None = None
+    due_total: int = 0
+    retry_eligible_now: int = 0
+    retry_deferred: int = 0
+    unvisited_total: int = 0
+    eligible_remaining: int = 0
+    earliest_retry_not_before: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         payload = self.__dict__.copy()
         if self.oldest_due_h5_session is not None:
             payload["oldest_due_h5_session"] = self.oldest_due_h5_session.isoformat()
         return payload
+
+
+@dataclass(frozen=True)
+class H5QueueState:
+    due_total: int
+    retry_eligible_now: int
+    retry_deferred: int
+    oldest_due_session: date | None
+    earliest_retry_not_before: datetime | None
 
 
 class H5NextOpenOrchestrationService:
@@ -73,7 +88,7 @@ class H5NextOpenOrchestrationService:
         completed_on = min(
             latest_completed_session(now), due_session or latest_completed_session(now)
         )
-        due_before, oldest = self._backlog(db, completed_on=completed_on)
+        before = self._queue_state(db, completed_on=completed_on, retry_as_of=now)
         processed_ids: list[int] = []
         processed = matured = excluded = failed = target_stop_matured = deferred = 0
         material_changes = 0
@@ -88,6 +103,7 @@ class H5NextOpenOrchestrationService:
                 horizon_sessions=5,
                 due_session=completed_on,
                 exclude_ids=tuple(processed_ids),
+                retry_as_of=now,
             )
             if not rows:
                 break
@@ -116,26 +132,31 @@ class H5NextOpenOrchestrationService:
             if lease_guard is not None:
                 lease_guard()
 
-        pending_after, _ = self._backlog(db, completed_on=completed_on)
-        unvisited = self._count_unvisited(
-            db, completed_on=completed_on, exclude_ids=tuple(processed_ids)
+        after = self._queue_state(db, completed_on=completed_on, retry_as_of=now)
+        unvisited = self._queue_state(
+            db,
+            completed_on=completed_on,
+            retry_as_of=now,
+            exclude_ids=tuple(processed_ids),
         )
-        scan_completed = unvisited == 0
+        scan_completed = unvisited.due_total == 0
         full_scan_at = now.isoformat() if scan_completed else None
-        zero_due_at = now.isoformat() if pending_after == 0 else None
+        zero_due_at = now.isoformat() if after.due_total == 0 else None
         return H5DrainResult(
-            due_h5_next_open=due_before,
-            oldest_due_h5_session=oldest,
+            due_h5_next_open=before.due_total,
+            oldest_due_h5_session=before.oldest_due_session,
             oldest_due_h5_age=(
-                us_trading_sessions_between(oldest, completed_on) if oldest is not None else None
+                us_trading_sessions_between(before.oldest_due_session, completed_on)
+                if before.oldest_due_session is not None
+                else None
             ),
             processed_h5=processed,
             matured_h5=matured,
-            pending_h5_after_cycle=pending_after,
+            pending_h5_after_cycle=after.due_total,
             excluded_h5=excluded,
             failed_h5=failed,
             target_stop_matured=target_stop_matured,
-            unvisited_h5_after_cycle=unvisited,
+            unvisited_h5_after_cycle=unvisited.due_total,
             last_successful_full_drain_at=zero_due_at,
             deferred_pending_h5=deferred,
             scan_completed=scan_completed,
@@ -143,34 +164,63 @@ class H5NextOpenOrchestrationService:
             last_zero_due_backlog_at=zero_due_at,
             material_evidence_changes=material_changes,
             reason_counts=reason_counts,
+            due_total=before.due_total,
+            retry_eligible_now=before.retry_eligible_now,
+            retry_deferred=after.retry_deferred,
+            unvisited_total=unvisited.due_total,
+            eligible_remaining=unvisited.retry_eligible_now,
+            earliest_retry_not_before=(
+                after.earliest_retry_not_before.isoformat()
+                if after.earliest_retry_not_before is not None
+                else None
+            ),
         )
 
-    def _backlog(self, db: Session, *, completed_on: date) -> tuple[int, date | None]:
-        custom = getattr(self.repository, "h5_backlog", None)
-        if callable(custom):
-            return custom(db, completed_on=completed_on)
-        row = db.execute(
-            select(func.count(WinnerForwardOutcome.id), func.min(WinnerForwardOutcome.due_session))
-            .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
-            .where(WinnerForwardOutcome.is_current_revision.is_(True))
-            .where(WinnerForwardOutcome.entry_model == EntryModel.NEXT_OPEN)
-            .where(WinnerForwardOutcome.horizon_sessions == 5)
-            .where(WinnerForwardOutcome.due_session <= completed_on)
-        ).one()
-        return int(row[0] or 0), row[1]
+    def queue_state(
+        self,
+        db: Session,
+        *,
+        now: datetime | None = None,
+        due_session: date | None = None,
+    ) -> H5QueueState:
+        now = now or datetime.now(UTC)
+        completed_on = min(
+            latest_completed_session(now), due_session or latest_completed_session(now)
+        )
+        return self._queue_state(db, completed_on=completed_on, retry_as_of=now)
 
-    def _count_unvisited(
+    def _queue_state(
         self,
         db: Session,
         *,
         completed_on: date,
-        exclude_ids: tuple[int, ...],
-    ) -> int:
-        custom = getattr(self.repository, "count_unvisited_h5", None)
+        retry_as_of: datetime,
+        exclude_ids: tuple[int, ...] = (),
+    ) -> H5QueueState:
+        custom = getattr(self.repository, "h5_queue_state", None)
         if callable(custom):
-            return int(custom(db, completed_on=completed_on, exclude_ids=exclude_ids))
+            value = custom(
+                db,
+                completed_on=completed_on,
+                retry_as_of=retry_as_of,
+                exclude_ids=exclude_ids,
+            )
+            if isinstance(value, H5QueueState):
+                return value
+            return H5QueueState(**value)
+
+        eligible = (WinnerForwardOutcome.retry_not_before_at.is_(None)) | (
+            WinnerForwardOutcome.retry_not_before_at <= retry_as_of
+        )
+        deferred = WinnerForwardOutcome.retry_not_before_at > retry_as_of
         statement = (
-            select(func.count(WinnerForwardOutcome.id))
+            select(
+                func.count(WinnerForwardOutcome.id),
+                func.count(WinnerForwardOutcome.id).filter(eligible),
+                func.count(WinnerForwardOutcome.id).filter(deferred),
+                func.min(WinnerForwardOutcome.due_session),
+                func.min(WinnerForwardOutcome.retry_not_before_at).filter(deferred),
+            )
             .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
             .where(WinnerForwardOutcome.is_current_revision.is_(True))
             .where(WinnerForwardOutcome.entry_model == EntryModel.NEXT_OPEN)
@@ -179,4 +229,11 @@ class H5NextOpenOrchestrationService:
         )
         if exclude_ids:
             statement = statement.where(WinnerForwardOutcome.id.not_in(exclude_ids))
-        return int(db.scalar(statement) or 0)
+        row = db.execute(statement).one()
+        return H5QueueState(
+            due_total=int(row[0] or 0),
+            retry_eligible_now=int(row[1] or 0),
+            retry_deferred=int(row[2] or 0),
+            oldest_due_session=row[3],
+            earliest_retry_not_before=row[4],
+        )
