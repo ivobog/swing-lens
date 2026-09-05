@@ -42,6 +42,31 @@ class TemporalQuarantineResult:
     decision_ids: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class TemporalCertificationItem:
+    prediction_id: int
+    decision_at: datetime
+    entry_session: date
+    semantic_input_time_valid: bool
+    certification_reason: str
+    metadata: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class TemporalCertificationPlan:
+    manifest_hash: str
+    item_count: int
+    valid_count: int
+    items: tuple[TemporalCertificationItem, ...]
+
+
+@dataclass(frozen=True)
+class TemporalCertificationResult:
+    manifest_hash: str
+    inserted_count: int
+    decision_ids: tuple[int, ...]
+
+
 class TemporalValidationService:
     """Append temporal certification or quarantine events without rewriting history."""
 
@@ -140,6 +165,143 @@ class TemporalValidationService:
             item_count=len(ordered),
             invalid_count=invalid_count,
             items=ordered,
+        )
+
+    def plan_certification(
+        self,
+        db: Session,
+        *,
+        items: tuple[TemporalCertificationItem, ...],
+    ) -> TemporalCertificationPlan:
+        """Build a deterministic positive-validity plan from explicit evidence."""
+        ordered = tuple(sorted(items, key=lambda item: item.prediction_id))
+        if len({item.prediction_id for item in ordered}) != len(ordered):
+            raise ValueError("certification manifest contains duplicate prediction ids")
+        predictions = {
+            int(row.id): row
+            for row in db.scalars(
+                select(WinnerPredictionSnapshot).where(
+                    WinnerPredictionSnapshot.id.in_([item.prediction_id for item in ordered])
+                )
+            )
+        }
+        missing = [item.prediction_id for item in ordered if item.prediction_id not in predictions]
+        if missing:
+            raise ValueError(f"certification predictions not found: {missing[:10]}")
+        for item in ordered:
+            schedule = us_market_session(item.entry_session)
+            if schedule is None:
+                raise ValueError(f"invalid entry session for prediction {item.prediction_id}")
+            result = validate_next_open_timing(
+                item.decision_at,
+                schedule.open_at,
+                source_data_cutoff_at=predictions[item.prediction_id].source_data_cutoff_at,
+                semantic_input_time_valid=item.semantic_input_time_valid,
+            )
+            if not result.evidence_eligible:
+                raise ValueError(
+                    f"prediction {item.prediction_id} is not positively valid: "
+                    f"{','.join(result.reason_codes)}"
+                )
+        return TemporalCertificationPlan(
+            manifest_hash=_certification_manifest_hash(ordered),
+            item_count=len(ordered),
+            valid_count=len(ordered),
+            items=ordered,
+        )
+
+    def apply_certification(
+        self,
+        db: Session,
+        *,
+        plan: TemporalCertificationPlan,
+        expected_manifest_hash: str,
+        actor: str,
+        request_key: str,
+        approve_write: bool,
+        evaluated_at: datetime | None = None,
+    ) -> TemporalCertificationResult:
+        """Append a reviewed positive-validity manifest without rewriting history."""
+        if not approve_write:
+            raise PermissionError("explicit approve_write=True is required")
+        if not actor.strip() or not request_key.strip():
+            raise ValueError("actor and request_key are required")
+        if plan.manifest_hash != expected_manifest_hash:
+            raise ValueError("certification manifest hash differs from the reviewed plan")
+        verified = self.plan_certification(db, items=plan.items)
+        if verified.manifest_hash != plan.manifest_hash:
+            raise ValueError("certification plan changed before application")
+
+        ids = [item.prediction_id for item in plan.items]
+        predictions = {
+            int(row.id): row
+            for row in db.scalars(
+                select(WinnerPredictionSnapshot)
+                .where(WinnerPredictionSnapshot.id.in_(ids))
+                .order_by(WinnerPredictionSnapshot.id)
+                .with_for_update()
+            )
+        }
+        existing = set(
+            db.scalars(
+                select(WinnerTemporalValidityDecision.prediction_id).where(
+                    WinnerTemporalValidityDecision.prediction_id.in_(ids)
+                )
+            )
+        )
+        if existing:
+            raise ValueError(
+                "positive certification refuses to supersede existing temporal decisions: "
+                f"{sorted(existing)[:10]}"
+            )
+        timestamp = evaluated_at or datetime.now(UTC)
+        rows: list[WinnerTemporalValidityDecision] = []
+        for item in plan.items:
+            prediction = predictions[item.prediction_id]
+            schedule = us_market_session(item.entry_session)
+            if schedule is None:
+                raise ValueError(f"invalid entry session for prediction {item.prediction_id}")
+            result = validate_next_open_timing(
+                item.decision_at,
+                schedule.open_at,
+                source_data_cutoff_at=prediction.source_data_cutoff_at,
+                semantic_input_time_valid=item.semantic_input_time_valid,
+            )
+            if not result.evidence_eligible:
+                raise ValueError(f"prediction {item.prediction_id} is no longer positively valid")
+            rows.append(
+                WinnerTemporalValidityDecision(
+                    prediction_id=item.prediction_id,
+                    validation_sequence=1,
+                    status=result.status,
+                    entry_timing_valid=result.entry_timing_valid,
+                    source_cutoff_valid=result.source_cutoff_valid,
+                    semantic_input_time_valid=result.semantic_input_time_valid,
+                    evidence_eligible=result.evidence_eligible,
+                    reason_codes_json=list(
+                        dict.fromkeys((*result.reason_codes, item.certification_reason))
+                    ),
+                    validation_version=result.validation_version,
+                    decision_at=item.decision_at,
+                    entry_session=item.entry_session,
+                    entry_open_at=schedule.open_at,
+                    evaluated_at=timestamp,
+                    evaluated_by=actor,
+                    metadata_json=canonicalize_temporal_metadata(
+                        {
+                            **dict(item.metadata or {}),
+                            "request_key": request_key,
+                            "manifest_hash": plan.manifest_hash,
+                        }
+                    ),
+                )
+            )
+        db.add_all(rows)
+        db.flush()
+        return TemporalCertificationResult(
+            manifest_hash=plan.manifest_hash,
+            inserted_count=len(rows),
+            decision_ids=tuple(int(row.id) for row in rows),
         )
 
     def apply_quarantine(
@@ -241,6 +403,21 @@ def _quarantine_manifest_hash(items: tuple[TemporalQuarantineItem, ...]) -> str:
             "entry_session": item.entry_session,
             "semantic_input_time_valid": item.semantic_input_time_valid,
             "incident_reason": item.incident_reason,
+            "metadata": item.metadata or {},
+        }
+        for item in items
+    ]
+    return hashlib.sha256(canonical_manifest_bytes(payload)).hexdigest()
+
+
+def _certification_manifest_hash(items: tuple[TemporalCertificationItem, ...]) -> str:
+    payload = [
+        {
+            "prediction_id": item.prediction_id,
+            "decision_at": item.decision_at,
+            "entry_session": item.entry_session,
+            "semantic_input_time_valid": item.semantic_input_time_valid,
+            "certification_reason": item.certification_reason,
             "metadata": item.metadata or {},
         }
         for item in items

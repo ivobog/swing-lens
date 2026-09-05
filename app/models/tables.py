@@ -2079,6 +2079,89 @@ class WinnerForwardOutcome(Base):
     )
 
 
+class WinnerMarketDataObligation(Base):
+    """Durable price-data dependency for one pending Winner outcome and basis."""
+
+    __tablename__ = "winner_market_data_obligations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    prediction_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_prediction_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    forward_outcome_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_forward_outcomes.id", ondelete="RESTRICT"), nullable=False
+    )
+    ib_contract_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ib_contracts.id", ondelete="RESTRICT")
+    )
+    ticker_snapshot: Mapped[str] = mapped_column(Text, nullable=False)
+    ib_conid_snapshot: Mapped[int | None] = mapped_column(BigInteger)
+    symbol_snapshot: Mapped[str | None] = mapped_column(Text)
+    local_symbol_snapshot: Mapped[str | None] = mapped_column(Text)
+    exchange_snapshot: Mapped[str | None] = mapped_column(Text)
+    primary_exchange_snapshot: Mapped[str | None] = mapped_column(Text)
+    currency_snapshot: Mapped[str | None] = mapped_column(Text)
+    sec_type_snapshot: Mapped[str | None] = mapped_column(Text)
+    trading_class_snapshot: Mapped[str | None] = mapped_column(Text)
+    entry_session: Mapped[date] = mapped_column(Date, nullable=False)
+    required_through_session: Mapped[date] = mapped_column(Date, nullable=False)
+    required_sessions_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    timeframe: Mapped[str] = mapped_column(Text, nullable=False, server_default="1 day")
+    what_to_show: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    first_missing_session: Mapped[date | None] = mapped_column(Date)
+    last_missing_session: Mapped[date | None] = mapped_column(Date)
+    price_series_watermark: Mapped[str] = mapped_column(Text, nullable=False)
+    last_evaluated_watermark: Mapped[str | None] = mapped_column(Text)
+    last_checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    fulfilled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_reason: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "forward_outcome_id",
+            "what_to_show",
+            name="uq_winner_market_data_obligation_outcome_basis",
+        ),
+        CheckConstraint(
+            "status IN ('FETCH_REQUIRED', 'SATISFIED', 'IDENTITY_BLOCKED', "
+            "'UNAVAILABLE', 'FAILED')",
+            name="ck_winner_market_data_obligation_status",
+        ),
+        CheckConstraint(
+            "what_to_show IN ('ADJUSTED_LAST', 'TRADES')",
+            name="ck_winner_market_data_obligation_basis",
+        ),
+        Index(
+            "idx_winner_market_data_obligation_status_range",
+            "status",
+            "what_to_show",
+            "first_missing_session",
+            "last_missing_session",
+        ),
+        Index(
+            "idx_winner_market_data_obligation_contract_status",
+            "ib_contract_id",
+            "status",
+        ),
+        Index(
+            "idx_winner_market_data_obligation_prediction",
+            "prediction_id",
+        ),
+    )
+
+
 class WinnerTargetStopOutcome(Base):
     __tablename__ = "winner_target_stop_outcomes"
 

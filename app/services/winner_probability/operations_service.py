@@ -6,10 +6,19 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, WinnerForwardOutcome, WinnerProcessingRun
+from app.models.tables import (
+    BackgroundJob,
+    WinnerForwardOutcome,
+    WinnerMarketDataObligation,
+    WinnerProcessingRun,
+)
 from app.services.background_job_service import ACTIVE_JOB_STATUSES
+from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.services.winner_probability.job_handlers import (
     WINNER_OUTCOME_MATURATION,
+)
+from app.services.winner_probability.market_data_obligation_service import (
+    global_daily_bar_lag,
 )
 from app.services.winner_probability.outcome_orchestration_service import (
     H5NextOpenOrchestrationService,
@@ -52,6 +61,19 @@ class WinnerProbabilityOperationsService:
             .limit(1)
         )
         queue = H5NextOpenOrchestrationService().queue_state(db)
+        obligation_counts = {
+            str(status): int(count)
+            for status, count in db.execute(
+                select(
+                    WinnerMarketDataObligation.status,
+                    func.count(WinnerMarketDataObligation.id),
+                ).group_by(WinnerMarketDataObligation.status)
+            )
+        }
+        daily_lag = global_daily_bar_lag(
+            db,
+            latest_completed_session=latest_completed_us_trading_day(),
+        )
         return {
             "pending_outcomes": pending_count,
             "overdue_pending_outcomes": overdue_count,
@@ -69,6 +91,17 @@ class WinnerProbabilityOperationsService:
             "active_maturation_workflow": (
                 _active_job_payload(active_maturation) if active_maturation else None
             ),
+            "market_data_obligations": obligation_counts,
+            "daily_bar_freshness": {
+                "latest_completed_session": daily_lag.latest_completed_session.isoformat(),
+                "latest_local_session": (
+                    daily_lag.latest_local_session.isoformat()
+                    if daily_lag.latest_local_session
+                    else None
+                ),
+                "lag_sessions": daily_lag.lag_sessions,
+                "degraded": daily_lag.degraded,
+            },
             "recent_processing_runs": [
                 _processing_run_payload(
                     row,

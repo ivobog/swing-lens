@@ -28,8 +28,13 @@ class PendingOutcomeMaterializationResult:
 
 
 class PendingOutcomeService:
-    def __init__(self, repository: WinnerProbabilityRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: WinnerProbabilityRepository | None = None,
+        obligation_service=None,
+    ) -> None:
         self.repository = repository or WinnerProbabilityRepository()
+        self.obligation_service = obligation_service
 
     def materialize_pending_outcomes(
         self,
@@ -44,13 +49,18 @@ class PendingOutcomeService:
             for raw_definition in config.outcome_definitions
         ]
         entry_models = (config.entry_models.production, *config.entry_models.diagnostics)
+        forward_outcomes: list[WinnerForwardOutcome] = []
         for entry_model in entry_models:
             for horizon in config.horizon.sessions:
-                _, created = self._ensure_forward_outcome(
+                forward, created = self._ensure_forward_outcome(
                     db, prediction, entry_model, horizon
                 )
+                forward_outcomes.append(forward)
                 if created:
                     forward_count += 1
+
+        if self.obligation_service is not None:
+            self.obligation_service.ensure_for_outcomes(db, forward_outcomes)
 
         for raw_definition, definition in zip(config.outcome_definitions, definitions, strict=True):
             forward = self.repository.get_forward_outcome(
@@ -89,11 +99,7 @@ class PendingOutcomeService:
         if existing is not None:
             return existing
         get_active = getattr(self.repository, "get_active_outcome_definition", None)
-        active = (
-            get_active(db, definition_id=raw_definition.id)
-            if callable(get_active)
-            else None
-        )
+        active = get_active(db, definition_id=raw_definition.id) if callable(get_active) else None
         if active is not None and active.calculation_version != config.engine.calculation_version:
             active.is_active = False
             active.retired_at = datetime.now(UTC)

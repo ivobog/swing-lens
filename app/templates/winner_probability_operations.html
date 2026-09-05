@@ -4,6 +4,8 @@
 
 {% block content %}
 {% set maturation_queue = status.maturation_queue|default({}) %}
+{% set obligation_state = status.market_data_obligations|default({}) %}
+{% set daily_bar_freshness = status.daily_bar_freshness|default({}) %}
 <script src="{{ url_for('static', path='/winner_probability.js') }}" defer></script>
 
 <section class="panel winner-probability-hero" data-winner-probability-page>
@@ -31,8 +33,19 @@
   <div class="metric"><span>H5 Calendar Due</span><strong>{{ maturation_queue.due_total|default(0) }}</strong></div>
   <div class="metric"><span>Retry Eligible Now</span><strong>{{ maturation_queue.retry_eligible_now|default(0) }}</strong></div>
   <div class="metric"><span>Retry Deferred</span><strong>{{ maturation_queue.retry_deferred|default(0) }}</strong></div>
+  <div class="metric"><span>Bar Fetch Required</span><strong>{{ obligation_state.FETCH_REQUIRED|default(0) }}</strong></div>
+  <div class="metric"><span>Bar Obligations Satisfied</span><strong>{{ obligation_state.SATISFIED|default(0) }}</strong></div>
+  <div class="metric"><span>Daily Bar Lag</span><strong>{{ daily_bar_freshness.lag_sessions|default(0) }}</strong></div>
   <div class="metric"><span>Failed Runs</span><strong>{{ status.failed_processing_runs }}</strong></div>
 </section>
+
+{% if daily_bar_freshness.degraded %}
+  <section class="alert section-gap" role="status">
+    Daily market data is {{ daily_bar_freshness.lag_sessions }} completed session(s) behind:
+    local {{ daily_bar_freshness.latest_local_session or "none" }}, expected
+    {{ daily_bar_freshness.latest_completed_session }}.
+  </section>
+{% endif %}
 
 {% if status.active_maturation_workflow %}
   <section class="alert section-gap" role="status">

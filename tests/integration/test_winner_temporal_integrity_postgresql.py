@@ -13,6 +13,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    IBContract,
     PriceBar,
     UploadRun,
     WinnerCohortDefinition,
@@ -22,6 +23,7 @@ from app.models.tables import (
     WinnerEvidenceManifest,
     WinnerEvidenceManifestMember,
     WinnerForwardOutcome,
+    WinnerMarketDataObligation,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
@@ -33,11 +35,17 @@ from app.services.winner_probability.cohort_generation_service import (
 )
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.evidence_service import EvidenceService
+from app.services.winner_probability.market_data_obligation_service import (
+    MarketDataObligationService,
+    global_daily_bar_lag,
+    required_outcome_sessions,
+)
 from app.services.winner_probability.outcome_orchestration_service import (
     H5NextOpenOrchestrationService,
 )
 from app.services.winner_probability.outcome_service import WinnerOutcomeRepository
 from app.services.winner_probability.temporal_validation_service import (
+    TemporalCertificationItem,
     TemporalQuarantineItem,
     TemporalValidationService,
 )
@@ -146,6 +154,33 @@ def test_invalid_pending_outcome_is_ignored_even_when_due_and_valid_peer_is_sele
                     metadata_json={},
                 )
             )
+        db.flush()
+        valid_forward = db.scalar(
+            select(WinnerForwardOutcome).where(
+                WinnerForwardOutcome.prediction_id == valid.id
+            )
+        )
+        db.add(
+            WinnerMarketDataObligation(
+                prediction_id=valid.id,
+                forward_outcome_id=valid_forward.id,
+                ticker_snapshot=valid.ticker,
+                entry_session=date(2026, 8, 20),
+                required_through_session=date(2026, 8, 26),
+                required_sessions_json=[
+                    "2026-08-20",
+                    "2026-08-21",
+                    "2026-08-24",
+                    "2026-08-25",
+                    "2026-08-26",
+                ],
+                timeframe="1 day",
+                what_to_show="ADJUSTED_LAST",
+                status="SATISFIED",
+                price_series_watermark="test",
+                metadata_json={},
+            )
+        )
         for bar_date in (
             date(2026, 8, 20),
             date(2026, 8, 21),
@@ -439,6 +474,262 @@ def test_quarantine_full_historical_cardinality_uses_one_atomic_bulk_path(
         assert all(
             prediction.planned_entry_session == date(2026, 8, 20) for prediction in predictions
         )
+    engine.dispose()
+
+
+def test_positive_temporal_certification_is_deterministic_append_only_and_does_not_rewrite(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        prediction = _prediction(db, ticker="CERTIFIED")
+        prediction.decision_at = None
+        original_capture = prediction.captured_at
+        original_entry = prediction.planned_entry_session
+        service = TemporalValidationService()
+        item = TemporalCertificationItem(
+            prediction_id=prediction.id,
+            decision_at=prediction.captured_at,
+            entry_session=prediction.planned_entry_session,
+            semantic_input_time_valid=True,
+            certification_reason="HISTORICAL_DURABLE_LINEAGE_VERIFIED",
+            metadata={"feature_cutoff_audit_hash": "abc123", "outcome_id": 91},
+        )
+
+        first = service.plan_certification(db, items=(item,))
+        second = service.plan_certification(db, items=(item,))
+        assert first.manifest_hash == second.manifest_hash
+        assert first.valid_count == first.item_count == 1
+
+        result = service.apply_certification(
+            db,
+            plan=first,
+            expected_manifest_hash=first.manifest_hash,
+            actor="TEST_CERTIFIER",
+            request_key="positive-certification-1",
+            approve_write=True,
+        )
+        db.commit()
+
+        assert result.inserted_count == 1
+        assert prediction.decision_at is None
+        assert prediction.captured_at == original_capture
+        assert prediction.planned_entry_session == original_entry
+        decision = db.scalar(
+            select(WinnerTemporalValidityDecision).where(
+                WinnerTemporalValidityDecision.prediction_id == prediction.id
+            )
+        )
+        assert decision.status == "VALID"
+        assert decision.evidence_eligible is True
+        assert decision.metadata_json["request_key"] == "positive-certification-1"
+        assert decision.metadata_json["manifest_hash"] == first.manifest_hash
+    engine.dispose()
+
+
+def test_positive_certification_rejects_unresolved_semantic_lineage(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        prediction = _prediction(db, ticker="UNCERTIFIED")
+        service = TemporalValidationService()
+        item = TemporalCertificationItem(
+            prediction_id=prediction.id,
+            decision_at=prediction.captured_at,
+            entry_session=prediction.planned_entry_session,
+            semantic_input_time_valid=None,
+            certification_reason="LINEAGE_UNRESOLVED",
+        )
+
+        with pytest.raises(ValueError, match="not positively valid"):
+            service.plan_certification(db, items=(item,))
+
+        assert db.scalar(select(func.count()).select_from(WinnerTemporalValidityDecision)) == 0
+    engine.dispose()
+
+
+def test_market_data_obligation_persists_identity_and_gates_maturation(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        prediction = _prediction(db, ticker="OBLIG")
+        TemporalValidationService().record(
+            db,
+            prediction=prediction,
+            decision_at=datetime(2026, 8, 20, 12, 0, tzinfo=UTC),
+            entry_session=date(2026, 8, 20),
+            semantic_input_time_valid=True,
+            evaluated_by="TEST_CAPTURE",
+        )
+        contract = IBContract(
+            ticker="OBLIG",
+            ib_conid=81234,
+            symbol="OBLIG",
+            local_symbol="OBLIG",
+            exchange="SMART",
+            primary_exchange="NASDAQ",
+            currency="USD",
+            sec_type="STK",
+            trading_class="NMS",
+            resolution_status="RESOLVED",
+        )
+        outcome = WinnerForwardOutcome(
+            prediction_id=prediction.id,
+            entry_model="NEXT_OPEN",
+            horizon_sessions=5,
+            entry_session=date(2026, 8, 20),
+            due_session=date(2026, 8, 26),
+            status="PENDING",
+            revision=1,
+            is_current_revision=True,
+            metadata_json={},
+        )
+        db.add_all([contract, outcome])
+        db.flush()
+
+        created = MarketDataObligationService().ensure_for_outcomes(db, [outcome])
+        assert created.created == 2
+        assert created.fetch_required == 2
+        obligations = list(db.scalars(select(WinnerMarketDataObligation)))
+        assert {row.what_to_show for row in obligations} == {"ADJUSTED_LAST", "TRADES"}
+        assert {row.ib_conid_snapshot for row in obligations} == {81234}
+        assert (
+            WinnerOutcomeRepository().get_due_pending_forward_outcomes(
+                db, completed_on=date(2026, 8, 27), limit=10
+            )
+            == []
+        )
+
+        sessions = required_outcome_sessions(date(2026, 8, 20), 5)
+        for session in sessions:
+            db.add(
+                PriceBar(
+                    ticker="OBLIG",
+                    bar_date=session,
+                    timeframe="1 day",
+                    open=Decimal("100"),
+                    high=Decimal("102"),
+                    low=Decimal("99"),
+                    close=Decimal("101"),
+                    volume=Decimal("1000"),
+                    source="TEST",
+                    what_to_show="ADJUSTED_LAST",
+                )
+            )
+        db.flush()
+        refreshed = MarketDataObligationService().evaluate(db, obligations=obligations)
+        assert refreshed.satisfied == 1
+        unchanged_watermark = obligations[0].price_series_watermark
+        repeated = MarketDataObligationService().evaluate(db, obligations=obligations)
+        assert repeated.satisfied == 1
+        assert obligations[0].price_series_watermark == unchanged_watermark
+        selected = WinnerOutcomeRepository().get_due_pending_forward_outcomes(
+            db, completed_on=date(2026, 8, 27), limit=10
+        )
+        assert [row.id for row in selected] == [outcome.id]
+
+        contract.ib_conid = 99999
+        db.flush()
+        blocked = MarketDataObligationService().evaluate(db, obligations=obligations)
+        assert blocked.identity_blocked == 2
+        assert (
+            WinnerOutcomeRepository().get_due_pending_forward_outcomes(
+                db, completed_on=date(2026, 8, 27), limit=10
+            )
+            == []
+        )
+    engine.dispose()
+
+
+def test_uncertified_and_quarantined_pending_outcomes_create_no_obligation(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        uncertified = _prediction(db, ticker="UNCERTOBL")
+        quarantined = _prediction(db, ticker="QUAROBL")
+        valid = _prediction(db, ticker="PERSISTOBL")
+        validator = TemporalValidationService()
+        validator.record(
+            db,
+            prediction=quarantined,
+            decision_at=datetime(2026, 8, 20, 15, 0, tzinfo=UTC),
+            entry_session=date(2026, 8, 20),
+            semantic_input_time_valid=None,
+            evaluated_by="TEST",
+        )
+        validator.record(
+            db,
+            prediction=valid,
+            decision_at=datetime(2026, 8, 20, 12, 0, tzinfo=UTC),
+            entry_session=date(2026, 8, 20),
+            semantic_input_time_valid=True,
+            evaluated_by="TEST",
+        )
+        outcomes = []
+        for prediction in (uncertified, quarantined, valid):
+            outcome = WinnerForwardOutcome(
+                prediction_id=prediction.id,
+                entry_model="NEXT_OPEN",
+                horizon_sessions=5,
+                entry_session=date(2026, 8, 20),
+                due_session=date(2026, 8, 26),
+                status="PENDING",
+                revision=1,
+                is_current_revision=True,
+                metadata_json={},
+            )
+            db.add(outcome)
+            outcomes.append(outcome)
+        db.flush()
+
+        first = MarketDataObligationService().ensure_for_outcomes(db, outcomes)
+        assert first.excluded == 2
+        assert first.created == 2
+        assert set(
+            db.scalars(select(WinnerMarketDataObligation.prediction_id))
+        ) == {valid.id}
+
+        # A later run/universe change does not remove the durable dependency.
+        second = MarketDataObligationService().ensure_for_outcomes(db, [outcomes[-1]])
+        assert second.created == 0
+        assert db.scalar(select(func.count()).select_from(WinnerMarketDataObligation)) == 2
+    engine.dispose()
+
+
+def test_global_daily_bar_lag_is_explicit(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        db.add(
+            PriceBar(
+                ticker="SPY",
+                bar_date=date(2026, 9, 3),
+                timeframe="1 day",
+                open=Decimal("100"),
+                high=Decimal("102"),
+                low=Decimal("99"),
+                close=Decimal("101"),
+                volume=Decimal("1000"),
+                source="TEST",
+                what_to_show="TRADES",
+            )
+        )
+        db.flush()
+
+        lag = global_daily_bar_lag(db, latest_completed_session=date(2026, 9, 4))
+
+        assert lag.degraded is True
+        assert lag.lag_sessions == 1
+        assert lag.latest_local_session == date(2026, 9, 3)
     engine.dispose()
 
 

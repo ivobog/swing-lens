@@ -30,6 +30,9 @@ from app.services.ib_rate_limiter import (
 from app.services.operational_metrics import operational_metrics
 from app.services.process_memory import WorkerMemoryCritical
 from app.services.us_market_calendar import is_latest_daily_bar_current
+from app.services.winner_probability.market_data_obligation_service import (
+    MarketDataObligationService,
+)
 from app.settings import Settings, get_settings
 
 NON_FETCH_ACTIONS = {
@@ -213,6 +216,15 @@ def execute_fetch_plan(
         fetch_run.status = _final_run_status(fetch_run)
         fetch_run.message = _run_message(fetch_run)
         db.flush()
+        db.commit()
+
+    if isinstance(db, Session):
+        # A completed normal ingest advances Winner readiness by reevaluating
+        # only obligations for symbols touched by this bounded fetch plan.
+        MarketDataObligationService().record_fetch_results(
+            db,
+            fetch_run=fetch_run,
+        )
         db.commit()
 
     fetch_run._performance = {key: round(value, 3) for key, value in performance.items()}

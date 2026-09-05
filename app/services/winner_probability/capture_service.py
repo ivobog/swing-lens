@@ -26,6 +26,9 @@ from app.services.winner_probability.feature_extractor import (
     ExtractedPredictionFeatures,
     WinnerFeatureExtractor,
 )
+from app.services.winner_probability.market_data_obligation_service import (
+    MarketDataObligationService,
+)
 from app.services.winner_probability.pending_outcome_service import PendingOutcomeService
 from app.services.winner_probability.repository import (
     TickerCaptureContext,
@@ -79,7 +82,8 @@ class WinnerPredictionCaptureService:
         self.feature_extractor = feature_extractor or WinnerFeatureExtractor()
         self.episode_service = episode_service or WinnerEpisodeService(self.repository)
         self.pending_outcome_service = pending_outcome_service or PendingOutcomeService(
-            self.repository
+            self.repository,
+            obligation_service=(MarketDataObligationService() if repository is None else None),
         )
         self.decision_time_estimate_service = (
             decision_time_estimate_service or DecisionTimeEstimateService(self.repository)

@@ -17,12 +17,16 @@ from app.models.tables import (
     OutcomeStatus,
     PriceBar,
     WinnerForwardOutcome,
+    WinnerMarketDataObligation,
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
 )
 from app.services.bar_cache_service import price_bar_data_hash
-from app.services.price_bar_repository import load_preferred_price_bar_rows
 from app.services.sector_rotation_config import load_sector_rotation_config
+from app.services.winner_probability.market_data_obligation_service import (
+    complete_basis_for_rows,
+    required_outcome_sessions,
+)
 from app.services.winner_probability.outcome_revision_service import OutcomeRevisionService
 from app.services.winner_probability.target_stop_service import TargetStopService
 from app.services.winner_probability.temporal_eligibility import temporal_eligibility_sql
@@ -80,6 +84,7 @@ class ForwardCalculation:
 class OutcomeBatchContext:
     predictions: dict[int, WinnerPredictionSnapshot]
     bars_by_ticker: dict[str, list[PriceBar]]
+    bars_by_outcome: dict[int, list[PriceBar]]
     target_stops_by_prediction: dict[int, list[WinnerTargetStopOutcome]]
 
 
@@ -248,11 +253,7 @@ class OutcomeMaturationService:
             return None
 
         ticker_bars = (
-            _bars_in_range(
-                context.bars_by_ticker.get(prediction.ticker.upper(), []),
-                outcome.entry_session,
-                outcome.due_session,
-            )
+            context.bars_by_outcome.get(int(outcome.id), [])
             if context is not None
             else self.repository.load_bars(
                 db,
@@ -495,6 +496,16 @@ class WinnerOutcomeRepository:
             .where(WinnerForwardOutcome.due_session <= completed_on)
             .where(temporal_eligibility_sql(WinnerPredictionSnapshot))
             .where(
+                (WinnerForwardOutcome.entry_model != "NEXT_OPEN")
+                | (WinnerForwardOutcome.horizon_sessions != 5)
+                | select(WinnerMarketDataObligation.id)
+                .where(
+                    WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id,
+                    WinnerMarketDataObligation.status == "SATISFIED",
+                )
+                .exists()
+            )
+            .where(
                 (WinnerForwardOutcome.retry_not_before_at.is_(None))
                 | (WinnerForwardOutcome.retry_not_before_at <= retry_as_of)
             )
@@ -557,6 +568,7 @@ class WinnerOutcomeRepository:
         starts = [row.entry_session for row in outcomes if row.entry_session is not None]
         ends = [row.due_session for row in outcomes if row.due_session is not None]
         bars_by_ticker: dict[str, list[PriceBar]] = {}
+        bars_by_outcome: dict[int, list[PriceBar]] = {}
         if starts and ends and symbols:
             raw_bars = list(
                 db.scalars(
@@ -576,9 +588,24 @@ class WinnerOutcomeRepository:
                 bars_by_ticker[symbol] = by_basis.get((symbol, "ADJUSTED_LAST")) or by_basis.get(
                     (symbol, "TRADES"), []
                 )
+            for outcome in outcomes:
+                prediction = predictions.get(outcome.prediction_id)
+                if prediction is None or outcome.entry_session is None:
+                    bars_by_outcome[int(outcome.id)] = []
+                    continue
+                required = required_outcome_sessions(
+                    outcome.entry_session, int(outcome.horizon_sessions)
+                )
+                candidates = [
+                    *by_basis.get((prediction.ticker.upper(), "ADJUSTED_LAST"), []),
+                    *by_basis.get((prediction.ticker.upper(), "TRADES"), []),
+                ]
+                _, selected = complete_basis_for_rows(candidates, required)
+                bars_by_outcome[int(outcome.id)] = list(selected)
         return OutcomeBatchContext(
             predictions=predictions,
             bars_by_ticker=bars_by_ticker,
+            bars_by_outcome=bars_by_outcome,
             target_stops_by_prediction=target_stops,
         )
 
@@ -639,12 +666,26 @@ class WinnerOutcomeRepository:
         start_date: date,
         end_date: date,
     ) -> list[PriceBar]:
-        return load_preferred_price_bar_rows(
-            db,
-            ticker,
-            start_date=start_date,
-            end_date=end_date,
+        rows = list(
+            db.scalars(
+                select(PriceBar)
+                .where(PriceBar.ticker == ticker.upper())
+                .where(PriceBar.timeframe == "1 day")
+                .where(PriceBar.what_to_show.in_(("ADJUSTED_LAST", "TRADES")))
+                .where(PriceBar.bar_date >= start_date)
+                .where(PriceBar.bar_date <= end_date)
+                .order_by(PriceBar.bar_date, PriceBar.id)
+            )
         )
+        required = []
+        cursor = start_date
+        while cursor <= end_date:
+            required.append(cursor)
+            if cursor == end_date:
+                break
+            cursor = next_regular_session(cursor)
+        _, selected = complete_basis_for_rows(rows, required)
+        return list(selected)
 
 
 @dataclass

@@ -9,7 +9,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, RawCompanyRow, UploadRun
+from app.models.tables import (
+    BackgroundJob,
+    RawCompanyRow,
+    UploadRun,
+    WinnerMarketDataObligation,
+)
 from app.services.background_job_service import (
     ACTIVE_JOB_STATUSES,
     JobStatus,
@@ -137,6 +142,19 @@ def resolve_prewarm_universe(
         tickers = _normalize_tickers(settings.market_data_prewarm_watchlist.split(","))
     else:
         tickers = _tickers_from_recent_completed_runs(db, request.recent_run_count)
+
+    if source == "RECENT_RUNS" and isinstance(db, Session):
+        # Outcome obligations outlive upload universes. Prioritize them within
+        # each bounded prewarm batch so disappearing tickers remain maintained.
+        obligated = list(
+            db.scalars(
+                select(WinnerMarketDataObligation.ticker_snapshot)
+                .where(WinnerMarketDataObligation.status == "FETCH_REQUIRED")
+                .distinct()
+                .order_by(WinnerMarketDataObligation.ticker_snapshot)
+            )
+        )
+        tickers = [*obligated, *tickers]
 
     tickers = _cap_tickers(tickers, settings.market_data_prewarm_max_tickers)
     if not tickers:
@@ -478,9 +496,7 @@ def resolve_pipeline_prewarm_context(
             )
         if effective_session == current_session:
             fetched_for_session.update(
-                requested.intersection(
-                    _normalize_tickers(result.get("fetched_tickers") or [])
-                )
+                requested.intersection(_normalize_tickers(result.get("fetched_tickers") or []))
             )
     if selected_job is not None:
         selected_result = selected_job.result_json or {}
