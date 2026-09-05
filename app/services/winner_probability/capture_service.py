@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from app.models.tables import (
     PredictionEligibility,
     WinnerPredictionSnapshot,
+    WinnerTemporalValidityDecision,
 )
+from app.services.us_market_calendar import us_market_session
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
     load_winner_probability_config,
@@ -29,6 +31,10 @@ from app.services.winner_probability.repository import (
     TickerCaptureContext,
     WinnerProbabilityRepository,
 )
+from app.services.winner_probability.temporal_eligibility import (
+    prediction_temporally_eligible,
+)
+from app.services.winner_probability.temporal_integrity import validate_next_open_timing
 from app.services.winner_probability.training_eligibility import TrainingEligibilityPolicy
 
 logger = logging.getLogger(__name__)
@@ -89,13 +95,15 @@ class WinnerPredictionCaptureService:
         run_id: int,
         config: WinnerProbabilityConfig | None = None,
         captured_at: datetime | None = None,
+        decision_at: datetime | None = None,
         reconstruction_method: str | None = None,
         source_quality_flags: tuple[str, ...] = (),
         production_training_allowed: bool | None = None,
         should_cancel: Callable[[], bool] | None = None,
     ) -> WinnerPredictionCaptureResult:
         config = config or load_winner_probability_config()
-        captured_at = captured_at or datetime.now(UTC)
+        requested_capture_at = captured_at
+        requested_decision_at = decision_at
         run_context = self.repository.load_run_context(db, run_id)
 
         totals = _MutableCaptureCounts()
@@ -103,11 +111,20 @@ class WinnerPredictionCaptureService:
             if should_cancel is not None and should_cancel():
                 raise WinnerPredictionCaptureCancelled("winner prediction capture was cancelled")
             try:
+                # Freeze the point-in-time feature boundary before pure extraction.
+                # The authoritative decision is stamped only after that immutable
+                # feature vector exists, then executable timing is rebound to it.
+                feature_as_of_at = requested_decision_at or datetime.now(UTC)
                 features = self.feature_extractor.extract(
                     run_context,
                     ticker_context,
                     config,
-                    captured_at=captured_at,
+                    decision_at=feature_as_of_at,
+                )
+                ticker_decision_at = requested_decision_at or datetime.now(UTC)
+                features = self.feature_extractor.finalize_decision_timing(
+                    features,
+                    decision_at=ticker_decision_at,
                 )
                 totals.warnings += len(features.warnings)
                 existing = self.repository.get_active_prediction(
@@ -123,7 +140,13 @@ class WinnerPredictionCaptureService:
                             f"{features.ticker}: active prediction hash conflict"
                         )
                     totals.duplicate += 1
-                    if existing.eligibility_status == PredictionEligibility.ELIGIBLE:
+                    temporal_decision = self.repository.get_current_temporal_decision(
+                        db, existing.id
+                    )
+                    if (
+                        existing.eligibility_status == PredictionEligibility.ELIGIBLE
+                        and prediction_temporally_eligible(existing, temporal_decision)
+                    ):
                         self._ensure_eligible_children(db, existing, config, totals)
                     continue
 
@@ -135,6 +158,8 @@ class WinnerPredictionCaptureService:
                     reconstruction_method=reconstruction_method,
                     source_quality_flags=source_quality_flags,
                     production_training_allowed=production_training_allowed,
+                    decision_at=ticker_decision_at,
+                    captured_at=requested_capture_at or datetime.now(UTC),
                 )
                 assignment = self.episode_service.assign_episode(db, features, config)
                 prediction.episode_id = assignment.episode.id
@@ -146,7 +171,13 @@ class WinnerPredictionCaptureService:
                     prediction,
                     explicit_legacy_override=production_training_allowed,
                 )
+                temporal_decision = _initial_temporal_decision(
+                    prediction,
+                    semantic_input_time_valid=reconstruction_method is None,
+                )
                 self.repository.add(db, prediction)
+                temporal_decision.prediction_id = prediction.id
+                self.repository.add(db, temporal_decision)
                 if prediction.eligibility_status == PredictionEligibility.ELIGIBLE:
                     totals.inserted += 1
                     self._ensure_eligible_children(db, prediction, config, totals)
@@ -205,6 +236,8 @@ class WinnerPredictionCaptureService:
         reconstruction_method: str | None,
         source_quality_flags: tuple[str, ...],
         production_training_allowed: bool | None,
+        decision_at: datetime,
+        captured_at: datetime,
     ) -> WinnerPredictionSnapshot:
         raw_row = ticker_context.raw_row
         technical = ticker_context.technical_score
@@ -222,6 +255,8 @@ class WinnerPredictionCaptureService:
             ticker=features.ticker,
             prediction_as_of_date=features.prediction_as_of_date,
             source_data_cutoff_at=features.source_data_cutoff_at,
+            decision_at=decision_at,
+            captured_at=captured_at,
             planned_entry_session=features.planned_entry_session,
             entry_schedule_status=features.entry_schedule_status,
             entry_data_status=features.entry_data_status,
@@ -308,3 +343,46 @@ def _decimal_or_none(value) -> Decimal | None:
 
 def _int_or_none(value) -> int | None:
     return int(value) if value is not None else None
+
+
+def _initial_temporal_decision(
+    prediction: WinnerPredictionSnapshot,
+    *,
+    semantic_input_time_valid: bool,
+) -> WinnerTemporalValidityDecision:
+    session = us_market_session(prediction.planned_entry_session)
+    if prediction.decision_at is None or session is None:
+        raise WinnerPredictionCaptureConflict("NEXT_OPEN entry session could not be certified")
+    result = validate_next_open_timing(
+        prediction.decision_at,
+        session.open_at,
+        source_data_cutoff_at=prediction.source_data_cutoff_at,
+        semantic_input_time_valid=semantic_input_time_valid,
+    )
+    if not result.entry_timing_valid:
+        raise WinnerPredictionCaptureConflict("NEXT_OPEN entry is not strictly after decision")
+    if not semantic_input_time_valid:
+        prediction.lineage_json = {
+            **(prediction.lineage_json or {}),
+            "point_in_time_validation": {
+                **(prediction.lineage_json or {}).get("point_in_time_validation", {}),
+                "semantic_input_time": "UNRESOLVED",
+            },
+        }
+    return WinnerTemporalValidityDecision(
+        prediction_id=prediction.id,
+        validation_sequence=1,
+        status=result.status,
+        entry_timing_valid=result.entry_timing_valid,
+        source_cutoff_valid=result.source_cutoff_valid,
+        semantic_input_time_valid=result.semantic_input_time_valid,
+        evidence_eligible=result.evidence_eligible,
+        reason_codes_json=list(result.reason_codes),
+        validation_version=result.validation_version,
+        decision_at=prediction.decision_at,
+        entry_session=prediction.planned_entry_session,
+        entry_open_at=session.open_at,
+        evaluated_at=prediction.captured_at,
+        evaluated_by="WINNER_CAPTURE",
+        metadata_json={"capture_revision": prediction.revision},
+    )

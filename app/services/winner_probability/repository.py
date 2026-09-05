@@ -23,6 +23,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
     WinnerTargetStopOutcome,
+    WinnerTemporalValidityDecision,
 )
 
 
@@ -212,6 +213,18 @@ class WinnerProbabilityRepository:
             .where(WinnerTargetStopOutcome.prediction_id == prediction_id)
             .where(WinnerTargetStopOutcome.outcome_definition_id == outcome_definition_id)
             .where(WinnerTargetStopOutcome.is_current_revision.is_(True))
+        )
+
+    def get_current_temporal_decision(
+        self,
+        db: Session,
+        prediction_id: int,
+    ) -> WinnerTemporalValidityDecision | None:
+        return db.scalar(
+            select(WinnerTemporalValidityDecision)
+            .where(WinnerTemporalValidityDecision.prediction_id == prediction_id)
+            .order_by(WinnerTemporalValidityDecision.validation_sequence.desc())
+            .limit(1)
         )
 
     def get_decision_time_estimate(

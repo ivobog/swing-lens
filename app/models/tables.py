@@ -1820,6 +1820,7 @@ class WinnerPredictionSnapshot(Base):
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     prediction_as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
     source_data_cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    decision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -1894,6 +1895,7 @@ class WinnerPredictionSnapshot(Base):
         ),
         Index("idx_winner_prediction_snapshots_run_ticker", "run_id", "ticker"),
         Index("idx_winner_prediction_snapshots_ticker_as_of", "ticker", "prediction_as_of_date"),
+        Index("idx_winner_prediction_snapshots_decision_at", "decision_at"),
         Index("idx_winner_prediction_snapshots_eligibility", "eligibility_status"),
         Index("idx_winner_prediction_snapshots_profile", "ranking_profile"),
         Index("idx_winner_prediction_snapshots_regime_sector", "market_risk_state", "sector_state"),
@@ -1918,6 +1920,72 @@ class WinnerPredictionSnapshot(Base):
             "feature_schema_version",
             "id",
             postgresql_where=text("superseded_at IS NULL"),
+        ),
+    )
+
+
+class WinnerTemporalValidityDecision(Base):
+    """Immutable temporal certification/quarantine event for a prediction."""
+
+    __tablename__ = "winner_temporal_validity_decisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    prediction_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_prediction_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    validation_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    entry_timing_valid: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    source_cutoff_valid: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    semantic_input_time_valid: Mapped[bool | None] = mapped_column(Boolean)
+    evidence_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reason_codes_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    validation_version: Mapped[str] = mapped_column(Text, nullable=False)
+    decision_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    entry_session: Mapped[date] = mapped_column(Date, nullable=False)
+    entry_open_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evaluated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    evaluated_by: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+    prediction: Mapped[WinnerPredictionSnapshot] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint(
+            "prediction_id",
+            "validation_sequence",
+            name="uq_winner_temporal_validity_prediction_sequence",
+        ),
+        CheckConstraint(
+            "status IN ('VALID', 'EXECUTION_INVALID', 'LOOKAHEAD_INVALID', "
+            "'TEMPORAL_LINEAGE_UNRESOLVED')",
+            name="ck_winner_temporal_validity_status",
+        ),
+        CheckConstraint(
+            "NOT evidence_eligible OR (status = 'VALID' AND entry_timing_valid "
+            "AND source_cutoff_valid AND semantic_input_time_valid IS TRUE)",
+            name="ck_winner_temporal_validity_evidence_consistency",
+        ),
+        CheckConstraint(
+            "entry_timing_valid = (decision_at < entry_open_at)",
+            name="ck_winner_temporal_validity_entry_boundary",
+        ),
+        Index(
+            "idx_winner_temporal_validity_prediction_sequence",
+            "prediction_id",
+            "validation_sequence",
+        ),
+        Index(
+            "idx_winner_temporal_validity_evidence_eligible",
+            "evidence_eligible",
+            "prediction_id",
         ),
     )
 
@@ -2267,6 +2335,9 @@ class WinnerCohortRefreshState(Base):
     desired_training_replay_id: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0, server_default="0"
     )
+    desired_temporal_validity_decision_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
     desired_watermark_hash: Mapped[str] = mapped_column(Text, nullable=False)
     published_generation_id: Mapped[int | None] = mapped_column(
         ForeignKey("winner_cohort_generations.id", use_alter=True)
@@ -2496,6 +2567,9 @@ class WinnerEvidenceManifestMember(Base):
     eligibility_decision_id: Mapped[int | None] = mapped_column(
         ForeignKey("winner_training_eligibility_decisions.id")
     )
+    temporal_validity_decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_temporal_validity_decisions.id")
+    )
     outcome_replay_id: Mapped[int | None] = mapped_column(
         ForeignKey("winner_training_outcome_replays.id")
     )
@@ -2511,6 +2585,10 @@ class WinnerEvidenceManifestMember(Base):
         ),
         UniqueConstraint("manifest_id", "member_hash", name="uq_winner_manifest_members_hash"),
         Index("idx_winner_manifest_members_prediction", "prediction_id"),
+        Index(
+            "idx_winner_evidence_manifest_members_temporal_validity",
+            "temporal_validity_decision_id",
+        ),
         Index(
             "idx_winner_manifest_members_forward_revision",
             "forward_outcome_id",
@@ -2693,6 +2771,9 @@ class WinnerEstimateEvidenceMember(Base):
     eligibility_decision_id: Mapped[int | None] = mapped_column(
         ForeignKey("winner_training_eligibility_decisions.id")
     )
+    temporal_validity_decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_temporal_validity_decisions.id")
+    )
     outcome_replay_id: Mapped[int | None] = mapped_column(
         ForeignKey("winner_training_outcome_replays.id")
     )
@@ -2721,6 +2802,10 @@ class WinnerEstimateEvidenceMember(Base):
         ),
         Index("idx_winner_estimate_evidence_members_estimate_outcome", "estimate_id", "outcome_id"),
         Index("idx_winner_estimate_evidence_members_estimate_episode", "estimate_id", "episode_id"),
+        Index(
+            "idx_winner_estimate_evidence_members_temporal_validity",
+            "temporal_validity_decision_id",
+        ),
         Index(
             "idx_winner_estimate_evidence_members_prediction_asof",
             "prediction_id",

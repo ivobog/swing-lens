@@ -60,9 +60,7 @@ class EvidenceManifestService:
                     member_count=len(evidence),
                     payload_json=payload,
                 )
-                .on_conflict_do_nothing(
-                    constraint="uq_winner_evidence_manifests_hash"
-                )
+                .on_conflict_do_nothing(constraint="uq_winner_evidence_manifests_hash")
                 .returning(WinnerEvidenceManifest.id)
             )
             manifest = (
@@ -149,6 +147,7 @@ class EvidenceManifestService:
                 "outcome_id": row.forward_outcome.id,
                 "outcome_revision": row.forward_outcome.revision,
                 "eligibility_decision_id": row.eligibility_decision_id,
+                "temporal_validity_decision_id": row.temporal_validity_decision_id,
                 "outcome_replay_id": row.outcome_replay_id,
                 "evidence_origin": row.evidence_origin,
                 "episode_id": row.prediction.episode_id,
@@ -159,6 +158,7 @@ class EvidenceManifestService:
                     "target_stop_outcome_id": row.target_stop_outcome.id,
                     "target_stop_revision": row.target_stop_outcome.revision,
                     "eligibility_decision_id": row.eligibility_decision_id,
+                    "temporal_validity_decision_id": row.temporal_validity_decision_id,
                     "outcome_replay_id": row.outcome_replay_id,
                     "evidence_origin": row.evidence_origin,
                 },
@@ -172,9 +172,7 @@ class EvidenceManifestService:
         if bind is not None and bind.dialect.name == "postgresql":
             statement = postgresql_insert(WinnerEstimateEvidenceMember).values(values)
             statement = statement.on_conflict_do_nothing(
-                constraint=(
-                    "uq_winner_estimate_evidence_members_estimate_outcome_revision"
-                )
+                constraint=("uq_winner_estimate_evidence_members_estimate_outcome_revision")
             )
             db.execute(statement)
         else:
@@ -193,6 +191,7 @@ def _manifest_payload(evidence: tuple[GenerationEvidenceMember, ...]) -> dict[st
                 "target_stop_outcome_id": row.target_stop_outcome.id,
                 "target_stop_revision": row.target_stop_outcome.revision,
                 "eligibility_decision_id": row.eligibility_decision_id,
+                "temporal_validity_decision_id": row.temporal_validity_decision_id,
                 "outcome_replay_id": row.outcome_replay_id,
                 "evidence_origin": row.evidence_origin,
                 "episode_id": row.prediction.episode_id,
@@ -226,6 +225,7 @@ def _manifest_member_values(
         "target_stop_outcome_id": row.target_stop_outcome.id,
         "target_stop_revision": row.target_stop_outcome.revision,
         "eligibility_decision_id": row.eligibility_decision_id,
+        "temporal_validity_decision_id": row.temporal_validity_decision_id,
         "outcome_replay_id": row.outcome_replay_id,
         "evidence_origin": row.evidence_origin,
         "episode_id": row.prediction.episode_id,

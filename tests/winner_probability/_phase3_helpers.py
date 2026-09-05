@@ -21,6 +21,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
     WinnerTargetStopOutcome,
+    WinnerTemporalValidityDecision,
 )
 from app.services.winner_probability.repository import RunCaptureContext, TickerCaptureContext
 
@@ -34,6 +35,7 @@ class FakeWinnerRepository:
         self.forward_outcomes: list[WinnerForwardOutcome] = []
         self.target_stop_outcomes: list[WinnerTargetStopOutcome] = []
         self.estimates: list[WinnerProbabilityEstimate] = []
+        self.temporal_decisions: list[WinnerTemporalValidityDecision] = []
         self._ids: defaultdict[type, int] = defaultdict(lambda: 1)
 
     def load_run_context(self, _db, _run_id: int) -> RunCaptureContext:
@@ -109,6 +111,12 @@ class FakeWinnerRepository:
             None,
         )
 
+    def get_current_temporal_decision(
+        self, _db, prediction_id: int
+    ) -> WinnerTemporalValidityDecision | None:
+        rows = [row for row in self.temporal_decisions if row.prediction_id == prediction_id]
+        return max(rows, key=lambda row: row.validation_sequence, default=None)
+
     def get_decision_time_estimate(self, _db, **kwargs) -> WinnerProbabilityEstimate | None:
         return next(
             (
@@ -138,6 +146,8 @@ class FakeWinnerRepository:
             self.target_stop_outcomes.append(row)
         elif isinstance(row, WinnerProbabilityEstimate) and row not in self.estimates:
             self.estimates.append(row)
+        elif isinstance(row, WinnerTemporalValidityDecision) and row not in self.temporal_decisions:
+            self.temporal_decisions.append(row)
         return row
 
 

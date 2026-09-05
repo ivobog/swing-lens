@@ -14,7 +14,7 @@ from app.services.winner_probability.cohort_generation_service import (
 
 
 def test_cohort_algorithm_version_advances_for_replay_lineage_contract() -> None:
-    assert COHORT_ALGORITHM_VERSION == "cohort-v2.1"
+    assert COHORT_ALGORITHM_VERSION == "cohort-v2.2"
 
 
 def _contract() -> WinnerCohortContract:
@@ -39,11 +39,10 @@ def _watermark(target_stop_revision_id: int = 20) -> EvidenceWatermark:
 
 
 def test_watermark_hash_is_deterministic_and_material() -> None:
-    assert canonical_watermark_hash(_watermark()) == canonical_watermark_hash(
-        _watermark()
-    )
+    assert canonical_watermark_hash(_watermark()) == canonical_watermark_hash(_watermark())
+    assert canonical_watermark_hash(_watermark()) != canonical_watermark_hash(_watermark(21))
     assert canonical_watermark_hash(_watermark()) != canonical_watermark_hash(
-        _watermark(21)
+        EvidenceWatermark(**{**_watermark().as_dict(), "temporal_validity_decision_id": 41})
     )
 
 
@@ -51,29 +50,21 @@ def test_request_clock_does_not_change_generation_identity() -> None:
     first_requested_at = datetime(2026, 8, 17, 10, 33, 9, 896000, tzinfo=UTC)
     second_requested_at = first_requested_at + timedelta(milliseconds=227)
 
-    first = canonical_generation_key(
-        _contract(), _watermark(), requested_at=first_requested_at
-    )
-    second = canonical_generation_key(
-        _contract(), _watermark(), requested_at=second_requested_at
-    )
+    first = canonical_generation_key(_contract(), _watermark(), requested_at=first_requested_at)
+    second = canonical_generation_key(_contract(), _watermark(), requested_at=second_requested_at)
 
     assert first == second
 
 
 def test_material_revision_changes_generation_identity() -> None:
-    assert canonical_generation_key(
-        _contract(), _watermark()
-    ) != canonical_generation_key(_contract(), _watermark(21))
+    assert canonical_generation_key(_contract(), _watermark()) != canonical_generation_key(
+        _contract(), _watermark(21)
+    )
 
 
 def test_generation_lifecycle_rejects_partial_publication() -> None:
-    validate_generation_transition(
-        CohortGenerationStatus.BUILDING, CohortGenerationStatus.READY
-    )
-    validate_generation_transition(
-        CohortGenerationStatus.READY, CohortGenerationStatus.PUBLISHED
-    )
+    validate_generation_transition(CohortGenerationStatus.BUILDING, CohortGenerationStatus.READY)
+    validate_generation_transition(CohortGenerationStatus.READY, CohortGenerationStatus.PUBLISHED)
 
     try:
         validate_generation_transition(

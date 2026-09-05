@@ -62,7 +62,15 @@ def test_preferred_ohlcv_uses_adjusted_prices_and_trades_volume(monkeypatch) -> 
     adjusted = _synthetic_ohlcv(rows=3).assign(close=[10.0, 10.0, 10.0])
     trades = _synthetic_ohlcv(rows=3).assign(close=[11.0, 12.0, 13.0])
 
-    def fake_load_price_bars_frame(db, ticker, what_to_show, timeframe="1 day"):
+    def fake_load_price_bars_frame(
+        db,
+        ticker,
+        what_to_show,
+        timeframe="1 day",
+        *,
+        max_session=None,
+        as_of=None,
+    ):
         return adjusted if what_to_show == "ADJUSTED_LAST" else trades
 
     monkeypatch.setattr(

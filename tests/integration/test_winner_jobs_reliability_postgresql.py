@@ -234,9 +234,7 @@ def test_two_concurrent_api_clients_receive_one_maturation_workflow(
         barrier.wait()
         return real_enqueue(*args, **kwargs)
 
-    monkeypatch.setattr(
-        winner_routes, "enqueue_outcome_maturation_workflow", synchronized_enqueue
-    )
+    monkeypatch.setattr(winner_routes, "enqueue_outcome_maturation_workflow", synchronized_enqueue)
     app = create_app(
         Settings(
             _env_file=None,
@@ -994,7 +992,9 @@ def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
             assert result.evidence_rows_loaded == 390
             assert result.planned_groups == result.completed_groups == 42
             assert generation_memberships == 2_340
-            assert prediction_selects <= 2
+            # Temporal publication certification adds one set-based prediction
+            # validation query; the bound remains constant at 390 rows/42 groups.
+            assert prediction_selects <= 3
             assert len(selects) <= 260
             assert elapsed < 45
     finally:
@@ -1173,7 +1173,10 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
         run_id=upload.id,
         ticker="TEST",
         prediction_as_of_date=date(2026, 7, 1),
-        source_data_cutoff_at=observed - timedelta(days=20),
+        source_data_cutoff_at=datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+        decision_at=datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+        captured_at=datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+        planned_entry_session=date(2026, 7, 2),
         entry_schedule_status="RESOLVED",
         entry_data_status="AVAILABLE",
         eligibility_status="ELIGIBLE",
@@ -1186,6 +1189,7 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
         warning_flags_json=[],
         lineage_json={
             "point_in_time_validated": True,
+            "point_in_time_validation": {"semantic_input_time": "VALID"},
             "capture_training_candidate": True,
             "evidence_training_eligible": True,
             "training_rejection_reasons": [],
@@ -1283,7 +1287,10 @@ def _seed_retry_deferred_outcomes(
             "run_id": upload.id,
             "ticker": f"R{index:05d}",
             "prediction_as_of_date": date(2026, 8, 3),
-            "source_data_cutoff_at": observed - timedelta(days=20),
+            "source_data_cutoff_at": datetime(2026, 7, 31, 20, 0, tzinfo=UTC),
+            "decision_at": datetime(2026, 7, 31, 20, 0, tzinfo=UTC),
+            "captured_at": datetime(2026, 7, 31, 20, 0, tzinfo=UTC),
+            "planned_entry_session": date(2026, 8, 3),
             "entry_schedule_status": "RESOLVED",
             "entry_data_status": "AVAILABLE",
             "eligibility_status": "ELIGIBLE",
@@ -1294,7 +1301,10 @@ def _seed_retry_deferred_outcomes(
             "feature_json": {"setup_family": "breakout"},
             "source_ids_json": {},
             "warning_flags_json": [],
-            "lineage_json": {"point_in_time_validated": True},
+            "lineage_json": {
+                "point_in_time_validated": True,
+                "point_in_time_validation": {"semantic_input_time": "VALID"},
+            },
         }
         for index in range(row_count)
     ]
@@ -1346,7 +1356,10 @@ def _expand_material_evidence(
             "run_id": existing.run_id,
             "ticker": f"Q{index:04d}",
             "prediction_as_of_date": date(2026, 7, 1),
-            "source_data_cutoff_at": observed - timedelta(days=20),
+            "source_data_cutoff_at": datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+            "decision_at": datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+            "captured_at": datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+            "planned_entry_session": date(2026, 7, 2),
             "entry_schedule_status": "RESOLVED",
             "entry_data_status": "AVAILABLE",
             "eligibility_status": "ELIGIBLE",
@@ -1359,6 +1372,7 @@ def _expand_material_evidence(
             "warning_flags_json": [],
             "lineage_json": {
                 "point_in_time_validated": True,
+                "point_in_time_validation": {"semantic_input_time": "VALID"},
                 "capture_training_candidate": True,
                 "evidence_training_eligible": True,
                 "training_rejection_reasons": [],

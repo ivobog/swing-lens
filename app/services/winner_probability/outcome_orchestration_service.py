@@ -7,13 +7,19 @@ from datetime import UTC, date, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import EntryModel, OutcomeStatus, WinnerForwardOutcome
+from app.models.tables import (
+    EntryModel,
+    OutcomeStatus,
+    WinnerForwardOutcome,
+    WinnerPredictionSnapshot,
+)
 from app.services.us_market_calendar import us_trading_sessions_between
 from app.services.winner_probability.outcome_service import (
     OutcomeMaturationCancelled,
     OutcomeMaturationService,
     WinnerOutcomeRepository,
 )
+from app.services.winner_probability.temporal_eligibility import temporal_eligibility_sql
 from app.services.winner_probability.trading_session_service import latest_completed_session
 
 
@@ -221,11 +227,16 @@ class H5NextOpenOrchestrationService:
                 func.min(WinnerForwardOutcome.due_session),
                 func.min(WinnerForwardOutcome.retry_not_before_at).filter(deferred),
             )
+            .join(
+                WinnerPredictionSnapshot,
+                WinnerPredictionSnapshot.id == WinnerForwardOutcome.prediction_id,
+            )
             .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
             .where(WinnerForwardOutcome.is_current_revision.is_(True))
             .where(WinnerForwardOutcome.entry_model == EntryModel.NEXT_OPEN)
             .where(WinnerForwardOutcome.horizon_sessions == 5)
             .where(WinnerForwardOutcome.due_session <= completed_on)
+            .where(temporal_eligibility_sql(WinnerPredictionSnapshot))
         )
         if exclude_ids:
             statement = statement.where(WinnerForwardOutcome.id.not_in(exclude_ids))

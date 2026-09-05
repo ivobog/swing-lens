@@ -33,3 +33,11 @@ def test_weekend_holiday_and_missing_time_effective_sessions() -> None:
     assert missing.effective_session == date(2026, 8, 3)
     assert missing.date_confidence is DateConfidence.EXACT_DATE
     assert "missing_timestamp" in missing.warnings
+
+
+def test_early_close_uses_shared_exchange_schedule() -> None:
+    service = CeriEffectiveSessionService()
+
+    result = service.resolve(timestamp=datetime(2026, 11, 27, 15, 0, tzinfo=NY))
+
+    assert result.effective_session == date(2026, 11, 30)

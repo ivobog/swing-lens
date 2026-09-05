@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -18,6 +18,7 @@ from app.models.tables import (
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
+    WinnerTemporalValidityDecision,
     WinnerTrainingEligibilityDecision,
     WinnerTrainingOutcomeReplay,
 )
@@ -30,6 +31,10 @@ from app.services.winner_probability.pre11_compatibility_service import (
     TRAINING_FAMILY,
     _hash,
 )
+from app.services.winner_probability.temporal_eligibility import (
+    load_current_temporal_decisions,
+    prediction_temporally_eligible,
+)
 from app.services.winner_probability.trading_session_service import latest_completed_session
 from app.services.winner_probability.training_eligibility import TrainingEligibilityPolicy
 
@@ -41,6 +46,7 @@ class EvidenceOutcome:
     target_stop_outcome: WinnerTargetStopOutcome | WinnerTrainingOutcomeReplay
     inclusion_weight: Decimal = Decimal("1")
     eligibility_decision_id: int | None = None
+    temporal_validity_decision_id: int | None = None
     outcome_replay_id: int | None = None
     evidence_origin: str = EVIDENCE_ORIGIN_NATIVE
 
@@ -83,6 +89,7 @@ class FrozenEvidenceMember:
     target_stop_outcome: FrozenEvidenceTargetStopOutcome
     inclusion_weight: Decimal = Decimal("1")
     eligibility_decision_id: int | None = None
+    temporal_validity_decision_id: int | None = None
     outcome_replay_id: int | None = None
     evidence_origin: str = EVIDENCE_ORIGIN_NATIVE
 
@@ -173,18 +180,11 @@ class EvidenceService:
                     WinnerTargetStopOutcome,
                     WinnerTargetStopOutcome.forward_outcome_id == WinnerForwardOutcome.id,
                 )
+                .where(WinnerForwardOutcome.id <= int(watermark.get("forward_revision_id") or 0))
                 .where(
-                    WinnerForwardOutcome.id
-                    <= int(watermark.get("forward_revision_id") or 0)
+                    WinnerTargetStopOutcome.id <= int(watermark.get("target_stop_revision_id") or 0)
                 )
-                .where(
-                    WinnerTargetStopOutcome.id
-                    <= int(watermark.get("target_stop_revision_id") or 0)
-                )
-                .where(
-                    WinnerTargetStopOutcome.outcome_definition_id
-                    == outcome_definition.id
-                )
+                .where(WinnerTargetStopOutcome.outcome_definition_id == outcome_definition.id)
                 .order_by(
                     WinnerPredictionSnapshot.prediction_as_of_date,
                     WinnerPredictionSnapshot.id,
@@ -202,13 +202,15 @@ class EvidenceService:
             )
             if int(row.eligibility_decision_id or 0)
             <= int(watermark.get("eligibility_decision_id") or 0)
-            and int(row.outcome_replay_id or 0)
-            <= int(watermark.get("training_replay_id") or 0)
+            and int(row.outcome_replay_id or 0) <= int(watermark.get("training_replay_id") or 0)
         )
         candidates = rows + replay_rows
-        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(
-            db, candidates
+        temporal_decisions = _temporal_decisions(
+            db,
+            candidates,
+            max_id=int(watermark.get("temporal_validity_decision_id") or 0),
         )
+        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(db, candidates)
         if progress_guard is not None:
             progress_guard()
         completed_session = latest_completed_session(training_cutoff_at)
@@ -247,14 +249,11 @@ class EvidenceService:
                 and row.forward_outcome.horizon_sessions == outcome_definition.horizon_sessions
                 and _target_definition_id(row) == outcome_definition.id
                 and row.target_stop_outcome.entry_model == outcome_definition.entry_model
-                and row.target_stop_outcome.horizon_sessions
-                == outcome_definition.horizon_sessions
+                and row.target_stop_outcome.horizon_sessions == outcome_definition.horizon_sessions
                 and _decimal_equal(
                     row.target_stop_outcome.target_pct, outcome_definition.target_pct
                 )
-                and _decimal_equal(
-                    row.target_stop_outcome.stop_pct, outcome_definition.stop_pct
-                )
+                and _decimal_equal(row.target_stop_outcome.stop_pct, outcome_definition.stop_pct)
                 and row.target_stop_outcome.primary_winner is not None
             ),
         )
@@ -262,80 +261,80 @@ class EvidenceService:
             "current_target_stop_revision_at_cutoff",
             lambda row: (
                 row.evidence_origin == EVIDENCE_ORIGIN_PRE11
-                or _visible_at_cutoff(
-                    row.target_stop_outcome.superseded_at, training_cutoff_at
-                )
+                or _visible_at_cutoff(row.target_stop_outcome.superseded_at, training_cutoff_at)
             ),
         )
         apply(
             "prediction_eligible",
-            lambda row: row.prediction.eligibility_status
-            == PredictionEligibility.ELIGIBLE,
+            lambda row: row.prediction.eligibility_status == PredictionEligibility.ELIGIBLE,
         )
         apply(
             "point_in_time_validated",
-            lambda row: (row.prediction.lineage_json or {}).get(
-                "point_in_time_validated"
-            )
-            is True,
+            lambda row: (row.prediction.lineage_json or {}).get("point_in_time_validated") is True,
+        )
+        apply(
+            "temporal_execution_and_lineage_eligible",
+            lambda row: prediction_temporally_eligible(
+                row.prediction, temporal_decisions.get(int(row.prediction.id))
+            ),
         )
         apply("native_capture", lambda row: row.prediction.reconstruction_method is None)
         apply(
             "production_training_eligible",
             lambda row: (
-                row.evidence_origin == EVIDENCE_ORIGIN_PRE11
-                and row.eligibility_decision_id is not None
-            )
-            or (
-                row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
-                and self.policy.persisted_capture_decision(
-                    row.prediction
-                ).capture_training_candidate
+                (
+                    row.evidence_origin == EVIDENCE_ORIGIN_PRE11
+                    and row.eligibility_decision_id is not None
+                )
+                or (
+                    row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
+                    and self.policy.persisted_capture_decision(
+                        row.prediction
+                    ).capture_training_candidate
+                )
             ),
         )
         apply(
             "feature_schema_compatible",
-            lambda row: row.prediction.feature_schema_version
-            == config.feature_schema.version,
+            lambda row: row.prediction.feature_schema_version == config.feature_schema.version,
         )
         apply(
             "calculation_version_compatible",
             lambda row: (
-                row.evidence_origin == EVIDENCE_ORIGIN_PRE11
-                and getattr(
-                    row.target_stop_outcome, "compatibility_bridge_version", None
+                (
+                    row.evidence_origin == EVIDENCE_ORIGIN_PRE11
+                    and getattr(row.target_stop_outcome, "compatibility_bridge_version", None)
+                    == BRIDGE_VERSION
                 )
-                == BRIDGE_VERSION
-            )
-            or (
-                row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
-                and row.prediction.calculation_version
-                == outcome_definition.calculation_version
-                == config.engine.calculation_version
+                or (
+                    row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
+                    and row.prediction.calculation_version
+                    == outcome_definition.calculation_version
+                    == config.engine.calculation_version
+                )
             ),
         )
         apply(
             "config_compatible",
             lambda row: (
-                row.evidence_origin == EVIDENCE_ORIGIN_PRE11
-                and getattr(
-                    row.target_stop_outcome, "target_outcome_definition_id", None
+                (
+                    row.evidence_origin == EVIDENCE_ORIGIN_PRE11
+                    and getattr(row.target_stop_outcome, "target_outcome_definition_id", None)
+                    == outcome_definition.id
                 )
-                == outcome_definition.id
-            )
-            or (
-                row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
-                and row.prediction.config_hash
-                == outcome_definition.config_hash
-                == config.config_hash
+                or (
+                    row.evidence_origin == EVIDENCE_ORIGIN_NATIVE
+                    and row.prediction.config_hash
+                    == outcome_definition.config_hash
+                    == config.config_hash
+                )
             ),
         )
         apply(
             "outcome_definition_compatible",
             lambda _row: (
                 outcome_definition.is_active
-                and outcome_definition.definition_id
-                == config.primary_outcome_definition.id
+                and outcome_definition.definition_id == config.primary_outcome_definition.id
             ),
         )
         apply("quality_gates", _passes_quality_gates)
@@ -366,10 +365,9 @@ class EvidenceService:
         before = len(candidates)
         candidates = _one_per_episode(candidates)
         stages.append(
-            EvidenceFunnelStage(
-                "one_representative_per_episode", before, len(candidates)
-            )
+            EvidenceFunnelStage("one_representative_per_episode", before, len(candidates))
         )
+        candidates = _attach_temporal_decision_ids(candidates, temporal_decisions)
         frozen = tuple(_freeze_generation_member(row) for row in candidates)
         # No ORM-backed evidence escapes this method. The domain session may
         # now commit heartbeats without expiring data used by later groups.
@@ -390,6 +388,11 @@ class EvidenceService:
     ) -> EvidenceDiagnosticFunnel:
         cache_key = None
         if cohort_key.dimensions == {"global": "all"}:
+            temporal_watermark = (
+                db.scalar(select(func.max(WinnerTemporalValidityDecision.id)))
+                if hasattr(db, "get_bind")
+                else 0
+            )
             cache_key = (
                 id(db),
                 outcome_definition.id,
@@ -399,6 +402,7 @@ class EvidenceService:
                 prediction.calculation_version,
                 prediction.config_hash,
                 config.config_hash,
+                int(temporal_watermark or 0),
             )
             cached = self._global_funnel_cache.get(cache_key)
             if cached is not None:
@@ -429,9 +433,8 @@ class EvidenceService:
             outcome_definition=outcome_definition,
         )
         rows = native_rows + replay_rows
-        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(
-            db, rows
-        )
+        temporal_decisions = _temporal_decisions(db, rows)
+        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(db, rows)
         completed_session = latest_completed_session(training_cutoff_at)
         rolling_start = _subtract_years(
             training_cutoff_at.date(), config.cohort.rolling_window_years
@@ -489,6 +492,12 @@ class EvidenceService:
         apply(
             "point_in_time_validated",
             lambda row: (row.prediction.lineage_json or {}).get("point_in_time_validated") is True,
+        )
+        apply(
+            "temporal_execution_and_lineage_eligible",
+            lambda row: prediction_temporally_eligible(
+                row.prediction, temporal_decisions.get(int(row.prediction.id))
+            ),
         )
         apply("native_capture", lambda row: row.prediction.reconstruction_method is None)
         apply(
@@ -591,6 +600,7 @@ class EvidenceService:
 
         before = len(rows)
         rows = _one_per_episode(rows)
+        rows = _attach_temporal_decision_ids(rows, temporal_decisions)
         stages.append(EvidenceFunnelStage("one_representative_per_episode", before, len(rows)))
         result = EvidenceDiagnosticFunnel(tuple(stages), rows)
         if cache_key is not None:
@@ -860,9 +870,7 @@ def _freeze_generation_member(row: EvidenceOutcome) -> FrozenEvidenceMember:
         prediction=FrozenEvidencePrediction(
             id=int(row.prediction.id),
             episode_id=(
-                int(row.prediction.episode_id)
-                if row.prediction.episode_id is not None
-                else None
+                int(row.prediction.episode_id) if row.prediction.episode_id is not None else None
             ),
             prediction_as_of_date=row.prediction.prediction_as_of_date,
             feature_json=dict(row.prediction.feature_json or {}),
@@ -882,6 +890,39 @@ def _freeze_generation_member(row: EvidenceOutcome) -> FrozenEvidenceMember:
         ),
         inclusion_weight=Decimal(str(row.inclusion_weight)),
         eligibility_decision_id=row.eligibility_decision_id,
+        temporal_validity_decision_id=row.temporal_validity_decision_id,
         outcome_replay_id=row.outcome_replay_id,
         evidence_origin=row.evidence_origin,
+    )
+
+
+def _temporal_decisions(
+    db: Session,
+    rows: tuple[EvidenceOutcome, ...],
+    *,
+    max_id: int | None = None,
+) -> dict[int, Any]:
+    # Lightweight unit fakes intentionally do not emulate the temporal ledger;
+    # PostgreSQL and real SQLAlchemy sessions always take the batched path.
+    if not hasattr(db, "get_bind"):
+        return {}
+    return load_current_temporal_decisions(
+        db,
+        {int(row.prediction.id) for row in rows},
+        max_id=max_id,
+    )
+
+
+def _attach_temporal_decision_ids(
+    rows: tuple[EvidenceOutcome, ...],
+    decisions: dict[int, Any],
+) -> tuple[EvidenceOutcome, ...]:
+    return tuple(
+        replace(
+            row,
+            temporal_validity_decision_id=getattr(
+                decisions.get(int(row.prediction.id)), "id", None
+            ),
+        )
+        for row in rows
     )

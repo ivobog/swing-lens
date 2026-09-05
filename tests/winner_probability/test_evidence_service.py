@@ -124,6 +124,33 @@ def test_evidence_uses_revision_visible_at_training_cutoff() -> None:
     assert [row.prediction.id for row in result] == [1]
 
 
+def test_execution_invalid_matured_outcome_is_retained_but_excluded() -> None:
+    cutoff = datetime(2026, 8, 20, 20, 0, tzinfo=UTC)
+    current = _prediction(99, cutoff=cutoff)
+    invalid = _row(1, cutoff=cutoff - timedelta(days=30))
+    invalid[0].planned_entry_session = date(2026, 8, 20)
+    invalid[0].captured_at = datetime(2026, 8, 20, 15, 28, tzinfo=UTC)
+    invalid[0].source_data_cutoff_at = datetime(2026, 8, 19, 21, 0, tzinfo=UTC)
+
+    funnel = EvidenceService().diagnostic_funnel(
+        EvidenceFakeDb([invalid]),
+        prediction=current,
+        outcome_definition=_definition(),
+        cohort_key=CohortKey(level="L5", dimensions={"global": "all"}, key="L5:test"),
+        training_cutoff_at=cutoff,
+        config=load_winner_probability_config(),
+    )
+
+    assert funnel.evidence == ()
+    stage = next(
+        item
+        for item in funnel.stages
+        if item.predicate == "temporal_execution_and_lineage_eligible"
+    )
+    assert (stage.before_count, stage.after_count) == (1, 0)
+    assert invalid[1].status == "MATURED"
+
+
 def test_positive_funnel_reaches_authoritative_minimum_independent_sample() -> None:
     cutoff = datetime(2026, 7, 1, tzinfo=UTC)
     current = _prediction(999, cutoff=cutoff)
@@ -148,9 +175,7 @@ def test_global_funnel_is_reused_for_same_immutable_cutoff_contract() -> None:
     service = EvidenceService()
     kwargs = {
         "outcome_definition": _definition(),
-        "cohort_key": CohortKey(
-            level="L5", dimensions={"global": "all"}, key="L5:test"
-        ),
+        "cohort_key": CohortKey(level="L5", dimensions={"global": "all"}, key="L5:test"),
         "training_cutoff_at": cutoff,
         "config": load_winner_probability_config(),
     }

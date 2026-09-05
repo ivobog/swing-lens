@@ -25,6 +25,7 @@ from app.services.price_bar_repository import load_preferred_price_bar_rows
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.winner_probability.outcome_revision_service import OutcomeRevisionService
 from app.services.winner_probability.target_stop_service import TargetStopService
+from app.services.winner_probability.temporal_eligibility import temporal_eligibility_sql
 from app.services.winner_probability.trading_session_service import (
     is_horizon_complete,
     next_regular_session,
@@ -485,9 +486,14 @@ class WinnerOutcomeRepository:
         retry_as_of = retry_as_of or _utcnow()
         statement = (
             select(WinnerForwardOutcome)
+            .join(
+                WinnerPredictionSnapshot,
+                WinnerPredictionSnapshot.id == WinnerForwardOutcome.prediction_id,
+            )
             .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
             .where(WinnerForwardOutcome.is_current_revision.is_(True))
             .where(WinnerForwardOutcome.due_session <= completed_on)
+            .where(temporal_eligibility_sql(WinnerPredictionSnapshot))
             .where(
                 (WinnerForwardOutcome.retry_not_before_at.is_(None))
                 | (WinnerForwardOutcome.retry_not_before_at <= retry_as_of)
@@ -585,8 +591,13 @@ class WinnerOutcomeRepository:
     ) -> list[WinnerForwardOutcome]:
         statement = (
             select(WinnerForwardOutcome)
+            .join(
+                WinnerPredictionSnapshot,
+                WinnerPredictionSnapshot.id == WinnerForwardOutcome.prediction_id,
+            )
             .where(WinnerForwardOutcome.status == OutcomeStatus.MATURED)
             .where(WinnerForwardOutcome.is_current_revision.is_(True))
+            .where(temporal_eligibility_sql(WinnerPredictionSnapshot))
             .order_by(WinnerForwardOutcome.id)
             .limit(limit)
         )

@@ -4,6 +4,7 @@ from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import asdict, dataclass, replace
+from datetime import datetime
 from decimal import Decimal
 from time import perf_counter
 from typing import Any
@@ -59,11 +60,34 @@ from app.services.technical_work import (
     build_technical_work_item,
     execute_technical_work_item,
 )
+from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.settings import Settings, get_settings
 
 
 class TechnicalScoringError(ValueError):
     pass
+
+
+def load_winner_point_in_time_technical_frames(
+    db: Session,
+    ticker: str,
+    *,
+    decision_at: datetime,
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    """Winner-only deterministic OHLCV boundary for capture/replay scoring.
+
+    This deliberately does not alter live technical screens. A daily series is
+    bounded both by the completed exchange session and by local observation
+    time; revised-after-boundary rows fail closed.
+    """
+    if decision_at.tzinfo is None or decision_at.utcoffset() is None:
+        raise ValueError("decision_at must be timezone-aware")
+    return load_preferred_ohlcv_frames(
+        db,
+        ticker,
+        max_session=latest_completed_us_trading_day(decision_at),
+        as_of=decision_at,
+    )
 
 
 @dataclass(frozen=True)

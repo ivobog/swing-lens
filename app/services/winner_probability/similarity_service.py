@@ -22,6 +22,7 @@ from app.services.winner_probability.config import (
 )
 from app.services.winner_probability.evidence_service import EvidenceOutcome
 from app.services.winner_probability.feature_schema import FeatureSchemaRegistry
+from app.services.winner_probability.temporal_eligibility import temporal_eligibility_sql
 
 SIMILARITY_CACHE_VERSION = "owpe-similarity-v1"
 SIMILARITY_EVIDENCE_ROLE = "SUPPORTING"
@@ -217,9 +218,7 @@ class SimilarityService:
                     "outcome_summary": {
                         "primary_winner": neighbor.outcome_summary.primary_winner,
                         "first_event": neighbor.outcome_summary.first_event,
-                        "close_return_pct": _str_or_none(
-                            neighbor.outcome_summary.close_return_pct
-                        ),
+                        "close_return_pct": _str_or_none(neighbor.outcome_summary.close_return_pct),
                         "mfe_pct": _str_or_none(neighbor.outcome_summary.mfe_pct),
                         "mae_pct": _str_or_none(neighbor.outcome_summary.mae_pct),
                         "target_hit": neighbor.outcome_summary.target_hit,
@@ -301,6 +300,7 @@ def _load_safe_evidence(
             WinnerTargetStopOutcome.forward_outcome_id == WinnerForwardOutcome.id,
         )
         .where(WinnerPredictionSnapshot.id != prediction.id)
+        .where(temporal_eligibility_sql(WinnerPredictionSnapshot))
         .where(WinnerPredictionSnapshot.source_data_cutoff_at < as_of)
         .where(WinnerPredictionSnapshot.superseded_at.is_(None))
         .where(WinnerForwardOutcome.entry_model == outcome_definition.entry_model)

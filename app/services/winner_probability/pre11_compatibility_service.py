@@ -29,6 +29,10 @@ from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
 )
 from app.services.winner_probability.target_stop_service import TargetStopService
+from app.services.winner_probability.temporal_eligibility import (
+    load_current_temporal_decisions,
+    prediction_temporally_eligible,
+)
 from app.services.winner_probability.trading_session_service import (
     horizon_due_session,
     latest_completed_session,
@@ -200,6 +204,7 @@ class Pre11CompatibilityService:
         "historical_snapshots_considered",
         "native_snapshots",
         "pit_valid",
+        "temporal_execution_eligible",
         "prediction_eligible",
         "lineage_sufficient",
         "feature_compatible",
@@ -256,6 +261,11 @@ class Pre11CompatibilityService:
         )
         if self._uses_default_replay_resolver:
             self._prepare_replay_cache(db, rows, outcome_definition)
+        temporal_decisions = (
+            load_current_temporal_decisions(db, {int(row.id) for row in rows})
+            if hasattr(db, "get_bind")
+            else {}
+        )
         counts = {name: 0 for name in self.STAGES}
         reasons: Counter[str] = Counter()
         classifications: list[SnapshotCompatibility] = []
@@ -283,6 +293,15 @@ class Pre11CompatibilityService:
                 else:
                     counts["pit_valid"] += 1
                     passed.append("pit_valid")
+
+            if not row_reasons:
+                if not prediction_temporally_eligible(
+                    prediction, temporal_decisions.get(int(prediction.id))
+                ):
+                    row_reasons.append("TEMPORAL_EXECUTION_INELIGIBLE")
+                else:
+                    counts["temporal_execution_eligible"] += 1
+                    passed.append("temporal_execution_eligible")
 
             if not row_reasons:
                 if prediction.eligibility_status != PredictionEligibility.ELIGIBLE:

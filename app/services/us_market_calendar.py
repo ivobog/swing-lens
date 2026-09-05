@@ -1,19 +1,61 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 _NY_TZ = ZoneInfo("America/New_York")
-_DAILY_BAR_READY_TIME = time(16, 15)
+_MARKET_OPEN = time(9, 30)
+_REGULAR_MARKET_CLOSE = time(16, 0)
+_EARLY_MARKET_CLOSE = time(13, 0)
+_DAILY_BAR_READY_DELAY = timedelta(minutes=15)
+
+
+@dataclass(frozen=True)
+class USMarketSession:
+    session: date
+    open_at: datetime
+    close_at: datetime
+
+
+def us_market_session(day: date) -> USMarketSession | None:
+    """Return the authoritative US-equity session schedule for ``day``."""
+    if not is_us_trading_day(day):
+        return None
+    close_time = (
+        _EARLY_MARKET_CLOSE if day in _nyse_early_closes(day.year) else _REGULAR_MARKET_CLOSE
+    )
+    return USMarketSession(
+        session=day,
+        open_at=datetime.combine(day, _MARKET_OPEN, tzinfo=_NY_TZ),
+        close_at=datetime.combine(day, close_time, tzinfo=_NY_TZ),
+    )
+
+
+def first_us_market_open_after(decision_at: datetime) -> USMarketSession:
+    """Select the first exchange open strictly after an aware decision timestamp."""
+    if decision_at.tzinfo is None:
+        raise ValueError("decision_at must be timezone-aware")
+    local = decision_at.astimezone(_NY_TZ)
+    candidate = local.date()
+    while True:
+        session = us_market_session(candidate)
+        if session is not None and local < session.open_at:
+            return session
+        candidate += timedelta(days=1)
+
+
+def is_us_trading_day(day: date) -> bool:
+    return day.weekday() < 5 and day not in _nyse_holidays(day.year)
 
 
 def latest_completed_us_trading_day(now: datetime | None = None) -> date:
     """Return the latest US equity trading day with a complete daily bar."""
     ny_now = _ny_datetime(now)
-    candidate = ny_now.date()
-    if not _is_us_trading_day(candidate) or ny_now.time() < _DAILY_BAR_READY_TIME:
-        candidate = _previous_us_trading_day(candidate)
-    return candidate
+    session = us_market_session(ny_now.date())
+    if session is not None and ny_now >= session.close_at + _DAILY_BAR_READY_DELAY:
+        return session.session
+    return _previous_us_trading_day(ny_now.date())
 
 
 def is_latest_daily_bar_current(
@@ -79,7 +121,7 @@ def us_trading_sessions_between(start_exclusive: date, end_inclusive: date) -> i
 def nth_us_trading_day_from_entry(entry_day: date, horizon_sessions: int) -> date:
     if horizon_sessions <= 0:
         raise ValueError("horizon_sessions must be positive")
-    if not _is_us_trading_day(entry_day):
+    if not is_us_trading_day(entry_day):
         raise ValueError("entry_day must be a US trading day")
 
     candidate = entry_day
@@ -103,8 +145,7 @@ def _previous_us_trading_day(day: date) -> date:
     return candidate
 
 
-def _is_us_trading_day(day: date) -> bool:
-    return day.weekday() < 5 and day not in _nyse_holidays(day.year)
+_is_us_trading_day = is_us_trading_day
 
 
 def _nyse_holidays(year: int) -> set[date]:
@@ -121,7 +162,37 @@ def _nyse_holidays(year: int) -> set[date]:
     }
     if year >= 2022:
         holidays.add(_observed(date(year, 6, 19)))
+    for raw in (
+        date(year - 1, 1, 1),
+        date(year - 1, 12, 25),
+        date(year + 1, 1, 1),
+    ):
+        observed = _observed(raw)
+        if observed.year == year:
+            holidays.add(observed)
     return holidays
+
+
+def _nyse_early_closes(year: int) -> set[date]:
+    """Rule-based NYSE 13:00 closes used by the shared session service.
+
+    Exceptional one-off closures remain full holiday overrides; these stable
+    exchange rules cover the recurring early-close schedule relevant to the
+    point-in-time decision boundary.
+    """
+    thanksgiving = _nth_weekday(year, 11, 3, 4)
+    candidates = {thanksgiving + timedelta(days=1)}
+
+    july_fourth = date(year, 7, 4)
+    if july_fourth.weekday() in {1, 2, 3, 4}:  # Tue-Fri: preceding session
+        candidates.add(july_fourth - timedelta(days=1))
+    elif july_fourth.weekday() == 6:  # Sunday; observed Monday
+        candidates.add(july_fourth - timedelta(days=2))
+
+    christmas_eve = date(year, 12, 24)
+    if christmas_eve.weekday() < 5:
+        candidates.add(christmas_eve)
+    return {day for day in candidates if is_us_trading_day(day)}
 
 
 def _observed(day: date) -> date:

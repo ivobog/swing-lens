@@ -703,6 +703,7 @@ def _prediction_payload(
         "ticker": row.ticker,
         "prediction_as_of_date": _iso(row.prediction_as_of_date),
         "source_data_cutoff_at": _iso(row.source_data_cutoff_at),
+        "decision_at": _iso(row.decision_at),
         "captured_at": _iso(row.captured_at),
         "planned_entry_session": _iso(row.planned_entry_session),
         "entry_schedule_status": row.entry_schedule_status,

@@ -79,6 +79,16 @@ def test_compatible_native_snapshot_is_accepted_despite_literal_hash_mismatch() 
     assert result.manifest_payload()["write_count"] == 0
 
 
+def test_compatibility_replay_cannot_readmit_retroactive_next_open() -> None:
+    prediction = _prediction(1)
+    prediction.captured_at = datetime(2026, 8, 5, 15, 28, tzinfo=UTC)
+
+    result = _dry_run([prediction])
+
+    assert result.final_training_eligible == 0
+    assert result.reason_frequencies == {"TEMPORAL_EXECUTION_INELIGIBLE": 1}
+
+
 def test_missing_optional_ranking_does_not_block_global_training() -> None:
     prediction = _prediction(1)
     prediction.ranking_profile = None

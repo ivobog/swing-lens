@@ -13,6 +13,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
     WinnerTargetStopOutcome,
+    WinnerTemporalValidityDecision,
 )
 
 OWPE_TABLES = {
@@ -46,6 +47,7 @@ def test_prediction_snapshot_table_includes_audit_and_filter_columns() -> None:
     for column_name in [
         "prediction_as_of_date",
         "source_data_cutoff_at",
+        "decision_at",
         "captured_at",
         "planned_entry_session",
         "entry_schedule_status",
@@ -85,6 +87,36 @@ def test_prediction_snapshot_table_includes_audit_and_filter_columns() -> None:
         "retention_class",
     ]:
         assert column_name in table.c
+
+
+def test_temporal_validity_ledger_is_append_only_shaped_and_indexed() -> None:
+    table = WinnerTemporalValidityDecision.__table__
+    constraints = {constraint.name for constraint in table.constraints}
+    indexes = {index.name for index in table.indexes}
+
+    assert {
+        "prediction_id",
+        "validation_sequence",
+        "status",
+        "entry_timing_valid",
+        "source_cutoff_valid",
+        "semantic_input_time_valid",
+        "evidence_eligible",
+        "reason_codes_json",
+        "validation_version",
+        "decision_at",
+        "entry_session",
+        "entry_open_at",
+        "evaluated_at",
+        "evaluated_by",
+        "metadata_json",
+    }.issubset(table.c.keys())
+    assert "uq_winner_temporal_validity_prediction_sequence" in constraints
+    assert "ck_winner_temporal_validity_status" in constraints
+    assert {
+        "idx_winner_temporal_validity_prediction_sequence",
+        "idx_winner_temporal_validity_evidence_eligible",
+    }.issubset(indexes)
 
 
 def test_prediction_snapshot_constraints_and_indexes_are_defined() -> None:

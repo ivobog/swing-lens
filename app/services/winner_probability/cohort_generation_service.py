@@ -14,9 +14,13 @@ from app.models.tables import (
     OutcomeStatus,
     WinnerCohortGeneration,
     WinnerCohortRefreshState,
+    WinnerCohortStatistic,
+    WinnerEvidenceManifestMember,
     WinnerForwardOutcome,
     WinnerOutcomeDefinition,
+    WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
+    WinnerTemporalValidityDecision,
     WinnerTrainingEligibilityDecision,
     WinnerTrainingOutcomeReplay,
 )
@@ -25,9 +29,13 @@ from app.services.winner_probability.pre11_compatibility_service import (
     BRIDGE_VERSION,
     POLICY_VERSION,
 )
+from app.services.winner_probability.temporal_eligibility import (
+    load_current_temporal_decisions,
+    prediction_temporally_eligible,
+)
 
-COHORT_ALGORITHM_VERSION = "cohort-v2.1"
-ELIGIBILITY_POLICY_VERSION = "training-eligibility-v1"
+COHORT_ALGORITHM_VERSION = "cohort-v2.2"
+ELIGIBILITY_POLICY_VERSION = "training-eligibility-v2-temporal"
 
 
 class CohortGenerationStatus:
@@ -71,6 +79,7 @@ class EvidenceWatermark:
     target_stop_revision_id: int = 0
     eligibility_decision_id: int = 0
     training_replay_id: int = 0
+    temporal_validity_decision_id: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return asdict(self)
@@ -95,6 +104,17 @@ class WatermarkAdvanceResult:
     state: WinnerCohortRefreshState
     watermark: EvidenceWatermark
     advanced: bool
+
+
+@dataclass(frozen=True)
+class TemporalGenerationAudit:
+    generation_id: int
+    distinct_prediction_count: int
+    invalid_prediction_ids: tuple[int, ...]
+
+    @property
+    def clean(self) -> bool:
+        return not self.invalid_prediction_ids
 
 
 def contract_for(
@@ -153,6 +173,7 @@ class EvidenceWatermarkService:
         state.desired_target_stop_revision_id = watermark.target_stop_revision_id
         state.desired_eligibility_decision_id = watermark.eligibility_decision_id
         state.desired_training_replay_id = watermark.training_replay_id
+        state.desired_temporal_validity_decision_id = watermark.temporal_validity_decision_id
         state.desired_watermark_hash = canonical_watermark_hash(watermark)
         state.updated_at = observed_at or datetime.now(UTC)
         db.flush()
@@ -198,7 +219,19 @@ class EvidenceWatermarkService:
             )
             .scalar_subquery()
         )
-        row = db.execute(select(forward_max, target_stop_max, eligibility_max, replay_max)).one()
+        temporal_max = (
+            select(func.max(WinnerTemporalValidityDecision.id))
+            .join(
+                WinnerTargetStopOutcome,
+                WinnerTargetStopOutcome.prediction_id
+                == WinnerTemporalValidityDecision.prediction_id,
+            )
+            .where(WinnerTargetStopOutcome.outcome_definition_id == outcome_definition_id)
+            .scalar_subquery()
+        )
+        row = db.execute(
+            select(forward_max, target_stop_max, eligibility_max, replay_max, temporal_max)
+        ).one()
         return EvidenceWatermark(*(int(value or 0) for value in row))
 
     def _locked_state(
@@ -219,6 +252,7 @@ class EvidenceWatermarkService:
             "desired_target_stop_revision_id": 0,
             "desired_eligibility_decision_id": 0,
             "desired_training_replay_id": 0,
+            "desired_temporal_validity_decision_id": 0,
             "desired_watermark_hash": canonical_watermark_hash(empty),
             "updated_at": observed_at or datetime.now(UTC),
         }
@@ -351,6 +385,7 @@ class CohortGenerationService:
             generation.completed_group_count != generation.planned_group_count
         ):
             raise GenerationInvariantViolation("cohort generation is only partially materialized")
+        self._assert_temporally_clean(db, generation)
         lease_guard()
         state = db.scalar(
             select(WinnerCohortRefreshState)
@@ -378,6 +413,69 @@ class CohortGenerationService:
         lease_guard()
         return state.desired_watermark_hash != generation.watermark_hash
 
+    @staticmethod
+    def _assert_temporally_clean(
+        db: Session,
+        generation: WinnerCohortGeneration,
+    ) -> None:
+        # Unit-only state fakes have no SQLAlchemy bind. Materialized PostgreSQL
+        # generations are always validated set-wise before publication.
+        if not hasattr(db, "get_bind"):
+            return
+        audit = CohortGenerationService.audit_temporal_integrity(db, generation=generation)
+        if audit.invalid_prediction_ids:
+            preview = ",".join(str(value) for value in audit.invalid_prediction_ids[:10])
+            raise GenerationInvariantViolation(
+                "cohort generation contains temporally ineligible evidence "
+                f"({len(audit.invalid_prediction_ids)} predictions; first={preview})"
+            )
+
+    @staticmethod
+    def audit_temporal_integrity(
+        db: Session,
+        *,
+        generation: WinnerCohortGeneration,
+    ) -> TemporalGenerationAudit:
+        prediction_ids = set(
+            int(value)
+            for value in db.scalars(
+                select(WinnerEvidenceManifestMember.prediction_id)
+                .join(
+                    WinnerCohortStatistic,
+                    WinnerCohortStatistic.evidence_manifest_id
+                    == WinnerEvidenceManifestMember.manifest_id,
+                )
+                .where(WinnerCohortStatistic.generation_id == generation.id)
+                .distinct()
+            )
+        )
+        if not prediction_ids:
+            return TemporalGenerationAudit(int(generation.id), 0, ())
+        predictions = {
+            int(row.id): row
+            for row in db.scalars(
+                select(WinnerPredictionSnapshot).where(
+                    WinnerPredictionSnapshot.id.in_(sorted(prediction_ids))
+                )
+            )
+        }
+        decisions = load_current_temporal_decisions(db, prediction_ids)
+        invalid = tuple(
+            sorted(
+                prediction_id
+                for prediction_id in prediction_ids
+                if prediction_id not in predictions
+                or not prediction_temporally_eligible(
+                    predictions[prediction_id], decisions.get(prediction_id)
+                )
+            )
+        )
+        return TemporalGenerationAudit(
+            generation_id=int(generation.id),
+            distinct_prediction_count=len(prediction_ids),
+            invalid_prediction_ids=invalid,
+        )
+
 
 def watermark_from_state(state: WinnerCohortRefreshState) -> EvidenceWatermark:
     return EvidenceWatermark(
@@ -385,6 +483,9 @@ def watermark_from_state(state: WinnerCohortRefreshState) -> EvidenceWatermark:
         target_stop_revision_id=int(state.desired_target_stop_revision_id or 0),
         eligibility_decision_id=int(state.desired_eligibility_decision_id or 0),
         training_replay_id=int(state.desired_training_replay_id or 0),
+        temporal_validity_decision_id=int(
+            getattr(state, "desired_temporal_validity_decision_id", 0) or 0
+        ),
     )
 
 

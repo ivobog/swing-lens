@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 from sqlalchemy import select
@@ -12,8 +12,11 @@ def load_price_bars_frame(
     ticker: str,
     what_to_show: str,
     timeframe: str = "1 day",
+    *,
+    max_session: date | None = None,
+    as_of: datetime | None = None,
 ) -> pd.DataFrame:
-    rows = db.scalars(
+    statement = (
         select(PriceBar)
         .where(
             PriceBar.ticker == ticker.upper(),
@@ -21,7 +24,19 @@ def load_price_bars_frame(
             PriceBar.timeframe == timeframe,
         )
         .order_by(PriceBar.bar_date)
-    ).all()
+    )
+    if max_session is not None:
+        statement = statement.where(PriceBar.bar_date <= max_session)
+    if as_of is not None:
+        statement = statement.where(PriceBar.created_at <= as_of).where(
+            PriceBar.first_seen_at <= as_of
+        )
+        # Current rows revised after the boundary cannot safely stand in for
+        # their historical value without revision reconstruction.
+        statement = statement.where(
+            (PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= as_of)
+        )
+    rows = db.scalars(statement).all()
 
     return pd.DataFrame(
         [
@@ -43,9 +58,16 @@ def load_preferred_ohlcv_frames(
     db: Session,
     ticker: str,
     timeframe: str = "1 day",
+    *,
+    max_session: date | None = None,
+    as_of: datetime | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
-    adjusted = load_price_bars_frame(db, ticker, "ADJUSTED_LAST", timeframe)
-    trades = load_price_bars_frame(db, ticker, "TRADES", timeframe)
+    adjusted = load_price_bars_frame(
+        db, ticker, "ADJUSTED_LAST", timeframe, max_session=max_session, as_of=as_of
+    )
+    trades = load_price_bars_frame(
+        db, ticker, "TRADES", timeframe, max_session=max_session, as_of=as_of
+    )
     price = adjusted if not adjusted.empty else trades
     volume = trades if not trades.empty else None
     return price, volume

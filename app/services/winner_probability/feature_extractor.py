@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
@@ -13,8 +13,8 @@ from app.models.tables import (
     PredictionEligibility,
 )
 from app.services.us_market_calendar import (
+    first_us_market_open_after,
     latest_completed_us_trading_day,
-    next_us_trading_day,
 )
 from app.services.winner_probability.config import WinnerProbabilityConfig
 from app.services.winner_probability.feature_schema import (
@@ -46,6 +46,46 @@ class ExtractedPredictionFeatures:
 
 
 class WinnerFeatureExtractor:
+    def finalize_decision_timing(
+        self,
+        features: ExtractedPredictionFeatures,
+        *,
+        decision_at: datetime,
+    ) -> ExtractedPredictionFeatures:
+        """Bind executable timing after the immutable feature decision exists."""
+        planned_entry = _planned_entry_session(decision_at)
+        entry_schedule_status = (
+            EntryScheduleStatus.RESOLVED
+            if planned_entry is not None
+            else EntryScheduleStatus.UNRESOLVED
+        )
+        entry_data_status = (
+            EntryDataStatus.NOT_DUE
+            if planned_entry is not None
+            and planned_entry > latest_completed_us_trading_day(decision_at)
+            else EntryDataStatus.PENDING
+        )
+        feature_json = {
+            **features.feature_json,
+            "planned_entry_session": _normalize(planned_entry),
+        }
+        boundary = dict(features.lineage_json.get("technical_point_in_time_boundary") or {})
+        boundary.setdefault("feature_as_of_at", boundary.get("decision_at"))
+        boundary["decision_at"] = _normalize(decision_at)
+        lineage_json = {
+            **features.lineage_json,
+            "technical_point_in_time_boundary": boundary,
+        }
+        return replace(
+            features,
+            planned_entry_session=planned_entry,
+            entry_schedule_status=entry_schedule_status,
+            entry_data_status=entry_data_status,
+            feature_json=feature_json,
+            feature_vector_hash=_stable_hash(feature_json),
+            lineage_json=lineage_json,
+        )
+
     def extract(
         self,
         run_context: RunCaptureContext,
@@ -53,8 +93,9 @@ class WinnerFeatureExtractor:
         config: WinnerProbabilityConfig,
         *,
         captured_at: datetime | None = None,
+        decision_at: datetime | None = None,
     ) -> ExtractedPredictionFeatures:
-        captured_at = captured_at or datetime.now(UTC)
+        decision_at = decision_at or captured_at or datetime.now(UTC)
         raw_row = ticker_context.raw_row
         ticker = _ticker(raw_row.ticker)
         technical = ticker_context.technical_score
@@ -66,16 +107,16 @@ class WinnerFeatureExtractor:
         sector_snapshot = run_context.sector_rotation_snapshot
         warnings: list[str] = []
 
-        if _source_after_cutoff(market, captured_at):
+        if _source_after_cutoff(market, decision_at):
             warnings.append("future_market_regime_snapshot_omitted")
             market = None
-        if _source_after_cutoff(sector_snapshot, captured_at):
+        if _source_after_cutoff(sector_snapshot, decision_at):
             warnings.append("future_sector_rotation_context_omitted")
             sector_snapshot = None
             sector_row = None
 
         _validate_point_in_time_sources(
-            captured_at,
+            decision_at,
             run_context.upload_run,
             raw_row,
             fundamental,
@@ -86,7 +127,7 @@ class WinnerFeatureExtractor:
             sector_snapshot,
         )
         source_cutoff = _source_cutoff_at(
-            captured_at,
+            decision_at,
             run_context.upload_run,
             raw_row,
             fundamental,
@@ -96,7 +137,7 @@ class WinnerFeatureExtractor:
             market,
             sector_snapshot,
         )
-        prediction_as_of = latest_completed_us_trading_day(captured_at)
+        prediction_as_of = latest_completed_us_trading_day(decision_at)
         for context_name, context_date in (
             ("market_regime", getattr(market, "as_of_date", None)),
             ("sector_rotation", getattr(sector_snapshot, "as_of_date", None)),
@@ -128,7 +169,7 @@ class WinnerFeatureExtractor:
         if fundamental is None:
             warnings.append("missing_fundamental_score")
 
-        planned_entry = _planned_entry_session(prediction_as_of)
+        planned_entry = _planned_entry_session(decision_at)
         entry_schedule_status = (
             EntryScheduleStatus.RESOLVED
             if planned_entry is not None
@@ -136,7 +177,7 @@ class WinnerFeatureExtractor:
         )
         entry_data_status = (
             EntryDataStatus.NOT_DUE
-            if planned_entry and planned_entry > latest_completed_us_trading_day(captured_at)
+            if planned_entry and planned_entry > latest_completed_us_trading_day(decision_at)
             else EntryDataStatus.PENDING
         )
 
@@ -158,7 +199,7 @@ class WinnerFeatureExtractor:
         feature_cutoff_audit = _feature_cutoff_audit(
             config=config,
             feature_json=feature_json,
-            prediction_cutoff_at=captured_at,
+            prediction_cutoff_at=decision_at,
             run_context=run_context,
             raw_row=raw_row,
             fundamental=fundamental,
@@ -195,8 +236,22 @@ class WinnerFeatureExtractor:
             lineage_json={
                 "capture_phase": "phase_3",
                 "point_in_time_validated": True,
+                "point_in_time_validation": {
+                    "source_cutoff": "VALID",
+                    "entry_timing": "VALID",
+                    "semantic_input_time": "VALID",
+                },
                 "feature_cutoff_audit": feature_cutoff_audit,
                 "feature_cutoff_audit_hash": _stable_hash(feature_cutoff_audit),
+                "technical_point_in_time_boundary": {
+                    "decision_at": _normalize(decision_at),
+                    "feature_as_of_at": _normalize(decision_at),
+                    "max_completed_session": _normalize(prediction_as_of),
+                    "technical_score_created_at": _normalize(
+                        getattr(technical, "created_at", None)
+                    ),
+                    "required_series_policy": "COMPLETED_SESSION_AND_OBSERVED_AS_OF",
+                },
                 "entry_horizon_convention": config.horizon.counting_convention,
             },
         )
@@ -326,9 +381,7 @@ def _feature_cutoff_audit(
             }
             continue
         if available_at is None:
-            raise WinnerFeatureExtractionError(
-                f"{feature_name} source availability is unavailable"
-            )
+            raise WinnerFeatureExtractionError(f"{feature_name} source availability is unavailable")
         try:
             registry.validate_source_available_at(
                 feature_name,
@@ -445,9 +498,9 @@ def _datetime_after(value: datetime, cutoff: datetime) -> bool:
     return comparable_value > comparable_cutoff
 
 
-def _planned_entry_session(prediction_as_of: date) -> date | None:
+def _planned_entry_session(decision_at: datetime) -> date | None:
     try:
-        return next_us_trading_day(prediction_as_of)
+        return first_us_market_open_after(decision_at).session
     except Exception:
         return None
 
