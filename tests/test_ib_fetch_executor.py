@@ -297,6 +297,52 @@ def test_provider_rejection_is_failed_with_truthful_run_counters(monkeypatch) ->
     assert cache_calls == []
 
 
+def test_controlled_recovery_stops_before_next_request_on_hard_failure(monkeypatch) -> None:
+    db = FakeDb()
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=1), error_message=None
+        ),
+    )
+    calls = []
+
+    def reject_first(*args, **kwargs):
+        calls.append(args[1].symbol)
+        raise IBHistoricalRequestError(
+            code=321,
+            provider_message="request rejected",
+            classification="PROVIDER_REJECTED",
+        )
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", reject_first)
+    items = [
+        _plan_item("AAL", FetchAction.TOP_UP_RECENT, "10 D"),
+        _plan_item("AAPL", FetchAction.TOP_UP_RECENT, "10 D"),
+    ]
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=replace(
+            _fetch_plan(items[0]),
+            requested_tickers=["AAL", "AAPL"],
+            symbols_including_benchmarks=["AAL", "AAPL"],
+            items=items,
+            estimated_request_count=2,
+            estimated_top_ups=2,
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+        stop_on_hard_failure=True,
+    )
+
+    assert calls == ["AAL"]
+    assert fetch_run.failure_count == 1
+    assert fetch_run.executed_request_count == 1
+    assert len(fetch_run.items) == 1
+
+
 def test_valid_empty_response_with_missing_sessions_is_not_success(monkeypatch) -> None:
     db = FakeDb()
     monkeypatch.setattr(
@@ -324,6 +370,35 @@ def test_valid_empty_response_with_missing_sessions_is_not_success(monkeypatch) 
     assert item.decision_metadata_json["provider_result"] == "PROVIDER_NO_DATA"
     assert "required sessions remain missing" in item.error_message
     assert cache_calls == []
+
+
+def test_timeout_is_recorded_truthfully_after_bounded_retries(monkeypatch) -> None:
+    db = FakeDb()
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=1), error_message=None
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError("IB timed out")),
+    )
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=_fetch_plan(_plan_item("MSFT", FetchAction.TOP_UP_RECENT, "10 D")),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=2),
+    )
+
+    item = fetch_run.items[0]
+    assert item.status == "FAILED"
+    assert item.attempt_count == 2
+    assert item.decision_metadata_json["provider_result"] == "TIMEOUT"
+    assert item.decision_metadata_json["provider_error_message"] == "IB timed out"
 
 
 def test_current_ended_scope_expires_before_provider_request(monkeypatch) -> None:

@@ -77,6 +77,7 @@ def execute_fetch_plan(
     progress_callback: Callable[..., None] | None = None,
     execution_token: str | None = None,
     memory_probe: Callable[[Session, int, int, str], None] | None = None,
+    stop_on_hard_failure: bool = False,
 ) -> IBFetchRun:
     settings = settings or get_settings()
     rate_limiter = rate_limiter or IbHistoricalRateLimiter(
@@ -204,6 +205,8 @@ def execute_fetch_plan(
             )
             if memory_probe is not None:
                 memory_probe(item_db, item_index, total_items, plan_item.ticker)
+            if stop_on_hard_failure and _is_hard_recovery_failure(fetch_item):
+                break
             if cancel_after_item:
                 break
     except (JobLeaseLost, WorkerMemoryCritical):
@@ -556,6 +559,16 @@ def _execute_plan_item(
                 _mark_skipped(fetch_item, "Cancellation requested during IB retry backoff.")
                 return
         except Exception as exc:
+            provider_result = "TIMEOUT" if isinstance(exc, TimeoutError) else "PROVIDER_ERROR"
+            fetch_item.decision_metadata_json = _decision_metadata(
+                plan_item,
+                action=action,
+                duration=duration,
+                scope=scope,
+                boundary_status="NOT_EVALUATED",
+                provider_result=provider_result,
+                provider_error_message=str(exc),
+            )
             fetch_item.error_message = _safe_message(str(exc))
             if attempt >= settings.ib_max_retries:
                 _mark_failed(fetch_item, str(exc))
@@ -853,6 +866,18 @@ def _validate_returned_scope(
 
 def _iso_date(value: date | None) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+def _is_hard_recovery_failure(fetch_item: IBFetchItem) -> bool:
+    if fetch_item.status != "FAILED":
+        return False
+    metadata = fetch_item.decision_metadata_json or {}
+    provider_result = metadata.get("provider_result")
+    return bool(
+        metadata.get("boundary_status") == "FAIL"
+        or provider_result in {"PROVIDER_REJECTED", "REVIEW_SCOPE_EXPIRED"}
+        or provider_result is None
+    )
 
 
 def _benchmark_first_items(

@@ -12,8 +12,9 @@ import hashlib
 import json
 from collections import Counter, defaultdict
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import func, select, text
@@ -26,6 +27,8 @@ from app.models.tables import (
     PriceBar,
     PriceBarRevision,
     WinnerMarketDataObligation,
+    WinnerPredictionSnapshot,
+    WinnerTemporalValidityDecision,
 )
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import (
@@ -42,6 +45,10 @@ from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.services.winner_probability.market_data_obligation_service import (
     MarketDataObligationService,
 )
+from app.services.winner_probability.temporal_eligibility import (
+    load_current_temporal_decisions,
+    prediction_temporally_eligible,
+)
 from app.services.winner_probability.temporal_manifest_canonicalization import (
     canonical_manifest_bytes,
     canonicalize_manifest_value,
@@ -51,6 +58,9 @@ from app.settings import get_settings
 SCHEMA_V1_AUDIT = "swinglens-winner-ib-request-scope-v1-audit"
 SCHEMA_V3_CANARY = "swinglens-winner-ib-request-scope-v3-canary"
 SCHEMA_V3_RESULT = "swinglens-winner-ib-request-scope-v3-result"
+SCHEMA_RECOVERY_MASTER = "swinglens-winner-ib-recovery-master-v1"
+SCHEMA_RECOVERY_BATCH = "swinglens-winner-ib-recovery-batch-v1"
+SCHEMA_RECOVERY_BATCH_RESULT = "swinglens-winner-ib-recovery-batch-result-v1"
 RECOVERY_MANIFEST_HASH = "f74cdd39c79527573e92e7089a682dda9d780203939d3f247da88fff41f4388b"
 BASES = ("TRADES", "ADJUSTED_LAST")
 
@@ -286,7 +296,6 @@ def _selected_plan(
 def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPlan]:
     if "CLBK" in {ticker.upper() for ticker in tickers}:
         raise RuntimeError("CLBK is excluded from request-scope canaries")
-    plan = _selected_plan(db, tickers)
     obligations = list(
         db.scalars(
             select(WinnerMarketDataObligation)
@@ -299,6 +308,27 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
             )
         )
     )
+    required_keys = {
+        (row.ticker_snapshot, row.what_to_show) for row in obligations
+    }
+    plan = _selected_plan(db, tickers, required_keys=required_keys)
+    prediction_ids = {int(row.prediction_id) for row in obligations}
+    predictions = {
+        int(row.id): row
+        for row in db.scalars(
+            select(WinnerPredictionSnapshot).where(
+                WinnerPredictionSnapshot.id.in_(sorted(prediction_ids))
+            )
+        )
+    }
+    decisions = load_current_temporal_decisions(db, prediction_ids)
+    invalid = [
+        prediction_id
+        for prediction_id, prediction in predictions.items()
+        if not prediction_temporally_eligible(prediction, decisions.get(prediction_id))
+    ]
+    if invalid:
+        raise RuntimeError(f"recovery batch contains temporally ineligible predictions: {invalid}")
     by_key: dict[tuple[str, str], list[WinnerMarketDataObligation]] = defaultdict(list)
     for row in obligations:
         by_key[(row.ticker_snapshot, row.what_to_show)].append(row)
@@ -344,6 +374,17 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
                 "reviewed_end": item.request_end_date,
                 "associated_outcome_ids": sorted({int(row.forward_outcome_id) for row in related}),
                 "associated_prediction_ids": sorted({int(row.prediction_id) for row in related}),
+                "obligations": [
+                    {
+                        "obligation_id": int(row.id),
+                        "outcome_id": int(row.forward_outcome_id),
+                        "prediction_id": int(row.prediction_id),
+                        "status": row.status,
+                        "required_sessions": list(row.required_sessions_json),
+                        "price_series_watermark": row.price_series_watermark,
+                    }
+                    for row in related
+                ],
                 "before_region_hashes": _region_hashes(
                     db,
                     ticker=item.ticker,
@@ -353,12 +394,29 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
                 ),
             }
         )
+    quarantine_count = _quarantine_count(db)
+    if quarantine_count != 1292:
+        raise RuntimeError(f"quarantine count drifted from 1292 to {quarantine_count}")
+    active_jobs = int(
+        db.scalar(
+            text(
+                "SELECT count(*) FROM background_jobs "
+                "WHERE status IN ('QUEUED', 'RUNNING')"
+            )
+        )
+        or 0
+    )
+    if active_jobs:
+        raise RuntimeError(f"{active_jobs} active jobs prevent controlled recovery")
     payload: dict[str, Any] = {
         "schema": SCHEMA_V3_CANARY,
         "recovery_manifest_hash": RECOVERY_MANIFEST_HASH,
         "completed_session": latest_completed_us_trading_day(),
         "tickers": sorted({ticker.upper() for ticker in tickers}),
         "request_count": len(records),
+        "quarantined_prediction_count": quarantine_count,
+        "active_job_count": active_jobs,
+        "historical_counts": _historical_counts(db),
         "items": records,
     }
     payload["artifact_hash"] = _hash(payload)
@@ -444,10 +502,19 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                     metadata.get("reviewed_end_date") == reviewed_item["reviewed_end"],
                 )
             )
-            passed = bool(
+            provider_result = metadata.get("provider_result")
+            successful = bool(
                 item.status == "SUCCESS"
                 and metadata.get("boundary_status") == "PASS"
-                and metadata.get("provider_result") == "SUCCESS_WITH_BARS"
+                and provider_result == "SUCCESS_WITH_BARS"
+            )
+            truthful_soft_failure = bool(
+                item.status == "FAILED"
+                and provider_result in {"PROVIDER_NO_DATA", "PROVIDER_ERROR", "TIMEOUT"}
+                and metadata.get("boundary_status") != "FAIL"
+            )
+            passed = bool(
+                (successful or truthful_soft_failure)
                 and parameter_match
                 and outside_unchanged
             )
@@ -460,7 +527,7 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                     "end_datetime": metadata.get("request_end_datetime"),
                     "end_mode": metadata.get("request_end_mode"),
                     "reviewed_session_expiry": metadata.get("reviewed_session_expiry"),
-                    "provider_result": metadata.get("provider_result"),
+                    "provider_result": provider_result,
                     "reviewed_start": metadata.get("reviewed_start_date"),
                     "actual_start": metadata.get("actual_start_date"),
                     "actual_end": metadata.get("actual_end_date"),
@@ -506,7 +573,11 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
             {"outcome_ids": sorted(outcome_ids)},
         )
         payload: dict[str, Any] = {
-            "schema": SCHEMA_V3_RESULT,
+            "schema": (
+                SCHEMA_RECOVERY_BATCH_RESULT
+                if reviewed.get("schema") == SCHEMA_RECOVERY_BATCH
+                else SCHEMA_V3_RESULT
+            ),
             "reviewed_artifact_hash": reviewed["artifact_hash"],
             "fetch_run_id": fetch_run_id,
             "fetch_run_status": fetch_run.status,
@@ -517,6 +588,19 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                 "revised": sum(row["revised"] for row in results),
                 "unchanged": sum(row["unchanged"] for row in results),
                 "failed": sum(not row["passed"] for row in results),
+                "success": sum(
+                    row["provider_result"] == "SUCCESS_WITH_BARS" for row in results
+                ),
+                "provider_no_data": sum(
+                    row["provider_result"] == "PROVIDER_NO_DATA" for row in results
+                ),
+                "provider_rejected": sum(
+                    row["provider_result"] == "PROVIDER_REJECTED" for row in results
+                ),
+                "provider_error": sum(
+                    row["provider_result"] == "PROVIDER_ERROR" for row in results
+                ),
+                "timeout": sum(row["provider_result"] == "TIMEOUT" for row in results),
             },
             "associated_outcome_count": len(outcome_ids),
             "maturation_ready_count": int(ready or 0),
@@ -524,10 +608,233 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
             "items": results,
         }
         payload["artifact_hash"] = _hash(payload)
-        result_path = output_dir / f"canary_v3_result_{payload['artifact_hash']}.json"
+        prefix = (
+            f"batch_{int(reviewed['batch_number']):03d}_result"
+            if reviewed.get("schema") == SCHEMA_RECOVERY_BATCH
+            else "canary_v3_result"
+        )
+        result_path = output_dir / f"{prefix}_{payload['artifact_hash']}.json"
         _write_immutable(result_path, payload)
         print(json.dumps({"path": str(result_path.resolve()), **_summary(payload)}, indent=2))
         return result_path
+
+
+def _remaining_master_payload(db) -> dict[str, Any]:
+    service = MarketDataObligationService()
+    needs = service.recovery_needs(db)
+    need_by_key = {(row.outcome_id, row.what_to_show): row for row in needs}
+    obligations = list(
+        db.scalars(
+            select(WinnerMarketDataObligation)
+            .where(WinnerMarketDataObligation.status == "FETCH_REQUIRED")
+            .order_by(WinnerMarketDataObligation.id)
+        )
+    )
+    if len(obligations) != len(needs):
+        raise RuntimeError(
+            "FETCH_REQUIRED obligations and live missing-session needs do not reconcile"
+        )
+    if any(row.ticker_snapshot == "CLBK" for row in obligations):
+        raise RuntimeError("CLBK obligation entered the ordinary recovery population")
+    prediction_ids = {int(row.prediction_id) for row in obligations}
+    predictions = {
+        int(row.id): row
+        for row in db.scalars(
+            select(WinnerPredictionSnapshot).where(
+                WinnerPredictionSnapshot.id.in_(sorted(prediction_ids))
+            )
+        )
+    }
+    decisions = load_current_temporal_decisions(db, prediction_ids)
+    contracts = {
+        int(row.id): row
+        for row in db.scalars(
+            select(IBContract).where(
+                IBContract.id.in_(
+                    {row.ib_contract_id for row in obligations if row.ib_contract_id}
+                )
+            )
+        )
+    }
+    records: list[dict[str, Any]] = []
+    for obligation in obligations:
+        prediction = predictions[int(obligation.prediction_id)]
+        if not prediction_temporally_eligible(
+            prediction, decisions.get(int(obligation.prediction_id))
+        ):
+            raise RuntimeError(
+                f"obligation {obligation.id} belongs to a temporally ineligible prediction"
+            )
+        contract = contracts.get(int(obligation.ib_contract_id or 0))
+        if contract is None or not _identity_matches(obligation, contract):
+            raise RuntimeError(f"obligation {obligation.id} has stale contract identity")
+        need = need_by_key.get(
+            (int(obligation.forward_outcome_id), obligation.what_to_show)
+        )
+        if need is None:
+            raise RuntimeError(f"obligation {obligation.id} has no current missing sessions")
+        records.append(
+            {
+                "obligation_id": int(obligation.id),
+                "outcome_id": int(obligation.forward_outcome_id),
+                "prediction_id": int(obligation.prediction_id),
+                "ticker": obligation.ticker_snapshot,
+                "ib_conid": int(obligation.ib_conid_snapshot),
+                "contract": _contract_snapshot(contract),
+                "basis": obligation.what_to_show,
+                "required_sessions": list(obligation.required_sessions_json),
+                "missing_sessions": list(need.missing_sessions),
+                "required_missing_start": need.missing_sessions[0],
+                "required_missing_end": need.missing_sessions[-1],
+                "current_status": obligation.status,
+                "price_series_watermark": obligation.price_series_watermark,
+            }
+        )
+    payload: dict[str, Any] = {
+        "schema": SCHEMA_RECOVERY_MASTER,
+        "reviewed_completed_session": latest_completed_us_trading_day(),
+        "recovery_outcome_count": len({row["outcome_id"] for row in records}),
+        "obligation_count": len(records),
+        "contract_count": len({row["contract"]["id"] for row in records}),
+        "quarantined_prediction_count": _quarantine_count(db),
+        "clbk_obligation_count": sum(row["ticker"] == "CLBK" for row in records),
+        "records": records,
+    }
+    payload["artifact_hash"] = _hash(payload)
+    return payload
+
+
+def plan_remaining_master(output_dir: Path) -> Path:
+    with SessionLocal() as db:
+        db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        payload = _remaining_master_payload(db)
+        path = output_dir / f"recovery_master_{payload['artifact_hash']}.json"
+        _write_immutable(path, payload)
+        print(json.dumps({"path": str(path.resolve()), **_summary(payload)}, indent=2))
+        return path
+
+
+def _load_master(path: Path, expected_hash: str) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schema") != SCHEMA_RECOVERY_MASTER:
+        raise RuntimeError("unsupported recovery master schema")
+    if payload.get("artifact_hash") != expected_hash:
+        raise RuntimeError("reviewed recovery master hash mismatch")
+    unhashed = {key: value for key, value in payload.items() if key != "artifact_hash"}
+    if _hash(unhashed) != expected_hash:
+        raise RuntimeError("recovery master contents do not match its hash")
+    return payload
+
+
+def plan_recovery_batch(
+    *,
+    master_path: Path,
+    master_hash: str,
+    batch_number: int,
+    contract_limit: int,
+    output_dir: Path,
+) -> Path:
+    if not 1 <= contract_limit <= 50:
+        raise RuntimeError("contract limit must be between 1 and 50")
+    master = _load_master(master_path, master_hash)
+    original_obligations = {int(row["obligation_id"]) for row in master["records"]}
+    with SessionLocal() as db:
+        db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        needs = MarketDataObligationService().recovery_needs(db)
+        contracts = sorted({(row.contract_id, row.ticker) for row in needs})[:contract_limit]
+        if not contracts:
+            raise RuntimeError("no remaining recovery contracts")
+        tickers = [ticker for _, ticker in contracts]
+        payload, _ = _preflight_payload(db, tickers)
+        live_obligations = {
+            int(obligation["obligation_id"])
+            for item in payload["items"]
+            for obligation in item["obligations"]
+        }
+        if not live_obligations.issubset(original_obligations):
+            raise RuntimeError("batch contains obligations outside the reviewed recovery master")
+        payload.update(
+            {
+                "schema": SCHEMA_RECOVERY_BATCH,
+                "batch_number": batch_number,
+                "created_at": datetime.now(UTC),
+                "recovery_master_hash": master_hash,
+                "contract_count": len(contracts),
+                "artifact_expiry_condition": (
+                    "latest_completed_session must equal reviewed completed session"
+                ),
+            }
+        )
+        payload.pop("artifact_hash", None)
+        payload["artifact_hash"] = _hash(payload)
+        if int(payload["request_count"]) > 100:
+            raise RuntimeError("reviewed batch exceeds 100 provider requests")
+        path = output_dir / (
+            f"batch_{batch_number:03d}_{payload['artifact_hash']}.json"
+        )
+        _write_immutable(path, payload)
+        print(json.dumps({"path": str(path.resolve()), **_summary(payload)}, indent=2))
+        return path
+
+
+def _live_batch_payload(db, reviewed: dict[str, Any]) -> tuple[dict[str, Any], FetchPlan]:
+    live, plan = _preflight_payload(db, reviewed["tickers"])
+    for key in (
+        "schema",
+        "batch_number",
+        "created_at",
+        "recovery_master_hash",
+        "contract_count",
+        "artifact_expiry_condition",
+    ):
+        live[key] = reviewed[key]
+    live.pop("artifact_hash", None)
+    live["artifact_hash"] = _hash(live)
+    return live, plan
+
+
+def execute_recovery_batch(
+    path: Path,
+    *,
+    expected_hash: str,
+    approve_write: bool,
+) -> int:
+    if not approve_write:
+        raise RuntimeError("--approve-write is required")
+    reviewed = json.loads(path.read_text(encoding="utf-8"))
+    if reviewed.get("schema") != SCHEMA_RECOVERY_BATCH:
+        raise RuntimeError("unsupported recovery batch schema")
+    if reviewed.get("artifact_hash") != expected_hash:
+        raise RuntimeError("reviewed batch hash mismatch")
+    unhashed = {key: value for key, value in reviewed.items() if key != "artifact_hash"}
+    if _hash(unhashed) != expected_hash:
+        raise RuntimeError("reviewed batch contents do not match its hash")
+    with SessionLocal() as db:
+        live, plan = _live_batch_payload(db, reviewed)
+        if canonical_manifest_bytes(live) != canonical_manifest_bytes(reviewed):
+            raise RuntimeError("live batch differs from reviewed artifact")
+        started = perf_counter()
+        fetch_run = execute_fetch_plan(
+            db=db,
+            plan=plan,
+            include_benchmarks=False,
+            force_refresh=False,
+            force_full_backfill=False,
+            stop_on_hard_failure=True,
+        )
+        elapsed = round(perf_counter() - started, 3)
+        print(
+            json.dumps(
+                {
+                    "batch_number": reviewed["batch_number"],
+                    "fetch_run_id": int(fetch_run.id),
+                    "status": fetch_run.status,
+                    "elapsed_seconds": elapsed,
+                },
+                indent=2,
+            )
+        )
+        return int(fetch_run.id)
 
 
 def dry_run_remaining() -> None:
@@ -596,6 +903,45 @@ def plan_interrupted_finalization(fetch_run_id: int, output_dir: Path) -> Path:
                 sort_keys=True,
             )
         )
+        return path
+
+
+_HISTORICAL_TABLES = (
+    "winner_cohort_generations",
+    "winner_probability_estimates",
+    "winner_estimate_evidence_members",
+    "winner_evidence_manifest_members",
+    "winner_temporal_validity_decisions",
+    "winner_prediction_snapshots",
+    "winner_forward_outcomes",
+)
+
+
+def historical_state_snapshot(label: str, output_dir: Path) -> Path:
+    with SessionLocal() as db:
+        db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        tables: dict[str, dict[str, Any]] = {}
+        for table_name in _HISTORICAL_TABLES:
+            digest = hashlib.sha256()
+            count = 0
+            statement = text(
+                f"SELECT row_to_json(source_row)::text "  # noqa: S608 - constant allowlist
+                f"FROM {table_name} source_row ORDER BY id"
+            ).execution_options(stream_results=True, yield_per=5000)
+            for rendered in db.scalars(statement):
+                digest.update(str(rendered).encode("utf-8"))
+                digest.update(b"\n")
+                count += 1
+            tables[table_name] = {"count": count, "sha256": digest.hexdigest()}
+        payload: dict[str, Any] = {
+            "schema": "swinglens-winner-recovery-historical-state-v1",
+            "label": label,
+            "tables": tables,
+        }
+        payload["artifact_hash"] = _hash(payload)
+        path = output_dir / f"historical_state_{label}_{payload['artifact_hash']}.json"
+        _write_immutable(path, payload)
+        print(json.dumps({"path": str(path.resolve()), **payload}, indent=2))
         return path
 
 
@@ -693,6 +1039,47 @@ def _identity_matches(obligation: WinnerMarketDataObligation, contract: IBContra
     )
 
 
+def _quarantine_count(db) -> int:
+    latest = (
+        select(
+            WinnerTemporalValidityDecision.prediction_id,
+            func.max(WinnerTemporalValidityDecision.validation_sequence).label("sequence"),
+        )
+        .group_by(WinnerTemporalValidityDecision.prediction_id)
+        .subquery()
+    )
+    return int(
+        db.scalar(
+            select(func.count(WinnerTemporalValidityDecision.id))
+            .join(
+                latest,
+                (
+                    latest.c.prediction_id
+                    == WinnerTemporalValidityDecision.prediction_id
+                )
+                & (
+                    latest.c.sequence
+                    == WinnerTemporalValidityDecision.validation_sequence
+                ),
+            )
+            .where(WinnerTemporalValidityDecision.evidence_eligible.is_(False))
+        )
+        or 0
+    )
+
+
+def _historical_counts(db) -> dict[str, int]:
+    return {
+        table_name: int(
+            db.scalar(
+                text(f"SELECT count(*) FROM {table_name}")  # noqa: S608 - constant allowlist
+            )
+            or 0
+        )
+        for table_name in _HISTORICAL_TABLES
+    }
+
+
 def _summary(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         key: payload[key]
@@ -707,6 +1094,10 @@ def _summary(payload: dict[str, Any]) -> dict[str, Any]:
             "associated_outcome_count",
             "maturation_ready_count",
             "obligation_status_counts",
+            "recovery_outcome_count",
+            "obligation_count",
+            "contract_count",
+            "batch_number",
         )
         if key in payload
     }
@@ -741,6 +1132,25 @@ def main() -> None:
     reconcile = sub.add_parser("reconcile-run-storage")
     reconcile.add_argument("--fetch-run-id", type=int, required=True)
     reconcile.add_argument("--approve-write", action="store_true")
+    master = sub.add_parser("plan-recovery-master")
+    master.add_argument("--output-dir", type=Path, required=True)
+    batch = sub.add_parser("plan-recovery-batch")
+    batch.add_argument("--master", type=Path, required=True)
+    batch.add_argument("--master-hash", required=True)
+    batch.add_argument("--batch-number", type=int, required=True)
+    batch.add_argument("--contract-limit", type=int, default=25)
+    batch.add_argument("--output-dir", type=Path, required=True)
+    execute_batch = sub.add_parser("execute-recovery-batch")
+    execute_batch.add_argument("--artifact", type=Path, required=True)
+    execute_batch.add_argument("--expected-hash", required=True)
+    execute_batch.add_argument("--approve-write", action="store_true")
+    verify_batch = sub.add_parser("verify-recovery-batch")
+    verify_batch.add_argument("--artifact", type=Path, required=True)
+    verify_batch.add_argument("--fetch-run-id", type=int, required=True)
+    verify_batch.add_argument("--output-dir", type=Path, required=True)
+    historical = sub.add_parser("historical-state")
+    historical.add_argument("--label", required=True)
+    historical.add_argument("--output-dir", type=Path, required=True)
     sub.add_parser("dry-run-remaining")
     args = parser.parse_args()
     if args.command == "audit-v1":
@@ -770,6 +1180,26 @@ def main() -> None:
             args.fetch_run_id,
             approve_write=args.approve_write,
         )
+    elif args.command == "plan-recovery-master":
+        plan_remaining_master(args.output_dir)
+    elif args.command == "plan-recovery-batch":
+        plan_recovery_batch(
+            master_path=args.master,
+            master_hash=args.master_hash,
+            batch_number=args.batch_number,
+            contract_limit=args.contract_limit,
+            output_dir=args.output_dir,
+        )
+    elif args.command == "execute-recovery-batch":
+        execute_recovery_batch(
+            args.artifact,
+            expected_hash=args.expected_hash,
+            approve_write=args.approve_write,
+        )
+    elif args.command == "verify-recovery-batch":
+        verify_v3(args.artifact, args.fetch_run_id, args.output_dir)
+    elif args.command == "historical-state":
+        historical_state_snapshot(args.label, args.output_dir)
     else:
         dry_run_remaining()
 
