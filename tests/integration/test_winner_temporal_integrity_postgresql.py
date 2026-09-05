@@ -5,9 +5,10 @@ import subprocess
 import sys
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from enum import StrEnum
 
 import pytest
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
@@ -247,6 +248,197 @@ def test_invalid_pending_outcome_is_ignored_even_when_due_and_valid_peer_is_sele
             },
         )
         assert [row.prediction.id for row in evidence.evidence] == [valid.id]
+    engine.dispose()
+
+
+class _MetadataClassification(StrEnum):
+    EXECUTION_INVALID = "EXECUTION_INVALID"
+
+
+def test_quarantine_bulk_metadata_is_json_safe_and_round_trips_exactly(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        first = _prediction(db, ticker="JSON1")
+        second = _prediction(db, ticker="JSON2")
+        metadata = {
+            "entry_open_at": datetime.fromisoformat("2026-08-20T09:30:00-04:00"),
+            "source_date": date(2026, 8, 19),
+            "classification": _MetadataClassification.EXECUTION_INVALID,
+            "weight": Decimal("1.2300"),
+            "proven": True,
+            "unknown": None,
+            "run_id": 120,
+            "ticker": "JSON1",
+            "nested": {
+                "observed_at": datetime(2026, 8, 20, 13, 30, 0, 123456, tzinfo=UTC),
+                "values": [date(2026, 8, 18), Decimal("2.500")],
+            },
+        }
+        service = TemporalValidationService()
+        plan = service.plan_quarantine(
+            db,
+            items=(
+                TemporalQuarantineItem(
+                    prediction_id=first.id,
+                    decision_at=datetime(2026, 8, 20, 15, 28, tzinfo=UTC),
+                    entry_session=date(2026, 8, 20),
+                    semantic_input_time_valid=False,
+                    incident_reason="PROVEN_HISTORICAL_INCIDENT",
+                    metadata=metadata,
+                ),
+                TemporalQuarantineItem(
+                    prediction_id=second.id,
+                    decision_at=datetime(2026, 8, 20, 15, 29, tzinfo=UTC),
+                    entry_session=date(2026, 8, 20),
+                    semantic_input_time_valid=None,
+                    incident_reason="PROVEN_HISTORICAL_INCIDENT",
+                    metadata={"ticker": "JSON2"},
+                ),
+            ),
+        )
+
+        result = service.apply_quarantine(
+            db,
+            plan=plan,
+            expected_manifest_hash=plan.manifest_hash,
+            actor="TEST_QUARANTINE",
+            request_key="json-safe-bulk",
+            approve_write=True,
+        )
+        db.commit()
+
+        assert result.inserted_count == 2
+        stored = db.scalar(
+            select(WinnerTemporalValidityDecision).where(
+                WinnerTemporalValidityDecision.prediction_id == first.id
+            )
+        )
+        assert stored.metadata_json == {
+            "entry_open_at": "2026-08-20T13:30:00.000000Z",
+            "source_date": "2026-08-19",
+            "classification": "EXECUTION_INVALID",
+            "weight": "1.2300",
+            "proven": True,
+            "unknown": None,
+            "run_id": 120,
+            "ticker": "JSON1",
+            "nested": {
+                "observed_at": "2026-08-20T13:30:00.123456Z",
+                "values": ["2026-08-18", "2.500"],
+            },
+            "request_key": "json-safe-bulk",
+            "manifest_hash": plan.manifest_hash,
+        }
+    engine.dispose()
+
+
+def test_quarantine_bulk_rejects_unsupported_metadata_atomically_with_path(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        first = _prediction(db, ticker="ATOMIC1")
+        second = _prediction(db, ticker="ATOMIC2")
+        first_metadata: dict = {"ticker": "ATOMIC1"}
+        second_metadata: dict = {"ticker": "ATOMIC2"}
+        service = TemporalValidationService()
+        plan = service.plan_quarantine(
+            db,
+            items=(
+                TemporalQuarantineItem(
+                    prediction_id=first.id,
+                    decision_at=datetime(2026, 8, 20, 15, 28, tzinfo=UTC),
+                    entry_session=date(2026, 8, 20),
+                    semantic_input_time_valid=False,
+                    incident_reason="PROVEN_HISTORICAL_INCIDENT",
+                    metadata=first_metadata,
+                ),
+                TemporalQuarantineItem(
+                    prediction_id=second.id,
+                    decision_at=datetime(2026, 8, 20, 15, 29, tzinfo=UTC),
+                    entry_session=date(2026, 8, 20),
+                    semantic_input_time_valid=False,
+                    incident_reason="PROVEN_HISTORICAL_INCIDENT",
+                    metadata=second_metadata,
+                ),
+            ),
+        )
+        second_metadata["nested"] = {"bad_value": object()}
+
+        with pytest.raises(TypeError, match=r"metadata\.nested\.bad_value.*object"):
+            service.apply_quarantine(
+                db,
+                plan=plan,
+                expected_manifest_hash=plan.manifest_hash,
+                actor="TEST_QUARANTINE",
+                request_key="atomic-bulk",
+                approve_write=True,
+            )
+        db.rollback()
+
+        assert db.scalar(select(func.count()).select_from(WinnerTemporalValidityDecision)) == 0
+    engine.dispose()
+
+
+def test_quarantine_full_historical_cardinality_uses_one_atomic_bulk_path(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        predictions = [_prediction(db, ticker=f"BULK{index:04d}") for index in range(1292)]
+        service = TemporalValidationService()
+        plan = service.plan_quarantine(
+            db,
+            items=tuple(
+                TemporalQuarantineItem(
+                    prediction_id=prediction.id,
+                    decision_at=datetime(2026, 8, 20, 15, 28, tzinfo=UTC),
+                    entry_session=date(2026, 8, 20),
+                    semantic_input_time_valid=False if index < 1114 else None,
+                    incident_reason="PROVEN_HISTORICAL_INCIDENT",
+                    metadata={
+                        "outcome_id": 10_000 + index,
+                        "entry_open_at": datetime.fromisoformat("2026-08-20T09:30:00-04:00"),
+                    },
+                )
+                for index, prediction in enumerate(predictions)
+            ),
+        )
+
+        result = service.apply_quarantine(
+            db,
+            plan=plan,
+            expected_manifest_hash=plan.manifest_hash,
+            actor="TEST_QUARANTINE",
+            request_key="full-cardinality-bulk",
+            approve_write=True,
+        )
+        db.commit()
+
+        assert result.inserted_count == 1292
+        assert db.scalar(select(func.count()).select_from(WinnerTemporalValidityDecision)) == 1292
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(WinnerTemporalValidityDecision)
+                .where(WinnerTemporalValidityDecision.evidence_eligible.is_(False))
+            )
+            == 1292
+        )
+        first = db.scalar(
+            select(WinnerTemporalValidityDecision).order_by(
+                WinnerTemporalValidityDecision.prediction_id
+            )
+        )
+        assert first.metadata_json["entry_open_at"] == "2026-08-20T13:30:00.000000Z"
+        assert all(
+            prediction.planned_entry_session == date(2026, 8, 20) for prediction in predictions
+        )
     engine.dispose()
 
 

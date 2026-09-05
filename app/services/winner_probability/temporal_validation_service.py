@@ -13,6 +13,7 @@ from app.services.us_market_calendar import us_market_session
 from app.services.winner_probability.temporal_integrity import validate_next_open_timing
 from app.services.winner_probability.temporal_manifest_canonicalization import (
     canonical_manifest_bytes,
+    canonicalize_temporal_metadata,
 )
 
 
@@ -96,7 +97,7 @@ class TemporalValidationService:
             entry_open_at=session.open_at,
             evaluated_at=evaluated_at or datetime.now(UTC),
             evaluated_by=evaluated_by,
-            metadata_json=dict(metadata or {}),
+            metadata_json=canonicalize_temporal_metadata(metadata or {}),
         )
         db.add(row)
         db.flush()
@@ -214,11 +215,13 @@ class TemporalValidationService:
                     entry_open_at=schedule.open_at,
                     evaluated_at=timestamp,
                     evaluated_by=actor,
-                    metadata_json={
-                        **dict(item.metadata or {}),
-                        "request_key": request_key,
-                        "manifest_hash": plan.manifest_hash,
-                    },
+                    metadata_json=canonicalize_temporal_metadata(
+                        {
+                            **dict(item.metadata or {}),
+                            "request_key": request_key,
+                            "manifest_hash": plan.manifest_hash,
+                        }
+                    ),
                 )
             )
         db.add_all(rows)

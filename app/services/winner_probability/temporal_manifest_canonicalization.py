@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
 
 
-def canonicalize_manifest_value(value: Any, *, field_name: str | None = None) -> Any:
+def canonicalize_manifest_value(
+    value: Any,
+    *,
+    field_name: str | None = None,
+    _path: str = "$",
+) -> Any:
     """Convert a temporal manifest value to its deterministic JSON representation.
 
     Timestamp values retain exact microseconds but are represented at UTC. Date-only
@@ -19,31 +25,50 @@ def canonicalize_manifest_value(value: Any, *, field_name: str | None = None) ->
         return value
     if isinstance(value, datetime):
         if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError("manifest timestamps must be timezone-aware")
+            raise ValueError(f"manifest timestamp at {_path} must be timezone-aware")
         return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
     if isinstance(value, date):
         return value.isoformat()
     if isinstance(value, Enum):
-        return canonicalize_manifest_value(value.value, field_name=field_name)
+        return canonicalize_manifest_value(
+            value.value,
+            field_name=field_name,
+            _path=_path,
+        )
     if isinstance(value, Decimal):
         if not value.is_finite():
-            raise ValueError("manifest decimals must be finite")
+            raise ValueError(f"manifest decimal at {_path} must be finite")
         return format(value, "f")
     if isinstance(value, float):
         if not math.isfinite(value):
-            raise ValueError("manifest floats must be finite")
+            raise ValueError(f"manifest float at {_path} must be finite")
         return value
     if isinstance(value, dict):
         return {
-            str(key): canonicalize_manifest_value(item, field_name=str(key))
+            str(key): canonicalize_manifest_value(
+                item,
+                field_name=str(key),
+                _path=_mapping_path(_path, str(key)),
+            )
             for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
         }
     if isinstance(value, (list, tuple, set, frozenset)):
-        normalized = [canonicalize_manifest_value(item) for item in value]
+        normalized = [
+            canonicalize_manifest_value(item, _path=f"{_path}[{index}]")
+            for index, item in enumerate(value)
+        ]
         if isinstance(value, (set, frozenset)) or _is_unordered_reason_field(field_name):
             normalized.sort(key=_canonical_sort_key)
         return normalized
-    raise TypeError(f"unsupported manifest value type: {type(value).__name__}")
+    raise TypeError(f"unsupported manifest value at {_path}: {type(value).__name__}")
+
+
+def canonicalize_temporal_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    """Return JSON-safe metadata using the same primitive rules as manifest hashing."""
+    canonical = canonicalize_manifest_value(dict(metadata), _path="metadata")
+    if not isinstance(canonical, dict):  # pragma: no cover - defensive type narrowing
+        raise TypeError("temporal metadata must canonicalize to an object")
+    return canonical
 
 
 def canonical_manifest_bytes(value: Any) -> bytes:
@@ -76,3 +101,9 @@ def _canonical_sort_key(value: Any) -> str:
         ensure_ascii=False,
         allow_nan=False,
     )
+
+
+def _mapping_path(parent: str, key: str) -> str:
+    if key.isidentifier():
+        return f"{parent}.{key}"
+    return f"{parent}[{key!r}]"
