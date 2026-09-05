@@ -23,13 +23,20 @@ from app.services.ib_fetch_plan_service import (
     _incremental_request_window,
     _plan_action,
 )
+from app.services.ib_historical_request_scope import (
+    HistoricalRequestScope,
+    build_historical_request_scope,
+)
 from app.services.ib_rate_limiter import (
     IbHistoricalRateLimiter,
     rate_limit_config_from_settings,
 )
 from app.services.operational_metrics import operational_metrics
 from app.services.process_memory import WorkerMemoryCritical
-from app.services.us_market_calendar import is_latest_daily_bar_current
+from app.services.us_market_calendar import (
+    is_latest_daily_bar_current,
+    latest_completed_us_trading_day,
+)
 from app.services.winner_probability.market_data_obligation_service import (
     MarketDataObligationService,
 )
@@ -40,6 +47,10 @@ NON_FETCH_ACTIONS = {
     FetchAction.UNSUPPORTED,
     FetchAction.FAILED,
 }
+
+
+class HistoricalRequestScopeViolation(RuntimeError):
+    """IB returned observations outside the operator-reviewed request scope."""
 
 
 @dataclass(frozen=True)
@@ -402,6 +413,21 @@ def _execute_plan_item(
     if action in {FetchAction.UNSUPPORTED, FetchAction.FAILED}:
         _mark_failed(fetch_item, reason)
         return
+    if duration is None:
+        _mark_failed(fetch_item, "Historical fetch action has no duration.")
+        return
+
+    try:
+        scope = _execution_scope(plan_item, duration)
+    except ValueError as exc:
+        _mark_failed(fetch_item, str(exc))
+        return
+    fetch_item.decision_metadata_json = _decision_metadata(
+        plan_item,
+        action=action,
+        duration=duration,
+        scope=scope,
+    )
 
     for attempt in range(1, settings.ib_max_retries + 1):
         fetch_item.attempt_count = attempt
@@ -425,9 +451,20 @@ def _execute_plan_item(
                     settings=settings,
                     duration=duration,
                     bar_size=plan_item.bar_size,
+                    end_datetime=scope.end_datetime,
                 )
             finally:
                 _add_duration(performance, "ib_network_ms", network_started)
+            actual_start, actual_end = _validate_returned_scope(bars, scope)
+            fetch_item.decision_metadata_json = _decision_metadata(
+                plan_item,
+                action=action,
+                duration=duration,
+                scope=scope,
+                actual_start_date=actual_start,
+                actual_end_date=actual_end,
+                boundary_status="PASS",
+            )
             cache_started = perf_counter()
             try:
                 upsert = cache_bars(
@@ -446,6 +483,20 @@ def _execute_plan_item(
             fetch_item.unchanged = upsert.unchanged
             fetch_item.status = "SUCCESS"
             fetch_item.completed_at = datetime.now(UTC)
+            return
+        except HistoricalRequestScopeViolation as exc:
+            actual_start = min((bar.bar_date for bar in bars), default=None)
+            actual_end = max((bar.bar_date for bar in bars), default=None)
+            fetch_item.decision_metadata_json = _decision_metadata(
+                plan_item,
+                action=action,
+                duration=duration,
+                scope=scope,
+                actual_start_date=actual_start,
+                actual_end_date=actual_end,
+                boundary_status="FAIL",
+            )
+            _mark_failed(fetch_item, str(exc))
             return
         except Exception as exc:
             fetch_item.error_message = _safe_message(str(exc))
@@ -635,9 +686,15 @@ def _decision_metadata(
     *,
     action: FetchAction | None = None,
     duration: str | None = None,
+    scope: HistoricalRequestScope | None = None,
+    actual_start_date: date | None = None,
+    actual_end_date: date | None = None,
+    boundary_status: str | None = None,
 ) -> dict[str, object]:
     effective_action = action or plan_item.action
     latest_current = _latest_date_current(plan_item.latest_bar_date, stale_after_days=0)
+    reviewed_start = scope.reviewed_start_date if scope else plan_item.request_start_date
+    reviewed_end = scope.reviewed_end_date if scope else plan_item.request_end_date
     return {
         "data_role": plan_item.data_role,
         "dependency_roles": list(plan_item.dependency_roles),
@@ -648,8 +705,16 @@ def _decision_metadata(
         "freshness_lag_sessions": plan_item.freshness_lag_sessions,
         "missing_start_date": _iso_date(plan_item.missing_start_date),
         "missing_end_date": _iso_date(plan_item.missing_end_date),
-        "request_start_date": _iso_date(plan_item.request_start_date),
-        "request_end_date": _iso_date(plan_item.request_end_date),
+        "required_missing_start_date": _iso_date(plan_item.missing_start_date),
+        "required_missing_end_date": _iso_date(plan_item.missing_end_date),
+        "request_start_date": _iso_date(reviewed_start),
+        "request_end_date": _iso_date(reviewed_end),
+        "reviewed_start_date": _iso_date(reviewed_start),
+        "reviewed_end_date": _iso_date(reviewed_end),
+        "request_end_datetime": scope.end_datetime if scope else plan_item.request_end_datetime,
+        "actual_start_date": _iso_date(actual_start_date),
+        "actual_end_date": _iso_date(actual_end_date),
+        "boundary_status": boundary_status,
         "decision_category": _decision_category(
             effective_action,
             latest_current=latest_current,
@@ -658,6 +723,53 @@ def _decision_metadata(
         "duration": duration if action is not None else plan_item.duration,
         "bar_size": plan_item.bar_size,
     }
+
+
+def _execution_scope(plan_item: FetchPlanItem, duration: str) -> HistoricalRequestScope:
+    end = (
+        plan_item.request_end_date
+        or plan_item.freshness_threshold_date
+        or latest_completed_us_trading_day()
+    )
+    scope = build_historical_request_scope(
+        required_start_date=plan_item.missing_start_date,
+        required_end_date=plan_item.missing_end_date,
+        duration=duration,
+        bar_size=plan_item.bar_size,
+        what_to_show=plan_item.what_to_show,
+        reviewed_end_date=end,
+    )
+    if (
+        plan_item.request_start_date is not None
+        and scope.reviewed_start_date != plan_item.request_start_date
+    ):
+        raise ValueError("Historical request parameters differ from the reviewed plan scope.")
+    if (
+        plan_item.request_end_datetime is not None
+        and scope.end_datetime != plan_item.request_end_datetime
+    ):
+        raise ValueError("Historical request end differs from the reviewed plan scope.")
+    return scope
+
+
+def _validate_returned_scope(
+    bars: list,
+    scope: HistoricalRequestScope,
+) -> tuple[date | None, date | None]:
+    dates = [bar.bar_date for bar in bars]
+    actual_start = min(dates, default=None)
+    actual_end = max(dates, default=None)
+    if actual_start is not None and actual_start < scope.reviewed_start_date:
+        raise HistoricalRequestScopeViolation(
+            f"IB returned {actual_start} before reviewed scope {scope.reviewed_start_date}; "
+            "persisted none of this request."
+        )
+    if actual_end is not None and actual_end > scope.reviewed_end_date:
+        raise HistoricalRequestScopeViolation(
+            f"IB returned {actual_end} after reviewed scope {scope.reviewed_end_date}; "
+            "persisted none of this request."
+        )
+    return actual_start, actual_end
 
 
 def _iso_date(value: date | None) -> str | None:

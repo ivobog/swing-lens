@@ -356,7 +356,7 @@ def test_incremental_window_covers_missing_session_and_revision_overlap() -> Non
     )
 
     assert request_start == date(2026, 8, 4)
-    assert duration == "8 D"
+    assert duration == "6 D"
 
 
 def test_dependency_roles_distinguish_requested_benchmark_and_sector() -> None:
@@ -411,4 +411,5 @@ def test_build_plan_item_classifies_stale_benchmark_and_data_type() -> None:
     assert plan_item.missing_start_date == date(2026, 8, 11)
     assert plan_item.missing_end_date == date(2026, 8, 11)
     assert plan_item.request_start_date == date(2026, 8, 4)
+    assert plan_item.request_end_datetime == "20260811-23:59:59"
     assert plan_item.decision_category == "REQUESTED_INCREMENTAL"

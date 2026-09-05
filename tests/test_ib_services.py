@@ -130,6 +130,29 @@ def test_fetch_daily_bars_accepts_duration_and_bar_size_override() -> None:
     assert bars[0].adjustment_type == "adjusted"
 
 
+def test_fetch_daily_bars_uses_reviewed_explicit_end_datetime() -> None:
+    class BarsIB:
+        def __init__(self) -> None:
+            self.request = None
+
+        def reqHistoricalData(self, *args, **kwargs):
+            self.request = kwargs
+            return []
+
+    ib = BarsIB()
+    fetch_daily_bars(
+        ib,
+        Contract(symbol="MSFT", secType="STK", exchange="SMART", currency="USD"),
+        "TRADES",
+        settings=Settings(),
+        duration="10 D",
+        bar_size="1 day",
+        end_datetime="20260904-23:59:59",
+    )
+
+    assert ib.request["endDateTime"] == "20260904-23:59:59"
+
+
 def test_cached_contract_to_ib_rebuilds_resolved_contract() -> None:
     row = IBContract(
         ticker="MSFT",

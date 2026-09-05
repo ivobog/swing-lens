@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import app.services.ib_fetch_executor as executor
 from app.models.tables import IBFetchItem
 from app.services.bar_cache_service import BarUpsertSummary
+from app.services.ib_data_fetcher import HistoricalBar
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
 from app.settings import Settings
@@ -35,7 +36,11 @@ def test_execute_fetch_plan_skips_and_fetches_items(monkeypatch) -> None:
             error_message=None,
         ),
     )
-    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: [_bar(date(2026, 8, 14))],
+    )
     cache_calls = []
 
     def fake_cache_bars(db, bars, **kwargs):
@@ -108,7 +113,7 @@ def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
         attempts["count"] += 1
         if attempts["count"] == 1:
             raise TimeoutError("temporary")
-        return ["bar"]
+        return [_bar(date(2026, 8, 14))]
 
     monkeypatch.setattr(executor, "fetch_daily_bars", flaky_fetch)
     monkeypatch.setattr(
@@ -148,6 +153,104 @@ def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
     assert fetch_run.unchanged_count == 1
 
 
+def test_execute_fetch_plan_validates_scope_before_persisting(monkeypatch) -> None:
+    db = FakeDb()
+    fetch_kwargs = {}
+    cache_calls = []
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker), error_message=None
+        ),
+    )
+
+    def out_of_scope_fetch(*args, **kwargs):
+        fetch_kwargs.update(kwargs)
+        return [_bar(date(2026, 8, 2))]
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", out_of_scope_fetch)
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda *args, **kwargs: cache_calls.append((args, kwargs)),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=FetchPlan(
+            run_id=7,
+            requested_tickers=["MSFT"],
+            symbols_including_benchmarks=["MSFT"],
+            items=[_plan_item("MSFT", FetchAction.TOP_UP_RECENT, duration="10 D")],
+            estimated_request_count=1,
+            estimated_full_backfills=0,
+            estimated_top_ups=1,
+            estimated_refreshes=0,
+            estimated_skips=0,
+            warnings=[],
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=3),
+    )
+
+    assert fetch_kwargs["end_datetime"] == "20260814-23:59:59"
+    assert fetch_run.status == "FAILED"
+    assert fetch_run.items[0].attempt_count == 1
+    assert "before reviewed scope" in fetch_run.items[0].error_message
+    assert cache_calls == []
+    assert fetch_run.items[0].decision_metadata_json["boundary_status"] == "FAIL"
+    assert fetch_run.items[0].decision_metadata_json["actual_start_date"] == "2026-08-02"
+
+
+def test_execute_fetch_plan_records_passing_returned_footprint(monkeypatch) -> None:
+    db = FakeDb()
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker), error_message=None
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: [_bar(date(2026, 8, 3)), _bar(date(2026, 8, 14))],
+    )
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda *args, **kwargs: BarUpsertSummary(inserted=2),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=FetchPlan(
+            run_id=7,
+            requested_tickers=["MSFT"],
+            symbols_including_benchmarks=["MSFT"],
+            items=[_plan_item("MSFT", FetchAction.TOP_UP_RECENT, duration="10 D")],
+            estimated_request_count=1,
+            estimated_full_backfills=0,
+            estimated_top_ups=1,
+            estimated_refreshes=0,
+            estimated_skips=0,
+            warnings=[],
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+
+    metadata = fetch_run.items[0].decision_metadata_json
+    assert metadata["reviewed_start_date"] == "2026-08-03"
+    assert metadata["reviewed_end_date"] == "2026-08-14"
+    assert metadata["actual_start_date"] == "2026-08-03"
+    assert metadata["actual_end_date"] == "2026-08-14"
+    assert metadata["boundary_status"] == "PASS"
+
+
 def test_execute_fetch_plan_commits_current_item_before_historical_request(monkeypatch) -> None:
     db = FakeDb()
     observed = {}
@@ -163,7 +266,7 @@ def test_execute_fetch_plan_commits_current_item_before_historical_request(monke
     def observe_fetch(*args, **kwargs):
         fetch_item = next(row for row in db.added if isinstance(row, IBFetchItem))
         observed.update(status=fetch_item.status, commits=db.commits)
-        return ["bar"]
+        return [_bar(date(2026, 8, 14))]
 
     monkeypatch.setattr(executor, "fetch_daily_bars", observe_fetch)
     monkeypatch.setattr(
@@ -252,7 +355,11 @@ def test_execute_fetch_plan_counts_only_attempted_historical_requests(monkeypatc
         return SimpleNamespace(contract=None, error_message="No contract")
 
     monkeypatch.setattr(executor, "resolve_us_stock_contract", resolve_contract)
-    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: [_bar(date(2026, 8, 14))],
+    )
     monkeypatch.setattr(
         executor,
         "cache_bars",
@@ -342,7 +449,11 @@ def test_execute_fetch_plan_can_cancel_before_next_item(monkeypatch) -> None:
             error_message=None,
         ),
     )
-    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: [_bar(date(2026, 8, 14))],
+    )
     cache_calls = []
 
     def fake_cache_bars(db, bars, **kwargs):
@@ -396,7 +507,11 @@ def test_execute_fetch_plan_emits_one_committed_ready_event_per_ticker(monkeypat
             error_message=None,
         ),
     )
-    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: [_bar(date(2026, 8, 14))],
+    )
     monkeypatch.setattr(
         executor,
         "cache_bars",
@@ -454,6 +569,27 @@ def _plan_item(
         reason=f"{action.value} reason",
         estimated_request_count=0 if action == FetchAction.SKIP else 1,
         existing_coverage_reused=True,
+        missing_start_date=date(2026, 8, 10),
+        missing_end_date=date(2026, 8, 14),
+        request_start_date=date(2026, 8, 3),
+        request_end_date=date(2026, 8, 14),
+        request_end_datetime="20260814-23:59:59",
+    )
+
+
+def _bar(bar_date: date) -> HistoricalBar:
+    return HistoricalBar(
+        ticker="MSFT",
+        bar_date=bar_date,
+        timeframe="1 day",
+        open=10,
+        high=11,
+        low=9,
+        close=10,
+        volume=100,
+        source="IB",
+        what_to_show="TRADES",
+        adjustment_type=None,
     )
 
 

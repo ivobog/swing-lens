@@ -27,13 +27,14 @@ def fetch_daily_bars(
     settings: Settings | None = None,
     duration: str | None = None,
     bar_size: str | None = None,
+    end_datetime: str | None = None,
 ) -> list[HistoricalBar]:
     settings = settings or get_settings()
     request_duration = duration or settings.ib_full_backfill_duration
     request_bar_size = bar_size or settings.ib_default_bar_size
     bars = ib.reqHistoricalData(
         contract,
-        endDateTime="",
+        endDateTime=end_datetime or "",
         durationStr=request_duration,
         barSizeSetting=request_bar_size,
         whatToShow=what_to_show,

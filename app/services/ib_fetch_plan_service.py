@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta
+from datetime import date
 from enum import StrEnum
 
 from sqlalchemy import select
@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import IBContract, IBFetchItem
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
+from app.services.ib_historical_request_scope import (
+    build_historical_request_scope,
+    reviewed_start_for_duration,
+)
 from app.services.ohlcv_coverage_service import (
     OhlcvCoverageItem,
     OhlcvCoverageSummary,
@@ -17,6 +21,7 @@ from app.services.us_market_calendar import (
     is_latest_daily_bar_current,
     latest_completed_us_trading_day,
     next_us_trading_day,
+    previous_us_trading_day,
     subtract_us_trading_sessions,
     us_trading_sessions_between,
 )
@@ -58,6 +63,7 @@ class FetchPlanItem:
     missing_end_date: date | None = None
     request_start_date: date | None = None
     request_end_date: date | None = None
+    request_end_datetime: str | None = None
     decision_category: str = "UNKNOWN"
     dependency_roles: tuple[str, ...] = ()
 
@@ -240,9 +246,19 @@ def _build_plan_item(
         else None
     )
     missing_end_date = freshness_threshold if missing_start_date else None
-    if action not in {FetchAction.TOP_UP_RECENT}:
-        request_start_date = _request_start_for_duration(duration, freshness_threshold)
     request_end_date = freshness_threshold if duration else None
+    request_end_datetime = None
+    if duration:
+        request_scope = build_historical_request_scope(
+            required_start_date=missing_start_date,
+            required_end_date=missing_end_date,
+            duration=duration,
+            bar_size=settings.ib_default_bar_size,
+            what_to_show=what_to_show,
+            reviewed_end_date=freshness_threshold,
+        )
+        request_start_date = request_scope.reviewed_start_date
+        request_end_datetime = request_scope.end_datetime
     coverage_state = _coverage_state(
         current_bar_count=current_bar_count,
         required_bars=coverage.required_rows,
@@ -291,6 +307,7 @@ def _build_plan_item(
         missing_end_date=missing_end_date,
         request_start_date=request_start_date,
         request_end_date=request_end_date,
+        request_end_datetime=request_end_datetime,
         decision_category=decision_category,
         dependency_roles=dependency_roles,
     )
@@ -456,30 +473,20 @@ def _incremental_request_window(
             freshness_threshold,
         )
     request_start = subtract_us_trading_sessions(latest, max(0, revision_sessions - 1))
-    calendar_days = max(1, (freshness_threshold - request_start).days + 1)
-    if calendar_days > 365:
+    request_sessions = us_trading_sessions_between(
+        previous_us_trading_day(request_start),
+        freshness_threshold,
+    )
+    if request_sessions > 365:
         return fallback_duration, _request_start_for_duration(
             fallback_duration,
             freshness_threshold,
         )
-    return f"{calendar_days} D", request_start
+    return f"{max(1, request_sessions)} D", request_start
 
 
 def _request_start_for_duration(duration: str | None, end: date) -> date | None:
-    if not duration:
-        return None
-    parts = duration.strip().upper().split()
-    if len(parts) != 2 or not parts[0].isdigit():
-        return None
-    amount = int(parts[0])
-    unit = parts[1]
-    days = {
-        "D": amount,
-        "W": amount * 7,
-        "M": amount * 31,
-        "Y": amount * 366,
-    }.get(unit)
-    return end - timedelta(days=days - 1) if days else None
+    return reviewed_start_for_duration(duration, end=end, bar_size="1 day")
 
 
 def _coverage_state(

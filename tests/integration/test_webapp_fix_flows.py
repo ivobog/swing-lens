@@ -22,6 +22,7 @@ from app.services.bar_cache_service import BarUpsertSummary
 from app.services.combined_decision import refresh_combined_results
 from app.services.export_service import export_run_csv
 from app.services.fundamental_ranker_v2 import FundamentalScoreV2Result
+from app.services.ib_data_fetcher import HistoricalBar
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_job_service import FetchJobOptions, resume_fetch_job
 from app.services.ib_fetch_plan_service import (
@@ -87,7 +88,25 @@ def test_upload_fetch_plan_execution_cockpit_and_export_flow(tmp_path, monkeypat
             error_message=None,
         ),
     )
-    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *args, **kwargs: ["bar"])
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda _ib, contract, what_to_show, **kwargs: [
+            HistoricalBar(
+                ticker=contract.symbol,
+                bar_date=date(2026, 9, 4),
+                timeframe=kwargs["bar_size"],
+                open=10,
+                high=11,
+                low=9,
+                close=10,
+                volume=100,
+                source="IB",
+                what_to_show=what_to_show,
+                adjustment_type=None,
+            )
+        ],
+    )
     monkeypatch.setattr(
         executor,
         "cache_bars",
