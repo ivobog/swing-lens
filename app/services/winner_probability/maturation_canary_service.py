@@ -48,7 +48,7 @@ from app.services.winner_probability.temporal_manifest_canonicalization import (
     canonicalize_manifest_value,
 )
 
-CANARY_SCHEMA = "swinglens-winner-h5-maturation-canary-v1"
+CANARY_SCHEMA = "swinglens-winner-h5-maturation-canary-v2"
 MAX_CANARY_OUTCOMES = 30
 _QUANTUM = Decimal("0.000001")
 
@@ -71,6 +71,9 @@ class CanaryExecutionResult:
     warnings: int
     failed: int
     material_evidence_changes: int
+    actual_forward_mutation_ids: tuple[int, ...]
+    actual_target_stop_mutation_ids: tuple[int, ...]
+    unchanged_target_stop_sibling_ids: tuple[int, ...]
     per_outcome: tuple[dict[str, Any], ...]
 
 
@@ -95,6 +98,11 @@ def verify_canary_approval(
         raise CanaryApprovalError(
             f"reviewed manifest hash mismatch: expected {reviewed_manifest_hash}, got {actual_hash}"
         )
+    if manifest.get("schema") != CANARY_SCHEMA:
+        raise CanaryApprovalError("unsupported maturation canary schema")
+    touch_set = manifest.get("touch_set") or {}
+    if canonical_canary_hash(touch_set) != manifest.get("touch_set_hash"):
+        raise CanaryApprovalError("reviewed touch-set hash mismatch")
     outcome_ids = [int(item["outcome_id"]) for item in manifest.get("outcomes", [])]
     if not outcome_ids or len(outcome_ids) > MAX_CANARY_OUTCOMES:
         raise CanaryApprovalError("canary must contain between 1 and 30 outcomes")
@@ -250,11 +258,39 @@ def build_maturation_canary_manifest(
         )
         for outcome in outcomes
     ]
+    touch_set = {
+        "forward_outcomes": [
+            {
+                "id": int(record["outcome_id"]),
+                "prediction_id": int(record["prediction_id"]),
+                "entry_model": record["entry_model"],
+                "horizon_sessions": int(record["horizon_sessions"]),
+                "revision": int(record["retry_baseline"]["revision"]),
+                "status": record["retry_baseline"]["status"],
+            }
+            for record in records
+        ],
+        "target_stop_outcomes": [
+            {
+                "id": int(target["target_stop_outcome_id"]),
+                "prediction_id": int(record["prediction_id"]),
+                "entry_model": record["entry_model"],
+                "horizon_sessions": int(record["horizon_sessions"]),
+                "revision": int(target["revision"]),
+                "status": target["status"],
+            }
+            for record in records
+            for target in record["target_stops"]
+        ],
+    }
+    canonical_touch_set = canonicalize_manifest_value(touch_set)
     return canonicalize_manifest_value(
         {
             "schema": CANARY_SCHEMA,
             "selection_policy": "EXPLICIT_SORTED_OUTCOME_IDS",
             "outcome_count": len(records),
+            "touch_set": canonical_touch_set,
+            "touch_set_hash": canonical_canary_hash(canonical_touch_set),
             "outcomes": records,
         }
     )
@@ -288,6 +324,9 @@ def execute_reviewed_maturation_canary(
     execution_now = now or datetime.now(UTC)
     processed = matured = revised = target_stop_matured = warnings = failed = material = 0
     per_outcome: list[dict[str, Any]] = []
+    actual_forward_ids: list[int] = []
+    actual_target_ids: list[int] = []
+    unchanged_sibling_ids: list[int] = []
     service = OutcomeMaturationService()
     for reviewed in reviewed_records:
         outcome_id = int(reviewed["outcome_id"])
@@ -303,6 +342,9 @@ def execute_reviewed_maturation_canary(
                 current_record = build_maturation_canary_manifest(db, [outcome_id])["outcomes"][0]
                 if canonical_manifest_bytes(current_record) != canonical_manifest_bytes(reviewed):
                     raise CanaryApprovalError(f"outcome {outcome_id} changed after review")
+                before_targets = _target_stop_states_for_prediction(
+                    db, int(reviewed["prediction_id"])
+                )
                 outcome.metadata_json = {
                     **(outcome.metadata_json or {}),
                     "maturation_canary": {
@@ -324,6 +366,22 @@ def execute_reviewed_maturation_canary(
                     )
                 db.flush()
                 _verify_actual_result(db, reviewed, execution_now=execution_now)
+                after_targets = _target_stop_states_for_prediction(
+                    db, int(reviewed["prediction_id"])
+                )
+                changed_target_ids = sorted(
+                    row_id
+                    for row_id in set(before_targets) | set(after_targets)
+                    if before_targets.get(row_id) != after_targets.get(row_id)
+                )
+                reviewed_target_ids = sorted(
+                    int(item["target_stop_outcome_id"]) for item in reviewed["target_stops"]
+                )
+                if changed_target_ids != reviewed_target_ids:
+                    raise CanaryApprovalError(
+                        f"outcome {outcome_id} target-stop mutation set differs: "
+                        f"expected {reviewed_target_ids}, got {changed_target_ids}"
+                    )
                 db.commit()
                 processed += result.processed
                 matured += result.matured
@@ -332,6 +390,12 @@ def execute_reviewed_maturation_canary(
                 warnings += result.warnings
                 failed += result.failed
                 material += len(result.material_changes)
+                actual_forward_ids.append(outcome_id)
+                actual_target_ids.extend(changed_target_ids)
+                unchanged_sibling_ids.extend(
+                    int(item["target_stop_outcome_id"])
+                    for item in reviewed["unchanged_target_stop_siblings"]
+                )
                 per_outcome.append(
                     {
                         "outcome_id": outcome_id,
@@ -355,6 +419,9 @@ def execute_reviewed_maturation_canary(
         warnings=warnings,
         failed=failed,
         material_evidence_changes=material,
+        actual_forward_mutation_ids=tuple(actual_forward_ids),
+        actual_target_stop_mutation_ids=tuple(sorted(actual_target_ids)),
+        unchanged_target_stop_sibling_ids=tuple(sorted(unchanged_sibling_ids)),
         per_outcome=tuple(per_outcome),
     )
 
@@ -432,17 +499,15 @@ def _build_outcome_record(
         )
     lineage_hash, cutoff = _independent_lineage(lineage_bars)
 
-    target_rows = list(
+    all_target_rows = list(
         db.scalars(
             select(WinnerTargetStopOutcome)
             .where(WinnerTargetStopOutcome.prediction_id == prediction.id)
-            .where(WinnerTargetStopOutcome.entry_model == "NEXT_OPEN")
-            .where(WinnerTargetStopOutcome.horizon_sessions == 5)
             .where(WinnerTargetStopOutcome.is_current_revision.is_(True))
             .order_by(WinnerTargetStopOutcome.id)
         )
     )
-    definition_ids = {int(row.outcome_definition_id) for row in target_rows}
+    definition_ids = {int(row.outcome_definition_id) for row in all_target_rows}
     definitions = {
         int(row.id): row
         for row in db.scalars(
@@ -450,8 +515,33 @@ def _build_outcome_record(
         )
     }
     target_stops = []
-    for row in target_rows:
+    unchanged_siblings = []
+    for row in all_target_rows:
         definition = definitions.get(int(row.outcome_definition_id))
+        semantic_match = row.entry_model == outcome.entry_model and int(
+            row.horizon_sessions
+        ) == int(outcome.horizon_sessions)
+        if not semantic_match:
+            state = _target_stop_state(row)
+            unchanged_siblings.append(
+                {
+                    "target_stop_outcome_id": int(row.id),
+                    "state_hash": canonical_canary_hash(state),
+                    "state": state,
+                }
+            )
+            continue
+        if definition is None or (
+            definition.entry_model != row.entry_model
+            or int(definition.horizon_sessions) != int(row.horizon_sessions)
+        ):
+            raise CanaryApprovalError(
+                f"TARGET_STOP_FORWARD_MISMATCH target_stop={row.id} definition"
+            )
+        if row.forward_outcome_id is not None and int(row.forward_outcome_id) != int(outcome.id):
+            raise CanaryApprovalError(
+                f"TARGET_STOP_FORWARD_MISMATCH target_stop={row.id} forward link"
+            )
         policy = (
             definition.same_bar_conflict_policy
             if definition is not None and definition.same_bar_conflict_policy
@@ -524,6 +614,7 @@ def _build_outcome_record(
         "lineage_bars": [_lineage_payload(row) for row in _sort_lineage(lineage_bars)],
         "expected": expected,
         "target_stops": target_stops,
+        "unchanged_target_stop_siblings": unchanged_siblings,
         "retry_baseline": {
             "status": outcome.status,
             "revision": int(outcome.revision),
@@ -644,6 +735,10 @@ def _verify_actual_result(
         )
         if actual_target != expected_target_actual:
             raise CanaryApprovalError("target/stop result differs from reviewed expectation")
+    for sibling in reviewed.get("unchanged_target_stop_siblings", []):
+        row = db.get(WinnerTargetStopOutcome, int(sibling["target_stop_outcome_id"]))
+        if row is None or canonical_canary_hash(_target_stop_state(row)) != sibling["state_hash"]:
+            raise CanaryApprovalError("unreviewed target/stop sibling changed")
 
 
 def _independent_comparison_return(
@@ -773,6 +868,25 @@ def _series_versions(db: Session, ticker: str) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def _target_stop_state(row: WinnerTargetStopOutcome) -> dict[str, Any]:
+    return canonicalize_manifest_value(
+        {column.name: getattr(row, column.name) for column in row.__table__.columns}
+    )
+
+
+def _target_stop_states_for_prediction(
+    db: Session, prediction_id: int
+) -> dict[int, dict[str, Any]]:
+    return {
+        int(row.id): _target_stop_state(row)
+        for row in db.scalars(
+            select(WinnerTargetStopOutcome)
+            .where(WinnerTargetStopOutcome.prediction_id == prediction_id)
+            .order_by(WinnerTargetStopOutcome.id)
+        )
+    }
 
 
 def _load_bars(db: Session, tickers: set[str], start: date, end: date) -> list[PriceBar]:

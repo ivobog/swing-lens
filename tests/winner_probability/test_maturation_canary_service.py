@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services.winner_probability.maturation_canary_service import (
+    CANARY_SCHEMA,
     CanaryApprovalError,
     canonical_canary_hash,
     independent_forward_metrics,
@@ -72,8 +73,19 @@ def test_independent_target_stop_is_conservative_on_same_bar_conflict() -> None:
 
 
 def test_manifest_hash_is_deterministic_and_approval_is_fail_closed() -> None:
-    first = {"schema": "test", "outcomes": [{"outcome_id": 2}, {"outcome_id": 7}]}
-    second = {"outcomes": [{"outcome_id": 2}, {"outcome_id": 7}], "schema": "test"}
+    touch_set = {"forward_outcomes": [], "target_stop_outcomes": []}
+    first = {
+        "schema": CANARY_SCHEMA,
+        "touch_set": touch_set,
+        "touch_set_hash": canonical_canary_hash(touch_set),
+        "outcomes": [{"outcome_id": 2}, {"outcome_id": 7}],
+    }
+    second = {
+        "outcomes": [{"outcome_id": 2}, {"outcome_id": 7}],
+        "touch_set_hash": canonical_canary_hash(touch_set),
+        "touch_set": touch_set,
+        "schema": CANARY_SCHEMA,
+    }
     reviewed_hash = canonical_canary_hash(first)
 
     assert reviewed_hash == canonical_canary_hash(second)

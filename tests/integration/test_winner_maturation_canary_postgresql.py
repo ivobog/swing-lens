@@ -32,6 +32,12 @@ from app.services.winner_probability.maturation_canary_service import (
     execute_reviewed_maturation_canary,
     verify_maturation_canary_results,
 )
+from app.services.winner_probability.outcome_service import WinnerOutcomeRepository
+from app.services.winner_probability.target_stop_scope_repair_service import (
+    apply_target_stop_scope_repair,
+    build_target_stop_scope_repair_manifest,
+    target_stop_scope_repair_hash,
+)
 
 
 def test_explicit_hash_gated_canary_matures_only_reviewed_id(
@@ -72,6 +78,15 @@ def test_explicit_hash_gated_canary_matures_only_reviewed_id(
         assert reviewed.close_return_pct == Decimal("5.000000")
         assert unrelated.status == "PENDING"
         assert unrelated.matured_at is None
+        diagnostic = db.scalar(
+            select(WinnerTargetStopOutcome).where(
+                WinnerTargetStopOutcome.prediction_id == reviewed.prediction_id,
+                WinnerTargetStopOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC",
+                WinnerTargetStopOutcome.is_current_revision.is_(True),
+            )
+        )
+        assert diagnostic.status == "PENDING"
+        assert diagnostic.evaluated_at is None
         assert db.scalar(select(func.count(WinnerEstimateEvidenceMember.id))) == 0
         assert db.scalar(select(func.count(WinnerEvidenceManifestMember.id))) == 0
         verify_maturation_canary_results(
@@ -149,6 +164,46 @@ def test_canary_rejects_temporal_quarantine_and_clbk(
     engine.dispose()
 
 
+def test_batch_and_non_batch_target_selection_match_and_bad_link_fails_closed(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    repository = WinnerOutcomeRepository()
+    with Session(engine) as db:
+        outcome_id = _seed_ready_outcome(db, ticker="PARITY", run_suffix="parity")
+        db.commit()
+    with Session(engine) as db:
+        outcome = db.get(WinnerForwardOutcome, outcome_id)
+        context_ids = [
+            int(row.id)
+            for row in repository.load_batch_context(db, [outcome]).target_stops_for(outcome)
+        ]
+        direct_ids = [
+            int(row.id)
+            for row in repository.get_target_stop_outcomes_for_forward(
+                db,
+                prediction_id=outcome.prediction_id,
+                entry_model=outcome.entry_model,
+                horizon_sessions=outcome.horizon_sessions,
+            )
+        ]
+        assert context_ids == direct_ids
+        target = db.get(WinnerTargetStopOutcome, context_ids[0])
+        diagnostic_forward = db.scalar(
+            select(WinnerForwardOutcome).where(
+                WinnerForwardOutcome.prediction_id == outcome.prediction_id,
+                WinnerForwardOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC",
+            )
+        )
+        target.forward_outcome_id = diagnostic_forward.id
+        db.commit()
+    with Session(engine) as db:
+        with pytest.raises(CanaryApprovalError, match="TARGET_STOP_FORWARD_MISMATCH"):
+            build_maturation_canary_manifest(db, [outcome_id])
+    engine.dispose()
+
+
 def test_postgresql_same_bar_conflict_fixture_is_conservative(
     disposable_postgres_database: str,
 ) -> None:
@@ -191,6 +246,150 @@ def test_postgresql_same_bar_conflict_fixture_is_conservative(
         assert target.primary_winner is False
         assert target.optimistic_winner is True
         assert target.conservative_winner is False
+    engine.dispose()
+
+
+def test_scope_leak_repair_creates_append_only_pending_revision(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        next_open_id = _seed_ready_outcome(db, ticker="REPAIR", run_suffix="repair")
+        prediction_id = db.get(WinnerForwardOutcome, next_open_id).prediction_id
+        diagnostic = db.scalar(
+            select(WinnerTargetStopOutcome).where(
+                WinnerTargetStopOutcome.prediction_id == prediction_id,
+                WinnerTargetStopOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC",
+            )
+        )
+        diagnostic.status = "MATURED"
+        diagnostic.forward_outcome_id = next_open_id
+        diagnostic.target_hit = True
+        diagnostic.stop_hit = False
+        diagnostic.first_event = "TARGET_FIRST"
+        diagnostic.event_session = date(2026, 8, 21)
+        diagnostic.primary_winner = True
+        diagnostic.optimistic_winner = True
+        diagnostic.conservative_winner = True
+        diagnostic.source_bar_lineage_hash = "wrong-next-open-lineage"
+        diagnostic.evaluated_at = datetime(2026, 9, 6, 10, 14, 28, tzinfo=UTC)
+        diagnostic.metadata_json = {
+            "materialized_at_capture": True,
+            "calculation_phase": "phase_5",
+        }
+        db.commit()
+        bad_id = int(diagnostic.id)
+
+    with Session(engine) as db:
+        manifest = build_target_stop_scope_repair_manifest(
+            db,
+            target_stop_ids=[bad_id],
+            incident="pytest-scope-leak",
+        )
+        reviewed_hash = target_stop_scope_repair_hash(manifest)
+        result = apply_target_stop_scope_repair(
+            db,
+            manifest,
+            reviewed_manifest_hash=reviewed_hash,
+            approve_write=True,
+            actor="pytest",
+            request_key="pytest-repair",
+            now=datetime(2026, 9, 7, tzinfo=UTC),
+        )
+        db.commit()
+        assert result.created_revision_ids
+
+    with Session(engine) as db:
+        rows = list(
+            db.scalars(
+                select(WinnerTargetStopOutcome)
+                .where(WinnerTargetStopOutcome.prediction_id == prediction_id)
+                .where(WinnerTargetStopOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC")
+                .order_by(WinnerTargetStopOutcome.revision)
+            )
+        )
+        assert len(rows) == 2
+        old, current = rows
+        assert old.status == "MATURED"
+        assert old.source_bar_lineage_hash == "wrong-next-open-lineage"
+        assert old.is_current_revision is False
+        assert current.revision == 2
+        assert current.is_current_revision is True
+        assert current.status == "PENDING"
+        assert current.forward_outcome_id != next_open_id
+        assert current.source_bar_lineage_hash is None
+        assert current.evaluated_at is None
+        assert current.metadata_json["repair_type"] == "MATURATION_SCOPE_LEAK_CORRECTION"
+    engine.dispose()
+
+
+def test_scope_leak_repair_hash_gate_and_drift_are_atomic(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        next_open_id = _seed_ready_outcome(db, ticker="ATOMIC", run_suffix="atomic")
+        prediction_id = db.get(WinnerForwardOutcome, next_open_id).prediction_id
+        diagnostic = db.scalar(
+            select(WinnerTargetStopOutcome).where(
+                WinnerTargetStopOutcome.prediction_id == prediction_id,
+                WinnerTargetStopOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC",
+            )
+        )
+        diagnostic.status = "MATURED"
+        diagnostic.forward_outcome_id = next_open_id
+        diagnostic.target_hit = True
+        diagnostic.source_bar_lineage_hash = "bad"
+        diagnostic.evaluated_at = datetime(2026, 9, 6, tzinfo=UTC)
+        diagnostic.metadata_json = {"calculation_phase": "phase_5"}
+        db.commit()
+        bad_id = int(diagnostic.id)
+    with Session(engine) as db:
+        manifest = build_target_stop_scope_repair_manifest(
+            db, target_stop_ids=[bad_id], incident="pytest-atomic"
+        )
+    with Session(engine) as db:
+        with pytest.raises(RuntimeError, match="hash"):
+            apply_target_stop_scope_repair(
+                db,
+                manifest,
+                reviewed_manifest_hash="0" * 64,
+                approve_write=True,
+                actor="pytest",
+                request_key="bad-hash",
+            )
+        db.rollback()
+    with Session(engine) as db:
+        db.get(WinnerTargetStopOutcome, bad_id).metadata_json = {
+            "calculation_phase": "phase_5",
+            "drift": True,
+        }
+        db.commit()
+    with Session(engine) as db:
+        with pytest.raises(RuntimeError, match="changed after review"):
+            apply_target_stop_scope_repair(
+                db,
+                manifest,
+                reviewed_manifest_hash=target_stop_scope_repair_hash(manifest),
+                approve_write=True,
+                actor="pytest",
+                request_key="drift",
+            )
+        db.rollback()
+    with Session(engine) as db:
+        rows = list(
+            db.scalars(
+                select(WinnerTargetStopOutcome).where(
+                    WinnerTargetStopOutcome.prediction_id == prediction_id,
+                    WinnerTargetStopOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC",
+                )
+            )
+        )
+        assert len(rows) == 1
+        assert rows[0].is_current_revision is True
+        assert rows[0].revision == 1
     engine.dispose()
 
 
@@ -387,6 +586,51 @@ def _seed_ready_outcome(
             stop_pct=Decimal("5"),
             same_bar_conflict=False,
             metadata_json={},
+        )
+    )
+    diagnostic_forward = WinnerForwardOutcome(
+        prediction_id=prediction.id,
+        entry_model="SIGNAL_CLOSE_DIAGNOSTIC",
+        horizon_sessions=5,
+        entry_session=date(2026, 8, 19),
+        due_session=date(2026, 8, 25),
+        status="PENDING",
+        revision=1,
+        is_current_revision=True,
+        metadata_json={},
+    )
+    db.add(diagnostic_forward)
+    db.flush()
+    diagnostic_definition = WinnerOutcomeDefinition(
+        definition_id=f"diagnostic-{ticker}",
+        label="Diagnostic",
+        entry_model="SIGNAL_CLOSE_DIAGNOSTIC",
+        horizon_sessions=5,
+        target_pct=Decimal("5"),
+        stop_pct=Decimal("5"),
+        same_bar_conflict_policy="CONSERVATIVE_STOP_FIRST",
+        calculation_version="calculation-1.1",
+        config_hash="config-test",
+        is_primary=False,
+        is_active=True,
+        metadata_json={},
+    )
+    db.add(diagnostic_definition)
+    db.flush()
+    db.add(
+        WinnerTargetStopOutcome(
+            prediction_id=prediction.id,
+            outcome_definition_id=diagnostic_definition.id,
+            forward_outcome_id=diagnostic_forward.id,
+            entry_model="SIGNAL_CLOSE_DIAGNOSTIC",
+            horizon_sessions=5,
+            status="PENDING",
+            revision=1,
+            is_current_revision=True,
+            target_pct=Decimal("5"),
+            stop_pct=Decimal("5"),
+            same_bar_conflict=False,
+            metadata_json={"fixture": "diagnostic-sibling"},
         )
     )
     db.flush()

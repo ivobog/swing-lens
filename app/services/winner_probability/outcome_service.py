@@ -18,6 +18,7 @@ from app.models.tables import (
     PriceBar,
     WinnerForwardOutcome,
     WinnerMarketDataObligation,
+    WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
 )
@@ -39,6 +40,10 @@ BENCHMARK_TICKER = "SPY"
 
 
 class OutcomeMaturationCancelled(RuntimeError):
+    pass
+
+
+class TargetStopForwardMismatch(RuntimeError):
     pass
 
 
@@ -85,7 +90,17 @@ class OutcomeBatchContext:
     predictions: dict[int, WinnerPredictionSnapshot]
     bars_by_ticker: dict[str, list[PriceBar]]
     bars_by_outcome: dict[int, list[PriceBar]]
-    target_stops_by_prediction: dict[int, list[WinnerTargetStopOutcome]]
+    target_stops_by_execution: dict[tuple[int, str, int], list[WinnerTargetStopOutcome]]
+
+    def target_stops_for(self, outcome: WinnerForwardOutcome) -> list[WinnerTargetStopOutcome]:
+        return self.target_stops_by_execution.get(
+            (
+                int(outcome.prediction_id),
+                str(outcome.entry_model),
+                int(outcome.horizon_sessions),
+            ),
+            [],
+        )
 
 
 class OutcomeMaturationService:
@@ -211,7 +226,7 @@ class OutcomeMaturationService:
         totals.warnings += len(calculation.warnings)
 
         target_stops = (
-            context.target_stops_by_prediction.get(prediction.id, [])
+            context.target_stops_for(matured_outcome)
             if context is not None
             else self.repository.get_target_stop_outcomes_for_forward(
                 db,
@@ -549,14 +564,39 @@ class WinnerOutcomeRepository:
                 )
             )
         }
-        target_stops: dict[int, list[WinnerTargetStopOutcome]] = {}
-        for row in db.scalars(
-            select(WinnerTargetStopOutcome)
+        target_stops: dict[tuple[int, str, int], list[WinnerTargetStopOutcome]] = {}
+        outcomes_by_execution = {
+            (
+                int(row.prediction_id),
+                str(row.entry_model),
+                int(row.horizon_sessions),
+            ): row
+            for row in outcomes
+        }
+        if len(outcomes_by_execution) != len(outcomes):
+            raise TargetStopForwardMismatch(
+                "batch contains duplicate forward semantic execution identities"
+            )
+        for row, definition in db.execute(
+            select(WinnerTargetStopOutcome, WinnerOutcomeDefinition)
+            .join(
+                WinnerOutcomeDefinition,
+                WinnerOutcomeDefinition.id == WinnerTargetStopOutcome.outcome_definition_id,
+            )
             .where(WinnerTargetStopOutcome.prediction_id.in_(prediction_ids))
             .where(WinnerTargetStopOutcome.is_current_revision.is_(True))
             .order_by(WinnerTargetStopOutcome.prediction_id, WinnerTargetStopOutcome.id)
         ):
-            target_stops.setdefault(row.prediction_id, []).append(row)
+            key = (
+                int(row.prediction_id),
+                str(row.entry_model),
+                int(row.horizon_sessions),
+            )
+            forward = outcomes_by_execution.get(key)
+            if forward is None:
+                continue
+            _validate_target_stop_link(row, definition, forward)
+            target_stops.setdefault(key, []).append(row)
         symbols = {BENCHMARK_TICKER}
         sectors = {_prediction_sector(prediction) for prediction in predictions.values()}
         sector_proxies = {sector: _sector_proxy(sector) for sector in sectors}
@@ -606,7 +646,7 @@ class WinnerOutcomeRepository:
             predictions=predictions,
             bars_by_ticker=bars_by_ticker,
             bars_by_outcome=bars_by_outcome,
-            target_stops_by_prediction=target_stops,
+            target_stops_by_execution=target_stops,
         )
 
     def get_current_matured_forward_outcomes(
@@ -647,9 +687,13 @@ class WinnerOutcomeRepository:
         entry_model: str,
         horizon_sessions: int,
     ) -> list[WinnerTargetStopOutcome]:
-        return list(
-            db.scalars(
-                select(WinnerTargetStopOutcome)
+        rows = list(
+            db.execute(
+                select(WinnerTargetStopOutcome, WinnerOutcomeDefinition)
+                .join(
+                    WinnerOutcomeDefinition,
+                    WinnerOutcomeDefinition.id == WinnerTargetStopOutcome.outcome_definition_id,
+                )
                 .where(WinnerTargetStopOutcome.prediction_id == prediction_id)
                 .where(WinnerTargetStopOutcome.entry_model == entry_model)
                 .where(WinnerTargetStopOutcome.horizon_sessions == horizon_sessions)
@@ -657,6 +701,18 @@ class WinnerOutcomeRepository:
                 .order_by(WinnerTargetStopOutcome.id)
             )
         )
+        forward = db.scalar(
+            select(WinnerForwardOutcome)
+            .where(WinnerForwardOutcome.prediction_id == prediction_id)
+            .where(WinnerForwardOutcome.entry_model == entry_model)
+            .where(WinnerForwardOutcome.horizon_sessions == horizon_sessions)
+            .where(WinnerForwardOutcome.is_current_revision.is_(True))
+        )
+        if forward is None and rows:
+            raise TargetStopForwardMismatch("matching current forward outcome not found")
+        for row, definition in rows:
+            _validate_target_stop_link(row, definition, forward)
+        return [row for row, _definition in rows]
 
     def load_bars(
         self,
@@ -725,6 +781,33 @@ def _has_required_sessions(bars: list[PriceBar], start: date | None, end: date |
             return True
         cursor = next_regular_session(cursor)
     return True
+
+
+def _validate_target_stop_link(
+    target_stop: WinnerTargetStopOutcome,
+    definition: WinnerOutcomeDefinition,
+    forward: WinnerForwardOutcome | None,
+) -> None:
+    if definition.entry_model != target_stop.entry_model or int(definition.horizon_sessions) != int(
+        target_stop.horizon_sessions
+    ):
+        raise TargetStopForwardMismatch(
+            f"TARGET_STOP_FORWARD_MISMATCH target_stop={target_stop.id} definition semantics"
+        )
+    if forward is None or (
+        int(target_stop.prediction_id) != int(forward.prediction_id)
+        or target_stop.entry_model != forward.entry_model
+        or int(target_stop.horizon_sessions) != int(forward.horizon_sessions)
+    ):
+        raise TargetStopForwardMismatch(
+            f"TARGET_STOP_FORWARD_MISMATCH target_stop={target_stop.id} forward semantics"
+        )
+    if target_stop.forward_outcome_id is not None and int(target_stop.forward_outcome_id) != int(
+        forward.id
+    ):
+        raise TargetStopForwardMismatch(
+            f"TARGET_STOP_FORWARD_MISMATCH target_stop={target_stop.id} forward link"
+        )
 
 
 def _validate_bars(bars: list[PriceBar]) -> str | None:
