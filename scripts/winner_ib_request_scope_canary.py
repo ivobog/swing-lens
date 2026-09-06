@@ -62,6 +62,7 @@ SCHEMA_V3_RESULT = "swinglens-winner-ib-request-scope-v3-result"
 SCHEMA_RECOVERY_MASTER = "swinglens-winner-ib-recovery-master-v1"
 SCHEMA_RECOVERY_BATCH = "swinglens-winner-ib-recovery-batch-v1"
 SCHEMA_RECOVERY_BATCH_RESULT = "swinglens-winner-ib-recovery-batch-result-v1"
+SCHEMA_RECOVERY_FINAL = "swinglens-winner-ib-recovery-final-v1"
 RECOVERY_MANIFEST_HASH = "f74cdd39c79527573e92e7089a682dda9d780203939d3f247da88fff41f4388b"
 BASES = ("TRADES", "ADJUSTED_LAST")
 
@@ -281,12 +282,8 @@ def _selected_plan(
         what_to_show_values=BASES,
     )
     requested = {ticker.upper() for ticker in tickers}
-    expected_keys = required_keys or {
-        (ticker, basis) for ticker in requested for basis in BASES
-    }
-    items = [
-        item for item in plan.items if (item.ticker, item.what_to_show) in expected_keys
-    ]
+    expected_keys = required_keys or {(ticker, basis) for ticker in requested for basis in BASES}
+    items = [item for item in plan.items if (item.ticker, item.what_to_show) in expected_keys]
     if {(item.ticker, item.what_to_show) for item in items} != expected_keys:
         raise RuntimeError("selected plan does not cover every required ticker/basis")
     if any(
@@ -321,9 +318,7 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
             )
         )
     )
-    required_keys = {
-        (row.ticker_snapshot, row.what_to_show) for row in obligations
-    }
+    required_keys = {(row.ticker_snapshot, row.what_to_show) for row in obligations}
     plan = _selected_plan(db, tickers, required_keys=required_keys)
     prediction_ids = {int(row.prediction_id) for row in obligations}
     predictions = {
@@ -424,10 +419,7 @@ def _preflight_payload(db, tickers: list[str]) -> tuple[dict[str, Any], FetchPla
         raise RuntimeError(f"quarantine count drifted from 1292 to {quarantine_count}")
     active_jobs = int(
         db.scalar(
-            text(
-                "SELECT count(*) FROM background_jobs "
-                "WHERE status IN ('QUEUED', 'RUNNING')"
-            )
+            text("SELECT count(*) FROM background_jobs WHERE status IN ('QUEUED', 'RUNNING')")
         )
         or 0
     )
@@ -508,10 +500,9 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                 )
             )
         }
-        historical_counts_unchanged = (
-            reviewed.get("historical_counts") is None
-            or reviewed["historical_counts"] == _historical_counts(db)
-        )
+        historical_counts_unchanged = reviewed.get("historical_counts") is None or reviewed[
+            "historical_counts"
+        ] == _historical_counts(db)
         quarantine_unchanged = _quarantine_count(db) == int(
             reviewed.get("quarantined_prediction_count", 1292)
         )
@@ -650,9 +641,7 @@ def verify_v3(path: Path, fetch_run_id: int, output_dir: Path) -> Path:
                 "revised": sum(row["revised"] for row in results),
                 "unchanged": sum(row["unchanged"] for row in results),
                 "failed": sum(not row["passed"] for row in results),
-                "success": sum(
-                    row["provider_result"] == "SUCCESS_WITH_BARS" for row in results
-                ),
+                "success": sum(row["provider_result"] == "SUCCESS_WITH_BARS" for row in results),
                 "provider_no_data": sum(
                     row["provider_result"] == "PROVIDER_NO_DATA" for row in results
                 ),
@@ -714,9 +703,7 @@ def _remaining_master_payload(db) -> dict[str, Any]:
         int(row.id): row
         for row in db.scalars(
             select(IBContract).where(
-                IBContract.id.in_(
-                    {row.ib_contract_id for row in obligations if row.ib_contract_id}
-                )
+                IBContract.id.in_({row.ib_contract_id for row in obligations if row.ib_contract_id})
             )
         )
     }
@@ -732,9 +719,7 @@ def _remaining_master_payload(db) -> dict[str, Any]:
         contract = contracts.get(int(obligation.ib_contract_id or 0))
         if contract is None or not _identity_matches(obligation, contract):
             raise RuntimeError(f"obligation {obligation.id} has stale contract identity")
-        need = need_by_key.get(
-            (int(obligation.forward_outcome_id), obligation.what_to_show)
-        )
+        need = need_by_key.get((int(obligation.forward_outcome_id), obligation.what_to_show))
         if need is None:
             raise RuntimeError(f"obligation {obligation.id} has no current missing sessions")
         records.append(
@@ -833,9 +818,7 @@ def plan_recovery_batch(
         payload["artifact_hash"] = _hash(payload)
         if int(payload["request_count"]) > 100:
             raise RuntimeError("reviewed batch exceeds 100 provider requests")
-        path = output_dir / (
-            f"batch_{batch_number:03d}_{payload['artifact_hash']}.json"
-        )
+        path = output_dir / (f"batch_{batch_number:03d}_{payload['artifact_hash']}.json")
         _write_immutable(path, payload)
         print(json.dumps({"path": str(path.resolve()), **_summary(payload)}, indent=2))
         return path
@@ -907,9 +890,7 @@ def dry_run_remaining() -> None:
         needs = MarketDataObligationService().recovery_needs(db)
         tickers = sorted({row.ticker for row in needs})
         required_keys = {(row.ticker, row.what_to_show) for row in needs}
-        plan = (
-            _selected_plan(db, tickers, required_keys=required_keys) if tickers else None
-        )
+        plan = _selected_plan(db, tickers, required_keys=required_keys) if tickers else None
         items = plan.items if plan else []
         print(
             json.dumps(
@@ -920,10 +901,12 @@ def dry_run_remaining() -> None:
                     "planned_provider_requests": len(items),
                     "basis_counts": dict(Counter(row.what_to_show for row in items)),
                     "required_start": min(
-                        (session for row in needs for session in row.missing_sessions), default=None
+                        (session for row in needs for session in row.missing_sessions),
+                        default=None,
                     ),
                     "required_end": max(
-                        (session for row in needs for session in row.missing_sessions), default=None
+                        (session for row in needs for session in row.missing_sessions),
+                        default=None,
                     ),
                     "reviewed_start": min(
                         (row.request_start_date for row in items if row.request_start_date),
@@ -940,6 +923,141 @@ def dry_run_remaining() -> None:
         )
 
 
+def final_recovery_manifest(output_dir: Path) -> Path:
+    """Build the deterministic terminal classification for the installed population."""
+    with SessionLocal() as db:
+        db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        obligations = list(
+            db.scalars(
+                select(WinnerMarketDataObligation).order_by(
+                    WinnerMarketDataObligation.forward_outcome_id,
+                    WinnerMarketDataObligation.what_to_show,
+                )
+            )
+        )
+        by_outcome: dict[int, list[WinnerMarketDataObligation]] = defaultdict(list)
+        for obligation in obligations:
+            by_outcome[int(obligation.forward_outcome_id)].append(obligation)
+        prediction_ids = {int(row.prediction_id) for row in obligations}
+        predictions = {
+            int(row.id): row
+            for row in db.scalars(
+                select(WinnerPredictionSnapshot).where(
+                    WinnerPredictionSnapshot.id.in_(sorted(prediction_ids))
+                )
+            )
+        }
+        decisions = load_current_temporal_decisions(db, prediction_ids)
+        contract_ids = {
+            int(row.ib_contract_id) for row in obligations if row.ib_contract_id is not None
+        }
+        contracts = {
+            int(row.id): row
+            for row in db.scalars(select(IBContract).where(IBContract.id.in_(sorted(contract_ids))))
+        }
+        tickers = {row.ticker_snapshot for row in obligations}
+        min_date = min(row.entry_session for row in obligations)
+        max_date = max(row.required_through_session for row in obligations)
+        present: dict[tuple[str, str], set[date]] = defaultdict(set)
+        for ticker, basis, bar_date in db.execute(
+            select(PriceBar.ticker, PriceBar.what_to_show, PriceBar.bar_date)
+            .where(PriceBar.ticker.in_(sorted(tickers)))
+            .where(PriceBar.timeframe == "1 day")
+            .where(PriceBar.what_to_show.in_(BASES))
+            .where(PriceBar.bar_date >= min_date)
+            .where(PriceBar.bar_date <= max_date)
+        ):
+            present[(str(ticker).upper(), str(basis))].add(bar_date)
+
+        rows: list[dict[str, Any]] = []
+        for outcome_id, outcome_obligations in sorted(by_outcome.items()):
+            prediction_id = int(outcome_obligations[0].prediction_id)
+            prediction = predictions[prediction_id]
+            decision = decisions.get(prediction_id)
+            temporal_valid = prediction_temporally_eligible(prediction, decision)
+            identity_valid = all(
+                row.ib_contract_id is not None
+                and (contract := contracts.get(int(row.ib_contract_id))) is not None
+                and _identity_matches(row, contract)
+                for row in outcome_obligations
+            )
+            basis_complete: dict[str, bool] = {}
+            for obligation in outcome_obligations:
+                required = {
+                    date.fromisoformat(value) for value in obligation.required_sessions_json
+                }
+                basis_complete[obligation.what_to_show] = bool(
+                    obligation.status == "SATISFIED"
+                    and required.issubset(
+                        present[(obligation.ticker_snapshot, obligation.what_to_show)]
+                    )
+                )
+            selected_basis = (
+                "ADJUSTED_LAST"
+                if basis_complete.get("ADJUSTED_LAST")
+                else "TRADES"
+                if basis_complete.get("TRADES")
+                else None
+            )
+            statuses = {row.status for row in outcome_obligations}
+            if not temporal_valid:
+                classification = (
+                    "TEMPORAL_UNRESOLVED"
+                    if decision is None or decision.status == "TEMPORAL_LINEAGE_UNRESOLVED"
+                    else "TEMPORAL_INVALID"
+                )
+            elif not identity_valid:
+                classification = "IDENTITY_BLOCKED"
+            elif selected_basis is not None:
+                classification = "BAR_COMPLETE_READY"
+            elif "UNAVAILABLE" in statuses:
+                classification = "PROVIDER_NO_DATA"
+            elif "FAILED" in statuses:
+                classification = "FETCH_FAILED_RETRYABLE"
+            else:
+                classification = "OTHER_BLOCKED"
+            rows.append(
+                {
+                    "outcome_id": outcome_id,
+                    "prediction_id": prediction_id,
+                    "ticker": outcome_obligations[0].ticker_snapshot,
+                    "ib_conid": outcome_obligations[0].ib_conid_snapshot,
+                    "temporal_status": decision.status if decision is not None else None,
+                    "temporal_valid": temporal_valid,
+                    "contract_identity_valid": identity_valid,
+                    "required_sessions": outcome_obligations[0].required_sessions_json,
+                    "basis_complete": dict(sorted(basis_complete.items())),
+                    "selected_basis": selected_basis,
+                    "obligations": [
+                        {
+                            "id": int(row.id),
+                            "basis": row.what_to_show,
+                            "status": row.status,
+                            "price_series_watermark": row.price_series_watermark,
+                        }
+                        for row in outcome_obligations
+                    ],
+                    "classification": classification,
+                }
+            )
+        classification_counts = dict(sorted(Counter(row["classification"] for row in rows).items()))
+        payload: dict[str, Any] = {
+            "schema": SCHEMA_RECOVERY_FINAL,
+            "population_count": len(rows),
+            "obligation_count": len(obligations),
+            "classification_counts": classification_counts,
+            "selected_basis_counts": dict(
+                sorted(Counter(row["selected_basis"] or "NONE" for row in rows).items())
+            ),
+            "rows": rows,
+        }
+        payload["artifact_hash"] = _hash(payload)
+        path = output_dir / f"recovery_final_{payload['artifact_hash']}.json"
+        _write_immutable(path, payload)
+        print(json.dumps({"path": str(path.resolve()), **_summary(payload)}, indent=2))
+        return path
+
+
 def plan_interrupted_finalization(fetch_run_id: int, output_dir: Path) -> Path:
     with SessionLocal() as db:
         db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
@@ -947,9 +1065,7 @@ def plan_interrupted_finalization(fetch_run_id: int, output_dir: Path) -> Path:
             db,
             fetch_run_id=fetch_run_id,
         )
-        path = output_dir / (
-            f"run_{fetch_run_id}_finalization_{payload['manifest_hash']}.json"
-        )
+        path = output_dir / (f"run_{fetch_run_id}_finalization_{payload['manifest_hash']}.json")
         _write_immutable(path, payload)
         print(
             json.dumps(
@@ -959,9 +1075,7 @@ def plan_interrupted_finalization(fetch_run_id: int, output_dir: Path) -> Path:
                     "fetch_run_id": fetch_run_id,
                     "expected_run_status": payload["expected_run_status"],
                     "expected_totals": payload["expected_totals"],
-                    "unmaterialized_request_count": payload[
-                        "unmaterialized_request_count"
-                    ],
+                    "unmaterialized_request_count": payload["unmaterialized_request_count"],
                 },
                 indent=2,
                 sort_keys=True,
@@ -1117,14 +1231,8 @@ def _quarantine_count(db) -> int:
             select(func.count(WinnerTemporalValidityDecision.id))
             .join(
                 latest,
-                (
-                    latest.c.prediction_id
-                    == WinnerTemporalValidityDecision.prediction_id
-                )
-                & (
-                    latest.c.sequence
-                    == WinnerTemporalValidityDecision.validation_sequence
-                ),
+                (latest.c.prediction_id == WinnerTemporalValidityDecision.prediction_id)
+                & (latest.c.sequence == WinnerTemporalValidityDecision.validation_sequence),
             )
             .where(WinnerTemporalValidityDecision.evidence_eligible.is_(False))
         )
@@ -1162,6 +1270,9 @@ def _summary(payload: dict[str, Any]) -> dict[str, Any]:
             "obligation_count",
             "contract_count",
             "batch_number",
+            "population_count",
+            "classification_counts",
+            "selected_basis_counts",
         )
         if key in payload
     }
@@ -1216,6 +1327,8 @@ def main() -> None:
     historical.add_argument("--label", required=True)
     historical.add_argument("--output-dir", type=Path, required=True)
     sub.add_parser("dry-run-remaining")
+    recovery_final = sub.add_parser("final-recovery-manifest")
+    recovery_final.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "audit-v1":
         audit_v1(args.fetch_run_id, args.output_dir)
@@ -1264,6 +1377,8 @@ def main() -> None:
         verify_v3(args.artifact, args.fetch_run_id, args.output_dir)
     elif args.command == "historical-state":
         historical_state_snapshot(args.label, args.output_dir)
+    elif args.command == "final-recovery-manifest":
+        final_recovery_manifest(args.output_dir)
     else:
         dry_run_remaining()
 
