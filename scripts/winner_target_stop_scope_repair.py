@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ PROTECTED_TABLES = (
 def plan(*, previous_canary_path: Path, execution_path: Path, output_dir: Path) -> Path:
     canary = json.loads(previous_canary_path.read_text(encoding="utf-8"))
     execution = json.loads(execution_path.read_text(encoding="utf-8"))
+    executed_at = datetime.fromisoformat(execution["executed_at"].replace("Z", "+00:00"))
     prediction_ids = [int(item["prediction_id"]) for item in canary["manifest"]["outcomes"]]
     with SessionLocal() as db:
         db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
@@ -46,7 +48,7 @@ def plan(*, previous_canary_path: Path, execution_path: Path, output_dir: Path) 
                 .where(WinnerTargetStopOutcome.prediction_id.in_(prediction_ids))
                 .where(WinnerTargetStopOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC")
                 .where(WinnerTargetStopOutcome.horizon_sessions == 5)
-                .where(WinnerTargetStopOutcome.evaluated_at == execution["executed_at"])
+                .where(WinnerTargetStopOutcome.evaluated_at == executed_at)
                 .where(WinnerTargetStopOutcome.is_current_revision.is_(True))
                 .order_by(WinnerTargetStopOutcome.id)
             )
