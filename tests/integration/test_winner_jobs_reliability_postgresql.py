@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -20,11 +21,13 @@ from app.db import get_db
 from app.main import create_app
 from app.models.tables import (
     BackgroundJob,
+    EstimateLifecycleStatus,
     UploadRun,
     WinnerCohortGeneration,
     WinnerCohortRefreshState,
     WinnerCohortStatistic,
     WinnerEstimateEvidenceMember,
+    WinnerEstimatePublicationRequest,
     WinnerEvidenceManifest,
     WinnerForwardOutcome,
     WinnerOutcomeDefinition,
@@ -33,6 +36,7 @@ from app.models.tables import (
     WinnerProcessingRun,
     WinnerTargetStopOutcome,
 )
+from app.routers.run_routes import _winner_probability_context
 from app.services.background_job_service import (
     JobLeaseLost,
     JobStatus,
@@ -43,6 +47,8 @@ from app.services.background_job_service import (
     recover_stale_jobs,
 )
 from app.services.background_worker import JobDeferred
+from app.services.ib_market_intelligence.journal import _serving_winner_estimate
+from app.services.winner_probability.api_service import WinnerProbabilityApiService
 from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
     CohortGenerationStatus,
@@ -56,6 +62,13 @@ from app.services.winner_probability.cohort_materialization_service import (
 )
 from app.services.winner_probability.cohort_refresh_planner import CohortRefreshPlanner
 from app.services.winner_probability.config import load_winner_probability_config
+from app.services.winner_probability.dtos import WinnerProbabilityApiQuery
+from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
+from app.services.winner_probability.estimate_publication_service import (
+    WinnerEstimatePublicationService,
+    serving_id_snapshot,
+    transition_manifest_hash,
+)
 from app.services.winner_probability.job_handlers import (
     WINNER_LATEST_RESCORE,
     WINNER_MATURATION_WORKFLOW_KEY,
@@ -72,6 +85,425 @@ from app.services.winner_probability.probability_estimator import ProbabilityEst
 from app.services.winner_probability.reproduction_service import ReproductionService
 from app.services.winner_probability.scheduler import schedule_primary_h5_maturation
 from app.settings import Settings
+
+
+def test_estimate_lifecycle_is_persisted_and_candidates_are_not_serving(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    observed = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
+    config = load_winner_probability_config()
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        prediction = db.scalar(select(WinnerPredictionSnapshot))
+        advance = EvidenceWatermarkService().advance_to_current_material_evidence(
+            db, outcome_definition=definition, config=config, observed_at=observed
+        )
+        ready_generation = CohortGenerationService().capture_or_resume(
+            db,
+            state=advance.state,
+            contract=contract_for(definition, config),
+            requested_at=observed,
+        )
+        ready_generation.status = CohortGenerationStatus.READY
+        ready_generation.ready_at = observed
+
+        common = {
+            "prediction_id": prediction.id,
+            "outcome_definition_id": definition.id,
+            "source": "COHORT",
+            "source_version": "lifecycle-test-v1",
+            "point_probability": Decimal("0.4"),
+            "sample_n": 10,
+            "effective_n": Decimal("10"),
+            "evidence_grade": "Low",
+            "insufficient_reasons_json": [],
+            "config_hash": config.config_hash,
+            "feature_schema_version": config.feature_schema.version,
+            "metadata_json": {},
+        }
+        published = WinnerProbabilityEstimate(
+            **common,
+            estimate_kind="DECISION_TIME",
+            training_cutoff_at=observed - timedelta(hours=2),
+            lifecycle_status=EstimateLifecycleStatus.PUBLISHED,
+            published_at=observed - timedelta(hours=1),
+        )
+        candidate = WinnerProbabilityEstimate(
+            **common,
+            estimate_kind="DECISION_TIME",
+            training_cutoff_at=observed - timedelta(hours=1),
+            lifecycle_status=EstimateLifecycleStatus.CANDIDATE,
+        )
+        ready_backed = WinnerProbabilityEstimate(
+            **common,
+            estimate_kind="LATEST_RESCORE",
+            training_cutoff_at=observed,
+            cohort_generation_id=ready_generation.id,
+            lifecycle_status=EstimateLifecycleStatus.PUBLISHED,
+            published_at=observed,
+        )
+        db.add_all([published, candidate, ready_backed])
+        db.flush()
+
+        generated_candidate = ProbabilityEstimator().create_candidate_rescore_from_generation(
+            db,
+            prediction=prediction,
+            outcome_definition=definition,
+            generation=ready_generation,
+            source_version="clean-candidate-test-v1",
+            config=config,
+        )
+        assert generated_candidate.estimate.lifecycle_status == EstimateLifecycleStatus.CANDIDATE
+        duplicate_candidate = ProbabilityEstimator().create_candidate_rescore_from_generation(
+            db,
+            prediction=prediction,
+            outcome_definition=definition,
+            generation=ready_generation,
+            source_version="clean-candidate-test-v1",
+            config=config,
+        )
+        assert duplicate_candidate.status == "duplicate"
+        assert duplicate_candidate.estimate.id == generated_candidate.estimate.id
+
+        serving_ids = tuple(
+            db.scalars(
+                select(WinnerProbabilityEstimate.id)
+                .where(estimate_is_serving())
+                .order_by(WinnerProbabilityEstimate.id)
+            )
+        )
+        assert serving_ids == (published.id,)
+        assert candidate.id not in serving_ids
+        assert ready_backed.id not in serving_ids
+        assert generated_candidate.estimate.id not in serving_ids
+        assert (
+            _serving_winner_estimate(
+                db,
+                prediction_id=prediction.id,
+                cutoff=observed + timedelta(days=365),
+            ).id
+            == published.id
+        )
+
+        candidate.lifecycle_status = EstimateLifecycleStatus.PUBLISHED
+        candidate.published_at = observed
+        db.flush()
+        assert tuple(
+            db.scalars(
+                select(WinnerProbabilityEstimate.id)
+                .where(estimate_is_serving())
+                .order_by(WinnerProbabilityEstimate.id)
+            )
+        ) == (published.id, candidate.id)
+        assert (
+            _serving_winner_estimate(
+                db,
+                prediction_id=prediction.id,
+                cutoff=observed + timedelta(days=365),
+            ).id
+            == candidate.id
+        )
+        db.rollback()
+    engine.dispose()
+
+
+def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_old_rows(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    observed = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
+    config = load_winner_probability_config()
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        prediction = db.scalar(select(WinnerPredictionSnapshot))
+        advance = EvidenceWatermarkService().advance_to_current_material_evidence(
+            db, outcome_definition=definition, config=config, observed_at=observed
+        )
+        previous = CohortGenerationService().capture_or_resume(
+            db,
+            state=advance.state,
+            contract=contract_for(definition, config),
+            requested_at=observed,
+        )
+        previous.status = CohortGenerationStatus.PUBLISHED
+        previous.published_at = observed
+        previous.completed_at = observed
+        previous.root_manifest_hash = "old-root"
+        advance.state.published_generation_id = previous.id
+        advance.state.published_watermark_hash = previous.watermark_hash
+        generation = WinnerCohortGeneration(
+            generation_key="clean-publication-generation",
+            refresh_state_id=advance.state.id,
+            outcome_definition_id=definition.id,
+            watermark_hash="clean-watermark",
+            watermark_json={"clean": True},
+            feature_schema_version=config.feature_schema.version,
+            calculation_version=config.engine.calculation_version,
+            config_hash=config.config_hash,
+            eligibility_policy_version=previous.eligibility_policy_version,
+            compatibility_policy_version=previous.compatibility_policy_version,
+            cohort_algorithm_version=previous.cohort_algorithm_version,
+            status=CohortGenerationStatus.READY,
+            training_cutoff_at=observed + timedelta(hours=2),
+            requested_at=observed + timedelta(hours=1),
+            ready_at=observed + timedelta(hours=2),
+            planned_group_count=1,
+            completed_group_count=1,
+            failed_group_count=0,
+            evidence_row_count=1,
+            root_manifest_hash="clean-root",
+            checkpoint_json={},
+            metrics_json={},
+        )
+        db.add(generation)
+        db.flush()
+        common = {
+            "prediction_id": prediction.id,
+            "outcome_definition_id": definition.id,
+            "config_hash": config.config_hash,
+            "feature_schema_version": config.feature_schema.version,
+            "sample_n": 0,
+            "effective_n": Decimal("0"),
+            "metadata_json": {"reviewed_manifest_hash": "candidate-manifest"},
+        }
+        old_decision = WinnerProbabilityEstimate(
+            **common,
+            estimate_kind="DECISION_TIME",
+            source="COHORT",
+            source_version="old-decision",
+            training_cutoff_at=observed - timedelta(days=1),
+            created_at=observed - timedelta(hours=2),
+            lifecycle_status=EstimateLifecycleStatus.PUBLISHED,
+            published_at=observed - timedelta(hours=2),
+            point_probability=Decimal("0.75"),
+            evidence_grade="Low",
+            insufficient_reasons_json=[],
+        )
+        db.add(old_decision)
+        db.flush()
+        clean_decision = WinnerProbabilityEstimate(
+            **common,
+            estimate_kind="DECISION_TIME",
+            source="INSUFFICIENT",
+            source_version="clean-candidate",
+            cohort_generation_id=generation.id,
+            training_cutoff_at=old_decision.training_cutoff_at,
+            created_at=observed,
+            lifecycle_status=EstimateLifecycleStatus.CANDIDATE,
+            supersedes_estimate_id=old_decision.id,
+            reconstruction_category="DIRECTLY_CONTAMINATED",
+            point_probability=None,
+            lower_bound=None,
+            upper_bound=None,
+            interval_width=None,
+            evidence_grade="Insufficient",
+            insufficient_reasons_json=["no_clean_evidence_at_original_decision_cutoff"],
+        )
+        old_latest = WinnerProbabilityEstimate(
+            **common,
+            estimate_kind="LATEST_RESCORE",
+            source="COHORT",
+            source_version="old-latest",
+            training_cutoff_at=observed,
+            created_at=observed - timedelta(hours=1),
+            lifecycle_status=EstimateLifecycleStatus.PUBLISHED,
+            published_at=observed - timedelta(hours=1),
+            point_probability=Decimal("0.40"),
+            evidence_grade="Low",
+            insufficient_reasons_json=[],
+        )
+        db.add(old_latest)
+        db.flush()
+        clean_latest = WinnerProbabilityEstimate(
+            **common,
+            estimate_kind="LATEST_RESCORE",
+            source="COHORT",
+            source_version="clean-candidate",
+            cohort_generation_id=generation.id,
+            training_cutoff_at=generation.training_cutoff_at,
+            created_at=observed + timedelta(minutes=1),
+            lifecycle_status=EstimateLifecycleStatus.CANDIDATE,
+            supersedes_estimate_id=old_latest.id,
+            point_probability=Decimal("0.60"),
+            evidence_grade="Medium",
+            insufficient_reasons_json=[],
+        )
+        db.add_all([clean_decision, clean_latest])
+        db.flush()
+        before = serving_id_snapshot(db)
+        after_ids = tuple(
+            sorted(
+                (set(before["ids"]) - {old_decision.id, old_latest.id})
+                | {clean_decision.id, clean_latest.id}
+            )
+        )
+        manifest = {
+            "schema": "test-publication-v1",
+            "generation": {
+                "id": generation.id,
+                "generation_key": generation.generation_key,
+                "root_manifest_hash": generation.root_manifest_hash,
+            },
+            "previous_generation": {
+                "id": previous.id,
+                "generation_key": previous.generation_key,
+            },
+            "candidate_manifest_hash": "candidate-manifest",
+            "candidate_count": 2,
+            "quarantined_prediction_count": 0,
+            "serving_before": _snapshot_without_ids(before),
+            "serving_after": _id_snapshot_for_test(after_ids),
+            "records": [
+                {
+                    "original_estimate_id": old_decision.id,
+                    "candidate_estimate_id": clean_decision.id,
+                    "decision_reconstruction_category": "DIRECTLY_CONTAMINATED",
+                },
+                {
+                    "original_estimate_id": old_latest.id,
+                    "candidate_estimate_id": clean_latest.id,
+                    "decision_reconstruction_category": None,
+                },
+            ],
+        }
+        manifest["artifact_hash"] = transition_manifest_hash(manifest)
+        db.commit()
+        ids = {
+            "prediction": prediction.id,
+            "run": prediction.run_id,
+            "definition": definition.id,
+            "previous": previous.id,
+            "generation": generation.id,
+            "old_decision": old_decision.id,
+            "clean_decision": clean_decision.id,
+            "old_latest": old_latest.id,
+            "clean_latest": clean_latest.id,
+        }
+
+    for stage in (
+        "generation_switch",
+        "estimate_switch",
+        "pointer_switch",
+        "request_recorded",
+    ):
+        with Session(engine) as db:
+
+            def fail_at(observed_stage: str, target_stage: str = stage) -> None:
+                if observed_stage == target_stage:
+                    raise RuntimeError(f"injected {target_stage}")
+
+            with pytest.raises(RuntimeError, match=f"injected {stage}"):
+                WinnerEstimatePublicationService().publish(
+                    db,
+                    manifest=manifest,
+                    reviewed_manifest_hash=manifest["artifact_hash"],
+                    candidate_manifest_hash="candidate-manifest",
+                    actor="integration-test",
+                    request_key="clean-publication-request",
+                    approve_write=True,
+                    published_at=observed + timedelta(hours=3),
+                    stage_hook=fail_at,
+                )
+            db.rollback()
+        with Session(engine) as db:
+            assert db.get(WinnerCohortGeneration, ids["previous"]).status == "PUBLISHED"
+            assert db.get(WinnerCohortGeneration, ids["generation"]).status == "READY"
+            assert (
+                db.get(WinnerProbabilityEstimate, ids["old_decision"]).lifecycle_status
+                == "PUBLISHED"
+            )
+            assert (
+                db.get(WinnerProbabilityEstimate, ids["clean_decision"]).lifecycle_status
+                == "CANDIDATE"
+            )
+            assert db.scalar(select(func.count(WinnerEstimatePublicationRequest.id))) == 0
+
+    with Session(engine) as db:
+        result = WinnerEstimatePublicationService().publish(
+            db,
+            manifest=manifest,
+            reviewed_manifest_hash=manifest["artifact_hash"],
+            candidate_manifest_hash="candidate-manifest",
+            actor="integration-test",
+            request_key="clean-publication-request",
+            approve_write=True,
+            published_at=observed + timedelta(hours=3),
+        )
+        db.commit()
+        assert result["published_candidates"] == 2
+
+    with Session(engine) as db:
+        replay = WinnerEstimatePublicationService().publish(
+            db,
+            manifest=manifest,
+            reviewed_manifest_hash=manifest["artifact_hash"],
+            candidate_manifest_hash="candidate-manifest",
+            actor="integration-test",
+            request_key="clean-publication-request",
+            approve_write=True,
+        )
+        assert replay == result
+        assert db.scalar(select(func.count(WinnerEstimatePublicationRequest.id))) == 1
+        decision = WinnerProbabilityApiService()._estimate_by_kind(
+            db,
+            prediction_id=ids["prediction"],
+            outcome_definition_id=ids["definition"],
+            estimate_kind="DECISION_TIME",
+            query=WinnerProbabilityApiQuery(),
+        )
+        assert decision.id == ids["clean_decision"]
+        assert decision.point_probability is None
+        assert "no_clean_evidence_at_original_decision_cutoff" in decision.insufficient_reasons_json
+        latest = WinnerProbabilityApiService()._estimate_by_kind(
+            db,
+            prediction_id=ids["prediction"],
+            outcome_definition_id=ids["definition"],
+            estimate_kind="LATEST_RESCORE",
+            query=WinnerProbabilityApiQuery(estimate_view="LATEST_RESCORE"),
+        )
+        assert latest.id == ids["clean_latest"]
+        assert latest.point_probability == Decimal("0.600000")
+        journal = _serving_winner_estimate(
+            db,
+            prediction_id=ids["prediction"],
+            cutoff=observed + timedelta(seconds=30),
+        )
+        assert journal.id == ids["clean_decision"]
+        assert journal.point_probability is None
+        summary = _winner_probability_context(db, ids["run"])
+        assert summary["estimate_count"] == 2
+        assert summary["insufficient_count"] == 1
+        assert db.get(WinnerProbabilityEstimate, ids["old_decision"]).point_probability == Decimal(
+            "0.750000"
+        )
+        assert (
+            db.get(WinnerProbabilityEstimate, ids["old_decision"]).lifecycle_status == "SUPERSEDED"
+        )
+        with pytest.raises(IntegrityError):
+            db.execute(
+                text(
+                    """
+                    INSERT INTO winner_probability_estimates (
+                      prediction_id,outcome_definition_id,estimate_kind,source,source_version,
+                      cohort_generation_id,training_cutoff_at,lifecycle_status,
+                      point_probability,evidence_grade,insufficient_reasons_json,
+                      config_hash,feature_schema_version,metadata_json,supersedes_estimate_id
+                    )
+                    SELECT prediction_id,outcome_definition_id,estimate_kind,source,
+                      'duplicate-lineage',cohort_generation_id,training_cutoff_at,'CANDIDATE',
+                      point_probability,evidence_grade,insufficient_reasons_json,
+                      config_hash,feature_schema_version,metadata_json,supersedes_estimate_id
+                    FROM winner_probability_estimates WHERE id=:candidate_id
+                    """
+                ),
+                {"candidate_id": ids["clean_decision"]},
+            )
+            db.flush()
+        db.rollback()
+    engine.dispose()
 
 
 def test_incident_shape_4227_retry_deferred_rows_creates_no_child(
@@ -918,6 +1350,66 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
     engine.dispose()
 
 
+def test_controlled_materialization_can_stop_at_ready_without_serving(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    config = load_winner_probability_config()
+    observed = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        advance = EvidenceWatermarkService().advance_to_current_material_evidence(
+            db, outcome_definition=definition, config=config, observed_at=observed
+        )
+        generation = CohortGenerationService().capture_or_resume(
+            db,
+            state=advance.state,
+            contract=contract_for(definition, config),
+            requested_at=observed,
+        )
+        generation_id = generation.id
+        refresh_state_id = generation.refresh_state_id
+        db.commit()
+
+    with Session(engine) as db:
+        generation = db.get(WinnerCohortGeneration, generation_id)
+        definition = db.scalar(select(WinnerOutcomeDefinition))
+        result = CohortMaterializationService().materialize_slice(
+            db,
+            generation=generation,
+            outcome_definition=definition,
+            config=config,
+            lease_guard=db.commit,
+            should_cancel=lambda: False,
+            max_groups=100,
+            max_wall_seconds=60,
+            publish_when_ready=False,
+        )
+        db.commit()
+
+    with Session(engine) as db:
+        generation = db.get(WinnerCohortGeneration, generation_id)
+        state = db.get(WinnerCohortRefreshState, refresh_state_id)
+        assert result.status == CohortGenerationStatus.READY
+        assert generation.status == CohortGenerationStatus.READY
+        assert generation.published_at is None
+        assert generation.completed_at is None
+        assert generation.root_manifest_hash is not None
+        root_manifest = db.scalar(
+            select(WinnerEvidenceManifest).where(
+                WinnerEvidenceManifest.manifest_hash == generation.root_manifest_hash
+            )
+        )
+        assert root_manifest is not None
+        assert root_manifest.member_count == generation.evidence_row_count == 1
+        assert state.published_generation_id is None
+        assert state.published_watermark_hash is None
+        audit = CohortGenerationService.audit_temporal_integrity(db, generation=generation)
+        assert audit.clean
+    engine.dispose()
+
+
 @pytest.mark.performance
 def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
     disposable_postgres_database: str,
@@ -1541,3 +2033,15 @@ def _upgrade(database_url: str, revision: str = "head") -> None:
         capture_output=True,
         text=True,
     )
+
+
+def _snapshot_without_ids(snapshot: dict[str, object]) -> dict[str, object]:
+    return {"count": snapshot["count"], "sha256": snapshot["sha256"]}
+
+
+def _id_snapshot_for_test(ids: tuple[int, ...]) -> dict[str, object]:
+    digest = hashlib.sha256()
+    for value in ids:
+        digest.update(str(value).encode())
+        digest.update(b"\n")
+    return {"count": len(ids), "sha256": digest.hexdigest()}

@@ -34,6 +34,7 @@ from app.services.winner_probability.dtos import (
     WinnerProbabilityApiQuery,
     WinnerProbabilityFilters,
 )
+from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 from app.services.winner_probability.model_registry import ModelRegistry, ModelRegistryError
 from app.services.winner_probability.pre11_compatibility_service import (
     EVIDENCE_ORIGIN_NATIVE,
@@ -409,6 +410,7 @@ class WinnerProbabilityApiService:
             .where(WinnerProbabilityEstimate.prediction_id == prediction_id)
             .where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition_id)
             .where(WinnerProbabilityEstimate.estimate_kind == estimate_kind)
+            .where(estimate_is_serving())
         )
         if estimate_kind == EstimateKind.LATEST_RESCORE:
             if get_settings().winner_cohort_refresh_v2_enabled:
@@ -1099,10 +1101,11 @@ def _eq(value: Any, expected: str | None) -> bool:
 
 def _sort_value(value: Any, reverse: bool) -> Any:
     if value is None:
-        return Decimal("-Infinity") if reverse else Decimal("Infinity")
+        return (1, Decimal(0))
     if isinstance(value, str):
-        return value
-    return -Decimal(str(value)) if reverse else Decimal(str(value))
+        return (0, value)
+    numeric = Decimal(str(value))
+    return (0, -numeric if reverse else numeric)
 
 
 def _number(value: Any) -> float | None:

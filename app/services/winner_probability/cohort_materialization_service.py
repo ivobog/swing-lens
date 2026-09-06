@@ -84,6 +84,7 @@ class CohortMaterializationService:
         should_cancel: Callable[[], bool],
         max_groups: int = 100,
         max_wall_seconds: float = 45.0,
+        publish_when_ready: bool = True,
     ) -> CohortMaterializationResult:
         if generation.status == CohortGenerationStatus.PUBLISHED:
             return self._result(generation, no_op=True)
@@ -164,6 +165,15 @@ class CohortMaterializationService:
                 continuation_required=True,
             )
         evidence_load_completed_at = datetime.now(UTC)
+        root_manifest = self.manifest_service.create_or_get_manifest(
+            db,
+            evidence=universe.evidence,
+            hash_algorithm=config.evidence_membership.manifest_hash_algorithm,
+        )
+        self.manifest_service.persist_manifest_members(
+            db, manifest=root_manifest.manifest, evidence=universe.evidence
+        )
+        generation.root_manifest_hash = root_manifest.manifest_hash
         groups = self._groups(universe.evidence, config)
         ordered = self._ordered_groups(groups, config)
         generation.evidence_row_count = len(universe.evidence)
@@ -173,6 +183,7 @@ class CohortMaterializationService:
             "phase": "PLAN_GROUPS",
             "evidence_funnel": universe.counts(),
             "evidence_rows_loaded": len(universe.evidence),
+            "root_manifest_hash": root_manifest.manifest_hash,
             "unique_cohort_keys_planned": len(ordered),
             "evidence_load_completed_at": evidence_load_completed_at.isoformat(),
             "evidence_load_seconds": (
@@ -256,12 +267,8 @@ class CohortMaterializationService:
                         config_hash=config.config_hash,
                         evidence_manifest_hash=manifest.manifest_hash,
                         metadata_json={
-                            "mean_return_pct": _str_or_none(
-                                statistics.mean_return_pct
-                            ),
-                            "target_first_rate": _str_or_none(
-                                statistics.target_first_rate
-                            ),
+                            "mean_return_pct": _str_or_none(statistics.mean_return_pct),
+                            "target_first_rate": _str_or_none(statistics.target_first_rate),
                             "interval_width": str(statistics.interval_width),
                             "materialization_order": "L5_TO_L0",
                             "cohort_level": cohort_key.level,
@@ -336,6 +343,8 @@ class CohortMaterializationService:
         lease_guard()
         if should_cancel():
             self._cancel(db, generation, lease_guard)
+        if not publish_when_ready:
+            return self._result(generation)
         desired_advanced = self.generation_service.publish(
             db,
             generation=generation,
@@ -406,16 +415,11 @@ class CohortMaterializationService:
         for key in self.definition_service.cohort_keys_for_features({}, config):
             if key.level == config.cohort.hierarchy[-1].level:
                 mutable.setdefault(key.key, (key, []))
-        return {
-            key: (cohort_key, tuple(rows))
-            for key, (cohort_key, rows) in mutable.items()
-        }
+        return {key: (cohort_key, tuple(rows)) for key, (cohort_key, rows) in mutable.items()}
 
     @staticmethod
     def _ordered_groups(groups, config):
-        rank = {
-            level.level: index for index, level in enumerate(config.cohort.hierarchy)
-        }
+        rank = {level.level: index for index, level in enumerate(config.cohort.hierarchy)}
         return sorted(
             groups.values(),
             key=lambda item: (-rank[item[0].level], item[0].key),
@@ -455,9 +459,7 @@ class CohortMaterializationService:
             CohortGenerationStatus.READY,
         }:
             raise GenerationInvariantViolation("only active generations can cancel")
-        validate_generation_transition(
-            generation.status, CohortGenerationStatus.CANCELLED
-        )
+        validate_generation_transition(generation.status, CohortGenerationStatus.CANCELLED)
         generation.status = CohortGenerationStatus.CANCELLED
         generation.cancelled_at = datetime.now(UTC)
         generation.completed_at = generation.cancelled_at
@@ -496,6 +498,7 @@ def _str_or_none(value) -> str | None:
 
 def _is_statement_timeout(exc: DBAPIError) -> bool:
     original = getattr(exc, "orig", None)
-    return getattr(original, "sqlstate", None) == "57014" or getattr(
-        original, "pgcode", None
-    ) == "57014"
+    return (
+        getattr(original, "sqlstate", None) == "57014"
+        or getattr(original, "pgcode", None) == "57014"
+    )

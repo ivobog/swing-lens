@@ -203,6 +203,18 @@ def test_probability_estimate_and_evidence_membership_identities_are_defined() -
 
     assert "uq_winner_probability_estimates_identity" in estimate_constraints
     assert {
+        "lifecycle_status",
+        "published_at",
+        "superseded_at",
+        "supersedes_estimate_id",
+        "reconstruction_category",
+    }.issubset(WinnerProbabilityEstimate.__table__.c.keys())
+    assert {
+        "ck_winner_probability_estimates_lifecycle_status",
+        "ck_winner_probability_estimates_lifecycle_timestamps",
+    }.issubset(estimate_constraints)
+    assert "idx_winner_probability_estimates_serving" in estimate_indexes
+    assert {
         "idx_winner_probability_estimates_prediction_outcome_kind",
         "idx_winner_probability_estimates_model_created",
         "idx_winner_probability_estimates_probability",

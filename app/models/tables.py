@@ -1675,6 +1675,13 @@ class EstimateKind:
     DECISION_TIME = "DECISION_TIME"
     LATEST_RESCORE = "LATEST_RESCORE"
     AS_OF_REPLAY = "AS_OF_REPLAY"
+    RESEARCH_RECONSTRUCTION = "RESEARCH_RECONSTRUCTION"
+
+
+class EstimateLifecycleStatus:
+    CANDIDATE = "CANDIDATE"
+    PUBLISHED = "PUBLISHED"
+    SUPERSEDED = "SUPERSEDED"
 
 
 class EstimateSource:
@@ -2764,6 +2771,18 @@ class WinnerProbabilityEstimate(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    lifecycle_status: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default=EstimateLifecycleStatus.CANDIDATE,
+        server_default=EstimateLifecycleStatus.CANDIDATE,
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    supersedes_estimate_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_probability_estimates.id", ondelete="RESTRICT")
+    )
+    reconstruction_category: Mapped[str | None] = mapped_column(Text)
     point_probability: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
     lower_bound: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
     upper_bound: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
@@ -2833,6 +2852,77 @@ class WinnerProbabilityEstimate(Base):
             "source_version",
             unique=True,
             postgresql_where=text("cohort_generation_id IS NOT NULL"),
+        ),
+        Index(
+            "idx_winner_probability_estimates_serving",
+            "lifecycle_status",
+            "prediction_id",
+            "outcome_definition_id",
+            "estimate_kind",
+            "training_cutoff_at",
+            "created_at",
+        ),
+        Index(
+            "uq_winner_probability_estimates_supersedes",
+            "supersedes_estimate_id",
+            unique=True,
+            postgresql_where=text("supersedes_estimate_id IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "lifecycle_status IN ('CANDIDATE', 'PUBLISHED', 'SUPERSEDED')",
+            name="ck_winner_probability_estimates_lifecycle_status",
+        ),
+        CheckConstraint(
+            "reconstruction_category IS NULL OR reconstruction_category IN ("
+            "'DIRECTLY_CONTAMINATED','LEGACY_EVIDENCE_UNVERIFIABLE',"
+            "'NO_ORIGINAL_EVIDENCE','OTHER_POINT_IN_TIME_UNRECONSTRUCTABLE')",
+            name="ck_winner_probability_estimates_reconstruction_category",
+        ),
+        CheckConstraint(
+            "(lifecycle_status = 'CANDIDATE' AND published_at IS NULL "
+            "AND superseded_at IS NULL) OR "
+            "(lifecycle_status = 'PUBLISHED' AND published_at IS NOT NULL "
+            "AND superseded_at IS NULL) OR "
+            "(lifecycle_status = 'SUPERSEDED' AND superseded_at IS NOT NULL)",
+            name="ck_winner_probability_estimates_lifecycle_timestamps",
+        ),
+    )
+
+
+class WinnerEstimatePublicationRequest(Base):
+    __tablename__ = "winner_estimate_publication_requests"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    request_key: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    generation_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_cohort_generations.id", ondelete="RESTRICT"), nullable=False
+    )
+    previous_generation_id: Mapped[int] = mapped_column(
+        ForeignKey("winner_cohort_generations.id", ondelete="RESTRICT"), nullable=False
+    )
+    generation_key: Mapped[str] = mapped_column(Text, nullable=False)
+    transition_manifest_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    candidate_manifest_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("request_key", name="uq_winner_estimate_publication_request_key"),
+        CheckConstraint(
+            "status = 'COMPLETED'",
+            name="ck_winner_estimate_publication_request_status",
+        ),
+        Index(
+            "idx_winner_estimate_publication_request_generation",
+            "generation_id",
+            "completed_at",
         ),
     )
 

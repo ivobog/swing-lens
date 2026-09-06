@@ -99,6 +99,7 @@ from app.services.technical_display_fields import (
     technical_v4_details_by_ticker,
 )
 from app.services.technical_score_service import score_run_technicals
+from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 from app.services.worker_registry import has_live_worker_for_job
 from app.settings import get_settings
 from app.templates import templates
@@ -1296,7 +1297,7 @@ def _winner_probability_context(db: Session, run_id: int) -> dict[str, object]:
             db.scalar(
                 select(func.count(WinnerProbabilityEstimate.id)).where(
                     WinnerProbabilityEstimate.prediction_id.in_(prediction_ids)
-                )
+                ).where(estimate_is_serving())
             )
             or 0
         )
@@ -1305,6 +1306,7 @@ def _winner_probability_context(db: Session, run_id: int) -> dict[str, object]:
                 select(func.count(WinnerProbabilityEstimate.id))
                 .where(WinnerProbabilityEstimate.prediction_id.in_(prediction_ids))
                 .where(WinnerProbabilityEstimate.evidence_grade == "Insufficient")
+                .where(estimate_is_serving())
             )
             or 0
         )

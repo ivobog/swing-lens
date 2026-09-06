@@ -24,6 +24,7 @@ from app.services.winner_probability.cohort_definition import (
 )
 from app.services.winner_probability.cohort_statistics import CohortStatisticsService
 from app.services.winner_probability.config import WinnerProbabilityConfig
+from app.services.winner_probability.estimate_lifecycle import published_lifecycle_fields
 from app.services.winner_probability.evidence_manifest_service import EvidenceManifestService
 from app.services.winner_probability.evidence_service import EvidenceOutcome, EvidenceService
 from app.services.winner_probability.pre11_compatibility_service import (
@@ -148,6 +149,7 @@ class Pre11L5ActivationService:
         )
         if existing is None:
             estimate = WinnerProbabilityEstimate(
+                **published_lifecycle_fields(),
                 prediction_id=prediction.id,
                 outcome_definition_id=outcome_definition.id,
                 estimate_kind=EstimateKind.LATEST_RESCORE,

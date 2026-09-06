@@ -35,6 +35,10 @@ from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
     load_winner_probability_config,
 )
+from app.services.winner_probability.estimate_lifecycle import (
+    candidate_lifecycle_fields,
+    published_lifecycle_fields,
+)
 from app.services.winner_probability.evidence_manifest_service import EvidenceManifestService
 from app.services.winner_probability.evidence_service import EvidenceOutcome, EvidenceService
 from app.services.winner_probability.model_registry import ModelRegistry
@@ -129,6 +133,8 @@ class ProbabilityEstimator:
         generation: WinnerCohortGeneration,
         config: WinnerProbabilityConfig | None = None,
         model_version_id: int | None = None,
+        _candidate: bool = False,
+        _source_version: str = COHORT_BASELINE_SOURCE_VERSION,
     ) -> ProbabilityEstimateResult:
         """Create a bounded v2 rescore from already-materialized statistics.
 
@@ -136,9 +142,17 @@ class ProbabilityEstimator:
         inherited from the selected generation statistic's shared manifest.
         """
         config = config or load_winner_probability_config()
-        self.model_registry.ensure_can_serve_latest_rescore(db, model_version_id=model_version_id)
-        if generation.status != "PUBLISHED":
-            raise ValueError("latest rescore requires a PUBLISHED cohort generation")
+        if _candidate:
+            if model_version_id is not None:
+                raise ValueError("candidate cohort rescore cannot attach a serving model")
+            if generation.status != "READY":
+                raise ValueError("candidate rescore requires a READY cohort generation")
+        else:
+            self.model_registry.ensure_can_serve_latest_rescore(
+                db, model_version_id=model_version_id
+            )
+            if generation.status != "PUBLISHED":
+                raise ValueError("latest rescore requires a PUBLISHED cohort generation")
         expected_contract = (
             generation.outcome_definition_id == outcome_definition.id
             and generation.feature_schema_version == config.feature_schema.version
@@ -153,7 +167,7 @@ class ProbabilityEstimator:
             .where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition.id)
             .where(WinnerProbabilityEstimate.estimate_kind == ESTIMATE_KIND_LATEST_RESCORE)
             .where(WinnerProbabilityEstimate.cohort_generation_id == generation.id)
-            .where(WinnerProbabilityEstimate.source_version == COHORT_BASELINE_SOURCE_VERSION)
+            .where(WinnerProbabilityEstimate.source_version == _source_version)
         )
         if existing is not None:
             return ProbabilityEstimateResult(
@@ -220,6 +234,7 @@ class ProbabilityEstimator:
             selected_statistic = None
             insufficient_reasons = ["historical_self_exclusion_required"]
         estimate = WinnerProbabilityEstimate(
+            **(candidate_lifecycle_fields() if _candidate else published_lifecycle_fields()),
             prediction_id=prediction.id,
             outcome_definition_id=outcome_definition.id,
             estimate_kind=ESTIMATE_KIND_LATEST_RESCORE,
@@ -228,7 +243,7 @@ class ProbabilityEstimator:
                 if selected_statistic is not None
                 else EstimateSource.INSUFFICIENT
             ),
-            source_version=COHORT_BASELINE_SOURCE_VERSION,
+            source_version=_source_version,
             cohort_definition_id=(
                 selected_statistic.cohort_definition_id if selected_statistic is not None else None
             ),
@@ -274,8 +289,10 @@ class ProbabilityEstimator:
                 "selected_cohort_key": (selected_key.key if selected_key is not None else None),
                 "calculation_version": config.engine.calculation_version,
                 "request_timestamp_is_identity": False,
+                "estimate_lifecycle": "CANDIDATE" if _candidate else "PUBLISHED",
             },
         )
+
         db.add(estimate)
         db.flush()
         return ProbabilityEstimateResult(
@@ -284,6 +301,28 @@ class ProbabilityEstimator:
             evidence=(),
             selected_cohort=selected_key,
             statistics=None,
+        )
+
+    def create_candidate_rescore_from_generation(
+        self,
+        db: Session,
+        *,
+        prediction: WinnerPredictionSnapshot,
+        outcome_definition: WinnerOutcomeDefinition,
+        generation: WinnerCohortGeneration,
+        source_version: str,
+        config: WinnerProbabilityConfig | None = None,
+    ) -> ProbabilityEstimateResult:
+        """Create an inspectable rescore fenced from every serving consumer."""
+
+        return self.create_latest_rescore_from_generation(
+            db,
+            prediction=prediction,
+            outcome_definition=outcome_definition,
+            generation=generation,
+            config=config,
+            _candidate=True,
+            _source_version=source_version,
         )
 
     def _create_estimate(
@@ -385,6 +424,7 @@ class ProbabilityEstimator:
                 "cohort statistic key already exists with different evidence or configuration"
             )
         estimate = WinnerProbabilityEstimate(
+            **published_lifecycle_fields(),
             prediction_id=prediction.id,
             outcome_definition_id=outcome_definition.id,
             estimate_kind=estimate_kind,
@@ -599,6 +639,7 @@ class ProbabilityEstimator:
             hash_algorithm=config.evidence_membership.manifest_hash_algorithm,
         )
         estimate = WinnerProbabilityEstimate(
+            **published_lifecycle_fields(),
             prediction_id=prediction.id,
             outcome_definition_id=outcome_definition.id,
             estimate_kind=estimate_kind,

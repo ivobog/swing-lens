@@ -27,6 +27,7 @@ from app.models.tables import (
     WinnerProbabilityEstimate,
 )
 from app.services.operational_metrics import operational_metrics
+from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 
 ZERO = Decimal("0")
 
@@ -219,11 +220,8 @@ def match_episode_to_research(
     )
     winner_estimate = None
     if winner is not None:
-        winner_estimate = db.scalar(
-            select(WinnerProbabilityEstimate)
-            .where(WinnerProbabilityEstimate.prediction_id == winner.id)
-            .where(WinnerProbabilityEstimate.created_at <= cutoff)
-            .order_by(WinnerProbabilityEstimate.created_at.desc())
+        winner_estimate = _serving_winner_estimate(
+            db, prediction_id=winner.id, cutoff=cutoff
         )
     setup = db.scalar(
         select(SetupSignalSnapshot)
@@ -332,6 +330,25 @@ def match_episode_to_research(
         db.add(link)
     db.flush()
     return link
+
+
+def _serving_winner_estimate(
+    db: Session,
+    *,
+    prediction_id: int,
+    cutoff: datetime,
+) -> WinnerProbabilityEstimate | None:
+    return db.scalar(
+        select(WinnerProbabilityEstimate)
+        .where(WinnerProbabilityEstimate.prediction_id == prediction_id)
+        .where(WinnerProbabilityEstimate.created_at <= cutoff)
+        .where(estimate_is_serving())
+        .order_by(
+            WinnerProbabilityEstimate.created_at.desc(),
+            WinnerProbabilityEstimate.id.desc(),
+        )
+        .limit(1)
+    )
 
 
 def journal_analytics(db: Session, *, group_by: str | None = None) -> dict[str, Any]:
