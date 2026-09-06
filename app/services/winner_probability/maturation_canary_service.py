@@ -555,8 +555,8 @@ def _verify_actual_result(
             "status": outcome.status,
             "revision": int(outcome.revision),
             "is_current_revision": outcome.is_current_revision,
-            "entry_price": outcome.entry_price,
-            "exit_price": outcome.exit_price,
+            "entry_price": _stored_price(outcome.entry_price),
+            "exit_price": _stored_price(outcome.exit_price),
             "close_return_pct": outcome.close_return_pct,
             "spy_return_pct": outcome.spy_return_pct,
             "excess_spy_return_pct": outcome.excess_spy_return_pct,
@@ -581,8 +581,8 @@ def _verify_actual_result(
             "status": "MATURED",
             "revision": int(reviewed["retry_baseline"]["revision"]),
             "is_current_revision": True,
-            "entry_price": expected["entry_price"],
-            "exit_price": expected["exit_price"],
+            "entry_price": _stored_price(expected["entry_price"]),
+            "exit_price": _stored_price(expected["exit_price"]),
             "close_return_pct": expected["close_return_pct"],
             "spy_return_pct": expected["spy_return_pct"],
             "excess_spy_return_pct": expected["excess_spy_return_pct"],
@@ -841,3 +841,8 @@ def _validate_ohlc(bars: Sequence[PriceBar]) -> None:
 
 def _pct(value: Decimal, entry: Decimal) -> Decimal:
     return ((value - entry) / entry * Decimal("100")).quantize(_QUANTUM)
+
+
+def _stored_price(value: Any) -> Decimal | None:
+    """Normalize to the persisted ``NUMERIC(18, 6)`` representation."""
+    return Decimal(str(value)).quantize(_QUANTUM) if value is not None else None

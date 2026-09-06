@@ -30,6 +30,7 @@ from app.services.winner_probability.maturation_canary_service import (
     build_maturation_canary_manifest,
     canonical_canary_hash,
     execute_reviewed_maturation_canary,
+    verify_maturation_canary_results,
 )
 
 
@@ -73,6 +74,11 @@ def test_explicit_hash_gated_canary_matures_only_reviewed_id(
         assert unrelated.matured_at is None
         assert db.scalar(select(func.count(WinnerEstimateEvidenceMember.id))) == 0
         assert db.scalar(select(func.count(WinnerEvidenceManifestMember.id))) == 0
+        verify_maturation_canary_results(
+            db,
+            manifest,
+            executed_at=datetime(2026, 8, 27, 22, 0, tzinfo=UTC),
+        )
     engine.dispose()
 
 
