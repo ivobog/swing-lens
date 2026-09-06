@@ -48,8 +48,8 @@ from app.services.winner_probability.temporal_manifest_canonicalization import (
     canonicalize_manifest_value,
 )
 
-CANARY_SCHEMA = "swinglens-winner-h5-maturation-canary-v2"
-MAX_CANARY_OUTCOMES = 30
+CANARY_SCHEMA = "swinglens-winner-h5-maturation-canary-v3"
+MAX_CANARY_OUTCOMES = 250
 _QUANTUM = Decimal("0.000001")
 
 
@@ -103,9 +103,12 @@ def verify_canary_approval(
     touch_set = manifest.get("touch_set") or {}
     if canonical_canary_hash(touch_set) != manifest.get("touch_set_hash"):
         raise CanaryApprovalError("reviewed touch-set hash mismatch")
+    negative_scope = manifest.get("negative_scope") or []
+    if canonical_canary_hash(negative_scope) != manifest.get("negative_scope_hash"):
+        raise CanaryApprovalError("reviewed negative-scope hash mismatch")
     outcome_ids = [int(item["outcome_id"]) for item in manifest.get("outcomes", [])]
     if not outcome_ids or len(outcome_ids) > MAX_CANARY_OUTCOMES:
-        raise CanaryApprovalError("canary must contain between 1 and 30 outcomes")
+        raise CanaryApprovalError("reviewed batch must contain between 1 and 250 outcomes")
     if outcome_ids != sorted(set(outcome_ids)):
         raise CanaryApprovalError("canary outcome IDs must be unique and sorted")
 
@@ -209,7 +212,7 @@ def build_maturation_canary_manifest(
 ) -> dict[str, Any]:
     ids = tuple(sorted({int(value) for value in outcome_ids}))
     if not ids or len(ids) > MAX_CANARY_OUTCOMES:
-        raise CanaryApprovalError("canary must contain between 1 and 30 outcomes")
+        raise CanaryApprovalError("reviewed batch must contain between 1 and 250 outcomes")
     outcomes = list(
         db.scalars(
             select(WinnerForwardOutcome)
@@ -284,6 +287,22 @@ def build_maturation_canary_manifest(
         ],
     }
     canonical_touch_set = canonicalize_manifest_value(touch_set)
+    negative_scope = canonicalize_manifest_value(
+        sorted(
+            (
+                {
+                    "target_stop_outcome_id": int(sibling["target_stop_outcome_id"]),
+                    "prediction_id": int(record["prediction_id"]),
+                    "entry_model": sibling["state"]["entry_model"],
+                    "horizon_sessions": int(sibling["state"]["horizon_sessions"]),
+                    "state_hash": sibling["state_hash"],
+                }
+                for record in records
+                for sibling in record["unchanged_target_stop_siblings"]
+            ),
+            key=lambda item: int(item["target_stop_outcome_id"]),
+        )
+    )
     return canonicalize_manifest_value(
         {
             "schema": CANARY_SCHEMA,
@@ -291,6 +310,8 @@ def build_maturation_canary_manifest(
             "outcome_count": len(records),
             "touch_set": canonical_touch_set,
             "touch_set_hash": canonical_canary_hash(canonical_touch_set),
+            "negative_scope": negative_scope,
+            "negative_scope_hash": canonical_canary_hash(negative_scope),
             "outcomes": records,
         }
     )

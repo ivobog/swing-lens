@@ -74,14 +74,19 @@ def test_independent_target_stop_is_conservative_on_same_bar_conflict() -> None:
 
 def test_manifest_hash_is_deterministic_and_approval_is_fail_closed() -> None:
     touch_set = {"forward_outcomes": [], "target_stop_outcomes": []}
+    negative_scope: list[dict[str, object]] = []
     first = {
         "schema": CANARY_SCHEMA,
         "touch_set": touch_set,
         "touch_set_hash": canonical_canary_hash(touch_set),
+        "negative_scope": negative_scope,
+        "negative_scope_hash": canonical_canary_hash(negative_scope),
         "outcomes": [{"outcome_id": 2}, {"outcome_id": 7}],
     }
     second = {
         "outcomes": [{"outcome_id": 2}, {"outcome_id": 7}],
+        "negative_scope_hash": canonical_canary_hash(negative_scope),
+        "negative_scope": negative_scope,
         "touch_set_hash": canonical_canary_hash(touch_set),
         "touch_set": touch_set,
         "schema": CANARY_SCHEMA,
@@ -131,3 +136,58 @@ def test_manifest_hash_normalizes_timezone_aware_values() -> None:
     }
 
     assert canonical_canary_hash(payload) == canonical_canary_hash(payload)
+
+
+def test_reviewed_batch_approval_accepts_100_and_rejects_more_than_250() -> None:
+    touch_set = {"forward_outcomes": [], "target_stop_outcomes": []}
+    negative_scope: list[dict[str, object]] = []
+
+    def manifest(count: int) -> dict[str, object]:
+        return {
+            "schema": CANARY_SCHEMA,
+            "touch_set": touch_set,
+            "touch_set_hash": canonical_canary_hash(touch_set),
+            "negative_scope": negative_scope,
+            "negative_scope_hash": canonical_canary_hash(negative_scope),
+            "outcomes": [{"outcome_id": value} for value in range(1, count + 1)],
+        }
+
+    reviewed = manifest(100)
+    verify_canary_approval(
+        reviewed,
+        reviewed_manifest_hash=canonical_canary_hash(reviewed),
+        approve_write=True,
+        actor="pytest",
+        request_key="winner-batch-100",
+    )
+
+    oversized = manifest(251)
+    with pytest.raises(CanaryApprovalError, match="250"):
+        verify_canary_approval(
+            oversized,
+            reviewed_manifest_hash=canonical_canary_hash(oversized),
+            approve_write=True,
+            actor="pytest",
+            request_key="winner-batch-251",
+        )
+
+
+def test_reviewed_batch_approval_rejects_negative_scope_hash_drift() -> None:
+    touch_set = {"forward_outcomes": [], "target_stop_outcomes": []}
+    manifest = {
+        "schema": CANARY_SCHEMA,
+        "touch_set": touch_set,
+        "touch_set_hash": canonical_canary_hash(touch_set),
+        "negative_scope": [{"target_stop_outcome_id": 17, "state_hash": "reviewed"}],
+        "negative_scope_hash": "0" * 64,
+        "outcomes": [{"outcome_id": 1}],
+    }
+
+    with pytest.raises(CanaryApprovalError, match="negative-scope"):
+        verify_canary_approval(
+            manifest,
+            reviewed_manifest_hash=canonical_canary_hash(manifest),
+            approve_write=True,
+            actor="pytest",
+            request_key="winner-negative-scope-drift",
+        )

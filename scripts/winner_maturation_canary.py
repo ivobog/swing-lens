@@ -59,8 +59,8 @@ def plan(
     output_dir: Path,
     count: int = DEFAULT_COUNT,
 ) -> Path:
-    if count < 20 or count > 30:
-        raise RuntimeError("reviewed canary count must be between 20 and 30")
+    if count < 20 or count > 250:
+        raise RuntimeError("reviewed batch count must be between 20 and 250")
     recovery = json.loads(recovery_manifest_path.read_text(encoding="utf-8"))
     recovery_rows = {
         int(row["outcome_id"]): row
