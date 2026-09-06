@@ -217,6 +217,21 @@ def verify(
         controls_after = _control_state(db)
         checks = {
             "all_expected_results_match": True,
+            "forward_mutation_ids_exact": sorted(
+                int(item["id"]) for item in artifact["manifest"]["touch_set"]["forward_outcomes"]
+            )
+            == sorted(int(value) for value in execution["actual_forward_mutation_ids"]),
+            "target_stop_mutation_ids_exact": sorted(
+                int(item["id"])
+                for item in artifact["manifest"]["touch_set"]["target_stop_outcomes"]
+            )
+            == sorted(int(value) for value in execution["actual_target_stop_mutation_ids"]),
+            "unchanged_sibling_ids_exact": sorted(
+                int(sibling["target_stop_outcome_id"])
+                for item in artifact["manifest"]["outcomes"]
+                for sibling in item["unchanged_target_stop_siblings"]
+            )
+            == sorted(int(value) for value in execution["unchanged_target_stop_sibling_ids"]),
             "protected_and_non_canary_tables_unchanged": all(table_checks.values()),
             "price_state_unchanged": before["canary_price_state"] == price_after,
             "quarantine_unchanged": before["quarantine_count"] == quarantine_after == 1292,
