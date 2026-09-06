@@ -32,7 +32,10 @@ from app.services.winner_probability.maturation_canary_service import (
     execute_reviewed_maturation_canary,
     verify_maturation_canary_results,
 )
-from app.services.winner_probability.outcome_service import WinnerOutcomeRepository
+from app.services.winner_probability.outcome_service import (
+    OutcomeMaturationService,
+    WinnerOutcomeRepository,
+)
 from app.services.winner_probability.target_stop_scope_repair_service import (
     apply_target_stop_scope_repair,
     build_target_stop_scope_repair_manifest,
@@ -201,6 +204,71 @@ def test_batch_and_non_batch_target_selection_match_and_bad_link_fails_closed(
     with Session(engine) as db:
         with pytest.raises(CanaryApprovalError, match="TARGET_STOP_FORWARD_MISMATCH"):
             build_maturation_canary_manifest(db, [outcome_id])
+    engine.dispose()
+
+
+def test_postgresql_batched_diagnostic_maturation_leaves_next_open_sibling_unchanged(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    repository = WinnerOutcomeRepository()
+    service = OutcomeMaturationService(repository=repository)
+    with Session(engine) as db:
+        next_open_id = _seed_ready_outcome(db, ticker="REVERSE", run_suffix="reverse")
+        next_open = db.get(WinnerForwardOutcome, next_open_id)
+        diagnostic = db.scalar(
+            select(WinnerForwardOutcome).where(
+                WinnerForwardOutcome.prediction_id == next_open.prediction_id,
+                WinnerForwardOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC",
+                WinnerForwardOutcome.is_current_revision.is_(True),
+            )
+        )
+        targets = list(
+            db.scalars(
+                select(WinnerTargetStopOutcome).where(
+                    WinnerTargetStopOutcome.prediction_id == next_open.prediction_id,
+                    WinnerTargetStopOutcome.is_current_revision.is_(True),
+                )
+            )
+        )
+        next_open_target = next(
+            row for row in targets if row.entry_model == "NEXT_OPEN"
+        )
+        diagnostic_target = next(
+            row for row in targets if row.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC"
+        )
+        next_open_before = (
+            next_open_target.status,
+            next_open_target.revision,
+            next_open_target.forward_outcome_id,
+            next_open_target.evaluated_at,
+            next_open_target.source_bar_lineage_hash,
+            next_open_target.metadata_json,
+        )
+
+        context = service.build_batch_context(db, [diagnostic])
+        result = service.process_forward_outcome(
+            db,
+            diagnostic,
+            now=datetime(2026, 8, 27, 22, 0, tzinfo=UTC),
+            context=context,
+        )
+        db.commit()
+
+        assert result.processed == result.matured == 1
+        assert result.target_stop_matured == 1
+        assert diagnostic.status == "MATURED"
+        assert diagnostic.entry_price == Decimal("101.000000")
+        assert diagnostic_target.status == "MATURED"
+        assert (
+            next_open_target.status,
+            next_open_target.revision,
+            next_open_target.forward_outcome_id,
+            next_open_target.evaluated_at,
+            next_open_target.source_bar_lineage_hash,
+            next_open_target.metadata_json,
+        ) == next_open_before
     engine.dispose()
 
 
@@ -592,8 +660,8 @@ def _seed_ready_outcome(
         prediction_id=prediction.id,
         entry_model="SIGNAL_CLOSE_DIAGNOSTIC",
         horizon_sessions=5,
-        entry_session=date(2026, 8, 19),
-        due_session=date(2026, 8, 25),
+        entry_session=date(2026, 8, 20),
+        due_session=date(2026, 8, 26),
         status="PENDING",
         revision=1,
         is_current_revision=True,
