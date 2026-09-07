@@ -15,6 +15,7 @@ from app.models.tables import (
     UploadRun,
     WinnerMarketDataObligation,
 )
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import (
     ACTIVE_JOB_STATUSES,
     JobStatus,
@@ -25,7 +26,6 @@ from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, build_fetch_plan
 from app.services.ohlcv_coverage_service import summarize_ohlcv_coverage
-from app.services.operational_metrics import operational_metrics
 from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.settings import Settings, get_settings
 
@@ -359,27 +359,34 @@ def execute_market_data_prewarm_job(db: Session, job: BackgroundJob) -> dict[str
     except MarketDataPrewarmCancelled as exc:
         if _foreground_preemption_requested(job):
             _prepare_preempted_job_for_resume(db, job)
-            operational_metrics.increment(
-                "swinglens_market_prewarm_preemptions_total",
-                status="DEFERRED",
+            publish_after_commit(
+                db, "increment", "swinglens_market_prewarm_preemptions_total", status="DEFERRED"
             )
             raise JobDeferred(
                 "Foreground pipeline preempted market-data prewarm; completed bars were "
                 "preserved and remaining coverage will be replanned.",
                 delay_seconds=get_settings().market_data_prewarm_resume_delay_seconds,
             ) from exc
-        operational_metrics.increment("swinglens_market_prewarm_jobs_total", status="CANCELLED")
+        publish_after_commit(
+            db, "increment", "swinglens_market_prewarm_jobs_total", status="CANCELLED"
+        )
         from app.services.background_worker import CancelRequested
 
         raise CancelRequested("Market-data prewarm was cancelled.") from None
     except Exception:
-        operational_metrics.increment("swinglens_market_prewarm_jobs_total", status="FAILED")
+        publish_after_commit(
+            db, "increment", "swinglens_market_prewarm_jobs_total", status="FAILED"
+        )
         raise
 
-    operational_metrics.increment("swinglens_market_prewarm_jobs_total", status=result["status"])
-    operational_metrics.set_gauge(
+    publish_after_commit(
+        db, "increment", "swinglens_market_prewarm_jobs_total", status=result["status"]
+    )
+    publish_after_commit(
+        db,
+        "set_gauge",
         "swinglens_market_prewarm_coverage_ratio",
-        value=float(result["coverage_ratio"]),
+        float(result["coverage_ratio"]),
     )
     return result
 
@@ -443,9 +450,11 @@ def request_active_prewarm_preemption(
         job.requested_cancel = True
     if jobs:
         db.flush()
-        operational_metrics.increment(
+        publish_after_commit(
+            db,
+            "increment",
             "swinglens_market_prewarm_preemptions_total",
-            value=len(jobs),
+            len(jobs),
             status="REQUESTED",
         )
     return [job.id for job in jobs]

@@ -52,7 +52,15 @@ uv run python scripts/certify_observability_cross_process.py
 ```
 
 The script refuses a database name without the `swinglens_obs_cert_` prefix and cleans up the
-processes, container and database.
+processes, container and database. Before Alembic is imported at the command boundary, it connects
+directly to the candidate URL, reads the database/server identity, independently reads the active
+SwingLens identity, requires an explicit disposable prefix, and rejects equality. Alembic then
+rechecks its actual connection against that verified identity before running migrations.
+
+When `OBSERVABILITY_METRICS_ENABLED=false`, none of the three Prometheus listeners or
+Prometheus-only resource collectors starts. The web `/metrics` endpoint remains stable at HTTP 200
+with an empty body. Durable PostgreSQL evidence/retention and the SQL Flight Recorder are separate
+facilities and continue according to their own settings.
 
 The Prometheus named volume has a 30-day TSDB retention, exceeding the seven-day requirement.
 Deleting the volume deletes historical metrics; application PostgreSQL causality and SQL JSONL are

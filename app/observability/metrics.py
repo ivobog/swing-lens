@@ -12,6 +12,64 @@ from prometheus_client.exposition import CONTENT_TYPE_LATEST
 
 logger = logging.getLogger(__name__)
 
+OTHER_LABEL_VALUE = "OTHER"
+MAX_SERIES_PER_METRIC = 256
+
+# Labels in the first group are closed enums.  The second group represents
+# configured/runtime registries (job types, stages, providers, and similar
+# vocabularies); those values are admitted only up to a hard ceiling and then
+# normalized to OTHER.  This makes the bound executable rather than advisory.
+CLOSED_LABEL_VALUES: dict[str, frozenset[str]] = {
+    "priority": frozenset({"P0", "P1", "P2"}),
+    "process_role": frozenset({"web", "worker", "supervisor"}),
+    "queue_class": frozenset({"interactive", "broker", "background"}),
+    "severity": frozenset({"warning", "critical"}),
+    "status": frozenset(
+        {
+            "QUEUED", "RUNNABLE", "SCHEDULED", "RUNNING", "COMPLETED", "PARTIAL",
+            "FAILED", "BLOCKED", "RECOVERING", "STALLED", "CANCELLED", "STALE",
+            "DEFERRED", "REQUESTED", "SUCCESS", "WARNING", "CRITICAL", "NORMAL",
+            "ok", "failed", "degraded", "optional_unavailable",
+        }
+    ),
+    "result": frozenset(
+        {
+            "CREATED", "COALESCED", "REJECTED", "success", "failed", "error",
+            "invalid", "hit", "miss", "match", "mismatch", "empty", "malformed",
+            "inserted", "corrected", "deduplicated", "quarantined", "completed",
+            "partial", "cancelled", "shadow_miss", "shadow_candidate",
+        }
+    ),
+}
+
+BOUNDED_LABEL_LIMITS: dict[str, int] = {
+    "worker_id": 32,
+    "stage": 64,
+    "reason": 64,
+    "reason_code": 64,
+    "provider": 32,
+    "dataset": 32,
+    "job_type": 96,
+    "workflow_family": 32,
+    "category": 32,
+    "component": 32,
+    "decision": 32,
+    "license_scope": 16,
+    "log_class": 16,
+    "mode": 32,
+    "module": 32,
+    "outcome": 32,
+    "path_class": 16,
+    "query_type": 32,
+    "request_family": 32,
+    "request_type": 64,
+    "scanner": 32,
+    "schema_id": 32,
+    "scope": 32,
+    "trigger_source": 16,
+    "weight": 16,
+}
+
 FORBIDDEN_LABELS = frozenset(
     {
         "job_id",
@@ -137,6 +195,15 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     "swinglens_supervisor_up": _gauge("Supervisor process liveness.", unit="boolean"),
     "swinglens_supervisor_heartbeat_age_seconds": _gauge(
         "Supervisor heartbeat age.", unit="seconds"
+    ),
+    "swinglens_control_loop_up": _gauge(
+        "Functional control-loop liveness.", ("process_role",), "boolean"
+    ),
+    "swinglens_control_loop_heartbeat_age_seconds": _gauge(
+        "Age of functional control-loop progress.", ("process_role",), "seconds"
+    ),
+    "swinglens_system_collector_up": _gauge(
+        "Web-owned authoritative system collector liveness.", unit="boolean"
     ),
     "swinglens_pipelines_started_total": _counter("Committed pipeline starts."),
     "swinglens_pipelines_coalesced_total": _counter(
@@ -302,6 +369,12 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     "swinglens_ibmi_flex_import_rows_total": _counter(
         "IBMI Flex imported rows.", ("query_type",), "rows"
     ),
+    "swinglens_ibmi_flex_dry_run_duration_seconds": _histogram(
+        "IBMI Flex validation-only duration.", ("query_type",)
+    ),
+    "swinglens_ibmi_flex_dry_run_rows_total": _counter(
+        "IBMI Flex validation-only parsed rows.", ("query_type",), "rows"
+    ),
     "swinglens_ibmi_flex_duplicate_reports_total": _counter(
         "IBMI duplicate Flex reports.", ("query_type",)
     ),
@@ -387,7 +460,10 @@ class PrometheusMetrics:
 
     def __init__(self) -> None:
         self._lock = Lock()
+        self._enabled = True
         self._totals: dict[tuple[str, tuple[tuple[str, str], ...]], float] = {}
+        self._label_values_seen: dict[str, set[str]] = {}
+        self._series_by_metric: dict[str, set[tuple[tuple[str, str], ...]]] = {}
         self._reset_registry()
 
     @property
@@ -395,8 +471,10 @@ class PrometheusMetrics:
         return self._registry
 
     def increment(self, name: str, value: float = 1.0, **labels: Any) -> None:
+        if not self._enabled:
+            return
         definition = self._definition(name, "counter", labels)
-        metric_labels = self._labels(definition, labels)
+        metric_labels = self._labels(name, definition, labels)
         metric = self._metric(name, definition)
         try:
             (metric.labels(**metric_labels) if metric_labels else metric).inc(float(value))
@@ -408,10 +486,12 @@ class PrometheusMetrics:
             self._totals[key] = self._totals.get(key, 0.0) + float(value)
 
     def set_gauge(self, name: str, value: float, **labels: Any) -> None:
+        if not self._enabled:
+            return
         definition = self._definition(name, "gauge", labels)
         if definition.kind != "gauge":
             raise ValueError(f"{name} is a {definition.kind}, not a gauge")
-        metric_labels = self._labels(definition, labels)
+        metric_labels = self._labels(name, definition, labels)
         metric = self._metric(name, definition)
         try:
             (metric.labels(**metric_labels) if metric_labels else metric).set(float(value))
@@ -422,10 +502,12 @@ class PrometheusMetrics:
             self._totals[(name, tuple(sorted(metric_labels.items())))] = float(value)
 
     def observe(self, name: str, value: float, **labels: Any) -> None:
+        if not self._enabled:
+            return
         definition = self._definition(name, "histogram", labels)
         if definition.kind != "histogram":
             raise ValueError(f"{name} is a {definition.kind}, not a histogram")
-        metric_labels = self._labels(definition, labels)
+        metric_labels = self._labels(name, definition, labels)
         metric = self._metric(name, definition)
         try:
             (metric.labels(**metric_labels) if metric_labels else metric).observe(float(value))
@@ -465,11 +547,47 @@ class PrometheusMetrics:
             )
 
     def as_prometheus(self) -> str:
+        if not self._enabled:
+            return ""
         return generate_latest(self._registry).decode("utf-8")
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def configure(self, *, enabled: bool) -> None:
+        with self._lock:
+            changed = self._enabled != bool(enabled)
+            self._enabled = bool(enabled)
+            if changed:
+                self._totals.clear()
+                self._label_values_seen.clear()
+                self._series_by_metric.clear()
+                self._reset_registry()
+
+    def remove_series(self, name: str, **labels: Any) -> None:
+        """Remove an obsolete labelled gauge child and its compatibility entry."""
+        definition = self._definition(name, "gauge", labels)
+        normalized = self._labels(name, definition, labels, reserve=False)
+        metric = self._metric(name, definition)
+        if normalized:
+            try:
+                metric.remove(*(normalized[key] for key in definition.labels))
+            except KeyError:
+                pass
+        key = tuple(sorted(normalized.items()))
+        with self._lock:
+            self._totals.pop((name, key), None)
+            self._series_by_metric.get(name, set()).discard(key)
 
     def reset(self) -> None:
         with self._lock:
+            # reset() is the compatibility/test reset API. Runtime enablement is
+            # controlled by configure(), which does not call reset().
+            self._enabled = True
             self._totals.clear()
+            self._label_values_seen.clear()
+            self._series_by_metric.clear()
             self._reset_registry()
 
     def _reset_registry(self) -> None:
@@ -511,13 +629,46 @@ class PrometheusMetrics:
                 raise ValueError(f"metric catalog was not initialized for {name}")
             return existing
 
-    @staticmethod
-    def _labels(definition: MetricDefinition, labels: dict[str, Any]) -> dict[str, str]:
+    def _labels(
+        self,
+        metric_name: str,
+        definition: MetricDefinition,
+        labels: dict[str, Any],
+        *,
+        reserve: bool = True,
+    ) -> dict[str, str]:
         if set(definition.labels) != set(labels):
             raise ValueError(
                 f"metric labels must be {sorted(definition.labels)}; received {sorted(labels)}"
             )
-        return {key: str(labels[key]) for key in definition.labels}
+        normalized: dict[str, str] = {}
+        with self._lock:
+            for key in definition.labels:
+                value = str(labels[key])
+                closed = CLOSED_LABEL_VALUES.get(key)
+                if closed is not None:
+                    normalized[key] = value if value in closed else OTHER_LABEL_VALUE
+                    continue
+                limit = BOUNDED_LABEL_LIMITS.get(key)
+                if limit is None:
+                    normalized[key] = OTHER_LABEL_VALUE
+                    continue
+                seen = self._label_values_seen.setdefault(key, set())
+                if value in seen or len(seen) < limit:
+                    normalized[key] = value
+                    if reserve:
+                        seen.add(value)
+                else:
+                    normalized[key] = OTHER_LABEL_VALUE
+
+            series = tuple(sorted(normalized.items()))
+            known_series = self._series_by_metric.setdefault(metric_name, set())
+            if series not in known_series and len(known_series) >= MAX_SERIES_PER_METRIC:
+                normalized = {key: OTHER_LABEL_VALUE for key in definition.labels}
+                series = tuple(sorted(normalized.items()))
+            if reserve:
+                known_series.add(series)
+        return normalized
 
 
 operational_metrics = PrometheusMetrics()

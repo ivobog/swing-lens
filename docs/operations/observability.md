@@ -44,8 +44,11 @@ Every meaningful new or coalesced enqueue decision also creates an append-only
 provider-request telemetry copy the active root, cause, request, and job IDs.
 
 Winner's periodic eligibility check returns before creating a root or enqueue attempt when the
-completed job for the current US session already proves that no work is needed. Attempt evidence is
-pruned according to `OBSERVABILITY_ENQUEUE_ATTEMPT_RETENTION_DAYS`.
+history/status/session decision proves that no meaningful enqueue is needed. This includes every
+same-session terminal or active edge state and prior-session active work across midnight. Attempt
+evidence is pruned according to `OBSERVABILITY_ENQUEUE_ATTEMPT_RETENTION_DAYS` by the worker's
+existing maintenance cadence (`OBSERVABILITY_EVIDENCE_CLEANUP_INTERVAL_SECONDS`), independently of
+Prometheus collection.
 
 `background_job_fanout_roots` is the bounded per-root rollup used by Operations and alerts. It
 tracks attempted, created, coalesced and rejected enqueues, descendant count, maximum depth and a
@@ -75,10 +78,20 @@ outer transaction, rollback discards pending publications, and only the successf
 publishes them. Metric-client failure after commit is contained and cannot invalidate business
 state or replace the original application exception.
 
-Allowed labels are bounded operational dimensions: job type, status, stage, queue class, provider,
-dataset, result, reason code, process role, telemetry priority, and the configured bounded worker
-ID. The facade rejects job/run/request/correlation IDs, workflow/request keys, tickers, companies,
-execution tokens, SQL fingerprints, errors, and filesystem paths as labels.
+Every label value is enforced as either a closed enum, a registered/configured bounded value, or
+the literal `OTHER`. Each label vocabulary and each metric child-map has a hard cap, and the
+compatibility mirror has the same per-metric cap. Obsolete worker gauge children are explicitly
+removed, so process-instance identifiers cannot accumulate permanently. The facade rejects
+job/run/request/correlation IDs, workflow/request keys, tickers, companies, execution tokens, SQL
+fingerprints, errors, and filesystem paths as labels. Rejection or normalization affects telemetry
+only and never fails business work.
+
+Metric producers are classified in two groups. Pure observations (for example an independent
+request attempt or measured latency) may publish immediately. A metric describing persisted job,
+pipeline, technical-artifact, price-version, IBMI, journal, Flex, or prewarm state must use
+`publish_after_commit`. The repository contract test denies direct facade calls for the complete
+commit-dependent catalog. Outer rollback, failed commit, and rolled-back savepoints discard queued
+publications; a metric-client exception after commit is contained.
 
 The mandatory inventory is grouped below. Names ending in `_seconds` that represent distributions
 are Prometheus histograms.
@@ -95,7 +108,8 @@ are Prometheus histograms.
   `swinglens_worker_cpu_percent`, `swinglens_worker_restarts_total`,
   `swinglens_worker_memory_status`, `swinglens_supervisor_up`,
   `swinglens_supervisor_heartbeat_age_seconds`, `swinglens_process_cpu_percent`, and
-  `swinglens_process_rss_bytes`.
+  `swinglens_process_rss_bytes`, `swinglens_control_loop_up`,
+  `swinglens_control_loop_heartbeat_age_seconds`, and `swinglens_system_collector_up`.
 - Pipeline: `swinglens_pipelines_started_total`, `swinglens_pipelines_finished_total`,
   `swinglens_pipeline_duration_seconds`, `swinglens_pipeline_stage_duration_seconds`,
   `swinglens_pipeline_failures_total`, `swinglens_pipeline_current_stage`, and
@@ -134,11 +148,26 @@ user paths, payloads, and execution tokens. Detailed SQL parameters are never lo
 HTTP 200. Database/migration/storage failures, required IB absence, missing worker/supervisor,
 worker SQL-recorder failure and dead collectors are explicit rather than web-local assumptions.
 
+Readiness separates scrape/process liveness, functional control-loop progress, the resource
+sampler, the web-owned system collector, and DB/queue collection. IB remains optional when no
+runnable or active job requires it. One bounded aggregate query detects IB-capable work
+(`FULL_PIPELINE`, `MARKET_DATA_PREWARM`, and registered `IB_*` work); if such work exists while IB is
+unavailable, readiness is failed rather than falsely green.
+
 Queue readiness reports runnable, scheduled-future, blocked, recovering, stalled and running work.
 Only `QUEUED` rows with `run_after <= now()` contribute to runnable backlog and oldest runnable age.
 DB-pool pressure uses checked-out connections divided by base size plus configured maximum overflow;
 current overflow usage is reported separately. Recent waits and timeouts can degrade readiness even
 before the pool is fully exhausted.
+
+## Metrics disabled contract
+
+With `OBSERVABILITY_METRICS_ENABLED=false`, `/metrics` returns HTTP 200 with an empty body; the web,
+worker, and supervisor do not start Prometheus listeners or Prometheus-only resource/system
+collectors, and metric calls are no-ops without creating children. Business work, durable causality,
+enqueue/fanout retention, and the SQL Flight Recorder continue under their own settings. Readiness
+reports `metrics=optional_unavailable` with `disabled_by_configuration`, which is intentional
+configuration rather than a collector failure.
 
 See [alerts.md](alerts.md), [system_operations.md](system_operations.md),
 [prometheus_grafana.md](prometheus_grafana.md), and [database_monitor.md](database_monitor.md).

@@ -27,6 +27,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
+from app.database_safety import assert_disposable_database
 from app.models.tables import PriceBar
 from app.services.bar_cache_service import cache_bars
 from app.services.ceri.config import load_ceri_config
@@ -90,6 +91,7 @@ def certification_environment(
         .set(database=database_name)
         .render_as_string(hide_password=False)
     )
+    assert_disposable_database(database_url)
     runtime_root = tmp_path_factory.mktemp("swinglens-single-run-certification")
     artifact_dir = REPO_ROOT / "test-results" / "single-run-certification" / execution_id
     for relative in (

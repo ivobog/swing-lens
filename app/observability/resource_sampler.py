@@ -16,17 +16,45 @@ from app.models.tables import BackgroundJob, BackgroundSupervisor, BackgroundWor
 from app.observability.db_monitor import get_database_monitor
 from app.observability.logging import log_event
 from app.observability.metrics import operational_metrics
-from app.services.background_job_service import JobStatus, prune_enqueue_attempt_evidence
+from app.services.background_job_service import JobStatus
 from app.services.background_queue import job_queue_class
 
 logger = logging.getLogger(__name__)
 _health_lock = Lock()
 _process_health: dict[str, dict[str, Any]] = {}
+_component_health: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 def process_sampler_status(process_role: str) -> dict[str, Any]:
     with _health_lock:
         return dict(_process_health.get(process_role, {}))
+
+
+def collector_component_status(process_role: str, component: str) -> dict[str, Any]:
+    with _health_lock:
+        return dict(_component_health.get((process_role, component), {}))
+
+
+def _component_attempt(process_role: str, component: str) -> None:
+    with _health_lock:
+        state = _component_health.setdefault((process_role, component), {})
+        state["last_attempt"] = datetime.now(UTC)
+        state["running"] = True
+
+
+def _component_success(process_role: str, component: str) -> None:
+    with _health_lock:
+        state = _component_health.setdefault((process_role, component), {})
+        state["last_success"] = datetime.now(UTC)
+        state["consecutive_failures"] = 0
+        state["running"] = True
+
+
+def _component_failure(process_role: str, component: str) -> None:
+    with _health_lock:
+        state = _component_health.setdefault((process_role, component), {})
+        state["consecutive_failures"] = int(state.get("consecutive_failures") or 0) + 1
+        state["running"] = True
 
 
 class ResourceSampler:
@@ -57,8 +85,13 @@ class ResourceSampler:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=self.interval_seconds + 1)
+        with _health_lock:
+            _component_health.setdefault((self.process_role, "resource_sampler"), {})[
+                "running"
+            ] = False
 
     def sample_once(self) -> dict[str, float]:
+        _component_attempt(self.process_role, "resource_sampler")
         result: dict[str, float] = {}
 
         def memory_sample() -> None:
@@ -98,6 +131,7 @@ class ResourceSampler:
                     "swinglens_worker_up", 1, worker_id=self.worker_id
                 ),
             )
+        _component_success(self.process_role, "resource_sampler")
         return result
 
     def _get_process(self) -> Any:
@@ -110,7 +144,10 @@ class ResourceSampler:
 
     def _run(self) -> None:
         while not self._stop.wait(self.interval_seconds):
-            self.sample_once()
+            try:
+                self.sample_once()
+            except Exception:
+                _component_failure(self.process_role, "resource_sampler")
 
 
 class SystemMetricsCollector:
@@ -138,8 +175,13 @@ class SystemMetricsCollector:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=self.interval_seconds + 1)
+        with _health_lock:
+            _component_health.setdefault(("web", "system_metrics_collector"), {})[
+                "running"
+            ] = False
 
     def collect_once(self, now: datetime | None = None) -> None:
+        _component_attempt("web", "system_metrics_collector")
         observed_at = now or datetime.now(UTC)
         self._db_category("queue_snapshot", lambda session: self._queue(session, observed_at))
         self._db_category("worker_registry", lambda session: self._workers(session, observed_at))
@@ -149,11 +191,12 @@ class SystemMetricsCollector:
         if time.monotonic() - self._last_db_size >= self._db_size_interval:
             if self._db_category("db_size", self._database_size):
                 self._last_db_size = time.monotonic()
-            self._db_category("enqueue_attempt_retention", self._retention)
         _fault_contained_sample("web", "db_pool", self._pool)
         _fault_contained_sample("web", "disk", self._disk_space)
         _fault_contained_sample("web", "log_storage", self._log_storage)
         _fault_contained_sample("web", "sql_recorder", self._db_monitor)
+        operational_metrics.set_gauge("swinglens_system_collector_up", 1)
+        _component_success("web", "system_metrics_collector")
 
     def _db_category(self, category: str, callback) -> bool:
         succeeded = False
@@ -279,16 +322,25 @@ class SystemMetricsCollector:
     def _workers(self, session: Session, now: datetime) -> None:
         workers = session.scalars(
             select(BackgroundWorker)
-            .options(undefer(BackgroundWorker.cpu_percent))
+            .options(
+                undefer(BackgroundWorker.cpu_percent),
+                undefer(BackgroundWorker.control_loop_heartbeat_at),
+            )
             .where(BackgroundWorker.stopping_at.is_(None))
             .limit(20)
         ).all()
         active_worker_series = {worker.worker_id for worker in workers}
+        control_ages: list[float] = []
         for worker in workers:
             heartbeat = worker.heartbeat_at
             if heartbeat.tzinfo is None:
                 heartbeat = heartbeat.replace(tzinfo=UTC)
             age = max(0.0, (now - heartbeat).total_seconds())
+            control_heartbeat = worker.control_loop_heartbeat_at
+            if control_heartbeat is not None:
+                if control_heartbeat.tzinfo is None:
+                    control_heartbeat = control_heartbeat.replace(tzinfo=UTC)
+                control_ages.append(max(0.0, (now - control_heartbeat).total_seconds()))
             operational_metrics.set_gauge(
                 "swinglens_worker_up",
                 float(age <= self.settings.job_worker_heartbeat_timeout_seconds),
@@ -322,18 +374,45 @@ class SystemMetricsCollector:
                     status=candidate,
                 )
         for worker_id in self._worker_series - active_worker_series:
-            operational_metrics.set_gauge("swinglens_worker_up", 0, worker_id=worker_id)
+            for metric in (
+                "swinglens_worker_up",
+                "swinglens_worker_heartbeat_age_seconds",
+                "swinglens_worker_rss_bytes",
+                "swinglens_worker_private_bytes",
+                "swinglens_worker_cpu_percent",
+            ):
+                operational_metrics.remove_series(metric, worker_id=worker_id)
+            for status in ("NORMAL", "WARNING", "CRITICAL"):
+                operational_metrics.remove_series(
+                    "swinglens_worker_memory_status", worker_id=worker_id, status=status
+                )
         self._worker_series = active_worker_series
+        control_age = min(control_ages, default=float("inf"))
+        operational_metrics.set_gauge(
+            "swinglens_control_loop_up",
+            float(control_age <= self.settings.job_worker_heartbeat_timeout_seconds),
+            process_role="worker",
+        )
+        if control_ages:
+            operational_metrics.set_gauge(
+                "swinglens_control_loop_heartbeat_age_seconds",
+                control_age,
+                process_role="worker",
+            )
 
     def _supervisor(self, session: Session, now: datetime) -> None:
         row = session.scalar(
             select(BackgroundSupervisor)
+            .options(undefer(BackgroundSupervisor.control_loop_heartbeat_at))
             .where(BackgroundSupervisor.stopping_at.is_(None))
             .order_by(BackgroundSupervisor.heartbeat_at.desc())
             .limit(1)
         )
         if row is None:
             operational_metrics.set_gauge("swinglens_supervisor_up", 0)
+            operational_metrics.set_gauge(
+                "swinglens_control_loop_up", 0, process_role="supervisor"
+            )
             return
         heartbeat = (
             row.heartbeat_at if row.heartbeat_at.tzinfo else row.heartbeat_at.replace(tzinfo=UTC)
@@ -344,6 +423,21 @@ class SystemMetricsCollector:
             "swinglens_supervisor_up",
             float(age <= self.settings.job_worker_heartbeat_timeout_seconds),
         )
+        control_heartbeat = row.control_loop_heartbeat_at
+        if control_heartbeat is not None:
+            if control_heartbeat.tzinfo is None:
+                control_heartbeat = control_heartbeat.replace(tzinfo=UTC)
+            control_age = max(0.0, (now - control_heartbeat).total_seconds())
+            operational_metrics.set_gauge(
+                "swinglens_control_loop_heartbeat_age_seconds",
+                control_age,
+                process_role="supervisor",
+            )
+            operational_metrics.set_gauge(
+                "swinglens_control_loop_up",
+                float(control_age <= self.settings.job_worker_heartbeat_timeout_seconds),
+                process_role="supervisor",
+            )
 
     def _pool(self) -> None:
         pool = self.engine.pool
@@ -372,13 +466,6 @@ class SystemMetricsCollector:
         size = session.scalar(text("select pg_database_size(current_database())"))
         if size is not None:
             operational_metrics.set_gauge("swinglens_db_size_bytes", size)
-
-    def _retention(self, session: Session) -> None:
-        prune_enqueue_attempt_evidence(
-            session,
-            retention_days=self.settings.observability_enqueue_attempt_retention_days,
-        )
-        session.commit()
 
     def _disk_space(self) -> None:
         paths = {
@@ -422,9 +509,17 @@ class SystemMetricsCollector:
     def _run(self) -> None:
         # The first bounded collection happens immediately, but off the application
         # startup path so observability cannot delay web readiness.
-        self.collect_once()
-        while not self._stop.wait(self.interval_seconds):
+        try:
             self.collect_once()
+        except Exception:
+            operational_metrics.set_gauge("swinglens_system_collector_up", 0)
+            _component_failure("web", "system_metrics_collector")
+        while not self._stop.wait(self.interval_seconds):
+            try:
+                self.collect_once()
+            except Exception:
+                operational_metrics.set_gauge("swinglens_system_collector_up", 0)
+                _component_failure("web", "system_metrics_collector")
 
     @property
     def alive(self) -> bool:

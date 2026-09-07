@@ -55,7 +55,7 @@ from app.services.ceri.query_service import (
     CeriQueryFilters,
     CeriQueryService,
 )
-from app.services.redaction import redact_sensitive
+from app.services.redaction import redact_sensitive, redact_text
 from app.services.resource_limits import (
     ResourceLimitExceeded,
     enforce_row_limit,
@@ -834,7 +834,9 @@ def cancel_ceri_job(job_id: int, request: Request, db: DbSession) -> dict[str, A
     try:
         job = request_job_cancel(db, job_id)
     except ValueError as exc:
-        raise _structured_http_error("RUN_NOT_FOUND", str(exc), status_code=404) from exc
+        raise _structured_http_error(
+            "RUN_NOT_FOUND", redact_text(str(exc)), status_code=404
+        ) from exc
     db.commit()
     return {
         "job_id": job.id,
@@ -1044,7 +1046,9 @@ def _query_or_http(callback) -> dict[str, Any]:
     except CeriQueryError as exc:
         raise _structured_http_error(exc.code, exc.message, status_code=exc.status_code) from exc
     except ValueError as exc:
-        raise _structured_http_error("INVALID_FILTER", str(exc), status_code=400) from exc
+        raise _structured_http_error(
+            "INVALID_FILTER", redact_text(str(exc)), status_code=400
+        ) from exc
 
 
 def _ui_payload_or_empty(callback) -> tuple[dict[str, Any], dict[str, str] | None]:
@@ -1053,7 +1057,10 @@ def _ui_payload_or_empty(callback) -> tuple[dict[str, Any], dict[str, str] | Non
     except CeriQueryError as exc:
         return {"items": [], "total": 0}, {"code": exc.code, "message": exc.message}
     except ValueError as exc:
-        return {"items": [], "total": 0}, {"code": "INVALID_FILTER", "message": str(exc)}
+        return {"items": [], "total": 0}, {
+            "code": "INVALID_FILTER",
+            "message": redact_text(str(exc)),
+        }
 
 
 def _dashboard_summary(
@@ -1123,7 +1130,7 @@ def _provider_health_payload() -> list[dict[str, Any]]:
                 "healthy": False,
                 "checked_at": None,
                 "quota_status": None,
-                "message": str(exc),
+                "message": redact_text(str(exc)),
                 "capabilities": [],
                 "datasets": [],
             }
@@ -1154,7 +1161,9 @@ def _require_child_flag(request: Request, name: str) -> None:
     try:
         require_flag(ceri_flags(settings), name)
     except Exception as exc:
-        raise _structured_http_error("CERI_DISABLED", str(exc), status_code=404) from exc
+        raise _structured_http_error(
+            "CERI_DISABLED", redact_text(str(exc)), status_code=404
+        ) from exc
 
 
 def _enqueue_job_once(

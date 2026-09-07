@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from psycopg import sql
 from sqlalchemy.engine import make_url
 
+from app.database_safety import assert_disposable_database
 from app.main import create_app
 from app.settings import Settings
 
@@ -227,9 +228,11 @@ def disposable_postgres_database_factory() -> Callable[[], AbstractContextManage
 
         try:
             admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
-            yield sqlalchemy_admin_url.set(database=database_name).render_as_string(
+            database_url = sqlalchemy_admin_url.set(database=database_name).render_as_string(
                 hide_password=False
             )
+            assert_disposable_database(database_url)
+            yield database_url
         finally:
             admin.execute(
                 sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(

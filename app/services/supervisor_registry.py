@@ -36,6 +36,7 @@ def acquire_supervisor(
             generation=1,
             started_at=observed_at,
             heartbeat_at=observed_at,
+            control_loop_heartbeat_at=observed_at,
         )
         db.add(supervisor)
     elif (
@@ -52,6 +53,7 @@ def acquire_supervisor(
         supervisor.generation = int(supervisor.generation or 0) + 1
         supervisor.started_at = observed_at
     supervisor.heartbeat_at = observed_at
+    supervisor.control_loop_heartbeat_at = observed_at
     supervisor.stopping_at = None
     db.flush()
     return supervisor
@@ -67,7 +69,9 @@ def heartbeat_supervisor(
     supervisor = db.get(BackgroundSupervisor, worker_id)
     if supervisor is None or supervisor.instance_id != instance_id:
         return False
-    supervisor.heartbeat_at = now or datetime.now(UTC)
+    observed_at = now or datetime.now(UTC)
+    supervisor.heartbeat_at = observed_at
+    supervisor.control_loop_heartbeat_at = observed_at
     supervisor.stopping_at = None
     if _telemetry_columns_available(db):
         sampler = process_sampler_status("supervisor")

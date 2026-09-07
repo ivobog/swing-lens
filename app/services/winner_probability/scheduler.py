@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
@@ -28,15 +28,18 @@ def schedule_primary_h5_maturation(
     existing = db.scalar(
         select(BackgroundJob)
         .where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION)
-        .where(BackgroundJob.request_key == request_key)
         .where(
-            BackgroundJob.status.in_(
-                (
-                    JobStatus.QUEUED,
-                    JobStatus.RUNNING,
-                    JobStatus.COMPLETED,
-                    JobStatus.PARTIAL,
-                )
+            or_(
+                BackgroundJob.request_key == request_key,
+                BackgroundJob.status.in_(
+                    (
+                        JobStatus.QUEUED,
+                        JobStatus.RUNNING,
+                        JobStatus.BLOCKED,
+                        JobStatus.RECOVERING,
+                        JobStatus.STALLED,
+                    )
+                ),
             )
         )
         .order_by(BackgroundJob.id.desc())

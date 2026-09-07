@@ -13,6 +13,7 @@ from app.services.pipeline_prerequisites import (
     CeriBootstrapRequiredError,
     CeriProviderConfigurationError,
 )
+from app.services.redaction import redact_text
 
 
 def validate_sec_pipeline_preflight(
@@ -24,8 +25,8 @@ def validate_sec_pipeline_preflight(
         config = load_ceri_config()
     except (CeriConfigError, OSError) as exc:
         raise CeriProviderConfigurationError(
-            f"CERI provider configuration cannot be loaded: {exc}",
-            diagnostics={"config_error": str(exc)},
+            f"CERI provider configuration cannot be loaded: {redact_text(str(exc))}",
+            diagnostics={"config_error": redact_text(str(exc))},
         ) from exc
     guidance_policy = config.datasets.get(CeriDataset.GUIDANCE)
     sec_capabilities = config.providers.capabilities.get(CeriProvider.SEC, ())

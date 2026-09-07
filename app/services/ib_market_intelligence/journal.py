@@ -26,7 +26,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
 )
-from app.services.operational_metrics import operational_metrics
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 
 ZERO = Decimal("0")
@@ -189,7 +189,7 @@ def match_episode_to_research(
         link.ambiguity_json = []
         if existing is None:
             db.add(link)
-        operational_metrics.increment("swinglens_ibmi_unmatched_executions_total")
+        publish_after_commit(db, "increment", "swinglens_ibmi_unmatched_executions_total")
         db.flush()
         return link
     best_time = candidates[0][1].created_at
@@ -207,7 +207,9 @@ def match_episode_to_research(
         ]
         if existing is None:
             db.add(link)
-        operational_metrics.increment("swinglens_ibmi_ambiguous_research_links_total")
+        publish_after_commit(
+            db, "increment", "swinglens_ibmi_ambiguous_research_links_total"
+        )
         db.flush()
         return link
     run, combined, technical, fundamental = candidates[0]

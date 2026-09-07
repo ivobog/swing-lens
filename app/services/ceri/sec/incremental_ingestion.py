@@ -373,7 +373,7 @@ class SecGuidanceIncrementalIngestionService:
                 extraction_id=claim.extraction_id,
                 execution_token=claim.execution_token,
                 error_code=type(exc).__name__.upper()[:64],
-                message=str(exc),
+                message=redact_text(str(exc)),
                 retry_base_seconds=self.settings.sec_document_retry_base_seconds,
             )
             db.commit()

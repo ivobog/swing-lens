@@ -42,6 +42,7 @@ from app.services.ceri.sec.client import SecClientConfig, SecEdgarClient
 from app.services.ceri.sec.guidance_extractor import GuidanceExtractionService
 from app.services.ceri.sec.provider import SecCeriProvider
 from app.services.ceri.source_record_service import CeriSourceRecordService
+from app.services.redaction import redact_text
 from app.services.worker_registry import heartbeat_worker, register_worker
 from app.settings import get_settings
 
@@ -1686,7 +1687,7 @@ def fmt_bytes(value: float) -> str:
 
 
 def safe_error(exc: Exception) -> str:
-    return str(exc).replace("\n", " ").strip()[:500] or exc.__class__.__name__
+    return redact_text(str(exc)).replace("\n", " ").strip()[:500] or exc.__class__.__name__
 
 
 def main() -> int:

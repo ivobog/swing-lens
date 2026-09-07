@@ -10,6 +10,7 @@ from app.observability.db_monitor import (
     install_session_flush_monitor,
     resolve_process_role,
 )
+from app.services.persistence_redaction import install_persistence_redaction
 from app.settings import get_settings
 
 
@@ -33,6 +34,7 @@ engine = create_engine(settings.database_url, **engine_options)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 db_monitor = configure_database_monitor(engine, settings)
 install_session_flush_monitor()
+install_persistence_redaction()
 
 
 def get_db() -> Generator[Session]:

@@ -87,6 +87,7 @@ from app.services.ranking_result_export import (
     export_all_ranking_profiles_csv,
     export_ranking_profile_csv,
 )
+from app.services.redaction import redact_text
 from app.services.resource_limits import (
     ResourceLimitExceeded,
     enforce_row_limit,
@@ -421,7 +422,7 @@ def refresh_all_ranking_profiles_action(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
     except Exception:
         db.rollback()
         raise
@@ -457,7 +458,7 @@ def refresh_ranking_profile_action(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
     except Exception:
         db.rollback()
         raise
@@ -491,7 +492,7 @@ def export_ranking_profile_results(
     try:
         profile = get_ranking_profile(profile_name)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
     content = export_ranking_profile_csv(db, run_id, profile.name)
     filename = f"swinglens_run_{run_id}_{profile.name}_rankings.csv"
     _enforce_export_rows(_csv_data_row_count(content), resource=filename)
@@ -512,7 +513,7 @@ def view_ranking_profile_results(
     try:
         profile = get_ranking_profile(profile_name)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
     market_regime_context = _market_regime_context(
         _latest_run_market_snapshot(db, run_id),
         profile_name=profile.name,
@@ -679,7 +680,7 @@ def run_full_pipeline_action(
             )
         except ValueError as exc:
             db.rollback()
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
         except Exception:
             db.rollback()
             raise
@@ -802,7 +803,7 @@ def cancel_run_pipeline_action(
         )
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
 
 
 @router.post("/runs/{run_id}/pipeline/{pipeline_id}/resume")
@@ -825,7 +826,7 @@ def resume_run_pipeline_action(
         )
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
 
 
 @router.post("/runs/{run_id}/ib/test")
@@ -966,7 +967,7 @@ def fetch_run_ib_bars_action(
             run_id,
             {
                 "ib_status": "fetch-failed",
-                "ib_message": str(exc),
+                "ib_message": redact_text(str(exc)),
             },
         )
 
@@ -1057,7 +1058,7 @@ def cancel_run_ib_fetch_action(
         )
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=redact_text(str(exc))) from exc
 
 
 @router.post("/runs/{run_id}/ib/fetch/{fetch_run_id}/retry-failed")
@@ -1103,7 +1104,7 @@ def _resume_fetch_action(
         )
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=redact_text(str(exc))) from exc
 
 
 def _decision_counts(results: list) -> dict[str, int]:
@@ -1772,7 +1773,7 @@ def _require_pipeline_for_run(
     try:
         status = get_pipeline_status(db, pipeline_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
     if status.upload_run_id != run_id:
         raise HTTPException(status_code=404, detail="Pipeline run not found for this run.")
     return status

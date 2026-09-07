@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -22,7 +23,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-from alembic import command
+from app.database_safety import run_guarded_alembic_upgrade
 from app.models.tables import BackgroundJob, BackgroundWorker
 from app.observability.correlation import root_action_scope
 from app.services.background_job_service import JobStatus, enqueue_job
@@ -35,7 +36,13 @@ from app.services.redaction import redact_text
 from app.settings import get_settings
 
 DATABASE_PREFIX = "swinglens_obs_cert_"
-PROMETHEUS_URL = "http://127.0.0.1:9090"
+PROMETHEUS_URL = ""
+
+
+def _available_loopback_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
 
 
 def _wait(description: str, callback, timeout: float = 60.0):
@@ -137,6 +144,7 @@ def _stop_process(process: subprocess.Popen | None) -> None:
 
 
 def main() -> int:
+    global PROMETHEUS_URL
     if os.name != "nt":
         raise RuntimeError("This certification is specifically for Windows + Docker Desktop.")
     root = Path(__file__).resolve().parents[1]
@@ -154,16 +162,41 @@ def main() -> int:
     web_log = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
     supervisor_log = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
     last_job_id: int | None = None
-    compose_environment = dict(os.environ)
-    compose_environment["GRAFANA_ADMIN_PASSWORD"] = secrets.token_urlsafe(32)
+    web_port = _available_loopback_port()
+    worker_metrics_port = _available_loopback_port()
+    supervisor_metrics_port = _available_loopback_port()
+    prometheus_port = _available_loopback_port()
+    PROMETHEUS_URL = f"http://127.0.0.1:{prometheus_port}"
+    prometheus_container = f"swinglens-obs-cert-{secrets.token_hex(6)}"
+    prometheus_directory = tempfile.TemporaryDirectory(prefix="swinglens-obs-prom-")
+    prometheus_config = Path(prometheus_directory.name) / "prometheus.yml"
+    prometheus_config.write_text(
+        "\n".join(
+            (
+                "global:",
+                "  scrape_interval: 2s",
+                "scrape_configs:",
+                "  - job_name: swinglens-web",
+                f'    static_configs: [{{targets: ["host.docker.internal:{web_port}"]}}]',
+                "  - job_name: swinglens-worker",
+                "    static_configs: "
+                f'[{{targets: ["host.docker.internal:{worker_metrics_port}"]}}]',
+                "  - job_name: swinglens-supervisor",
+                "    static_configs: "
+                f'[{{targets: ["host.docker.internal:{supervisor_metrics_port}"]}}]',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
     worker_id = f"obs-cert-{uuid4().hex[:8]}"
     proof: dict[str, object] = {"database": "disposable"}
     try:
         admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
         config = Config()
         config.set_main_option("script_location", str(root / "alembic"))
-        config.attributes["database_url"] = database_url
-        command.upgrade(config, "head")
+        identity = run_guarded_alembic_upgrade(config, database_url)
+        print(f"migrated disposable database: {identity.database_name}")
         engine = create_engine(database_url)
         with engine.connect() as connection:
             actual = connection.exec_driver_sql("select current_database()").scalar()
@@ -190,6 +223,8 @@ def main() -> int:
                 "DATABASE_URL": database_url,
                 "OBSERVABILITY_METRICS_ENABLED": "true",
                 "OBSERVABILITY_METRICS_HOST": "127.0.0.1",
+                "OBSERVABILITY_WORKER_METRICS_PORT": str(worker_metrics_port),
+                "OBSERVABILITY_SUPERVISOR_METRICS_PORT": str(supervisor_metrics_port),
                 "OBSERVABILITY_COLLECTION_INTERVAL_SECONDS": "1",
                 "JOB_POLL_INTERVAL_SECONDS": "0.25",
                 "JOB_WATCHDOG_INTERVAL_SECONDS": "1",
@@ -211,7 +246,7 @@ def main() -> int:
                 "--host",
                 "127.0.0.1",
                 "--port",
-                "8000",
+                str(web_port),
             ],
             cwd=root,
             env=web_environment,
@@ -237,7 +272,7 @@ def main() -> int:
             "web metrics",
             lambda: (
                 urllib.request.urlopen(  # noqa: S310 - loopback certification
-                    "http://127.0.0.1:8000/metrics", timeout=2
+                    f"http://127.0.0.1:{web_port}/metrics", timeout=2
                 ).status
                 == 200
             ),
@@ -247,15 +282,20 @@ def main() -> int:
         subprocess.run(
             [
                 "docker",
-                "compose",
-                "-f",
-                str(root / "docker-compose.observability.yml"),
-                "up",
-                "-d",
-                "prometheus",
+                "run",
+                "--detach",
+                "--name",
+                prometheus_container,
+                "--add-host",
+                "host.docker.internal:host-gateway",
+                "--publish",
+                f"127.0.0.1:{prometheus_port}:9090",
+                "--volume",
+                f"{prometheus_config}:/etc/prometheus/prometheus.yml:ro",
+                "prom/prometheus:v3.5.0",
+                "--config.file=/etc/prometheus/prometheus.yml",
             ],
             cwd=root,
-            env=compose_environment,
             check=True,
             capture_output=True,
             text=True,
@@ -365,20 +405,16 @@ def main() -> int:
         subprocess.run(
             [
                 "docker",
-                "compose",
-                "-f",
-                str(root / "docker-compose.observability.yml"),
                 "rm",
-                "-s",
-                "-f",
-                "prometheus",
+                "--force",
+                prometheus_container,
             ],
             cwd=root,
-            env=compose_environment,
             check=False,
             capture_output=True,
             text=True,
         )
+        prometheus_directory.cleanup()
         if engine is not None:
             engine.dispose()
         if database_name.startswith(DATABASE_PREFIX):

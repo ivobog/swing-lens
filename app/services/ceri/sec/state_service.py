@@ -14,6 +14,7 @@ from app.models.ceri_tables import (
     CeriSecFilingDocument,
     CeriSecSyncState,
 )
+from app.services.redaction import redact_text
 
 
 class SecExtractionStatus(StrEnum):
@@ -385,7 +386,7 @@ class SecDocumentStateService:
                 lease_expires_at=None,
                 next_retry_at=next_retry_at,
                 last_error_code=error_code[:64],
-                last_error_message=message.replace("\n", " ")[:500],
+                last_error_message=redact_text(message).replace("\n", " ")[:500],
                 updated_at=now,
             )
         )

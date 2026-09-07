@@ -18,6 +18,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
+from app.database_safety import assert_disposable_database
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import (
     JobLeaseLost,
@@ -58,6 +59,7 @@ def _connect_admin_or_skip() -> psycopg.Connection:
 
 
 def _run_alembic(database_url: str, *args: str) -> subprocess.CompletedProcess[str]:
+    assert_disposable_database(database_url)
     env = {**os.environ, "DATABASE_URL": database_url}
     return subprocess.run(
         [sys.executable, "-m", "alembic", *args],

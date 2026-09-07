@@ -13,6 +13,7 @@ from app.services.market_data_prewarm_service import (
     MarketDataPrewarmRequest,
     enqueue_market_data_prewarm,
 )
+from app.services.redaction import redact_text
 
 router = APIRouter(prefix="/api/market-data", tags=["market-data"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -49,7 +50,7 @@ def queue_market_data_prewarm(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
     except Exception:
         db.rollback()
         raise
@@ -115,7 +116,7 @@ def cancel_market_data_prewarm(job_id: int, db: DbSession) -> dict[str, object]:
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
     return {
         "job_id": job.id,
         "job_type": job.job_type,

@@ -34,8 +34,11 @@ Detailed tree results are capped by `OBSERVABILITY_OPERATIONS_LIMIT` (10–500, 
 queries and eager-loads bounded pipeline steps; it never performs a list-all query or scrapes
 Prometheus on request.
 
-IB health is shown as `optional_unavailable` until a pipeline health check has emitted an
-`swinglens_ib_connected` sample. This avoids turning the Operations page into an IB network probe.
+IB health is `optional_unavailable` while IB is down and no runnable/active work requires it. A
+bounded aggregate query promotes IB to required for `FULL_PIPELINE`, `MARKET_DATA_PREWARM`, or
+registered `IB_*` work; unavailable IB then makes readiness fail. Operations does not perform an
+IB network probe. Resource-sampler and web-owned system-collector health are reported separately,
+as are process presence and functional worker/supervisor control-loop progress.
 
 ## Troubleshooting order
 

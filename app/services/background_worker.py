@@ -43,6 +43,7 @@ from app.services.ceri.sec.processor_lifecycle import (
     lifecycle_state,
     register_deployed_processor,
 )
+from app.services.cleanup_service import execute_durable_evidence_retention
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_prerequisites import PipelineBlockedError
 from app.services.process_identity import process_started_at
@@ -55,6 +56,7 @@ from app.services.process_memory import (
 )
 from app.services.worker_registry import (
     heartbeat_worker,
+    heartbeat_worker_control_loop,
     mark_worker_stopping,
     register_worker,
 )
@@ -156,8 +158,23 @@ def run_worker(
     finally:
         startup_db.close()
 
+    next_evidence_cleanup = 0.0
+
     try:
         while not runtime_stop_event.is_set():
+            if time.monotonic() >= next_evidence_cleanup:
+                cleanup_db = session_factory()
+                try:
+                    execute_durable_evidence_retention(cleanup_db, settings)
+                    cleanup_db.commit()
+                except Exception:
+                    cleanup_db.rollback()
+                    logger.exception("job.worker.durable_evidence_retention_failed")
+                finally:
+                    cleanup_db.close()
+                next_evidence_cleanup = time.monotonic() + float(
+                    settings.observability_evidence_cleanup_interval_seconds
+                )
             if (
                 settings.ceri_provider_ingest_enabled
                 and settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
@@ -395,6 +412,9 @@ def run_worker_once(
         recovered_count = recover_stale_jobs(db, stale_after_seconds)
         if recovered_count:
             logger.info("job.stale_recovered", extra={"count": recovered_count})
+        heartbeat_worker_control_loop(
+            db, worker_id, instance_id=worker_instance_id
+        )
         db.commit()
 
         if schedule_winner_probability:

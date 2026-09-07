@@ -23,7 +23,6 @@ from app.models.tables import (
 from app.observability.correlation import CausalityContext, enqueue_causality, workflow_family
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_queue import QueueClaimGroup, worker_queue_filter
-from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 from app.settings import get_settings
 
@@ -523,8 +522,19 @@ def prune_enqueue_attempt_evidence(
     ).rowcount
     roots = 0
     if _database_has_fanout_rollup(db):
+        expired_root_ids = (
+            select(BackgroundJobFanoutRoot.root_correlation_id)
+            .where(BackgroundJobFanoutRoot.last_occurred_at < cutoff)
+            .order_by(
+                BackgroundJobFanoutRoot.last_occurred_at,
+                BackgroundJobFanoutRoot.root_correlation_id,
+            )
+            .limit(max(1, batch_size))
+        )
         roots = db.execute(
-            delete(BackgroundJobFanoutRoot).where(BackgroundJobFanoutRoot.last_occurred_at < cutoff)
+            delete(BackgroundJobFanoutRoot).where(
+                BackgroundJobFanoutRoot.root_correlation_id.in_(expired_root_ids)
+            )
         ).rowcount
     return {"attempts": max(0, int(attempts or 0)), "roots": max(0, int(roots or 0))}
 
@@ -1383,7 +1393,7 @@ def _finish_job(
 
 
 def _observe_job_duration(
-    job: BackgroundJob, finished_at: datetime, status: str, db: Session | None = None
+    job: BackgroundJob, finished_at: datetime, status: str, db: Session
 ) -> None:
     if job.started_at is None:
         return
@@ -1391,19 +1401,14 @@ def _observe_job_duration(
     if started_at.tzinfo is None:
         started_at = started_at.replace(tzinfo=UTC)
     value = max(0.0, (finished_at - started_at).total_seconds())
-    if db is None:
-        operational_metrics.observe(
-            "swinglens_job_duration_seconds", value, job_type=job.job_type, status=status
-        )
-    else:
-        publish_after_commit(
-            db,
-            "observe",
-            "swinglens_job_duration_seconds",
-            value,
-            job_type=job.job_type,
-            status=status,
-        )
+    publish_after_commit(
+        db,
+        "observe",
+        "swinglens_job_duration_seconds",
+        value,
+        job_type=job.job_type,
+        status=status,
+    )
 
 
 def _observe_fanout_size(db: Session, job: BackgroundJob) -> None:

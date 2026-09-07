@@ -16,6 +16,45 @@ logger = logging.getLogger(__name__)
 MetricAction = Literal["increment", "observe", "set_gauge"]
 _PENDING_KEY = "swinglens_pending_commit_metrics"
 
+# Durable-state metrics may only appear through publish_after_commit.  The
+# repository contract test treats this set as a deny-list for direct facade
+# calls, making transaction classification reviewable and enforceable.
+COMMIT_DEPENDENT_METRICS = frozenset(
+    {
+        "swinglens_jobs_enqueued_total",
+        "swinglens_jobs_coalesced_total",
+        "swinglens_jobs_finished_total",
+        "swinglens_jobs_retry_total",
+        "swinglens_jobs_failed_total",
+        "swinglens_jobs_deferred_total",
+        "swinglens_jobs_stale_recovered_total",
+        "swinglens_job_stalls_total",
+        "swinglens_job_progress_total",
+        "swinglens_job_duration_seconds",
+        "swinglens_pipelines_started_total",
+        "swinglens_pipelines_coalesced_total",
+        "swinglens_pipelines_cancel_requested_total",
+        "swinglens_pipelines_finished_total",
+        "swinglens_pipeline_runs_total",
+        "swinglens_ranking_pipeline_runs_total",
+        "swinglens_ranking_results_total",
+        "swinglens_price_series_version_advances_total",
+        "swinglens_technical_artifact_cache_shadow_validations_total",
+        "swinglens_technical_artifact_cache_shadow_mismatches_total",
+        "swinglens_ibmi_flex_import_duration_seconds",
+        "swinglens_ibmi_flex_import_rows_total",
+        "swinglens_ibmi_unmatched_executions_total",
+        "swinglens_ibmi_ambiguous_research_links_total",
+        "swinglens_ibmi_requests_total",
+        "swinglens_ibmi_subscription_required_total",
+        "swinglens_ibmi_stale_features_total",
+        "swinglens_ibmi_calculation_unavailable_total",
+        "swinglens_market_prewarm_jobs_total",
+        "swinglens_market_prewarm_preemptions_total",
+        "swinglens_market_prewarm_coverage_ratio",
+    }
+)
+
 
 @dataclass(frozen=True)
 class PendingMetric:

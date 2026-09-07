@@ -17,6 +17,8 @@ from playwright.sync_api import Browser, Page, sync_playwright
 from psycopg import sql
 from sqlalchemy.engine import make_url
 
+from app.database_safety import assert_disposable_database
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 _LIVE_SERVER_DATABASE_URL: str | None = None
@@ -65,6 +67,7 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         .set(database=database_name)
         .render_as_string(hide_password=False)
     )
+    assert_disposable_database(database_url)
     global _LIVE_SERVER_DATABASE_URL
     _LIVE_SERVER_DATABASE_URL = database_url
     runtime_root = tmp_path_factory.mktemp("swinglens-browser")

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import PriceBar, PriceSeriesVersion
-from app.services.operational_metrics import operational_metrics
+from app.observability.transaction_metrics import publish_after_commit
 
 SeriesIdentity = tuple[str, str, str]
 
@@ -72,9 +72,8 @@ def maintain_price_series_versions(
         advanced += 1
 
     if advanced:
-        operational_metrics.increment(
-            "swinglens_price_series_version_advances_total",
-            value=advanced,
+        publish_after_commit(
+            db, "increment", "swinglens_price_series_version_advances_total", advanced
         )
     return advanced
 

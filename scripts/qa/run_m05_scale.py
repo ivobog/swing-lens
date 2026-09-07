@@ -29,6 +29,8 @@ from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.database_safety import assert_disposable_database
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 DATABASE_PREFIX = "swinglens_qa_m05_"
@@ -118,7 +120,9 @@ def _disposable_database(admin_url: str) -> Iterator[tuple[str, str]]:
     with psycopg.connect(native_admin_url, autocommit=True) as admin:
         admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
         try:
-            yield database_name, _database_url(admin_url, database_name)
+            database_url = _database_url(admin_url, database_name)
+            assert_disposable_database(database_url)
+            yield database_name, database_url
         finally:
             admin.execute(
                 sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(

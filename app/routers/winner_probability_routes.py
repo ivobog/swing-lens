@@ -14,6 +14,7 @@ from app.models.tables import UploadRun
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
 from app.services.background_job_service import enqueue_job
+from app.services.redaction import redact_text
 from app.services.resource_limits import (
     ResourceLimitExceeded,
     enforce_row_limit,
@@ -444,7 +445,9 @@ def winner_probability_estimate_reproduction(estimate_id: int, db: DbSession) ->
     try:
         result = ReproductionService().reproduce_estimate(db, estimate_id=estimate_id)
     except ValueError as exc:
-        raise _structured_http_error("ESTIMATE_NOT_FOUND", str(exc), status_code=404) from exc
+        raise _structured_http_error(
+            "ESTIMATE_NOT_FOUND", redact_text(str(exc)), status_code=404
+        ) from exc
     return {
         "estimate_id": result.estimate_id,
         "matches": result.matches,
@@ -658,7 +661,9 @@ def retire_winner_probability_model(
         db.commit()
     except WinnerProbabilityApiError as exc:
         db.rollback()
-        raise _structured_http_error(exc.code, str(exc), status_code=exc.status_code) from exc
+        raise _structured_http_error(
+            exc.code, redact_text(str(exc)), status_code=exc.status_code
+        ) from exc
     except Exception:
         db.rollback()
         raise
@@ -695,10 +700,16 @@ def _ui_payload_or_empty(callback) -> tuple[dict, dict[str, str] | None]:
         return callback(), None
     except WinnerProbabilityApiError as exc:
         if exc.code in {"INVALID_OUTCOME_DEFINITION", "PREDICTION_NOT_FOUND"}:
-            return {"items": [], "segments": []}, {"code": exc.code, "message": str(exc)}
+            return {"items": [], "segments": []}, {
+                "code": exc.code,
+                "message": redact_text(str(exc)),
+            }
         raise
     except ValueError as exc:
-        return {"items": [], "segments": []}, {"code": "INVALID_REQUEST", "message": str(exc)}
+        return {"items": [], "segments": []}, {
+            "code": "INVALID_REQUEST",
+            "message": redact_text(str(exc)),
+        }
 
 
 def _run_evidence_summary(payload: dict) -> dict[str, int]:
@@ -771,18 +782,26 @@ def _api_query(
             filters=filters or WinnerProbabilityFilters(),
         )
     except WinnerProbabilityFilterError as exc:
-        raise _structured_http_error("INVALID_FILTER", str(exc), status_code=422) from exc
+        raise _structured_http_error(
+            "INVALID_FILTER", redact_text(str(exc)), status_code=422
+        ) from exc
 
 
 def _call_api(callback):
     try:
         return callback()
     except WinnerProbabilityFilterError as exc:
-        raise _structured_http_error("INVALID_FILTER", str(exc), status_code=422) from exc
+        raise _structured_http_error(
+            "INVALID_FILTER", redact_text(str(exc)), status_code=422
+        ) from exc
     except WinnerProbabilityApiError as exc:
-        raise _structured_http_error(exc.code, str(exc), status_code=exc.status_code) from exc
+        raise _structured_http_error(
+            exc.code, redact_text(str(exc)), status_code=exc.status_code
+        ) from exc
     except ValueError as exc:
-        raise _structured_http_error("INVALID_REQUEST", str(exc), status_code=422) from exc
+        raise _structured_http_error(
+            "INVALID_REQUEST", redact_text(str(exc)), status_code=422
+        ) from exc
 
 
 def _enforce_export_rows(row_count: int, *, resource: str) -> None:

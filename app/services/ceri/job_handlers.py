@@ -49,6 +49,7 @@ from app.services.ceri.purge_service import (
     CeriPurgePreviewRequest,
     CeriPurgeService,
 )
+from app.services.redaction import redact_text
 
 CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
 CERI_NORMALIZE = "CERI_NORMALIZE"
@@ -900,7 +901,7 @@ def _skipped_job(job_type: str, reason: str) -> dict[str, Any]:
 
 
 def _safe_job_error(exc: Exception) -> str:
-    return str(exc).replace("\n", " ").strip()[:500] or exc.__class__.__name__
+    return redact_text(str(exc)).replace("\n", " ").strip()[:500] or exc.__class__.__name__
 
 
 def _heartbeat_and_check_cancel(db: Session, job: BackgroundJob) -> bool:

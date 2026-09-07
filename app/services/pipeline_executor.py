@@ -537,11 +537,15 @@ def execute_full_pipeline(
                     f"Persisted {ranking.result_count} ranking results across "
                     f"{ranking.profile_count} profiles."
                 )
-            operational_metrics.increment(
+            publish_after_commit(
+                db,
+                "increment",
                 "swinglens_ranking_pipeline_runs_total",
                 status=ranking.status,
             )
-            operational_metrics.increment(
+            publish_after_commit(
+                db,
+                "increment",
                 "swinglens_ranking_results_total",
                 ranking.result_count,
                 status=ranking.status,

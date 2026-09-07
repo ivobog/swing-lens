@@ -112,7 +112,9 @@ class ReadinessService:
             "queue_pressure": queue_pressure,
             "db_pool": db_pool,
             "telemetry": self._telemetry_check(),
-            "resource_collector": self._resource_collector_check(),
+            "metrics": self._metrics_configuration_check(),
+            "resource_sampler": self._resource_collector_check(),
+            "system_collector": self._system_collector_check(),
             "ib": self._ib_check(),
             "sec": sec,
         }
@@ -325,11 +327,18 @@ class ReadinessService:
 
     def _resource_collector_check(self) -> ReadinessCheck:
         if not self.settings.observability_metrics_enabled:
-            return ReadinessCheck(True, "optional_unavailable", "optional_unavailable")
-        from app.observability.resource_sampler import process_sampler_status
+            return ReadinessCheck(True, "disabled_by_configuration", "optional_unavailable")
+        from app.observability.resource_sampler import (
+            collector_component_status,
+            process_sampler_status,
+        )
 
-        state = process_sampler_status("web")
-        observed_at = state.get("last_observed_at")
+        state = collector_component_status("web", "resource_sampler")
+        category_state = process_sampler_status("web")
+        observed_at = state.get("last_success")
+        if not isinstance(observed_at, datetime):
+            # Compatibility for an in-flight process started by the previous release.
+            observed_at = category_state.get("last_observed_at")
         if not isinstance(observed_at, datetime):
             return ReadinessCheck(False, "collector_not_started")
         if observed_at.tzinfo is None:
@@ -338,24 +347,111 @@ class ReadinessService:
             5.0, self.settings.observability_collection_interval_seconds * 2.5
         ):
             return ReadinessCheck(False, "collector_dead")
-        failed = sorted(
-            key for key, value in state.items() if key != "last_observed_at" and value == "failed"
-        )
+        failed = int(state.get("consecutive_failures") or 0)
         if failed:
-            return ReadinessCheck(False, "collector_failed:" + ",".join(failed), "degraded")
+            return ReadinessCheck(False, f"resource_sampler_failed:{failed}", "degraded")
+        failed_categories = sorted(
+            category
+            for category in ("process_memory", "cpu")
+            if category_state.get(category) == "failed"
+        )
+        if failed_categories:
+            return ReadinessCheck(
+                False,
+                "resource_sampler_failed:" + ",".join(failed_categories),
+                "degraded",
+            )
         return ReadinessCheck(True, "ok")
 
+    def _system_collector_check(self) -> ReadinessCheck:
+        if not self.settings.observability_metrics_enabled:
+            return ReadinessCheck(True, "disabled_by_configuration", "optional_unavailable")
+        from app.observability.resource_sampler import (
+            collector_component_status,
+            process_sampler_status,
+        )
+
+        state = collector_component_status("web", "system_metrics_collector")
+        observed_at = state.get("last_success")
+        if not isinstance(observed_at, datetime):
+            return ReadinessCheck(False, "system_collector_not_started")
+        if observed_at.tzinfo is None:
+            observed_at = observed_at.replace(tzinfo=UTC)
+        if (self.now - observed_at).total_seconds() > max(
+            5.0, self.settings.observability_collection_interval_seconds * 2.5
+        ):
+            return ReadinessCheck(False, "system_collector_dead")
+        failures = int(state.get("consecutive_failures") or 0)
+        if failures:
+            return ReadinessCheck(False, f"system_collector_failed:{failures}", "degraded")
+        category_state = process_sampler_status("web")
+        ignored = {"last_observed_at", "process_memory", "cpu"}
+        failed_categories = sorted(
+            name
+            for name, value in category_state.items()
+            if name not in ignored and value == "failed"
+        )
+        if failed_categories:
+            return ReadinessCheck(
+                False,
+                "system_collector_failed:" + ",".join(failed_categories),
+                "degraded",
+            )
+        return ReadinessCheck(True, "ok")
+
+    def _metrics_configuration_check(self) -> ReadinessCheck:
+        if self.settings.observability_metrics_enabled:
+            return ReadinessCheck(True, "enabled")
+        return ReadinessCheck(True, "disabled_by_configuration", "optional_unavailable")
+
     def _ib_check(self) -> ReadinessCheck:
+        workload_required = self._ib_workload_required()
+        required = bool(self.settings.observability_ib_required or workload_required)
         available = self.ib_available
-        if available is None and self.settings.observability_ib_required:
+        if available is None and required:
             from app.services.ib_gateway_health_service import IBGatewayHealthState, check_status
 
             available = check_status(self.settings).status == IBGatewayHealthState.READY
         if available:
             return ReadinessCheck(True, "available")
-        if self.settings.observability_ib_required:
-            return ReadinessCheck(False, "required_unavailable")
+        if required:
+            detail = "runnable_work" if workload_required else "configuration"
+            return ReadinessCheck(False, f"required_unavailable:{detail}")
         return ReadinessCheck(True, "optional_unavailable", "optional_unavailable")
+
+    def _ib_workload_required(self) -> bool:
+        """One bounded aggregate capability query; no per-job inspection."""
+        try:
+            with Session(self.engine) as session:
+                required_work = (
+                    select(BackgroundJob.id)
+                    .where(
+                        BackgroundJob.status.in_(
+                            (
+                                JobStatus.QUEUED,
+                                JobStatus.RUNNING,
+                                JobStatus.RECOVERING,
+                                JobStatus.BLOCKED,
+                                JobStatus.STALLED,
+                            )
+                        )
+                    )
+                    .where(
+                        (BackgroundJob.status != JobStatus.QUEUED)
+                        | (BackgroundJob.run_after <= self.now)
+                    )
+                    .where(
+                        BackgroundJob.job_type.in_(("FULL_PIPELINE", "MARKET_DATA_PREWARM"))
+                        | BackgroundJob.job_type.like(r"IB\_%", escape="\\")
+                    )
+                    .limit(1)
+                )
+                required = session.scalar(select(required_work.exists()))
+            return bool(required)
+        except SQLAlchemyError:
+            # Database health is reported independently; never turn an optional
+            # dependency into a false requirement because this aggregate failed.
+            return bool(self.settings.observability_ib_required)
 
     def _worker_check(self) -> ReadinessCheck:
         if not self.settings.use_durable_pipeline:
@@ -403,7 +499,9 @@ class ReadinessService:
                 False,
                 "no live worker can process:" + ",".join(sorted(map(str, missing_capabilities))),
             )
-        for worker_id, telemetry_status, collector_status, collector_at in telemetry:
+        for telemetry_row in telemetry:
+            worker_id, telemetry_status, collector_status, collector_at = telemetry_row[:4]
+            control_at = telemetry_row[4] if len(telemetry_row) > 4 else None
             if str(telemetry_status or "UNKNOWN").upper() == "FAILED":
                 return ReadinessCheck(False, f"worker_recorder_failed:{worker_id}")
             if str(collector_status or "UNKNOWN").upper() == "FAILED":
@@ -412,6 +510,10 @@ class ReadinessService:
                 5, int(self.settings.observability_collection_interval_seconds * 2.5)
             ):
                 return ReadinessCheck(False, f"worker_collector_dead:{worker_id}")
+            if control_at is None or _age_seconds(self.now, control_at) > int(
+                self.settings.job_worker_heartbeat_timeout_seconds
+            ):
+                return ReadinessCheck(False, f"worker_control_loop_dead:{worker_id}")
         pressured = [
             worker
             for worker in workers
@@ -434,7 +536,7 @@ class ReadinessService:
 
     def _worker_telemetry_rows(
         self, session: Session, worker_ids: list[str]
-    ) -> list[tuple[str, str | None, str | None, datetime | None]]:
+    ) -> list[tuple]:
         if not worker_ids or not self._table_has_column("background_workers", "telemetry_status"):
             return []
         return list(
@@ -444,6 +546,7 @@ class ReadinessService:
                     BackgroundWorker.telemetry_status,
                     BackgroundWorker.resource_collector_status,
                     BackgroundWorker.resource_collector_heartbeat_at,
+                    BackgroundWorker.control_loop_heartbeat_at,
                 ).where(BackgroundWorker.worker_id.in_(worker_ids))
             ).all()
         )
@@ -473,11 +576,12 @@ class ReadinessService:
         if self._table_has_column("background_supervisors", "telemetry_status"):
             try:
                 with Session(self.engine) as session:
-                    telemetry_status, collector_status, collector_at = session.execute(
+                    telemetry_status, collector_status, collector_at, control_at = session.execute(
                         select(
                             BackgroundSupervisor.telemetry_status,
                             BackgroundSupervisor.resource_collector_status,
                             BackgroundSupervisor.resource_collector_heartbeat_at,
+                            BackgroundSupervisor.control_loop_heartbeat_at,
                         ).where(BackgroundSupervisor.worker_id == row.worker_id)
                     ).one()
             except SQLAlchemyError as exc:
@@ -490,6 +594,10 @@ class ReadinessService:
                 5, int(self.settings.observability_collection_interval_seconds * 2.5)
             ):
                 return ReadinessCheck(False, "supervisor_collector_dead")
+            if control_at is None or _age_seconds(self.now, control_at) > int(
+                self.settings.job_worker_heartbeat_timeout_seconds
+            ):
+                return ReadinessCheck(False, "supervisor_control_loop_dead")
         return ReadinessCheck(
             True, f"live:{row.worker_id}:{row.instance_id}:generation-{row.generation}"
         )

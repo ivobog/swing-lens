@@ -139,3 +139,71 @@ locks but require extra temporary disk and take longer than a blocking build.
 OBS-001 through OBS-013 are all **PASS**. The required business-transaction → PostgreSQL commit →
 durable evidence → bounded metrics → Prometheus chain is certified. No OBS-014–OBS-018 behavior was
 redesigned; those findings remain outside this remediation scope.
+
+## Second Review P0/P1 Remediation
+
+- Certification date: 2026-09-07
+- Baseline branch/HEAD: `main` / `ab614130c7df3b27a92c9e3d913a59de55c542e2`
+- Worktree: clean before remediation; modified only by the REVIEW2-001–009 work listed in Git
+- Candidate Alembic head: `0066_obs_review2_liveness`
+- Active database before/after: `swinglens` / `0065_observability_remediation` (read-only checks)
+
+| Finding | Root cause | Fix | Tests | Runtime proof | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| REVIEW2-001 | Callers could persist or expose raw exception strings even though the shared redactor existed. | A final SQLAlchemy `before_flush` boundary sanitizes mapped error strings and structured error/evidence/result/shadow JSON. Known Core-update and API serialization bypasses also redact explicitly. | 21-value adversarial matrix across job, CERI, IBMI and technical models; shared serializer tests; real PostgreSQL commit/reload. | Disposable PostgreSQL persisted and reloaded all four producer families with no plaintext `SECRET`. The active DB's 36 high-risk text/JSON columns had zero validated credential values; 12 loose `Basic …` matches were validated as zero base64 credentials. No active row was rewritten. | PASS |
+| REVIEW2-002 | Winner polling opened root/enqueue instrumentation before completing status/session eligibility. | The scheduler first resolves any same-session status or prior-session active work, returning before root scope; only meaningful new work opens evidence. | All ten statuses × 2,000 polls, prior-day active, next-day eligibility, two concurrent pollers, and real PostgreSQL counts. | Every status produced job/attempt/root deltas `0/0/0`; 5,000 completed-session polls also left fanout metric at `0`, while the next eligible day added exactly `1/1/1`. | PASS |
+| REVIEW2-003 | Prometheus child maps and the compatibility mirror admitted unbounded dynamic label values and stale workers. | Closed enums, per-label bounded registries, `OTHER`, a 256-series per-metric ceiling, a bounded mirror, and obsolete worker-gauge removal are enforced in the facade. | 100,000 distinct worker IDs, stages, reasons, and provider/dataset pairs plus stale-worker removal. | 400,000 emissions retained 197 Prometheus series and 197 mirror keys; current/peak traced memory was 837,426/993,576 bytes and scrape size 64,096 bytes. | PASS |
+| REVIEW2-004 | Several durable-state producer families called metrics directly before the authoritative outer commit. | The commit-dependent deny-list now covers jobs, pipelines/ranking, price versions, technical shadow state, IBMI journal/Flex/request/repository state, and prewarm state. Producers use `publish_after_commit`; dry-run Flex metrics are explicitly observational names. | Static repository bypass contract; commit, rollback, failed commit, flush, savepoint, session reuse, retry, and post-commit metric-exception cases. | Disposable PostgreSQL rollback left job rows, enqueue attempts, and committed metric delta all zero; commit published exactly once. | PASS |
+| REVIEW2-005 | IB was evaluated only as a global option, while web collector health could conflate independent loops. | A one-row `EXISTS` capability query makes IB required only for runnable/active `FULL_PIPELINE`, `MARKET_DATA_PREWARM`, or `IB_*` work. Resource sampler, system collector, category failures, worker/supervisor process, and functional loop health are distinct. | Optional/required/available IB matrix; independent collector death; category exception/recovery; worker/supervisor control-loop age. | Disposable PostgreSQL returned `optional_unavailable` with no work, `required_unavailable:runnable_work` with runnable IB work, then `ok` when available. Collector failure state recovered after a successful sample. | PASS |
+| REVIEW2-006 | Loss of the web projection source and frozen worker/supervisor functional loops could leave scrape/resource threads apparently healthy. | Added web absent-safe alert, durable functional-loop timestamps, bounded control-loop/system-collector gauges, and absent-safe dependencies for web-owned queue/stall/disk projections. | Real Prometheus rule tests inject six loss/freeze scenarios; real isolated four-process topology and supervised worker restart. | `promtool` passed web/worker/supervisor disappearance, worker/supervisor loop freeze, and system-collector freeze. Real web, worker and supervisor targets were UP; worker PID changed `13792→3964`, both probes completed, and worker sample timestamp advanced `1788795073.311→1788795105.304`. | PASS |
+| REVIEW2-007 | The critical ratio divided by current overflow use rather than configured total capacity. | `SwingLensDatabasePressure` divides checked-out connections by `swinglens_db_pool_capacity` and also observes timeout and p95 wait. | `promtool` covers empty, partial, base-full/overflow-available, overflow-in-use, exhausted, timeout, and wait-pressure cases. | All real Prometheus evaluations matched expected non-firing/firing states; 14 rules parsed successfully. | PASS |
+| REVIEW2-008 | Harnesses could invoke Alembic before proving the candidate identity and an ignored URL override could redirect migration. | Shared fail-closed preflight validates PostgreSQL URL, disposable prefix, connected DB/server, and separately read active identity before the command boundary. Alembic rechecks the actual connection before `run_migrations`. | Active URL, malformed URL, ignored-override simulation, disposable downgrade/re-upgrade, and guarded real topology script. | Active/malformed candidates never entered the injected upgrade function. The real script printed a verified `swinglens_obs_cert_*` identity before Alembic; active `swinglens` remained at 0065 after all runs. | PASS |
+| REVIEW2-009 | The OFF flag left inconsistent collectors and owned durable-evidence cleanup inside the Prometheus system collector. | OFF means empty export and no Prometheus-only listeners/samplers in web/worker/supervisor. Cleanup moved to the existing worker maintenance loop and remains bounded; causality and SQL recorder retain independent settings. | Web lifespan, worker/supervisor entry points, no-child facade, causality, independent recorder setting, and real PostgreSQL retention. | With metrics OFF, no Prometheus component was constructed and export was empty; disposable PostgreSQL cleanup deleted one expired attempt and one root while metrics remained empty. | PASS |
+
+### Transactional metric classification
+
+- Class A, immediate observations: independent request attempts, measured network/CPU/memory/disk
+  values, scraper/collector health, SQL-recorder activity, and validation-only Flex dry runs.
+- Class B, commit-dependent: job/enqueue/fanout/progress/terminal state; pipeline/ranking state;
+  price-series versions; technical cache shadow state; IBMI journal, committed Flex import,
+  request/subscription, stale/unavailable state; and prewarm state. Every Class B name is in
+  `COMMIT_DEPENDENT_METRICS` and cannot appear in a direct facade call under the static contract.
+
+### Certification commands and results
+
+- `pytest -q -m "not integration and not e2e and not external and not destructive and not performance"`:
+  **1,993 passed, 175 deselected**.
+- `pytest -q tests/test_observability_review2.py`: **44 passed**.
+- `pytest -q tests/integration/test_observability_remediation_postgresql.py` against generated
+  `swinglens_pytest_*`: **13 passed, 1 skipped**. The skipped case is the opt-in million-row scale
+  gate retained from Review 1, not a REVIEW2 case.
+- Changed-file Ruff: **PASS**.
+- `promtool check rules`: **14 rules, SUCCESS**.
+- `promtool test rules monitoring/prometheus/review2_alert_tests.yml`: **SUCCESS**.
+- `python scripts/certify_observability_cross_process.py`: **PASS** with an isolated generated
+  database, ephemeral application/Prometheus ports, real supervisor restart, and cleanup.
+
+### Performance and safety notes
+
+- Winner idle decision: 5,000 real PostgreSQL polls in 12.643182s, mean 2,528.636µs, below the
+  existing 3ms gate; durable and metric deltas were zero.
+- Label normalization: hard O(1) membership/cap checks; the 400,000-emission stress stayed below
+  1MB retained/peak traced memory and below a 65KB scrape.
+- IB requirement: one `EXISTS (... LIMIT 1)` query, no N+1 inspection.
+- Retention: indexed timestamp/key subqueries limit both attempt and fanout-root deletion to one
+  configured batch (default 10,000) per existing worker-maintenance interval.
+- Collector readiness reads bounded in-process state; worker/supervisor durable lookups remain
+  primary-key/limited queries.
+
+### Deferred P2 findings
+
+REVIEW2-010 lifecycle log causality/message body, REVIEW2-011 legacy causality/UI hierarchy,
+REVIEW2-012 incomplete fanout rejected/final histogram semantics, REVIEW2-013 queue projection
+scaling, REVIEW2-014 SQL Flight Recorder shutdown aggregate drain, REVIEW2-015 STALLED recovery
+race, and REVIEW2-016 Grafana target-selector semantics remain unchanged. No dependency forced a
+P2 remediation.
+
+### Second-review final verdict
+
+REVIEW2-001 through REVIEW2-009 are **PASS** and ready for a third independent adversarial review.
+The observed active database remained read-only and was never advanced to the candidate head.

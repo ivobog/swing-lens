@@ -10,7 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import TechnicalFeatureArtifact
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.operational_metrics import operational_metrics
+from app.services.redaction import redact_sensitive, redact_text
 
 LOCAL_ARTIFACT_KIND = "LOCAL"
 ARTIFACT_SCHEMA_VERSION = "1"
@@ -145,7 +147,9 @@ def record_local_artifact_shadow_validation(
     artifact.shadow_validation_count = (artifact.shadow_validation_count or 0) + 1
     artifact.last_shadow_validated_at = now or datetime.now(UTC)
     artifact.shadow_validation_status = SHADOW_MATCH if matched else SHADOW_MISMATCH
-    operational_metrics.increment(
+    publish_after_commit(
+        db,
+        "increment",
         "swinglens_technical_artifact_cache_shadow_validations_total",
         result="match" if matched else "mismatch",
     )
@@ -157,11 +161,11 @@ def record_local_artifact_shadow_validation(
             "input_signature": key.input_signature,
             "fresh_fingerprint": fresh_fingerprint,
             "cached_fingerprint": cached_fingerprint,
-            "error": error,
-            "differences": differences or {},
+            "error": redact_text(error) if error else None,
+            "differences": redact_sensitive(differences or {}),
         }
-        operational_metrics.increment(
-            "swinglens_technical_artifact_cache_shadow_mismatches_total"
+        publish_after_commit(
+            db, "increment", "swinglens_technical_artifact_cache_shadow_mismatches_total"
         )
     return artifact
 

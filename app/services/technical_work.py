@@ -6,6 +6,7 @@ from typing import Any
 import pandas as pd
 
 from app.services.pine_replica_engine import PineReplicaScore, score_from_feature_result
+from app.services.redaction import redact_text
 from app.services.relative_leadership import calculate_beta_adjusted_rs
 from app.services.technical_indicators import (
     TechnicalFeatureResult,
@@ -152,7 +153,7 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
                     v4_params=item.technical_config,
                 )
             except Exception as exc:
-                shadow_error = str(exc)
+                shadow_error = redact_text(str(exc))
         return TechnicalWorkResult(
             ticker=item.ticker,
             input_signature=item.input_signature,
@@ -175,7 +176,7 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
             relative_strength_features={},
             warnings=(),
             score=None,
-            error=str(exc),
+            error=redact_text(str(exc)),
             artifact_key=item.artifact_key,
             shadow_score=None,
             shadow_error=None,

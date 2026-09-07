@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ib_market_intelligence_tables import IBExecutionFill, IBFlexImportRun
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.ib_market_intelligence.dtos import FlexExecutionDTO
 from app.services.ib_market_intelligence.evidence_hash import evidence_hash
 from app.services.ib_market_intelligence.request_budget import IBRequestBudget
@@ -252,12 +253,12 @@ def import_flex_report(
     )
     if dry_run:
         operational_metrics.observe(
-            "swinglens_ibmi_flex_import_duration_seconds",
+            "swinglens_ibmi_flex_dry_run_duration_seconds",
             value=time.monotonic() - import_started,
             query_type=query_type,
         )
         operational_metrics.increment(
-            "swinglens_ibmi_flex_import_rows_total",
+            "swinglens_ibmi_flex_dry_run_rows_total",
             value=len(executions),
             query_type=query_type,
         )
@@ -334,14 +335,18 @@ def import_flex_report(
     run.status = "COMPLETED"
     run.completed_at = now
     db.flush()
-    operational_metrics.observe(
+    publish_after_commit(
+        db,
+        "observe",
         "swinglens_ibmi_flex_import_duration_seconds",
-        value=time.monotonic() - import_started,
+        time.monotonic() - import_started,
         query_type=query_type,
     )
-    operational_metrics.increment(
+    publish_after_commit(
+        db,
+        "increment",
         "swinglens_ibmi_flex_import_rows_total",
-        value=len(executions),
+        len(executions),
         query_type=query_type,
     )
     return {

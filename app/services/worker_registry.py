@@ -75,7 +75,30 @@ def register_worker(
         worker.generation = int(worker.generation or 0) + 1
         worker.launcher_process_id = None
     worker.heartbeat_at = registered_at
+    worker.control_loop_heartbeat_at = registered_at
     worker.stopping_at = None
+    db.flush()
+    return worker
+
+
+def heartbeat_worker_control_loop(
+    db: Session,
+    worker_id: str,
+    *,
+    instance_id: str | None = None,
+    now: datetime | None = None,
+) -> BackgroundWorker | None:
+    """Record functional claim-loop progress separately from the process heartbeat."""
+    if not isinstance(db, Session):
+        # Lightweight unit-test stores have no mapped registration; production
+        # workers always use a SQLAlchemy Session.
+        return None
+    worker = db.get(BackgroundWorker, worker_id)
+    if worker is None:
+        raise RuntimeError(f"worker {worker_id!r} is not registered")
+    if instance_id is not None and worker.instance_id != instance_id:
+        raise RuntimeError(f"worker registration {worker_id!r} is owned by another process")
+    worker.control_loop_heartbeat_at = now or datetime.now(UTC)
     db.flush()
     return worker
 

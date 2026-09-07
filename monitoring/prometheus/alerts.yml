@@ -1,6 +1,11 @@
 groups:
   - name: swinglens
     rules:
+      - alert: SwingLensWebMissing
+        expr: absent(up{job="swinglens-web"}) or max(up{job="swinglens-web"}) == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens web target and authoritative projections are missing" }
       - alert: SwingLensWorkerMissing
         expr: absent(up{job="swinglens-worker"}) or max(up{job="swinglens-worker"}) == 0 or max(swinglens_worker_up) == 0
         for: 1m
@@ -11,13 +16,28 @@ groups:
         for: 1m
         labels: { severity: critical }
         annotations: { summary: "SwingLens worker supervisor is missing" }
+      - alert: SwingLensWorkerControlLoopHung
+        expr: absent(swinglens_control_loop_up{process_role="worker"}) or max(swinglens_control_loop_up{process_role="worker"}) == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens worker claim loop stopped making progress" }
+      - alert: SwingLensSupervisorControlLoopHung
+        expr: absent(swinglens_control_loop_up{process_role="supervisor"}) or max(swinglens_control_loop_up{process_role="supervisor"}) == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens supervisor control loop stopped making progress" }
+      - alert: SwingLensSystemCollectorMissing
+        expr: absent(up{job="swinglens-web"}) or max(up{job="swinglens-web"}) == 0 or absent(swinglens_system_collector_up) or max(swinglens_system_collector_up) == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens authoritative system collector is missing" }
       - alert: SwingLensJobStalled
-        expr: sum(swinglens_jobs_stalled) > 0
+        expr: sum(swinglens_jobs_stalled) > 0 or absent(up{job="swinglens-web"})
         for: 1m
         labels: { severity: critical }
         annotations: { summary: "One or more jobs are stalled" }
       - alert: SwingLensQueueBacklog
-        expr: max(swinglens_queue_oldest_age_seconds) > 1800 or sum(swinglens_queue_depth{status="RUNNABLE"}) > 1000
+        expr: max(swinglens_queue_oldest_age_seconds) > 1800 or sum(swinglens_queue_depth{status="RUNNABLE"}) > 1000 or absent(up{job="swinglens-web"})
         for: 5m
         labels: { severity: warning }
         annotations: { summary: "SwingLens queue backlog crossed the conservative threshold" }
@@ -37,7 +57,7 @@ groups:
         labels: { severity: critical }
         annotations: { summary: "Worker memory is critical" }
       - alert: SwingLensDatabasePressure
-        expr: max(swinglens_db_pool_checked_out / clamp_min(swinglens_db_pool_size + swinglens_db_pool_overflow, 1)) > 0.95
+        expr: max(swinglens_db_pool_checked_out / clamp_min(swinglens_db_pool_capacity, 1)) > 0.95 or increase(swinglens_db_pool_timeouts_total[5m]) > 0 or histogram_quantile(0.95, sum by (le) (rate(swinglens_db_pool_wait_seconds_bucket[5m]))) > 1
         for: 2m
         labels: { severity: critical }
         annotations: { summary: "Database connection pool is under critical pressure" }
@@ -47,7 +67,7 @@ groups:
         labels: { severity: critical }
         annotations: { summary: "Critical SQL Flight Recorder telemetry was lost" }
       - alert: SwingLensDiskPressure
-        expr: min(swinglens_disk_free_bytes / clamp_min(swinglens_disk_total_bytes, 1)) < 0.05
+        expr: min(swinglens_disk_free_bytes / clamp_min(swinglens_disk_total_bytes, 1)) < 0.05 or absent(up{job="swinglens-web"})
         for: 5m
         labels: { severity: critical }
         annotations: { summary: "SwingLens disk free space is below 5%" }

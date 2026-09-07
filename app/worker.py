@@ -47,6 +47,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             signal.signal(supported_signal, request_shutdown)
 
     configure_json_logging("worker")
+    operational_metrics.configure(enabled=settings.observability_metrics_enabled)
     metrics_server = None
     sampler = None
     if settings.observability_metrics_enabled:
@@ -63,7 +64,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         run_worker(worker_id=args.worker_id, queues=args.queues, stop_event=stop_event)
     finally:
-        operational_metrics.set_gauge("swinglens_worker_up", 0, worker_id=args.worker_id)
+        if settings.observability_metrics_enabled:
+            operational_metrics.set_gauge("swinglens_worker_up", 0, worker_id=args.worker_id)
         if sampler is not None:
             sampler.stop()
         if metrics_server is not None:

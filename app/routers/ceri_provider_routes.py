@@ -13,6 +13,7 @@ from app.services.ceri.validation_service import (
     DEFAULT_VALIDATION_SAMPLE,
     CeriProviderValidationService,
 )
+from app.services.redaction import redact_text
 
 
 def _require_ceri_provider_ui(request: Request) -> None:
@@ -39,12 +40,12 @@ def ceri_provider_health() -> dict[str, Any]:
                     "healthy": False,
                     "checked_at": None,
                     "quota_status": None,
-                    "message": str(exc),
+                    "message": redact_text(str(exc)),
                     "capabilities": [],
                     "datasets": [],
                     "error": {
                         "code": "PROVIDER_CAPABILITY_UNAVAILABLE",
-                        "message": str(exc),
+                        "message": redact_text(str(exc)),
                     },
                 }
             )
@@ -88,7 +89,7 @@ def ceri_provider_validate(
     try:
         provider = registry.get(provider_name)
     except CeriProviderRegistryError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=redact_text(str(exc))) from exc
     requested = payload.get("tickers")
     if requested is None:
         tickers = DEFAULT_VALIDATION_SAMPLE

@@ -13,10 +13,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from alembic import command
+from app.models.ceri_tables import CeriProcessingRun
+from app.models.ib_market_intelligence_tables import IBIntelligenceRun
 from app.models.tables import (
     BackgroundJob,
     BackgroundJobEnqueueAttempt,
     BackgroundJobFanoutRoot,
+    TechnicalFeatureArtifact,
 )
 from app.observability.correlation import root_action_scope, worker_job_scope
 from app.observability.metrics import operational_metrics
@@ -26,12 +29,15 @@ from app.services.background_job_service import (
     mark_job_completed,
     mark_job_failed_or_retry,
 )
+from app.services.cleanup_service import execute_durable_evidence_retention
 from app.services.operations_service import OperationsService
+from app.services.readiness_service import ReadinessService
 from app.services.winner_probability.job_handlers import WINNER_OUTCOME_MATURATION
 from app.services.winner_probability.scheduler import schedule_primary_h5_maturation
 from app.services.winner_probability.trading_session_service import (
     latest_completed_session,
 )
+from app.settings import get_settings
 
 pytestmark = pytest.mark.integration
 
@@ -49,7 +55,7 @@ def remediated_postgres(disposable_postgres_database_factory) -> Iterator:
                 assert str(database_name).startswith("swinglens_pytest_")
                 assert connection.execute(
                     text("select version_num from alembic_version")
-                ).scalar() == ("0065_observability_remediation")
+                    ).scalar() == ("0066_obs_review2_liveness")
             yield engine
         finally:
             engine.dispose()
@@ -117,6 +123,105 @@ def test_postgresql_rollback_discards_state_and_commit_metric(remediated_postgre
         )
         == 1
     )
+
+
+def test_postgresql_final_persistence_boundary_redacts_all_error_families(
+    remediated_postgres,
+) -> None:
+    secret = "password=SECRET Authorization: Bearer SECRET"
+    with Session(remediated_postgres) as session:
+        job = _job("OBS_REDACTION", "obs-redaction-job", JobStatus.FAILED)
+        job.error_message = secret
+        job.result_json = {"error": secret, "nested": {"client_secret": "SECRET"}}
+        ceri = CeriProcessingRun(
+            job_type="OBS_REDACTION",
+            deterministic_request_key="obs-redaction-ceri",
+            errors_json={"error": secret},
+        )
+        ibmi = IBIntelligenceRun(
+            job_type="OBS_REDACTION",
+            module="OBS",
+            status="FAILED",
+            deterministic_request_key="obs-redaction-ibmi",
+            config_version="test",
+            config_hash="test",
+            error_message=secret,
+        )
+        technical = TechnicalFeatureArtifact(
+            ticker="OBS",
+            timeframe="1 day",
+            artifact_kind="LOCAL",
+            input_signature="obs-redaction",
+            artifact_schema_version="test",
+            technical_engine_version="test",
+            feature_config_hash="test",
+            scoring_config_hash="test",
+            input_versions_json={},
+            artifact_json={},
+            status="READY",
+            last_shadow_mismatch_json={"error": secret},
+        )
+        session.add_all((job, ceri, ibmi, technical))
+        session.commit()
+        rendered = repr(
+            (
+                job.error_message,
+                job.result_json,
+                ceri.errors_json,
+                ibmi.error_message,
+                technical.last_shadow_mismatch_json,
+            )
+        )
+        assert "SECRET" not in rendered
+
+
+def test_postgresql_ib_readiness_is_workload_aware(remediated_postgres) -> None:
+    settings = get_settings().model_copy(update={"observability_ib_required": False})
+    unavailable = ReadinessService(
+        engine=remediated_postgres,
+        settings=settings,
+        ib_available=False,
+    )
+    assert unavailable._ib_check().status == "optional_unavailable"
+
+    with Session(remediated_postgres) as session:
+        required_job = _job("FULL_PIPELINE", "obs-ib-required", JobStatus.QUEUED)
+        required_job.run_after = unavailable.now - timedelta(seconds=1)
+        session.add(required_job)
+        session.commit()
+    assert unavailable._ib_check().message == "required_unavailable:runnable_work"
+    available = ReadinessService(
+        engine=remediated_postgres,
+        settings=settings,
+        ib_available=True,
+    )
+    assert available._ib_check().status == "ok"
+
+
+def test_metrics_off_retention_prunes_postgresql_evidence(remediated_postgres) -> None:
+    operational_metrics.configure(enabled=False)
+    with Session(remediated_postgres) as session:
+        with root_action_scope("ADMINISTRATIVE", "metrics-off-retention"):
+            enqueue_job(
+                session,
+                "OBS_RETENTION",
+                {},
+                request_key="obs-metrics-off-retention",
+            )
+        session.commit()
+        old = datetime.now(UTC) - timedelta(days=60)
+        for attempt in session.scalars(select(BackgroundJobEnqueueAttempt)).all():
+            attempt.occurred_at = old
+        for root in session.scalars(select(BackgroundJobFanoutRoot)).all():
+            root.last_occurred_at = old
+        session.commit()
+
+        result = execute_durable_evidence_retention(session, get_settings())
+        session.commit()
+        assert result == {"attempts": 1, "roots": 1}
+        assert session.scalar(select(func.count()).select_from(BackgroundJobEnqueueAttempt)) == 0
+        assert session.scalar(select(func.count()).select_from(BackgroundJobFanoutRoot)) == 0
+    assert operational_metrics.samples() == []
 
 
 @pytest.mark.parametrize(
@@ -225,7 +330,7 @@ def test_independent_transaction_recovering_race_is_fenced(remediated_postgres) 
 
 
 @pytest.mark.destructive
-def test_migration_0065_downgrade_and_reupgrade_are_consistent(
+def test_migration_0066_downgrade_and_reupgrade_are_consistent(
     disposable_postgres_database_factory,
 ) -> None:
     with disposable_postgres_database_factory() as database_url:
@@ -252,7 +357,7 @@ def test_migration_0065_downgrade_and_reupgrade_are_consistent(
             command.upgrade(config, "head")
             with engine.connect() as connection:
                 assert connection.scalar(text("select version_num from alembic_version")) == (
-                    "0065_observability_remediation"
+                    "0066_obs_review2_liveness"
                 )
                 assert connection.scalar(
                     text("select to_regclass('public.background_job_fanout_roots')")
@@ -264,6 +369,13 @@ def test_migration_0065_downgrade_and_reupgrade_are_consistent(
                     )
                 )
                 assert "RECOVERING" in str(active_predicate)
+                assert connection.scalar(
+                    text(
+                        "select count(*) from information_schema.columns "
+                        "where table_name in ('background_workers','background_supervisors') "
+                        "and column_name='control_loop_heartbeat_at'"
+                    )
+                ) == 2
         finally:
             engine.dispose()
 
@@ -328,6 +440,81 @@ def test_winner_idle_polling_has_stable_evidence_and_next_day_schedules(
             session.scalar(select(func.count()).select_from(BackgroundJobFanoutRoot))
             == before[2] + 1
         )
+
+
+def test_winner_every_edge_status_and_two_pollers_have_zero_idle_evidence_delta(
+    remediated_postgres,
+) -> None:
+    observed = datetime(2026, 9, 8, 23, 0, tzinfo=UTC)
+    completed_session = latest_completed_session(observed)
+    request_key = f"winner:h5-next-open:session:{completed_session.isoformat()}"
+    statuses = (
+        "QUEUED",
+        "RUNNING",
+        "COMPLETED",
+        "PARTIAL",
+        "FAILED",
+        "BLOCKED",
+        "RECOVERING",
+        "STALLED",
+        "CANCELLED",
+        "STALE",
+    )
+    for status in statuses:
+        with Session(remediated_postgres) as session:
+            row = _job(WINNER_OUTCOME_MATURATION, request_key, status)
+            session.add(row)
+            session.commit()
+            before = (
+                session.scalar(select(func.count()).select_from(BackgroundJob)),
+                session.scalar(select(func.count()).select_from(BackgroundJobEnqueueAttempt)),
+                session.scalar(select(func.count()).select_from(BackgroundJobFanoutRoot)),
+            )
+            for _ in range(2_000):
+                assert schedule_primary_h5_maturation(session, now=observed).id == row.id
+            session.commit()
+            after = (
+                session.scalar(select(func.count()).select_from(BackgroundJob)),
+                session.scalar(select(func.count()).select_from(BackgroundJobEnqueueAttempt)),
+                session.scalar(select(func.count()).select_from(BackgroundJobFanoutRoot)),
+            )
+            assert after == before
+            print(f"WINNER-IDLE status={status} deltas=jobs:0,attempts:0,roots:0")
+            session.delete(row)
+            session.commit()
+
+    with Session(remediated_postgres) as session:
+        prior = _job(
+            WINNER_OUTCOME_MATURATION,
+            "winner:h5-next-open:session:2026-09-04",
+            JobStatus.RUNNING,
+        )
+        session.add(prior)
+        session.commit()
+        prior_id = prior.id
+        before = session.scalar(select(func.count()).select_from(BackgroundJob))
+        assert schedule_primary_h5_maturation(session, now=observed).id == prior_id
+        session.commit()
+        assert session.scalar(select(func.count()).select_from(BackgroundJob)) == before
+
+    failures: list[Exception] = []
+
+    def poll() -> None:
+        try:
+            with Session(remediated_postgres) as session:
+                for _ in range(1_000):
+                    assert schedule_primary_h5_maturation(session, now=observed).id == prior_id
+        except Exception as exc:
+            failures.append(exc)
+
+    first = Thread(target=poll)
+    second = Thread(target=poll)
+    first.start()
+    second.start()
+    first.join(30)
+    second.join(30)
+    assert not first.is_alive() and not second.is_alive()
+    assert failures == []
 
 
 def test_per_root_fanout_counts_created_coalesced_and_depth(remediated_postgres) -> None:

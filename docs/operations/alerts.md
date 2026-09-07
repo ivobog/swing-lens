@@ -6,14 +6,18 @@ can be added later without application changes.
 
 | Alert | Default condition | Hold | Operator response |
 | --- | --- | ---: | --- |
+| `SwingLensWebMissing` | Web scrape target absent/down | 1m | Restore the web process; queue, stall, disk, DB and system-collector projections are not authoritative while it is absent. |
 | `SwingLensWorkerMissing` | Worker scrape target absent/down or all `worker_up` zero | 1m | Inspect supervisor and worker JSON logs, then causality for interrupted work. |
 | `SwingLensSupervisorMissing` | Supervisor target absent/down or supervisor gauge zero | 1m | Check web child-process manager and supervisor registration. |
+| `SwingLensWorkerControlLoopHung` | Worker process is present but the durable claim-loop heartbeat is absent/stale | 1m | Inspect the worker stack, DB wait state and current job before restarting it. |
+| `SwingLensSupervisorControlLoopHung` | Supervisor process is present but its supervision loop is absent/stale | 1m | Inspect supervisor logs and registration before intervening. |
+| `SwingLensSystemCollectorMissing` | Web target or authoritative system collector is absent/down | 1m | Treat queue, stall, disk and DB projections as unavailable and restore the collector. |
 | `SwingLensJobStalled` | Any stalled-job gauge is nonzero | 1m | Open Operations, inspect progress age and root tree. |
 | `SwingLensQueueBacklog` | Oldest item over 1800s or queued depth over 1000 | 5m | Identify queue class, worker health, and provider/DB pressure. |
 | `SwingLensJobFanoutAnomaly` | A per-root rollup crosses its workflow-family descendant or depth threshold | 2m | Inspect that exact root's created, coalesced, rejected, descendant and depth evidence in PostgreSQL. No work is auto-cancelled. |
 | `SwingLensRepeatedJobFailures` | More than 3 failures for a job type in 15m | 2m | Follow the root and inspect redacted failure events. |
 | `SwingLensWorkerMemoryCritical` | Worker memory status is `CRITICAL` | 1m | Let supervisor fencing/recovery complete; inspect workload and memory checkpoints. |
-| `SwingLensDatabasePressure` | Checked-out connections exceed 95% of pool plus overflow | 2m | Inspect pool wait, slow queries, long transactions, then the Flight Recorder. |
+| `SwingLensDatabasePressure` | Checked-out connections exceed 95% of configured base-plus-overflow capacity, a timeout occurs, or p95 wait exceeds 1s | 2m | Inspect pool wait, slow queries, long transactions, then the Flight Recorder. Base-pool saturation alone is not critical while configured overflow remains. |
 | `SwingLensCriticalTelemetryLoss` | Any P0 drop or writer error in 5m | immediate | Protect disk capacity and inspect writer state; P0 evidence loss is readiness-impacting. |
 | `SwingLensDiskPressure` | Any monitored path has under 5% free | 5m | Free/extend storage without deleting current forensic evidence blindly. |
 
@@ -30,7 +34,10 @@ Useful checks:
 docker compose -f docker-compose.observability.yml config
 docker run --rm -v "${PWD}/monitoring/prometheus:/etc/prometheus:ro" `
   prom/prometheus:v3.5.0 promtool check config /etc/prometheus/prometheus.yml
+docker run --rm --entrypoint promtool -v "${PWD}/monitoring/prometheus:/work" `
+  prom/prometheus:v3.5.0 test rules /work/review2_alert_tests.yml
 ```
 
-The second command requires a running Docker engine. Unit tests always verify the exact ten rule
-names and reject forbidden high-cardinality matchers.
+The Docker commands require a running engine. The rule test injects loss of each target, frozen
+worker/supervisor loops, a frozen system collector, configured-capacity exhaustion, timeout, and
+pool-wait pressure using Prometheus' real rule evaluator.

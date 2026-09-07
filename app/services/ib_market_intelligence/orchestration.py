@@ -7,7 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.models.ib_market_intelligence_tables import (
     IBFlexImportRun,
@@ -22,6 +22,7 @@ from app.models.ib_market_intelligence_tables import (
     IBScannerRun,
 )
 from app.models.tables import BackgroundJob, PriceBar
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import is_cancel_requested
 from app.services.background_worker import CancelRequested
 from app.services.ib_connection import create_ib_client
@@ -295,7 +296,7 @@ def execute_historical_refresh(
                         counts["failed"] += 1
                         run.warning_flags_json = [
                             *run.warning_flags_json,
-                            f"{ticker}:{metric.value}:{str(exc)[:160]}",
+                            f"{ticker}:{metric.value}:{redact_text(str(exc))[:160]}",
                         ]
                         checkpoint.update({"phase": "retry_pending", "counts": counts})
                         _checkpoint(db, job, run, checkpoint)
@@ -1208,7 +1209,7 @@ def _finish_run(
 ) -> None:
     run.status = status.value
     run.counts_json = counts
-    run.error_message = error[:2000] if error else None
+    run.error_message = redact_text(error)[:2000] if error else None
     run.completed_at = datetime.now(UTC)
     db.flush()
 
@@ -1250,7 +1251,9 @@ def _start_request_item(
     )
     db.add(item)
     db.flush()
-    operational_metrics.increment(
+    publish_after_commit(
+        db,
+        "increment",
         "swinglens_ibmi_requests_total",
         module=run.module,
         request_family=request_family,
@@ -1270,14 +1273,18 @@ def _finish_request_item(
     item.status = status
     item.availability_status = str(availability)
     item.result_counts_json = result_counts or {}
-    item.error_message = error[:1000] if error else None
+    item.error_message = redact_text(error)[:1000] if error else None
     item.completed_at = datetime.now(UTC)
     if str(availability) == AvailabilityStatus.SUBSCRIPTION_REQUIRED:
-        operational_metrics.increment(
-            "swinglens_ibmi_subscription_required_total",
-            request_family=item.request_family,
-            request_type=item.request_type,
-        )
+        session = object_session(item)
+        if session is not None:
+            publish_after_commit(
+                session,
+                "increment",
+                "swinglens_ibmi_subscription_required_total",
+                request_family=item.request_family,
+                request_type=item.request_type,
+            )
 
 
 def _checkpoint(

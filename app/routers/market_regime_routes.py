@@ -20,6 +20,7 @@ from app.services.market_regime_export_service import (
 )
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.ranking_profile_service import get_ranking_profiles
+from app.services.redaction import redact_text
 from app.templates import templates
 
 router = APIRouter(tags=["market-regime"])
@@ -130,7 +131,7 @@ def recalculate_run_market_regime_api(run_id: int, db: DbSession) -> dict:
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=redact_text(str(exc))) from exc
     except Exception:
         db.rollback()
         raise

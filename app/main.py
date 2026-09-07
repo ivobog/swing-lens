@@ -13,6 +13,7 @@ from app.observability.db_monitor import (
     DatabaseHealthSampler,
     DatabaseMonitorMiddleware,
 )
+from app.observability.metrics import operational_metrics
 from app.observability.resource_sampler import ResourceSampler, SystemMetricsCollector
 from app.routers import (
     ceri_provider_routes,
@@ -68,15 +69,19 @@ def _introspection_routes(routes: list[BaseRoute]) -> list[BaseRoute]:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     worker_settings: Settings = app.state.settings
+    operational_metrics.configure(enabled=worker_settings.observability_metrics_enabled)
     database_health_sampler = DatabaseHealthSampler(worker_settings)
     database_health_sampler.start()
-    resource_sampler = ResourceSampler(
-        process_role="web",
-        interval_seconds=worker_settings.observability_collection_interval_seconds,
-    )
-    system_metrics = SystemMetricsCollector(engine, worker_settings)
-    resource_sampler.start()
-    system_metrics.start()
+    resource_sampler = None
+    system_metrics = None
+    if worker_settings.observability_metrics_enabled:
+        resource_sampler = ResourceSampler(
+            process_role="web",
+            interval_seconds=worker_settings.observability_collection_interval_seconds,
+        )
+        system_metrics = SystemMetricsCollector(engine, worker_settings)
+        resource_sampler.start()
+        system_metrics.start()
     supervisor_manager: SupervisorProcessManager | None = None
     if worker_settings.job_worker_enabled:
         supervisor_manager = SupervisorProcessManager(worker_settings)
@@ -92,8 +97,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         if supervisor_manager is not None:
             supervisor_manager.stop()
-        system_metrics.stop()
-        resource_sampler.stop()
+        if system_metrics is not None:
+            system_metrics.stop()
+        if resource_sampler is not None:
+            resource_sampler.stop()
         database_health_sampler.stop()
 
 

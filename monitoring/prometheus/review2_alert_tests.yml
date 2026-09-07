@@ -1,0 +1,196 @@
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: web target disappears
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensWebMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, job: swinglens-web }
+            exp_annotations: { summary: "SwingLens web target and authoritative projections are missing" }
+
+  - name: worker target disappears
+    interval: 1m
+    input_series:
+      - series: 'up{job="swinglens-web"}'
+        values: '1+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensWorkerMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, job: swinglens-worker }
+            exp_annotations: { summary: "SwingLens durable worker is missing" }
+
+  - name: supervisor target disappears
+    interval: 1m
+    input_series:
+      - series: 'up{job="swinglens-web"}'
+        values: '1+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensSupervisorMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, job: swinglens-supervisor }
+            exp_annotations: { summary: "SwingLens worker supervisor is missing" }
+
+  - name: worker claim loop freezes while process remains up
+    interval: 1m
+    input_series:
+      - series: 'up{job="swinglens-worker"}'
+        values: '1+0x3'
+      - series: 'swinglens_worker_up{worker_id="worker-1"}'
+        values: '1+0x3'
+      - series: 'swinglens_control_loop_up{process_role="worker"}'
+        values: '0+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensWorkerControlLoopHung
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations: { summary: "SwingLens worker claim loop stopped making progress" }
+
+  - name: supervisor loop freezes while process remains up
+    interval: 1m
+    input_series:
+      - series: 'up{job="swinglens-supervisor"}'
+        values: '1+0x3'
+      - series: 'swinglens_supervisor_up'
+        values: '1+0x3'
+      - series: 'swinglens_control_loop_up{process_role="supervisor"}'
+        values: '0+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensSupervisorControlLoopHung
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations: { summary: "SwingLens supervisor control loop stopped making progress" }
+
+  - name: system collector freezes while web remains up
+    interval: 1m
+    input_series:
+      - series: 'up{job="swinglens-web"}'
+        values: '1+0x3'
+      - series: 'swinglens_system_collector_up'
+        values: '0+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensSystemCollectorMissing
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations: { summary: "SwingLens authoritative system collector is missing" }
+
+  - name: database capacity has unused configured overflow
+    interval: 1m
+    input_series:
+      - series: 'swinglens_db_pool_checked_out'
+        values: '10+0x3'
+      - series: 'swinglens_db_pool_capacity'
+        values: '20+0x3'
+      - series: 'swinglens_db_pool_timeouts_total'
+        values: '0+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensDatabasePressure
+        exp_alerts: []
+
+  - name: database base pool is empty
+    interval: 1m
+    input_series:
+      - series: 'swinglens_db_pool_checked_out'
+        values: '0+0x3'
+      - series: 'swinglens_db_pool_capacity'
+        values: '20+0x3'
+      - series: 'swinglens_db_pool_timeouts_total'
+        values: '0+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensDatabasePressure
+        exp_alerts: []
+
+  - name: database base pool is partially used
+    interval: 1m
+    input_series:
+      - series: 'swinglens_db_pool_checked_out'
+        values: '5+0x3'
+      - series: 'swinglens_db_pool_capacity'
+        values: '20+0x3'
+      - series: 'swinglens_db_pool_timeouts_total'
+        values: '0+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensDatabasePressure
+        exp_alerts: []
+
+  - name: database overflow is in use but capacity remains
+    interval: 1m
+    input_series:
+      - series: 'swinglens_db_pool_checked_out'
+        values: '12+0x3'
+      - series: 'swinglens_db_pool_capacity'
+        values: '20+0x3'
+      - series: 'swinglens_db_pool_timeouts_total'
+        values: '0+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SwingLensDatabasePressure
+        exp_alerts: []
+
+  - name: database configured capacity is exhausted
+    interval: 1m
+    input_series:
+      - series: 'swinglens_db_pool_checked_out'
+        values: '20+0x4'
+      - series: 'swinglens_db_pool_capacity'
+        values: '20+0x4'
+      - series: 'swinglens_db_pool_timeouts_total'
+        values: '0+0x4'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SwingLensDatabasePressure
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations: { summary: "Database connection pool is under critical pressure" }
+
+  - name: database pool timeout is observed
+    interval: 1m
+    input_series:
+      - series: 'swinglens_db_pool_checked_out'
+        values: '0+0x7'
+      - series: 'swinglens_db_pool_capacity'
+        values: '20+0x7'
+      - series: 'swinglens_db_pool_timeouts_total'
+        values: '0+1x7'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: SwingLensDatabasePressure
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations: { summary: "Database connection pool is under critical pressure" }
+
+  - name: database p95 pool wait increases above one second
+    interval: 1m
+    input_series:
+      - series: 'swinglens_db_pool_checked_out'
+        values: '0+0x7'
+      - series: 'swinglens_db_pool_capacity'
+        values: '20+0x7'
+      - series: 'swinglens_db_pool_timeouts_total'
+        values: '0+0x7'
+      - series: 'swinglens_db_pool_wait_seconds_bucket{le="0.5"}'
+        values: '0+0x7'
+      - series: 'swinglens_db_pool_wait_seconds_bucket{le="1.0"}'
+        values: '0+0x7'
+      - series: 'swinglens_db_pool_wait_seconds_bucket{le="2.0"}'
+        values: '0+60x7'
+      - series: 'swinglens_db_pool_wait_seconds_bucket{le="+Inf"}'
+        values: '0+60x7'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: SwingLensDatabasePressure
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations: { summary: "Database connection pool is under critical pressure" }

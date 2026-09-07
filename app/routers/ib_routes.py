@@ -11,6 +11,7 @@ from app.services.ib_connection import check_ib_connection, create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import build_fetch_plan
+from app.services.redaction import redact_text
 from app.settings import get_settings
 from app.templates import templates
 
@@ -104,7 +105,7 @@ def resolve_ticker(ticker: str, db: DbSession, force_refresh: bool = False) -> d
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(status_code=502, detail=redact_text(str(exc))) from exc
     finally:
         if ib.isConnected():
             ib.disconnect()
@@ -155,7 +156,7 @@ def fetch_bars(
         )
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(status_code=502, detail=redact_text(str(exc))) from exc
 
     return {
         "fetch_run_id": fetch_run.id,

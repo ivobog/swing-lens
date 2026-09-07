@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from app.services.pipeline_baseline import normalize_parity_payload
+from app.services.redaction import redact_text
 
 PARITY_SCHEMA_VERSION = "dual-stream-parity-v1"
 
@@ -134,7 +135,7 @@ class DualStreamParityEvaluator:
                 case_id=case.case_id,
                 category=case.category,
                 passed=False,
-                error=str(exc).replace("\n", " ")[:500],
+                error=redact_text(str(exc)).replace("\n", " ")[:500],
             )
 
         differences = tuple(

@@ -9,7 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob, UploadRun
-from app.services.background_job_service import TERMINAL_JOB_STATUSES
+from app.services.background_job_service import (
+    TERMINAL_JOB_STATUSES,
+    prune_enqueue_attempt_evidence,
+)
+from app.services.redaction import redact_text
 from app.settings import Settings
 
 
@@ -105,7 +109,9 @@ def cleanup_rebuildable_artifacts(
                     db.delete(job)
                 deleted.append(candidate)
         except OSError as exc:
-            errors.append({"identifier": candidate.identifier, "message": str(exc)})
+            errors.append(
+                {"identifier": candidate.identifier, "message": redact_text(str(exc))}
+            )
 
     flush = getattr(db, "flush", None)
     if callable(flush):
@@ -123,7 +129,17 @@ def preview_cleanup(db: Session, settings: Settings) -> dict[str, Any]:
 
 
 def execute_cleanup(db: Session, settings: Settings) -> dict[str, Any]:
-    return cleanup_rebuildable_artifacts(db, settings, dry_run=False).to_dict()
+    report = cleanup_rebuildable_artifacts(db, settings, dry_run=False).to_dict()
+    report["durable_observability_evidence"] = execute_durable_evidence_retention(db, settings)
+    return report
+
+
+def execute_durable_evidence_retention(db: Session, settings: Settings) -> dict[str, int]:
+    """Prune durable causality evidence independently of Prometheus collection."""
+    return prune_enqueue_attempt_evidence(
+        db,
+        retention_days=settings.observability_enqueue_attempt_retention_days,
+    )
 
 
 def _file_candidates(

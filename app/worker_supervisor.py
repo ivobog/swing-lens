@@ -71,6 +71,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             signal.signal(value, request_stop)
 
     configure_json_logging("supervisor")
+    operational_metrics.configure(enabled=settings.observability_metrics_enabled)
     metrics_server = None
     sampler = None
     if settings.observability_metrics_enabled:

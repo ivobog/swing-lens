@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     observability_db_pool_wait_warning_seconds: float = Field(default=1.0, ge=0)
     observability_ib_required: bool = False
     observability_enqueue_attempt_retention_days: int = Field(default=30, ge=1, le=365)
+    observability_evidence_cleanup_interval_seconds: int = Field(
+        default=3600, ge=60, le=86400
+    )
     observability_operations_window_hours: int = Field(default=24, ge=1, le=168)
     observability_operations_root_scan_limit: int = Field(default=5000, ge=100, le=50000)
     observability_operations_provider_sample_limit: int = Field(default=10000, ge=100, le=50000)

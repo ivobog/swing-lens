@@ -18,6 +18,7 @@ from app.models.tables import (
 )
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
+from app.services.redaction import redact_text
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.sector_rotation_export_service import (
     export_sector_rotation_csv,
@@ -98,7 +99,7 @@ def recalculate_run_sector_rotation_api(run_id: int, db: DbSession) -> dict:
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=redact_text(str(exc))) from exc
     except Exception:
         db.rollback()
         raise

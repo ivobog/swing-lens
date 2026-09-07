@@ -1684,6 +1684,9 @@ class BackgroundWorker(Base):
     resource_collector_heartbeat_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), deferred=True, server_default=text("NULL")
     )
+    control_loop_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), deferred=True, server_default=text("NULL")
+    )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -1723,6 +1726,9 @@ class BackgroundSupervisor(Base):
         Text, deferred=True, server_default=text("NULL")
     )
     resource_collector_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), deferred=True, server_default=text("NULL")
+    )
+    control_loop_heartbeat_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), deferred=True, server_default=text("NULL")
     )
     started_at: Mapped[datetime] = mapped_column(
