@@ -201,6 +201,8 @@ class IBIntelligenceFeature(Base):
     ib_conid: Mapped[int | None] = mapped_column(BigInteger)
     as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
     calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calendar_version: Mapped[str | None] = mapped_column(Text)
     module: Mapped[str] = mapped_column(Text, nullable=False)
     classification: Mapped[str] = mapped_column(Text, nullable=False)
     score: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
@@ -399,9 +401,7 @@ class IBExecutionFill(Base):
             "uq_ib_execution_active_external",
             "external_execution_id",
             unique=True,
-            postgresql_where=text(
-                "external_execution_id IS NOT NULL AND is_superseded = false"
-            ),
+            postgresql_where=text("external_execution_id IS NOT NULL AND is_superseded = false"),
         ),
     )
 

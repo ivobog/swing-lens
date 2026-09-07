@@ -38,6 +38,7 @@ CLOSED_LABEL_VALUES: dict[str, frozenset[str]] = {
             "invalid", "hit", "miss", "match", "mismatch", "empty", "malformed",
             "inserted", "corrected", "deduplicated", "quarantined", "completed",
             "partial", "cancelled", "shadow_miss", "shadow_candidate",
+            "shifted_to_next_session",
         }
     ),
 }
@@ -66,6 +67,7 @@ BOUNDED_LABEL_LIMITS: dict[str, int] = {
     "scanner": 32,
     "schema_id": 32,
     "scope": 32,
+    "source": 16,
     "trigger_source": 16,
     "weight": 16,
 }
@@ -256,6 +258,18 @@ DEFINITIONS: dict[str, MetricDefinition] = {
         "Technical overlap market rescores."
     ),
     "swinglens_technical_overlap_tickers_total": _counter("Technical overlap tickers."),
+    "swinglens_technical_source_session_lag": _histogram(
+        "Technical source lag measured in exchange sessions.",
+        ("source",),
+        buckets=(0, 1, 2, 3, 5, 10, 20, 50, 100, 250, 500, 1000, 2500),
+        unit="sessions",
+    ),
+    "swinglens_technical_scores_temporally_degraded_total": _counter(
+        "Technical scores calculated with at least one explicitly lagged source."
+    ),
+    "swinglens_market_calculation_cutoffs_total": _counter(
+        "Frozen market calculation cutoffs created.", ("scope",)
+    ),
     "swinglens_provider_requests_total": _counter(
         "Provider request calls.", ("provider", "result")
     ),
@@ -307,6 +321,9 @@ DEFINITIONS: dict[str, MetricDefinition] = {
         "CERI normalization outcomes.", ("dataset", "result")
     ),
     "swinglens_ceri_feature_rebuild_total": _counter("CERI feature rebuild outcomes.", ("result",)),
+    "swinglens_ceri_reaction_sessions_total": _counter(
+        "CERI daily-bar causal reaction-session decisions.", ("result",)
+    ),
     "swinglens_ceri_scoring_total": _counter("CERI scoring outcomes.", ("result",)),
     "swinglens_ceri_purge_previews_total": _counter(
         "CERI purge previews.", ("provider", "license_scope")

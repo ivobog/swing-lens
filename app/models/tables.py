@@ -430,6 +430,12 @@ class TechnicalScore(Base):
         nullable=False,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="SET NULL"), nullable=True
+    )
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    input_as_of_session: Mapped[date | None] = mapped_column(Date)
+    calendar_version: Mapped[str | None] = mapped_column(String(64))
     trend_score: Mapped[Decimal | None] = mapped_column(Numeric)
     local_trend_score: Mapped[Decimal | None] = mapped_column(Numeric)
     momentum_score: Mapped[Decimal | None] = mapped_column(Numeric)
@@ -715,6 +721,12 @@ class MarketRegimeSnapshot(Base):
         nullable=True,
     )
     as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="SET NULL"), nullable=True
+    )
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    input_as_of_session: Mapped[date | None] = mapped_column(Date)
+    calendar_version: Mapped[str | None] = mapped_column(String(64))
     calculation_version: Mapped[str] = mapped_column(String(32), nullable=False)
     config_version: Mapped[str | None] = mapped_column(String(64))
     regime: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -874,6 +886,12 @@ class SectorRotationSnapshot(Base):
         nullable=True,
     )
     as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="SET NULL"), nullable=True
+    )
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    input_as_of_session: Mapped[date | None] = mapped_column(Date)
+    calendar_version: Mapped[str | None] = mapped_column(String(64))
     calculation_version: Mapped[str] = mapped_column(String(32), nullable=False)
     config_version: Mapped[str | None] = mapped_column(String(32))
     config_hash: Mapped[str | None] = mapped_column(String(64))
@@ -1337,6 +1355,9 @@ class PipelineRun(Base):
         cascade="all, delete-orphan",
         order_by="PipelineStep.step_order",
     )
+    market_calculation_context: Mapped["MarketCalculationContext | None"] = relationship(
+        back_populates="pipeline_run", uselist=False, cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("idx_pipeline_runs_upload_run_id", "upload_run_id"),
@@ -1706,6 +1727,41 @@ class BackgroundWorker(Base):
     )
 
     __table_args__ = (Index("idx_background_workers_heartbeat", "heartbeat_at"),)
+
+
+class MarketCalculationContext(Base):
+    __tablename__ = "market_calculation_contexts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="CASCADE"), nullable=True, unique=True
+    )
+    upload_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    exchange_timezone: Mapped[str] = mapped_column(String(64), nullable=False)
+    latest_completed_session: Mapped[date] = mapped_column(Date, nullable=False)
+    daily_bar_ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calendar_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    bar_readiness_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    cutoff_reason: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    pipeline_run: Mapped[PipelineRun | None] = relationship(
+        back_populates="market_calculation_context"
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_market_calculation_contexts_upload_session",
+            "upload_run_id",
+            "latest_completed_session",
+        ),
+        Index("idx_market_calculation_contexts_cutoff", "cutoff_at"),
+    )
 
 
 class BackgroundSupervisor(Base):
@@ -3449,6 +3505,12 @@ class SetupSignalSnapshot(Base):
     sector: Mapped[str | None] = mapped_column(Text)
     timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
     data_as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="SET NULL"), nullable=True
+    )
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    input_as_of_session: Mapped[date | None] = mapped_column(Date)
+    calendar_version: Mapped[str | None] = mapped_column(String(64))
     calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
