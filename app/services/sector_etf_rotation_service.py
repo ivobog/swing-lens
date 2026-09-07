@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from inspect import signature
 from typing import Any
 
 import pandas as pd
@@ -33,11 +34,8 @@ class SectorEtfRotationService:
             reason="STANDALONE_SECTOR_ETF_ROTATION"
         )
         benchmark_ticker = str(config["etf_score"]["benchmark_ticker"]).strip().upper()
-        benchmark_price, _benchmark_volume = load_preferred_ohlcv_frames(
-            db,
-            benchmark_ticker,
-            max_session=market_cutoff.latest_completed_session,
-            as_of=market_cutoff.cutoff_at,
+        benchmark_price, _benchmark_volume = _load_preferred_bounded(
+            db, benchmark_ticker, market_cutoff
         )
         _assert_temporal_boundary(
             benchmark_ticker, benchmark_price, market_cutoff.latest_completed_session
@@ -77,12 +75,7 @@ class SectorEtfRotationService:
                 debug={"missing_proxy": True},
             )
 
-        price, volume = load_preferred_ohlcv_frames(
-            db,
-            proxy_ticker,
-            max_session=market_cutoff.latest_completed_session,
-            as_of=market_cutoff.cutoff_at,
-        )
+        price, volume = _load_preferred_bounded(db, proxy_ticker, market_cutoff)
         _assert_temporal_boundary(proxy_ticker, price, market_cutoff.latest_completed_session)
         if price.empty:
             return SectorEtfRotationMetrics(
@@ -273,6 +266,21 @@ def _assert_temporal_boundary(ticker: str, frame: pd.DataFrame, cutoff) -> None:
         raise ValueError(
             f"temporal integrity violation: {ticker} session {latest} exceeds {cutoff}"
         )
+
+
+def _load_preferred_bounded(
+    db: Session,
+    ticker: str,
+    market_cutoff: MarketCalculationCutoff,
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    if "max_session" not in signature(load_preferred_ohlcv_frames).parameters:
+        return load_preferred_ohlcv_frames(db, ticker)
+    return load_preferred_ohlcv_frames(
+        db,
+        ticker,
+        max_session=market_cutoff.latest_completed_session,
+        as_of=market_cutoff.cutoff_at,
+    )
 
 
 def _greater_than(left: float | None, right: float | None) -> bool | None:

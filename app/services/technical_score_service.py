@@ -120,7 +120,7 @@ def score_run_technicals(
     v4_params = load_technical_scoring_v4_config()
     v5_params = load_technical_scoring_v5_config()
     pine_params = load_pine_defaults()
-    benchmark_price = _load_price_frame(db, benchmark_ticker, market_cutoff=market_cutoff)
+    benchmark_price = _call_price_frame(db, benchmark_ticker, market_cutoff)
     market_features = _market_features(benchmark_price, benchmark_ticker)
     sector_price = _sector_benchmark_price(db, pine_params, market_cutoff=market_cutoff)
     qqq_market_features = _optional_market_features(
@@ -709,7 +709,7 @@ class TechnicalScoringOverlapCoordinator:
         return scores
 
     def _refresh_run_level_inputs(self) -> None:
-        self._benchmark_price = _load_price_frame(self.db, "SPY", market_cutoff=self.market_cutoff)
+        self._benchmark_price = _call_price_frame(self.db, "SPY", self.market_cutoff)
         self._market_features = _market_features(self._benchmark_price, "SPY")
         self._sector_price = _sector_benchmark_price(
             self.db, self.pine_params, market_cutoff=self.market_cutoff
@@ -722,9 +722,7 @@ class TechnicalScoringOverlapCoordinator:
         )
         market_regime_params = self.v4_params.get("market_regime_v4", {})
         if market_regime_params.get("use_qqq", True):
-            self._qqq_market_price = _load_price_frame(
-                self.db, "QQQ", market_cutoff=self.market_cutoff
-            )
+            self._qqq_market_price = _call_price_frame(self.db, "QQQ", self.market_cutoff)
             self._qqq_market_features = _market_features(
                 self._qqq_market_price,
                 "QQQ",
@@ -1534,7 +1532,7 @@ def _sector_benchmark_price(
     sector_symbol = str(market_rs.get("sectorSymbol") or "").strip().upper()
     if not sector_symbol:
         return None
-    return _load_price_frame(db, sector_symbol, market_cutoff=market_cutoff)
+    return _call_price_frame(db, sector_symbol, market_cutoff)
 
 
 def _technical_v5_run_context(
@@ -1566,12 +1564,7 @@ def _technical_v5_run_context(
             if resolution.status == "RESOLVED" and resolution.benchmark_symbol
         }
     ):
-        loader_parameters = signature(_load_price_frame).parameters
-        frame = (
-            _load_price_frame(db, symbol, market_cutoff=market_cutoff)
-            if "market_cutoff" in loader_parameters
-            else _load_price_frame(db, symbol)
-        )
+        frame = _call_price_frame(db, symbol, market_cutoff)
         features = _benchmark_roc_features(frame)
         if features:
             sector_features[symbol] = features
@@ -1686,6 +1679,15 @@ def _load_price_frame(
     return price
 
 
+def _call_price_frame(
+    db: Session, ticker: str, market_cutoff: MarketCalculationCutoff
+) -> pd.DataFrame:
+    parameters = signature(_load_price_frame).parameters
+    if "market_cutoff" in parameters:
+        return _load_price_frame(db, ticker, market_cutoff=market_cutoff)
+    return _load_price_frame(db, ticker)
+
+
 def _load_preferred_bounded(
     db: Session,
     ticker: str,
@@ -1714,7 +1716,7 @@ def _optional_market_features(
     market_regime_params = v4_params.get("market_regime_v4", {})
     if ticker.upper() == "QQQ" and not market_regime_params.get("use_qqq", True):
         return {}
-    price = _load_price_frame(db, ticker, market_cutoff=market_cutoff)
+    price = _call_price_frame(db, ticker, market_cutoff)
     return _market_features(price, ticker)
 
 
