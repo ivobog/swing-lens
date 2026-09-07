@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
 import pandas as pd
@@ -87,9 +88,7 @@ def rank_technical_universe(
             roc21_run_percentile=_optional_float(row.get("roc21_run_percentile")),
             roc63_run_percentile=_optional_float(row.get("roc63_run_percentile")),
             roc126_run_percentile=_optional_float(row.get("roc126_run_percentile")),
-            benchmark_rs_run_percentile=_optional_float(
-                row.get("benchmark_rs_run_percentile")
-            ),
+            benchmark_rs_run_percentile=_optional_float(row.get("benchmark_rs_run_percentile")),
             dual_score_run_percentile=_optional_float(row.get("dual_score_run_percentile")),
             setup_score_run_percentile=_optional_float(row.get("setup_score_run_percentile")),
             leadership_score=_optional_float(row.get("leadership_score")),
@@ -111,7 +110,23 @@ def _aligned_close(stock_df: pd.DataFrame, benchmark_df: pd.DataFrame) -> pd.Dat
 
 
 def _market_session_dates(values: pd.Series) -> pd.Series:
-    return pd.to_datetime(values, errors="coerce", utc=True).dt.tz_convert(None).dt.normalize()
+    normalized = []
+    for value in values:
+        if isinstance(value, date) and not isinstance(value, datetime):
+            normalized.append(pd.Timestamp(value))
+            continue
+        timestamp = pd.Timestamp(value)
+        if pd.isna(timestamp):
+            normalized.append(pd.NaT)
+        elif timestamp.tzinfo is None:
+            if timestamp.time() != datetime.min.time():
+                raise ValueError("naive market timestamp requires an explicit source contract")
+            normalized.append(timestamp.normalize())
+        else:
+            normalized.append(
+                timestamp.tz_convert("America/New_York").tz_localize(None).normalize()
+            )
+    return pd.Series(normalized, index=values.index)
 
 
 def _rolling_beta(
