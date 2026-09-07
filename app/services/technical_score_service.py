@@ -6,7 +6,7 @@ from concurrent.futures.process import BrokenProcessPool
 from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
-from inspect import signature
+from inspect import Parameter, signature
 from time import perf_counter
 from typing import Any
 
@@ -1694,7 +1694,10 @@ def _load_preferred_bounded(
     market_cutoff: MarketCalculationCutoff,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     parameters = signature(load_preferred_ohlcv_frames).parameters
-    if "max_session" not in parameters:
+    supports_boundary = "max_session" in parameters or any(
+        item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
+    )
+    if not supports_boundary:
         # Compatibility for narrow injected test doubles. The worker-level
         # temporal assertion remains authoritative defense in depth.
         return load_preferred_ohlcv_frames(db, ticker)

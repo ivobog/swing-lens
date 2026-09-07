@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from inspect import signature
+from inspect import Parameter, signature
 from typing import Any
 
 import pandas as pd
@@ -273,7 +273,11 @@ def _load_preferred_bounded(
     ticker: str,
     market_cutoff: MarketCalculationCutoff,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
-    if "max_session" not in signature(load_preferred_ohlcv_frames).parameters:
+    parameters = signature(load_preferred_ohlcv_frames).parameters
+    supports_boundary = "max_session" in parameters or any(
+        item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
+    )
+    if not supports_boundary:
         return load_preferred_ohlcv_frames(db, ticker)
     return load_preferred_ohlcv_frames(
         db,
