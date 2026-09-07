@@ -1,0 +1,57 @@
+Location,Function,Input time type,Output type,Market semantic,Uses shared calendar?,Risk
+app/services/us_market_calendar.py:21,us_market_session,date,USMarketSession or None,NYSE regular session schedule,Yes,"Trusted for recurring 2026 schedule; no exceptional-closure source"
+app/services/us_market_calendar.py:35,first_us_market_open_after,aware datetime,USMarketSession,first strictly later market open,Yes,Low
+app/services/us_market_calendar.py:52,latest_completed_us_trading_day,aware or naive datetime,date,latest session whose close plus 15m has passed,Yes,"Medium: naive input is assumed New York"
+app/services/us_market_calendar.py:71,is_daily_bar_fresh,date plus integer,bool,daily-bar freshness,Yes,"Medium: subtracts calendar days despite session calendar"
+app/services/us_market_calendar.py:84,next_us_trading_day,date,date,next recurring exchange session,Yes,Low
+app/services/us_market_calendar.py:95,subtract_us_trading_sessions,date plus count,date,session arithmetic,Yes,Low
+app/services/us_market_calendar.py:103,us_trading_sessions_between,date range,int,session age,Yes,Low
+app/services/price_bar_repository.py:10,load_price_bars_frame,optional max_session date and as_of datetime,DataFrame,bounded or current OHLCV,Caller-controlled,"High when both bounds omitted"
+app/services/price_bar_repository.py:57,load_preferred_ohlcv_frames,optional max_session date and as_of datetime,DataFrame pair,preferred adjusted/trades OHLCV,Caller-controlled,"High when both bounds omitted"
+app/services/technical_score_service.py:71,load_winner_point_in_time_technical_frames,decision datetime and eligible date,DataFrame bundle,Winner point-in-time technical inputs,Yes,Low
+app/services/technical_score_service.py:99,score_run_technicals,run id,TechnicalScore rows,normal technical calculation state,No,High
+app/services/technical_score_service.py:636,_refresh_run_level_inputs,implicit wall/data state,DataFrames,SPY/QQQ/sector run inputs,No,High
+app/services/technical_score_service.py:768,sequential ticker load,implicit database latest,DataFrames,ticker technical input,No,High
+app/services/technical_score_service.py:862,process ticker load,implicit database latest,DataFrames,ticker technical input,No,High
+app/services/technical_score_service.py:1037,_artifact_cache_context,series versions and configs,cache key context,local technical artifact identity,No,High
+app/services/technical_score_service.py:1376,legacy ticker load,implicit database latest,DataFrames,ticker technical input,No,High
+app/services/technical_score_service.py:1562,_load_price_frame,implicit database latest,DataFrame,market/benchmark input,No,High
+app/services/technical_artifact_cache.py:44,build_local_artifact_key,series versions and config hashes,LocalArtifactKey,technical input identity,No,"High: no cutoff or eligible session"
+app/services/technical_artifact_cache.py:80,get_local_artifact,artifact key,artifact,active/shadow reuse,No,"Medium: MATCH protects equivalence only under unbounded semantics"
+app/services/technical_indicators.py:33,calculate_technical_features,OHLCV frame,TechnicalFeatureResult,latest daily indicators,No,"Caller must bound frame"
+app/services/technical_indicators.py:92,calculate_relative_strength_features,stock/benchmark/sector frames,dict,session-aligned relative strength,No,"Medium: UTC date normalization"
+app/services/technical_indicators.py:235,_market_session_dates,date or timestamp series,naive midnight series,canonical join key,No,"Medium for late timezone-aware timestamps; production PriceBar dates safe"
+app/services/technical_indicators.py:263,calculate_htf_trend_features,daily frame,dict,confirmed weekly trend,No,"High: positional weekly[-2] lacks completion state"
+app/services/technical_indicators.py:283,resample_weekly_ohlcv,daily frame,W-FRI DataFrame,weekly aggregation,No,"Medium: grouping label is not confirmation proof"
+app/services/relative_leadership.py:20,calculate_beta_adjusted_rs,stock and benchmark frames,dict,beta-adjusted market leadership,No,"Caller must bound frames"
+app/services/relative_leadership.py:113,_market_session_dates,date or timestamp series,naive midnight series,canonical join key,No,"Medium for late timezone-aware timestamps; production PriceBar dates safe"
+app/services/market_regime_command_center.py:55,build_snapshot,optional calendar date,MarketRegimeCommandCenterDto,market state as of latest input,No,High
+app/services/market_regime_command_center.py:136,_load_market_input,symbol and implicit latest,features plus date,SPY/QQQ state,No,High
+app/services/market_regime_command_center.py:242,_index_health,calendar today and source date,health flags,input freshness,No,"High: trading-day setting uses calendar .days"
+app/services/sector_rotation_service.py:397,_resolve_as_of_date,technical/upload timestamps,date,outer sector snapshot session,Yes,Low
+app/services/sector_etf_rotation_service.py:17,build,implicit latest frames,list of metrics,inner ETF confirmation state,No,"High if ETF mode enabled; currently disabled"
+app/services/setup_lifecycle/source_loader.py:80,load_run_context,upload/processed timestamps,RunSourceContext,lifecycle source cutoff,Partly,High
+app/services/setup_lifecycle/source_loader.py:194,_load_price_bars,calendar cutoff date,PriceBar collection,latest ticker context bar,No,High
+app/services/setup_lifecycle/source_loader.py:465,_run_context_cutoff_date,bar/technical/upload timestamps,date,run context cutoff,No,High
+app/services/setup_lifecycle/source_loader.py:494,_upload_run_cutoff_date,processed/uploaded datetime,date,market-bar cutoff,No,High
+app/services/setup_lifecycle/source_loader.py:501,_ticker_context_cutoff_date,technical/upload context,date,ticker context cutoff,No,High
+app/services/setup_lifecycle/snapshot_builder.py:234,_resolve_data_as_of_date,bar/technical timestamp/date,date,snapshot market date,No,High
+app/services/setup_lifecycle/snapshot_builder.py:1026,_future_dated_context,context dates and ticker as-of,bool,context coherence guard,No,Low
+app/services/setup_lifecycle/canonicalization.py:233,_context_complete,snapshot lineage,bool,canonical eligibility,No,"Low for cross-context future guard; inherits source cutoff"
+app/services/ceri/effective_session_service.py:27,resolve,event timestamp or source date,EffectiveSessionResult,event effective session,Yes,"High for same-session reaction after open; exact close stays same"
+app/services/ceri/effective_session_service.py:67,_localize,datetime,New York datetime,event timestamp normalization,No,"Medium: naive timestamp assumes configured timezone"
+app/services/ceri/price_response_service.py:39,calculate,event and price bars,price-response feature,event reaction window,Indirect,High
+app/services/ceri/price_response_service.py:346,reaction_session,event timestamp/date,date,reaction start session,Yes,High
+app/services/ceri/feature_rebuild_service.py:160,prepare_batch,optional as_of/to session,CeriFeatureBatchContext,feature knowledge boundary,No,"High: defaults date.today and UTC 23:59:59"
+app/services/ceri/capture_service.py:98,capture_run,optional cutoff_at,CERI snapshot rows,score knowledge boundary,No,"High: repeated cutoff_at.date()"
+app/services/ceri/capture_service.py:659,_revision_is_known_by,revision timestamps and as-of date,bool,revision eligibility,No,"High: timestamp reduced to date"
+app/services/ceri/alert_service.py:208,_within_cooldown,alert/change datetimes,bool,alert cooldown in sessions,Partly,"High: calls .date before session arithmetic"
+app/services/ceri/alert_service.py:303,_trading_sessions_between,date pair,int,session count,Yes,"Safe only when callers supply session identities"
+app/services/ceri/point_in_time_query.py:146,cutoff_at and window days,date,revision target date,No,"Medium: UTC date and calendar-day window"
+app/services/ib_market_intelligence/adapters.py:78,IBHistoricalMetricClient.fetch,date range,list of metric bars,IB daily historical request,No,"High: calendar-day duration and next-UTC-midnight end; post-filter prevents range spill"
+app/services/ib_market_intelligence/orchestration.py:115,execute_historical_refresh,payload dates,persisted metric bars,historical intelligence window,No,High
+app/services/ib_market_intelligence/orchestration.py:1065,execute_feature_rebuild,implicit date.today,IBIntelligenceFeature rows,feature as-of session,No,High
+app/services/ib_market_intelligence/orchestration.py:1357,_historical_date_ranges,payload dates or date.today,list of calendar ranges,provider request chunks,No,High
+app/services/pipeline_executor.py:203,execute_full_pipeline,run id and per-stage implicit clocks,pipeline outputs,full market-sensitive state,No,High
+app/services/pipeline_executor.py:1309,_apply_market_session_metadata,fetch plan,result metadata,IB core-fetch reviewed session scope,Yes,Low
+app/services/winner_probability/temporal_integrity.py:33,validate_next_open_timing,decision and feature timestamps,validation result,Winner causal next-open invariant,Yes,Low
