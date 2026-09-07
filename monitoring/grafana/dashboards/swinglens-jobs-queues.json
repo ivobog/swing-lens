@@ -1,1 +1,91 @@
-{"uid":"swinglens-jobs-queues","title":"Jobs & Queues","schemaVersion":41,"version":1,"refresh":"10s","panels":[{"id":1,"type":"timeseries","title":"Queue depth","targets":[{"expr":"swinglens_queue_depth"}],"gridPos":{"x":0,"y":0,"w":12,"h":7}},{"id":2,"type":"timeseries","title":"Oldest runnable age","targets":[{"expr":"swinglens_queue_oldest_age_seconds"}],"gridPos":{"x":12,"y":0,"w":12,"h":7}},{"id":3,"type":"timeseries","title":"Job wait p95","targets":[{"expr":"histogram_quantile(0.95,sum by(le,job_type)(rate(swinglens_job_wait_seconds_bucket[5m])))"}],"gridPos":{"x":0,"y":7,"w":12,"h":7}},{"id":4,"type":"timeseries","title":"Job duration p95","targets":[{"expr":"histogram_quantile(0.95,sum by(le,job_type,status)(rate(swinglens_job_duration_seconds_bucket[15m])))"}],"gridPos":{"x":12,"y":7,"w":12,"h":7}},{"id":5,"type":"timeseries","title":"Failures","targets":[{"expr":"sum by(job_type)(rate(swinglens_jobs_failed_total[5m]))"}],"gridPos":{"x":0,"y":14,"w":8,"h":7}},{"id":6,"type":"timeseries","title":"Retries","targets":[{"expr":"sum by(job_type)(rate(swinglens_jobs_retry_total[5m]))"}],"gridPos":{"x":8,"y":14,"w":8,"h":7}},{"id":7,"type":"timeseries","title":"Coalescing","targets":[{"expr":"sum by(job_type)(rate(swinglens_jobs_coalesced_total[5m]))"}],"gridPos":{"x":16,"y":14,"w":8,"h":7}},{"id":8,"type":"timeseries","title":"Fanout attempts by bounded family","targets":[{"expr":"sum by(workflow_family,job_type,result)(rate(swinglens_job_fanout_total[5m]))"}],"gridPos":{"x":0,"y":21,"w":24,"h":7}}]}
+{
+  "uid": "swinglens-jobs-queues",
+  "title": "Jobs & Queues",
+  "description": "Queue pressure, job latency and outcomes, retry/recovery behavior, coalescing, and bounded fanout summaries.",
+  "tags": ["swinglens", "jobs", "queues", "provisioned"],
+  "timezone": "browser", "schemaVersion": 41, "version": 1, "refresh": "10s",
+  "time": {"from": "now-24h", "to": "now"}, "templating": {"list": []}, "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Queue depth by class and status",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(queue_class,status)(swinglens_queue_depth)", "legendFormat": "{{queue_class}} / {{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 0, "w": 12, "h": 7}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Oldest runnable queue age",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_queue_oldest_age_seconds", "legendFormat": "{{queue_class}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 0, "w": 12, "h": 7}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Running, stalled, and recovering jobs",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_jobs_running", "legendFormat": "running {{job_type}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_jobs_stalled", "legendFormat": "stalled {{job_type}}"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_jobs_recovering", "legendFormat": "recovering {{job_type}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 7, "w": 12, "h": 7}
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Job wait duration p95",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,job_type)(rate(swinglens_job_wait_seconds_bucket[5m])))", "legendFormat": "{{job_type}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 7, "w": 12, "h": 7}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Job execution duration p95",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,job_type,status)(rate(swinglens_job_duration_seconds_bucket[15m])))", "legendFormat": "{{job_type}} / {{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 14, "w": 12, "h": 7}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Jobs completed by status",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(job_type,status)(rate(swinglens_jobs_finished_total[5m]))", "legendFormat": "{{job_type}} / {{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 14, "w": 12, "h": 7}
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Failures, retries, stalls, and recoveries",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(job_type,status)(rate(swinglens_jobs_failed_total[5m]))", "legendFormat": "failed {{job_type}} / {{status}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(job_type,status)(rate(swinglens_jobs_retry_total[5m]))", "legendFormat": "retry {{job_type}} / {{status}}"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(job_type)(rate(swinglens_job_stalls_total[5m]))", "legendFormat": "stall {{job_type}}"},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_jobs_stale_recovered_total[5m])", "legendFormat": "stale recovered"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 21, "w": 12, "h": 7}
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Coalesced and deferred jobs",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(job_type)(rate(swinglens_jobs_coalesced_total[5m]))", "legendFormat": "coalesced {{job_type}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(job_type)(rate(swinglens_jobs_deferred_total[5m]))", "legendFormat": "deferred {{job_type}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 21, "w": 12, "h": 7}
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Fanout attempts by bounded family",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(workflow_family,job_type,result)(rate(swinglens_job_fanout_total[5m]))", "legendFormat": "{{workflow_family}} / {{job_type}} / {{result}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 28, "w": 12, "h": 7}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Fanout p95 size and depth",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,workflow_family)(rate(swinglens_job_fanout_size_bucket[15m])))", "legendFormat": "size {{workflow_family}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,workflow_family)(rate(swinglens_job_fanout_depth_bucket[15m])))", "legendFormat": "depth {{workflow_family}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 28, "w": 12, "h": 7}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Fanout anomaly summaries",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(workflow_family,severity,reason)(rate(swinglens_job_fanout_abnormal_roots_total[15m]))", "legendFormat": "{{workflow_family}} / {{severity}} / {{reason}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 35, "w": 24, "h": 7}
+    }
+  ]
+}

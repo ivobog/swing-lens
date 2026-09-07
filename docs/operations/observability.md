@@ -99,7 +99,7 @@ are Prometheus histograms.
 - Pipeline: `swinglens_pipelines_started_total`, `swinglens_pipelines_finished_total`,
   `swinglens_pipeline_duration_seconds`, `swinglens_pipeline_stage_duration_seconds`,
   `swinglens_pipeline_failures_total`, `swinglens_pipeline_current_stage`, and
-  `swinglens_pipeline_active_total`.
+  `swinglens_pipeline_active`.
 - Providers: `swinglens_provider_requests_total`,
   `swinglens_provider_request_duration_seconds`, `swinglens_provider_response_bytes_total`,
   `swinglens_provider_stored_bytes_total`, `swinglens_provider_retries_total`,

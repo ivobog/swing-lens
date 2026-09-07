@@ -1,1 +1,66 @@
-{"uid":"swinglens-worker","title":"Worker Resources","schemaVersion":41,"version":1,"refresh":"10s","panels":[{"id":1,"type":"timeseries","title":"Worker CPU","targets":[{"expr":"swinglens_worker_cpu_percent"}],"gridPos":{"x":0,"y":0,"w":8,"h":7}},{"id":2,"type":"timeseries","title":"Worker RSS and private bytes","targets":[{"expr":"swinglens_worker_rss_bytes"},{"expr":"swinglens_worker_private_bytes"}],"gridPos":{"x":8,"y":0,"w":8,"h":7}},{"id":3,"type":"timeseries","title":"Heartbeat age","targets":[{"expr":"swinglens_worker_heartbeat_age_seconds"}],"gridPos":{"x":16,"y":0,"w":8,"h":7}},{"id":4,"type":"timeseries","title":"Worker restarts","targets":[{"expr":"increase(swinglens_worker_restarts_total[1h])"}],"gridPos":{"x":0,"y":7,"w":12,"h":7}},{"id":5,"type":"timeseries","title":"Memory status","targets":[{"expr":"swinglens_worker_memory_status"}],"gridPos":{"x":12,"y":7,"w":12,"h":7}},{"id":6,"type":"timeseries","title":"Process resources","targets":[{"expr":"swinglens_process_cpu_percent"},{"expr":"swinglens_process_rss_bytes"}],"gridPos":{"x":0,"y":14,"w":24,"h":7}}]}
+{
+  "uid": "swinglens-worker",
+  "title": "Worker Resources",
+  "description": "Durable worker liveness, heartbeats, memory, CPU, restart history, memory state, and aggregate job state.",
+  "tags": ["swinglens", "worker", "resources", "provisioned"],
+  "timezone": "browser", "schemaVersion": 41, "version": 1, "refresh": "10s",
+  "time": {"from": "now-24h", "to": "now"}, "templating": {"list": []}, "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Worker up",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_up", "legendFormat": "{{worker_id}}"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []}, "gridPos": {"x": 0, "y": 0, "w": 8, "h": 5}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Worker heartbeat age",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_heartbeat_age_seconds", "legendFormat": "{{worker_id}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 8, "y": 0, "w": 8, "h": 5}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Worker memory state",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_memory_status == 1", "legendFormat": "{{worker_id}} / {{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []}, "gridPos": {"x": 16, "y": 0, "w": 8, "h": 5}
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Worker RSS, private, and measured memory",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_rss_bytes", "legendFormat": "RSS {{worker_id}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_private_bytes", "legendFormat": "private {{worker_id}}"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_memory_bytes", "legendFormat": "measured {{worker_id}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 5, "w": 12, "h": 7}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Worker CPU",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_cpu_percent", "legendFormat": "{{worker_id}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 5, "w": 12, "h": 7}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Worker restarts",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "increase(swinglens_worker_restarts_total[1h])", "legendFormat": "{{worker_id}} / 1h"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 12, "w": 8, "h": 7}
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Aggregate worker job state",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum(swinglens_jobs_running)", "legendFormat": "running"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum(swinglens_jobs_stalled)", "legendFormat": "stalled"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum(swinglens_jobs_recovering)", "legendFormat": "recovering"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}, "gridPos": {"x": 8, "y": 12, "w": 8, "h": 7}
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Worker process RSS",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_process_rss_bytes{process_role=\"worker\"}", "legendFormat": "{{process_role}}"}],
+      "fieldConfig": {"defaults": {"unit": "bytes", "min": 0}, "overrides": []}, "gridPos": {"x": 16, "y": 12, "w": 8, "h": 7}
+    }
+  ]
+}

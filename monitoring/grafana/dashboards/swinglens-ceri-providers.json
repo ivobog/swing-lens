@@ -1,1 +1,64 @@
-{"uid":"swinglens-ceri-providers","title":"CERI & Providers","schemaVersion":41,"version":1,"refresh":"10s","panels":[{"id":1,"type":"timeseries","title":"Provider request results","targets":[{"expr":"sum by(provider,result)(rate(swinglens_provider_requests_total[5m]))"}],"gridPos":{"x":0,"y":0,"w":12,"h":7}},{"id":2,"type":"timeseries","title":"Provider latency p95","targets":[{"expr":"histogram_quantile(0.95,sum by(le,provider)(rate(swinglens_provider_request_duration_seconds_bucket[5m])))"}],"gridPos":{"x":12,"y":0,"w":12,"h":7}},{"id":3,"type":"timeseries","title":"Provider bytes","targets":[{"expr":"sum by(provider)(rate(swinglens_provider_response_bytes_total[5m]))"},{"expr":"sum by(provider)(rate(swinglens_provider_stored_bytes_total[5m]))"}],"gridPos":{"x":0,"y":7,"w":8,"h":7}},{"id":4,"type":"timeseries","title":"CERI stage results","targets":[{"expr":"sum by(result)(rate(swinglens_ceri_normalization_total[5m]))"},{"expr":"sum by(result)(rate(swinglens_ceri_feature_rebuild_total[5m]))"},{"expr":"sum by(result)(rate(swinglens_ceri_scoring_total[5m]))"}],"gridPos":{"x":8,"y":7,"w":8,"h":7}},{"id":5,"type":"timeseries","title":"Provider retries","targets":[{"expr":"sum by(provider)(rate(swinglens_provider_retries_total[5m]))"}],"gridPos":{"x":16,"y":7,"w":8,"h":7}}]}
+{
+  "uid": "swinglens-ceri-providers",
+  "title": "CERI & Providers",
+  "description": "Provider traffic and latency plus CERI ingestion, normalization, feature rebuild, and scoring outcomes.",
+  "tags": ["swinglens", "ceri", "providers", "provisioned"],
+  "timezone": "browser", "schemaVersion": 41, "version": 1, "refresh": "10s",
+  "time": {"from": "now-24h", "to": "now"}, "templating": {"list": []}, "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Provider request rate by result",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(provider,result)(rate(swinglens_provider_requests_total[5m]))", "legendFormat": "{{provider}} / {{result}}"}],
+      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 0, "w": 12, "h": 7}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Provider retries",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(provider)(rate(swinglens_provider_retries_total[5m]))", "legendFormat": "{{provider}}"}],
+      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 0, "w": 12, "h": 7}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Provider latency p50 / p95 / p99",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.50, sum by(le,provider)(rate(swinglens_provider_request_duration_seconds_bucket[5m])))", "legendFormat": "p50 {{provider}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,provider)(rate(swinglens_provider_request_duration_seconds_bucket[5m])))", "legendFormat": "p95 {{provider}}"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.99, sum by(le,provider)(rate(swinglens_provider_request_duration_seconds_bucket[5m])))", "legendFormat": "p99 {{provider}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 7, "w": 12, "h": 7}
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Provider response and stored bytes",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(provider)(rate(swinglens_provider_response_bytes_total[5m]))", "legendFormat": "response {{provider}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(provider)(rate(swinglens_provider_stored_bytes_total[5m]))", "legendFormat": "stored {{provider}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 7, "w": 12, "h": 7}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "CERI ingestion results",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(provider,dataset,result)(rate(swinglens_ceri_ingestion_total[5m]))", "legendFormat": "{{provider}} / {{dataset}} / {{result}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 14, "w": 12, "h": 7}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "CERI ingestion duration p95",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,provider,dataset,status)(rate(swinglens_ceri_ingestion_duration_seconds_bucket[15m])))", "legendFormat": "{{provider}} / {{dataset}} / {{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 14, "w": 12, "h": 7}
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "CERI normalization, feature rebuild, and scoring",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(dataset,result)(rate(swinglens_ceri_normalization_total[5m]))", "legendFormat": "normalization {{dataset}} / {{result}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(result)(rate(swinglens_ceri_feature_rebuild_total[5m]))", "legendFormat": "feature rebuild {{result}}"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(result)(rate(swinglens_ceri_scoring_total[5m]))", "legendFormat": "scoring {{result}}"},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(job_type)(rate(swinglens_ceri_processing_retries_total[5m]))", "legendFormat": "retry {{job_type}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 21, "w": 24, "h": 7}
+    }
+  ]
+}

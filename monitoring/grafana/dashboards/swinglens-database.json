@@ -1,1 +1,89 @@
-{"uid":"swinglens-database","title":"Database / SQL Flight Recorder","schemaVersion":41,"version":1,"refresh":"10s","panels":[{"id":1,"type":"timeseries","title":"DB pool","targets":[{"expr":"swinglens_db_pool_checked_out"},{"expr":"swinglens_db_pool_size"},{"expr":"swinglens_db_pool_overflow"}],"gridPos":{"x":0,"y":0,"w":12,"h":7}},{"id":2,"type":"timeseries","title":"Pool wait p95","targets":[{"expr":"histogram_quantile(0.95,sum by(le)(rate(swinglens_db_pool_wait_seconds_bucket[5m])))"}],"gridPos":{"x":12,"y":0,"w":12,"h":7}},{"id":3,"type":"timeseries","title":"Slow queries and long transactions","targets":[{"expr":"rate(swinglens_db_slow_queries_total[5m])"},{"expr":"rate(swinglens_db_long_transactions_total[5m])"}],"gridPos":{"x":0,"y":7,"w":8,"h":7}},{"id":4,"type":"timeseries","title":"Telemetry drops","targets":[{"expr":"sum by(priority)(rate(swinglens_db_monitor_dropped_total[5m]))"}],"gridPos":{"x":8,"y":7,"w":8,"h":7}},{"id":5,"type":"timeseries","title":"Writer latency p95","targets":[{"expr":"histogram_quantile(0.95,sum by(le)(rate(swinglens_db_monitor_writer_latency_seconds_bucket[5m])))"}],"gridPos":{"x":16,"y":7,"w":8,"h":7}},{"id":6,"type":"timeseries","title":"Recorder queue depth","targets":[{"expr":"swinglens_db_monitor_queue_depth"}],"gridPos":{"x":0,"y":14,"w":12,"h":7}},{"id":7,"type":"timeseries","title":"Database size","targets":[{"expr":"swinglens_db_size_bytes"}],"gridPos":{"x":12,"y":14,"w":12,"h":7}}]}
+{
+  "uid": "swinglens-database",
+  "title": "Database / SQL Flight Recorder",
+  "description": "Database pool pressure and bounded SQL Flight Recorder telemetry. Raw SQL forensic records remain outside Prometheus.",
+  "tags": ["swinglens", "database", "sql-flight-recorder", "provisioned"],
+  "timezone": "browser", "schemaVersion": 41, "version": 1, "refresh": "10s",
+  "time": {"from": "now-24h", "to": "now"}, "templating": {"list": []}, "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Database pool connections",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_pool_checked_out", "legendFormat": "checked out"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_pool_size", "legendFormat": "base size"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_pool_overflow", "legendFormat": "overflow"},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_pool_capacity", "legendFormat": "capacity"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 0, "w": 12, "h": 7}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Database pool pressure",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "100 * swinglens_db_pool_checked_out / clamp_min(swinglens_db_pool_capacity, 1)", "legendFormat": "checked out / capacity"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}, "gridPos": {"x": 12, "y": 0, "w": 12, "h": 7}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Pool checkout wait p95",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le)(rate(swinglens_db_pool_wait_seconds_bucket[5m])))", "legendFormat": "p95 wait"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 7, "w": 8, "h": 7}
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Slow queries and long transactions",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_db_slow_queries_total[5m])", "legendFormat": "slow queries"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_db_long_transactions_total[5m])", "legendFormat": "long transactions"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_db_pool_timeouts_total[5m])", "legendFormat": "pool timeouts"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 8, "y": 7, "w": 8, "h": 7}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Flight Recorder records by priority",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(priority)(rate(swinglens_db_monitor_records_total[5m]))", "legendFormat": "received {{priority}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(priority)(rate(swinglens_db_monitor_written_total[5m]))", "legendFormat": "written {{priority}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 16, "y": 7, "w": 8, "h": 7}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Flight Recorder drops by priority",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(priority)(rate(swinglens_db_monitor_dropped_total[5m]))", "legendFormat": "{{priority}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 14, "w": 8, "h": 7}
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Flight Recorder queue depth",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_monitor_queue_depth", "legendFormat": "{{priority}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}, "gridPos": {"x": 8, "y": 14, "w": 8, "h": 7}
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Writer failures",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_db_monitor_writer_errors_total[5m])", "legendFormat": "writer errors"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 16, "y": 14, "w": 8, "h": 7}
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Writer latency p50 / p95 / p99",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.50, sum by(le)(rate(swinglens_db_monitor_writer_latency_seconds_bucket[5m])))", "legendFormat": "p50"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le)(rate(swinglens_db_monitor_writer_latency_seconds_bucket[5m])))", "legendFormat": "p95"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.99, sum by(le)(rate(swinglens_db_monitor_writer_latency_seconds_bucket[5m])))", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 21, "w": 12, "h": 7}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Database and telemetry storage size",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_size_bytes", "legendFormat": "database"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_log_storage_bytes", "legendFormat": "logs {{log_class}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 21, "w": 12, "h": 7}
+    }
+  ]
+}

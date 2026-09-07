@@ -33,7 +33,8 @@ def test_all_required_alerts_are_provisioned_without_forbidden_dimensions() -> N
 
 def test_six_provisioned_dashboards_are_valid_json() -> None:
     paths = sorted(Path("monitoring/grafana/dashboards").glob("*.json"))
-    titles = {json.loads(path.read_text(encoding="utf-8"))["title"] for path in paths}
+    dashboards = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
+    titles = {dashboard["title"] for dashboard in dashboards}
     assert titles == {
         "SwingLens Overview",
         "Jobs & Queues",
@@ -42,6 +43,39 @@ def test_six_provisioned_dashboards_are_valid_json() -> None:
         "Database / SQL Flight Recorder",
         "Worker Resources",
     }
+
+    for dashboard in dashboards:
+        assert dashboard["uid"]
+        assert dashboard["templating"]["list"] == []
+        for panel in dashboard["panels"]:
+            assert panel["datasource"] == {
+                "type": "prometheus",
+                "uid": "swinglens-prometheus",
+            }
+            for target in panel["targets"]:
+                assert target["datasource"] == {
+                    "type": "prometheus",
+                    "uid": "swinglens-prometheus",
+                }
+                assert target["refId"]
+                assert target["expr"]
+                assert "swinglens_pipeline_active_total" not in target["expr"]
+
+
+def test_grafana_provisions_stable_prometheus_datasource_and_dashboard_folder() -> None:
+    datasource = Path(
+        "monitoring/grafana/provisioning/datasources/prometheus.yml"
+    ).read_text(encoding="utf-8")
+    provider = Path(
+        "monitoring/grafana/provisioning/dashboards/dashboards.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "uid: swinglens-prometheus" in datasource
+    assert "url: http://prometheus:9090" in datasource
+    assert "isDefault: true" in datasource
+    assert "name: SwingLens" in provider
+    assert "folder: SwingLens" in provider
+    assert "path: /var/lib/grafana/dashboards" in provider
 
 
 def test_monitoring_is_loopback_only_and_requires_an_external_grafana_secret() -> None:

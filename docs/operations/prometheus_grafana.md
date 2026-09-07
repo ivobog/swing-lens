@@ -5,15 +5,27 @@ SwingLens itself continues to run normally when this stack is absent.
 
 ## Start
 
-Start PostgreSQL and SwingLens first, including the supervisor/worker, then:
+Use this local startup order:
+
+1. Start PostgreSQL.
+2. Start Docker Desktop.
+3. Start Prometheus and Grafana:
 
 ```powershell
 docker compose -f docker-compose.observability.yml up -d
 ```
 
-Open Prometheus at `http://127.0.0.1:9090` and Grafana at
-`http://127.0.0.1:3000`. Set `GRAFANA_ADMIN_PASSWORD` in the ignored local `.env` file before
-starting the stack. No administrator password is committed or supplied by default.
+4. Start SwingLens, including the supervisor-owned durable worker.
+
+Local URLs:
+
+- SwingLens: `http://127.0.0.1:8000`
+- Prometheus: `http://127.0.0.1:9090`
+- Grafana: `http://127.0.0.1:3000`
+
+Before starting the monitoring stack, set `GRAFANA_ADMIN_PASSWORD` in the ignored local `.env`
+file. Log in to Grafana with username `admin` and that password. No administrator password is
+committed or supplied by default.
 
 Prometheus scrapes:
 
@@ -48,7 +60,11 @@ separate and unaffected.
 
 ## Provisioned dashboards
 
-Grafana automatically loads:
+Grafana automatically provisions the default `Prometheus` datasource with the stable UID
+`swinglens-prometheus` and container-network URL `http://prometheus:9090`. Do not replace this with
+`localhost`: inside the Grafana container, `localhost` is Grafana itself.
+
+Grafana also automatically loads this source-controlled dashboard set into the `SwingLens` folder:
 
 1. SwingLens Overview
 2. Jobs & Queues
@@ -59,15 +75,35 @@ Grafana automatically loads:
 
 The dashboards cover queue depth/age, job wait/duration/failure/retry/coalescing/fanout, pipeline and
 stage duration, CERI/provider result/latency/bytes/retries, DB pool/wait/slow/transaction/recorder
-health, and worker CPU/memory/heartbeat/restarts.
+health, and worker CPU/memory/heartbeat/restarts. No data source or dashboard setup through the
+Grafana UI is required after a container start or restart.
 
 ## Validate and troubleshoot
 
 ```powershell
 docker compose -f docker-compose.observability.yml config
+docker compose -f docker-compose.observability.yml ps
+docker compose -f docker-compose.observability.yml logs grafana
+docker compose -f docker-compose.observability.yml exec grafana ls -R /etc/grafana/provisioning
+docker compose -f docker-compose.observability.yml exec grafana ls -R /var/lib/grafana/dashboards
 Invoke-WebRequest http://127.0.0.1:8000/metrics
 Invoke-WebRequest http://127.0.0.1:9101/metrics
 Invoke-WebRequest http://127.0.0.1:9102/metrics
+```
+
+The Compose mounts are read-only and source controlled:
+
+```text
+monitoring/grafana/provisioning/datasources -> /etc/grafana/provisioning/datasources
+monitoring/grafana/provisioning/dashboards  -> /etc/grafana/provisioning/dashboards
+monitoring/grafana/dashboards               -> /var/lib/grafana/dashboards
+```
+
+Grafana polls the dashboard directory every 30 seconds, which is reliable for Docker Desktop bind
+mounts. Restarting only Grafana also reapplies datasource and dashboard provisioning:
+
+```powershell
+docker compose -f docker-compose.observability.yml restart grafana
 ```
 
 If a target is down, first confirm that its process is running and that ports 8000/9101/9102 are

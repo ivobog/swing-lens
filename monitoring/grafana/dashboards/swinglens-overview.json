@@ -1,1 +1,170 @@
-{"uid":"swinglens-overview","title":"SwingLens Overview","schemaVersion":41,"version":1,"refresh":"10s","time":{"from":"now-24h","to":"now"},"panels":[{"id":1,"type":"stat","title":"Process targets up","targets":[{"expr":"up{job=~\"swinglens-.*\"}"}],"gridPos":{"x":0,"y":0,"w":6,"h":5}},{"id":2,"type":"stat","title":"Active jobs","targets":[{"expr":"sum(swinglens_jobs_running)"}],"gridPos":{"x":6,"y":0,"w":6,"h":5}},{"id":3,"type":"timeseries","title":"Queue oldest age","targets":[{"expr":"swinglens_queue_oldest_age_seconds"}],"gridPos":{"x":12,"y":0,"w":6,"h":5}},{"id":4,"type":"timeseries","title":"Worker RSS","targets":[{"expr":"swinglens_worker_rss_bytes"}],"gridPos":{"x":18,"y":0,"w":6,"h":5}},{"id":5,"type":"timeseries","title":"Pipeline duration p95","targets":[{"expr":"histogram_quantile(0.95,sum by(le,status)(rate(swinglens_pipeline_duration_seconds_bucket[15m])))"}],"gridPos":{"x":0,"y":5,"w":8,"h":7}},{"id":6,"type":"timeseries","title":"Provider failures","targets":[{"expr":"sum by(provider)(rate(swinglens_provider_requests_total{result=\"failure\"}[5m]))"}],"gridPos":{"x":8,"y":5,"w":8,"h":7}},{"id":7,"type":"timeseries","title":"Database slow queries","targets":[{"expr":"rate(swinglens_db_slow_queries_total[5m])"}],"gridPos":{"x":16,"y":5,"w":8,"h":7}},{"id":8,"type":"table","title":"Critical alerts","targets":[{"expr":"ALERTS{alertstate=\"firing\",severity=\"critical\"}"}],"gridPos":{"x":0,"y":12,"w":24,"h":7}}]}
+{
+  "uid": "swinglens-overview",
+  "title": "SwingLens Overview",
+  "description": "Operational overview of SwingLens health, workers, queues, pipelines, database telemetry, providers, and host resources.",
+  "tags": ["swinglens", "provisioned"],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-24h", "to": "now"},
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Prometheus scrape health",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "up{job=~\"swinglens-(web|worker|supervisor)\"}", "legendFormat": "{{job}}"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 5}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Worker and supervisor health",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_up", "legendFormat": "worker {{worker_id}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_supervisor_up", "legendFormat": "supervisor"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 5}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Heartbeat age",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_heartbeat_age_seconds", "legendFormat": "worker {{worker_id}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_supervisor_heartbeat_age_seconds", "legendFormat": "supervisor"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 5}
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Worker RSS memory",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_rss_bytes", "legendFormat": "{{worker_id}}"}],
+      "fieldConfig": {"defaults": {"unit": "bytes", "min": 0}, "overrides": []},
+      "gridPos": {"x": 0, "y": 5, "w": 8, "h": 7}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Worker CPU",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_worker_cpu_percent", "legendFormat": "{{worker_id}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0}, "overrides": []},
+      "gridPos": {"x": 8, "y": 5, "w": 8, "h": 7}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Worker restarts (1h)",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "increase(swinglens_worker_restarts_total[1h])", "legendFormat": "{{worker_id}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "gridPos": {"x": 16, "y": 5, "w": 8, "h": 7}
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Queue and job state",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(queue_class,status)(swinglens_queue_depth)", "legendFormat": "queue {{queue_class}} / {{status}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum(swinglens_jobs_running)", "legendFormat": "running"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum(swinglens_jobs_stalled)", "legendFormat": "stalled"},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum(swinglens_jobs_recovering)", "legendFormat": "recovering"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "gridPos": {"x": 0, "y": 12, "w": 16, "h": 7}
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Oldest runnable queue age",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_queue_oldest_age_seconds", "legendFormat": "{{queue_class}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"x": 16, "y": 12, "w": 8, "h": 7}
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Pipeline starts and completion status",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_pipelines_started_total[5m])", "legendFormat": "started"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(status)(rate(swinglens_pipelines_finished_total[5m]))", "legendFormat": "finished {{status}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
+      "gridPos": {"x": 0, "y": 19, "w": 8, "h": 7}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Pipeline duration p95",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,status)(rate(swinglens_pipeline_duration_seconds_bucket[15m])))", "legendFormat": "{{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"x": 8, "y": 19, "w": 8, "h": 7}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Pipeline failures",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(stage,reason_code)(rate(swinglens_pipeline_failures_total[15m]))", "legendFormat": "{{stage}} / {{reason_code}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
+      "gridPos": {"x": 16, "y": 19, "w": 8, "h": 7}
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Database pool usage",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_pool_checked_out", "legendFormat": "checked out"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_pool_capacity", "legendFormat": "capacity"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "gridPos": {"x": 0, "y": 26, "w": 8, "h": 7}
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Database pool pressure",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "100 * swinglens_db_pool_checked_out / clamp_min(swinglens_db_pool_capacity, 1)", "legendFormat": "pool pressure"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+      "gridPos": {"x": 8, "y": 26, "w": 8, "h": 7}
+    },
+    {
+      "id": 14, "type": "timeseries", "title": "Database anomalies",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_db_slow_queries_total[5m])", "legendFormat": "slow queries"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_db_long_transactions_total[5m])", "legendFormat": "long transactions"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(priority)(rate(swinglens_db_monitor_dropped_total[5m]))", "legendFormat": "drops {{priority}}"},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_db_monitor_writer_errors_total[5m])", "legendFormat": "writer errors"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
+      "gridPos": {"x": 16, "y": 26, "w": 8, "h": 7}
+    },
+    {
+      "id": 15, "type": "timeseries", "title": "Provider requests, failures, and retries",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(provider,result)(rate(swinglens_provider_requests_total[5m]))", "legendFormat": "{{provider}} / {{result}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(provider)(rate(swinglens_provider_retries_total[5m]))", "legendFormat": "{{provider}} retries"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0}, "overrides": []},
+      "gridPos": {"x": 0, "y": 33, "w": 8, "h": 7}
+    },
+    {
+      "id": 16, "type": "timeseries", "title": "Provider latency p95",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,provider)(rate(swinglens_provider_request_duration_seconds_bucket[5m])))", "legendFormat": "{{provider}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"x": 8, "y": 33, "w": 8, "h": 7}
+    },
+    {
+      "id": 17, "type": "timeseries", "title": "Disk, database, and process memory",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_disk_free_bytes", "legendFormat": "disk free {{path_class}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_db_size_bytes", "legendFormat": "database"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_process_rss_bytes", "legendFormat": "process {{process_role}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes", "min": 0}, "overrides": []},
+      "gridPos": {"x": 16, "y": 33, "w": 8, "h": 7}
+    },
+    {
+      "id": 18, "type": "table", "title": "Firing SwingLens alerts",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "ALERTS{alertstate=\"firing\"}", "legendFormat": "{{alertname}}"}],
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"x": 0, "y": 40, "w": 24, "h": 7}
+    }
+  ]
+}

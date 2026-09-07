@@ -1,1 +1,59 @@
-{"uid":"swinglens-pipeline","title":"Pipeline Performance","schemaVersion":41,"version":1,"refresh":"10s","panels":[{"id":1,"type":"timeseries","title":"Pipeline duration p95","targets":[{"expr":"histogram_quantile(0.95,sum by(le,status)(rate(swinglens_pipeline_duration_seconds_bucket[15m])))"}],"gridPos":{"x":0,"y":0,"w":12,"h":7}},{"id":2,"type":"timeseries","title":"Stage duration p95","targets":[{"expr":"histogram_quantile(0.95,sum by(le,stage,status)(rate(swinglens_pipeline_stage_duration_seconds_bucket[15m])))"}],"gridPos":{"x":12,"y":0,"w":12,"h":7}},{"id":3,"type":"timeseries","title":"Failures by stage","targets":[{"expr":"sum by(stage,reason_code)(rate(swinglens_pipeline_failures_total[15m]))"}],"gridPos":{"x":0,"y":7,"w":12,"h":7}},{"id":4,"type":"timeseries","title":"Active pipelines and stage","targets":[{"expr":"swinglens_pipeline_active_total"},{"expr":"swinglens_pipeline_current_stage"}],"gridPos":{"x":12,"y":7,"w":12,"h":7}}]}
+{
+  "uid": "swinglens-pipeline",
+  "title": "Pipeline Performance",
+  "description": "Pipeline activity, completion outcomes, wall time, stage latency, and bounded failure reasons.",
+  "tags": ["swinglens", "pipeline", "provisioned"],
+  "timezone": "browser", "schemaVersion": 41, "version": 1, "refresh": "10s",
+  "time": {"from": "now-24h", "to": "now"}, "templating": {"list": []}, "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Active pipeline count",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_pipeline_active", "legendFormat": "active"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 0, "w": 6, "h": 5}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Current pipeline stage",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_pipeline_current_stage == 1", "legendFormat": "{{stage}}"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []}, "gridPos": {"x": 6, "y": 0, "w": 6, "h": 5}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Pipeline starts and finishes",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "rate(swinglens_pipelines_started_total[5m])", "legendFormat": "started"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(status)(rate(swinglens_pipelines_finished_total[5m]))", "legendFormat": "finished {{status}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 0, "w": 12, "h": 5}
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Pipeline duration p50 / p95 / p99",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.50, sum by(le,status)(rate(swinglens_pipeline_duration_seconds_bucket[15m])))", "legendFormat": "p50 {{status}}"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,status)(rate(swinglens_pipeline_duration_seconds_bucket[15m])))", "legendFormat": "p95 {{status}}"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.99, sum by(le,status)(rate(swinglens_pipeline_duration_seconds_bucket[15m])))", "legendFormat": "p99 {{status}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 5, "w": 12, "h": 7}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Pipeline stage duration p95",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "histogram_quantile(0.95, sum by(le,stage,status)(rate(swinglens_pipeline_stage_duration_seconds_bucket[15m])))", "legendFormat": "{{stage}} / {{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 5, "w": 12, "h": 7}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Pipeline results by status",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(status)(rate(swinglens_pipeline_runs_total[5m]))", "legendFormat": "{{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 0, "y": 12, "w": 12, "h": 7}
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Failures by stage and reason",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "sum by(stage,reason_code)(rate(swinglens_pipeline_failures_total[15m]))", "legendFormat": "{{stage}} / {{reason_code}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []}, "gridPos": {"x": 12, "y": 12, "w": 12, "h": 7}
+    }
+  ]
+}
