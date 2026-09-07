@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriProcessingRun
+from app.observability.correlation import durable_causality_fields
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.deployment_identity import current_deployment_identity
 
@@ -33,6 +34,7 @@ class CeriProcessingRunService:
         if existing is not None:
             return existing, False
         run = CeriProcessingRun(
+            **durable_causality_fields(),
             job_type=job_type,
             status="RUNNING",
             deterministic_request_key=request_key,

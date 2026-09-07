@@ -17,6 +17,7 @@ from app.models.ceri_tables import (
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.redaction import redact_text
 
 
 @dataclass(frozen=True)
@@ -93,7 +94,10 @@ class CeriChangeRebuildService:
             except Exception as exc:
                 failed += 1
                 errors.append(
-                    {"company_id": company_id, "error": str(exc).replace("\n", " ")[:500]}
+                    {
+                        "company_id": company_id,
+                        "error": redact_text(str(exc)).replace("\n", " ")[:500],
+                    }
                 )
         revisions = self._current_revisions(db, request, scoped_company_ids)
         for revision in revisions:
@@ -115,7 +119,10 @@ class CeriChangeRebuildService:
             except Exception as exc:
                 failed += 1
                 errors.append(
-                    {"revision_id": revision.id, "error": str(exc).replace("\n", " ")[:500]}
+                    {
+                        "revision_id": revision.id,
+                        "error": redact_text(str(exc)).replace("\n", " ")[:500],
+                    }
                 )
         for company_id, guidance_rows in self._guidance(db, request, scoped_company_ids).items():
             prior_action = None
@@ -134,7 +141,10 @@ class CeriChangeRebuildService:
                 except Exception as exc:
                     failed += 1
                     errors.append(
-                        {"guidance_id": guidance.id, "error": str(exc).replace("\n", " ")[:500]}
+                        {
+                            "guidance_id": guidance.id,
+                            "error": redact_text(str(exc)).replace("\n", " ")[:500],
+                        }
                     )
         return CeriChangeRebuildResult(
             changes=changes,
@@ -144,6 +154,7 @@ class CeriChangeRebuildService:
             errors=tuple(errors),
             change_ids=tuple(dict.fromkeys(change_ids)),
         )
+
     def _snapshots(self, db: Session, request: CeriChangeRebuildRequest) -> list[CeriScoreSnapshot]:
         rows = _load(db, CeriScoreSnapshot)
         ids = set(request.company_ids or ())

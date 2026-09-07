@@ -11,6 +11,7 @@ from app.services.bar_cache_service import BarUpsertSummary
 from app.services.ib_connection import check_ib_connection
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
+from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.settings import Settings
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -147,7 +148,16 @@ class FakeNoOrderIB:
 
     def reqHistoricalData(self, *args, **kwargs):
         self.historical_requests += 1
-        return [SimpleNamespace(date="20260701", open=10, high=12, low=9, close=11, volume=1000)]
+        return [
+            SimpleNamespace(
+                date=latest_completed_us_trading_day().strftime("%Y%m%d"),
+                open=10,
+                high=12,
+                low=9,
+                close=11,
+                volume=1000,
+            )
+        ]
 
     def __getattr__(self, name: str):
         if "order" in name.lower():

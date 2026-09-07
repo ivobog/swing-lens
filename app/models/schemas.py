@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HealthResponse(BaseModel):
@@ -21,3 +21,4 @@ class ReadinessResponse(BaseModel):
     worker_ok: bool | None = None
     jobs_ok: bool | None = None
     checks: dict[str, str]
+    check_states: dict[str, str] = Field(default_factory=dict)

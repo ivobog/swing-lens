@@ -9,6 +9,7 @@ from app.db import get_db
 from app.models.tables import UploadRun
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.ohlcv_coverage_service import summarize_run_ohlcv_coverage
+from app.services.redaction import redact_text
 from app.services.upload_service import UploadProcessingError, create_upload_run
 from app.settings import get_settings
 from app.templates import templates
@@ -72,7 +73,7 @@ def upload_csv(
                 "dashboard": _dashboard_summary(db, latest_run),
                 "latest_run": latest_run,
                 "recent_runs": _recent_runs(db),
-                "error": str(exc),
+                "error": redact_text(str(exc)),
             },
             status_code=400,
         )

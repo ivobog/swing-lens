@@ -16,7 +16,9 @@ from app.models.ceri_tables import (
     CeriScoreSnapshot,
 )
 from app.models.tables import BackgroundJob
+from app.observability.correlation import durable_causality_fields
 from app.observability.db_monitor import job_phase
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
 from app.services.background_worker import CancelRequested
 from app.services.ceri.alert_service import CeriAlertService
@@ -168,10 +170,18 @@ def execute_normalize_job(
         )
         if feature_job_id is not None:
             values["feature_job_id"] = feature_job_id
+        publish_after_commit(
+            db,
+            "increment",
+            "swinglens_ceri_normalization_total",
+            dataset=str(payload.get("dataset") or "all"),
+            result="coalesced",
+        )
         return values
 
     started_at = _utcnow()
     processing_run = CeriProcessingRun(
+        **durable_causality_fields(),
         job_type=CERI_NORMALIZE,
         status="RUNNING",
         deterministic_request_key=request_key,
@@ -196,6 +206,13 @@ def execute_normalize_job(
     )
     if feature_job_id is not None:
         values["feature_job_id"] = feature_job_id
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_ceri_normalization_total",
+        dataset=str(payload.get("dataset") or "all"),
+        result="partial" if values.get("failed") else "success",
+    )
     return values
 
 
@@ -228,6 +245,9 @@ def execute_rebuild_features_job(
         )
         if capture_job_id is not None:
             values["capture_job_id"] = capture_job_id
+        publish_after_commit(
+            db, "increment", "swinglens_ceri_feature_rebuild_total", result="coalesced"
+        )
         return values
     result = (feature_service or CeriFeatureRebuildService()).rebuild(
         db,
@@ -266,6 +286,12 @@ def execute_rebuild_features_job(
     )
     if capture_job_id is not None:
         values["capture_job_id"] = capture_job_id
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_ceri_feature_rebuild_total",
+        result="partial" if result.failed else "success",
+    )
     return values
 
 
@@ -299,6 +325,7 @@ def execute_capture_run_job(
         )
         if change_job_id is not None:
             values["change_job_id"] = change_job_id
+        publish_after_commit(db, "increment", "swinglens_ceri_scoring_total", result="coalesced")
         return values
     with job_phase("capture_calculation_and_persistence"):
         result = (capture_service or CeriRunCaptureService()).capture_run(db, run_id)
@@ -323,6 +350,12 @@ def execute_capture_run_job(
     )
     if change_job_id is not None:
         values["change_job_id"] = change_job_id
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_ceri_scoring_total",
+        result="partial" if values.get("failed") else "success",
+    )
     return {"job_type": CERI_CAPTURE_RUN, "processing_run_id": processing.id, **values}
 
 

@@ -17,16 +17,23 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
+# Programmatic callers (especially disposable integration tests) may provide an
+# explicit URL through ``Config.attributes``. Never overwrite that URL with the
+# application's working-database setting.
+database_url = config.attributes.get("database_url") or config.get_main_option(
+    "sqlalchemy.url", None
+)
+database_url = str(database_url or settings.database_url)
 # ConfigParser treats percent-encoded credentials as interpolation tokens.
 # Escape only for Alembic's config layer; SQLAlchemy receives the original URL.
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url,
+        url=database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 import uvicorn
 
+from app.observability.logging import configure_json_logging
 from app.settings import get_settings
 
 RUNTIME_RELOAD_EXCLUDES = (
@@ -52,11 +53,13 @@ def main(argv: Sequence[str] | None = None) -> None:
             f"by PID {conflict.process_id}{name}. Verify whether that process is a stale "
             "SwingLens instance before stopping it."
         )
+    configure_json_logging("web")
     uvicorn.run(
         "app.main:app",
         host=args.host,
         port=args.port,
         reload=args.reload,
+        log_config=None,
         reload_excludes=list(RUNTIME_RELOAD_EXCLUDES) if args.reload else None,
     )
 

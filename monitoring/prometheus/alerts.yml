@@ -1,0 +1,53 @@
+groups:
+  - name: swinglens
+    rules:
+      - alert: SwingLensWorkerMissing
+        expr: absent(up{job="swinglens-worker"}) or max(up{job="swinglens-worker"}) == 0 or max(swinglens_worker_up) == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens durable worker is missing" }
+      - alert: SwingLensSupervisorMissing
+        expr: absent(up{job="swinglens-supervisor"}) or max(up{job="swinglens-supervisor"}) == 0 or max(swinglens_supervisor_up) == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens worker supervisor is missing" }
+      - alert: SwingLensJobStalled
+        expr: sum(swinglens_jobs_stalled) > 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "One or more jobs are stalled" }
+      - alert: SwingLensQueueBacklog
+        expr: max(swinglens_queue_oldest_age_seconds) > 1800 or sum(swinglens_queue_depth{status="RUNNABLE"}) > 1000
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "SwingLens queue backlog crossed the conservative threshold" }
+      - alert: SwingLensJobFanoutAnomaly
+        expr: sum by (workflow_family, severity, reason) (increase(swinglens_job_fanout_abnormal_roots_total[5m])) > 0
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: "A single workflow root crossed its family fanout threshold" }
+      - alert: SwingLensRepeatedJobFailures
+        expr: sum by (job_type) (increase(swinglens_jobs_failed_total[15m])) > 3
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: "A job family is failing repeatedly" }
+      - alert: SwingLensWorkerMemoryCritical
+        expr: max(swinglens_worker_memory_status{status="CRITICAL"}) > 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "Worker memory is critical" }
+      - alert: SwingLensDatabasePressure
+        expr: max(swinglens_db_pool_checked_out / clamp_min(swinglens_db_pool_size + swinglens_db_pool_overflow, 1)) > 0.95
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "Database connection pool is under critical pressure" }
+      - alert: SwingLensCriticalTelemetryLoss
+        expr: sum(increase(swinglens_db_monitor_dropped_total{priority="P0"}[5m])) > 0 or sum(increase(swinglens_db_monitor_writer_errors_total[5m])) > 0
+        for: 0m
+        labels: { severity: critical }
+        annotations: { summary: "Critical SQL Flight Recorder telemetry was lost" }
+      - alert: SwingLensDiskPressure
+        expr: min(swinglens_disk_free_bytes / clamp_min(swinglens_disk_total_bytes, 1)) < 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens disk free space is below 5%" }

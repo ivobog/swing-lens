@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import nullcontext
@@ -9,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.tables import IBFetchItem, IBFetchRun
+from app.observability.logging import log_event
 from app.services.background_job_service import JobLeaseLost
 from app.services.bar_cache_service import cache_bars
 from app.services.ib_api import IB
@@ -34,6 +36,7 @@ from app.services.ib_rate_limiter import (
 )
 from app.services.operational_metrics import operational_metrics
 from app.services.process_memory import WorkerMemoryCritical
+from app.services.redaction import redact_text
 from app.services.us_market_calendar import (
     is_latest_daily_bar_current,
     latest_completed_us_trading_day,
@@ -42,6 +45,8 @@ from app.services.winner_probability.market_data_obligation_service import (
     MarketDataObligationService,
 )
 from app.settings import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 NON_FETCH_ACTIONS = {
     FetchAction.SKIP,
@@ -243,8 +248,13 @@ def execute_fetch_plan(
         db.commit()
 
     fetch_run._performance = {key: round(value, 3) for key, value in performance.items()}
+    performance_metrics = {
+        "ib_pacing_wait_ms": "swinglens_ib_pacing_wait_seconds",
+        "ib_network_ms": "swinglens_ib_network_seconds",
+        "bar_cache_write_ms": "swinglens_bar_cache_write_seconds",
+    }
     for name, value in fetch_run._performance.items():
-        operational_metrics.increment(f"swinglens_{name}_total", value=value)
+        operational_metrics.observe(performance_metrics[name], value / 1000.0)
     return fetch_run
 
 
@@ -463,6 +473,7 @@ def _execute_plan_item(
                 return
             fetch_item.attempt_count = attempt
             network_started = perf_counter()
+            request_result = "failure"
             try:
                 bars = fetch_daily_bars(
                     ib,
@@ -473,8 +484,25 @@ def _execute_plan_item(
                     bar_size=plan_item.bar_size,
                     end_datetime=scope.end_datetime,
                 )
+                request_result = "success"
             finally:
                 _add_duration(performance, "ib_network_ms", network_started)
+                request_duration = max(0.0, perf_counter() - network_started)
+                operational_metrics.increment(
+                    "swinglens_ib_fetch_requests_total", result=request_result
+                )
+                operational_metrics.observe(
+                    "swinglens_ib_fetch_duration_seconds",
+                    request_duration,
+                    result=request_result,
+                )
+                log_event(
+                    logger,
+                    "ib.fetch.request_finished",
+                    provider="IB",
+                    status=request_result.upper(),
+                    duration_ms=round(request_duration * 1000, 3),
+                )
             actual_start, actual_end = _validate_returned_scope(bars, scope)
             if not bars:
                 fetch_item.decision_metadata_json = _decision_metadata(
@@ -567,7 +595,7 @@ def _execute_plan_item(
                 scope=scope,
                 boundary_status="NOT_EVALUATED",
                 provider_result=provider_result,
-                provider_error_message=str(exc),
+                provider_error_message=_safe_message(str(exc)),
             )
             fetch_item.error_message = _safe_message(str(exc))
             if attempt >= settings.ib_max_retries:
@@ -748,7 +776,7 @@ def _run_message(fetch_run: IBFetchRun) -> str:
 
 
 def _safe_message(message: str) -> str:
-    return message.replace("\n", " ").strip()[:500]
+    return redact_text(message).replace("\n", " ").strip()[:500]
 
 
 def _decision_metadata(
@@ -785,9 +813,7 @@ def _decision_metadata(
         "reviewed_start_date": _iso_date(reviewed_start),
         "reviewed_end_date": _iso_date(reviewed_end),
         "request_end_datetime": scope.end_datetime if scope else plan_item.request_end_datetime,
-        "request_end_mode": (
-            scope.end_mode.value if scope else plan_item.request_end_mode
-        ),
+        "request_end_mode": (scope.end_mode.value if scope else plan_item.request_end_mode),
         "reviewed_session_expiry": _iso_date(
             scope.reviewed_session_expiry if scope else plan_item.reviewed_session_expiry
         ),

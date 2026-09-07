@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
 from app import worker_supervisor
 from app.models.tables import BackgroundWorker
 from app.services import process_identity
+from app.services.operational_metrics import operational_metrics
 from app.settings import Settings
 
 
@@ -46,6 +48,7 @@ def _worker(*, pid: int = 200, instance_id: str | None = "instance-a") -> Backgr
 
 @pytest.mark.parametrize("return_code", [0, 17])
 def test_exited_worker_launcher_is_replaced_automatically(monkeypatch, return_code) -> None:
+    operational_metrics.reset()
     replacement = FakeProcess(300, None)
     monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: None)
@@ -59,6 +62,15 @@ def test_exited_worker_launcher_is_replaced_automatically(monkeypatch, return_co
 
     assert result is not None
     assert result.process is replacement
+    assert operational_metrics.total("swinglens_worker_restarts_total", worker_id="worker-a") == 1
+
+
+def test_worker_launcher_preserves_windows_virtual_environment(monkeypatch, tmp_path) -> None:
+    executable = tmp_path / "Scripts" / "python.exe"
+    executable.parent.mkdir()
+    executable.touch()
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path))
+    assert Path(worker_supervisor._worker_python_executable()) == executable
 
 
 def test_launcher_pid_mismatch_uses_registered_worker_identity(monkeypatch) -> None:

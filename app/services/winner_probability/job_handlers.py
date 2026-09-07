@@ -20,14 +20,15 @@ from app.models.tables import (
     WinnerProcessingRun,
 )
 from app.observability.db_monitor import job_phase
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import (
     JobStatus,
     active_job_for_type,
     enqueue_job,
     is_cancel_requested,
+    record_coalesced_enqueue_attempt,
 )
 from app.services.background_worker import CancelRequested, JobDeferred
-from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 from app.services.winner_probability.backfill import (
     BackfillRequest,
@@ -107,11 +108,13 @@ def enqueue_outcome_maturation_workflow(
     """Enqueue or coalesce one root in the global primary-H5 workflow domain."""
     existing = active_job_for_type(db, WINNER_OUTCOME_MATURATION)
     if existing is not None:
-        existing._coalesced = True
-        operational_metrics.increment(
-            "swinglens_jobs_coalesced_total",
+        record_coalesced_enqueue_attempt(
+            db,
             job_type=WINNER_OUTCOME_MATURATION,
-            reason="maturation_active_type",
+            authoritative_job=existing,
+            request_key=request_key,
+            workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
+            trigger_name="winner_outcome_maturation",
         )
         return existing
     job = enqueue_job(
@@ -470,7 +473,7 @@ def execute_outcome_maturation_job(
     defer_until: datetime | None = None
 
     if processed == 0:
-        operational_metrics.increment("winner_maturation_zero_progress_total")
+        publish_after_commit(db, "increment", "winner_maturation_zero_progress_total")
         if retry_deferred > 0:
             continuation_decision = "DEFER_SAME_JOB"
             continuation_reason = "RETRY_DEFERRED"
@@ -504,14 +507,24 @@ def execute_outcome_maturation_job(
             "continuation_reason": continuation_reason,
         }
     )
-    operational_metrics.increment("winner_maturation_jobs_total", trigger_source=trigger_source)
-    operational_metrics.set_gauge("winner_maturation_continuation_depth", depth)
+    publish_after_commit(
+        db,
+        "increment",
+        "winner_maturation_jobs_total",
+        trigger_source=trigger_source,
+    )
+    publish_after_commit(db, "set_gauge", "winner_maturation_continuation_depth", depth)
     for metric_name, field_name in (
-        ("winner_maturation_due_total", "due_total"),
+        ("winner_maturation_due", "due_total"),
         ("winner_maturation_retry_eligible", "retry_eligible_now"),
         ("winner_maturation_retry_deferred", "retry_deferred"),
     ):
-        operational_metrics.set_gauge(metric_name, int(counts.get(field_name, 0) or 0))
+        publish_after_commit(
+            db,
+            "set_gauge",
+            metric_name,
+            int(counts.get(field_name, 0) or 0),
+        )
 
     status = classify_maturation_status(counts)
     if continuation_decision != "DEFER_SAME_JOB" and status == JobStatus.PARTIAL:
@@ -585,7 +598,7 @@ def execute_outcome_maturation_job(
             continuation_depth=depth + 1,
             trigger_source="CONTINUATION",
         )
-        operational_metrics.increment("winner_maturation_continuations_total")
+        publish_after_commit(db, "increment", "winner_maturation_continuations_total")
 
     logger.info(
         "winner.maturation.continuation_decision",

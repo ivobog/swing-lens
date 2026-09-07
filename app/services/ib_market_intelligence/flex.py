@@ -80,7 +80,7 @@ class IBFlexClient:
         )
         started = time.monotonic()
         payload = self._request(url)
-        operational_metrics.increment(
+        operational_metrics.observe(
             "swinglens_ibmi_flex_send_duration_seconds",
             value=time.monotonic() - started,
         )
@@ -100,7 +100,7 @@ class IBFlexClient:
         )
         started = time.monotonic()
         payload = self._request(url)
-        operational_metrics.increment(
+        operational_metrics.observe(
             "swinglens_ibmi_flex_get_duration_seconds",
             value=time.monotonic() - started,
         )
@@ -251,7 +251,7 @@ def import_flex_report(
         execution.order_reference is None for execution in executions
     )
     if dry_run:
-        operational_metrics.increment(
+        operational_metrics.observe(
             "swinglens_ibmi_flex_import_duration_seconds",
             value=time.monotonic() - import_started,
             query_type=query_type,
@@ -334,7 +334,7 @@ def import_flex_report(
     run.status = "COMPLETED"
     run.completed_at = now
     db.flush()
-    operational_metrics.increment(
+    operational_metrics.observe(
         "swinglens_ibmi_flex_import_duration_seconds",
         value=time.monotonic() - import_started,
         query_type=query_type,

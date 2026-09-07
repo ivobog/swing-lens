@@ -12,6 +12,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
+from app.services.redaction import redact_text
+
 
 class EodhdProviderError(RuntimeError):
     """Safe, provider-facing failure which never contains the API token."""
@@ -127,7 +129,7 @@ class EodhdHttpClient:
                 return payload
             except EodhdAuthenticationError as exc:
                 self._failed += 1
-                self._last_error = str(exc)
+                self._last_error = redact_text(str(exc))
                 raise
             except _RetryableProviderError as exc:
                 self._last_error = "transient provider failure"
@@ -263,7 +265,7 @@ def _retry_after(headers: dict[str, str]) -> float | None:
 
 
 def _safe_error(exc: Exception, secret: str | None = None) -> str:
-    text = str(exc).replace("api_token", "[redacted]")
+    text = redact_text(str(exc))
     if secret:
         text = text.replace(secret, "[redacted]")
     text = text.replace("\n", " ").strip()

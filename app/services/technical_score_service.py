@@ -975,7 +975,10 @@ def _score_tickers_process_pool(
     operational_metrics.increment(
         "swinglens_technical_scoring_runs_total",
         mode="process_pool",
-        workers=_technical_worker_count(settings),
+    )
+    operational_metrics.set_gauge(
+        "swinglens_technical_worker_processes",
+        _technical_worker_count(settings),
     )
     return [
         result
@@ -988,11 +991,14 @@ def _score_tickers_process_pool(
 
 
 def _record_technical_duration(name: str, started_at: float, *, run_id: int) -> None:
-    operational_metrics.increment(
-        f"swinglens_technical_{name}_ms_total",
-        value=max(0.0, (perf_counter() - started_at) * 1000),
-        run_id=run_id,
-    )
+    # run_id remains a local call-contract input but must never be a Prometheus label.
+    _ = run_id
+    metric_names = {
+        "input_load": "swinglens_technical_input_load_seconds",
+        "worker_span": "swinglens_technical_worker_span_seconds",
+        "finalize": "swinglens_technical_finalize_seconds",
+    }
+    operational_metrics.observe(metric_names[name], max(0.0, perf_counter() - started_at))
 
 
 def _build_work_item(

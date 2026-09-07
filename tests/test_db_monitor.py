@@ -32,6 +32,7 @@ from app.observability.db_monitor import (
 )
 from app.services.background_job_service import JobStatus
 from app.services.background_worker import execute_job
+from app.services.operational_metrics import operational_metrics
 from app.settings import Settings
 
 
@@ -53,6 +54,30 @@ class MemoryWriter:
 class FailingWriter(MemoryWriter):
     def enqueue(self, record: dict[str, Any]) -> bool:
         raise OSError("diagnostic disk unavailable")
+
+
+def test_prometheus_bridge_tracks_slow_queries_long_transactions_and_fingerprints() -> None:
+    operational_metrics.reset()
+    monitor = _monitor(MemoryWriter())
+
+    assert monitor.emit(
+        {
+            "record_type": "sql",
+            "slow_query": True,
+            "query_fingerprint": "safe-fingerprint",
+        }
+    )
+    assert monitor.emit({"record_type": "long_transaction"})
+
+    exposition = operational_metrics.as_prometheus()
+    status = monitor.status()
+    assert "swinglens_db_slow_queries_total 1.0" in exposition
+    assert "swinglens_db_long_transactions_total 1.0" in exposition
+    assert status["slow_query_count"] == 1
+    assert status["long_transaction_count"] == 1
+    assert status["top_slow_query_fingerprints"] == [
+        {"fingerprint": "safe-fingerprint", "count": 1}
+    ]
 
 
 def _monitor(
@@ -320,6 +345,29 @@ def test_p0_summary_uses_reserved_capacity_when_routine_queue_is_full(tmp_path: 
     assert status["p0_queue_depth"] == 1
 
 
+def test_p0_drop_is_exposed_to_prometheus(tmp_path: Path) -> None:
+    class AliveThread:
+        @staticmethod
+        def is_alive() -> bool:
+            return True
+
+    operational_metrics.reset()
+    writer = JsonlTelemetryWriter(
+        tmp_path,
+        retention_days=8,
+        queue_size=1,
+        critical_queue_size=1,
+        high_queue_size=1,
+        max_file_mb=1,
+    )
+    writer._thread = AliveThread()  # type: ignore[assignment]
+    writer.p0_queue.put_nowait({"record_type": "request_summary"})
+
+    assert writer.enqueue({"record_type": "request_summary"}) is False
+    assert writer.status()["p0_dropped"] == 1
+    assert operational_metrics.total("swinglens_db_monitor_dropped_total", priority="P0") == 1
+
+
 def test_routine_sql_is_aggregated_under_pressure(tmp_path: Path) -> None:
     class AliveThread:
         @staticmethod
@@ -338,18 +386,21 @@ def test_routine_sql_is_aggregated_under_pressure(tmp_path: Path) -> None:
     writer._thread = AliveThread()  # type: ignore[assignment]
     writer.queue.put_nowait({"record_type": "sql"})
 
-    assert writer.enqueue(
-        {
-            "record_type": "sql",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "duration_ms": 0.7,
-            "slow_query": False,
-            "success": True,
-            "query_fingerprint": "routine-heartbeat",
-            "normalized_sql": "UPDATE background_workers SET heartbeat_at=?",
-            "operation": "UPDATE",
-        }
-    ) is True
+    assert (
+        writer.enqueue(
+            {
+                "record_type": "sql",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "duration_ms": 0.7,
+                "slow_query": False,
+                "success": True,
+                "query_fingerprint": "routine-heartbeat",
+                "normalized_sql": "UPDATE background_workers SET heartbeat_at=?",
+                "operation": "UPDATE",
+            }
+        )
+        is True
+    )
     status = writer.status()
     assert status["p2_aggregated"] == 1
     assert status["p2_dropped"] == 0

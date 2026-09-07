@@ -10,11 +10,13 @@ from threading import Event, Thread
 from typing import Any
 from uuid import uuid4
 
+import psutil
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal
 from app.models.tables import BackgroundJob
+from app.observability.correlation import worker_job_scope
 from app.observability.db_monitor import background_job_scope, job_phase
 from app.services.background_job_service import (
     JobLeaseLost,
@@ -295,10 +297,18 @@ def _worker_heartbeat_loop(
     session_factory: sessionmaker[Session],
     stop_event: Event,
 ) -> None:
+    process = psutil.Process(process_id)
+    process.cpu_percent(None)
     while not stop_event.wait(interval_seconds):
         db = session_factory()
         try:
             snapshot = process_memory_snapshot(process_id)
+            state = memory_status(
+                snapshot,
+                warning_mb=memory_warning_mb,
+                critical_mb=memory_critical_mb,
+            )
+            cpu_percent = max(0.0, process.cpu_percent(None))
             heartbeat_worker(
                 db,
                 worker_id,
@@ -307,12 +317,30 @@ def _worker_heartbeat_loop(
                 instance_id=instance_id,
                 rss_bytes=snapshot.rss_bytes,
                 private_bytes=snapshot.private_bytes,
-                memory_status=memory_status(
-                    snapshot,
-                    warning_mb=memory_warning_mb,
-                    critical_mb=memory_critical_mb,
-                ),
+                cpu_percent=cpu_percent,
+                memory_status=state,
             )
+            operational_metrics.set_gauge("swinglens_worker_up", 1, worker_id=worker_id)
+            operational_metrics.set_gauge(
+                "swinglens_worker_heartbeat_age_seconds", 0, worker_id=worker_id
+            )
+            operational_metrics.set_gauge(
+                "swinglens_worker_cpu_percent", cpu_percent, worker_id=worker_id
+            )
+            operational_metrics.set_gauge(
+                "swinglens_worker_rss_bytes", snapshot.rss_bytes, worker_id=worker_id
+            )
+            if snapshot.private_bytes is not None:
+                operational_metrics.set_gauge(
+                    "swinglens_worker_private_bytes", snapshot.private_bytes, worker_id=worker_id
+                )
+            for candidate in ("NORMAL", "WARNING", "CRITICAL"):
+                operational_metrics.set_gauge(
+                    "swinglens_worker_memory_status",
+                    float(state == candidate),
+                    worker_id=worker_id,
+                    status=candidate,
+                )
             db.commit()
         except Exception:
             db.rollback()
@@ -500,7 +528,7 @@ def execute_job(
     ticker = payload.get("ticker")
     company = payload.get("company")
     try:
-        with background_job_scope(
+        with worker_job_scope(job), background_job_scope(
             job_id=job.id,
             job_type=job.job_type,
             run_id=run_id,
@@ -509,6 +537,8 @@ def execute_job(
             attempt=int(job.retry_count or 0) + 1,
             ticker=str(ticker) if ticker else None,
             company=str(company) if company else None,
+            root_correlation_id=getattr(job, "root_correlation_id", None),
+            causation_id=getattr(job, "causation_id", None),
             job_status_getter=lambda: str(job.status) if job.status is not None else None,
         ):
             with job_phase("job_handler"):

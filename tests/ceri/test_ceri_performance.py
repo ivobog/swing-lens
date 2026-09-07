@@ -10,6 +10,7 @@ from app.services.ceri.observability import (
     CeriMetricRegistry,
     ceri_log_payload,
 )
+from app.services.operational_metrics import operational_metrics
 
 
 def test_run_scoped_ceri_export_for_500_tickers_stays_under_two_seconds() -> None:
@@ -24,6 +25,7 @@ def test_run_scoped_ceri_export_for_500_tickers_stays_under_two_seconds() -> Non
 
 
 def test_metric_registry_exposes_required_phase_10_families() -> None:
+    operational_metrics.reset()
     registry = CeriMetricRegistry()
 
     registry.increment("ceri_processing_retries_total", job_type="CERI_PROVIDER_INGEST")
@@ -31,8 +33,12 @@ def test_metric_registry_exposes_required_phase_10_families() -> None:
     snapshot = registry.snapshot()
 
     assert set(snapshot["families"]) >= set(METRIC_FAMILIES)
-    assert "ceri_processing_retries_total|job_type=CERI_PROVIDER_INGEST" in snapshot["counters"]
-    assert snapshot["samples"][1]["name"] == "ceri_scores_capture_duration_ms"
+    assert snapshot["counters"] == {}
+    assert snapshot["samples"] == []
+    assert snapshot["sample_count"] == 0
+    exposition = operational_metrics.as_prometheus()
+    assert "swinglens_ceri_processing_retries_total" in exposition
+    assert "swinglens_ceri_scores_capture_duration_seconds_bucket" in exposition
 
 
 def test_structured_log_payload_redacts_secrets_and_keeps_required_keys() -> None:

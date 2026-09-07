@@ -11,6 +11,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriIngestionRun, CeriProviderRequestTelemetry
+from app.observability.correlation import durable_causality_fields
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.dtos import (
     CatalystRequest,
@@ -371,7 +373,9 @@ def _safe_error(
 
 
 def _safe_message(exc: Exception) -> str:
-    return str(exc).replace("\n", " ").strip()[:500]
+    from app.services.redaction import redact_text
+
+    return redact_text(str(exc)).replace("\n", " ").strip()[:500]
 
 
 def _provider_stats(provider: CeriProvider):
@@ -401,9 +405,54 @@ def _record_provider_telemetry(
     if calls == 0:
         return
     scope_hash = hashlib.sha256(repr(sorted(scope.items())).encode("utf-8")).hexdigest()
+    latency_seconds = max(0.0, time.perf_counter() - started)
+    provider_name = str(getattr(provider, "name", "unknown"))
+    result = "failure" if failed else "success"
+    retries = max(
+        0,
+        int(getattr(after, "retries", 0) or 0) - int(getattr(before, "retries", 0) or 0),
+    )
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_provider_requests_total",
+        value=1,
+        provider=provider_name,
+        result=result,
+    )
+    publish_after_commit(
+        db,
+        "observe",
+        "swinglens_provider_request_duration_seconds",
+        latency_seconds,
+        provider=provider_name,
+    )
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_provider_response_bytes_total",
+        value=response_bytes,
+        provider=provider_name,
+    )
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_provider_stored_bytes_total",
+        value=stored_bytes,
+        provider=provider_name,
+    )
+    if retries:
+        publish_after_commit(
+            db,
+            "increment",
+            "swinglens_provider_retries_total",
+            value=retries,
+            provider=provider_name,
+        )
     db.add(
         CeriProviderRequestTelemetry(
-            provider=getattr(provider, "name", "unknown"),
+            **durable_causality_fields(),
+            provider=provider_name,
             dataset=dataset,
             endpoint=f"dataset:{dataset}",
             request_key=hashlib.sha256(request_key.encode("utf-8")).hexdigest(),
@@ -414,11 +463,8 @@ def _record_provider_telemetry(
                 int(getattr(after, "calls_used_today", 0) or 0)
                 - int(getattr(before, "calls_used_today", 0) or 0),
             ),
-            latency_ms=int((time.perf_counter() - started) * 1000),
-            retry_count=max(
-                0,
-                int(getattr(after, "retries", 0) or 0) - int(getattr(before, "retries", 0) or 0),
-            ),
+            latency_ms=int(latency_seconds * 1000),
+            retry_count=retries,
             response_bytes=response_bytes,
             stored_bytes=stored_bytes,
             error_code="PROVIDER_REQUEST_FAILED" if failed else None,

@@ -6,10 +6,13 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundWorker
+from app.observability.db_monitor import get_database_monitor
+from app.observability.resource_sampler import process_sampler_status
 from app.services.background_queue import job_queue_class, normalize_worker_queues
 from app.services.process_identity import process_started_at
 
@@ -87,6 +90,7 @@ def heartbeat_worker(
     instance_id: str | None = None,
     rss_bytes: int | None = None,
     private_bytes: int | None = None,
+    cpu_percent: float | None = None,
     memory_status: str | None = None,
 ) -> BackgroundWorker:
     worker = db.get(BackgroundWorker, worker_id)
@@ -106,10 +110,36 @@ def heartbeat_worker(
         worker.rss_bytes = rss_bytes
     if private_bytes is not None:
         worker.private_bytes = private_bytes
+    if cpu_percent is not None:
+        worker.cpu_percent = cpu_percent
     if memory_status is not None:
         worker.memory_status = memory_status
+    sampler = process_sampler_status("worker")
+    monitor = get_database_monitor()
+    if _telemetry_columns_available(db):
+        monitor_status = monitor.status() if monitor is not None and monitor.enabled else {}
+        worker.telemetry_status = (
+            "FAILED"
+            if monitor_status.get("fatal_error") or monitor_status.get("writer_alive") is False
+            else ("OPTIONAL_UNAVAILABLE" if monitor is None or not monitor.enabled else "OK")
+        )
+        failed_categories = [
+            key for key, value in sampler.items() if key != "last_observed_at" and value == "failed"
+        ]
+        worker.resource_collector_status = "FAILED" if failed_categories else "OK"
+        worker.resource_collector_heartbeat_at = sampler.get("last_observed_at")
     db.flush()
     return worker
+
+
+def _telemetry_columns_available(db: Session) -> bool:
+    try:
+        names = {
+            column["name"] for column in sa_inspect(db.get_bind()).get_columns("background_workers")
+        }
+        return "telemetry_status" in names
+    except Exception:
+        return False
 
 
 def mark_worker_stopping(

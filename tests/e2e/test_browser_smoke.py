@@ -19,6 +19,7 @@ ACCESSIBILITY_SURFACES = (
     "/ib",
     "/scoring",
     "/settings",
+    "/system/operations",
     "/help",
 )
 

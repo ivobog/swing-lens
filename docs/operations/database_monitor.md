@@ -22,10 +22,24 @@ behavior, queue ordering, or domain calculations.
 | `DB_MONITOR_ACTIVITY_THRESHOLD_MS` | `1500` | Active-query sample threshold. |
 | `DB_MONITOR_ACTIVITY_SAMPLE_INTERVAL_SECONDS` | `10` | Sampler cadence. |
 
+The current `.env.example` enables the activity sampler at a one-second cadence for local diagnosis;
+the setting remains configurable and uses its own single-connection engine.
+
 Files use `sql-YYYY-MM-DD-pPID.jsonl` with numbered size segments. Process-specific
 filenames prevent the API and worker from interleaving writes. The writer reports
 `records_written`, `db_monitor_dropped_records`, queue depth, and write failures in
 `monitor_status` records. Queue saturation drops telemetry instead of blocking SQL.
+
+P0/P1/P2 remain physically separate. P0 covers request/job summaries and incident-critical evidence;
+P1 covers high-value diagnostic events; P2 covers routine SQL. Under pressure P2 records are
+aggregated or sampled while P0 capacity remains reserved. Prometheus bridging occurs only at the
+existing enqueue/write/event boundaries and does not alter that priority logic.
+
+The bridge exports created/written/dropped counts by priority, current queue depth, writer errors and
+latency, slow queries, long transactions, and DB-pool wait. The Operations page also shows the ten
+most frequent safe slow-query fingerprints retained by the current web-process monitor. It never
+reparses JSONL on an HTTP request. Cross-process aggregates and history are viewed in Prometheus;
+JSONL remains the authoritative detailed forensic record.
 
 SQL records contain normalized SQL and a SHA-256 fingerprint, but never bind values.
 The safe parameter description contains only container shape, parameter count, batch
@@ -39,13 +53,15 @@ health sampler uses a separate engine and this exclusion as defense in depth.
 
 ## Correlation and summaries
 
-FastAPI middleware propagates or creates `X-Request-ID` and uses a task-safe `ContextVar`.
+FastAPI middleware propagates or creates `X-Request-ID` and `X-Root-Correlation-ID` and uses a
+task-safe `ContextVar`.
 SQL inherits the method, actual path, resolved route name/template, and request ID. A
 `finally` block emits `request_summary` and resets both context variables.
 
 The worker sets job context immediately around the registered handler and resets it in a
 `finally` block. SQL inherits real values only: job ID/type, related run, worker,
-workflow key, and singular ticker/company fields when present. Each handler execution
+workflow key, root correlation ID, causation ID, and singular ticker/company fields when present.
+Each handler execution
 emits `job_summary`, including failed, deferred, and cancelled handlers.
 
 Both summaries include operation counts, total/max SQL time, unique/duplicate

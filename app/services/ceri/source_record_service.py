@@ -68,6 +68,7 @@ class CeriSourceRecordService:
         db.flush()
         ceri_metrics.increment(
             "ceri_ingestion_started_total",
+            session=db,
             provider=provider,
             dataset=dataset,
         )
@@ -103,6 +104,7 @@ class CeriSourceRecordService:
         if existing is not None:
             ceri_metrics.increment(
                 "ceri_ingestion_deduplicated_total",
+                session=db,
                 provider=record.provider,
                 dataset=record.dataset.value,
             )
@@ -133,6 +135,7 @@ class CeriSourceRecordService:
         if prior_provider_record is not None and prior_provider_record.content_hash == content_hash:
             ceri_metrics.increment(
                 "ceri_ingestion_deduplicated_total",
+                session=db,
                 provider=record.provider,
                 dataset=record.dataset.value,
             )
@@ -192,9 +195,7 @@ class CeriSourceRecordService:
             ),
             restricted_normalized_json=stored_projection or None,
             payload_remediation_version=(
-                "wave4-evidence-projection-v1"
-                if record.provider in {"eodhd", "sec"}
-                else None
+                "wave4-evidence-projection-v1" if record.provider in {"eodhd", "sec"} else None
             ),
             content_hash=content_hash,
             normalized_hash=source_record_content_hash(normalized_projection),
@@ -213,6 +214,7 @@ class CeriSourceRecordService:
         if quarantine_reason:
             ceri_metrics.increment(
                 "ceri_ingestion_quarantined_total",
+                session=db,
                 provider=record.provider,
                 dataset=record.dataset.value,
             )
@@ -230,7 +232,9 @@ class CeriSourceRecordService:
                 if prior_provider_record is not None
                 else "ceri_ingestion_inserted_total"
             )
-            ceri_metrics.increment(metric, provider=record.provider, dataset=record.dataset.value)
+            ceri_metrics.increment(
+                metric, session=db, provider=record.provider, dataset=record.dataset.value
+            )
             ceri_log_event(
                 (
                     "source_record_corrected"
@@ -290,6 +294,7 @@ class CeriSourceRecordService:
         db.flush()
         ceri_metrics.increment(
             "ceri_ingestion_completed_total",
+            session=db,
             provider=run.provider,
             dataset=run.dataset,
             status=status,
@@ -298,6 +303,7 @@ class CeriSourceRecordService:
             ceri_metrics.observe(
                 "ceri_ingestion_duration_ms",
                 float(run.duration_ms),
+                session=db,
                 provider=run.provider,
                 dataset=run.dataset,
                 status=status,

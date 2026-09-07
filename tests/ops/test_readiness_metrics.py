@@ -23,7 +23,7 @@ def test_readiness_degrades_for_migration_mismatch(tmp_path, monkeypatch) -> Non
 
     report = ReadinessService(engine=engine, settings=_settings(tmp_path)).report()
 
-    assert report.status == "degraded"
+    assert report.status == "failed"
     assert report.checks["migrations"].ok is False
     assert "migration head mismatch" in report.checks["migrations"].message
 
@@ -46,7 +46,7 @@ def test_readiness_degrades_for_stale_running_jobs(tmp_path, monkeypatch) -> Non
 
     report = ReadinessService(engine=engine, settings=_settings(tmp_path), now=now).report()
 
-    assert report.status == "degraded"
+    assert report.status == "failed"
     assert report.checks["jobs"].ok is False
     assert report.checks["jobs"].message == "stale_running_jobs:1"
 
@@ -68,7 +68,7 @@ def test_readiness_degrades_for_storage_failure_and_redacts_error(tmp_path, monk
 
     report = ReadinessService(engine=engine, settings=_settings(tmp_path)).report()
 
-    assert report.status == "degraded"
+    assert report.status == "failed"
     assert report.checks["storage"].ok is False
     assert report.checks["storage"].message == "<restricted:sql>"
     assert "abc123" not in str(report.response_checks())
@@ -128,7 +128,7 @@ def test_readiness_short_circuits_database_dependent_checks_when_unavailable(
         settings=_settings(tmp_path),
     ).report()
 
-    assert report.status == "degraded"
+    assert report.status == "failed"
     assert report.database_ok is False
     assert report.checks["migrations"].message == "skipped: database unavailable"
     assert report.checks["jobs"].message == "skipped: database unavailable"
@@ -181,7 +181,11 @@ def _readiness_engine(
             {"revision": alembic_revision},
         )
         connection.execute(
-            text("create table background_jobs (status text, lease_expires_at timestamp)")
+            text(
+                "create table background_jobs (id integer primary key, job_type text, "
+                "status text, run_after timestamp, created_at timestamp, "
+                "lease_expires_at timestamp)"
+            )
         )
         connection.execute(
             text(

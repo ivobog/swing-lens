@@ -144,7 +144,7 @@ def test_claim_next_job_marks_job_running() -> None:
     assert lease_event["event_type"] == "CLAIMED"
     assert "execution_token" not in lease_event
     assert lease_event["execution_token_hash"]
-    assert lease_event["execution_token_suffix"] == job.execution_token[-6:]
+    assert lease_event["execution_token_suffix"] is None
     attempt = job.operational_metadata_json["current_attempt"]
     assert attempt["attempt_number"] == 1
     assert attempt["queue_delay_ms"] >= 3_000
@@ -474,7 +474,7 @@ def test_old_worker_cannot_commit_after_lease_is_replaced() -> None:
     assert job.status == JobStatus.RUNNING
     lease_event = job.operational_metadata_json["lease_events"][-1]
     assert "execution_token" not in lease_event
-    assert lease_event["execution_token_suffix"] == old_token[-6:]
+    assert lease_event["execution_token_suffix"] is None
 
 
 def test_duplicate_workers_cannot_both_mark_job_complete() -> None:

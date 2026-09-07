@@ -1413,6 +1413,28 @@ class BackgroundJob(Base):
     )
     continuation_depth: Mapped[int | None] = mapped_column(Integer)
     trigger_source: Mapped[str | None] = mapped_column(Text)
+    root_correlation_id: Mapped[str | None] = mapped_column(Text)
+    causation_id: Mapped[str | None] = mapped_column(Text)
+    trigger_kind: Mapped[str | None] = mapped_column(Text)
+    trigger_name: Mapped[str | None] = mapped_column(Text)
+    triggered_by_request_id: Mapped[str | None] = mapped_column(Text)
+    triggered_by_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "background_jobs.id",
+            name="fk_background_jobs_triggered_by_job",
+            ondelete="SET NULL",
+            use_alter=True,
+        )
+    )
+    fanout_group_id: Mapped[str | None] = mapped_column(Text)
+    coalesced_into_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "background_jobs.id",
+            name="fk_background_jobs_coalesced_into",
+            ondelete="SET NULL",
+            use_alter=True,
+        )
+    )
     status: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[int] = mapped_column(
         Integer,
@@ -1533,6 +1555,10 @@ class BackgroundJob(Base):
         ),
         Index("idx_background_jobs_root_job_id", "root_job_id"),
         Index("idx_background_jobs_parent_job_id", "parent_job_id"),
+        Index("idx_background_jobs_root_correlation_id", "root_correlation_id", "created_at", "id"),
+        Index("idx_background_jobs_fanout_group_id", "fanout_group_id"),
+        Index("idx_background_jobs_triggered_by_job_id", "triggered_by_job_id"),
+        Index("idx_background_jobs_coalesced_into_job_id", "coalesced_into_job_id"),
         Index(
             "uq_background_jobs_workflow_stage",
             "workflow_key",
@@ -1546,7 +1572,9 @@ class BackgroundJob(Base):
             "job_type",
             "request_key",
             unique=True,
-            postgresql_where=text("request_key IS NOT NULL AND status IN ('QUEUED', 'RUNNING')"),
+            postgresql_where=text(
+                "request_key IS NOT NULL AND status IN ('QUEUED', 'RUNNING', 'RECOVERING')"
+            ),
         ),
         Index(
             "uq_background_jobs_active_winner_maturation_workflow",
@@ -1558,6 +1586,65 @@ class BackgroundJob(Base):
                 "AND status IN ('QUEUED', 'RUNNING', 'RECOVERING')"
             ),
         ),
+    )
+
+
+class BackgroundJobEnqueueAttempt(Base):
+    __tablename__ = "background_job_enqueue_attempts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    job_type: Mapped[str] = mapped_column(Text, nullable=False)
+    root_correlation_id: Mapped[str] = mapped_column(Text, nullable=False)
+    causation_id: Mapped[str] = mapped_column(Text, nullable=False)
+    parent_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("background_jobs.id", name="fk_enqueue_attempt_parent_job", ondelete="SET NULL")
+    )
+    triggered_by_request_id: Mapped[str | None] = mapped_column(Text)
+    request_key: Mapped[str | None] = mapped_column(Text)
+    workflow_key: Mapped[str | None] = mapped_column(Text)
+    result: Mapped[str] = mapped_column(Text, nullable=False)
+    authoritative_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "background_jobs.id", name="fk_enqueue_attempt_authoritative_job", ondelete="SET NULL"
+        )
+    )
+    trigger_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    trigger_name: Mapped[str] = mapped_column(Text, nullable=False)
+    fanout_group_id: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("idx_enqueue_attempts_root_time", "root_correlation_id", "occurred_at", "id"),
+        Index("idx_enqueue_attempts_time_root", "occurred_at", "id", "root_correlation_id"),
+        Index("idx_enqueue_attempts_parent_time", "parent_job_id", "occurred_at", "id"),
+        Index("idx_enqueue_attempts_authoritative_job", "authoritative_job_id"),
+    )
+
+
+class BackgroundJobFanoutRoot(Base):
+    __tablename__ = "background_job_fanout_roots"
+
+    root_correlation_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    workflow_family: Mapped[str] = mapped_column(Text, nullable=False)
+    first_occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempted_enqueues: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    created_jobs: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    coalesced_attempts: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    rejected_attempts: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_descendant_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    maximum_depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warning_emitted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    critical_emitted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    job_family_distribution_json: Mapped[dict[str, int]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+    __table_args__ = (
+        Index("idx_fanout_roots_recent", "last_occurred_at", "root_correlation_id"),
+        Index("idx_fanout_roots_family_recent", "workflow_family", "last_occurred_at"),
     )
 
 
@@ -1584,7 +1671,19 @@ class BackgroundWorker(Base):
     )
     rss_bytes: Mapped[int | None] = mapped_column(BigInteger)
     private_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    cpu_percent: Mapped[float | None] = mapped_column(
+        Float, deferred=True, server_default=text("NULL")
+    )
     memory_status: Mapped[str | None] = mapped_column(Text)
+    telemetry_status: Mapped[str | None] = mapped_column(
+        Text, deferred=True, server_default=text("NULL")
+    )
+    resource_collector_status: Mapped[str | None] = mapped_column(
+        Text, deferred=True, server_default=text("NULL")
+    )
+    resource_collector_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), deferred=True, server_default=text("NULL")
+    )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -1616,6 +1715,15 @@ class BackgroundSupervisor(Base):
         nullable=False,
         default=1,
         server_default="1",
+    )
+    telemetry_status: Mapped[str | None] = mapped_column(
+        Text, deferred=True, server_default=text("NULL")
+    )
+    resource_collector_status: Mapped[str | None] = mapped_column(
+        Text, deferred=True, server_default=text("NULL")
+    )
+    resource_collector_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), deferred=True, server_default=text("NULL")
     )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

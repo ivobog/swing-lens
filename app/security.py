@@ -61,6 +61,7 @@ def install_trusted_host_middleware(app: Any, app_host: str) -> None:
             "testclient",
             "localhost",
             "127.0.0.1",
+            "host.docker.internal",
             "[::1]",
             "::1",
             app_host,

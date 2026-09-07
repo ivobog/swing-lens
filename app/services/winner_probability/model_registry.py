@@ -17,6 +17,7 @@ from app.models.tables import (
     WinnerModelLifecycleEvent,
     WinnerModelVersion,
 )
+from app.services.redaction import redact_text
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
     load_winner_probability_config,
@@ -143,7 +144,7 @@ class ModelRegistry:
             checks["artifact"] = {"passed": True, "artifact_hash": model.artifact_hash}
         except ValueError as exc:
             reasons.append(f"artifact_invalid:{exc}")
-            checks["artifact"] = {"passed": False, "error": str(exc)}
+            checks["artifact"] = {"passed": False, "error": redact_text(str(exc))}
         if int(metrics.get("sample_n") or 0) < minimum_sample:
             reasons.append("minimum_sample_not_met")
         checks["sample"] = {
@@ -275,9 +276,8 @@ class ModelRegistry:
         old_status = model.status
         if old_status == ModelStatus.ACTIVE and not allow_without_active_fallback:
             active_count = self._active_count(db, model.outcome_definition_id)
-            replacement_active = (
-                replacement_model_version_id is not None
-                and self._is_active(db, replacement_model_version_id)
+            replacement_active = replacement_model_version_id is not None and self._is_active(
+                db, replacement_model_version_id
             )
             if active_count <= 1 and not replacement_active:
                 raise ModelRegistryError(
@@ -404,17 +404,15 @@ class ModelRegistry:
         min_brier_improvement = float(
             config.model_governance.promotion_gates["min_brier_improvement"]
         )
-        log_loss_passed = (
-            _metric(metrics, "model_log_loss") + min_log_loss_improvement
-            <= _metric(metrics, "global_baseline_log_loss")
-            and _metric(metrics, "model_log_loss") + min_log_loss_improvement
-            <= _metric(metrics, "cohort_baseline_log_loss")
+        log_loss_passed = _metric(metrics, "model_log_loss") + min_log_loss_improvement <= _metric(
+            metrics, "global_baseline_log_loss"
+        ) and _metric(metrics, "model_log_loss") + min_log_loss_improvement <= _metric(
+            metrics, "cohort_baseline_log_loss"
         )
-        brier_passed = (
-            _metric(metrics, "model_brier_score") + min_brier_improvement
-            <= _metric(metrics, "global_baseline_brier_score")
-            and _metric(metrics, "model_brier_score") + min_brier_improvement
-            <= _metric(metrics, "cohort_baseline_brier_score")
+        brier_passed = _metric(metrics, "model_brier_score") + min_brier_improvement <= _metric(
+            metrics, "global_baseline_brier_score"
+        ) and _metric(metrics, "model_brier_score") + min_brier_improvement <= _metric(
+            metrics, "cohort_baseline_brier_score"
         )
         if not log_loss_passed:
             reasons.append("log_loss_baseline_not_beaten")
@@ -461,8 +459,7 @@ class ModelRegistry:
             db.scalars(
                 select(WinnerModelVersion)
                 .where(
-                    WinnerModelVersion.outcome_definition_id
-                    == replacement.outcome_definition_id
+                    WinnerModelVersion.outcome_definition_id == replacement.outcome_definition_id
                 )
                 .where(WinnerModelVersion.status == ModelStatus.ACTIVE)
             )

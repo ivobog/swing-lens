@@ -100,6 +100,22 @@ Readiness check:
 http://127.0.0.1:8000/ready
 ```
 
+System Operations (local administrator only):
+
+```text
+http://127.0.0.1:8000/system/operations
+```
+
+Optional local metrics history and dashboards:
+
+```powershell
+docker compose -f docker-compose.observability.yml up -d
+```
+
+This starts Prometheus on port 9090 and Grafana on port 3000. It scrapes the web process on 8000,
+the durable worker on 9101, and its supervisor on 9102. See
+`docs/operations/prometheus_grafana.md` for retention, dashboards, and troubleshooting.
+
 ## Dependency Management
 
 `pyproject.toml` is the source of direct dependencies. `uv.lock` stores exact resolved

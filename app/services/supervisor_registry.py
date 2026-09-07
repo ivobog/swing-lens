@@ -3,10 +3,13 @@ from __future__ import annotations
 import socket
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundSupervisor
+from app.observability.db_monitor import get_database_monitor
+from app.observability.resource_sampler import process_sampler_status
 
 
 def acquire_supervisor(
@@ -38,8 +41,7 @@ def acquire_supervisor(
     elif (
         supervisor.instance_id != instance_id
         and supervisor.stopping_at is None
-        and supervisor.heartbeat_at
-        >= observed_at - timedelta(seconds=heartbeat_timeout_seconds)
+        and supervisor.heartbeat_at >= observed_at - timedelta(seconds=heartbeat_timeout_seconds)
     ):
         return None
     elif supervisor.instance_id != instance_id:
@@ -67,8 +69,33 @@ def heartbeat_supervisor(
         return False
     supervisor.heartbeat_at = now or datetime.now(UTC)
     supervisor.stopping_at = None
+    if _telemetry_columns_available(db):
+        sampler = process_sampler_status("supervisor")
+        monitor = get_database_monitor()
+        monitor_status = monitor.status() if monitor is not None and monitor.enabled else {}
+        supervisor.telemetry_status = (
+            "FAILED"
+            if monitor_status.get("fatal_error") or monitor_status.get("writer_alive") is False
+            else ("OPTIONAL_UNAVAILABLE" if monitor is None or not monitor.enabled else "OK")
+        )
+        failed_categories = [
+            key for key, value in sampler.items() if key != "last_observed_at" and value == "failed"
+        ]
+        supervisor.resource_collector_status = "FAILED" if failed_categories else "OK"
+        supervisor.resource_collector_heartbeat_at = sampler.get("last_observed_at")
     db.flush()
     return True
+
+
+def _telemetry_columns_available(db: Session) -> bool:
+    try:
+        names = {
+            column["name"]
+            for column in sa_inspect(db.get_bind()).get_columns("background_supervisors")
+        }
+        return "telemetry_status" in names
+    except Exception:
+        return False
 
 
 def release_supervisor(

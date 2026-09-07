@@ -7,10 +7,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import BaseRoute
 
+from app.db import engine
+from app.observability.correlation import CorrelationMiddleware
 from app.observability.db_monitor import (
     DatabaseHealthSampler,
     DatabaseMonitorMiddleware,
 )
+from app.observability.resource_sampler import ResourceSampler, SystemMetricsCollector
 from app.routers import (
     ceri_provider_routes,
     ceri_routes,
@@ -21,6 +24,7 @@ from app.routers import (
     ib_routes,
     market_data_routes,
     market_regime_routes,
+    operations_routes,
     run_routes,
     sector_rotation_routes,
     setup_lifecycle_routes,
@@ -66,6 +70,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     worker_settings: Settings = app.state.settings
     database_health_sampler = DatabaseHealthSampler(worker_settings)
     database_health_sampler.start()
+    resource_sampler = ResourceSampler(
+        process_role="web",
+        interval_seconds=worker_settings.observability_collection_interval_seconds,
+    )
+    system_metrics = SystemMetricsCollector(engine, worker_settings)
+    resource_sampler.start()
+    system_metrics.start()
     supervisor_manager: SupervisorProcessManager | None = None
     if worker_settings.job_worker_enabled:
         supervisor_manager = SupervisorProcessManager(worker_settings)
@@ -81,6 +92,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         if supervisor_manager is not None:
             supervisor_manager.stop()
+        system_metrics.stop()
+        resource_sampler.stop()
         database_health_sampler.stop()
 
 
@@ -96,9 +109,11 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     app.state.local_admin_csrf_token = issue_local_admin_csrf_token()
 
     app.add_middleware(DatabaseMonitorMiddleware, enabled=app_settings.db_monitor_enabled)
+    app.add_middleware(CorrelationMiddleware)
     install_trusted_host_middleware(app, app_settings.app_host)
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
     app.include_router(health_routes.router)
+    app.include_router(operations_routes.router)
     app.include_router(upload_routes.router)
     app.include_router(run_routes.router)
     app.include_router(market_regime_routes.router)

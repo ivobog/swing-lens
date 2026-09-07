@@ -93,6 +93,7 @@ def get_local_artifact(
         operational_metrics.increment(
             "swinglens_technical_artifact_cache_total",
             result="miss" if usage == "active" else "shadow_miss",
+            reason="not_found",
         )
         return None
     if artifact.status != "READY" or (
@@ -112,6 +113,7 @@ def get_local_artifact(
     operational_metrics.increment(
         "swinglens_technical_artifact_cache_total",
         result="hit" if usage == "active" else "shadow_candidate",
+        reason="certified" if usage == "active" else "candidate",
     )
     return artifact
 

@@ -93,12 +93,14 @@ class CeriPurgeService:
         db.flush()
         ceri_metrics.increment(
             "ceri_purge_previews_total",
+            session=db,
             provider=request.provider,
             license_scope=request.license_scope,
         )
         ceri_metrics.increment(
             "ceri_purge_affected_records_total",
             float(manifest["affected_counts"]["source_records"]),
+            session=db,
             provider=request.provider,
             license_scope=request.license_scope,
         )
@@ -123,18 +125,18 @@ class CeriPurgeService:
         _validate_required_request(request)
         audit = _find_audit(db, request.preview_manifest_hash)
         if audit is None:
-            _record_blocked(request, "preview_missing", job_id, processing_run_id)
+            _record_blocked(db, request, "preview_missing", job_id, processing_run_id)
             raise CeriPurgeError("Provider-license purge execution requires a prior preview.")
         if audit.provider != request.provider or audit.license_scope != request.license_scope:
-            _record_blocked(request, "preview_scope_mismatch", job_id, processing_run_id)
+            _record_blocked(db, request, "preview_scope_mismatch", job_id, processing_run_id)
             raise CeriPurgeError(
                 "Provider-license purge confirmation scope does not match preview."
             )
         if not audit.confirmation_token_hash:
-            _record_blocked(request, "confirmation_unavailable", job_id, processing_run_id)
+            _record_blocked(db, request, "confirmation_unavailable", job_id, processing_run_id)
             raise CeriPurgeError("Provider-license purge preview is missing a confirmation token.")
         if audit.confirmation_token_hash != _confirmation_token_hash(request.confirmation_token):
-            _record_blocked(request, "confirmation_mismatch", job_id, processing_run_id)
+            _record_blocked(db, request, "confirmation_mismatch", job_id, processing_run_id)
             raise CeriPurgeError("Provider-license purge confirmation token is invalid.")
 
         manifest = self._lifecycle_manifest(db, request.provider, request.license_scope)
@@ -142,7 +144,7 @@ class CeriPurgeService:
             _manifest_hash_input(manifest, request.provider, request.license_scope)
         )
         if current_hash != request.preview_manifest_hash:
-            _record_blocked(request, "preview_manifest_changed", job_id, processing_run_id)
+            _record_blocked(db, request, "preview_manifest_changed", job_id, processing_run_id)
             raise CeriPurgeError(
                 "Provider-license purge preview no longer matches the eligible evidence set."
             )
@@ -169,6 +171,7 @@ class CeriPurgeService:
         db.flush()
         ceri_metrics.increment(
             "ceri_purge_executions_total",
+            session=db,
             provider=request.provider,
             license_scope=request.license_scope,
         )
@@ -306,6 +309,7 @@ def _validate_required_request(request: Any) -> None:
 
 
 def _record_blocked(
+    db: Session,
     request: CeriPurgeExecuteRequest,
     reason: str,
     job_id: int | None,
@@ -313,6 +317,7 @@ def _record_blocked(
 ) -> None:
     ceri_metrics.increment(
         "ceri_purge_blocked_total",
+        session=db,
         provider=request.provider,
         license_scope=request.license_scope,
         reason=reason,

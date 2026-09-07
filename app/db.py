@@ -26,6 +26,9 @@ if make_url(settings.database_url).drivername.startswith("postgresql"):
         "connect_timeout": settings.database_connect_timeout_seconds,
         "application_name": f"swinglens-{process_role}",
     }
+    engine_options["pool_size"] = settings.database_pool_size
+    engine_options["max_overflow"] = settings.database_pool_max_overflow
+    engine_options["pool_timeout"] = settings.database_pool_timeout_seconds
 engine = create_engine(settings.database_url, **engine_options)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 db_monitor = configure_database_monitor(engine, settings)

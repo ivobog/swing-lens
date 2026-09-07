@@ -39,9 +39,7 @@ class CeriCompany(Base):
         String(32), nullable=False, default="REQUIRED", server_default="REQUIRED"
     )
     sec_applicability_reason: Mapped[str | None] = mapped_column(Text)
-    sec_applicability_updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
+    sec_applicability_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     current_provider_ids_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -179,6 +177,12 @@ class CeriProcessingRun(Base):
     job_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
     deterministic_request_key: Mapped[str] = mapped_column(Text, nullable=False)
+    root_correlation_id: Mapped[str | None] = mapped_column(Text)
+    causation_id: Mapped[str | None] = mapped_column(Text)
+    background_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("background_jobs.id", ondelete="SET NULL")
+    )
+    triggered_by_request_id: Mapped[str | None] = mapped_column(Text)
     scope_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     config_version: Mapped[str | None] = mapped_column(Text)
     config_hash: Mapped[str | None] = mapped_column(Text)
@@ -215,6 +219,7 @@ class CeriProcessingRun(Base):
         ),
         Index("ix_ceri_processing_runs_status_checkpoint", "status", "job_type"),
         Index("ix_ceri_processing_runs_heartbeat", "heartbeat_at"),
+        Index("ix_ceri_processing_runs_root", "root_correlation_id", "created_at"),
     )
 
 
@@ -1185,6 +1190,12 @@ class CeriProviderRequestTelemetry(Base):
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     dataset: Mapped[str | None] = mapped_column(String(64))
     endpoint: Mapped[str] = mapped_column(String(128), nullable=False)
+    root_correlation_id: Mapped[str | None] = mapped_column(Text)
+    causation_id: Mapped[str | None] = mapped_column(Text)
+    background_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("background_jobs.id", ondelete="SET NULL")
+    )
+    triggered_by_request_id: Mapped[str | None] = mapped_column(Text)
     request_key: Mapped[str | None] = mapped_column(Text)
     scope_hash: Mapped[str | None] = mapped_column(String(128))
     status_code: Mapped[int | None] = mapped_column(Integer)
@@ -1200,7 +1211,9 @@ class CeriProviderRequestTelemetry(Base):
 
     __table_args__ = (
         Index("ix_ceri_provider_telemetry_provider_observed", "provider", "observed_at"),
+        Index("ix_ceri_provider_telemetry_observed_provider", "observed_at", "provider"),
         Index("ix_ceri_provider_telemetry_endpoint_observed", "endpoint", "observed_at"),
+        Index("ix_ceri_provider_telemetry_root", "root_correlation_id", "observed_at"),
     )
 
 

@@ -71,12 +71,8 @@ class WeightedWindowBudget:
                 if wait <= 0:
                     self._events.append((now, weight))
                     return
-                operational_metrics.increment(
-                    "swinglens_ibmi_pacing_waits_total", weight=weight
-                )
-                operational_metrics.increment(
-                    "swinglens_ibmi_pacing_wait_seconds_total", value=wait
-                )
+                operational_metrics.increment("swinglens_ibmi_pacing_waits_total", weight=weight)
+                operational_metrics.observe("swinglens_ibmi_pacing_wait_seconds", value=wait)
                 if guard:
                     remaining = wait
                     while remaining > 0:

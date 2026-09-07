@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.tables import IBFetchItem, IBFetchRun
 from app.services.bar_cache_service import BarFetchSummary
+from app.services.redaction import redact_text
 
 
 def create_ib_fetch_run(
@@ -117,4 +118,4 @@ def _summary_message(summary: BarFetchSummary) -> str:
 
 
 def _safe_message(message: str) -> str:
-    return message.replace("\n", " ").strip()[:500]
+    return redact_text(message).replace("\n", " ").strip()[:500]

@@ -8,8 +8,11 @@ from typing import Any
 RESTRICTED_VALUE_TEMPLATE = "<restricted:{field}>"
 
 _SENSITIVE_FIELD_FRAGMENTS = (
+    "access_key",
+    "access_token",
     "api_key",
     "apikey",
+    "api-key",
     "auth",
     "authorization",
     "bearer",
@@ -17,7 +20,10 @@ _SENSITIVE_FIELD_FRAGMENTS = (
     "credential",
     "execution_token",
     "password",
+    "passwd",
+    "pwd",
     "provider_secret",
+    "refresh_token",
     "raw_payload",
     "secret",
     "source_url",
@@ -31,6 +37,27 @@ _SQL_DETAIL_PATTERN = re.compile(
     r"(?is)\b(select|insert|update|delete|merge|with|alter|drop|create)\b.+\b(from|into|table|where|values)\b"
 )
 _BEARER_PATTERN = re.compile(r"(?i)bearer\s+[a-z0-9._\-]+")
+_AUTH_SCHEME_PATTERN = re.compile(
+    r"(?i)\b(?P<scheme>bearer|basic)\s+"
+    r"(?P<credential>(?:\"(?:\\.|[^\"\\])*\")|(?:'(?:\\.|[^'\\])*')|[^\s,;]+)"
+)
+_URI_USERINFO_PATTERN = re.compile(r"(?i)(?P<scheme>[a-z][a-z0-9+.-]*://)(?P<userinfo>[^/@\s]+)@")
+_ASSIGNMENT_PATTERN = re.compile(
+    r"(?ix)"
+    r"(?P<prefix>(?<![a-z0-9_-])(?:[\"']?)"
+    r"(?:password|passwd|pwd|api[_-]?key|apikey|x-api-key|token|auth[_-]?token|"
+    r"access[_-]?token|refresh[_-]?token|client[_-]?secret|provider[_-]?secret|"
+    r"[a-z0-9.-]+[_-](?:api[_-]?key|token|secret|credential|password)|"
+    r"access[_-]?key|secret[_-]?key|authorization|signature)"
+    r"(?:[\"']?)\s*(?:=|:)\s*)"
+    r"(?P<value>\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s&,;}\]]+)"
+)
+
+
+def _assignment_replacement(match: re.Match[str]) -> str:
+    raw = match.group("value")
+    quote = raw[0] if raw[:1] in {'"', "'"} and raw[-1:] == raw[:1] else ""
+    return f"{match.group('prefix')}{quote}<restricted:secret>{quote}"
 
 
 def redact_sensitive(value: Any) -> Any:
@@ -61,7 +88,8 @@ def token_fingerprint(token: str | None) -> dict[str, str | None]:
         return {"hash": None, "suffix": None}
     return {
         "hash": hashlib.sha256(token.encode("utf-8")).hexdigest()[:16],
-        "suffix": token[-6:],
+        # A token suffix is reversible evidence and must never enter telemetry.
+        "suffix": None,
     }
 
 
@@ -86,7 +114,15 @@ def is_sensitive_field(field: str) -> bool:
 
 
 def redact_text(value: str) -> str:
-    redacted = _BEARER_PATTERN.sub("Bearer <restricted:token>", value)
+    redacted = _AUTH_SCHEME_PATTERN.sub(
+        lambda match: f"{match.group('scheme')} <restricted:credentials>", value
+    )
+    redacted = _URI_USERINFO_PATTERN.sub(
+        lambda match: f"{match.group('scheme')}<restricted:userinfo>@", redacted
+    )
+    redacted = _ASSIGNMENT_PATTERN.sub(_assignment_replacement, redacted)
+    # Kept for compatibility with older, narrower bearer matching behavior.
+    redacted = _BEARER_PATTERN.sub("Bearer <restricted:token>", redacted)
     redacted = _LOCAL_PATH_PATTERN.sub("<restricted:path>", redacted)
     if _SQL_DETAIL_PATTERN.search(redacted):
         return "<restricted:sql>"

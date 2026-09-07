@@ -601,7 +601,9 @@ def _required_text(payload: dict[str, Any], key: str) -> str:
 
 
 def _safe_error(exc: Exception) -> str:
-    return str(exc).replace("\n", " ").strip()[:500] or exc.__class__.__name__
+    from app.services.redaction import redact_text
+
+    return redact_text(str(exc)).replace("\n", " ").strip()[:500] or exc.__class__.__name__
 
 
 def _skipped(job_type: str, reason: str) -> dict[str, Any]:

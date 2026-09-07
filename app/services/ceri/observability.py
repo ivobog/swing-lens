@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import logging
-import time
-from collections import defaultdict
-from dataclasses import dataclass
 from typing import Any
 
+from app.observability.logging import log_event
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.ceri.export_policy import redact_sensitive
+from app.services.operational_metrics import operational_metrics
 
 LOGGER_NAME = "swinglens.ceri"
 
@@ -45,48 +45,76 @@ STRUCTURED_EVENT_NAMES = frozenset(
 )
 
 
-@dataclass(frozen=True)
-class CeriMetricSample:
-    name: str
-    value: float
-    tags: dict[str, str]
-    observed_at_monotonic: float
+CERI_METRIC_CATALOG = frozenset(
+    {
+        "ceri_ingestion_started_total",
+        "ceri_ingestion_completed_total",
+        "ceri_ingestion_inserted_total",
+        "ceri_ingestion_corrected_total",
+        "ceri_ingestion_deduplicated_total",
+        "ceri_ingestion_quarantined_total",
+        "ceri_ingestion_sec_documents_skipped_total",
+        "ceri_ingestion_sec_documents_would_skip_total",
+        "ceri_ingestion_duration_ms",
+        "ceri_processing_retries_total",
+        "ceri_scores_capture_duration_ms",
+        "ceri_purge_previews_total",
+        "ceri_purge_affected_records_total",
+        "ceri_purge_executions_total",
+        "ceri_purge_blocked_total",
+    }
+)
 
 
 class CeriMetricRegistry:
-    def __init__(self) -> None:
-        self._counters: dict[str, float] = defaultdict(float)
-        self._samples: list[CeriMetricSample] = []
+    """Stateless adapter over the bounded process-local Prometheus registry."""
 
-    def increment(self, name: str, value: float = 1.0, **tags: str) -> None:
+    def increment(self, name: str, value: float = 1.0, *, session: Any = None, **tags: str) -> None:
         _validate_metric_name(name)
-        key = _metric_key(name, tags)
-        self._counters[key] += value
-        self._samples.append(
-            CeriMetricSample(
-                name=name,
-                value=value,
-                tags={key: str(value) for key, value in tags.items()},
-                observed_at_monotonic=time.monotonic(),
-            )
-        )
+        safe_tags = _bounded_tags(tags)
+        canonical = f"swinglens_{name}"
+        if session is None:
+            operational_metrics.increment(canonical, value=value, **safe_tags)
+        else:
+            publish_after_commit(session, "increment", canonical, value=value, **safe_tags)
+        if name.startswith("ceri_ingestion_"):
+            aggregate_tags = {
+                "provider": str(tags.get("provider") or "unknown"),
+                "dataset": str(tags.get("dataset") or "unknown"),
+                "result": name.removeprefix("ceri_ingestion_").removesuffix("_total"),
+            }
+            if session is None:
+                operational_metrics.increment(
+                    "swinglens_ceri_ingestion_total", value=value, **aggregate_tags
+                )
+            else:
+                publish_after_commit(
+                    session,
+                    "increment",
+                    "swinglens_ceri_ingestion_total",
+                    value=value,
+                    **aggregate_tags,
+                )
 
-    def observe(self, name: str, value: float, **tags: str) -> None:
+    def observe(self, name: str, value: float, *, session: Any = None, **tags: str) -> None:
         _validate_metric_name(name)
-        self._samples.append(
-            CeriMetricSample(
-                name=name,
-                value=value,
-                tags={key: str(value) for key, value in tags.items()},
-                observed_at_monotonic=time.monotonic(),
-            )
-        )
+        metric_name = f"swinglens_{name}"
+        metric_value = value
+        if metric_name.endswith("_duration_ms"):
+            metric_name = metric_name.removesuffix("_ms") + "_seconds"
+            metric_value = value / 1000.0
+        safe_tags = _bounded_tags(tags)
+        if session is None:
+            operational_metrics.observe(metric_name, metric_value, **safe_tags)
+        else:
+            publish_after_commit(session, "observe", metric_name, metric_value, **safe_tags)
 
     def snapshot(self) -> dict[str, Any]:
         return {
             "families": list(METRIC_FAMILIES),
-            "counters": dict(self._counters),
-            "samples": [sample.__dict__ for sample in self._samples],
+            "counters": {},
+            "samples": [],
+            "sample_count": 0,
         }
 
 
@@ -96,7 +124,7 @@ class CeriStructuredLogger:
 
     def event(self, event_name: str, **fields: Any) -> dict[str, Any]:
         payload = ceri_log_payload(event_name, **fields)
-        self.logger.info("ceri.%s", event_name, extra={"ceri": payload})
+        log_event(self.logger, f"ceri.{event_name}", ceri=payload)
         return payload
 
 
@@ -131,12 +159,25 @@ ceri_metrics = CeriMetricRegistry()
 
 
 def _validate_metric_name(name: str) -> None:
-    if not any(name == family or name.startswith(f"{family}_") for family in METRIC_FAMILIES):
-        raise ValueError(f"Unsupported CERI metric family: {name}")
+    if name not in CERI_METRIC_CATALOG:
+        raise ValueError(f"Undeclared CERI metric: {name}")
 
 
-def _metric_key(name: str, tags: dict[str, str]) -> str:
-    if not tags:
-        return name
-    encoded_tags = ",".join(f"{key}={tags[key]}" for key in sorted(tags))
-    return f"{name}|{encoded_tags}"
+def _bounded_tags(tags: dict[str, str]) -> dict[str, str]:
+    forbidden = {
+        "job_id",
+        "run_id",
+        "request_id",
+        "root_correlation_id",
+        "causation_id",
+        "workflow_key",
+        "request_key",
+        "ticker",
+        "company",
+        "company_id",
+        "execution_token",
+        "query_fingerprint",
+        "error_message",
+        "path",
+    }
+    return {key: str(value) for key, value in tags.items() if key not in forbidden}

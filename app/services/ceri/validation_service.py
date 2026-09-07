@@ -7,6 +7,7 @@ from typing import Any
 from app.services.ceri.dtos import CatalystRequest, CompanyQuery, EarningsRequest, EstimateRequest
 from app.services.ceri.enums import CeriMetric, CeriPeriodType, CeriProviderCapability
 from app.services.ceri.provider_protocol import CeriProvider
+from app.services.redaction import redact_text
 
 DEFAULT_VALIDATION_SAMPLE = (
     "AAPL",
@@ -114,9 +115,9 @@ class CeriProviderValidationService:
                     provider.resolve_company(CompanyQuery(ticker=ticker, exchange="NASDAQ"))
                 )
                 identity += int(bool(identities))
-                if len(identities) != len({
-                    (item.provider_company_id, item.exchange, item.cik) for item in identities
-                }):
+                if len(identities) != len(
+                    {(item.provider_company_id, item.exchange, item.cik) for item in identities}
+                ):
                     anomalies += 1
                 records = list(
                     provider.fetch_estimate_snapshots(
@@ -186,7 +187,12 @@ class CeriProviderValidationService:
                         missing_earnings_actuals += 1
                 catalysts += len(list(provider.fetch_catalysts(CatalystRequest(None, ticker))))
             except Exception as exc:
-                errors.append({"ticker": ticker, "error": str(exc).replace("\n", " ")[:300]})
+                errors.append(
+                    {
+                        "ticker": ticker,
+                        "error": redact_text(str(exc)).replace("\n", " ")[:300],
+                    }
+                )
         completed = datetime.now(UTC)
         blocking_reasons: list[str] = []
         if errors:

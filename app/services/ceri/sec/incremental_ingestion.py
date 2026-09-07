@@ -27,6 +27,7 @@ from app.services.ceri.sec.state_service import (
     SecDocumentStateService,
 )
 from app.services.ceri.source_record_service import CeriSourceRecordService
+from app.services.redaction import redact_text
 from app.settings import SecDocumentIncrementalMode, Settings
 
 
@@ -237,12 +238,14 @@ class SecGuidanceIncrementalIngestionService:
             outcome.documents_would_skip += 1
             ceri_metrics.increment(
                 "ceri_ingestion_sec_documents_would_skip_total",
+                session=db,
                 dataset=CeriDataset.GUIDANCE.value,
             )
             if self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE:
                 outcome.documents_skipped += 1
                 ceri_metrics.increment(
                     "ceri_ingestion_sec_documents_skipped_total",
+                    session=db,
                     dataset=CeriDataset.GUIDANCE.value,
                 )
                 return True
@@ -250,6 +253,7 @@ class SecGuidanceIncrementalIngestionService:
                 outcome.documents_skipped += 1
                 ceri_metrics.increment(
                     "ceri_ingestion_sec_documents_skipped_total",
+                    session=db,
                     dataset=CeriDataset.GUIDANCE.value,
                 )
                 return True
@@ -358,7 +362,10 @@ class SecGuidanceIncrementalIngestionService:
     def _record_failure(self, db: Session, *, claim, exc: Exception, outcome) -> None:
         outcome.failed += 1
         outcome.errors.append(
-            {"error": str(exc).replace("\n", " ")[:500], "type": type(exc).__name__}
+            {
+                "error": redact_text(str(exc)).replace("\n", " ")[:500],
+                "type": type(exc).__name__,
+            }
         )
         if claim and claim.acquired and claim.execution_token:
             self.state.fail_retryable(

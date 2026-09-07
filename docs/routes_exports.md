@@ -138,6 +138,8 @@ CI checks that the generated blocks below match runtime route introspection.
 | POST | `/api/setup-lifecycle/run/{run_id}/evaluate` | `evaluate_setup_lifecycle_run` |
 | GET | `/api/setup-lifecycle/tickers/{ticker}` | `setup_lifecycle_ticker_timeline` |
 | GET | `/api/setup-lifecycle/tickers/{ticker}/timeline` | `setup_lifecycle_ticker_timeline` |
+| GET | `/api/system/operations` | `operations_api` |
+| GET | `/api/system/operations/causality/{root_correlation_id}` | `causality_api` |
 | POST | `/api/winner-probability/cohorts/refresh` | `queue_winner_cohort_refresh` |
 | GET | `/api/winner-probability/estimates/{estimate_id}/reproduction` | `winner_probability_estimate_reproduction` |
 | GET | `/api/winner-probability/estimates/{estimate_id}/reproduction/export.json` | `export_winner_probability_reproduction_json` |
@@ -183,6 +185,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/openapi.json` | `openapi` |
 | POST | `/ops/cleanup/execute` | `cleanup_execute` |
 | GET | `/ops/cleanup/preview` | `cleanup_preview` |
+| GET | `/ops/system/causality/{root_correlation_id}` | `causality_api` |
 | GET | `/ready` | `ready` |
 | GET | `/redoc` | `redoc_html` |
 | GET | `/runs` | `runs_page` |
@@ -235,6 +238,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/setup-lifecycle/export.json` | `export_setup_lifecycle_json` |
 | GET | `/setup-lifecycle/operations` | `setup_lifecycle_operations_page` |
 | GET | `/setup-lifecycle/ticker/{ticker}` | `setup_lifecycle_ticker_page` |
+| GET | `/system/operations` | `operations_page` |
 | POST | `/uploads` | `upload_csv` |
 | GET | `/winner-probability/models` | `winner_probability_models_page` |
 | GET | `/winner-probability/operations` | `winner_probability_operations_page` |

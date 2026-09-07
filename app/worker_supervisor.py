@@ -9,12 +9,16 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from threading import Event
 from time import monotonic
 from uuid import uuid4
 
 from app.db import SessionLocal
 from app.models.tables import BackgroundWorker
+from app.observability.logging import configure_json_logging
+from app.observability.metrics import operational_metrics, start_metrics_http_server
+from app.observability.resource_sampler import ResourceSampler
 from app.services.background_job_service import (
     fence_jobs_for_worker,
     fence_stalled_jobs,
@@ -66,7 +70,20 @@ def main(argv: Sequence[str] | None = None) -> None:
         if value is not None:
             signal.signal(value, request_stop)
 
-    logging.basicConfig(level=logging.INFO)
+    configure_json_logging("supervisor")
+    metrics_server = None
+    sampler = None
+    if settings.observability_metrics_enabled:
+        metrics_server = start_metrics_http_server(
+            settings.observability_metrics_host,
+            settings.observability_supervisor_metrics_port,
+        )
+        sampler = ResourceSampler(
+            process_role="supervisor",
+            interval_seconds=settings.observability_collection_interval_seconds,
+        )
+        sampler.start()
+        operational_metrics.set_gauge("swinglens_supervisor_up", 1)
     child: LaunchedWorker | None = None
     owns_supervision = False
     try:
@@ -95,19 +112,22 @@ def main(argv: Sequence[str] | None = None) -> None:
                 )
             stop.wait(settings.job_watchdog_interval_seconds)
     finally:
+        operational_metrics.set_gauge("swinglens_supervisor_up", 0)
         if owns_supervision:
             _shutdown_owned_worker(args.worker_id, child)
             try:
                 with SessionLocal() as db:
-                    release_supervisor(
-                        db, worker_id=args.worker_id, instance_id=instance_id
-                    )
+                    release_supervisor(db, worker_id=args.worker_id, instance_id=instance_id)
                     db.commit()
             except Exception:
                 logger.exception(
                     "worker.supervisor.release_failed",
                     extra={"worker_id": args.worker_id, "instance_id": instance_id},
                 )
+        if sampler is not None:
+            sampler.stop()
+        if metrics_server is not None:
+            metrics_server.shutdown()
 
 
 def _acquire_or_heartbeat_supervisor(
@@ -121,9 +141,7 @@ def _acquire_or_heartbeat_supervisor(
     settings = get_settings()
     with SessionLocal() as db:
         if already_owned:
-            owned = heartbeat_supervisor(
-                db, worker_id=worker_id, instance_id=instance_id
-            )
+            owned = heartbeat_supervisor(db, worker_id=worker_id, instance_id=instance_id)
             db.commit()
             return owned
         supervisor = acquire_supervisor(
@@ -138,12 +156,12 @@ def _acquire_or_heartbeat_supervisor(
         db.commit()
     if supervisor is not None:
         context = {
-                "worker_id": worker_id,
-                "supervisor_instance_id": instance_id,
-                "registered_pid": process_id,
-                "process_started_at": process_start.isoformat(),
-                "generation": generation,
-            }
+            "worker_id": worker_id,
+            "supervisor_instance_id": instance_id,
+            "registered_pid": process_id,
+            "process_started_at": process_start.isoformat(),
+            "generation": generation,
+        }
         logger.info(
             "worker.supervisor.acquired %s",
             context,
@@ -181,10 +199,10 @@ def _supervise_once(
         if not stalled:
             return child
         context = {
-                **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
-                "job_ids": sorted(set(stalled)),
-                "reason": "stalled_or_memory_critical",
-            }
+            **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
+            "job_ids": sorted(set(stalled)),
+            "reason": "stalled_or_memory_critical",
+        }
         logger.error(
             "worker.supervisor.recycling %s",
             context,
@@ -210,10 +228,10 @@ def _supervise_once(
         _retire_worker_registration(worker)
         _requeue(fenced)
         context = {
-                **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
-                "reason": reason,
-                "job_ids": fenced,
-            }
+            **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
+            "reason": reason,
+            "job_ids": fenced,
+        }
         logger.warning(
             "worker.supervisor.worker_lost %s",
             context,
@@ -223,14 +241,15 @@ def _supervise_once(
         _terminate_launcher(child.process, settings.worker_shutdown_grace_seconds)
 
     replacement = _start_worker(worker_id, queues)
+    operational_metrics.increment("swinglens_worker_restarts_total", worker_id=worker_id)
     context = {
-            "worker_id": worker_id,
-            "worker_instance_id": None,
-            "registered_pid": None,
-            "launcher_pid": replacement.pid,
-            "state": "STARTING",
-            "reason": "no_usable_registered_worker",
-        }
+        "worker_id": worker_id,
+        "worker_instance_id": None,
+        "registered_pid": None,
+        "launcher_pid": replacement.pid,
+        "state": "STARTING",
+        "reason": "no_usable_registered_worker",
+    }
     logger.info(
         "worker.supervisor.started %s",
         context,
@@ -248,9 +267,27 @@ def _start_worker(worker_id: str, queues: str) -> subprocess.Popen:
     else:
         kwargs["start_new_session"] = True
     return subprocess.Popen(
-        [sys.executable, "-m", "app.worker", "--worker-id", worker_id, "--queues", queues],
+        [
+            _worker_python_executable(),
+            "-m",
+            "app.worker",
+            "--worker-id",
+            worker_id,
+            "--queues",
+            queues,
+        ],
         **kwargs,
     )
+
+
+def _worker_python_executable() -> str:
+    """Preserve the active venv across the Windows launcher handoff."""
+    candidates = []
+    virtual_environment = os.environ.get("VIRTUAL_ENV")
+    if virtual_environment:
+        candidates.append(Path(virtual_environment) / "Scripts" / "python.exe")
+    candidates.append(Path(sys.prefix) / "Scripts" / "python.exe")
+    return str(next((candidate for candidate in candidates if candidate.is_file()), sys.executable))
 
 
 def _registered_worker(worker_id: str) -> BackgroundWorker | None:

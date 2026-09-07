@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
     database_connect_timeout_seconds: int = Field(default=3, ge=1, le=30)
+    database_pool_size: int = Field(default=5, ge=1, le=100)
+    database_pool_max_overflow: int = Field(default=10, ge=0, le=200)
+    database_pool_timeout_seconds: float = Field(default=30.0, ge=0.1, le=300)
     db_monitor_enabled: bool = True
     db_monitor_slow_query_ms: float = Field(default=100.0, ge=0)
     db_monitor_full_trace_ms: float = Field(default=250.0, ge=0)
@@ -66,6 +69,47 @@ class Settings(BaseSettings):
     db_monitor_activity_threshold_ms: float = Field(default=1500.0, ge=100)
     db_monitor_idle_transaction_threshold_ms: float = Field(default=5000.0, ge=100)
     db_monitor_activity_sample_interval_seconds: float = Field(default=1.0, ge=0.5)
+    observability_metrics_enabled: bool = True
+    observability_metrics_host: str = "127.0.0.1"
+    observability_worker_metrics_port: int = Field(default=9101, ge=0, le=65535)
+    observability_supervisor_metrics_port: int = Field(default=9102, ge=0, le=65535)
+    observability_collection_interval_seconds: float = Field(default=10.0, ge=1, le=300)
+    observability_db_size_interval_seconds: float = Field(default=300.0, ge=30, le=3600)
+    observability_disk_warning_percent: float = Field(default=15.0, ge=0, le=100)
+    observability_disk_critical_percent: float = Field(default=5.0, ge=0, le=100)
+    observability_queue_oldest_warning_seconds: int = Field(default=300, ge=0)
+    observability_queue_oldest_critical_seconds: int = Field(default=1800, ge=0)
+    observability_queue_depth_critical: int = Field(default=1000, ge=0)
+    observability_db_pool_critical_ratio: float = Field(default=0.95, ge=0.1, le=1.0)
+    observability_db_pool_wait_warning_seconds: float = Field(default=1.0, ge=0)
+    observability_ib_required: bool = False
+    observability_enqueue_attempt_retention_days: int = Field(default=30, ge=1, le=365)
+    observability_operations_window_hours: int = Field(default=24, ge=1, le=168)
+    observability_operations_root_scan_limit: int = Field(default=5000, ge=100, le=50000)
+    observability_operations_provider_sample_limit: int = Field(default=10000, ge=100, le=50000)
+    observability_operations_readiness_cache_seconds: float = Field(default=5.0, ge=0.0, le=60.0)
+    observability_fanout_warning: int = Field(default=20, ge=1)
+    observability_fanout_critical: int = Field(default=50, ge=1)
+    observability_fanout_thresholds: dict[str, dict[str, int]] = Field(
+        default_factory=lambda: {
+            family: {
+                "descendants_warning": 20,
+                "descendants_critical": 50,
+                "depth_warning": 5,
+                "depth_critical": 10,
+            }
+            for family in (
+                "WINNER_MATURATION",
+                "WINNER_COHORT_REFRESH",
+                "WINNER_RESCORE",
+                "CERI_PIPELINE",
+                "FULL_PIPELINE",
+                "SCHEDULER_MAINTENANCE",
+                "OTHER",
+            )
+        }
+    )
+    observability_operations_limit: int = Field(default=100, ge=10, le=500)
     application_version: str = "0.1.0"
     deployment_id: str = "local-development"
     ceri_feature_rebuild_impl_version: str = "batch-prefetch-v1"
@@ -395,6 +439,15 @@ class Settings(BaseSettings):
             raise ValueError(
                 "db_monitor_full_trace_ms must be greater than or equal to db_monitor_slow_query_ms"
             )
+        if self.observability_disk_critical_percent > self.observability_disk_warning_percent:
+            raise ValueError("critical disk percentage must not exceed warning percentage")
+        if (
+            self.observability_queue_oldest_warning_seconds
+            > self.observability_queue_oldest_critical_seconds
+        ):
+            raise ValueError("queue oldest warning threshold must not exceed critical threshold")
+        if self.observability_fanout_warning > self.observability_fanout_critical:
+            raise ValueError("fanout warning threshold must not exceed critical threshold")
         if self.ceri_legacy_pipeline_scheduling_enabled and self.ceri_batched_workflow_enabled:
             raise ValueError("legacy and batched CERI pipeline scheduling cannot both be enabled")
         return self

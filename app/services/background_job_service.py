@@ -3,18 +3,29 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
+from threading import RLock
 from typing import Any
 from uuid import uuid4
+from weakref import WeakKeyDictionary
 
-from sqlalchemy import MetaData, Table, case, insert, select, update
+from sqlalchemy import MetaData, Table, case, delete, insert, select, update
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, WinnerProcessingRun
+from app.models.tables import (
+    BackgroundJob,
+    BackgroundJobEnqueueAttempt,
+    BackgroundJobFanoutRoot,
+    WinnerProcessingRun,
+)
+from app.observability.correlation import CausalityContext, enqueue_causality, workflow_family
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_queue import QueueClaimGroup, worker_queue_filter
 from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redacted_token_metadata
+from app.settings import get_settings
 
 ERROR_MESSAGE_MAX_LENGTH = 500
 RETRY_DELAYS_SECONDS = (60, 180, 600)
@@ -22,6 +33,10 @@ TERMINAL_JOB_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED
 DEFAULT_LEASE_SECONDS = 900
 LEASE_EVENT_MAX_COUNT = 50
 logger = logging.getLogger(__name__)
+_schema_capability_lock = RLock()
+_schema_capability_cache: WeakKeyDictionary[object, tuple[frozenset[str], bool, bool]] = (
+    WeakKeyDictionary()
+)
 
 
 class JobLeaseLost(RuntimeError):
@@ -60,6 +75,11 @@ def enqueue_job(
     parent_job_id: int | None = None,
     continuation_depth: int | None = None,
     trigger_source: str | None = None,
+    causality: CausalityContext | None = None,
+    trigger_kind: str | None = None,
+    trigger_name: str | None = None,
+    triggered_by_request_id: str | None = None,
+    fanout_group_id: str | None = None,
 ) -> BackgroundJob:
     if not _database_has_job_progress_columns(db):
         return _enqueue_pre_migration_job(
@@ -72,25 +92,50 @@ def enqueue_job(
             run_after=run_after,
             request_key=request_key,
         )
+    causal = enqueue_causality(
+        job_type=job_type,
+        explicit=causality,
+        parent_job_id=parent_job_id,
+        trigger_kind=trigger_kind,
+        trigger_name=trigger_name,
+        request_id=triggered_by_request_id,
+        fanout_group_id=fanout_group_id,
+    )
     if workflow_key and single_flight_workflow and coalesce:
         existing = active_job_for_workflow_key(db, job_type, workflow_key)
+        if existing is None:
+            # Covers legacy active rows created before workflow_key existed.
+            existing = active_job_for_type(db, job_type)
         if existing is not None:
             existing._coalesced = True
-            operational_metrics.increment(
-                "swinglens_jobs_coalesced_total", job_type=job_type, reason="workflow_single_flight"
+            publish_after_commit(
+                db, "increment", "swinglens_jobs_coalesced_total", job_type=job_type
+            )
+            _record_enqueue_attempt(
+                db, job_type, causal, request_key, workflow_key, "COALESCED", existing
             )
             return existing
     if workflow_key and request_key and coalesce:
         existing = workflow_stage_job(db, workflow_key, job_type, request_key)
         if existing is not None:
             existing._coalesced = True
-            operational_metrics.increment("swinglens_jobs_coalesced_total", job_type=job_type)
+            publish_after_commit(
+                db, "increment", "swinglens_jobs_coalesced_total", job_type=job_type
+            )
+            _record_enqueue_attempt(
+                db, job_type, causal, request_key, workflow_key, "COALESCED", existing
+            )
             return existing
     if request_key and coalesce:
         existing = active_job_for_request_key(db, job_type, request_key)
         if existing is not None:
             existing._coalesced = True
-            operational_metrics.increment("swinglens_jobs_coalesced_total", job_type=job_type)
+            publish_after_commit(
+                db, "increment", "swinglens_jobs_coalesced_total", job_type=job_type
+            )
+            _record_enqueue_attempt(
+                db, job_type, causal, request_key, workflow_key, "COALESCED", existing
+            )
             return existing
 
     if workflow_key is None and not _database_has_workflow_column(db):
@@ -130,6 +175,19 @@ def enqueue_job(
                 "trigger_source": trigger_source,
             }
         )
+    if _database_has_causality_columns(db):
+        job_values.update(
+            {
+                "root_correlation_id": causal.root_correlation_id,
+                "causation_id": causal.causation_id,
+                "parent_job_id": causal.parent_job_id,
+                "trigger_kind": causal.trigger_kind,
+                "trigger_name": causal.trigger_name,
+                "triggered_by_request_id": causal.request_id,
+                "triggered_by_job_id": causal.triggered_by_job_id,
+                "fanout_group_id": causal.fanout_group_id,
+            }
+        )
     job = BackgroundJob(**job_values)
     try:
         begin_nested = getattr(db, "begin_nested", None)
@@ -153,9 +211,13 @@ def enqueue_job(
         if existing is None:
             raise
         existing._coalesced = True
-        operational_metrics.increment("swinglens_jobs_coalesced_total", job_type=job_type)
+        publish_after_commit(db, "increment", "swinglens_jobs_coalesced_total", job_type=job_type)
+        _record_enqueue_attempt(
+            db, job_type, causal, request_key, workflow_key, "COALESCED", existing
+        )
         return existing
-    operational_metrics.increment("swinglens_jobs_enqueued_total", job_type=job_type)
+    publish_after_commit(db, "increment", "swinglens_jobs_enqueued_total", job_type=job_type)
+    _record_enqueue_attempt(db, job_type, causal, request_key, workflow_key, "CREATED", job)
     return job
 
 
@@ -185,47 +247,286 @@ def workflow_stage_job(
     return next((row for row in values if isinstance(row, BackgroundJob)), None)
 
 
-def _database_has_workflow_column(db: Session) -> bool:
+def _schema_capabilities(db: Session) -> tuple[frozenset[str], bool, bool] | None:
     get_bind = getattr(db, "get_bind", None)
     if not callable(get_bind):
-        return True
+        return None
     bind = get_bind()
+    cache_key = getattr(bind, "engine", bind)
     try:
-        return any(
-            column["name"] == "workflow_key"
-            for column in sa_inspect(bind).get_columns("background_jobs")
+        with _schema_capability_lock:
+            cached = _schema_capability_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        inspector = sa_inspect(bind)
+        capabilities = (
+            frozenset(column["name"] for column in inspector.get_columns("background_jobs")),
+            inspector.has_table("background_job_enqueue_attempts"),
+            inspector.has_table("background_job_fanout_roots"),
         )
+        with _schema_capability_lock:
+            _schema_capability_cache[cache_key] = capabilities
+        return capabilities
     except Exception:
+        return None
+
+
+def _database_has_workflow_column(db: Session) -> bool:
+    capabilities = _schema_capabilities(db)
+    if capabilities is None:
         return True
+    return "workflow_key" in capabilities[0]
 
 
 def _database_has_job_progress_columns(db: Session) -> bool:
-    get_bind = getattr(db, "get_bind", None)
-    if not callable(get_bind):
+    capabilities = _schema_capabilities(db)
+    if capabilities is None:
         return True
-    bind = get_bind()
-    try:
-        names = {column["name"] for column in sa_inspect(bind).get_columns("background_jobs")}
-        return "last_progress_at" in names
-    except Exception:
-        return True
+    return "last_progress_at" in capabilities[0]
 
 
 def _database_has_maturation_lineage_columns(db: Session) -> bool:
+    capabilities = _schema_capabilities(db)
+    if capabilities is None:
+        return True
+    return {
+        "root_job_id",
+        "parent_job_id",
+        "continuation_depth",
+        "trigger_source",
+    }.issubset(capabilities[0])
+
+
+def _database_has_causality_columns(db: Session) -> bool:
     get_bind = getattr(db, "get_bind", None)
     if not callable(get_bind):
+        return False
+    capabilities = _schema_capabilities(db)
+    if capabilities is None:
         return True
-    bind = get_bind()
-    try:
-        names = {column["name"] for column in sa_inspect(bind).get_columns("background_jobs")}
-        return {
-            "root_job_id",
-            "parent_job_id",
-            "continuation_depth",
-            "trigger_source",
-        }.issubset(names)
-    except Exception:
-        return True
+    return "root_correlation_id" in capabilities[0] and capabilities[1]
+
+
+def _database_has_fanout_rollup(db: Session) -> bool:
+    get_bind = getattr(db, "get_bind", None)
+    if not callable(get_bind):
+        return False
+    capabilities = _schema_capabilities(db)
+    if capabilities is None:
+        return False
+    return capabilities[2]
+
+
+def _record_enqueue_attempt(
+    db: Session,
+    job_type: str,
+    causal: CausalityContext,
+    request_key: str | None,
+    workflow_key: str | None,
+    result: str,
+    authoritative_job: BackgroundJob,
+) -> None:
+    if not _database_has_causality_columns(db):
+        return
+    occurred_at = _utcnow()
+    db.add(
+        BackgroundJobEnqueueAttempt(
+            occurred_at=occurred_at,
+            job_type=job_type,
+            root_correlation_id=causal.root_correlation_id,
+            causation_id=causal.causation_id,
+            parent_job_id=causal.parent_job_id,
+            triggered_by_request_id=causal.request_id,
+            request_key=request_key,
+            workflow_key=workflow_key,
+            result=result,
+            authoritative_job_id=getattr(authoritative_job, "id", None),
+            trigger_kind=causal.trigger_kind,
+            trigger_name=causal.trigger_name,
+            fanout_group_id=causal.fanout_group_id,
+        )
+    )
+    family = workflow_family(job_type, causal)
+    if _database_has_fanout_rollup(db):
+        _update_fanout_summary(db, job_type, causal, result, occurred_at)
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_job_fanout_total",
+        workflow_family=family,
+        job_type=job_type,
+        result=result,
+    )
+
+
+def _update_fanout_summary(
+    db: Session,
+    job_type: str,
+    causal: CausalityContext,
+    result: str,
+    occurred_at: datetime,
+) -> None:
+    family = workflow_family(job_type, causal)
+    bind = db.get_bind()
+    if bind.dialect.name == "postgresql":
+        db.execute(
+            postgresql_insert(BackgroundJobFanoutRoot)
+            .values(
+                root_correlation_id=causal.root_correlation_id,
+                workflow_family=family,
+                first_occurred_at=occurred_at,
+                last_occurred_at=occurred_at,
+            )
+            .on_conflict_do_nothing(index_elements=["root_correlation_id"])
+        )
+        summary = db.scalar(
+            select(BackgroundJobFanoutRoot)
+            .where(BackgroundJobFanoutRoot.root_correlation_id == causal.root_correlation_id)
+            .with_for_update()
+        )
+    else:
+        summary = next(
+            (
+                item
+                for item in db.new
+                if isinstance(item, BackgroundJobFanoutRoot)
+                and item.root_correlation_id == causal.root_correlation_id
+            ),
+            None,
+        ) or db.get(BackgroundJobFanoutRoot, causal.root_correlation_id)
+    if summary is None:
+        summary = BackgroundJobFanoutRoot(
+            root_correlation_id=causal.root_correlation_id,
+            workflow_family=family,
+            first_occurred_at=occurred_at,
+            last_occurred_at=occurred_at,
+            attempted_enqueues=0,
+            created_jobs=0,
+            coalesced_attempts=0,
+            rejected_attempts=0,
+            total_descendant_count=0,
+            maximum_depth=0,
+            warning_emitted=False,
+            critical_emitted=False,
+            job_family_distribution_json={},
+        )
+        db.add(summary)
+    summary.last_occurred_at = occurred_at
+    summary.attempted_enqueues = int(summary.attempted_enqueues or 0) + 1
+    summary.created_jobs = int(summary.created_jobs or 0) + int(result == "CREATED")
+    summary.coalesced_attempts = int(summary.coalesced_attempts or 0) + int(result == "COALESCED")
+    summary.rejected_attempts = int(summary.rejected_attempts or 0) + int(result == "REJECTED")
+    summary.total_descendant_count = int(summary.total_descendant_count or 0) + int(
+        result == "CREATED" and causal.parent_job_id is not None
+    )
+    depth = _causal_depth(db, causal.parent_job_id)
+    summary.maximum_depth = max(int(summary.maximum_depth or 0), depth)
+    distribution = dict(summary.job_family_distribution_json or {})
+    distribution[job_type] = int(distribution.get(job_type, 0)) + 1
+    summary.job_family_distribution_json = distribution
+    _queue_fanout_threshold_metric(db, summary)
+
+
+def _causal_depth(db: Session, parent_job_id: int | None) -> int:
+    depth = 0
+    current_id = parent_job_id
+    visited: set[int] = set()
+    while current_id is not None and current_id not in visited and depth < 100:
+        visited.add(current_id)
+        depth += 1
+        parent = db.get(BackgroundJob, current_id)
+        current_id = parent.parent_job_id if parent is not None else None
+    return depth
+
+
+def _queue_fanout_threshold_metric(db: Session, summary: BackgroundJobFanoutRoot) -> None:
+    settings = get_settings()
+    configured = settings.observability_fanout_thresholds.get(summary.workflow_family, {})
+    descendants = int(summary.total_descendant_count or 0)
+    depth = int(summary.maximum_depth or 0)
+    severity = None
+    reason = None
+    if descendants >= int(
+        configured.get("descendants_critical", settings.observability_fanout_critical)
+    ):
+        severity, reason = "critical", "descendants"
+    elif depth >= int(configured.get("depth_critical", 10)):
+        severity, reason = "critical", "depth"
+    elif descendants >= int(
+        configured.get("descendants_warning", settings.observability_fanout_warning)
+    ):
+        severity, reason = "warning", "descendants"
+    elif depth >= int(configured.get("depth_warning", 5)):
+        severity, reason = "warning", "depth"
+    if severity == "critical" and not summary.critical_emitted:
+        summary.critical_emitted = True
+    elif severity == "warning" and not summary.warning_emitted:
+        summary.warning_emitted = True
+    else:
+        return
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_job_fanout_abnormal_roots_total",
+        workflow_family=summary.workflow_family,
+        severity=severity,
+        reason=reason,
+    )
+
+
+def record_coalesced_enqueue_attempt(
+    db: Session,
+    *,
+    job_type: str,
+    authoritative_job: BackgroundJob,
+    request_key: str | None = None,
+    workflow_key: str | None = None,
+    trigger_kind: str | None = None,
+    trigger_name: str | None = None,
+) -> None:
+    """Persist a coalescing decision made by a domain-level idempotency check."""
+    causal = enqueue_causality(
+        job_type=job_type,
+        trigger_kind=trigger_kind,
+        trigger_name=trigger_name,
+    )
+    authoritative_job._coalesced = True
+    publish_after_commit(db, "increment", "swinglens_jobs_coalesced_total", job_type=job_type)
+    _record_enqueue_attempt(
+        db,
+        job_type,
+        causal,
+        request_key,
+        workflow_key,
+        "COALESCED",
+        authoritative_job,
+    )
+
+
+def prune_enqueue_attempt_evidence(
+    db: Session,
+    *,
+    retention_days: int,
+    batch_size: int = 10_000,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    """Delete one bounded batch of expired attempt evidence and empty rollups."""
+    cutoff = (now or _utcnow()) - timedelta(days=max(1, retention_days))
+    expired_ids = (
+        select(BackgroundJobEnqueueAttempt.id)
+        .where(BackgroundJobEnqueueAttempt.occurred_at < cutoff)
+        .order_by(BackgroundJobEnqueueAttempt.occurred_at, BackgroundJobEnqueueAttempt.id)
+        .limit(max(1, batch_size))
+    )
+    attempts = db.execute(
+        delete(BackgroundJobEnqueueAttempt).where(BackgroundJobEnqueueAttempt.id.in_(expired_ids))
+    ).rowcount
+    roots = 0
+    if _database_has_fanout_rollup(db):
+        roots = db.execute(
+            delete(BackgroundJobFanoutRoot).where(BackgroundJobFanoutRoot.last_occurred_at < cutoff)
+        ).rowcount
+    return {"attempts": max(0, int(attempts or 0)), "roots": max(0, int(roots or 0))}
 
 
 def _enqueue_pre_migration_job(
@@ -271,7 +572,7 @@ def _enqueue_pre_migration_job(
         run_after=run_after or _utcnow(),
         operational_metadata_json={},
     )
-    operational_metrics.increment("swinglens_jobs_enqueued_total", job_type=job_type)
+    publish_after_commit(db, "increment", "swinglens_jobs_enqueued_total", job_type=job_type)
     return job
 
 
@@ -418,6 +719,17 @@ def claim_next_job(
     }
     job.operational_metadata_json = metadata
     db.flush()
+    if job.created_at is not None:
+        created_at = job.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        publish_after_commit(
+            db,
+            "observe",
+            "swinglens_job_wait_seconds",
+            max(0.0, (now - created_at).total_seconds()),
+            job_type=job.job_type,
+        )
     return job
 
 
@@ -481,7 +793,7 @@ def record_job_progress(
             ):
                 return
         raise JobLeaseLost(f"Background job {job_id} progress owner was fenced.")
-    operational_metrics.increment("swinglens_job_progress_total", stage=stage)
+    publish_after_commit(db, "increment", "swinglens_job_progress_total", stage=stage)
 
 
 def fence_stalled_jobs(
@@ -552,20 +864,18 @@ def fence_stalled_jobs(
         job.operational_metadata_json = metadata
         if unchanged_since >= observed_at - timedelta(seconds=timeout):
             decision_context = {
-                    "job_id": job.id,
-                    "run_id": job.related_run_id,
-                    "job_type": job.job_type,
-                    "worker_heartbeat_age_seconds": worker_age,
-                    "job_lease_heartbeat_age_seconds": lease_age,
-                    "job_progress_age_seconds": progress_age,
-                    "progress_sequence": current_sequence,
-                    "stage": job.progress_stage,
-                    "stall_threshold_seconds": timeout,
-                    "decision": decision,
-                }
-            logger.info(
-                "job.watchdog.decision %s", decision_context, extra=decision_context
-            )
+                "job_id": job.id,
+                "run_id": job.related_run_id,
+                "job_type": job.job_type,
+                "worker_heartbeat_age_seconds": worker_age,
+                "job_lease_heartbeat_age_seconds": lease_age,
+                "job_progress_age_seconds": progress_age,
+                "progress_sequence": current_sequence,
+                "stage": job.progress_stage,
+                "stall_threshold_seconds": timeout,
+                "decision": decision,
+            }
+            logger.info("job.watchdog.decision %s", decision_context, extra=decision_context)
             continue
         old_token = job.execution_token
         job.status = JobStatus.STALLED
@@ -591,21 +901,19 @@ def fence_stalled_jobs(
         )
         fenced.append(job.id)
         decision_context = {
-                "job_id": job.id,
-                "run_id": job.related_run_id,
-                "job_type": job.job_type,
-                "worker_heartbeat_age_seconds": worker_age,
-                "job_lease_heartbeat_age_seconds": lease_age,
-                "job_progress_age_seconds": progress_age,
-                "progress_sequence": current_sequence,
-                "stage": job.progress_stage,
-                "stall_threshold_seconds": timeout,
-                "decision": decision,
-            }
-        logger.warning(
-            "job.watchdog.decision %s", decision_context, extra=decision_context
-        )
-        operational_metrics.increment("swinglens_jobs_stalled_total", job_type=job.job_type)
+            "job_id": job.id,
+            "run_id": job.related_run_id,
+            "job_type": job.job_type,
+            "worker_heartbeat_age_seconds": worker_age,
+            "job_lease_heartbeat_age_seconds": lease_age,
+            "job_progress_age_seconds": progress_age,
+            "progress_sequence": current_sequence,
+            "stage": job.progress_stage,
+            "stall_threshold_seconds": timeout,
+            "decision": decision,
+        }
+        logger.warning("job.watchdog.decision %s", decision_context, extra=decision_context)
+        publish_after_commit(db, "increment", "swinglens_job_stalls_total", job_type=job.job_type)
     db.flush()
     return fenced
 
@@ -779,11 +1087,15 @@ def mark_job_blocked(
             "operational_metadata_json": metadata,
         },
     )
-    operational_metrics.increment(
+    publish_after_commit(
+        db,
+        "increment",
         "swinglens_jobs_finished_total",
         job_type=job.job_type,
         status=JobStatus.BLOCKED,
     )
+    _observe_job_duration(job, now, JobStatus.BLOCKED, db)
+    _observe_fanout_size(db, job)
 
 
 def mark_job_failed_or_retry(
@@ -825,11 +1137,16 @@ def mark_job_failed_or_retry(
         if values["status"] == JobStatus.QUEUED
         else "swinglens_jobs_failed_total"
     )
-    operational_metrics.increment(
+    publish_after_commit(
+        db,
+        "increment",
         metric_name,
         job_type=job.job_type,
         status=str(values["status"]),
     )
+    if values["status"] == JobStatus.FAILED:
+        _observe_job_duration(job, now, JobStatus.FAILED, db)
+        _observe_fanout_size(db, job)
 
 
 def mark_job_deferred(
@@ -860,7 +1177,9 @@ def mark_job_deferred(
         ),
     }
     _apply_running_job_update(db, job, expected_token, values)
-    operational_metrics.increment(
+    publish_after_commit(
+        db,
+        "increment",
         "swinglens_jobs_deferred_total",
         job_type=job.job_type,
     )
@@ -1003,7 +1322,9 @@ def _recover_jobs(db: Session, jobs: Iterable[BackgroundJob], *, now: datetime) 
         recovered_count += 1
 
     if recovered_count:
-        operational_metrics.increment("swinglens_jobs_stale_recovered_total", value=recovered_count)
+        publish_after_commit(
+            db, "increment", "swinglens_jobs_stale_recovered_total", value=recovered_count
+        )
 
     db.flush()
     return recovered_count
@@ -1050,10 +1371,70 @@ def _finish_job(
         values,
         allowed_current_statuses={JobStatus.RUNNING, JobStatus.PARTIAL},
     )
-    operational_metrics.increment(
+    publish_after_commit(
+        db,
+        "increment",
         "swinglens_jobs_finished_total",
         job_type=job.job_type,
         status=status,
+    )
+    _observe_job_duration(job, now, status, db)
+    _observe_fanout_size(db, job)
+
+
+def _observe_job_duration(
+    job: BackgroundJob, finished_at: datetime, status: str, db: Session | None = None
+) -> None:
+    if job.started_at is None:
+        return
+    started_at = job.started_at
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    value = max(0.0, (finished_at - started_at).total_seconds())
+    if db is None:
+        operational_metrics.observe(
+            "swinglens_job_duration_seconds", value, job_type=job.job_type, status=status
+        )
+    else:
+        publish_after_commit(
+            db,
+            "observe",
+            "swinglens_job_duration_seconds",
+            value,
+            job_type=job.job_type,
+            status=status,
+        )
+
+
+def _observe_fanout_size(db: Session, job: BackgroundJob) -> None:
+    if (
+        job.id is None
+        or job.parent_job_id is not None
+        or not job.root_correlation_id
+        or not _database_has_fanout_rollup(db)
+    ):
+        return
+    try:
+        summary = db.get(BackgroundJobFanoutRoot, job.root_correlation_id)
+        if summary is None:
+            return
+        count = int(summary.total_descendant_count or 0)
+        depth = int(summary.maximum_depth or 0)
+    except Exception:
+        return
+    publish_after_commit(
+        db,
+        "observe",
+        "swinglens_job_fanout_size",
+        count,
+        workflow_family=workflow_family(job.job_type),
+    )
+    publish_after_commit(
+        db,
+        "observe",
+        "swinglens_job_fanout_depth",
+        depth,
+        workflow_family=workflow_family(job.job_type),
     )
 
 

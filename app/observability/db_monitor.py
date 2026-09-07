@@ -31,6 +31,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import QueuePool
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.observability.correlation import current_causality
+from app.observability.metrics import operational_metrics
+from app.services.redaction import redact_text
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _MONITOR_FILE = Path(__file__).resolve()
 _HOSTNAME = socket.gethostname()
@@ -118,6 +122,8 @@ def telemetry_priority(record: Mapping[str, Any]) -> str:
 class ExecutionScope:
     origin_type: str = "UNKNOWN"
     request_id: str | None = None
+    root_correlation_id: str | None = None
+    causation_id: str | None = None
     http_method: str | None = None
     http_path: str | None = None
     route_name: str | None = None
@@ -143,6 +149,8 @@ class ExecutionScope:
             for key, value in {
                 "origin_type": self.origin_type,
                 "request_id": self.request_id,
+                "root_correlation_id": self.root_correlation_id,
+                "causation_id": self.causation_id,
                 "http_method": self.http_method,
                 "http_path": self.http_path,
                 "route_name": self.route_name,
@@ -512,10 +520,14 @@ class JsonlTelemetryWriter:
         try:
             with self._lock:
                 self._priority_counts[f"{priority}_created"] += 1
+            operational_metrics.increment("swinglens_db_monitor_records_total", priority=priority)
             if self._fatal_error:
                 with self._lock:
                     self.records_dropped += 1
                     self._priority_counts[f"{priority}_dropped"] += 1
+                operational_metrics.increment(
+                    "swinglens_db_monitor_dropped_total", priority=priority
+                )
                 return False
             if self._thread is None or not self._thread.is_alive():
                 self.start()
@@ -530,6 +542,9 @@ class JsonlTelemetryWriter:
             else:
                 target.put_nowait(queued)
             self._record_queue_high_water(priority, target.qsize())
+            operational_metrics.set_gauge(
+                "swinglens_db_monitor_queue_depth", target.qsize(), priority=priority
+            )
             self._queue_wakeup.set()
             return True
         except queue.Full:
@@ -539,6 +554,7 @@ class JsonlTelemetryWriter:
                 self.records_dropped += 1
                 self._pending_drop_report += 1
                 self._priority_counts[f"{priority}_dropped"] += 1
+            operational_metrics.increment("swinglens_db_monitor_dropped_total", priority=priority)
             return False
         except Exception:
             with self._lock:
@@ -546,6 +562,8 @@ class JsonlTelemetryWriter:
                 self.records_dropped += 1
                 self._pending_drop_report += 1
                 self._priority_counts[f"{priority}_dropped"] += 1
+            operational_metrics.increment("swinglens_db_monitor_writer_errors_total")
+            operational_metrics.increment("swinglens_db_monitor_dropped_total", priority=priority)
             return False
 
     def stop(self, timeout: float = 3.0) -> None:
@@ -632,6 +650,10 @@ class JsonlTelemetryWriter:
                                 self._writer_latency_max_ms, latency_ms
                             )
                             self._writer_latency_samples += 1
+                        operational_metrics.observe(
+                            "swinglens_db_monitor_writer_latency_seconds",
+                            latency_ms / 1000.0,
+                        )
                     desired_path = self._path_for(item)
                     if stream_path != desired_path:
                         if stream is not None:
@@ -677,6 +699,7 @@ class JsonlTelemetryWriter:
                         self.write_errors += 1
                         self.records_dropped += 1
                         self._pending_drop_report += 1
+                    operational_metrics.increment("swinglens_db_monitor_writer_errors_total")
                     if stream is not None:
                         try:
                             stream.close()
@@ -691,6 +714,7 @@ class JsonlTelemetryWriter:
             with self._lock:
                 self._fatal_error = True
                 self.write_errors += 1
+            operational_metrics.increment("swinglens_db_monitor_writer_errors_total")
             while True:
                 source_queue, item = self._next_item(wait=False)
                 if item is None:
@@ -699,6 +723,9 @@ class JsonlTelemetryWriter:
                 with self._lock:
                     self.records_dropped += 1
                     self._priority_counts[f"{priority}_dropped"] += 1
+                operational_metrics.increment(
+                    "swinglens_db_monitor_dropped_total", priority=priority
+                )
                 if source_queue is not None:
                     source_queue.task_done()
         finally:
@@ -734,6 +761,9 @@ class JsonlTelemetryWriter:
             if not record.get("_telemetry_internal_no_count"):
                 priority = telemetry_priority(record)
                 self._priority_counts[f"{priority}_written"] += 1
+                operational_metrics.increment(
+                    "swinglens_db_monitor_written_total", priority=priority
+                )
 
     def _health_record(self) -> dict[str, Any]:
         files = []
@@ -911,9 +941,7 @@ class JsonlTelemetryWriter:
         for priority in _TELEMETRY_PRIORITIES:
             lowered = priority.lower()
             for action in ("created", "written", "dropped", "sampled", "aggregated"):
-                snapshot[f"{lowered}_{action}"] = self._priority_counts[
-                    f"{priority}_{action}"
-                ]
+                snapshot[f"{lowered}_{action}"] = self._priority_counts[f"{priority}_{action}"]
             priority_queue = self._queue_for(priority)
             snapshot[f"{lowered}_queue_depth"] = priority_queue.qsize()
             snapshot[f"{lowered}_queue_capacity"] = priority_queue.maxsize
@@ -992,13 +1020,9 @@ class DatabaseMonitor:
             max_file_mb=int(settings.db_monitor_max_file_mb),
             max_files=int(getattr(settings, "db_monitor_max_files", 512)),
             max_total_mb=int(getattr(settings, "db_monitor_max_total_mb", 8192)),
-            critical_queue_size=int(
-                getattr(settings, "db_monitor_critical_queue_size", 2048)
-            ),
+            critical_queue_size=int(getattr(settings, "db_monitor_critical_queue_size", 2048)),
             high_queue_size=int(getattr(settings, "db_monitor_high_queue_size", 4096)),
-            p2_pressure_ratio=float(
-                getattr(settings, "db_monitor_p2_pressure_ratio", 0.75)
-            ),
+            p2_pressure_ratio=float(getattr(settings, "db_monitor_p2_pressure_ratio", 0.75)),
             aggregate_p2_on_pressure=bool(
                 getattr(settings, "db_monitor_aggregate_p2_on_pressure", True)
             ),
@@ -1008,6 +1032,8 @@ class DatabaseMonitor:
             base_metadata=self.base_metadata,
         )
         self._installed_engines: set[int] = set()
+        self._slow_query_counts: Counter[str] = Counter()
+        self._slow_query_lock = threading.Lock()
 
     def install(self, engine: Engine) -> None:
         if not self.enabled or id(engine) in self._installed_engines:
@@ -1094,6 +1120,14 @@ class DatabaseMonitor:
         if not self.enabled:
             return False
         try:
+            if record.get("record_type") == "sql" and record.get("slow_query"):
+                operational_metrics.increment("swinglens_db_slow_queries_total")
+                fingerprint = str(record.get("query_fingerprint") or "unknown")[:128]
+                with self._slow_query_lock:
+                    if fingerprint in self._slow_query_counts or len(self._slow_query_counts) < 256:
+                        self._slow_query_counts[fingerprint] += 1
+            elif record.get("record_type") == "long_transaction":
+                operational_metrics.increment("swinglens_db_long_transactions_total")
             enriched = {**self.base_metadata, **record}
             enriched.setdefault(
                 "process",
@@ -1108,7 +1142,20 @@ class DatabaseMonitor:
             return False
 
     def status(self) -> dict[str, Any]:
-        return {"monitor_enabled": self.enabled, **self.writer.status()}
+        with self._slow_query_lock:
+            slow_queries = [
+                {"fingerprint": fingerprint, "count": count}
+                for fingerprint, count in self._slow_query_counts.most_common(10)
+            ]
+        return {
+            "monitor_enabled": self.enabled,
+            "slow_query_count": int(operational_metrics.total("swinglens_db_slow_queries_total")),
+            "long_transaction_count": int(
+                operational_metrics.total("swinglens_db_long_transactions_total")
+            ),
+            "top_slow_query_fingerprints": slow_queries,
+            **self.writer.status(),
+        }
 
     def _capture(
         self,
@@ -1308,6 +1355,8 @@ def background_job_scope(
     attempt: int | None = None,
     ticker: str | None = None,
     company: str | None = None,
+    root_correlation_id: str | None = None,
+    causation_id: str | None = None,
     job_status_getter: Callable[[], str | None] | None = None,
 ) -> Iterator[SqlSummary]:
     monitor = get_database_monitor()
@@ -1319,6 +1368,8 @@ def background_job_scope(
     handle = begin_scope(
         ExecutionScope(
             origin_type="BACKGROUND_JOB",
+            root_correlation_id=root_correlation_id,
+            causation_id=causation_id,
             job_id=job_id,
             job_type=job_type,
             run_id=run_id,
@@ -1402,7 +1453,12 @@ class DatabaseMonitorMiddleware:
             ),
             None,
         )
-        request_id = sanitized_request_id(header_value)
+        causal = current_causality()
+        request_id = (
+            causal.request_id
+            if causal is not None and causal.request_id
+            else sanitized_request_id(header_value)
+        )
         method = str(scope.get("method") or "")
         path = str(scope.get("path") or "")
         started = time.perf_counter()
@@ -1411,6 +1467,8 @@ class DatabaseMonitorMiddleware:
             ExecutionScope(
                 origin_type="HTTP",
                 request_id=request_id,
+                root_correlation_id=causal.root_correlation_id if causal else None,
+                causation_id=causal.causation_id if causal else None,
                 http_method=method,
                 http_path=path,
                 asgi_scope=scope,
@@ -1539,6 +1597,7 @@ def _digestable_parameter_value(value: Any) -> Any:
 
 
 def record_pool_checkout(*, wait_ms: float, overflow: bool, timed_out: bool) -> None:
+    operational_metrics.observe("swinglens_db_pool_wait_seconds", max(0.0, wait_ms / 1000.0))
     summary = _sql_summary.get()
     if summary is not None:
         summary.add_pool_checkout(
@@ -1564,11 +1623,30 @@ def record_pool_checkout(*, wait_ms: float, overflow: bool, timed_out: bool) -> 
 class MonitoredQueuePool(QueuePool):
     """QueuePool with passive acquisition timing; sizing and timeout semantics are unchanged."""
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._observability_last_wait_seconds = 0.0
+        self._observability_last_timeout_at = 0.0
+
+    def configured_max_overflow(self) -> int:
+        return max(0, int(self._max_overflow))
+
+    def observability_status(self) -> dict[str, float | bool]:
+        return {
+            "last_wait_seconds": self._observability_last_wait_seconds,
+            "recent_timeout": bool(
+                self._observability_last_timeout_at
+                and time.monotonic() - self._observability_last_timeout_at <= 60.0
+            ),
+        }
+
     def _do_get(self) -> Any:
         started = time.perf_counter_ns()
         try:
             connection = super()._do_get()
         except SQLAlchemyTimeoutError:
+            self._observability_last_timeout_at = time.monotonic()
+            operational_metrics.increment("swinglens_db_pool_timeouts_total")
             record_pool_checkout(
                 wait_ms=(time.perf_counter_ns() - started) / 1_000_000,
                 overflow=False,
@@ -1576,6 +1654,7 @@ class MonitoredQueuePool(QueuePool):
             )
             raise
         wait_ms = (time.perf_counter_ns() - started) / 1_000_000
+        self._observability_last_wait_seconds = max(0.0, wait_ms / 1000.0)
         record_pool_checkout(
             wait_ms=wait_ms,
             overflow=self.overflow() > 0,
@@ -1599,7 +1678,7 @@ def meaningful_rowcount(cursor: Any, operation: str) -> int | None:
 def safe_error_summary(error: BaseException) -> str:
     if isinstance(error, DBAPIError):
         error = error.orig
-    message = str(error).replace("\r", " ").replace("\n", " ")
+    message = redact_text(str(error)).replace("\r", " ").replace("\n", " ")
     message = _STRING_LITERAL_RE.sub("?", message)
     message = _DOUBLE_QUOTED_TEXT_RE.sub("?", message)
     message = _URL_CREDENTIAL_RE.sub(r"\1?\2", message)

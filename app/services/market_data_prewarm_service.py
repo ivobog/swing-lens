@@ -377,7 +377,7 @@ def execute_market_data_prewarm_job(db: Session, job: BackgroundJob) -> dict[str
         raise
 
     operational_metrics.increment("swinglens_market_prewarm_jobs_total", status=result["status"])
-    operational_metrics.increment(
+    operational_metrics.set_gauge(
         "swinglens_market_prewarm_coverage_ratio",
         value=float(result["coverage_ratio"]),
     )

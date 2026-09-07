@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from inspect import Parameter, signature
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import distinct, func, select
@@ -24,6 +26,8 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.observability.logging import log_event
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import JobLeaseLost, enqueue_job
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.ceri.constants import (
@@ -78,6 +82,8 @@ from app.services.technical_score_service import (
     score_run_technicals,
 )
 from app.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineCancelled(Exception):
@@ -244,9 +250,7 @@ def execute_full_pipeline(
         result="mismatch",
     )
     technical_durations_before = {
-        name: operational_metrics.total(
-            f"swinglens_technical_{name}_ms_total", run_id=upload_run.id
-        )
+        name: operational_metrics.total(f"swinglens_technical_{name}_ms_total")
         for name in ("input_load", "worker_span", "finalize")
     }
 
@@ -471,10 +475,7 @@ def execute_full_pipeline(
             ):
                 performance.set_metric(
                     performance_name,
-                    operational_metrics.total(
-                        f"swinglens_technical_{metric_name}_ms_total",
-                        run_id=upload_run.id,
-                    )
+                    operational_metrics.total(f"swinglens_technical_{metric_name}_ms_total")
                     - technical_durations_before[metric_name],
                 )
             settings = get_settings()
@@ -645,7 +646,7 @@ def execute_full_pipeline(
 
         result["performance"] = performance.snapshot()
         final_status = _final_pipeline_status(result)
-        _record_performance_metrics(final_status, result["performance"])
+        _record_performance_metrics(db, final_status, result["performance"])
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
     except CeriBootstrapRequiredError as exc:
@@ -668,14 +669,14 @@ def execute_full_pipeline(
         result["performance"] = performance.snapshot()
         result["blocked_reason"] = exc.reason_code
         result["blocked_diagnostics"] = exc.diagnostics
-        _record_performance_metrics(PipelineStatus.BLOCKED, result["performance"])
+        _record_performance_metrics(db, PipelineStatus.BLOCKED, result["performance"])
         _mark_pipeline_blocked(db, pipeline, exc, result=result, lease_guard=lease_guard)
         raise
     except IBGatewayUnavailable as exc:
         if overlap_coordinator is not None:
             overlap_coordinator.abort()
         result["performance"] = performance.snapshot()
-        _record_performance_metrics(PipelineStatus.FAILED, result["performance"])
+        _record_performance_metrics(db, PipelineStatus.FAILED, result["performance"])
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
     except JobLeaseLost:
@@ -686,7 +687,7 @@ def execute_full_pipeline(
         if overlap_coordinator is not None:
             overlap_coordinator.abort()
         result["performance"] = performance.snapshot()
-        _record_performance_metrics(PipelineStatus.CANCELLED, result["performance"])
+        _record_performance_metrics(db, PipelineStatus.CANCELLED, result["performance"])
         _mark_pipeline_cancelled(db, pipeline, result=result, lease_guard=lease_guard)
         raise
     except Exception as exc:
@@ -697,7 +698,7 @@ def execute_full_pipeline(
             rollback()
             pipeline = _require_pipeline(db, pipeline_run_id)
         result["performance"] = performance.snapshot()
-        _record_performance_metrics(PipelineStatus.FAILED, result["performance"])
+        _record_performance_metrics(db, PipelineStatus.FAILED, result["performance"])
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         raise
 
@@ -812,7 +813,7 @@ def _execute_resumed_pipeline(
 
         result["performance"] = performance.snapshot()
         final_status = _final_pipeline_status(result)
-        _record_performance_metrics(final_status, result["performance"])
+        _record_performance_metrics(db, final_status, result["performance"])
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
     except CeriBootstrapRequiredError as exc:
@@ -947,6 +948,33 @@ def _pipeline_step(
     lease_guard: Callable[[], None] | None = None,
     performance: PipelinePerformanceTracker | None = None,
 ):
+    observed_started = perf_counter()
+
+    def observe_step(status: str, reason_code: str | None = None) -> None:
+        duration_seconds = max(0.0, perf_counter() - observed_started)
+        operational_metrics.set_gauge("swinglens_pipeline_current_stage", 0, stage=step_name)
+        operational_metrics.observe(
+            "swinglens_pipeline_stage_duration_seconds",
+            duration_seconds,
+            stage=step_name,
+            status=status,
+        )
+        if reason_code:
+            operational_metrics.increment(
+                "swinglens_pipeline_failures_total",
+                stage=step_name,
+                reason_code=reason_code,
+            )
+        log_event(
+            logger,
+            "pipeline.stage_finished",
+            pipeline_run_id=pipeline.id,
+            stage=step_name,
+            status=status,
+            reason_code=reason_code,
+            duration_ms=round(duration_seconds * 1000, 3),
+        )
+
     step = _require_step(db, pipeline.id, step_name)
     if step.status in {
         PipelineStepStatus.RUNNING,
@@ -966,11 +994,20 @@ def _pipeline_step(
     step.error_message = None
     if performance is not None:
         performance.start_step(step_name)
+    operational_metrics.set_gauge("swinglens_pipeline_current_stage", 1, stage=step_name)
+    log_event(
+        logger,
+        "pipeline.stage_started",
+        pipeline_run_id=pipeline.id,
+        stage=step_name,
+        status=PipelineStepStatus.RUNNING,
+    )
     _report_job_stage_progress(db, pipeline, step_name)
     _save_progress(db, lease_guard=lease_guard)
     try:
         yield step
     except JobLeaseLost:
+        observe_step("LEASE_LOST", "JOB_LEASE_LOST")
         raise
     except CeriBootstrapRequiredError:
         step.status = PipelineStepStatus.PENDING
@@ -980,6 +1017,7 @@ def _pipeline_step(
         if performance is not None:
             performance.finish_step(step_name, PipelineStatus.PREPARING)
         _save_progress(db, lease_guard=lease_guard)
+        observe_step(PipelineStatus.PREPARING)
         raise
     except PipelineBlockedError as exc:
         step.status = PipelineStepStatus.BLOCKED
@@ -989,6 +1027,7 @@ def _pipeline_step(
         if performance is not None:
             performance.finish_step(step_name, step.status)
         _save_progress(db, lease_guard=lease_guard)
+        observe_step(step.status, exc.reason_code)
         raise
     except PipelineCancelled:
         step.status = PipelineStepStatus.CANCELLED
@@ -997,6 +1036,7 @@ def _pipeline_step(
         if performance is not None:
             performance.finish_step(step_name, step.status)
         _save_progress(db, lease_guard=lease_guard)
+        observe_step(step.status)
         raise
     except Exception as exc:
         step.status = PipelineStepStatus.FAILED
@@ -1005,6 +1045,7 @@ def _pipeline_step(
         if performance is not None:
             performance.finish_step(step_name, step.status)
         _save_progress(db, lease_guard=lease_guard)
+        observe_step(step.status, "UNEXPECTED")
         raise
     else:
         if step.status == PipelineStepStatus.RUNNING:
@@ -1014,6 +1055,7 @@ def _pipeline_step(
             performance.finish_step(step_name, step.status)
         _report_job_stage_progress(db, pipeline, step_name)
         _save_progress(db, lease_guard=lease_guard)
+        observe_step(step.status)
 
 
 def _report_job_stage_progress(db: Session, pipeline: PipelineRun, stage: str) -> None:
@@ -1074,6 +1116,7 @@ def _mark_pipeline_running(
     pipeline.completed_at = None
     pipeline.error_message = None
     pipeline.message = "Full pipeline is running."
+    publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 1)
     _save_progress(db, lease_guard=lease_guard)
 
 
@@ -1086,6 +1129,7 @@ def _mark_pipeline_finished(
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
     pipeline.status = status
+    publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 0)
     pipeline.current_step = None
     pipeline.completed_at = _utcnow()
     pipeline.result_json = {
@@ -1251,6 +1295,7 @@ def _apply_ib_execution_status(
     result: dict[str, Any],
     status: IBGatewayHealthStatus,
 ) -> None:
+    operational_metrics.set_gauge("swinglens_ib_connected", float(status.api_connected))
     result["ib_execution_status"] = status.status
     result["ib_execution_checked_at"] = status.checked_at.isoformat()
     result["ib_api_available_at_execution"] = status.api_connected
@@ -1507,20 +1552,16 @@ def _public_result(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _record_performance_metrics(status: str, performance: dict[str, Any]) -> None:
-    operational_metrics.increment("swinglens_pipeline_runs_total", status=status)
-    operational_metrics.increment(
-        "swinglens_pipeline_duration_ms_total",
-        float(performance.get("pipeline_wall_ms") or 0),
+def _record_performance_metrics(db: Session, status: str, performance: dict[str, Any]) -> None:
+    publish_after_commit(db, "increment", "swinglens_pipeline_runs_total", status=status)
+    publish_after_commit(db, "increment", "swinglens_pipelines_finished_total", status=status)
+    publish_after_commit(
+        db,
+        "observe",
+        "swinglens_pipeline_duration_seconds",
+        float(performance.get("pipeline_wall_ms") or 0) / 1000.0,
         status=status,
     )
-    for step_name, duration_ms in (performance.get("step_durations_ms") or {}).items():
-        operational_metrics.increment(
-            "swinglens_pipeline_step_duration_ms_total",
-            float(duration_ms or 0),
-            step=step_name,
-            status=status,
-        )
 
 
 def _safe_message(message: str) -> str:

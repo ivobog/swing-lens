@@ -13,6 +13,7 @@ from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars
 from app.services.price_series_version_service import maintain_price_series_versions
+from app.services.redaction import redact_text
 from app.settings import Settings, get_settings
 
 DEFAULT_WHAT_TO_SHOW = ("ADJUSTED_LAST", "TRADES")
@@ -144,9 +145,7 @@ def cache_bars(
 
         if current is None:
             db.add(_to_price_bar(bar, new_hash, now))
-            changed_series.add(
-                (bar.ticker.upper(), bar.timeframe, bar.what_to_show)
-            )
+            changed_series.add((bar.ticker.upper(), bar.timeframe, bar.what_to_show))
             inserted += 1
             continue
 
@@ -225,7 +224,7 @@ def _fetch_and_cache_one(
         item.status = "COMPLETED"
     except Exception as exc:
         item.status = "FAILED"
-        item.error_message = str(exc)
+        item.error_message = redact_text(str(exc)).replace("\n", " ")[:500]
     return item
 
 
@@ -250,10 +249,7 @@ def _existing_bars_by_key(
     db: Session,
     bars: list[HistoricalBar],
 ) -> dict[tuple[str, object, str, str], PriceBar]:
-    keys = {
-        _bar_key(bar.ticker, bar.bar_date, bar.timeframe, bar.what_to_show)
-        for bar in bars
-    }
+    keys = {_bar_key(bar.ticker, bar.bar_date, bar.timeframe, bar.what_to_show) for bar in bars}
     if not keys:
         return {}
 
@@ -268,8 +264,7 @@ def _existing_bars_by_key(
         )
     ).all()
     return {
-        _bar_key(row.ticker, row.bar_date, row.timeframe, row.what_to_show): row
-        for row in rows
+        _bar_key(row.ticker, row.bar_date, row.timeframe, row.what_to_show): row for row in rows
     }
 
 

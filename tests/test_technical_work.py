@@ -274,15 +274,16 @@ def test_process_pool_mode_returns_scores_in_input_order(monkeypatch) -> None:
 
     assert [row.ticker for row in rows] == ["BBB", "AAA"]
     assert len(db.rows) == 2
-    assert operational_metrics.total(
-        "swinglens_technical_input_load_ms_total", run_id=7
-    ) > 0
-    assert operational_metrics.total(
-        "swinglens_technical_worker_span_ms_total", run_id=7
-    ) > 0
-    assert operational_metrics.total(
-        "swinglens_technical_finalize_ms_total", run_id=7
-    ) > 0
+    prometheus = operational_metrics.as_prometheus()
+    for metric_name in (
+        "swinglens_technical_input_load_seconds",
+        "swinglens_technical_worker_span_seconds",
+        "swinglens_technical_finalize_seconds",
+    ):
+        count_line = next(
+            line for line in prometheus.splitlines() if line.startswith(f"{metric_name}_count ")
+        )
+        assert float(count_line.split()[-1]) > 0
 
 
 def test_artifact_write_mode_persists_local_work_result(monkeypatch) -> None:

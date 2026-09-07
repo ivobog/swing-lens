@@ -233,9 +233,9 @@ class SetupLifecycleSourceLoader:
                     "swinglens_setup_latest_bar_projection_shadow_mismatches_total",
                     len(mismatches),
                 )
-                operational_metrics.increment(
-                    "swinglens_setup_latest_bar_query_ms_total",
-                    (perf_counter() - started_at) * 1000,
+                operational_metrics.observe(
+                    "swinglens_setup_latest_bar_query_seconds",
+                    perf_counter() - started_at,
                     mode="shadow_fallback",
                 )
                 self.last_metrics["setup_latest_bar_query_ms"] = round(
@@ -244,9 +244,9 @@ class SetupLifecycleSourceLoader:
                 return legacy_price_bars
 
         query_ms = (perf_counter() - started_at) * 1000
-        operational_metrics.increment(
-            "swinglens_setup_latest_bar_query_ms_total",
-            query_ms,
+        operational_metrics.observe(
+            "swinglens_setup_latest_bar_query_seconds",
+            query_ms / 1000.0,
             mode="latest_projection" if self.latest_bar_projection_enabled else "legacy",
         )
         self.last_metrics["setup_latest_bar_query_ms"] = round(query_ms, 3)

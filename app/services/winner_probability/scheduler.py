@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
+from app.observability.correlation import root_action_scope
 from app.services.background_job_service import JobStatus
 from app.services.winner_probability.job_handlers import (
     WINNER_OUTCOME_MATURATION,
@@ -41,18 +42,22 @@ def schedule_primary_h5_maturation(
         .order_by(BackgroundJob.id.desc())
         .limit(1)
     )
+    # An idle eligibility poll is not an enqueue attempt. In particular, a
+    # completed job for this trading session terminates before a root context or
+    # durable enqueue-attempt record can be created.
     if existing is not None:
         return existing
-    return enqueue_outcome_maturation_workflow(
-        db,
-        payload={
-            "entry_model": "NEXT_OPEN",
-            "horizon_sessions": 5,
-            "due_session": completed_session.isoformat(),
-            "limit": batch_size,
-            "max_batches": max_batches,
-        },
-        request_key=request_key,
-        trigger_source="SCHEDULER",
-        priority=35,
-    )
+    with root_action_scope("SCHEDULER", f"winner-primary-h5:{completed_session.isoformat()}"):
+        return enqueue_outcome_maturation_workflow(
+            db,
+            payload={
+                "entry_model": "NEXT_OPEN",
+                "horizon_sessions": 5,
+                "due_session": completed_session.isoformat(),
+                "limit": batch_size,
+                "max_batches": max_batches,
+            },
+            request_key=request_key,
+            trigger_source="SCHEDULER",
+            priority=35,
+        )

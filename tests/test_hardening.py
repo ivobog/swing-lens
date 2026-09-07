@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.services import technical_score_service
 from app.services.pine_replica_engine import PineReplicaScore
+from app.services.readiness_service import ReadinessCheck, ReadinessReport
 
 
 def _legacy_scoring_settings() -> SimpleNamespace:
@@ -214,12 +215,36 @@ def test_score_run_technicals_passes_configured_sector_benchmark(monkeypatch) ->
     assert captured["sector_price"] is frames["QQQ"]
 
 
-def test_ready_route_returns_operational_shape() -> None:
+def test_ready_route_returns_operational_shape(monkeypatch) -> None:
+    checks = {
+        name: ReadinessCheck(name != "database", "failed" if name == "database" else "ok")
+        for name in (
+            "database",
+            "migrations",
+            "storage",
+            "supervisor",
+            "worker_registered",
+            "worker_heartbeat",
+            "worker",
+            "jobs",
+        )
+    }
+
+    class FakeReadinessService:
+        def __init__(self, **_kwargs):
+            pass
+
+        def report(self):
+            return ReadinessReport(status="failed", checks=checks)
+
+    monkeypatch.setattr(
+        "app.routers.health_routes.ReadinessService", FakeReadinessService
+    )
     response = TestClient(app).get("/ready")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     payload = response.json()
-    assert payload["status"] in {"ok", "degraded"}
+    assert payload["status"] == "failed"
     assert "database_ok" in payload
     assert "local_dirs_ok" in payload
     assert "checks" in payload

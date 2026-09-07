@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import (
     active_job_for_request_key,
     enqueue_job,
@@ -17,7 +18,6 @@ from app.services.background_job_service import (
 from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.market_data_prewarm_service import request_active_prewarm_preemption
-from app.services.operational_metrics import operational_metrics
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 from app.settings import get_settings
 
@@ -142,16 +142,16 @@ def start_pipeline(
                 schedule_sec_readiness_repair,
             )
 
-            diagnostics = dict(
-                (authoritative.result_json or {}).get("blocked_diagnostics") or {}
-            )
+            diagnostics = dict((authoritative.result_json or {}).get("blocked_diagnostics") or {})
             schedule_sec_readiness_repair(
                 db,
                 pipeline=authoritative,
                 diagnostics=diagnostics,
             )
         authoritative._coalesced = True
-        operational_metrics.increment(
+        publish_after_commit(
+            db,
+            "increment",
             "swinglens_pipelines_coalesced_total",
             status=authoritative.status,
         )
@@ -162,7 +162,9 @@ def start_pipeline(
     existing_pipeline = _pipeline_for_job(db, existing_job)
     if existing_pipeline is not None:
         existing_pipeline._coalesced = True
-        operational_metrics.increment(
+        publish_after_commit(
+            db,
+            "increment",
             "swinglens_pipelines_coalesced_total",
             status=existing_pipeline.status,
         )
@@ -208,7 +210,9 @@ def start_pipeline(
             _cancel_pending_steps(db, pipeline.id)
             existing_pipeline._coalesced = True
             db.flush()
-            operational_metrics.increment(
+            publish_after_commit(
+                db,
+                "increment",
                 "swinglens_pipelines_coalesced_total",
                 status=existing_pipeline.status,
             )
@@ -234,10 +238,7 @@ def start_pipeline(
             "preempted_prewarm_job_ids": preempted_prewarm_jobs,
         }
     db.flush()
-    operational_metrics.increment(
-        "swinglens_pipelines_started_total",
-        step_count=len(step_names),
-    )
+    publish_after_commit(db, "increment", "swinglens_pipelines_started_total")
     return pipeline
 
 
@@ -337,7 +338,9 @@ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
         pipeline.message = "Pipeline cancellation requested."
 
     db.flush()
-    operational_metrics.increment(
+    publish_after_commit(
+        db,
+        "increment",
         "swinglens_pipelines_cancel_requested_total",
         status=pipeline.status,
     )
@@ -519,9 +522,7 @@ def _authoritative_pipeline_for_run(
             ).all()
         )
     for pipeline in sorted(rows, key=lambda row: int(row.id or 0), reverse=True):
-        if pipeline.status not in PIPELINE_TERMINAL_STATUSES or _is_recoverable_sec_block(
-            pipeline
-        ):
+        if pipeline.status not in PIPELINE_TERMINAL_STATUSES or _is_recoverable_sec_block(pipeline):
             return pipeline
     return None
 

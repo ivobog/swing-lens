@@ -28,9 +28,10 @@ def health() -> HealthResponse:
 
 
 @router.get("/ready", response_model=ReadinessResponse)
-def ready() -> ReadinessResponse:
+def ready(response: Response) -> ReadinessResponse:
     settings = get_settings()
     report = ReadinessService(engine=engine, settings=settings).report()
+    response.status_code = 503 if report.status == "failed" else 200
 
     return ReadinessResponse(
         app=settings.app_name,
@@ -44,6 +45,7 @@ def ready() -> ReadinessResponse:
         worker_ok=report.checks["worker"].ok,
         jobs_ok=report.checks["jobs"].ok,
         checks=report.response_checks(),
+        check_states=report.response_states(),
     )
 
 

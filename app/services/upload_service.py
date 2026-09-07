@@ -17,6 +17,7 @@ from app.services.fundamental_ranker_v2 import (
     score_rows_v2,
     to_decimal,
 )
+from app.services.redaction import redact_text
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.sector_taxonomy import normalize_sector_result
 from app.services.validation_service import CsvValidationError, validate_mapped_rows
@@ -68,7 +69,7 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         except (CsvLoadError, CsvValidationError) as exc:
             run.status = RunStatus.FAILED.value
             run.row_count = 0
-            run.error_message = str(exc)
+            run.error_message = redact_text(str(exc)).replace("\n", " ")[:500]
             db.commit()
             committed = True
             db.refresh(run)
@@ -90,9 +91,7 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         run.processed_at = datetime.now(UTC)
         run.status = RunStatus.COMPLETED.value
         model_version = (
-            fundamental_scores[0].scoring_model_version
-            if fundamental_scores
-            else "fundamentals_v2"
+            fundamental_scores[0].scoring_model_version if fundamental_scores else "fundamentals_v2"
         )
         run.notes = (
             "CSV uploaded, raw rows stored, and fundamental scores calculated "

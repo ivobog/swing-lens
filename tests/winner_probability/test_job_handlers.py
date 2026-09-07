@@ -80,7 +80,7 @@ def test_capture_job_persists_processing_run_and_counts() -> None:
     assert processing_run.completed_at is not None
     assert "execution_token" not in processing_run.metadata_json
     assert processing_run.metadata_json["execution_token_hash"]
-    assert processing_run.metadata_json["execution_token_suffix"] == "oken-1"
+    assert processing_run.metadata_json["execution_token_suffix"] is None
 
 
 def test_capture_job_marks_partial_when_ticker_failures_are_reported() -> None:
@@ -234,7 +234,7 @@ def test_zero_progress_retry_deferred_slice_never_enqueues_immediate_child(monke
     assert db.processing_runs[0].terminal_reason_code == "RETRY_DEFERRED"
     assert db.processing_runs[0].counts_json["continuation_decision"] == "DEFER_SAME_JOB"
     assert operational_metrics.total("winner_maturation_zero_progress_total") == 1
-    assert operational_metrics.total("winner_maturation_due_total") == 4227
+    assert operational_metrics.total("winner_maturation_due") == 4227
     assert operational_metrics.total("winner_maturation_retry_eligible") == 0
     assert operational_metrics.total("winner_maturation_retry_deferred") == 4227
 

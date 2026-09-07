@@ -17,6 +17,7 @@ from app.services.ceri.feature_rebuild_service import (
 from app.services.ceri.normalization_service import CeriNormalizationService
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
 from app.services.ceri.processing_run_service import CeriProcessingRunService
+from app.services.redaction import redact_text
 
 
 @dataclass(frozen=True)
@@ -125,7 +126,7 @@ class CeriBackfillService:
         failed_by_ticker = {
             str(item.get("ticker", "")).upper(): {
                 "ticker": str(item.get("ticker", "")).upper(),
-                "error": str(item.get("error", ""))[:300],
+                "error": redact_text(str(item.get("error", "")))[:300],
                 "attempts": int(item.get("attempts", 1) or 1),
             }
             for item in checkpoint.get("failed_tickers", [])
@@ -206,7 +207,7 @@ class CeriBackfillService:
                     prior_failure = failed_by_ticker.get(ticker, {})
                     failed_by_ticker[ticker] = {
                         "ticker": ticker,
-                        "error": str(exc).replace("\n", " ")[:300],
+                        "error": redact_text(str(exc)).replace("\n", " ")[:300],
                         "attempts": int(prior_failure.get("attempts", 0) or 0) + 1,
                     }
                     checkpoint["failed_tickers"] = list(failed_by_ticker.values())
@@ -215,11 +216,7 @@ class CeriBackfillService:
             checkpoint["completed_tickers"] = sorted(completed_tickers)
             checkpoint["failed_tickers"] = list(failed_by_ticker.values())
             checkpoint["next_ticker_index"] = next(
-                (
-                    index
-                    for index, ticker in enumerate(tickers)
-                    if ticker not in completed_tickers
-                ),
+                (index for index, ticker in enumerate(tickers) if ticker not in completed_tickers),
                 len(tickers),
             )
         checkpoint["resumable"] = bool(

@@ -80,6 +80,7 @@ from app.services.ib_market_intelligence.scanner_identity import (
     scanner_conids_by_ticker,
 )
 from app.services.operational_metrics import operational_metrics
+from app.services.redaction import redact_text
 from app.settings import Settings, get_settings
 
 HISTORICAL_MODULE_METRICS = {
@@ -141,6 +142,7 @@ def execute_historical_refresh(
     counts = {**_counts(), **dict(resume.get("counts") or {})}
     ib = ib_factory() if ib_factory else create_ib_client()
     try:
+
         def guard() -> None:
             _job_guard(db, job)
 
@@ -374,6 +376,7 @@ def execute_live_snapshot(
     counts = {**_counts(), **dict(resume.get("counts") or {})}
     ib = ib_factory() if ib_factory else create_ib_client()
     try:
+
         def guard() -> None:
             _job_guard(db, job)
 
@@ -651,7 +654,7 @@ def execute_scanner_run(
                 )
             except Exception as exc:
                 scan.status = "FAILED"
-                scan.error_message = str(exc)[:1000]
+                scan.error_message = redact_text(str(exc)).replace("\n", " ")[:1000]
                 scan.completed_at = datetime.now(UTC)
                 counts["failed"] += 1
                 availability, reason = capability_status_from_error(exc)
@@ -737,11 +740,7 @@ def execute_histogram_fetch(
             operational_metrics.increment(
                 "swinglens_ibmi_histogram_fetch_total",
                 outcome=(
-                    "malformed"
-                    if capture.malformed_bin_count
-                    else "success"
-                    if levels
-                    else "empty"
+                    "malformed" if capture.malformed_bin_count else "success" if levels else "empty"
                 ),
             )
             observed = datetime.now(UTC)
@@ -909,6 +908,7 @@ def execute_flex_import(
             "force": bool(job.payload_json.get("force", False)),
         },
     )
+
     def guard() -> None:
         _job_guard(db, job)
 
@@ -1487,8 +1487,7 @@ def _shortable_share_observations(
         .where(
             IBMarketIntelligenceSnapshot.ticker == ticker.upper(),
             IBMarketIntelligenceSnapshot.snapshot_type == "SHORTABLE",
-            IBMarketIntelligenceSnapshot.availability_status
-            == AvailabilityStatus.AVAILABLE,
+            IBMarketIntelligenceSnapshot.availability_status == AvailabilityStatus.AVAILABLE,
         )
         .order_by(IBMarketIntelligenceSnapshot.observed_at.desc())
         .limit(limit)

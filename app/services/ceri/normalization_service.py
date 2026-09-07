@@ -30,6 +30,7 @@ from app.services.ceri.guidance_normalizer import (
     apply_guidance_eligibility,
 )
 from app.services.ceri.identity_resolver import CeriIdentityResolver
+from app.services.redaction import redact_text
 
 
 @dataclass(frozen=True)
@@ -136,7 +137,7 @@ class CeriNormalizationService:
                     errors.append(
                         {
                             "source_record_id": source_record.id,
-                            "error": str(exc).replace("\n", " ")[:500],
+                            "error": redact_text(str(exc)).replace("\n", " ")[:500],
                         }
                     )
             if index % max(1, checkpoint_interval) == 0:
