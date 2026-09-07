@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from time import perf_counter
 
 from sqlalchemy import case, func, or_, select
@@ -20,6 +20,11 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.market_calculation_context_service import (
+    market_context_for_upload_run,
+    standalone_market_context,
+)
+from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.services.operational_metrics import operational_metrics
 from app.settings import get_settings
 
@@ -39,6 +44,7 @@ class TickerSourceContext:
     sector_rotation_snapshot: SectorRotationSnapshot | None = None
     sector_rotation_row: SectorRotationRow | None = None
     price_bars: tuple[PriceBar, ...] = ()
+    market_cutoff: MarketCalculationCutoff | None = None
 
     @property
     def ticker(self) -> str:
@@ -55,6 +61,7 @@ class RunSourceContext:
     market_regime_snapshot: MarketRegimeSnapshot | None
     sector_rotation_snapshot: SectorRotationSnapshot | None
     tickers: tuple[TickerSourceContext, ...]
+    market_cutoff: MarketCalculationCutoff | None = None
 
 
 class SetupLifecycleSourceLoader:
@@ -77,7 +84,13 @@ class SetupLifecycleSourceLoader:
         )
         self.last_metrics: dict[str, float] = {}
 
-    def load_run_context(self, db: Session, run_id: int) -> RunSourceContext:
+    def load_run_context(
+        self,
+        db: Session,
+        run_id: int,
+        *,
+        market_cutoff: MarketCalculationCutoff | None = None,
+    ) -> RunSourceContext:
         upload_run = db.get(UploadRun, run_id)
         if upload_run is None:
             raise ValueError(f"Upload run {run_id} was not found.")
@@ -92,8 +105,15 @@ class SetupLifecycleSourceLoader:
             )
         )
         tickers = tuple(row.ticker.upper() for row in raw_rows if row.ticker)
-        source_cutoff = _upload_run_cutoff_date(upload_run)
-        price_bars = self._load_price_bars(db, tickers, cutoff=source_cutoff)
+        market_cutoff = (
+            market_cutoff
+            or market_context_for_upload_run(db, run_id)
+            or standalone_market_context(reason="STANDALONE_SETUP_LIFECYCLE")
+        )
+        source_cutoff = market_cutoff.latest_completed_session
+        price_bars = self._load_price_bars(
+            db, tickers, cutoff=source_cutoff, cutoff_at=market_cutoff.cutoff_at
+        )
         operational_metrics.increment(
             "swinglens_setup_price_rows_materialized_total",
             len(price_bars),
@@ -102,12 +122,7 @@ class SetupLifecycleSourceLoader:
         technical_scores = tuple(
             db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id))
         )
-        context_cutoff = _run_context_cutoff_date(
-            upload_run=upload_run,
-            raw_rows=raw_rows,
-            technical_scores=technical_scores,
-            price_bars=price_bars,
-        )
+        context_cutoff = source_cutoff
         context_started_at = perf_counter()
         ticker_cutoffs = {
             normalize_ticker(row.ticker): (
@@ -197,6 +212,7 @@ class SetupLifecycleSourceLoader:
         tickers: tuple[str, ...],
         *,
         cutoff: date,
+        cutoff_at: datetime | None = None,
     ) -> tuple[PriceBar, ...]:
         if not tickers:
             self.last_metrics["setup_latest_bar_query_ms"] = 0.0
@@ -212,13 +228,16 @@ class SetupLifecycleSourceLoader:
                     _latest_price_bar_history_statement(
                         tickers,
                         cutoff=cutoff,
+                        cutoff_at=cutoff_at,
                         session_count=2,
                     )
                 )
             )
         if not self.latest_bar_projection_enabled or self.shadow_compare_enabled:
             legacy_price_bars = tuple(
-                db.scalars(_legacy_price_bars_statement(tickers, cutoff=cutoff))
+                db.scalars(
+                    _legacy_price_bars_statement(tickers, cutoff=cutoff, cutoff_at=cutoff_at)
+                )
             )
 
         if self.shadow_compare_enabled:
@@ -329,6 +348,7 @@ def build_run_source_context(
     sector_rotation_snapshots_by_ticker: dict[str, SectorRotationSnapshot | None] | None = None,
     sector_rotation_rows: tuple[SectorRotationRow, ...] = (),
     price_bars: tuple[PriceBar, ...] = (),
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> RunSourceContext:
     fundamentals = _by_ticker(fundamental_scores)
     technicals = _by_ticker(technical_scores)
@@ -343,6 +363,7 @@ def build_run_source_context(
         upload_run=upload_run,
         market_regime_snapshot=market_regime_snapshot,
         sector_rotation_snapshot=sector_rotation_snapshot,
+        market_cutoff=market_cutoff,
         tickers=tuple(
             TickerSourceContext(
                 raw_row=row,
@@ -373,6 +394,7 @@ def build_run_source_context(
                     )
                 ),
                 price_bars=tuple(bars.get(normalize_ticker(row.ticker), ())),
+                market_cutoff=market_cutoff,
             )
             for row in raw_rows
             if row.ticker and row.ticker.strip()
@@ -400,8 +422,10 @@ def latest_completed_bar(price_bars: tuple[PriceBar, ...]) -> PriceBar | None:
     )
 
 
-def _legacy_price_bars_statement(tickers: tuple[str, ...], *, cutoff: date):
-    return (
+def _legacy_price_bars_statement(
+    tickers: tuple[str, ...], *, cutoff: date, cutoff_at: datetime | None = None
+):
+    statement = (
         select(PriceBar)
         .where(PriceBar.ticker.in_(tickers))
         .where(PriceBar.timeframe.in_(DAILY_PRICE_TIMEFRAMES))
@@ -409,6 +433,11 @@ def _legacy_price_bars_statement(tickers: tuple[str, ...], *, cutoff: date):
         .where(PriceBar.bar_date <= cutoff)
         .order_by(PriceBar.ticker, PriceBar.bar_date)
     )
+    if cutoff_at is not None:
+        statement = statement.where(PriceBar.first_seen_at <= cutoff_at).where(
+            (PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= cutoff_at)
+        )
+    return statement
 
 
 def _latest_price_bars_statement(tickers: tuple[str, ...], *, cutoff: date):
@@ -470,32 +499,32 @@ def _run_context_cutoff_date(
     price_bars: tuple[PriceBar, ...],
 ) -> date:
     latest_bars = _latest_bars_by_ticker(price_bars)
-    technical_by_ticker = _by_ticker(technical_scores)
     ticker_cutoffs = [
-        latest_bar.bar_date if latest_bar is not None else technical.created_at.date()
+        latest_bar.bar_date
         for row in raw_rows
-        if row.ticker
-        and (
-            (latest_bar := latest_bars.get(normalize_ticker(row.ticker))) is not None
-            or (
-                (technical := technical_by_ticker.get(normalize_ticker(row.ticker))) is not None
-                and technical.created_at is not None
-            )
-        )
+        if row.ticker and (latest_bar := latest_bars.get(normalize_ticker(row.ticker))) is not None
     ]
     if ticker_cutoffs:
         return min(ticker_cutoffs)
     timestamp = upload_run.processed_at or upload_run.uploaded_at
-    if timestamp is not None:
-        return timestamp.date()
-    return date.today()
+    if timestamp is None:
+        raise ValueError("run cutoff cannot be proven without a bar or run timestamp")
+    return (
+        MarketClockService()
+        .cutoff_for(timestamp, reason="SETUP_LEGACY_CONTEXT_COMPATIBILITY")
+        .latest_completed_session
+    )
 
 
 def _upload_run_cutoff_date(upload_run: UploadRun) -> date:
     timestamp = upload_run.processed_at or upload_run.uploaded_at
     if timestamp is None:
         raise ValueError("completed upload run requires a processed or uploaded timestamp")
-    return timestamp.date()
+    return (
+        MarketClockService()
+        .cutoff_for(timestamp, reason="SETUP_UPLOAD_RUN_TIMESTAMP")
+        .latest_completed_session
+    )
 
 
 def _ticker_context_cutoff_date(
@@ -509,12 +538,10 @@ def _ticker_context_cutoff_date(
     )
     if latest_bar is not None:
         return latest_bar.bar_date
-    technical = next(
-        (row for row in technical_scores if normalize_ticker(row.ticker) == ticker),
-        None,
-    )
-    if technical is not None and technical.created_at is not None:
-        return technical.created_at.date()
+    # A technical persistence timestamp is a knowledge instant, not a market
+    # session. The caller falls back to the frozen run session when no eligible
+    # ticker bar exists.
+    _ = technical_scores
     return None
 
 
@@ -577,6 +604,7 @@ def _latest_price_bar_history_statement(
     *,
     cutoff: date,
     session_count: int = 2,
+    cutoff_at: datetime | None = None,
 ):
     """Return one authoritative price source for each of the latest sessions per ticker."""
     safe_count = max(1, min(int(session_count), 10))
@@ -585,7 +613,7 @@ def _latest_price_bar_history_statement(
         (PriceBar.what_to_show == "ADJUSTED_LAST", 1),
         else_=2,
     )
-    ranked = (
+    statement = (
         select(
             PriceBar.id.label("price_bar_id"),
             func.dense_rank()
@@ -606,8 +634,12 @@ def _latest_price_bar_history_statement(
         .where(PriceBar.what_to_show.in_(PRICE_BAR_SOURCE_ORDER))
         .where(PriceBar.bar_date <= cutoff)
         .where(PriceBar.close.is_not(None))
-        .subquery()
     )
+    if cutoff_at is not None:
+        statement = statement.where(PriceBar.first_seen_at <= cutoff_at).where(
+            (PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= cutoff_at)
+        )
+    ranked = statement.subquery()
     return (
         select(PriceBar)
         .join(ranked, ranked.c.price_bar_id == PriceBar.id)

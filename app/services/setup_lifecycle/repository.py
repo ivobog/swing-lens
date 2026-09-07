@@ -383,13 +383,17 @@ class SetupLifecycleRepository:
             )
             for (ticker, timeframe), cutoff in normalized_cutoffs.items()
         ]
-        history_rank = func.row_number().over(
-            partition_by=(SetupSignalSnapshot.ticker, SetupSignalSnapshot.timeframe),
-            order_by=(
-                SetupSignalSnapshot.data_as_of_date.desc(),
-                SetupSignalSnapshot.id.desc(),
-            ),
-        ).label("history_rank")
+        history_rank = (
+            func.row_number()
+            .over(
+                partition_by=(SetupSignalSnapshot.ticker, SetupSignalSnapshot.timeframe),
+                order_by=(
+                    SetupSignalSnapshot.data_as_of_date.desc(),
+                    SetupSignalSnapshot.id.desc(),
+                ),
+            )
+            .label("history_rank")
+        )
         ranked = (
             select(
                 SetupSignalSnapshot.id.label("snapshot_id"),
@@ -528,8 +532,10 @@ class SetupLifecycleRepository:
         return latest
 
     def count_active_episodes(self, db: Session, *, config_hash: str | None = None) -> int:
-        statement = select(func.count()).select_from(SetupLifecycleEpisode).where(
-            SetupLifecycleEpisode.status == "ACTIVE"
+        statement = (
+            select(func.count())
+            .select_from(SetupLifecycleEpisode)
+            .where(SetupLifecycleEpisode.status == "ACTIVE")
         )
         if config_hash is not None:
             statement = statement.where(SetupLifecycleEpisode.config_hash == config_hash)
@@ -775,9 +781,7 @@ class SetupLifecycleRepository:
         if semantic_key is None:
             return rows
         return [
-            row
-            for row in rows
-            if (row.evidence_json or {}).get("semantic_key") == semantic_key
+            row for row in rows if (row.evidence_json or {}).get("semantic_key") == semantic_key
         ]
 
     def get_alert_event(self, db: Session, alert_id: int) -> SignalAlertEvent | None:
@@ -1021,6 +1025,19 @@ class SetupLifecycleRepository:
         snapshot.warning_flags_json = list(dto.warning_flags)
         snapshot.missing_data_json = dict(dto.missing_data)
         snapshot.source_lineage_json = dict(dto.source_lineage)
+        temporal = dict(dto.source_lineage.get("temporal_lineage") or {})
+        snapshot.calculation_context_id = temporal.get("calculation_context_id")
+        snapshot.calculation_cutoff_at = (
+            datetime.fromisoformat(str(temporal["calculation_cutoff_at"]))
+            if temporal.get("calculation_cutoff_at")
+            else None
+        )
+        snapshot.input_as_of_session = (
+            date.fromisoformat(str(temporal["input_as_of_session"]))
+            if temporal.get("input_as_of_session")
+            else None
+        )
+        snapshot.calendar_version = temporal.get("calendar_version")
         snapshot.diagnostic_high_cross_json = dict(dto.diagnostic_high_cross)
         snapshot.canonical_decision_json = dict(dto.canonical_decision)
         snapshot.debug_json = dict(dto.debug)

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
+from app.services.market_clock_service import MarketClockService
 from app.services.setup_lifecycle.change_detector import velocity_by_window
 from app.services.setup_lifecycle.config import (
     SetupLifecycleConfig,
@@ -177,6 +178,16 @@ class SetupLifecycleSnapshotBuilder:
             as_of_date,
             trigger_reference,
         )
+        if context.market_cutoff is not None:
+            source_lineage["temporal_lineage"] = {
+                "calculation_context_id": context.market_cutoff.context_id,
+                "calculation_cutoff_at": context.market_cutoff.cutoff_at.isoformat(),
+                "input_as_of_session": context.market_cutoff.latest_completed_session.isoformat(),
+                "calendar_version": context.market_cutoff.calendar_version,
+                "ticker_latest_session": (
+                    latest_bar.bar_date.isoformat() if latest_bar is not None else None
+                ),
+            }
         source_data_hash = SetupLifecycleRepository.stable_hash(
             {
                 "ticker": ticker,
@@ -235,22 +246,38 @@ class SetupLifecycleSnapshotBuilder:
         latest_bar = context.latest_completed_bar
         if latest_bar is not None:
             return latest_bar.bar_date
+        if context.market_cutoff is not None:
+            return context.market_cutoff.latest_completed_session
         technical = context.technical_score
         if technical is not None and technical.created_at is not None:
-            return technical.created_at.date()
+            return (
+                MarketClockService()
+                .cutoff_for(technical.created_at, reason="SETUP_TECHNICAL_KNOWLEDGE_BOUNDARY")
+                .latest_completed_session
+            )
         upload_run = context.raw_row.run
         if upload_run is not None:
-            timestamp = upload_run.processed_at or upload_run.uploaded_at
-            if timestamp is not None:
-                return timestamp.date()
-        return date.today()
+            observed = upload_run.processed_at or upload_run.uploaded_at
+            if observed is not None:
+                return (
+                    MarketClockService()
+                    .cutoff_for(observed, reason="SETUP_UPLOAD_KNOWLEDGE_BOUNDARY")
+                    .latest_completed_session
+                )
+        raise ValueError("setup lifecycle requires an explicit market calculation cutoff")
 
     def _reference_date(self, context: TickerSourceContext) -> date:
+        if context.market_cutoff is not None:
+            return context.market_cutoff.latest_completed_session
         upload_run = context.raw_row.run
         if upload_run is not None:
-            timestamp = upload_run.processed_at or upload_run.uploaded_at
-            if timestamp is not None:
-                return timestamp.date()
+            observed = upload_run.processed_at or upload_run.uploaded_at
+            if observed is not None:
+                return (
+                    MarketClockService()
+                    .cutoff_for(observed, reason="SETUP_REFERENCE_KNOWLEDGE_BOUNDARY")
+                    .latest_completed_session
+                )
         return self._resolve_data_as_of_date(context)
 
     def _promoted_fields(
@@ -658,9 +685,13 @@ class SetupLifecycleSnapshotCaptureService:
         evaluation_run: SetupLifecycleEvaluationRun | None = None,
         requester: str | None = None,
         finalize_evaluation_run: bool = True,
+        market_cutoff=None,
     ) -> SnapshotCaptureResult:
         try:
-            run_context = self.loader.load_run_context(db, run_id)
+            if market_cutoff is None:
+                run_context = self.loader.load_run_context(db, run_id)
+            else:
+                run_context = self.loader.load_run_context(db, run_id, market_cutoff=market_cutoff)
         except Exception:
             if evaluation_run is not None:
                 self.repository.complete_evaluation_run(
@@ -772,11 +803,13 @@ def capture_snapshots_for_run(
     *,
     config: SetupLifecycleConfig | None = None,
     requester: str | None = None,
+    market_cutoff=None,
 ) -> SnapshotCaptureResult:
     return SetupLifecycleSnapshotCaptureService(config=config).capture_snapshots_for_run(
         db,
         run_id,
         requester=requester,
+        market_cutoff=market_cutoff,
     )
 
 

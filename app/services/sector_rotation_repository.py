@@ -322,6 +322,11 @@ class SectorRotationRepository:
         snapshot.summary_json = dict(dto.summary)
         snapshot.warning_flags_json = list(dto.warning_flags)
         snapshot.debug_json = dict(dto.debug)
+        temporal = dict(dto.debug.get("temporal_lineage") or {})
+        snapshot.calculation_context_id = temporal.get("calculation_context_id")
+        snapshot.calculation_cutoff_at = _optional_datetime(temporal.get("calculation_cutoff_at"))
+        snapshot.input_as_of_session = _optional_date(temporal.get("input_as_of_session"))
+        snapshot.calendar_version = temporal.get("calendar_version")
         snapshot.evidence_hash = self.snapshot_evidence_hash(dto)
 
     @staticmethod
@@ -329,6 +334,14 @@ class SectorRotationRepository:
         payload = asdict(dto)
         data = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
+
+
+def _optional_datetime(value: Any) -> datetime | None:
+    return datetime.fromisoformat(str(value)) if value else None
+
+
+def _optional_date(value: Any) -> date | None:
+    return date.fromisoformat(str(value)) if value else None
 
 
 def _to_row_model(
