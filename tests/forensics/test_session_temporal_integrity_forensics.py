@@ -1,7 +1,7 @@
-"""Read-only characterization probes for the 2026-09 session-integrity audit.
+"""Regression probes closing the certified 2026-09 session-integrity findings.
 
-These tests intentionally describe current behavior.  Assertions marked with an
-STI finding identify the behavior that remediation is expected to change.
+The forensic fixtures remain read-only; assertions encode the intentionally
+superseding production semantics introduced by the remediation.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def test_shared_calendar_preserves_new_york_dst_offsets(
     assert session.open_at.utcoffset() == offset
 
 
-def test_sti_f003_artifact_key_cannot_express_eligible_session() -> None:
+def test_sti_f003_artifact_key_expresses_eligible_session() -> None:
     inputs = dict(
         ticker="MSFT",
         adjusted_series_version=12,
@@ -87,18 +87,19 @@ def test_sti_f003_artifact_key_cannot_express_eligible_session() -> None:
         scoring_config_hash="scores",
         technical_engine_version="5",
     )
-    artifact_through_s = build_local_artifact_key(**inputs)
-    artifact_through_s_plus_one_but_bounded_to_s = build_local_artifact_key(**inputs)
+    artifact_through_s = build_local_artifact_key(**inputs, input_as_of_session=date(2026, 9, 4))
+    artifact_through_s_plus_one_but_bounded_to_s = build_local_artifact_key(
+        **inputs, input_as_of_session=date(2026, 9, 8)
+    )
 
     assert (
         artifact_through_s.input_signature
-        == artifact_through_s_plus_one_but_bounded_to_s.input_signature
+        != artifact_through_s_plus_one_but_bounded_to_s.input_signature
     )
-    assert "max_session" not in artifact_through_s.input_versions
-    assert "cutoff_at" not in artifact_through_s.input_versions
+    assert artifact_through_s.input_versions["input_as_of_session"] == "2026-09-04"
 
 
-def test_sti_f006_enabled_sector_etf_loader_receives_no_cutoff(monkeypatch) -> None:
+def test_sti_f006_enabled_sector_etf_loader_enforces_cutoff(monkeypatch) -> None:
     calls: list[tuple[str, dict[str, object]]] = []
     frame = _bars(date(2025, 8, 1), 280)
     future = pd.concat([frame, _bars(date(2026, 9, 8), 1)], ignore_index=True)
@@ -112,24 +113,18 @@ def test_sti_f006_enabled_sector_etf_loader_receives_no_cutoff(monkeypatch) -> N
     )
     config = load_sector_rotation_config()
     config["etf_score"]["enabled"] = True
-    rows = SectorEtfRotationService().build(object(), [_sector_metrics()], config)
+    with pytest.raises(ValueError, match="temporal integrity violation"):
+        SectorEtfRotationService().build(object(), [_sector_metrics()], config)
+    assert calls and all(kwargs.get("max_session") == date(2026, 9, 4) for _, kwargs in calls)
 
-    assert rows[0].as_of_date == "2026-09-08"
-    assert calls and all(kwargs == {} for _, kwargs in calls)
 
-
-def test_sti_f008_default_feature_cutoff_is_utc_end_of_local_today(monkeypatch) -> None:
-    class FrozenDate(date):
-        @classmethod
-        def today(cls):
-            return cls(2026, 9, 8)
-
-    monkeypatch.setattr("app.services.ceri.feature_rebuild_service.date", FrozenDate)
-    context = CeriFeatureRebuildService().prepare_batch(object(), CeriFeatureRebuildRequest())
-
-    assert context.cutoff == date(2026, 9, 8)
-    assert context.cutoff_at == datetime(2026, 9, 8, 23, 59, 59, tzinfo=UTC)
-    assert latest_completed_us_trading_day(_ny(date(2026, 9, 8), 15)) == date(2026, 9, 4)
+def test_sti_f008_feature_cutoff_is_market_session_aware() -> None:
+    cutoff_at = _ny(date(2026, 9, 8), 15)
+    context = CeriFeatureRebuildService().prepare_batch(
+        object(), CeriFeatureRebuildRequest(cutoff_at=cutoff_at)
+    )
+    assert context.cutoff == date(2026, 9, 4)
+    assert context.cutoff_at == cutoff_at
 
 
 @pytest.mark.parametrize(
@@ -137,14 +132,14 @@ def test_sti_f008_default_feature_cutoff_is_utc_end_of_local_today(monkeypatch) 
     [
         ("pre_market", _ny(date(2026, 9, 8), 8), date(2026, 9, 8), False),
         ("one_second_before_open", _ny(date(2026, 9, 8), 9, 29, 59), date(2026, 9, 8), False),
-        ("exact_open", _ny(date(2026, 9, 8), 9, 30), date(2026, 9, 8), False),
-        ("regular_1000", _ny(date(2026, 9, 8), 10), date(2026, 9, 8), True),
-        ("regular_1559", _ny(date(2026, 9, 8), 15, 59), date(2026, 9, 8), True),
-        ("exact_close", _ny(date(2026, 9, 8), 16), date(2026, 9, 8), True),
+        ("exact_open", _ny(date(2026, 9, 8), 9, 30), date(2026, 9, 9), False),
+        ("regular_1000", _ny(date(2026, 9, 8), 10), date(2026, 9, 9), False),
+        ("regular_1559", _ny(date(2026, 9, 8), 15, 59), date(2026, 9, 9), False),
+        ("exact_close", _ny(date(2026, 9, 8), 16), date(2026, 9, 9), False),
         ("after_hours", _ny(date(2026, 9, 8), 16, 30), date(2026, 9, 9), False),
         ("weekend", _ny(date(2026, 9, 12), 12), date(2026, 9, 14), False),
-        ("early_close_midday", _ny(date(2026, 11, 27), 12), date(2026, 11, 27), True),
-        ("early_close_exact", _ny(date(2026, 11, 27), 13), date(2026, 11, 27), True),
+        ("early_close_midday", _ny(date(2026, 11, 27), 12), date(2026, 11, 30), False),
+        ("early_close_exact", _ny(date(2026, 11, 27), 13), date(2026, 11, 30), False),
     ],
 )
 def test_sti_f010_f011_reaction_open_characterization(
@@ -180,12 +175,12 @@ def test_sti_f012_connection_calendar_date_changes_cooldown_result() -> None:
 @pytest.mark.parametrize(
     ("last_day", "expected_week"),
     [
-        (date(2026, 9, 4), date(2026, 8, 28)),  # Monday calc: input ends prior Friday.
+        (date(2026, 9, 4), date(2026, 9, 4)),  # Completed Friday is confirmed.
         (date(2026, 9, 10), date(2026, 9, 4)),  # Partial current week present.
-        (date(2026, 9, 11), date(2026, 9, 4)),  # Completed Friday is still dropped.
+        (date(2026, 9, 11), date(2026, 9, 11)),  # Completed Friday is confirmed.
     ],
 )
-def test_sti_f013_confirmed_week_selection_is_position_not_session_aware(
+def test_sti_f013_confirmed_week_selection_is_exchange_session_aware(
     last_day: date, expected_week: date
 ) -> None:
     frame = _weekday_bars(date(2025, 1, 6), last_day)
@@ -195,54 +190,50 @@ def test_sti_f013_confirmed_week_selection_is_position_not_session_aware(
     assert result["close"] == selected["close"]
 
 
-def test_sti_f013_one_week_of_partial_history_is_treated_as_confirmed() -> None:
+def test_sti_f013_one_partial_week_is_insufficient_confirmed_history() -> None:
     frame = _weekday_bars(date(2026, 9, 7), date(2026, 9, 10))
     result = calculate_htf_trend_features(frame, params=_htf_params())
     weekly = resample_weekly_ohlcv(frame)
     assert len(weekly) == 1
-    assert result["close"] == weekly.iloc[-1]["close"]
+    assert result["htf_insufficient_confirmed_history"] is True
+    assert result["htf_confirmed"] is False
 
 
 @pytest.mark.parametrize("normalizer", [indicator_dates, leadership_dates])
-def test_sti_f014_late_new_york_timestamp_moves_to_next_utc_date(normalizer) -> None:
+def test_sti_f014_late_new_york_timestamp_retains_exchange_session(normalizer) -> None:
     values = pd.Series([datetime(2026, 3, 9, 21, 0, tzinfo=NY)])
-    assert normalizer(values).iloc[0] == pd.Timestamp("2026-03-10")
+    assert normalizer(values).iloc[0] == pd.Timestamp("2026-03-09")
 
 
-def test_sti_f015_historical_default_uses_calendar_today_and_calendar_days(monkeypatch) -> None:
-    class FrozenDate(date):
-        @classmethod
-        def today(cls):
-            return cls(2026, 8, 10)  # Monday before a completed daily bar is available.
-
-    monkeypatch.setattr("app.services.ib_market_intelligence.orchestration.date", FrozenDate)
+def test_sti_f015_historical_default_uses_completed_session() -> None:
     settings = SimpleNamespace(
         ib_intelligence_historical_chunk_days=60,
         ib_liquidity_lookback_sessions=60,
         ib_fee_rate_lookback_sessions=60,
         ib_volatility_lookback_sessions=60,
     )
-    ranges = _historical_date_ranges({}, SimpleNamespace(value="LIQUIDITY"), settings)
+    from app.services.market_clock_service import MarketClockService
 
-    assert ranges[-1][1] == date(2026, 8, 10)
-    assert latest_completed_us_trading_day(_ny(date(2026, 8, 10), 13, 36)) == date(2026, 8, 7)
+    cutoff = MarketClockService().cutoff_for(_ny(date(2026, 8, 10), 13, 36), reason="test")
+    ranges = _historical_date_ranges(
+        {}, SimpleNamespace(value="LIQUIDITY"), settings, market_cutoff=cutoff
+    )
+    assert ranges[-1][1] == date(2026, 8, 7)
 
 
-def test_sti_f017_pipeline_dependencies_have_no_frozen_market_cutoff() -> None:
+def test_sti_f017_pipeline_dependencies_have_frozen_market_cutoff() -> None:
     from app.services.pipeline_executor import PipelineExecutionDependencies
 
     parameters = inspect.signature(PipelineExecutionDependencies).parameters
-    assert "market_cutoff" not in parameters
-    assert "eligible_session" not in parameters
-    assert "cutoff_at" not in parameters
+    assert "market_cutoff" in parameters
 
 
-def test_sti_f018_ib_intelligence_feature_rebuild_uses_calendar_today() -> None:
+def test_sti_f018_ib_intelligence_feature_rebuild_uses_market_cutoff() -> None:
     from app.services.ib_market_intelligence.orchestration import execute_feature_rebuild
 
     source = inspect.getsource(execute_feature_rebuild)
     assert "_rebuild_ticker_feature" in source
-    assert "date.today()" in source
+    assert "date.today()" not in source
 
 
 def _bars(start: date, count: int) -> pd.DataFrame:
