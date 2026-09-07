@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -21,6 +21,8 @@ from app.services.ib_market_intelligence.dtos import (
     LiveSnapshotDTO,
 )
 from app.services.ib_market_intelligence.evidence_hash import evidence_hash
+from app.services.market_clock_service import CALENDAR_VERSION
+from app.services.us_market_calendar import us_market_session
 
 
 def persist_historical_metric_bar(
@@ -164,6 +166,7 @@ def persist_feature(
     config: IBMarketIntelligenceConfig,
     intelligence_run_id: int | None = None,
     calculated_at: datetime | None = None,
+    calculation_cutoff_at: datetime | None = None,
 ) -> tuple[IBIntelligenceFeature, bool]:
     input_signature = evidence_hash(
         {
@@ -196,6 +199,13 @@ def persist_feature(
         ib_conid=ib_conid,
         as_of_session=as_of_session,
         calculated_at=calculated_at or datetime.now(UTC),
+        calculation_cutoff_at=calculation_cutoff_at
+        or (
+            us_market_session(as_of_session).close_at + timedelta(minutes=15)
+            if us_market_session(as_of_session) is not None
+            else None
+        ),
+        calendar_version=CALENDAR_VERSION,
         module=feature.module,
         classification=feature.classification,
         score=_decimal(feature.score),

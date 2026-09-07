@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
@@ -34,6 +34,13 @@ from app.services.ceri.point_in_time_query import CeriPointInTimeQuery
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.revision_feature_service import CeriRevisionFeatureService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
+from app.services.market_calculation_context_service import standalone_market_context
+from app.services.market_clock_service import (
+    CALENDAR_VERSION,
+    MarketClockService,
+    SessionTimestampPolicy,
+)
+from app.services.us_market_calendar import us_market_session
 
 FEATURE_REBUILD_IMPL_VERSION = "batch-prefetch-v1"
 
@@ -44,6 +51,7 @@ class CeriFeatureRebuildRequest:
     ticker: str | None = None
     tickers: tuple[str, ...] | None = None
     as_of_session: date | None = None
+    cutoff_at: datetime | None = None
     from_session: date | None = None
     to_session: date | None = None
     run_id: int | None = None
@@ -167,8 +175,27 @@ class CeriFeatureRebuildService:
         select_count += 1 + int(request.run_id is not None)
         rows_loaded["companies"] = len(companies)
         company_ids = [company.id for company in companies]
-        cutoff = request.as_of_session or request.to_session or date.today()
-        cutoff_at = datetime.combine(cutoff, time(23, 59, 59), tzinfo=UTC)
+        explicit_session = request.as_of_session or request.to_session
+        if request.cutoff_at is not None:
+            if request.cutoff_at.tzinfo is None or request.cutoff_at.utcoffset() is None:
+                raise ValueError("cutoff_at must be timezone-aware")
+            cutoff_at = request.cutoff_at
+            derived = MarketClockService().canonical_session_for_timestamp(
+                cutoff_at, policy=SessionTimestampPolicy.LATEST_COMPLETED_DAILY_SESSION
+            )
+            if explicit_session is not None and explicit_session != derived:
+                raise ValueError("as_of_session is inconsistent with cutoff_at")
+            cutoff = explicit_session or derived
+        elif explicit_session is not None:
+            schedule = us_market_session(explicit_session)
+            if schedule is None:
+                raise ValueError("as_of_session must be a valid exchange session")
+            cutoff = explicit_session
+            cutoff_at = schedule.close_at + timedelta(minutes=15)
+        else:
+            current = standalone_market_context(reason="STANDALONE_CERI_FEATURE_REBUILD")
+            cutoff = current.latest_completed_session
+            cutoff_at = current.cutoff_at
         try:
             mode = HistoricalViewMode(request.mode)
         except ValueError:
@@ -316,6 +343,9 @@ class CeriFeatureRebuildService:
             .where(func.lower(PriceBar.timeframe).in_(("1d", "1 day", "day", "daily")))
             .where(func.lower(PriceBar.source).in_(("ib", "ibkr", "interactive_brokers")))
             .where(PriceBar.close.is_not(None))
+            .where(PriceBar.bar_date <= cutoff)
+            .where(PriceBar.first_seen_at <= cutoff_at)
+            .where((PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= cutoff_at))
             .order_by(PriceBar.ticker, PriceBar.bar_date),
         )
         bars = [
@@ -689,6 +719,9 @@ class CeriFeatureRebuildService:
 
         family_started = perf_counter()
         price_row = self._price_response_row(company, context, current_catalysts)
+        for row in derived_rows:
+            row.calculation_cutoff_at = context.cutoff_at
+            row.calendar_version = CALENDAR_VERSION
         timings["price_response"] = int((perf_counter() - family_started) * 1000)
         output_rows = self._prospective_output_rows(
             company.id, revision_rows, derived_rows, price_row, context
@@ -819,6 +852,7 @@ class CeriFeatureRebuildService:
                 benchmark_bars=context.bars_by_ticker.get(
                     self.config.price_response.benchmark.upper(), []
                 ),
+                feature_as_of_session=context.cutoff,
             )
         return self.price_response.build_feature(
             result=result,
@@ -827,6 +861,7 @@ class CeriFeatureRebuildService:
             event_id=event[1],
             event_effective_at=event[2],
             event_effective_session=event[3],
+            feature_as_of_session=context.cutoff,
         )
 
     def _persist_company(
@@ -856,7 +891,14 @@ class CeriFeatureRebuildService:
                     CeriDerivedFeature,
                     derived_rows,
                     "uq_ceri_derived_features_identity",
-                    ("value_json", "source_ids_json", "evidence_hash", "config_version"),
+                    (
+                        "value_json",
+                        "source_ids_json",
+                        "evidence_hash",
+                        "config_version",
+                        "calculation_cutoff_at",
+                        "calendar_version",
+                    ),
                 )
                 writes += 1
             _execute_upsert(
@@ -1168,6 +1210,11 @@ _PRICE_UPDATE_COLUMNS = (
     "event_effective_at",
     "event_effective_session",
     "reaction_session",
+    "feature_as_of_session",
+    "reaction_start_session",
+    "prior_reference_session",
+    "window_session_map_json",
+    "reaction_policy_version",
     "benchmark",
     "metrics_json",
     "reasons_json",
@@ -1312,7 +1359,14 @@ def _copy_revision_derived(target: CeriRevisionFeature, source: CeriRevisionFeat
 
 
 def _copy_derived(target: CeriDerivedFeature, source: CeriDerivedFeature) -> None:
-    for name in ("value_json", "source_ids_json", "evidence_hash", "config_version"):
+    for name in (
+        "value_json",
+        "source_ids_json",
+        "evidence_hash",
+        "config_version",
+        "calculation_cutoff_at",
+        "calendar_version",
+    ):
         setattr(target, name, getattr(source, name))
 
 

@@ -80,8 +80,15 @@ from app.services.ib_market_intelligence.scanner_identity import (
     canonical_scanner_identity,
     scanner_conids_by_ticker,
 )
+from app.services.market_calculation_context_service import standalone_market_context
+from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_text
+from app.services.us_market_calendar import (
+    is_us_trading_day,
+    next_us_trading_day,
+    previous_us_trading_day,
+)
 from app.settings import Settings, get_settings
 
 HISTORICAL_MODULE_METRICS = {
@@ -138,7 +145,10 @@ def execute_historical_refresh(
         and all(key in item for key in ("ticker", "metric", "start_date", "end_date"))
     }
     completed_tickers = {str(value).upper() for value in resume.get("completed_tickers", [])}
-    ranges = _historical_date_ranges(job.payload_json, module, settings)
+    market_cutoff = standalone_market_context(reason="IBMI_HISTORICAL_REFRESH")
+    ranges = _historical_date_ranges(
+        job.payload_json, module, settings, market_cutoff=market_cutoff
+    )
     run = _start_run(db, job, module.value, config)
     counts = {**_counts(), **dict(resume.get("counts") or {})}
     ib = ib_factory() if ib_factory else create_ib_client()
@@ -314,7 +324,7 @@ def execute_historical_refresh(
                 db,
                 ticker,
                 module,
-                date.today(),
+                ranges[-1][1],
                 config,
                 run.id,
                 historical_availability=metric_availability,
@@ -745,6 +755,9 @@ def execute_histogram_fetch(
                 ),
             )
             observed = datetime.now(UTC)
+            market_cutoff = MarketClockService().cutoff_for(
+                observed, reason="IBMI_HISTOGRAM_CAPTURE"
+            )
             reference = _latest_close(db, ticker)
             digest = evidence_hash(
                 {
@@ -808,10 +821,11 @@ def execute_histogram_fetch(
                 db,
                 ticker=ticker,
                 ib_conid=getattr(resolution.contract, "conId", None),
-                as_of_session=observed.date(),
+                as_of_session=market_cutoff.latest_completed_session,
                 feature=feature,
                 config=config,
                 intelligence_run_id=run.id,
+                calculation_cutoff_at=market_cutoff.cutoff_at,
             )
             counts["inserted"] += 1
             _finish_request_item(
@@ -1068,8 +1082,17 @@ def execute_feature_rebuild(db: Session, job: BackgroundJob) -> dict[str, Any]:
     tickers = _tickers(job.payload_json)
     run = _start_run(db, job, module, config)
     inserted = 0
+    market_cutoff = standalone_market_context(reason="IBMI_FEATURE_REBUILD")
     for ticker in tickers:
-        _, was_inserted = _rebuild_ticker_feature(db, ticker, module, date.today(), config, run.id)
+        _, was_inserted = _rebuild_ticker_feature(
+            db,
+            ticker,
+            module,
+            market_cutoff.latest_completed_session,
+            config,
+            run.id,
+            calculation_cutoff_at=market_cutoff.cutoff_at,
+        )
         inserted += int(was_inserted)
     _finish_run(db, run, RunStatus.COMPLETED, {"inserted": inserted})
     db.commit()
@@ -1084,6 +1107,8 @@ def _rebuild_ticker_feature(
     config: IBMarketIntelligenceConfig,
     run_id: int,
     historical_availability: dict[HistoricalMetricType, str] | None = None,
+    *,
+    calculation_cutoff_at: datetime | None = None,
 ):
     try:
         return _rebuild_ticker_feature_impl(
@@ -1094,6 +1119,7 @@ def _rebuild_ticker_feature(
             config,
             run_id,
             historical_availability,
+            calculation_cutoff_at=calculation_cutoff_at,
         )
     except Exception:
         operational_metrics.increment(
@@ -1110,6 +1136,8 @@ def _rebuild_ticker_feature_impl(
     config: IBMarketIntelligenceConfig,
     run_id: int,
     historical_availability: dict[HistoricalMetricType, str] | None = None,
+    *,
+    calculation_cutoff_at: datetime | None = None,
 ):
     historical_availability = historical_availability or {}
     ib_conid = None
@@ -1170,6 +1198,7 @@ def _rebuild_ticker_feature_impl(
         feature=feature,
         config=config,
         intelligence_run_id=run_id,
+        calculation_cutoff_at=calculation_cutoff_at,
     )
 
 
@@ -1355,13 +1384,30 @@ def _reconnect_ib(ib: Any, settings: Settings) -> None:
 
 
 def _historical_date_ranges(
-    payload: dict[str, Any], module: IntelligenceModule, settings: Settings
+    payload: dict[str, Any],
+    module: IntelligenceModule,
+    settings: Settings,
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> list[tuple[date, date]]:
-    end_date = _payload_date(payload.get("end_date")) or date.today()
+    market_cutoff = market_cutoff or standalone_market_context(
+        reason="IBMI_HISTORICAL_REQUEST_PLANNING"
+    )
+    end_date = _payload_date(payload.get("end_date"))
+    if end_date is None:
+        end_date = market_cutoff.latest_completed_session
+    else:
+        while not is_us_trading_day(end_date):
+            end_date = previous_us_trading_day(end_date)
     start_date = _payload_date(payload.get("start_date"))
     if start_date is None:
         duration_days = int(_historical_duration(module, settings).split()[0])
+        # IB accepts calendar duration. Over-request enough history, then the
+        # adapter post-filters to this exact semantic session range.
         start_date = end_date - timedelta(days=max(0, duration_days - 1))
+    else:
+        while not is_us_trading_day(start_date):
+            start_date = next_us_trading_day(start_date)
     if start_date > end_date:
         raise ValueError("historical start_date cannot be after end_date")
     ranges: list[tuple[date, date]] = []

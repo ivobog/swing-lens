@@ -201,6 +201,7 @@ def test_ibkr_price_response_is_relative_to_benchmark_and_does_not_use_other_sou
         ticker="MSFT",
         event_type="EARNINGS",
         event_id=7,
+        event_effective_at=datetime(2026, 8, 4, 12, 0, tzinfo=UTC),
         event_effective_session=date(2026, 8, 4),
     )
     assert result.quality is not None
@@ -223,6 +224,7 @@ def test_price_response_exposes_exact_first_cause_codes() -> None:
         ticker="MSFT",
         event_type="CATALYST",
         event_id=7,
+        event_effective_at=datetime(2026, 8, 4, 12, 0, tzinfo=UTC),
         event_effective_session=date(2026, 8, 4),
     )
 
@@ -254,6 +256,7 @@ def test_price_response_future_reaction_window_is_not_elapsed() -> None:
         ticker="MSFT",
         event_type="CATALYST",
         event_id=7,
+        event_effective_at=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
         event_effective_session=date(2026, 8, 8),
     )
 

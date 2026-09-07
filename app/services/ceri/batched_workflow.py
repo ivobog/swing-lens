@@ -20,6 +20,7 @@ from app.services.ceri.sec.readiness_diagnostics import (
     SecTickerReadinessCategory,
     diagnose_sec_readiness,
 )
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.pipeline_prerequisites import CeriBootstrapRequiredError
 from app.settings import (
     SecDocumentIncrementalMode,
@@ -97,13 +98,7 @@ def build_ceri_batched_workflow_plan(
 ) -> CeriBatchedWorkflowPlan:
     runtime_settings = settings or get_settings()
     symbols = tuple(
-        sorted(
-            {
-                str(ticker).strip().upper()
-                for ticker in tickers
-                if str(ticker).strip()
-            }
-        )
+        sorted({str(ticker).strip().upper() for ticker in tickers if str(ticker).strip()})
     )
     workflow_key = f"ceri:pipeline:{run_id}:{config_hash}"
     jobs: list[CeriBatchJobSpec] = []
@@ -224,7 +219,12 @@ def build_ceri_batched_workflow_plan(
     )
 
 
-def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkflowPlan:
+def schedule_ceri_batched_workflow(
+    db: Session,
+    run_id: int,
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
+) -> CeriBatchedWorkflowPlan:
     runtime_settings = get_settings()
     tickers = sorted(
         {
@@ -266,8 +266,7 @@ def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkf
             },
         )
         if (
-            runtime_settings.sec_document_incremental_mode
-            is SecDocumentIncrementalMode.ACTIVE
+            runtime_settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
             and runtime_settings.sec_readiness_policy is SecReadinessPolicy.REQUIRE_READY
             and not readiness.complete
         ):
@@ -297,10 +296,20 @@ def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkf
         provider_tickers=provider_ticker_scopes,
     )
     for spec in plan.jobs:
+        temporal_payload = (
+            {
+                "cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                "as_of_session": market_cutoff.latest_completed_session.isoformat(),
+                "calendar_version": market_cutoff.calendar_version,
+                "calculation_context_id": market_cutoff.context_id,
+            }
+            if market_cutoff is not None
+            else {}
+        )
         enqueue_job(
             db,
             spec.job_type,
-            spec.payload,
+            {**spec.payload, **temporal_payload},
             related_run_id=run_id,
             priority=spec.priority,
             request_key=spec.request_key,
@@ -328,14 +337,7 @@ def sec_readiness_coverage(
         ready_tickers=readiness.ready_tickers,
         missing_tickers=readiness.blocking_tickers,
         missing_ciks=tuple(
-            sorted(
-                {
-                    cik
-                    for item in readiness.tickers
-                    if not item.accepted
-                    for cik in item.ciks
-                }
-            )
+            sorted({cik for item in readiness.tickers if not item.accepted for cik in item.ciks})
         ),
     )
 

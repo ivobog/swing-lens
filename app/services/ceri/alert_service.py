@@ -225,7 +225,9 @@ class CeriAlertService:
             if alert.created_at is None or change.created_at is None:
                 continue
             age_sessions = _trading_sessions_between(
-                alert.created_at.date(), change.created_at.date(), self.sessions
+                self.sessions.resolve(timestamp=alert.created_at).effective_session,
+                self.sessions.resolve(timestamp=change.created_at).effective_session,
+                self.sessions,
             )
             if 0 <= age_sessions < rule.cooldown_sessions:
                 return True

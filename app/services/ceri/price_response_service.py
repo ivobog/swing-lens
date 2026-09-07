@@ -14,6 +14,11 @@ from app.models.ceri_tables import CeriPriceResponseFeature
 from app.models.tables import PriceBar
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
+from app.services.market_clock_service import MarketClockService, SessionTimestampPolicy
+from app.services.operational_metrics import operational_metrics
+from app.services.us_market_calendar import next_us_trading_day, previous_us_trading_day
+
+REACTION_POLICY_VERSION = "daily-open-causal-v1"
 
 
 @dataclass(frozen=True)
@@ -48,8 +53,19 @@ class CeriPriceResponseService:
         event_effective_session: date | None = None,
         stock_bars: list[PriceBar] | None = None,
         benchmark_bars: list[PriceBar] | None = None,
+        feature_as_of_session: date | None = None,
     ) -> PriceResponseResult:
         reaction = self.reaction_session(event_effective_at, event_effective_session)
+        if event_effective_at is not None and reaction is not None:
+            effective = MarketClockService().canonical_session_for_timestamp(
+                event_effective_at,
+                policy=SessionTimestampPolicy.EVENT_EFFECTIVE_SESSION,
+            )
+            if reaction != effective:
+                operational_metrics.increment(
+                    "swinglens_ceri_reaction_sessions_total",
+                    result="shifted_to_next_session",
+                )
         event_key = _event_key(
             company_id,
             event_type,
@@ -57,6 +73,7 @@ class CeriPriceResponseService:
             reaction,
             self.config.config_hash,
             self.config.engine.calculation_version,
+            REACTION_POLICY_VERSION,
         )
         if reaction is None:
             return PriceResponseResult(
@@ -70,11 +87,19 @@ class CeriPriceResponseService:
                 (),
                 "EVENT_TIMESTAMP_UNRESOLVED",
             )
-        stock = stock_bars if stock_bars is not None else self._bars(db, ticker)
+        stock = (
+            stock_bars
+            if stock_bars is not None
+            else self._bars(db, ticker, max_session=feature_as_of_session)
+        )
         benchmark = (
             benchmark_bars
             if benchmark_bars is not None
-            else self._bars(db, self.config.price_response.benchmark)
+            else self._bars(
+                db,
+                self.config.price_response.benchmark,
+                max_session=feature_as_of_session,
+            )
         )
         if not stock:
             return PriceResponseResult(
@@ -103,9 +128,9 @@ class CeriPriceResponseService:
 
         stock_by_date = {bar.bar_date: bar for bar in stock}
         benchmark_by_date = {bar.bar_date: bar for bar in benchmark}
-        prior_dates = [day for day in stock_by_date if day < reaction]
-        reaction_dates = [day for day in stock_by_date if day >= reaction]
-        if not prior_dates or not reaction_dates:
+        prior_date = previous_us_trading_day(reaction)
+        reaction_date = reaction
+        if prior_date not in stock_by_date or reaction_date not in stock_by_date:
             reason = (
                 "WINDOW_NOT_ELAPSED"
                 if stock_by_date and reaction > max(stock_by_date)
@@ -122,8 +147,6 @@ class CeriPriceResponseService:
                 (),
                 reason,
             )
-        prior_date = max(prior_dates)
-        reaction_date = min(reaction_dates)
         prior = stock_by_date[prior_date]
         first = stock_by_date[reaction_date]
         if prior.close is None or first.open is None:
@@ -147,12 +170,16 @@ class CeriPriceResponseService:
             ),
             "close_location": _close_location(first),
             "benchmark": self.config.price_response.benchmark,
+            "prior_reference_session": prior_date.isoformat(),
+            "reaction_policy_version": REACTION_POLICY_VERSION,
+            "window_session_map": {},
         }
         reasons: list[str] = []
         warnings: list[str] = []
         benchmark_prior = benchmark_by_date.get(prior_date)
         for window in self.config.price_response.windows:
-            target = _nth_session(sorted(stock_by_date), reaction_date, window - 1)
+            target = _trading_window_session(reaction_date, window - 1)
+            metrics["window_session_map"][f"H{window}"] = target.isoformat()
             stock_end = stock_by_date.get(target) if target else None
             benchmark_end = benchmark_by_date.get(target) if target else None
             stock_return = (
@@ -246,6 +273,7 @@ class CeriPriceResponseService:
                 reason,
                 self.config.config_hash,
                 self.config.engine.calculation_version,
+                REACTION_POLICY_VERSION,
             ),
             event_type=event_type,
             reaction_session=None,
@@ -266,6 +294,7 @@ class CeriPriceResponseService:
         event_id: int | None,
         event_effective_at: datetime | None,
         event_effective_session: date | None,
+        feature_as_of_session: date | None = None,
     ) -> CeriPriceResponseFeature:
         existing = _maybe_scalar(
             db,
@@ -280,6 +309,7 @@ class CeriPriceResponseService:
             event_id=event_id,
             event_effective_at=event_effective_at,
             event_effective_session=event_effective_session,
+            feature_as_of_session=feature_as_of_session,
         )
         if existing is None:
             existing = feature
@@ -302,6 +332,7 @@ class CeriPriceResponseService:
         event_id: int | None,
         event_effective_at: datetime | None,
         event_effective_session: date | None,
+        feature_as_of_session: date | None = None,
     ) -> CeriPriceResponseFeature:
         """Build a persistence row without querying or flushing the database."""
         payload = {
@@ -323,6 +354,15 @@ class CeriPriceResponseService:
             event_effective_at=event_effective_at,
             event_effective_session=event_effective_session,
             reaction_session=result.reaction_session,
+            feature_as_of_session=feature_as_of_session,
+            reaction_start_session=result.reaction_session,
+            prior_reference_session=(
+                date.fromisoformat(str(result.metrics["prior_reference_session"]))
+                if result.metrics.get("prior_reference_session")
+                else None
+            ),
+            window_session_map_json=dict(result.metrics.get("window_session_map") or {}),
+            reaction_policy_version=REACTION_POLICY_VERSION,
             benchmark=self.config.price_response.benchmark,
             metrics_json={
                 **result.metrics,
@@ -349,24 +389,28 @@ class CeriPriceResponseService:
         effective_session: date | None,
     ) -> date | None:
         if effective_at is not None:
-            return self.sessions.resolve(
-                timestamp=effective_at, source_date=effective_session
-            ).effective_session
-        if effective_session is None:
-            return None
-        return self.sessions.next_trading_session(effective_session)
+            return MarketClockService().canonical_session_for_timestamp(
+                effective_at,
+                policy=SessionTimestampPolicy.NEXT_MARKET_OPEN_AFTER_EVENT,
+            )
+        # A date-only event cannot establish whether the information arrived
+        # before or after the market open.  Fail closed instead of assigning a
+        # same-day reaction window that may precede the event.
+        return None
 
-    def _bars(self, db: Session, ticker: str) -> list[PriceBar]:
-        rows = _scalars(
-            db,
+    def _bars(self, db: Session, ticker: str, *, max_session: date | None = None) -> list[PriceBar]:
+        statement = (
             select(PriceBar)
             .where(PriceBar.ticker == ticker.upper())
             .where(func.lower(PriceBar.timeframe).in_(("1d", "1 day", "day", "daily")))
-            .where(
-                func.lower(PriceBar.source).in_(("ib", "ibkr", "interactive_brokers"))
-            )
+            .where(func.lower(PriceBar.source).in_(("ib", "ibkr", "interactive_brokers")))
             .where(PriceBar.close.is_not(None))
-            .order_by(PriceBar.bar_date),
+        )
+        if max_session is not None:
+            statement = statement.where(PriceBar.bar_date <= max_session)
+        rows = _scalars(
+            db,
+            statement.order_by(PriceBar.bar_date),
         )
         # Retain the same filtering for lightweight test/session adapters that
         # do not execute SQLAlchemy predicates themselves.
@@ -378,6 +422,7 @@ class CeriPriceResponseService:
                 and row.timeframe.lower() in {"1d", "1 day", "day", "daily"}
                 and row.source.lower() in {"ib", "ibkr", "interactive_brokers"}
                 and row.close is not None
+                and (max_session is None or row.bar_date <= max_session)
             ],
             key=lambda row: row.bar_date,
         )
@@ -392,6 +437,13 @@ def _return(end: Decimal | float | None, start: Decimal | float | None) -> float
 def _nth_session(days: list[date], start: date, offset: int) -> date | None:
     future = [day for day in days if day >= start]
     return future[offset] if offset < len(future) else None
+
+
+def _trading_window_session(start: date, offset: int) -> date:
+    current = start
+    for _ in range(max(0, offset)):
+        current = next_us_trading_day(current)
+    return current
 
 
 def _volume_ratio(rows: list[PriceBar], reaction: date, trailing: int) -> float | None:
@@ -419,9 +471,7 @@ def _bar_ids(
 ) -> tuple[int, ...]:
     dates = {reaction}
     for window in windows:
-        target = _nth_session(sorted({row.bar_date for row in stock}), reaction, window - 1)
-        if target:
-            dates.add(target)
+        dates.add(_trading_window_session(reaction, window - 1))
     return tuple(
         sorted(
             {row.id for row in [*stock, *benchmark] if row.id is not None and row.bar_date in dates}

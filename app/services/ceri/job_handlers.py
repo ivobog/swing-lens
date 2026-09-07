@@ -256,6 +256,7 @@ def execute_rebuild_features_job(
             company_ids=_optional_int_tuple(payload.get("company_ids")),
             ticker=payload.get("ticker"),
             as_of_session=_optional_date(payload.get("as_of_session")),
+            cutoff_at=_optional_datetime(payload.get("cutoff_at")),
             from_session=_optional_date(payload.get("from_session")),
             to_session=_optional_date(payload.get("to_session")),
             run_id=_optional_int(payload.get("run_id")),

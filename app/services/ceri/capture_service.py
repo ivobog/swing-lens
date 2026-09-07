@@ -36,6 +36,8 @@ from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
 from app.services.ib_market_intelligence.calculations import options_event_premium_score
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+from app.services.market_calculation_context_service import standalone_market_context
+from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.settings import get_settings
 
 
@@ -103,6 +105,7 @@ class CeriRunCaptureService:
         tickers: set[str] | None = None,
         force: bool = False,
         cutoff_at: datetime | None = None,
+        market_cutoff: MarketCalculationCutoff | None = None,
     ) -> CeriRunCaptureResult:
         if not force and not ceri_flags().run_capture:
             return CeriRunCaptureResult(skipped=1)
@@ -112,19 +115,22 @@ class CeriRunCaptureService:
             rows = [row for row in rows if str(row.ticker).upper() in requested]
         if not rows:
             return CeriRunCaptureResult(skipped=1)
-        cutoff_at = cutoff_at or _utcnow()
-        companies_by_ticker = _companies_for_tickers(
-            db, {str(row.ticker).upper() for row in rows}
-        )
+        if market_cutoff is None:
+            market_cutoff = standalone_market_context(
+                reason="STANDALONE_CERI_CAPTURE", cutoff_at=cutoff_at
+            )
+        elif cutoff_at is not None and cutoff_at != market_cutoff.cutoff_at:
+            raise ValueError("cutoff_at conflicts with the frozen market cutoff")
+        cutoff_at = market_cutoff.cutoff_at
+        as_of_session = market_cutoff.latest_completed_session
+        companies_by_ticker = _companies_for_tickers(db, {str(row.ticker).upper() for row in rows})
         provider_checks_by_ticker = _provider_checks_for_tickers(
             db,
             {str(row.ticker).upper() for row in rows},
             cutoff_at,
         )
         company_ids = {company.id for company in companies_by_ticker.values()}
-        features_by_company = _revision_features_for_companies(
-            db, company_ids, cutoff_at.date()
-        )
+        features_by_company = _revision_features_for_companies(db, company_ids, as_of_session)
         features_by_company = {
             company_id: [
                 feature
@@ -168,7 +174,7 @@ class CeriRunCaptureService:
                 catalyst_features = _catalyst_features_for_company(
                     db,
                     company.id,
-                    cutoff_at.date(),
+                    as_of_session,
                     self.catalysts,
                 )
                 company_conflicted = sum(
@@ -194,11 +200,11 @@ class CeriRunCaptureService:
                     db,
                     company_id=company.id,
                     ticker=row.ticker,
-                    as_of_session=cutoff_at.date(),
+                    as_of_session=as_of_session,
                     service=self.price_response,
                 )
                 confidence = self.confidence.calculate(
-                    as_of_session=cutoff_at.date(),
+                    as_of_session=as_of_session,
                     revision_features=features,
                     dataset_freshness_days=_provider_feed_freshness_days(
                         provider_checks_by_ticker.get(str(row.ticker).upper(), []),
@@ -211,7 +217,7 @@ class CeriRunCaptureService:
                 opportunity = self.opportunity.calculate(
                     revision_features=features,
                     surprise_summary=surprise_summary,
-                    guidance_events=_guidance_for_company(db, company.id, cutoff_at.date()),
+                    guidance_events=_guidance_for_company(db, company.id, as_of_session),
                     catalyst_features=catalyst_features,
                     price_response_quality=(
                         price_result.quality if price_result is not None else None
@@ -228,7 +234,7 @@ class CeriRunCaptureService:
                         else "NO_ACCEPTED_EVENT"
                     ),
                     conflict_penalty=min(3.0, float(company_conflicted)),
-                    as_of_session=cutoff_at.date(),
+                    as_of_session=as_of_session,
                 )
                 volatility_feature = _point_in_time_volatility_feature(db, row.ticker, cutoff_at)
                 short_pressure_feature = _point_in_time_short_pressure_feature(
@@ -244,7 +250,7 @@ class CeriRunCaptureService:
                     else 0.0
                 )
                 risk = self.risk.calculate(
-                    as_of_session=cutoff_at.date(),
+                    as_of_session=as_of_session,
                     next_earnings_session=row.upcoming_earnings_date,
                     catalyst_features=catalyst_features,
                     stale=bool(company_stale),
@@ -256,9 +262,15 @@ class CeriRunCaptureService:
                         else None
                     ),
                 )
-                guidance_rows = _guidance_for_company(db, company.id, cutoff_at.date())
-                catalyst_lineage = _catalyst_lineage(db, company.id, cutoff_at.date())
+                guidance_rows = _guidance_for_company(db, company.id, as_of_session)
+                catalyst_lineage = _catalyst_lineage(db, company.id, as_of_session)
                 evidence_lineage = {
+                    "temporal_lineage": {
+                        "calculation_context_id": market_cutoff.context_id,
+                        "calculation_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                        "input_as_of_session": as_of_session.isoformat(),
+                        "calendar_version": market_cutoff.calendar_version,
+                    },
                     "revision_feature_ids": [feature.id for feature in features if feature.id],
                     "revision_pairs": [
                         {
@@ -329,7 +341,7 @@ class CeriRunCaptureService:
                     source_run_id_text=str(run_id),
                     company_id=company.id,
                     ticker=row.ticker,
-                    as_of_session=cutoff_at.date(),
+                    as_of_session=as_of_session,
                     cutoff_at=cutoff_at,
                     opportunity=opportunity,
                     event_risk=risk,
@@ -345,6 +357,8 @@ class CeriRunCaptureService:
                     alignment_context=_alignment_context(db, row, run_id),
                     evidence_lineage=evidence_lineage,
                 )
+                snapshot.calculation_context_id = market_cutoff.context_id
+                snapshot.calendar_version = market_cutoff.calendar_version
                 self.snapshot_service.persist_snapshot(db, snapshot)
                 counts["score_snapshots"] += 1
                 if not getattr(opportunity, "rated", opportunity.score is not None):
@@ -385,9 +399,7 @@ def _company_for_ticker(db: Session, ticker: str) -> CeriCompany | None:
     )
 
 
-def _companies_for_tickers(
-    db: Session, tickers: set[str]
-) -> dict[str, CeriCompany]:
+def _companies_for_tickers(db: Session, tickers: set[str]) -> dict[str, CeriCompany]:
     if not tickers:
         return {}
     companies = _scalars(
@@ -591,6 +603,7 @@ def _price_response_for_company(
             event_id=None,
             event_effective_at=None,
             event_effective_session=None,
+            feature_as_of_session=as_of_session,
         )
         return result, feature
     event_type, event_id, event_at, event_session = max(
@@ -609,6 +622,7 @@ def _price_response_for_company(
         event_id=event_id,
         event_effective_at=event_at,
         event_effective_session=event_session,
+        feature_as_of_session=as_of_session,
     )
     feature = service.persist(
         db,
@@ -618,6 +632,7 @@ def _price_response_for_company(
         event_id=event_id,
         event_effective_at=event_at,
         event_effective_session=event_session,
+        feature_as_of_session=as_of_session,
     )
     return result, feature
 
@@ -695,10 +710,7 @@ def _existing_snapshot_company_ids(
             .where(CeriScoreSnapshot.run_id == run_id)
             .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
             .where(CeriScoreSnapshot.config_hash == config.config_hash)
-            .where(
-                CeriScoreSnapshot.calculation_version
-                == config.engine.calculation_version
-            ),
+            .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
         )
     )
 
@@ -750,7 +762,12 @@ def _point_in_time_volatility_feature(
         .where(IBIntelligenceFeature.ticker == ticker.upper())
         .where(IBIntelligenceFeature.module == "VOLATILITY")
         .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
-        .where(IBIntelligenceFeature.as_of_session <= cutoff_at.date())
+        .where(
+            IBIntelligenceFeature.as_of_session
+            <= MarketClockService()
+            .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
+            .latest_completed_session
+        )
         .order_by(
             IBIntelligenceFeature.as_of_session.desc(),
             IBIntelligenceFeature.calculated_at.desc(),
@@ -778,7 +795,12 @@ def _point_in_time_short_pressure_feature(
         .where(IBIntelligenceFeature.ticker == ticker.upper())
         .where(IBIntelligenceFeature.module == "SHORT_PRESSURE")
         .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
-        .where(IBIntelligenceFeature.as_of_session <= cutoff_at.date())
+        .where(
+            IBIntelligenceFeature.as_of_session
+            <= MarketClockService()
+            .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
+            .latest_completed_session
+        )
         .order_by(
             IBIntelligenceFeature.as_of_session.desc(),
             IBIntelligenceFeature.calculated_at.desc(),
@@ -816,8 +838,7 @@ def _provider_feed_freshness_days(
         ticker=ticker,
         cutoff_at=cutoff_at,
         max_stale_days={
-            dataset.value: policy.max_stale_days
-            for dataset, policy in config.datasets.items()
+            dataset.value: policy.max_stale_days for dataset, policy in config.datasets.items()
         },
         timezone_name=config.engine.timezone,
     )
