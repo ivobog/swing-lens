@@ -5,16 +5,16 @@ destructive migrations, purge work, release candidates, or incident rollback.
 
 ## Canonical Local Database
 
-The checked-in local setup uses PostgreSQL on `127.0.0.1:5432`:
+The authoritative database is the locally installed Windows PostgreSQL selected by the effective
+`DATABASE_URL` (normally `127.0.0.1:5432/swinglens`):
 
 ```powershell
-docker compose up -d postgres
 Copy-Item .env.example .env
-uv run alembic upgrade head
+.\swinglens.ps1 start
 ```
 
-If another PostgreSQL server already owns port `5432`, either stop it before using Compose or
-override the Compose host port and update `.env` consistently.
+The lifecycle never substitutes Docker PostgreSQL. Confirm the exact service and redacted endpoint
+with `.\swinglens.ps1 status` before taking a backup.
 
 ## Create A Backup
 
@@ -28,7 +28,6 @@ Stop application and worker writes before starting. The database dump and eviden
 captured as separate read-only snapshots and must observe the same quiescent source state.
 
 ```powershell
-$env:DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
 .\scripts\ops\backup_postgres.ps1 -BackupDir backups
 ```
 

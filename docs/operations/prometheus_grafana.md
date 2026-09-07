@@ -5,17 +5,17 @@ SwingLens itself continues to run normally when this stack is absent.
 
 ## Start
 
-Use this local startup order:
-
-1. Start PostgreSQL.
-2. Start Docker Desktop.
-3. Start Prometheus and Grafana:
+Use the unified lifecycle; it starts the core against authoritative local Windows PostgreSQL first,
+then attempts this optional Docker-only observability branch:
 
 ```powershell
-docker compose -f docker-compose.observability.yml up -d
+.\swinglens.ps1 start
+.\swinglens.ps1 status
 ```
 
-4. Start SwingLens, including the supervisor-owned durable worker.
+If Docker Engine is unavailable, SwingLens core remains running and status reports `DEGRADED`.
+`stop` stops the two observability services but never stops Docker Desktop. The lifecycle never
+uses the disposable PostgreSQL Compose file.
 
 Local URLs:
 
@@ -87,6 +87,8 @@ health, and worker CPU/memory/heartbeat/restarts. No data source or dashboard se
 Grafana UI is required after a container start or restart.
 
 ## Validate and troubleshoot
+
+The following raw Compose commands are for observability troubleshooting only:
 
 ```powershell
 docker compose -f docker-compose.observability.yml config

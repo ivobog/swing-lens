@@ -13,6 +13,8 @@ from dataclasses import dataclass
 import uvicorn
 
 from app.observability.logging import configure_json_logging
+from app.services.redaction import redact_text
+from app.services.startup_preflight import StartupPreflightError, run_startup_preflight
 from app.settings import get_settings
 
 RUNTIME_RELOAD_EXCLUDES = (
@@ -53,6 +55,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             f"by PID {conflict.process_id}{name}. Verify whether that process is a stale "
             "SwingLens instance before stopping it."
         )
+    try:
+        run_startup_preflight()
+    except StartupPreflightError as exc:
+        raise SystemExit(f"SwingLens startup preflight failed: {redact_text(str(exc))}") from exc
     configure_json_logging("web")
     uvicorn.run(
         "app.main:app",

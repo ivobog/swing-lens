@@ -55,23 +55,31 @@ Create a local `.env` from `.env.example` and adjust PostgreSQL or IB Gateway se
 Copy-Item .env.example .env
 ```
 
-Start the local PostgreSQL database on the same host port used by `.env.example`:
+SwingLens uses the locally installed Windows PostgreSQL instance selected by `DATABASE_URL` as its
+authoritative database. The lifecycle manager discovers and controls only the Windows service that
+can be verified against that endpoint. Routine operation is:
 
 ```powershell
-docker compose up -d postgres
+.\swinglens.ps1 start
+.\swinglens.ps1 status
+.\swinglens.ps1 restart
+.\swinglens.ps1 stop
 ```
 
-Apply migrations, then run the lightweight web/API control plane:
+`start` makes the configured local database reachable, applies Alembic migrations, starts the web
+process with its supervisor-owned durable worker, and then attempts the optional Prometheus/Grafana
+stack. Docker is not required for the core application. See
+[`docs/operations/lifecycle.md`](docs/operations/lifecycle.md) for behavior and safety details.
+The conservative `SWINGLENS_MANAGE_POSTGRES=false` default leaves the system-wide database service
+running on `stop`; authorized operators can opt into exact service shutdown as documented there.
+
+For source-editing sessions, the lower-level web command remains available after the local database
+has been migrated. It performs a read-only preflight and refuses to bind until the configured
+database is reachable and at repository Alembic head:
 
 ```powershell
-uv run alembic upgrade head
-uv run python -m app.serve --host 127.0.0.1 --port 8000
-```
-
-For externally managed deployments, run the durable worker supervisor with:
-
-```powershell
-uv run python -m app.worker_supervisor --worker-id local-worker-1 --queues interactive,broker,background
+$env:JOB_WORKER_ENABLED='true'
+uv run python -m app.serve --host 127.0.0.1 --port 8000 --reload
 ```
 
 When `JOB_WORKER_ENABLED=true`, the API automatically maintains that supervisor as a child
@@ -106,7 +114,8 @@ System Operations (local administrator only):
 http://127.0.0.1:8000/system/operations
 ```
 
-Optional local metrics history and dashboards:
+Prometheus and Grafana are optional Docker services controlled by the lifecycle manager. Their
+troubleshooting-only Compose command is:
 
 ```powershell
 docker compose -f docker-compose.observability.yml up -d
@@ -146,6 +155,9 @@ SwingLens uses Alembic for PostgreSQL schema migrations. After installing the pr
 ```powershell
 uv run alembic upgrade head
 ```
+
+Routine `swinglens.ps1 start` runs this gate automatically. The raw command is for migration
+development and troubleshooting.
 
 To review the SQL without applying it:
 

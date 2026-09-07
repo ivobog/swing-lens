@@ -1,0 +1,20 @@
+# DISPOSABLE TEST DATABASE ONLY.
+# This is not the authoritative SwingLens database and is never used by swinglens.ps1.
+name: swinglens-postgres-test
+
+services:
+  postgres-test:
+    image: postgres:16
+    container_name: swinglens-postgres-test
+    restart: "no"
+    environment:
+      POSTGRES_DB: swinglens_disposable
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - swinglens-postgres-test-data:/var/lib/postgresql/data
+
+volumes:
+  swinglens-postgres-test-data:

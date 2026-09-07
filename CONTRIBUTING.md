@@ -9,12 +9,15 @@ boundary, reproducibility of historical evidence, and local-admin protections.
 python -m pip install uv
 uv sync --frozen --extra dev
 Copy-Item .env.example .env
-docker compose up -d postgres
-uv run alembic upgrade head
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+.\swinglens.ps1 start
+.\swinglens.ps1 status
 ```
 
 Check `http://127.0.0.1:8000/ready` before starting manual validation.
+
+SwingLens uses the locally installed PostgreSQL service configured by `DATABASE_URL`. The
+disposable PostgreSQL Compose file is isolated-test infrastructure only and must never be used as
+the normal application database.
 
 ## Before Opening a PR
 

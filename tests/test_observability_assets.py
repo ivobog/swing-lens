@@ -97,6 +97,8 @@ def test_repository_contains_no_legacy_or_literal_grafana_admin_password() -> No
     legacy = "swinglens" + "-local"
     for name in listed:
         path = Path(name)
+        if not path.is_file():
+            continue
         if path.suffix.lower() not in {
             ".env",
             ".example",

@@ -145,7 +145,8 @@ swing-lens/
   README.md
   pyproject.toml
   .env.example
-  docker-compose.yml
+  docker-compose.observability.yml
+  docker-compose.postgres-test.yml  # disposable tests only
 
   docs/
     vision.md

@@ -134,6 +134,28 @@ def test_readiness_short_circuits_database_dependent_checks_when_unavailable(
     assert report.checks["jobs"].message == "skipped: database unavailable"
 
 
+def test_blocked_pipeline_is_not_misclassified_as_runnable_ib_work(tmp_path) -> None:
+    now = datetime(2026, 8, 12, 13, tzinfo=UTC)
+    engine = _readiness_engine(alembic_revision="head", worker_heartbeat_at=now)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "insert into background_jobs (job_type, status, run_after, created_at) "
+                "values ('FULL_PIPELINE', 'BLOCKED', :now, :now)"
+            ),
+            {"now": now},
+        )
+    service = ReadinessService(
+        engine=engine,
+        settings=_settings(tmp_path),
+        now=now,
+        ib_available=False,
+    )
+
+    assert service._ib_workload_required() is False
+    assert service._ib_check().status == "optional_unavailable"
+
+
 def test_job_and_export_paths_emit_operational_metrics() -> None:
     operational_metrics.reset()
     db = FakeJobDb()

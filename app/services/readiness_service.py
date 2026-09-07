@@ -431,7 +431,6 @@ class ReadinessService:
                                 JobStatus.QUEUED,
                                 JobStatus.RUNNING,
                                 JobStatus.RECOVERING,
-                                JobStatus.BLOCKED,
                                 JobStatus.STALLED,
                             )
                         )
