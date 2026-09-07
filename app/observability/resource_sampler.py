@@ -35,6 +35,13 @@ def collector_component_status(process_role: str, component: str) -> dict[str, A
         return dict(_component_health.get((process_role, component), {}))
 
 
+def reset_collector_health() -> None:
+    """Reset process-local collector health between isolated test/application lifecycles."""
+    with _health_lock:
+        _process_health.clear()
+        _component_health.clear()
+
+
 def _component_attempt(process_role: str, component: str) -> None:
     with _health_lock:
         state = _component_health.setdefault((process_role, component), {})

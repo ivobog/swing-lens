@@ -4,12 +4,22 @@ from collections import namedtuple
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
 from fastapi import Response
 from sqlalchemy import create_engine
 
 from app.routers import health_routes
 from app.services.readiness_service import ReadinessCheck, ReadinessReport, ReadinessService
 from app.settings import Settings
+
+
+@pytest.fixture(autouse=True)
+def _reset_observability_collector_state():
+    from app.observability.resource_sampler import reset_collector_health
+
+    reset_collector_health()
+    yield
+    reset_collector_health()
 
 
 def _service(tmp_path):

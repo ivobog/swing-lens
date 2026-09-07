@@ -121,7 +121,7 @@ Recommended local runtime:
 Host machine
   ├── IB Gateway or TWS
   ├── SwingLens FastAPI process
-  └── PostgreSQL database, preferably via Docker Compose
+  └── Authoritative local Windows PostgreSQL database
 ```
 
 Suggested local ports:

@@ -74,6 +74,8 @@ def register_worker(
                 worker.process_started_at = registered_at
         worker.generation = int(worker.generation or 0) + 1
         worker.launcher_process_id = None
+        worker.quiesce_requested_at = None
+        worker.quiesced_at = None
     worker.heartbeat_at = registered_at
     worker.control_loop_heartbeat_at = registered_at
     worker.stopping_at = None
@@ -125,8 +127,12 @@ def heartbeat_worker(
         process_id=process_id or os.getpid(),
         instance_id=instance_id,
     )
-    worker.heartbeat_at = now or datetime.now(UTC)
-    worker.stopping_at = None
+    observed_at = now or datetime.now(UTC)
+    worker.heartbeat_at = observed_at
+    if worker.quiesce_requested_at is not None:
+        worker.quiesced_at = observed_at
+    else:
+        worker.quiesced_at = None
     if instance_id is not None:
         worker.instance_id = instance_id
     if rss_bytes is not None:

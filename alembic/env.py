@@ -10,6 +10,7 @@ from app.models import (
     ib_market_intelligence_tables,  # noqa: F401
     tables,  # noqa: F401
 )
+from app.services.lifecycle_safety import verify_authoritative_connection
 from app.settings import get_settings
 
 config = context.config
@@ -59,10 +60,28 @@ def run_migrations_online() -> None:
             # End it before Alembic establishes its own migration transaction;
             # older concurrent-index migrations require a clean autocommit block.
             connection.rollback()
-        context.configure(connection=connection, target_metadata=target_metadata)
-
-        with context.begin_transaction():
-            context.run_migrations()
+        else:
+            verify_authoritative_connection(connection, settings)
+            connection.rollback()
+        migration_lock_acquired = False
+        if connection.dialect.name == "postgresql":
+            connection.exec_driver_sql(
+                "select pg_advisory_lock(hashtext(current_database()), "
+                "hashtext('swinglens-alembic-lifecycle'))"
+            )
+            migration_lock_acquired = True
+            connection.commit()
+        try:
+            context.configure(connection=connection, target_metadata=target_metadata)
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if migration_lock_acquired:
+                connection.exec_driver_sql(
+                    "select pg_advisory_unlock(hashtext(current_database()), "
+                    "hashtext('swinglens-alembic-lifecycle'))"
+                )
+                connection.commit()
 
 
 if context.is_offline_mode():

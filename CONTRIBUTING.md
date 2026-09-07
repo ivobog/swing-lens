@@ -9,8 +9,8 @@ boundary, reproducibility of historical evidence, and local-admin protections.
 python -m pip install uv
 uv sync --frozen --extra dev
 Copy-Item .env.example .env
-.\swinglens.ps1 start
-.\swinglens.ps1 status
+pwsh .\swinglens.ps1 start
+pwsh .\swinglens.ps1 status
 ```
 
 Check `http://127.0.0.1:8000/ready` before starting manual validation.

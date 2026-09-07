@@ -6,14 +6,14 @@
 python -m pip install uv
 uv sync --frozen --extra dev
 Copy-Item .env.example .env
-.\swinglens.ps1 start
-.\swinglens.ps1 status
+pwsh .\swinglens.ps1 start
+pwsh .\swinglens.ps1 status
 ```
 
 The configured locally installed Windows PostgreSQL service is authoritative. Docker PostgreSQL is
 never part of routine operation. The web lifespan owns the durable supervisor, which owns the
-worker; do not start a second supervisor manually. Use `.\swinglens.ps1 restart` and
-`.\swinglens.ps1 stop` for controlled transitions.
+worker; do not start a second supervisor manually. Use `pwsh .\swinglens.ps1 restart` and
+`pwsh .\swinglens.ps1 stop` for controlled transitions.
 
 ## Subsystem Smoke Matrix
 
@@ -36,7 +36,7 @@ worker; do not start a second supervisor manually. Use `.\swinglens.ps1 restart`
 
 | Symptom | First Checks |
 | --- | --- |
-| App cannot connect to DB | Run `.\swinglens.ps1 status`; verify the redacted local endpoint, exact Windows PostgreSQL service, and `uv run alembic current` |
+| App cannot connect to DB | Run `pwsh .\swinglens.ps1 status`; verify the redacted local endpoint, exact Windows PostgreSQL service, and `uv run alembic current` |
 | `/ready` degraded | Inspect readiness checks, local directories, migrations, worker state, and stale jobs |
 | IB fetch stalls | Check `/ib/status`, Gateway/TWS port, client id, and fetch progress page |
 | Pipeline stuck | Check pipeline status route and background job stale recovery |

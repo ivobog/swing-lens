@@ -7,11 +7,12 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = (ROOT / "scripts" / "ops" / "SwingLensLifecycle.psm1").read_text(encoding="utf-8")
+PROBE = (ROOT / "scripts" / "ops" / "lifecycle_probe.py").read_text(encoding="utf-8")
 LAUNCHER = (ROOT / "swinglens.ps1").read_text(encoding="utf-8")
 
 
 def _docker_compose_commands() -> list[str]:
-    return [line.strip() for line in MODULE.splitlines() if "docker compose" in line]
+    return [line.strip() for line in PROBE.splitlines() if '"compose"' in line]
 
 
 def test_root_lifecycle_exposes_exact_canonical_actions() -> None:
@@ -22,17 +23,17 @@ def test_root_lifecycle_exposes_exact_canonical_actions() -> None:
 def test_normal_lifecycle_never_operates_docker_postgresql() -> None:
     commands = _docker_compose_commands()
     assert commands
-    assert all("docker-compose.observability.yml" not in command for command in commands)
-    assert "docker-compose.postgres-test.yml" not in MODULE
+    assert "docker-compose.postgres-test.yml" not in PROBE
     assert not any(
         re.search(r"\bpostgres(?:-test)?\b", command, re.IGNORECASE) for command in commands
     )
-    assert "docker-compose.yml" not in MODULE
+    assert "docker-compose.yml" not in PROBE
 
 
 def test_normal_lifecycle_uses_only_observability_compose_path() -> None:
-    assert "$script:ObservabilityCompose" in MODULE
-    assert all("$script:ObservabilityCompose" in command for command in _docker_compose_commands())
+    assert 'ROOT / "docker-compose.observability.yml"' in PROBE
+    assert "observability-start" in MODULE
+    assert "observability-stop" in MODULE
 
 
 def test_lifecycle_has_no_broad_or_destructive_process_and_data_operations() -> None:
@@ -53,21 +54,20 @@ def test_lifecycle_has_no_broad_or_destructive_process_and_data_operations() -> 
 
 
 def test_database_url_is_loaded_but_never_rewritten_in_dotenv() -> None:
-    assert "Set-Content -LiteralPath $envPath" not in MODULE
-    assert "Add-Content -LiteralPath $envPath" not in MODULE
-    assert "SWINGLENS_MANAGE_POSTGRES" in MODULE
-    assert "Resolve-AuthoritativePostgresService" in MODULE
+    assert "Import-SwingLensEnvironment" not in MODULE
+    assert "Get-LifecycleConfig" in MODULE
+    assert "Invoke-LifecycleProbe -Command 'provenance'" in MODULE
 
 
 def test_docker_outage_is_observability_degradation_not_core_teardown() -> None:
-    assert "Docker Engine is unavailable; core remains running" in MODULE
+    assert "startup failed; core remains running" in MODULE
     start_body = MODULE.split("function Start-SwingLensStack", 1)[1]
     assert start_body.index("Start-SwingLensWeb") < start_body.index("Start-SwingLensObservability")
 
 
 def test_start_reuses_verified_healthy_web_for_idempotency() -> None:
-    assert "reusing verified healthy SwingLens PID" in MODULE
-    assert "Verified SwingLens PID" in MODULE
+    assert "reusing strongly verified PID" in MODULE
+    assert "Get-ValidatedRuntime" in MODULE
     assert "use restart after reviewing status" in MODULE
 
 
@@ -82,4 +82,6 @@ def test_disposable_postgres_compose_is_isolated_from_authoritative_endpoint() -
 
 
 def test_restart_composes_shared_stop_and_start_implementations() -> None:
-    assert "'restart' { Stop-SwingLensStack; Start-SwingLensStack }" in MODULE
+    restart = MODULE.split("'restart' {", 1)[1]
+    assert restart.index("Stop-SwingLensStack") < restart.index("Start-SwingLensStack")
+    assert "Invoke-WithLifecycleLock" in MODULE

@@ -18,6 +18,7 @@ from app.models.tables import (
     BackgroundJob,
     BackgroundJobEnqueueAttempt,
     BackgroundJobFanoutRoot,
+    BackgroundWorker,
     WinnerProcessingRun,
 )
 from app.observability.correlation import CausalityContext, enqueue_causality, workflow_family
@@ -679,6 +680,23 @@ def claim_next_job(
     queues: Iterable[str] | None = None,
     claim_groups: Iterable[QueueClaimGroup] | None = None,
 ) -> BackgroundJob | None:
+    # Serialize claims against the lifecycle quiesce fence on the durable
+    # registration row. Whichever transaction wins this lock determines a
+    # total order: a completed claim is visible to the shutdown re-check, or
+    # the quiesce marker prevents the claim.
+    if isinstance(db, Session):
+        worker = db.scalar(
+            select(BackgroundWorker)
+            .where(BackgroundWorker.worker_id == worker_id)
+            .with_for_update()
+        )
+        if (
+            worker is None
+            or worker.stopping_at is not None
+            or worker.quiesce_requested_at is not None
+            or (worker_instance_id is not None and worker.instance_id != worker_instance_id)
+        ):
+            return None
     groups = (
         tuple(claim_groups)
         if claim_groups is not None

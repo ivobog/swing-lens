@@ -10,11 +10,11 @@ The authoritative database is the locally installed Windows PostgreSQL selected 
 
 ```powershell
 Copy-Item .env.example .env
-.\swinglens.ps1 start
+pwsh .\swinglens.ps1 start
 ```
 
 The lifecycle never substitutes Docker PostgreSQL. Confirm the exact service and redacted endpoint
-with `.\swinglens.ps1 status` before taking a backup.
+with `pwsh .\swinglens.ps1 status` before taking a backup.
 
 ## Create A Backup
 

@@ -60,10 +60,10 @@ authoritative database. The lifecycle manager discovers and controls only the Wi
 can be verified against that endpoint. Routine operation is:
 
 ```powershell
-.\swinglens.ps1 start
-.\swinglens.ps1 status
-.\swinglens.ps1 restart
-.\swinglens.ps1 stop
+pwsh .\swinglens.ps1 start
+pwsh .\swinglens.ps1 status
+pwsh .\swinglens.ps1 restart
+pwsh .\swinglens.ps1 stop
 ```
 
 `start` makes the configured local database reachable, applies Alembic migrations, starts the web

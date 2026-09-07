@@ -3,19 +3,19 @@
 SwingLens has one daily operator interface:
 
 ```powershell
-.\swinglens.ps1 start
-.\swinglens.ps1 status
-.\swinglens.ps1 restart
-.\swinglens.ps1 stop
+pwsh .\swinglens.ps1 start
+pwsh .\swinglens.ps1 status
+pwsh .\swinglens.ps1 restart
+pwsh .\swinglens.ps1 stop
 ```
 
 ## Ownership model
 
-The database selected by the effective `DATABASE_URL` is the authoritative locally installed
-Windows PostgreSQL database. The lifecycle correlates the endpoint, listener process tree, service
-executable, PostgreSQL data directory, and `postgresql.conf` port before controlling a service. It
-does not guess a service name. If the evidence is missing or ambiguous, it fails without starting
-or stopping any PostgreSQL service.
+PowerShell 7.4 or newer is required. Python/Pydantic is the only `.env` parser. The database selected
+by the effective `DATABASE_URL` must also match the configured service name, major version, service
+executable, SQL-reported data directory, database name, listener PID/creation time/executable, and
+listener-to-service process ancestry. If any signal is missing or ambiguous, the lifecycle reports
+`CONFLICT` and does not run Alembic or control PostgreSQL.
 
 The normal process tree is:
 
@@ -35,11 +35,11 @@ stopped. If Docker is unavailable, healthy core services remain running and over
 
 ## Start
 
-`start` loads `.env` without rewriting it, probes the configured database, and reuses it when it is
-reachable. Otherwise it starts only the uniquely verified local PostgreSQL Windows service and
-waits for a SQL connection. It then runs `uv run alembic upgrade head`; a failure prevents a new web
-listener. `app.serve` independently verifies the database, Alembic head, and local storage before
-Uvicorn binds.
+`start` obtains sanitized configuration from the Python lifecycle probe. It reuses a strongly
+identified runtime at the same Git commit without migrating under it. Otherwise it proves database
+provenance, then runs bounded Alembic under both the full lifecycle mutex and a PostgreSQL advisory
+migration lock. `app.serve` independently verifies the database, the complete Alembic head set, and
+local storage before Uvicorn binds.
 
 Port 8000 is handled idempotently. A verified healthy SwingLens process is reused. A verified but
 unhealthy SwingLens process is reported without being killed by `start`. A foreign listener causes
@@ -51,13 +51,20 @@ it, starts only the observability Compose file, checks Prometheus and Grafana, a
 
 ## Stop and restart
 
-`stop` first verifies the web, supervisor, and worker identities and refuses to interrupt active
-`RUNNING` or `RECOVERING` durable jobs. It requests a controlled web shutdown so the lifespan stops
-the supervisor and worker through their ownership chain, then verifies ports 8000, 9101, and 9102
-are released. Any fallback termination is limited to a revalidated PID tree; broad Python or
-PostgreSQL process-name termination is forbidden.
+`stop` first writes a durable quiesce request. Every claim transaction locks and checks that same
+worker registration row, so acknowledgement means no later job can become `RUNNING`. It then
+re-checks `RUNNING` and `RECOVERING` leases. `QUEUED`, future-scheduled, `BLOCKED`, and `STALLED` jobs
+may remain durable. An active lease aborts stop and clears quiesce. Process signaling requires PID,
+creation time, role/module, checkout path, runtime/registry instance identity, generation, and web
+listener ownership; the tuple is inspected again immediately before signaling. Metrics listeners
+are supplementary only and may be disabled or moved.
 
-Grafana and Prometheus are stopped individually through the observability Compose file. The
+One repository-scoped Windows named mutex covers the entire `start`, `stop`, or `restart`
+transition, including stop-plus-start for restart. Acquisition is bounded by
+`SWINGLENS_LIFECYCLE_LOCK_TIMEOUT_SECONDS`.
+
+Grafana and Prometheus are stopped individually through the observability Compose file. Their stop
+or start failures and bounded CLI timeouts are warnings and never prevent core restart recovery. The
 conservative default is `SWINGLENS_MANAGE_POSTGRES=false`, because a system-wide Windows service
 may be shared or require an elevated service-control token. With that setting, the exact service is
 reported but deliberately left running. Set `SWINGLENS_MANAGE_POSTGRES=true` only when full-stack
@@ -69,8 +76,10 @@ service through Windows service control. No database files or Docker volumes are
 ## Status
 
 `status` is read-only and reports core service/endpoint/schema/process health, Docker Engine,
-Prometheus, Grafana, the three expected targets, and one of `HEALTHY`, `DEGRADED`, `FAILED`,
-`STOPPED`, or `CONFLICT`. Database credentials and the Grafana password are never emitted.
+Prometheus, Grafana, and one of `HEALTHY`, `DEGRADED`, `FAILED`, `STOPPED`, or `CONFLICT`.
+Application readiness JSON, not HTTP status alone, determines core health. Exit codes are 0 for
+healthy/stopped-as-requested, 2 for degraded, and 1 for failed, conflict, or incomplete operations.
+Database credentials and the Grafana password are never emitted.
 
 ## Disposable PostgreSQL Compose file
 

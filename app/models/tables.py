@@ -1698,6 +1698,12 @@ class BackgroundWorker(Base):
         server_default=func.now(),
     )
     stopping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    quiesce_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), deferred=True, server_default=text("NULL")
+    )
+    quiesced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), deferred=True, server_default=text("NULL")
+    )
 
     __table_args__ = (Index("idx_background_workers_heartbeat", "heartbeat_at"),)
 

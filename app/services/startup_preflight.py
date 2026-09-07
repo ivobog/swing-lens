@@ -6,12 +6,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.pool import NullPool
 
+from app.services.alembic_heads import database_alembic_heads, repository_alembic_heads
 from app.services.redaction import redact_text
 from app.settings import Settings, get_settings
 
@@ -57,12 +56,7 @@ def run_startup_preflight(
         )
         with engine.connect() as connection:
             connection.execute(text("select 1"))
-            current_heads = tuple(
-                sorted(
-                    str(row[0])
-                    for row in connection.execute(text("select version_num from alembic_version"))
-                )
-            )
+            current_heads = database_alembic_heads(connection)
     except StartupPreflightError:
         raise
     except Exception as exc:
@@ -97,9 +91,7 @@ def run_startup_preflight(
 
 def _repository_alembic_heads(repo_root: Path) -> tuple[str, ...]:
     try:
-        config = Config(str(repo_root / "alembic.ini"))
-        config.set_main_option("script_location", str(repo_root / "alembic"))
-        return tuple(sorted(ScriptDirectory.from_config(config).get_heads()))
+        return repository_alembic_heads(repo_root)
     except (OSError, ValueError) as exc:
         raise StartupPreflightError(
             f"cannot read repository Alembic heads: {redact_text(str(exc))}"

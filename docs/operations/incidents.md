@@ -7,7 +7,9 @@ data-recovery risk. Keep notes with timestamps, command output, backup IDs, and 
 
 1. Open `http://127.0.0.1:8000/ready`.
 2. Inspect the failing `checks` entry.
-3. If `database` fails, verify `.env` `DATABASE_URL`, `docker compose ps`, and PostgreSQL logs.
+3. If `database` fails, run `Get-Service postgresql-x64-18`, verify the sanitized endpoint with
+   `pwsh .\swinglens.ps1 status`, and inspect the local Windows PostgreSQL logs. Docker PostgreSQL
+   is disposable test infrastructure and is not a production troubleshooting target.
 4. If `migrations` fails, stop writes and run `uv run alembic current` and `uv run alembic heads`.
 5. If `storage` fails, verify permissions on `UPLOAD_DIR`, `EXPORT_DIR`, and `CACHE_DIR`.
 6. If `worker` fails, inspect the supervisor event and durable job state; the supervisor fences
@@ -26,7 +28,8 @@ data-recovery risk. Keep notes with timestamps, command output, backup IDs, and 
    limit 50;
    ```
 
-3. Verify the independent worker supervisor is running. Never enable an embedded API worker.
+3. Run `pwsh .\swinglens.ps1 status`. The web-owned supervisor must be present; never start an
+   independent supervisor manually.
 4. Let normal stale-job recovery requeue expired leases.
 5. For repeated failures, preserve the job row, redacted `error_message`, and related run ID before
    retrying manually.

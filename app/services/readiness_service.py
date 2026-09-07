@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import case, create_engine, func, select, text
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.engine import Engine
@@ -18,6 +16,7 @@ from sqlalchemy.pool import NullPool
 from app.models.tables import BackgroundJob, BackgroundSupervisor, BackgroundWorker
 from app.observability.db_monitor import get_database_monitor
 from app.observability.logging import log_event
+from app.services.alembic_heads import database_alembic_heads, repository_alembic_heads
 from app.services.background_job_service import JobStatus
 from app.services.redaction import redact_text
 from app.services.supervisor_registry import live_supervisors
@@ -157,19 +156,19 @@ class ReadinessService:
 
     def _migration_check(self) -> ReadinessCheck:
         try:
-            expected_heads = _repository_alembic_heads()
+            expected_heads = tuple(_repository_alembic_heads())
             with self.engine.connect() as connection:
-                current = connection.execute(
-                    text("select version_num from alembic_version limit 1")
-                ).scalar()
+                current_heads = database_alembic_heads(connection)
         except (OSError, SQLAlchemyError) as exc:
             return ReadinessCheck(False, _safe_message(exc))
-        if current not in expected_heads:
+        if current_heads != expected_heads:
             return ReadinessCheck(
                 False,
-                f"migration head mismatch: current={current or '<missing>'}",
+                "migration head mismatch: "
+                f"current={','.join(current_heads) or '<missing>'}; "
+                f"expected={','.join(expected_heads) or '<missing>'}",
             )
-        return ReadinessCheck(True, f"ok:{current}")
+        return ReadinessCheck(True, f"ok:{','.join(current_heads)}")
 
     def _storage_check(self) -> ReadinessCheck:
         try:
@@ -533,9 +532,7 @@ class ReadinessService:
         worker_ids = ",".join(worker.worker_id for worker in workers)
         return ReadinessCheck(True, f"live:{worker_ids}")
 
-    def _worker_telemetry_rows(
-        self, session: Session, worker_ids: list[str]
-    ) -> list[tuple]:
+    def _worker_telemetry_rows(self, session: Session, worker_ids: list[str]) -> list[tuple]:
         if not worker_ids or not self._table_has_column("background_workers", "telemetry_status"):
             return []
         return list(
@@ -724,9 +721,7 @@ def _unhealthy_job_counts(session: Session, now: datetime) -> tuple[int, int, in
 
 
 def _repository_alembic_heads() -> list[str]:
-    config = Config("alembic.ini")
-    script = ScriptDirectory.from_config(config)
-    return sorted(script.get_heads())
+    return list(repository_alembic_heads())
 
 
 def _safe_message(exc: Exception) -> str:

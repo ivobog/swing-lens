@@ -109,7 +109,7 @@ FastAPI
 Jinja2
 HTMX
 PostgreSQL
-Docker Compose for PostgreSQL
+Local Windows PostgreSQL 18 (authoritative); Docker PostgreSQL is disposable test infrastructure
 IB Gateway or Trader Workstation running locally
 ```
 

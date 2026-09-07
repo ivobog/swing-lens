@@ -2,7 +2,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     database_pool_size: int = Field(default=5, ge=1, le=100)
     database_pool_max_overflow: int = Field(default=10, ge=0, le=200)
     database_pool_timeout_seconds: float = Field(default=30.0, ge=0.1, le=300)
+    swinglens_postgres_service: str = "postgresql-x64-18"
+    swinglens_postgres_expected_major: int = Field(default=18, ge=10, le=99)
+    swinglens_postgres_data_dir: Path = Path(r"C:\Program Files\PostgreSQL\18\data")
+    swinglens_postgres_executable: Path = Path(
+        r"C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe"
+    )
+    swinglens_manage_postgres: bool = False
+    swinglens_migration_timeout_seconds: int = Field(default=120, ge=10, le=1800)
+    swinglens_lifecycle_lock_timeout_seconds: int = Field(default=10, ge=1, le=300)
+    swinglens_observability_timeout_seconds: int = Field(default=90, ge=5, le=600)
     db_monitor_enabled: bool = True
     db_monitor_slow_query_ms: float = Field(default=100.0, ge=0)
     db_monitor_full_trace_ms: float = Field(default=250.0, ge=0)
@@ -70,6 +80,7 @@ class Settings(BaseSettings):
     db_monitor_idle_transaction_threshold_ms: float = Field(default=5000.0, ge=100)
     db_monitor_activity_sample_interval_seconds: float = Field(default=1.0, ge=0.5)
     observability_metrics_enabled: bool = True
+    grafana_admin_password: SecretStr | None = None
     observability_metrics_host: str = "127.0.0.1"
     observability_worker_metrics_port: int = Field(default=9101, ge=0, le=65535)
     observability_supervisor_metrics_port: int = Field(default=9102, ge=0, le=65535)

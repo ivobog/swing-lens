@@ -42,6 +42,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--host", default=settings.app_host)
     parser.add_argument("--port", type=int, default=settings.app_port)
     parser.add_argument("--reload", action="store_true")
+    # Lifecycle identity markers are intentionally present in the OS command
+    # line so another checkout cannot be mistaken for this runtime.
+    parser.add_argument("--runtime-instance-id")
+    parser.add_argument("--repo-root")
     return parser.parse_args(argv)
 
 

@@ -2,33 +2,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$script:ObservabilityCompose = Join-Path $script:RepoRoot 'docker-compose.observability.yml'
 $script:RuntimeStatePath = Join-Path $script:RepoRoot 'data\cache\swinglens-lifecycle.json'
-$script:WebPort = 8000
-$script:WorkerPort = 9101
-$script:SupervisorPort = 9102
 
 function Protect-SwingLensText {
     param([AllowNull()][string]$Text)
     if ($null -eq $Text) { return '' }
     $safe = $Text -replace '(?i)([a-z][a-z0-9+.-]*://)[^/@\s]+@', '$1<redacted>@'
     return $safe -replace '(?i)(password|passwd|pwd|secret|token)\s*[=:]\s*[^\s,;]+', '$1=<redacted>'
-}
-
-function Import-SwingLensEnvironment {
-    $envPath = Join-Path $script:RepoRoot '.env'
-    if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) { return }
-    foreach ($line in Get-Content -LiteralPath $envPath) {
-        if ($line -notmatch '^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$') { continue }
-        $name = $Matches[1]
-        $value = $Matches[2].Trim()
-        if ($value.Length -ge 2 -and (($value[0] -eq '"' -and $value[-1] -eq '"') -or ($value[0] -eq "'" -and $value[-1] -eq "'"))) {
-            $value = $value.Substring(1, $value.Length - 2)
-        }
-        if ($null -eq [Environment]::GetEnvironmentVariable($name, 'Process')) {
-            [Environment]::SetEnvironmentVariable($name, $value, 'Process')
-        }
-    }
 }
 
 function Get-SwingLensPython {
@@ -40,46 +20,22 @@ function Get-SwingLensPython {
 }
 
 function Invoke-LifecycleProbe {
-    param(
-        [Parameter(Mandatory = $true)][string]$Command,
-        [string[]]$Arguments = @()
-    )
-    $python = Get-SwingLensPython
+    param([Parameter(Mandatory = $true)][string]$Command, [string[]]$Arguments = @())
     $probe = Join-Path $script:RepoRoot 'scripts\ops\lifecycle_probe.py'
     $previousPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $output = & $python $probe $Command @Arguments 2>&1
+        $output = & (Get-SwingLensPython) $probe $Command @Arguments 2>&1
         $exitCode = $LASTEXITCODE
     }
-    finally {
-        $ErrorActionPreference = $previousPreference
-    }
+    finally { $ErrorActionPreference = $previousPreference }
     $text = ($output | ForEach-Object { [string]$_ }) -join "`n"
-    if ($exitCode -ne 0) {
-        throw ('Lifecycle probe failed: ' + (Protect-SwingLensText $text))
-    }
-    try {
-        return $text | ConvertFrom-Json
-    }
-    catch {
-        throw ('Lifecycle probe returned invalid output: ' + (Protect-SwingLensText $text))
-    }
+    if ($exitCode -ne 0) { throw ('Lifecycle probe failed: ' + (Protect-SwingLensText $text)) }
+    try { return $text | ConvertFrom-Json }
+    catch { throw ('Lifecycle probe returned invalid output: ' + (Protect-SwingLensText $text)) }
 }
 
-function Get-DatabaseReport {
-    return Invoke-LifecycleProbe -Command 'database'
-}
-
-function Get-DatabaseEndpoint {
-    param($DatabaseReport)
-    return '{0}:{1}/{2}' -f $DatabaseReport.host, $DatabaseReport.port, $DatabaseReport.database
-}
-
-function Test-LocalDatabaseHost {
-    param([string]$HostName)
-    return $HostName -in @('127.0.0.1', 'localhost', '::1', '')
-}
+function Get-LifecycleConfig { return Invoke-LifecycleProbe -Command 'config' }
 
 function Get-PortOwners {
     param([int]$Port)
@@ -92,146 +48,133 @@ function Get-PortOwners {
     return @($owners)
 }
 
-function Test-ProcessRole {
-    param($Process, [ValidateSet('web', 'supervisor', 'worker')][string]$Role)
-    if ($null -eq $Process) { return $false }
-    $patterns = @{
-        web = '(?i)(?:^|\s)-m\s+app\.serve(?:\s|$)'
-        supervisor = '(?i)(?:^|\s)-m\s+app\.worker_supervisor(?:\s|$)'
-        worker = '(?i)(?:^|\s)-m\s+app\.worker(?:\s|$)'
-    }
-    return [string]$Process.CommandLine -match $patterns[$Role]
-}
-
-function Get-RoleLauncherProcess {
-    param($Process, [ValidateSet('web', 'supervisor', 'worker')][string]$Role)
-    $candidate = $Process
-    for ($index = 0; $index -lt 6; $index++) {
-        if (-not (Test-ProcessRole -Process $candidate -Role $Role)) { break }
-        $parent = Get-CimInstance Win32_Process -Filter ("ProcessId={0}" -f $candidate.ParentProcessId) -ErrorAction SilentlyContinue
-        if ($null -eq $parent -or -not (Test-ProcessRole -Process $parent -Role $Role)) { break }
-        $candidate = $parent
-    }
-    return $candidate
-}
-
 function Invoke-HttpProbe {
-    param([Parameter(Mandatory = $true)][string]$Uri, [int]$TimeoutSeconds = 2)
+    param([Parameter(Mandatory = $true)][string]$Uri, [int]$TimeoutSeconds = 3)
     try {
-        $response = Invoke-WebRequest -UseBasicParsing -SkipHttpErrorCheck -Uri $Uri -TimeoutSec $TimeoutSeconds
+        $response = Invoke-WebRequest -SkipHttpErrorCheck -Uri $Uri -TimeoutSec $TimeoutSeconds
         $payload = $null
         try { $payload = $response.Content | ConvertFrom-Json } catch { $payload = $null }
-        return [pscustomobject]@{
-            Reachable = $true
-            StatusCode = [int]$response.StatusCode
-            Payload = $payload
+        return [pscustomobject]@{ Reachable = $true; StatusCode = [int]$response.StatusCode; Payload = $payload }
+    }
+    catch { return [pscustomobject]@{ Reachable = $false; StatusCode = 0; Payload = $null } }
+}
+
+function Resolve-ReadinessPayloadState {
+    param($Payload)
+    if ($null -eq $Payload) { return 'failed' }
+    $state = ([string]$Payload.status).ToLowerInvariant()
+    if ($state -in @('ok', 'degraded', 'failed', 'optional_unavailable')) { return $state }
+    return 'failed'
+}
+
+function Get-ReadinessState {
+    param([int]$WebPort)
+    $probe = Invoke-HttpProbe -Uri ("http://127.0.0.1:{0}/ready" -f $WebPort) -TimeoutSeconds 5
+    if (-not $probe.Reachable) { return 'failed' }
+    return Resolve-ReadinessPayloadState -Payload $probe.Payload
+}
+
+function Get-GitCommit {
+    $value = & git -C $script:RepoRoot rev-parse HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the current repository commit.' }
+    return ([string]$value).Trim()
+}
+
+function Get-WebOwner {
+    param([int]$Port)
+    $owners = @(Get-PortOwners -Port $Port)
+    if ($owners.Count -gt 1) { throw ("CONFLICT: port {0} has multiple listeners." -f $Port) }
+    return $(if ($owners.Count -eq 1) { $owners[0] } else { $null })
+}
+
+function Get-ValidatedRuntime {
+    param([int]$WebPort)
+    $owner = Get-WebOwner -Port $WebPort
+    if ($null -eq $owner) {
+        if (Test-Path -LiteralPath $script:RuntimeStatePath -PathType Leaf) {
+            $stale = Invoke-LifecycleProbe -Command 'runtime-state'
+            if ($stale.stale) { Remove-Item -LiteralPath $script:RuntimeStatePath -Force }
+            elseif ($stale.conflict) { throw ('CONFLICT: ' + $stale.error) }
         }
+        return $null
     }
-    catch {
-        return [pscustomobject]@{ Reachable = $false; StatusCode = 0; Payload = $null }
+    $runtime = Invoke-LifecycleProbe -Command 'runtime-state' -Arguments @('--listener-pid', [string]$owner.ProcessId)
+    if (-not $runtime.valid) {
+        throw ('CONFLICT: port {0} is occupied but strong SwingLens runtime identity failed: {1}' -f $WebPort, $runtime.error)
     }
+    return $runtime
 }
 
-function Test-VerifiedWeb {
-    param($Process)
-    if (-not (Test-ProcessRole -Process $Process -Role 'web')) { return $false }
-    $health = Invoke-HttpProbe -Uri 'http://127.0.0.1:8000/health'
-    return $health.StatusCode -eq 200 -and $null -ne $health.Payload -and $health.Payload.app -eq 'SwingLens'
-}
-
-function Normalize-LocalPath {
-    param([AllowNull()][string]$Path)
-    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
-    try { return [IO.Path]::GetFullPath($Path).TrimEnd('\', '/').Replace('\', '/').ToLowerInvariant() }
-    catch { return $Path.TrimEnd('\', '/').Replace('\', '/').ToLowerInvariant() }
-}
-
-function Get-ServiceDataDirectory {
-    param([string]$PathName)
-    if ($PathName -match '(?i)(?:^|\s)-D\s+(?:"([^"]+)"|([^\s]+))') {
-        $value = if ($Matches[1]) { $Matches[1] } else { $Matches[2] }
-        return $value
+function New-LifecycleMutex {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($script:RepoRoot.ToLowerInvariant())
+        $hash = [Convert]::ToHexString($sha.ComputeHash($bytes)).Substring(0, 24)
     }
-    return $null
+    finally { $sha.Dispose() }
+    return [Threading.Mutex]::new($false, "Local\SwingLensLifecycle-$hash")
 }
 
-function Get-PostgresConfiguredPort {
-    param([AllowNull()][string]$DataDirectory)
-    if ([string]::IsNullOrWhiteSpace($DataDirectory)) { return $null }
-    $configPath = Join-Path $DataDirectory 'postgresql.conf'
-    if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) { return $null }
-    foreach ($line in Get-Content -LiteralPath $configPath -ErrorAction SilentlyContinue) {
-        if ($line -match '^\s*port\s*=\s*''?([0-9]+)''?\s*(?:#.*)?$') { return [int]$Matches[1] }
-    }
-    return 5432
-}
-
-function Test-ServiceOwnsProcess {
-    param([int]$ServiceProcessId, [int]$ListenerProcessId)
-    $current = $ListenerProcessId
-    for ($index = 0; $index -lt 10 -and $current -gt 0; $index++) {
-        if ($current -eq $ServiceProcessId) { return $true }
-        $process = Get-CimInstance Win32_Process -Filter "ProcessId=$current" -ErrorAction SilentlyContinue
-        if ($null -eq $process) { break }
-        $current = [int]$process.ParentProcessId
-    }
-    return $false
-}
-
-function Resolve-AuthoritativePostgresService {
-    param($DatabaseReport)
-    if (-not (Test-LocalDatabaseHost -HostName ([string]$DatabaseReport.host))) { return $null }
-    $services = @(
-        Get-CimInstance Win32_Service |
-            Where-Object { $_.PathName -match '(?i)pg_ctl(?:\.exe)?' -and $_.PathName -match '(?i)runservice' }
-    )
-    $matches = @()
-    $expectedDirectory = Normalize-LocalPath ([string]$DatabaseReport.dataDirectory)
-    $listenerPids = @(Get-PortOwners -Port ([int]$DatabaseReport.port) | Select-Object -ExpandProperty ProcessId)
-    foreach ($service in $services) {
-        $dataDirectory = Get-ServiceDataDirectory -PathName ([string]$service.PathName)
-        $normalizedDirectory = Normalize-LocalPath $dataDirectory
-        $evidence = @()
-        if ($DatabaseReport.reachable -and $expectedDirectory -and $normalizedDirectory -eq $expectedDirectory) {
-            $evidence += 'data-directory'
-        }
-        if ([int]$service.ProcessId -gt 0) {
-            foreach ($listenerPid in $listenerPids) {
-                if (Test-ServiceOwnsProcess -ServiceProcessId ([int]$service.ProcessId) -ListenerProcessId ([int]$listenerPid)) {
-                    $evidence += 'listener-process-chain'
-                }
+function Invoke-WithLifecycleLock {
+    param([string]$Action, [int]$TimeoutSeconds, [scriptblock]$Body)
+    $mutex = New-LifecycleMutex
+    $acquired = $false
+    $lockStream = $null
+    $lockPath = Join-Path $script:RepoRoot 'data\cache\swinglens-lifecycle.lock'
+    [IO.Directory]::CreateDirectory((Split-Path -Parent $lockPath)) | Out-Null
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    try {
+        do {
+            try {
+                $lockStream = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
             }
-        }
-        $configuredPort = Get-PostgresConfiguredPort -DataDirectory $dataDirectory
-        if ($null -ne $configuredPort -and [int]$configuredPort -eq [int]$DatabaseReport.port) {
-            $evidence += 'configured-port'
-        }
-        if ($evidence.Count -gt 0) {
-            $matches += [pscustomobject]@{
-                Name = [string]$service.Name
-                DisplayName = [string]$service.DisplayName
-                State = [string]$service.State
-                StartMode = [string]$service.StartMode
-                ProcessId = [int]$service.ProcessId
-                PathName = [string]$service.PathName
-                DataDirectory = $dataDirectory
-                Evidence = @($evidence | Select-Object -Unique)
+            catch [IO.IOException] {
+                Start-Sleep -Milliseconds 100
             }
+        } while ($null -eq $lockStream -and [DateTime]::UtcNow -lt $deadline)
+        if ($null -eq $lockStream) {
+            throw ("Another SwingLens lifecycle operation is already running. {0} could not acquire the repository lock within {1} seconds." -f $Action.ToUpperInvariant(), $TimeoutSeconds)
         }
+        $details = [Text.Encoding]::UTF8.GetBytes(("{0} pid={1} acquired={2:o}`n" -f $Action.ToUpperInvariant(), $PID, [DateTime]::UtcNow))
+        $lockStream.SetLength(0); $lockStream.Write($details, 0, $details.Length); $lockStream.Flush($true)
+        try { $acquired = $mutex.WaitOne([TimeSpan]::FromSeconds($TimeoutSeconds)) }
+        catch [Threading.AbandonedMutexException] { $acquired = $true }
+        if (-not $acquired) {
+            throw ("Another SwingLens lifecycle operation is already running. {0} could not acquire the repository lock within {1} seconds." -f $Action.ToUpperInvariant(), $TimeoutSeconds)
+        }
+        $result = & $Body
+        return $result
     }
-    $strong = @($matches | Where-Object { $_.Evidence -contains 'data-directory' -or $_.Evidence -contains 'listener-process-chain' })
-    if ($strong.Count -eq 1) { return $strong[0] }
-    if ($strong.Count -gt 1) { throw 'PostgreSQL service identity is ambiguous; no service action was taken.' }
-    if ($matches.Count -eq 1) { return $matches[0] }
-    if ($matches.Count -gt 1) { throw 'PostgreSQL service identity is ambiguous; no service action was taken.' }
-    return $null
+    finally {
+        if ($acquired) { $mutex.ReleaseMutex() }
+        $mutex.Dispose()
+        if ($null -ne $lockStream) { $lockStream.Dispose() }
+    }
+}
+
+function Assert-PostgresServiceConfiguration {
+    param($Config)
+    $service = Get-CimInstance Win32_Service -Filter ("Name='{0}'" -f $Config.postgres.service.Replace("'", "''")) -ErrorAction SilentlyContinue
+    if ($null -eq $service) { throw 'Configured authoritative PostgreSQL Windows service was not found.' }
+    $path = [string]$service.PathName
+    if ($path -notmatch '^\s*(?:"([^"]+)"|(\S+))') { throw 'Configured PostgreSQL service executable could not be parsed.' }
+    $serviceExecutable = if ($Matches[1]) { $Matches[1] } else { $Matches[2] }
+    if ([IO.Path]::GetFullPath($serviceExecutable) -ne [IO.Path]::GetFullPath([string]$Config.postgres.serviceExecutable)) {
+        throw 'Configured PostgreSQL service executable does not match the canonical setting.'
+    }
+    if ($path -notmatch '(?i)(?:^|\s)-D\s+(?:"([^"]+)"|(\S+))') { throw 'Configured PostgreSQL service data directory could not be parsed.' }
+    $serviceData = if ($Matches[1]) { $Matches[1] } else { $Matches[2] }
+    if ([IO.Path]::GetFullPath($serviceData) -ne [IO.Path]::GetFullPath([string]$Config.postgres.dataDirectory)) {
+        throw 'Configured PostgreSQL service data directory does not match the canonical setting.'
+    }
+    return $service
 }
 
 function Wait-DatabaseReady {
     param([int]$TimeoutSeconds = 60)
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     do {
-        $report = Get-DatabaseReport
+        $report = Invoke-LifecycleProbe -Command 'database'
         if ($report.reachable) { return $report }
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $deadline)
@@ -239,295 +182,139 @@ function Wait-DatabaseReady {
 }
 
 function Start-AuthoritativeDatabase {
-    param($DatabaseReport)
-    if ($DatabaseReport.reachable) {
-        Write-Host ('Local PostgreSQL: reusing reachable {0}' -f (Get-DatabaseEndpoint $DatabaseReport))
-        return $DatabaseReport
+    param($Config)
+    $database = Invoke-LifecycleProbe -Command 'database'
+    if (-not $database.reachable) {
+        if (-not $Config.postgres.managementEnabled) {
+            throw 'The authoritative local PostgreSQL database is unavailable and lifecycle service management is disabled.'
+        }
+        $service = Assert-PostgresServiceConfiguration -Config $Config
+        if ($service.State -ne 'Running') { Start-Service -Name $Config.postgres.service }
+        $database = Wait-DatabaseReady
     }
-    if (-not (Test-LocalDatabaseHost -HostName ([string]$DatabaseReport.host))) {
-        throw ('Configured database {0} is unreachable and is not a local Windows service.' -f (Get-DatabaseEndpoint $DatabaseReport))
+    $provenance = Invoke-LifecycleProbe -Command 'provenance'
+    if (-not $provenance.verified) {
+        throw ('CONFLICT: PostgreSQL is reachable, but authoritative service/cluster identity could not be verified. Alembic was not executed. ' + $provenance.error)
     }
-    $service = Resolve-AuthoritativePostgresService -DatabaseReport $DatabaseReport
-    if ($null -eq $service) {
-        throw 'Configured local database is unreachable and no authoritative PostgreSQL service was confidently identified.'
-    }
-    if ($service.State -ne 'Running') {
-        Write-Host ('Local PostgreSQL: starting verified service {0}' -f $service.Name)
-        Start-Service -Name $service.Name
-    }
-    return Wait-DatabaseReady
+    Write-Host ('Local PostgreSQL: verified {0} PostgreSQL {1}, PID {2}' -f $provenance.service, $provenance.version, $provenance.listenerPid)
+    return $database
 }
 
 function Invoke-AlembicUpgrade {
-    $uv = Get-Command uv -ErrorAction SilentlyContinue
-    if ($null -eq $uv) { throw 'uv is required to apply the repository Alembic migrations.' }
-    Write-Host 'Schema: applying Alembic migrations to the configured local database'
-    Push-Location $script:RepoRoot
-    $previousPreference = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $output = & $uv.Source run alembic upgrade head 2>&1
-        $exitCode = $LASTEXITCODE
+    $result = Invoke-LifecycleProbe -Command 'migrate'
+    if (-not $result.migrated) {
+        $detail = if ($result.PSObject.Properties.Name -contains 'error') { $result.error } else { $result.output }
+        throw ('Alembic migration failed or was refused: ' + (Protect-SwingLensText $detail))
     }
-    finally {
-        $ErrorActionPreference = $previousPreference
-        Pop-Location
-    }
-    if ($exitCode -ne 0) {
-        throw ('Alembic migration failed before web startup: ' + (Protect-SwingLensText (($output | ForEach-Object { [string]$_ }) -join "`n")))
-    }
+    Write-Host 'Schema: Alembic head verified/applied under provenance and advisory locks'
 }
 
 function Save-WebRuntimeState {
-    param([int]$LauncherPid)
+    param($Launch, [int]$WebPort)
     $state = [ordered]@{
-        version = 1
+        version = 3
+        runtimeInstanceId = [string]$Launch.runtimeInstanceId
         repoRoot = $script:RepoRoot
-        webLauncherPid = $LauncherPid
+        gitCommit = Get-GitCommit
         recordedAtUtc = [DateTime]::UtcNow.ToString('o')
+        web = [ordered]@{
+            pid = [int]$Launch.pid
+            createdAt = $(if ($Launch.createdAt -is [DateTime]) { $Launch.createdAt.ToUniversalTime().ToString('o') } else { [string]$Launch.createdAt })
+            launcherPid = [int]$Launch.launcherPid
+            launcherCreatedAt = $(if ($Launch.launcherCreatedAt -is [DateTime]) { $Launch.launcherCreatedAt.ToUniversalTime().ToString('o') } else { [string]$Launch.launcherCreatedAt })
+            role = 'web'
+            module = 'app.serve'
+            repoRoot = $script:RepoRoot
+            runtimeInstanceId = [string]$Launch.runtimeInstanceId
+            port = $WebPort
+        }
     }
-    $parent = Split-Path -Parent $script:RuntimeStatePath
-    [IO.Directory]::CreateDirectory($parent) | Out-Null
-    $state | ConvertTo-Json | Set-Content -LiteralPath $script:RuntimeStatePath -Encoding UTF8
-}
-
-function Get-WebRuntimeState {
-    if (-not (Test-Path -LiteralPath $script:RuntimeStatePath -PathType Leaf)) { return $null }
-    try { return Get-Content -LiteralPath $script:RuntimeStatePath -Raw | ConvertFrom-Json }
-    catch { return $null }
+    $json = $state | ConvertTo-Json -Depth 6 -Compress
+    $null = Invoke-LifecycleProbe -Command 'write-state' -Arguments @('--json', $json)
 }
 
 function Start-SwingLensWeb {
-    $owners = @(Get-PortOwners -Port $script:WebPort)
-    if ($owners.Count -gt 1) { throw 'Port 8000 has multiple listeners; no process action was taken.' }
-    if ($owners.Count -eq 1) {
-        $owner = $owners[0]
-        if (-not (Test-VerifiedWeb -Process $owner)) {
-            throw ('Port 8000 is owned by another process: PID {0} ({1}).' -f $owner.ProcessId, $owner.Name)
+    param($Config)
+    $runtime = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
+    if ($null -ne $runtime) {
+        if ([string]$runtime.state.gitCommit -ne (Get-GitCommit)) {
+            throw 'CONFLICT: an older SwingLens code generation is running. Use controlled restart; migrations were not run.'
         }
-        $ready = Invoke-HttpProbe -Uri 'http://127.0.0.1:8000/ready' -TimeoutSeconds 5
-        if ($ready.StatusCode -ne 200) {
-            throw ('Verified SwingLens PID {0} is unhealthy; use restart after reviewing status.' -f $owner.ProcessId)
+        $readiness = Get-ReadinessState -WebPort ([int]$Config.web.port)
+        if ($readiness -in @('ok', 'degraded', 'optional_unavailable')) {
+            Write-Host ('Web/API: reusing strongly verified PID {0}' -f $runtime.state.web.pid)
+            return
         }
-        Write-Host ('Web/API: reusing verified healthy SwingLens PID {0}' -f $owner.ProcessId)
-        return
+        throw 'Verified SwingLens runtime is failed; use restart after reviewing status.'
     }
-
-    Write-Host 'Web/API: launching with JOB_WORKER_ENABLED=true'
     $stdout = Join-Path $script:RepoRoot 'logs\lifecycle-web.out.log'
     $stderr = Join-Path $script:RepoRoot 'logs\lifecycle-web.err.log'
     $launch = Invoke-LifecycleProbe -Command 'launch-web' -Arguments @('--stdout', $stdout, '--stderr', $stderr)
-    Save-WebRuntimeState -LauncherPid ([int]$launch.launcherPid)
-
+    Save-WebRuntimeState -Launch $launch -WebPort ([int]$Config.web.port)
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     do {
-        $owners = @(Get-PortOwners -Port $script:WebPort)
-        if ($owners.Count -eq 1 -and (Test-VerifiedWeb -Process $owners[0])) {
-            $ready = Invoke-HttpProbe -Uri 'http://127.0.0.1:8000/ready' -TimeoutSeconds 5
-            if ($ready.StatusCode -eq 200) {
-                Write-Host ('Web/API: ready on PID {0}; supervisor and worker are ready' -f $owners[0].ProcessId)
+        $owner = Get-WebOwner -Port ([int]$Config.web.port)
+        if ($null -ne $owner -and [int]$owner.ProcessId -eq [int]$launch.pid) {
+            $runtime = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
+            $readiness = Get-ReadinessState -WebPort ([int]$Config.web.port)
+            if ($null -ne $runtime -and $readiness -in @('ok', 'degraded', 'optional_unavailable')) {
+                Write-Host ('Web/API: ready on strongly verified PID {0}' -f $launch.pid)
                 return
             }
         }
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $deadline)
-    throw 'SwingLens web, supervisor, and worker did not become ready within 90 seconds.'
+    throw 'SwingLens core did not become ready within 90 seconds.'
 }
 
 function Test-DockerEngine {
-    $docker = Get-Command docker -ErrorAction SilentlyContinue
-    if ($null -eq $docker) { return $false }
-    $previousPreference = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try { $null = & $docker.Source info --format '{{.ServerVersion}}' 2>$null; return $LASTEXITCODE -eq 0 }
-    finally { $ErrorActionPreference = $previousPreference }
-}
-
-function Get-PrometheusTargetReport {
-    $expected = @('swinglens-web', 'swinglens-worker', 'swinglens-supervisor')
-    $probe = Invoke-HttpProbe -Uri 'http://127.0.0.1:9090/api/v1/targets' -TimeoutSeconds 3
-    if ($probe.StatusCode -ne 200 -or $null -eq $probe.Payload -or $probe.Payload.status -ne 'success') {
-        return [pscustomobject]@{ Up = 0; Expected = 3 }
-    }
-    $active = @($probe.Payload.data.activeTargets)
-    $up = 0
-    foreach ($job in $expected) {
-        if (@($active | Where-Object { $_.labels.job -eq $job -and $_.health -eq 'up' }).Count -gt 0) { $up++ }
-    }
-    return [pscustomobject]@{ Up = $up; Expected = 3 }
+    return [bool](Invoke-LifecycleProbe -Command 'observability-info').ok
 }
 
 function Start-SwingLensObservability {
-    $grafanaPassword = [Environment]::GetEnvironmentVariable('GRAFANA_ADMIN_PASSWORD', 'Process')
-    if ([string]::IsNullOrWhiteSpace($grafanaPassword)) {
-        Write-Warning 'Observability DEGRADED: GRAFANA_ADMIN_PASSWORD is not configured.'
-        return
-    }
-    if (-not (Test-DockerEngine)) {
-        Write-Warning 'Observability DEGRADED: Docker Engine is unavailable; core remains running.'
-        return
-    }
-    Push-Location $script:RepoRoot
-    $previousPreference = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $configOk = $false
-    $startupOk = $false
-    try {
-        $null = & docker compose -f $script:ObservabilityCompose config --quiet 2>$null
-        $configOk = $LASTEXITCODE -eq 0
-        if ($configOk) {
-            $null = & docker compose -f $script:ObservabilityCompose up -d 2>$null
-            $startupOk = $LASTEXITCODE -eq 0
-        }
-    }
-    finally {
-        $ErrorActionPreference = $previousPreference
-        Pop-Location
-    }
-    if (-not $configOk) {
-        Write-Warning 'Observability DEGRADED: Compose validation failed; core remains running.'
-        return
-    }
-    if (-not $startupOk) {
-        Write-Warning 'Observability DEGRADED: Prometheus/Grafana startup failed; core remains running.'
-        return
-    }
-    $deadline = [DateTime]::UtcNow.AddSeconds(60)
+    param($Config)
+    if (-not $Config.grafanaPasswordConfigured) { Write-Warning 'Observability DEGRADED: Grafana password is not configured.'; return $false }
+    $result = Invoke-LifecycleProbe -Command 'observability-start'
+    if (-not $result.ok) { Write-Warning ('Observability DEGRADED: startup failed; core remains running. ' + $result.error) }
+    return [bool]$result.ok
+}
+
+function Stop-SwingLensObservability {
+    $result = Invoke-LifecycleProbe -Command 'observability-stop'
+    if (-not $result.ok) { Write-Warning ('Observability DEGRADED: stop incomplete; core lifecycle continues. ' + $result.error) }
+    return [bool]$result.ok
+}
+
+function Request-WorkerQuiesce {
+    param([int]$TimeoutSeconds = 20)
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     do {
-        $prometheus = Invoke-HttpProbe -Uri 'http://127.0.0.1:9090/-/ready'
-        $grafana = Invoke-HttpProbe -Uri 'http://127.0.0.1:3000/api/health'
-        $targets = Get-PrometheusTargetReport
-        if ($prometheus.StatusCode -eq 200 -and $grafana.StatusCode -eq 200 -and $targets.Up -eq 3) {
-            Write-Host 'Observability: Prometheus and Grafana ready; 3/3 SwingLens targets UP'
-            return
+        $report = Invoke-LifecycleProbe -Command 'quiesce'
+        if (-not $report.reachable) { throw 'Cannot prove durable worker quiescence while the database is unavailable.' }
+        if ([int]$report.activeCount -gt 0) {
+            $null = Invoke-LifecycleProbe -Command 'resume'
+            $summary = @($report.active | ForEach-Object { '{0}:{1}:{2}' -f $_.id, $_.job_type, $_.status }) -join ', '
+            throw ('Active durable jobs prevent a safe stop: ' + $summary)
         }
-        Start-Sleep -Seconds 2
+        if ($report.acknowledged) { return }
+        Start-Sleep -Milliseconds 250
     } while ([DateTime]::UtcNow -lt $deadline)
-    Write-Warning ('Observability DEGRADED: readiness incomplete; Prometheus targets {0}/3 UP.' -f $targets.Up)
+    $null = Invoke-LifecycleProbe -Command 'resume'
+    throw 'Worker did not acknowledge durable quiesce before timeout; stop aborted and claims resumed.'
 }
 
-function Get-ManagePostgres {
-    $configured = [Environment]::GetEnvironmentVariable('SWINGLENS_MANAGE_POSTGRES', 'Process')
-    if ([string]::IsNullOrWhiteSpace($configured)) { return $false }
-    return $configured.Trim().ToLowerInvariant() -notin @('0', 'false', 'no', 'off')
-}
-
-function Get-SwingLensStatusReport {
-    $database = Get-DatabaseReport
-    $service = $null
-    $serviceError = $null
-    try { $service = Resolve-AuthoritativePostgresService -DatabaseReport $database }
-    catch { $serviceError = Protect-SwingLensText $_.Exception.Message }
-
-    $webOwners = @(Get-PortOwners -Port $script:WebPort)
-    $workerOwners = @(Get-PortOwners -Port $script:WorkerPort)
-    $supervisorOwners = @(Get-PortOwners -Port $script:SupervisorPort)
-    $webVerified = $webOwners.Count -eq 1 -and (Test-VerifiedWeb -Process $webOwners[0])
-    $webConflict = $webOwners.Count -gt 0 -and -not $webVerified
-    $webReady = $false
-    if ($webVerified) { $webReady = (Invoke-HttpProbe -Uri 'http://127.0.0.1:8000/ready' -TimeoutSeconds 5).StatusCode -eq 200 }
-    $workerReady = $workerOwners.Count -eq 1 -and (Test-ProcessRole -Process $workerOwners[0] -Role 'worker') -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:9101/metrics').StatusCode -eq 200
-    $supervisorReady = $supervisorOwners.Count -eq 1 -and (Test-ProcessRole -Process $supervisorOwners[0] -Role 'supervisor') -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:9102/metrics').StatusCode -eq 200
-    $dockerReady = Test-DockerEngine
-    $prometheusReady = $dockerReady -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:9090/-/ready').StatusCode -eq 200
-    $grafanaReady = $dockerReady -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:3000/api/health').StatusCode -eq 200
-    $targets = if ($prometheusReady) { Get-PrometheusTargetReport } else { [pscustomobject]@{ Up = 0; Expected = 3 } }
-    $durableReady = -not [bool]$database.useDurablePipeline -or ($supervisorReady -and $workerReady)
-
-    if ($webConflict) { $overall = 'CONFLICT' }
-    elseif (-not $webVerified) {
-        if ($workerOwners.Count -gt 0 -or $supervisorOwners.Count -gt 0) { $overall = 'FAILED' }
-        elseif ($prometheusReady -or $grafanaReady) { $overall = 'DEGRADED' }
-        else { $overall = 'STOPPED' }
-    }
-    elseif (-not $database.reachable -or -not $database.schemaAtHead -or -not $webReady -or -not $durableReady) { $overall = 'FAILED' }
-    elseif (-not $dockerReady -or -not $prometheusReady -or -not $grafanaReady -or $targets.Up -ne 3) { $overall = 'DEGRADED' }
-    else { $overall = 'HEALTHY' }
-
-    return [pscustomobject]@{
-        Database = $database
-        Service = $service
-        ServiceError = $serviceError
-        WebOwners = $webOwners
-        WebVerified = $webVerified
-        WebReady = $webReady
-        WebConflict = $webConflict
-        WorkerOwners = $workerOwners
-        WorkerReady = $workerReady
-        SupervisorOwners = $supervisorOwners
-        SupervisorReady = $supervisorReady
-        DockerReady = $dockerReady
-        PrometheusReady = $prometheusReady
-        GrafanaReady = $grafanaReady
-        Targets = $targets
-        Overall = $overall
-    }
-}
-
-function Format-State {
-    param([bool]$Ready, [string]$ReadyText = 'READY', [string]$NotReadyText = 'STOPPED')
-    if ($Ready) { return $ReadyText }
-    return $NotReadyText
-}
-
-function Write-SwingLensStatus {
-    $status = Get-SwingLensStatusReport
-    $database = $status.Database
-    $serviceText = if ($null -ne $status.Service) {
-        '{0}   {1}' -f (Format-State ($status.Service.State -eq 'Running')), $status.Service.Name
-    } elseif ($status.ServiceError) { 'AMBIGUOUS' } else { 'NOT IDENTIFIED' }
-    $webPid = if ($status.WebOwners.Count -eq 1) { ' PID ' + $status.WebOwners[0].ProcessId } else { '' }
-    $supervisorPid = if ($status.SupervisorOwners.Count -eq 1) { ' PID ' + $status.SupervisorOwners[0].ProcessId } else { '' }
-    $workerPid = if ($status.WorkerOwners.Count -eq 1) { ' PID ' + $status.WorkerOwners[0].ProcessId } else { '' }
-
-    Write-Host ''
-    Write-Host 'SwingLens Local Stack'
-    Write-Host '----------------------------------------'
-    Write-Host 'CORE'
-    Write-Host ('Local PostgreSQL   {0}' -f $serviceText)
-    Write-Host ('Database           {0}   {1}' -f (Format-State ([bool]$database.reachable) 'READY' 'UNAVAILABLE'), (Get-DatabaseEndpoint $database))
-    Write-Host ('Schema             {0}' -f (Format-State ([bool]$database.schemaAtHead) 'HEAD' 'MISMATCH/UNAVAILABLE'))
-    $webLabel = if ($status.WebConflict) {
-        'CONFLICT'
-    } elseif ($status.WebVerified) {
-        Format-State $status.WebReady 'READY' 'UNHEALTHY'
-    } else {
-        'STOPPED'
-    }
-    Write-Host ('Web/API            {0}{1}' -f $webLabel, $webPid)
-    Write-Host ('Supervisor         {0}{1}' -f (Format-State $status.SupervisorReady), $supervisorPid)
-    Write-Host ('Worker             {0}{1}' -f (Format-State $status.WorkerReady), $workerPid)
-    Write-Host ''
-    Write-Host 'OBSERVABILITY'
-    Write-Host ('Docker Engine      {0}' -f (Format-State $status.DockerReady 'READY' 'UNAVAILABLE'))
-    Write-Host ('Prometheus         {0}   :9090' -f (Format-State $status.PrometheusReady))
-    Write-Host ('Grafana            {0}   :3000' -f (Format-State $status.GrafanaReady))
-    Write-Host ('Prometheus targets {0}/{1} UP' -f $status.Targets.Up, $status.Targets.Expected)
-    Write-Host ''
-    Write-Host ('OVERALL            {0}' -f $status.Overall)
-    return $status
-}
-
-function Assert-SafeProcessTopology {
-    $roles = @(
-        @{ Port = $script:WebPort; Role = 'web' },
-        @{ Port = $script:SupervisorPort; Role = 'supervisor' },
-        @{ Port = $script:WorkerPort; Role = 'worker' }
-    )
-    foreach ($item in $roles) {
-        $owners = @(Get-PortOwners -Port $item.Port)
-        if ($owners.Count -gt 1) { throw ('Port {0} has multiple listeners; stop aborted.' -f $item.Port) }
-        if ($owners.Count -eq 1 -and -not (Test-ProcessRole -Process $owners[0] -Role $item.Role)) {
-            throw ('Port {0} is owned by unverified PID {1}; stop aborted.' -f $item.Port, $owners[0].ProcessId)
-        }
-        if ($item.Role -eq 'web' -and $owners.Count -eq 1 -and -not (Test-VerifiedWeb -Process $owners[0])) {
-            throw ('Port 8000 process PID {0} did not verify as SwingLens; stop aborted.' -f $owners[0].ProcessId)
-        }
-    }
+function Wait-PortReleased {
+    param([int]$Port, [int]$TimeoutSeconds = 30)
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    do {
+        if (@(Get-PortOwners -Port $Port).Count -eq 0) { return }
+        Start-Sleep -Milliseconds 250
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw ("SwingLens web port {0} was not released." -f $Port)
 }
 
 function Wait-ProcessExit {
-    param([int]$ProcessId, [int]$TimeoutSeconds)
+    param([int]$ProcessId, [int]$TimeoutSeconds = 25)
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     do {
         if ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) { return $true }
@@ -536,157 +323,155 @@ function Wait-ProcessExit {
     return $false
 }
 
-function Stop-VerifiedProcess {
-    param($Process, [ValidateSet('web', 'supervisor', 'worker')][string]$Role)
-    $launcher = Get-RoleLauncherProcess -Process $Process -Role $Role
-    if (-not (Test-ProcessRole -Process $launcher -Role $Role)) {
-        throw ('PID {0} no longer matches the expected {1} identity.' -f $Process.ProcessId, $Role)
-    }
-    $signal = Invoke-LifecycleProbe -Command 'signal-break' -Arguments @('--pid', [string]$launcher.ProcessId)
-    if ($signal.signaled -and (Wait-ProcessExit -ProcessId ([int]$launcher.ProcessId) -TimeoutSeconds 25)) { return }
-    $current = Get-CimInstance Win32_Process -Filter ("ProcessId={0}" -f $launcher.ProcessId) -ErrorAction SilentlyContinue
-    if ($null -ne $current -and (Test-ProcessRole -Process $current -Role $Role)) {
-        Write-Warning ('Graceful {0} shutdown timed out; terminating verified PID tree {1}.' -f $Role, $launcher.ProcessId)
-        $previousPreference = $ErrorActionPreference
-        $ErrorActionPreference = 'Continue'
-        try { $null = & taskkill /PID ([string]$launcher.ProcessId) /T /F 2>$null }
-        finally { $ErrorActionPreference = $previousPreference }
-    }
-}
-
-function Wait-PortsReleased {
-    param([int[]]$Ports, [int]$TimeoutSeconds = 30)
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    do {
-        $occupied = @($Ports | Where-Object { @(Get-PortOwners -Port $_).Count -gt 0 })
-        if ($occupied.Count -eq 0) { return }
-        Start-Sleep -Milliseconds 500
-    } while ([DateTime]::UtcNow -lt $deadline)
-    throw ('Verified SwingLens ports were not released: {0}' -f ($occupied -join ', '))
-}
-
-function Stop-SwingLensProcesses {
-    Assert-SafeProcessTopology
-    $owners = @(Get-PortOwners -Port $script:WebPort)
-    if ($owners.Count -eq 1) {
-        Write-Host ('Web/API: requesting controlled shutdown of PID {0}' -f $owners[0].ProcessId)
-        $state = Get-WebRuntimeState
-        if ($null -ne $state -and $state.repoRoot -eq $script:RepoRoot) {
-            $stateProcess = Get-CimInstance Win32_Process -Filter ("ProcessId={0}" -f $state.webLauncherPid) -ErrorAction SilentlyContinue
-            if ($null -ne $stateProcess -and (Test-ProcessRole -Process $stateProcess -Role 'web')) {
-                Stop-VerifiedProcess -Process $stateProcess -Role 'web'
-            } else {
-                Stop-VerifiedProcess -Process $owners[0] -Role 'web'
+function Stop-RegisteredRemainders {
+    $processReport = Invoke-LifecycleProbe -Command 'processes'
+    foreach ($role in @('supervisor','worker')) {
+        $matching = @($processReport.processes | Where-Object { $_.role -eq $role })
+        if ($matching.Count -gt 1) { throw ("CONFLICT: multiple {0} processes belong to this checkout." -f $role) }
+        if ($matching.Count -eq 1) {
+            $signal = Invoke-LifecycleProbe -Command 'signal-registered' -Arguments @('--role', $role)
+            if (-not $signal.signaled) { throw ('CONFLICT: ' + $signal.error) }
+            if (-not (Wait-ProcessExit -ProcessId ([int]$signal.pid))) {
+                throw ("Verified {0} PID {1} did not exit; no forced PID-only kill was attempted." -f $role, $signal.pid)
             }
-        } else {
-            Stop-VerifiedProcess -Process $owners[0] -Role 'web'
         }
     }
-    Start-Sleep -Milliseconds 500
-    $supervisors = @(Get-PortOwners -Port $script:SupervisorPort)
-    if ($supervisors.Count -eq 1) {
-        Write-Warning 'Supervisor remained after web shutdown; stopping its verified PID.'
-        Stop-VerifiedProcess -Process $supervisors[0] -Role 'supervisor'
-    }
-    Start-Sleep -Milliseconds 500
-    $workers = @(Get-PortOwners -Port $script:WorkerPort)
-    if ($workers.Count -eq 1) {
-        Write-Warning 'Worker remained after supervisor shutdown; stopping its verified PID.'
-        Stop-VerifiedProcess -Process $workers[0] -Role 'worker'
-    }
-    Wait-PortsReleased -Ports @($script:WebPort, $script:WorkerPort, $script:SupervisorPort)
-    if (Test-Path -LiteralPath $script:RuntimeStatePath) {
-        Remove-Item -LiteralPath $script:RuntimeStatePath -Force
-    }
 }
 
-function Stop-SwingLensObservability {
-    if (-not (Test-DockerEngine)) {
-        Write-Host 'Observability: Docker Engine unavailable; no Docker action taken.'
+function Stop-SwingLensCore {
+    param($Config)
+    $owner = Get-WebOwner -Port ([int]$Config.web.port)
+    if ($null -eq $owner) {
+        if (Test-Path -LiteralPath $script:RuntimeStatePath) {
+            $runtime = Invoke-LifecycleProbe -Command 'runtime-state'
+            if ($runtime.stale) { Remove-Item -LiteralPath $script:RuntimeStatePath -Force }
+            elseif ($runtime.conflict) { throw ('CONFLICT: ' + $runtime.error) }
+        }
         return
     }
-    Push-Location $script:RepoRoot
-    $previousPreference = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $null = & docker compose -f $script:ObservabilityCompose stop grafana 2>$null
-        $grafanaExit = $LASTEXITCODE
-        $null = & docker compose -f $script:ObservabilityCompose stop prometheus 2>$null
-        $prometheusExit = $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $previousPreference
-        Pop-Location
-    }
-    if ($grafanaExit -ne 0 -or $prometheusExit -ne 0) {
-        throw 'Prometheus/Grafana stop did not complete successfully.'
-    }
-    Write-Host 'Observability: Grafana and Prometheus stopped; Docker Desktop remains running'
+    $runtime = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
+    $signal = Invoke-LifecycleProbe -Command 'signal-break' -Arguments @('--pid', [string]$runtime.state.web.pid, '--listener-pid', [string]$owner.ProcessId)
+    if (-not $signal.signaled) { throw ('CONFLICT: verified runtime was not signaled: ' + $signal.error) }
+    Wait-PortReleased -Port ([int]$Config.web.port)
+    Stop-RegisteredRemainders
+    if (Test-Path -LiteralPath $script:RuntimeStatePath) { Remove-Item -LiteralPath $script:RuntimeStatePath -Force }
 }
 
 function Stop-AuthoritativeDatabase {
-    param($DatabaseReport)
-    if (-not (Get-ManagePostgres)) {
-        Write-Host 'Local PostgreSQL: left running by SWINGLENS_MANAGE_POSTGRES=false'
-        return
+    param($Config)
+    if (-not $Config.postgres.managementEnabled) { Write-Host 'Local PostgreSQL: left running by canonical settings'; return }
+    $null = Invoke-LifecycleProbe -Command 'provenance' | ForEach-Object {
+        if (-not $_.verified) { throw 'Authoritative PostgreSQL provenance was lost; service was not stopped.' }
     }
-    $service = Resolve-AuthoritativePostgresService -DatabaseReport $DatabaseReport
-    if ($null -eq $service) {
-        if ($DatabaseReport.reachable) {
-            throw 'Authoritative PostgreSQL service could not be identified; database was not stopped.'
-        }
-        Write-Host 'Local PostgreSQL: already unavailable'
-        return
+    Stop-Service -Name $Config.postgres.service
+}
+
+function Get-SwingLensStatusReport {
+    param($Config)
+    $database = Invoke-LifecycleProbe -Command 'database'
+    $owner = Get-WebOwner -Port ([int]$Config.web.port)
+    $runtimeValid = $false
+    $readiness = 'failed'
+    $conflict = $false
+    if ($null -ne $owner) {
+        $runtime = Invoke-LifecycleProbe -Command 'runtime-state' -Arguments @('--listener-pid', [string]$owner.ProcessId)
+        $runtimeValid = [bool]$runtime.valid
+        $conflict = -not $runtimeValid
+        if ($runtimeValid) { $readiness = Get-ReadinessState -WebPort ([int]$Config.web.port) }
     }
-    $current = Get-Service -Name $service.Name
-    if ($current.Status -ne 'Stopped') {
-        Write-Host ('Local PostgreSQL: stopping verified service {0}' -f $service.Name)
-        Stop-Service -Name $service.Name
-        $current.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(60))
-    } else {
-        Write-Host ('Local PostgreSQL: verified service {0} already stopped' -f $service.Name)
+    elseif (Test-Path -LiteralPath $script:RuntimeStatePath) {
+        $state = Invoke-LifecycleProbe -Command 'runtime-state'
+        $conflict = -not [bool]$state.stale
     }
+    $docker = Test-DockerEngine
+    $prometheus = $docker -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:9090/-/ready').StatusCode -eq 200
+    $grafana = $docker -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:3000/api/health').StatusCode -eq 200
+    $roleProcesses = @((Invoke-LifecycleProbe -Command 'processes').processes | Where-Object { $_.role -in @('worker','supervisor') })
+    if ($conflict) { $overall = 'CONFLICT' }
+    elseif ($null -eq $owner -and $roleProcesses.Count -gt 0) { $overall = 'FAILED' }
+    elseif ($null -eq $owner) { $overall = 'STOPPED' }
+    elseif (-not $database.reachable -or -not $database.schemaAtHead -or $readiness -eq 'failed') { $overall = 'FAILED' }
+    elseif ($readiness -in @('degraded', 'optional_unavailable') -or -not $prometheus -or -not $grafana) { $overall = 'DEGRADED' }
+    else { $overall = 'HEALTHY' }
+    return [pscustomobject]@{ Database=$database; Owner=$owner; RuntimeValid=$runtimeValid; Readiness=$readiness; Docker=$docker; Prometheus=$prometheus; Grafana=$grafana; Overall=$overall }
+}
+
+function Write-SwingLensStatus {
+    param($Config)
+    $status = Get-SwingLensStatusReport -Config $Config
+    Write-Host ''
+    Write-Host 'SwingLens Local Stack'
+    Write-Host '----------------------------------------'
+    Write-Host ('Database           {0}' -f $(if ($status.Database.reachable) { 'READY' } else { 'UNAVAILABLE' }))
+    Write-Host ('Schema             {0}' -f $(if ($status.Database.schemaAtHead) { 'HEAD' } else { 'MISMATCH/UNAVAILABLE' }))
+    Write-Host ('Web/API            {0}' -f $(if ($status.RuntimeValid) { $status.Readiness.ToUpperInvariant() } elseif ($status.Owner) { 'CONFLICT' } else { 'STOPPED' }))
+    Write-Host ('Prometheus         {0}' -f $(if ($status.Prometheus) { 'READY' } else { 'UNAVAILABLE' }))
+    Write-Host ('Grafana            {0}' -f $(if ($status.Grafana) { 'READY' } else { 'UNAVAILABLE' }))
+    Write-Host ('OVERALL            {0}' -f $status.Overall)
+    return $status
 }
 
 function Start-SwingLensStack {
-    $database = Start-AuthoritativeDatabase -DatabaseReport (Get-DatabaseReport)
-    Invoke-AlembicUpgrade
-    $verified = Get-DatabaseReport
-    if (-not $verified.reachable -or -not $verified.schemaAtHead) {
-        throw 'Mandatory database/Alembic gate failed before web startup.'
+    param($Config)
+    $existing = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
+    if ($null -ne $existing) {
+        Start-SwingLensWeb -Config $Config
     }
-    Start-SwingLensWeb
-    Start-SwingLensObservability
-    $null = Write-SwingLensStatus
+    else {
+        $null = Start-AuthoritativeDatabase -Config $Config
+        Invoke-AlembicUpgrade
+        $verified = Invoke-LifecycleProbe -Command 'database'
+        if (-not $verified.reachable -or -not $verified.schemaAtHead) { throw 'Mandatory database/Alembic gate failed.' }
+        Start-SwingLensWeb -Config $Config
+    }
+    $null = Start-SwingLensObservability -Config $Config
+    $status = Write-SwingLensStatus -Config $Config
+    if ($status.Overall -eq 'HEALTHY') { return 0 }
+    if ($status.Overall -eq 'DEGRADED') { return 2 }
+    throw ('Start certification failed with state ' + $status.Overall)
 }
 
 function Stop-SwingLensStack {
-    $database = Get-DatabaseReport
-    $active = Invoke-LifecycleProbe -Command 'active-jobs'
-    if (-not $active.reachable -and @(Get-PortOwners -Port $script:WebPort).Count -gt 0) {
-        throw 'Cannot verify durable job state while the database is unavailable; stop aborted.'
+    param($Config)
+    $owner = Get-WebOwner -Port ([int]$Config.web.port)
+    $roleProcesses = @((Invoke-LifecycleProbe -Command 'processes').processes | Where-Object { $_.role -in @('worker','supervisor') })
+    if ($null -ne $owner -or $roleProcesses.Count -gt 0) {
+        Request-WorkerQuiesce
+        try {
+            if ($null -ne $owner) { Stop-SwingLensCore -Config $Config }
+            else { Stop-RegisteredRemainders }
+        }
+        catch { $null = Invoke-LifecycleProbe -Command 'resume'; throw }
     }
-    if ($null -ne $active.activeCount -and [int]$active.activeCount -gt 0) {
-        $summary = @($active.active | ForEach-Object { '{0}:{1}:{2}' -f $_.id, $_.job_type, $_.status }) -join ', '
-        throw ('Active durable jobs prevent a safe stop: {0}' -f $summary)
-    }
-    Stop-SwingLensProcesses
-    Stop-SwingLensObservability
-    Stop-AuthoritativeDatabase -DatabaseReport $database
-    $null = Write-SwingLensStatus
+    elseif (Test-Path -LiteralPath $script:RuntimeStatePath) { Stop-SwingLensCore -Config $Config }
+    $null = Stop-SwingLensObservability
+    Stop-AuthoritativeDatabase -Config $Config
+    $status = Write-SwingLensStatus -Config $Config
+    if ($status.Overall -eq 'STOPPED' -or ($null -eq $status.Owner -and -not $Config.postgres.managementEnabled)) { return 0 }
+    throw 'Stop was incomplete or unsafe.'
 }
 
 function Invoke-SwingLensLifecycle {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][ValidateSet('start', 'stop', 'restart', 'status')][string]$Action)
-    Import-SwingLensEnvironment
+    param([Parameter(Mandatory = $true)][ValidateSet('start','stop','restart','status')][string]$Action)
     Push-Location $script:RepoRoot
     try {
-        switch ($Action) {
-            'start' { Start-SwingLensStack }
-            'stop' { Stop-SwingLensStack }
-            'restart' { Stop-SwingLensStack; Start-SwingLensStack }
-            'status' { $null = Write-SwingLensStatus }
+        $config = Get-LifecycleConfig
+        if ($Action -eq 'status') {
+            $status = Write-SwingLensStatus -Config $config
+            if ($status.Overall -in @('HEALTHY','STOPPED')) { return 0 }
+            if ($status.Overall -eq 'DEGRADED') { return 2 }
+            return 1
+        }
+        return Invoke-WithLifecycleLock -Action $Action -TimeoutSeconds ([int]$config.lockTimeoutSeconds) -Body {
+            switch ($Action) {
+                'start' { Start-SwingLensStack -Config $config }
+                'stop' { Stop-SwingLensStack -Config $config }
+                'restart' {
+                    $null = Stop-SwingLensStack -Config $config
+                    Start-SwingLensStack -Config $config
+                }
+            }
         }
     }
     finally { Pop-Location }

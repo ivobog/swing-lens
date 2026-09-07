@@ -9,8 +9,8 @@ Use the unified lifecycle; it starts the core against authoritative local Window
 then attempts this optional Docker-only observability branch:
 
 ```powershell
-.\swinglens.ps1 start
-.\swinglens.ps1 status
+pwsh .\swinglens.ps1 start
+pwsh .\swinglens.ps1 status
 ```
 
 If Docker Engine is unavailable, SwingLens core remains running and status reports `DEGRADED`.
