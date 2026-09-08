@@ -4,10 +4,12 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Session
 
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
+    MarketCalculationContext,
     MarketRegimeSnapshot,
     PriceBar,
     RankingResult,
@@ -17,6 +19,7 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.market_clock_service import MarketClockService
 from app.services.setup_lifecycle.source_loader import (
     SetupLifecycleSourceLoader,
     _latest_price_bar_history_statement,
@@ -64,6 +67,37 @@ def test_build_run_source_context_indexes_ticker_sources_and_context() -> None:
     assert ticker_context.sector_rotation_snapshot is sector_snapshot
     assert ticker_context.sector_rotation_row is sector_row
     assert ticker_context.latest_completed_bar is not None
+
+
+def test_source_loader_preserves_resolved_market_context_in_run_context() -> None:
+    cutoff = (
+        MarketClockService()
+        .cutoff_for(
+            datetime(2026, 9, 8, 10, 6, tzinfo=UTC),
+            reason="FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+        )
+        .with_context_id(42)
+    )
+    context_row = MarketCalculationContext(
+        id=42,
+        pipeline_run_id=3,
+        upload_run_id=7,
+        cutoff_at=cutoff.cutoff_at,
+        exchange_timezone=cutoff.exchange_timezone,
+        latest_completed_session=cutoff.latest_completed_session,
+        daily_bar_ready_at=cutoff.daily_bar_ready_at,
+        calendar_version=cutoff.calendar_version,
+        bar_readiness_version=cutoff.bar_readiness_version,
+        cutoff_reason=cutoff.cutoff_reason,
+    )
+    db = SourceLoaderSession(context_row)
+    loader = SetupLifecycleSourceLoader(latest_bar_projection_enabled=False)
+    loader._load_price_bars = lambda *_args, **_kwargs: ()
+
+    context = loader.load_run_context(db, run_id=7)
+
+    assert context.market_cutoff == cutoff
+    assert context.tickers[0].market_cutoff == cutoff
 
 
 def test_latest_completed_bar_prefers_latest_trade_bar() -> None:
@@ -177,6 +211,28 @@ class StatementRecordingDb:
     def scalar(self, statement):
         self.statements.append(statement)
         return None
+
+
+class SourceLoaderSession(Session):
+    def __init__(self, context_row: MarketCalculationContext) -> None:
+        self.context_row = context_row
+        self.upload_run = _upload_run()
+        self.raw_row = _raw_row("MSFT")
+
+    def get(self, model, identity):
+        if model is UploadRun and identity == 7:
+            return self.upload_run
+        return None
+
+    def scalar(self, statement):
+        if "market_calculation_contexts" in str(statement):
+            return self.context_row
+        return None
+
+    def scalars(self, statement):
+        if "raw_company_rows" in str(statement):
+            return iter((self.raw_row,))
+        return iter(())
 
 
 def _upload_run() -> UploadRun:

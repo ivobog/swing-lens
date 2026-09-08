@@ -268,9 +268,7 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
         "_companies_for_tickers",
         lambda _db, _tickers: {"AAA": company_a, "BBB": company_b},
     )
-    monkeypatch.setattr(
-        capture_module, "_existing_snapshot_company_ids", lambda *_args: set()
-    )
+    monkeypatch.setattr(capture_module, "_existing_snapshot_company_ids", lambda *_args: set())
     monkeypatch.setattr(
         capture_module,
         "_revision_features_for_companies",
@@ -309,9 +307,7 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
             return SimpleNamespace(price_response_quality=None)
 
     class Snapshot:
-        config = SimpleNamespace(
-            config_hash="1", engine=SimpleNamespace(calculation_version="1")
-        )
+        config = SimpleNamespace(config_hash="1", engine=SimpleNamespace(calculation_version="1"))
 
         def build_snapshot(self, **kwargs):
             return SimpleNamespace(
@@ -611,12 +607,29 @@ def test_pipeline_job_chain_enqueues_each_stage_in_order(monkeypatch: pytest.Mon
     enabled = CeriFeatureFlags(True, True, True, True, True, True, True)
     monkeypatch.setattr("app.services.ceri.job_handlers.ceri_flags", lambda: enabled)
     db = TraceDb()
+    temporal = {
+        "calculation_context_id": 42,
+        "cutoff_at": "2026-09-08T10:06:38+00:00",
+        "as_of_session": "2026-09-04",
+        "calendar_version": "swinglens-us-equities-v1",
+    }
+    frozen_context = object()
+    monkeypatch.setattr(
+        "app.services.ceri.job_handlers.resolve_pipeline_market_context",
+        lambda *_args, **_kwargs: frozen_context,
+    )
 
     ingest_job = BackgroundJob(
         id=1,
         job_type=CERI_PROVIDER_INGEST,
         related_run_id=77,
-        payload_json={"provider": "manual", "dataset": "estimates", "ticker": "MSFT", "run_id": 77},
+        payload_json={
+            "provider": "manual",
+            "dataset": "estimates",
+            "ticker": "MSFT",
+            "run_id": 77,
+            **temporal,
+        },
     )
     ingest_result = execute_provider_ingest_job(
         db, ingest_job, ingestion_service=FakeIngestionService()
@@ -656,6 +669,8 @@ def test_pipeline_job_chain_enqueues_each_stage_in_order(monkeypatch: pytest.Mon
         CERI_CHANGE_DETECTION,
         CERI_ALERT_REBUILD,
     ]
+    for child in (normalize_job, feature_job, capture_job, change_job, alert_job):
+        assert {key: child.payload_json[key] for key in temporal} == temporal
 
 
 class ContextJsonResponse:
@@ -752,7 +767,7 @@ class FakeFeatureService:
 
 
 class FakeCaptureService:
-    def capture_run(self, db, run_id):
+    def capture_run(self, db, run_id, *, market_cutoff=None):
         return SimpleNamespace(
             as_dict=lambda: {
                 "score_snapshots": 1,

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
 from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
+from app.services.market_calculation_context_service import PipelineCalculationContextError
+from app.services.market_clock_service import MarketClockService
 from app.services.setup_lifecycle.canonicalization import CanonicalizationResult
 from app.services.setup_lifecycle.change_detector import SignalChangeDetectionResult
 from app.services.setup_lifecycle.config import load_setup_lifecycle_config
@@ -134,15 +136,72 @@ def test_evaluation_service_reuses_valid_capture_handoff_without_recapturing() -
     assert capture_service.calls == 0
 
 
+def test_pipeline_owned_evaluation_passes_frozen_context_to_recapture_after_24_hours(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = FakeEvaluationRepository()
+    capture_service = FakeCaptureService(
+        SnapshotCaptureResult(
+            evaluation_run_id=1,
+            status=EvaluationStatus.COMPLETED.value,
+            captured=0,
+        )
+    )
+    service = SetupLifecycleEvaluationService(
+        repository=repository,
+        capture_service=capture_service,
+        canonicalizer=FakeCanonicalizer(CanonicalizationResult()),
+        change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
+        episode_service=FakeEpisodeService(),
+        alert_service=FakeAlertService(),
+        config=load_setup_lifecycle_config(),
+    )
+    cutoff = (
+        MarketClockService()
+        .cutoff_for(
+            datetime(2026, 9, 8, 10, 6, tzinfo=UTC),
+            reason="FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+        )
+        .with_context_id(42)
+    )
+    monkeypatch.setattr(
+        "app.services.setup_lifecycle.evaluation_service.assert_pipeline_calculation_context",
+        lambda *_args, **_kwargs: cutoff,
+    )
+    delayed_execution_at = cutoff.cutoff_at + timedelta(hours=24)
+    delayed_wall_clock_context = MarketClockService().cutoff_for(
+        delayed_execution_at,
+        reason="DELAYED_EXECUTION_WOULD_BE_WRONG",
+    )
+
+    service.evaluate_run(
+        db=object(),
+        run_id=7,
+        market_cutoff=cutoff,
+        pipeline_run_id=3,
+    )
+
+    assert delayed_wall_clock_context.cutoff_at != cutoff.cutoff_at
+    assert capture_service.kwargs["market_cutoff"] == cutoff
+
+
+def test_pipeline_owned_evaluation_without_context_fails_before_writes() -> None:
+    repository = FakeEvaluationRepository()
+    service = SetupLifecycleEvaluationService(repository=repository)
+
+    with pytest.raises(PipelineCalculationContextError, match="missing"):
+        service.evaluate_run(db=object(), run_id=7, pipeline_run_id=3)
+
+    assert repository.created == []
+
+
 def test_evaluation_service_loads_prior_history_once_and_rolls_it_forward() -> None:
     repository = FakeEvaluationRepository()
     repository.snapshots = [
         _snapshot(10, data_as_of_date=date(2026, 8, 4)),
         _snapshot(11, data_as_of_date=date(2026, 8, 5)),
     ]
-    repository.histories = {
-        ("MSFT", "1d"): [_snapshot(9, data_as_of_date=date(2026, 8, 1))]
-    }
+    repository.histories = {("MSFT", "1d"): [_snapshot(9, data_as_of_date=date(2026, 8, 1))]}
     episodes = FakeEpisodeService()
     service = SetupLifecycleEvaluationService(
         repository=repository,
@@ -243,9 +302,11 @@ class FakeCaptureService:
     def __init__(self, result: SnapshotCaptureResult) -> None:
         self.result = result
         self.calls = 0
+        self.kwargs = {}
 
     def capture_snapshots_for_run(self, _db, _run_id, **_kwargs) -> SnapshotCaptureResult:
         self.calls += 1
+        self.kwargs = _kwargs
         return self.result
 
 

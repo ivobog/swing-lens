@@ -102,8 +102,7 @@ def test_ceri_provider_schedule_routes_exclusively_to_batched_workflow(
     )
     monkeypatch.setattr(
         "app.services.ceri.batched_workflow.schedule_ceri_batched_workflow",
-        lambda _db, run_id: calls.append(run_id)
-        or SimpleNamespace(provider_batches=68),
+        lambda _db, run_id: calls.append(run_id) or SimpleNamespace(provider_batches=68),
     )
 
     assert _schedule_ceri_provider_ingest(object(), run_id=95) == 68
@@ -588,7 +587,9 @@ def test_execute_full_pipeline_uses_default_setup_lifecycle_hooks_when_enabled(
         calls.append("default_setup_capture")
         return {"snapshots_captured": 1, "canonical_snapshots": 0, "failed": 0}
 
-    def evaluate(_db, _run_id):
+    def evaluate(_db, _run_id, *, market_cutoff, pipeline_run_id):
+        assert market_cutoff is not None
+        assert pipeline_run_id == 3
         calls.append("default_setup_evaluate")
         return {"canonical_snapshots": 1, "change_events": 0, "failed": 0}
 
@@ -850,6 +851,7 @@ def test_allow_cache_fallback_persists_degraded_metadata_and_skips_winner_captur
     assert audit["actual_latest_data_session"] == "2026-08-14"
     assert audit["winner_prediction_capture_skip_reason"] == "CACHE_FALLBACK_MARKET_DATA"
 
+
 def test_execute_full_pipeline_does_not_commit_step_completion_after_lease_loss() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
     calls = []
@@ -986,7 +988,16 @@ def _dependencies(
         calls.append("setup_capture")
         return setup_capture_result or {}
 
-    def setup_evaluate(_db, _run_id, *, capture_result=None):
+    def setup_evaluate(
+        _db,
+        _run_id,
+        *,
+        capture_result=None,
+        market_cutoff=None,
+        pipeline_run_id=None,
+    ):
+        assert market_cutoff is not None
+        assert pipeline_run_id == 3
         calls.append("setup_evaluate")
         if capture_result is not None:
             calls.append("setup_evaluate_handoff")
@@ -1139,8 +1150,7 @@ class PipelineExecutorFakeDb:
             (
                 value
                 for value in params.values()
-                if isinstance(value, str)
-                and any(step.step_name == value for step in self.steps)
+                if isinstance(value, str) and any(step.step_name == value for step in self.steps)
             ),
             None,
         )

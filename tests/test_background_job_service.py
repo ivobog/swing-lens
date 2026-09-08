@@ -243,6 +243,13 @@ def test_mark_job_cancelled_finishes_and_records_cancel_request() -> None:
 
 def test_failed_job_requeues_with_backoff_until_retries_are_exhausted() -> None:
     job = _running_job(max_retries=2)
+    job.payload_json = {
+        "calculation_context_id": 42,
+        "cutoff_at": "2026-09-08T10:06:38+00:00",
+        "as_of_session": "2026-09-04",
+        "calendar_version": "swinglens-us-equities-v1",
+    }
+    original_payload = dict(job.payload_json)
     db = FakeDb(existing=job)
 
     mark_job_failed_or_retry(db, job, "temporary failure", execution_token=job.execution_token)
@@ -273,6 +280,7 @@ def test_failed_job_requeues_with_backoff_until_retries_are_exhausted() -> None:
     assert job.status == JobStatus.FAILED
     assert job.retry_count == 3
     assert job.completed_at is not None
+    assert job.payload_json == original_payload
 
 
 def test_failed_job_error_message_is_sanitized_and_truncated() -> None:
@@ -365,6 +373,11 @@ def test_is_cancel_requested_reads_persistent_flag() -> None:
 
 def test_recover_stale_jobs_requeues_jobs_with_retries_remaining() -> None:
     stale = _running_job(retry_count=1, max_retries=3)
+    stale.payload_json = {
+        "calculation_context_id": 42,
+        "cutoff_at": "2026-09-08T10:06:38+00:00",
+    }
+    original_payload = dict(stale.payload_json)
     db = FakeDb(stale_jobs=[stale])
 
     count = recover_stale_jobs(db, stale_after_seconds=900)
@@ -383,6 +396,7 @@ def test_recover_stale_jobs_requeues_jobs_with_retries_remaining() -> None:
     assert "execution_token" not in lease_event
     assert lease_event["execution_token_hash"]
     assert db.flushes == 1
+    assert stale.payload_json == original_payload
 
 
 def test_restarted_worker_recovers_abandoned_job_before_long_lease_expires() -> None:
@@ -390,6 +404,11 @@ def test_restarted_worker_recovers_abandoned_job_before_long_lease_expires() -> 
         lease_expires_at=datetime.now(UTC) + timedelta(minutes=10),
     )
     abandoned.heartbeat_at = datetime.now(UTC) - timedelta(seconds=45)
+    abandoned.payload_json = {
+        "calculation_context_id": 42,
+        "cutoff_at": "2026-09-08T10:06:38+00:00",
+    }
+    original_payload = dict(abandoned.payload_json)
     db = FakeDb(stale_jobs=[abandoned])
 
     count = recover_abandoned_jobs_for_worker(
@@ -402,6 +421,7 @@ def test_restarted_worker_recovers_abandoned_job_before_long_lease_expires() -> 
     assert abandoned.status == JobStatus.QUEUED
     assert abandoned.execution_token is None
     assert abandoned.worker_id is None
+    assert abandoned.payload_json == original_payload
 
 
 def test_recover_stale_jobs_marks_exhausted_jobs_stale() -> None:

@@ -20,6 +20,7 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.market_clock_service import MarketClockService
 from app.services.setup_lifecycle.config import load_setup_lifecycle_config
 from app.services.setup_lifecycle.enums import DataQualityLabel, EvaluationStatus
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
@@ -64,6 +65,28 @@ def test_snapshot_builder_normalizes_promoted_fields_signals_and_source_ids() ->
     assert built.required_feature_coverage == 1.0
     assert built.dto.promoted_fields["required_feature_coverage"] == Decimal("1.0")
     assert "MISSING_REQUIRED_CLOSE_PRICE" not in built.dto.warning_flags
+
+
+def test_snapshot_builder_persists_pipeline_temporal_lineage() -> None:
+    cutoff = (
+        MarketClockService()
+        .cutoff_for(
+            datetime(2026, 9, 8, 10, 6, tzinfo=UTC),
+            reason="FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+        )
+        .with_context_id(42)
+    )
+    built = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()).build(
+        _ticker_context(market_cutoff=cutoff)
+    )
+    snapshot = SetupSignalSnapshot()
+
+    SetupLifecycleRepository()._apply_snapshot_fields(snapshot, built.dto)
+
+    assert snapshot.calculation_context_id == 42
+    assert snapshot.calculation_cutoff_at == cutoff.cutoff_at
+    assert snapshot.input_as_of_session == cutoff.latest_completed_session
+    assert snapshot.calendar_version == cutoff.calendar_version
 
 
 def test_populated_close_is_counted_but_missing_close_remains_null_and_warns() -> None:
@@ -411,6 +434,7 @@ def _ticker_context(
     sector_rotation_row=_MISSING,
     price_bars: tuple[PriceBar, ...] | None = None,
     raw_json=_MISSING,
+    market_cutoff=None,
 ) -> TickerSourceContext:
     upload = upload_run or _upload_run()
     raw = _raw_row(ticker)
@@ -439,6 +463,7 @@ def _ticker_context(
         if sector_rotation_row is _MISSING
         else sector_rotation_row,
         price_bars=price_bars if price_bars is not None else (_bar(date(2026, 8, 1), close=101),),
+        market_cutoff=market_cutoff,
     )
 
 
