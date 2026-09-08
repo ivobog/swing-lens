@@ -4,7 +4,7 @@ import base64
 import binascii
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -33,7 +33,10 @@ from app.services.setup_lifecycle.enums import (
     LifecycleState,
     SetupFamily,
 )
-from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+from app.services.setup_lifecycle.repository import (
+    SetupLifecycleRepository,
+    current_canonical_snapshot_predicate,
+)
 from app.services.us_market_calendar import next_us_trading_day
 
 
@@ -137,7 +140,7 @@ class SetupLifecycleQueryService:
             SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id,
         )
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
-            signal_statement = signal_statement.where(SetupSignalSnapshot.is_canonical.is_(True))
+            signal_statement = signal_statement.where(current_canonical_snapshot_predicate())
         signal_statement = _apply_signal_change_filters(signal_statement, query.filters)
 
         cursor_metadata = _decode_change_cursor(query.cursor, query=query)
@@ -239,7 +242,7 @@ class SetupLifecycleQueryService:
             ~has_signal_change,
         )
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
-            statement = statement.where(SetupSignalSnapshot.is_canonical.is_(True))
+            statement = statement.where(current_canonical_snapshot_predicate())
         statement = _apply_snapshot_filters(statement, query.filters)
         total = _count(db, statement)
         low_confidence = _count(db, statement.where(SetupSignalSnapshot.confidence_score < 70))
@@ -408,10 +411,16 @@ class SetupLifecycleQueryService:
             if has_more and page
             else None
         )
+        current_selection_ids = self.repository.current_selection_snapshot_ids(
+            db, {row.id for row in snapshots}
+        )
         return {
             "ticker": normalized,
             "timeframe": timeframe,
-            "snapshots": [snapshot_payload(row) for row in snapshots],
+            "snapshots": [
+                snapshot_payload(row, is_current_canonical=row.id in current_selection_ids)
+                for row in snapshots
+            ],
             "episodes": [episode_payload(row) for row in episodes],
             "lifecycle_events": page_lifecycle,
             "signal_changes": page_signals,
@@ -456,9 +465,15 @@ class SetupLifecycleQueryService:
             }
         )
         snapshots = self.repository.get_snapshots_by_ids(db, snapshot_ids)
+        current_selection_ids = self.repository.current_selection_snapshot_ids(
+            db, {row.id for row in snapshots}
+        )
         return {
             "episode": episode_payload(episode),
-            "snapshots": [snapshot_payload(row) for row in snapshots],
+            "snapshots": [
+                snapshot_payload(row, is_current_canonical=row.id in current_selection_ids)
+                for row in snapshots
+            ],
             "lifecycle_events": [lifecycle_event_payload(row) for row in events],
             "signal_changes": [signal_change_payload(row) for row in changes],
         }
@@ -493,7 +508,7 @@ class SetupLifecycleQueryService:
     def diagnostics(self, db: Session) -> dict[str, Any]:
         latest_canonical_date = db.scalar(
             select(func.max(SetupSignalSnapshot.data_as_of_date)).where(
-                SetupSignalSnapshot.is_canonical.is_(True)
+                current_canonical_snapshot_predicate()
             )
         )
         latest_success = db.scalar(
@@ -618,7 +633,12 @@ def episode_payload(episode: SetupLifecycleEpisode) -> dict[str, Any]:
     }
 
 
-def snapshot_payload(snapshot: SetupSignalSnapshot) -> dict[str, Any]:
+def snapshot_payload(
+    snapshot: SetupSignalSnapshot,
+    *,
+    is_current_canonical: bool | None = None,
+) -> dict[str, Any]:
+    is_current = snapshot.is_canonical if is_current_canonical is None else is_current_canonical
     return {
         "id": snapshot.id,
         "run_id": snapshot.run_id,
@@ -636,13 +656,14 @@ def snapshot_payload(snapshot: SetupSignalSnapshot) -> dict[str, Any]:
         "data_as_of_date": _date_or_none(snapshot.data_as_of_date),
         "calculated_at": _datetime_or_none(snapshot.calculated_at),
         "origin_type": snapshot.origin_type,
-        "is_canonical": snapshot.is_canonical,
+        "is_canonical": is_current,
+        "canonical_at_decision": snapshot.is_canonical,
         "record_status": (
             "CURRENT_CANONICAL"
+            if is_current
+            else "HISTORICAL_EVIDENCE"
             if snapshot.is_canonical
-            else "SUPERSEDED"
-            if snapshot.superseded_by_snapshot_id is not None
-            else "NONCANONICAL"
+            else "NONCANONICAL_EVIDENCE"
         ),
         "canonical_reason": snapshot.canonical_reason,
         "superseded_by_snapshot_id": snapshot.superseded_by_snapshot_id,
@@ -704,6 +725,7 @@ class _MarketChangePayloadContext:
     previous_by_current_snapshot: dict[int, SetupSignalSnapshot]
     lifecycle_by_snapshot: dict[int, SetupLifecycleEvent]
     episodes: dict[int, SetupLifecycleEpisode]
+    current_selection_snapshot_ids: set[int] = field(default_factory=set)
 
 
 def _prime_market_change_payload_context(
@@ -763,7 +785,7 @@ def _prime_market_change_payload_context(
             select(SetupSignalSnapshot)
             .where(SetupSignalSnapshot.ticker == current_alias.ticker)
             .where(SetupSignalSnapshot.timeframe == current_alias.timeframe)
-            .where(SetupSignalSnapshot.is_canonical.is_(True))
+            .where(current_canonical_snapshot_predicate())
             .where(SetupSignalSnapshot.data_as_of_date < current_alias.data_as_of_date)
             .order_by(
                 SetupSignalSnapshot.data_as_of_date.desc(),
@@ -796,6 +818,9 @@ def _prime_market_change_payload_context(
         previous_by_current_snapshot=previous_by_current,
         lifecycle_by_snapshot=lifecycle_by_snapshot,
         episodes=_rows_by_id(db, SetupLifecycleEpisode, episode_ids),
+        current_selection_snapshot_ids=SetupLifecycleRepository().current_selection_snapshot_ids(
+            db, current_ids
+        ),
     )
 
 
@@ -825,6 +850,16 @@ def market_change_payload(
         if current_snapshot_id
         else None
     )
+    is_current_selection = (
+        current is not None
+        and (
+            current.id in context.current_selection_snapshot_ids
+            if context is not None
+            else bool(
+                SetupLifecycleRepository().current_selection_snapshot_ids(db, {current.id})
+            )
+        )
+    )
     previous = (
         context.explicit_previous_snapshots.get(previous_snapshot_id or 0)
         if context is not None
@@ -839,7 +874,7 @@ def market_change_payload(
             select(SetupSignalSnapshot)
             .where(SetupSignalSnapshot.ticker == current.ticker)
             .where(SetupSignalSnapshot.timeframe == current.timeframe)
-            .where(SetupSignalSnapshot.is_canonical.is_(True))
+            .where(current_canonical_snapshot_predicate())
             .where(SetupSignalSnapshot.data_as_of_date < current.data_as_of_date)
             .order_by(
                 SetupSignalSnapshot.data_as_of_date.desc(),
@@ -999,13 +1034,14 @@ def market_change_payload(
         "previous_snapshot_id": getattr(previous, "id", None),
         "source_run_id": getattr(current, "run_id", None),
         "origin_type": getattr(current, "origin_type", None),
-        "is_canonical": getattr(current, "is_canonical", None),
+        "is_canonical": is_current_selection if current is not None else None,
+        "canonical_at_decision": getattr(current, "is_canonical", None),
         "record_status": (
             "CURRENT_CANONICAL"
+            if is_current_selection
+            else "HISTORICAL_EVIDENCE"
             if getattr(current, "is_canonical", False)
-            else "SUPERSEDED"
-            if getattr(current, "superseded_by_snapshot_id", None) is not None
-            else "NONCANONICAL"
+            else "NONCANONICAL_EVIDENCE"
         ),
         "superseded_by_snapshot_id": getattr(current, "superseded_by_snapshot_id", None),
         "engine_version": getattr(current, "engine_version", None),
@@ -1032,6 +1068,7 @@ class _AlertPayloadContext:
     lifecycle_events: dict[int, SetupLifecycleEvent]
     signal_changes: dict[int, SignalChangeEvent]
     snapshots: dict[int, SetupSignalSnapshot]
+    current_selection_snapshot_ids: set[int] = field(default_factory=set)
 
 
 def _prime_alert_payload_context(
@@ -1051,6 +1088,9 @@ def _prime_alert_payload_context(
         lifecycle_events=lifecycle_events,
         signal_changes=signal_changes,
         snapshots=_snapshot_rows_by_id(db, snapshot_ids),
+        current_selection_snapshot_ids=SetupLifecycleRepository().current_selection_snapshot_ids(
+            db, snapshot_ids
+        ),
     )
 
 
@@ -1125,6 +1165,10 @@ def alert_payload(
             else None
         )
         source_snapshot = context.snapshots.get(snapshot_id or 0)
+        is_current_selection = (
+            source_snapshot is not None
+            and source_snapshot.id in context.current_selection_snapshot_ids
+        )
     else:
         rule = getattr(alert, "alert_rule", None)
         if db is not None and (rule is None or getattr(rule, "id", None) is None):
@@ -1145,6 +1189,13 @@ def alert_payload(
             else db.get(SetupSignalSnapshot, lifecycle.snapshot_id)
             if db is not None and lifecycle is not None and lifecycle.snapshot_id
             else None
+        )
+        is_current_selection = bool(
+            source_snapshot is not None
+            and db is not None
+            and SetupLifecycleRepository().current_selection_snapshot_ids(
+                db, {source_snapshot.id}
+            )
         )
     evidence = dict(alert.evidence_json or {})
     source_type = _alert_source_type(rule, lifecycle, change, evidence)
@@ -1186,12 +1237,13 @@ def alert_payload(
         or getattr(change, "current_snapshot_id", None),
         "previous_snapshot_id": getattr(change, "previous_snapshot_id", None),
         "origin_type": getattr(source_snapshot, "origin_type", None),
-        "is_canonical": getattr(source_snapshot, "is_canonical", None),
+        "is_canonical": is_current_selection if source_snapshot is not None else None,
+        "canonical_at_decision": getattr(source_snapshot, "is_canonical", None),
         "record_status": (
             "CURRENT_CANONICAL"
+            if is_current_selection
+            else "HISTORICAL_EVIDENCE"
             if getattr(source_snapshot, "is_canonical", False)
-            else "SUPERSEDED"
-            if getattr(source_snapshot, "superseded_by_snapshot_id", None) is not None
             else "CURRENT"
             if lifecycle is not None and lifecycle.is_current_version
             else "SUPERSEDED"
@@ -1239,7 +1291,7 @@ def _prime_no_material_payload_context(
         select(SetupSignalSnapshot)
         .where(SetupSignalSnapshot.ticker == current_alias.ticker)
         .where(SetupSignalSnapshot.timeframe == current_alias.timeframe)
-        .where(SetupSignalSnapshot.is_canonical.is_(True))
+        .where(current_canonical_snapshot_predicate())
         .where(SetupSignalSnapshot.data_as_of_date < current_alias.data_as_of_date)
         .order_by(
             SetupSignalSnapshot.data_as_of_date.desc(),
@@ -1291,7 +1343,7 @@ def no_material_change_payload(
             select(SetupSignalSnapshot)
             .where(SetupSignalSnapshot.ticker == snapshot.ticker)
             .where(SetupSignalSnapshot.timeframe == snapshot.timeframe)
-            .where(SetupSignalSnapshot.is_canonical.is_(True))
+            .where(current_canonical_snapshot_predicate())
             .where(SetupSignalSnapshot.data_as_of_date < snapshot.data_as_of_date)
             .order_by(
                 SetupSignalSnapshot.data_as_of_date.desc(),
@@ -1399,7 +1451,8 @@ def no_material_change_payload(
         "previous_snapshot_id": getattr(previous, "id", None),
         "source_run_id": snapshot.run_id,
         "origin_type": snapshot.origin_type,
-        "is_canonical": snapshot.is_canonical,
+        "is_canonical": True,
+        "canonical_at_decision": snapshot.is_canonical,
         "record_status": "CURRENT_CANONICAL",
         "superseded_by_snapshot_id": snapshot.superseded_by_snapshot_id,
         "engine_version": snapshot.engine_version,

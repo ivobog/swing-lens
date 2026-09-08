@@ -681,7 +681,9 @@ Tests:
 - Duplicate snapshot natural keys are rejected or resolved idempotently.
 - Only one active episode per ticker/timeframe/family is possible.
 - Duplicate lifecycle events and duplicate alert event keys are rejected.
-- Canonical metadata can change without mutating immutable snapshot evidence.
+- Canonical selection state can change without updating an earlier snapshot row: immutable
+  canonical-at-decision evidence remains on `setup_signal_snapshots`, while current selection
+  lives in a separate pointer and each pointer revision has an append-only audit event.
 - Run deletion behavior preserves unambiguous lifecycle lineage.
 
 Exit criteria:

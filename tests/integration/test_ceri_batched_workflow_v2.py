@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-import sys
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
 from datetime import UTC, date, datetime
+from pathlib import Path
 from threading import Barrier
 from time import perf_counter
 
+from alembic.config import Config
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session
 
+from app.database_safety import run_guarded_alembic_upgrade
 from app.models.ceri_tables import (
     CeriAlertEvent,
     CeriChangeEvent,
@@ -26,7 +26,7 @@ from app.models.ceri_tables import (
     CeriScoreSnapshot,
     CeriSourceRecord,
 )
-from app.models.tables import BackgroundJob, RawCompanyRow, UploadRun
+from app.models.tables import BackgroundJob, PipelineRun, RawCompanyRow, UploadRun
 from app.services.background_job_service import JobStatus, enqueue_job
 from app.services.ceri.batched_job_handlers import (
     execute_feature_batch_job,
@@ -54,6 +54,7 @@ from app.services.ceri.job_handlers import (
     execute_normalize_job,
     execute_rebuild_features_job,
 )
+from app.services.market_calculation_context_service import create_pipeline_market_context
 from app.settings import Settings
 
 
@@ -384,21 +385,26 @@ def test_optimized_50_company_batch_emits_bounded_performance_telemetry(
 
 
 def _upgrade(database_url: str, *, revision: str = "head") -> None:
-    env = {**os.environ, "DATABASE_URL": database_url}
-    subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", revision],
-        check=True,
-        cwd=os.getcwd(),
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+    config = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+    run_guarded_alembic_upgrade(config, database_url, revision)
 
 
 def _execute_legacy_fixture(database_url: str) -> dict:
     engine = create_engine(database_url)
     with Session(engine) as db:
         run_id, ingestion_run_id = _seed_fixture(db, request_key="legacy:ingest:MSFT")
+        pipeline = PipelineRun(upload_run_id=run_id, status="RUNNING")
+        db.add(pipeline)
+        db.flush()
+        cutoff = create_pipeline_market_context(
+            db, pipeline, cutoff_at=datetime(2026, 9, 8, 17, 30, tzinfo=UTC)
+        )
+        temporal_payload = {
+            "calculation_context_id": cutoff.context_id,
+            "cutoff_at": cutoff.cutoff_at.isoformat(),
+            "as_of_session": cutoff.latest_completed_session.isoformat(),
+            "calendar_version": cutoff.calendar_version,
+        }
         normalize = BackgroundJob(
             job_type="CERI_NORMALIZE",
             related_run_id=run_id,
@@ -413,6 +419,7 @@ def _execute_legacy_fixture(database_url: str) -> dict:
                 "ticker": "MSFT",
                 "run_id": run_id,
                 "scope": {"ticker": "MSFT", "run_id": run_id},
+                **temporal_payload,
             },
             max_retries=3,
         )
@@ -443,12 +450,26 @@ def _execute_legacy_fixture(database_url: str) -> dict:
 
 def _execute_batched_fixture(database_url: str) -> dict:
     engine = create_engine(database_url)
-    workflow_key = "ceri:pipeline:1:fixture-config"
     with Session(engine) as db:
-        run_id, _ = _seed_fixture(
+        run_id, ingestion_run_id = _seed_fixture(
             db,
-            request_key=f"{workflow_key}:ingest:eodhd:estimates:MSFT",
+            request_key="ceri:fixture:ingest:eodhd:estimates:MSFT",
         )
+        pipeline = PipelineRun(upload_run_id=run_id, status="RUNNING")
+        db.add(pipeline)
+        db.flush()
+        cutoff = create_pipeline_market_context(
+            db, pipeline, cutoff_at=datetime(2026, 9, 8, 17, 30, tzinfo=UTC)
+        )
+        workflow_key = f"ceri:pipeline:{pipeline.id}:fixture-config"
+        ingestion = db.get(CeriIngestionRun, ingestion_run_id)
+        ingestion.request_key = f"{workflow_key}:ingest:eodhd:estimates:MSFT"
+        temporal_payload = {
+            "calculation_context_id": cutoff.context_id,
+            "cutoff_at": cutoff.cutoff_at.isoformat(),
+            "as_of_session": cutoff.latest_completed_session.isoformat(),
+            "calendar_version": cutoff.calendar_version,
+        }
         provider = BackgroundJob(
             job_type=CERI_PROVIDER_INGEST_BATCH,
             workflow_key=workflow_key,
@@ -473,6 +494,7 @@ def _execute_batched_fixture(database_url: str) -> dict:
                 "tickers": ["MSFT"],
                 "run_id": run_id,
                 "checkpoint_interval": 1,
+                **temporal_payload,
             },
             max_retries=3,
         )
@@ -492,6 +514,7 @@ def _execute_batched_fixture(database_url: str) -> dict:
                 "run_id": run_id,
                 "expected_normalization_batches": 1,
                 "checkpoint_interval": 1,
+                **temporal_payload,
             },
             max_retries=3,
         )
@@ -509,6 +532,7 @@ def _execute_batched_fixture(database_url: str) -> dict:
                 "workflow_key": workflow_key,
                 "run_id": run_id,
                 "expected_feature_batches": 1,
+                **temporal_payload,
             },
             max_retries=3,
         )

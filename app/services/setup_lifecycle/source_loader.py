@@ -108,7 +108,10 @@ class SetupLifecycleSourceLoader:
         market_cutoff = (
             market_cutoff
             or market_context_for_upload_run(db, run_id)
-            or standalone_market_context(reason="STANDALONE_SETUP_LIFECYCLE")
+            or standalone_market_context(
+                reason="STANDALONE_SETUP_LIFECYCLE",
+                cutoff_at=upload_run.processed_at or upload_run.uploaded_at,
+            )
         )
         source_cutoff = market_cutoff.latest_completed_session
         price_bars = self._load_price_bars(

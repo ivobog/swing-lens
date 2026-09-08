@@ -64,15 +64,17 @@ class SetupLifecycleCanonicalizer:
             )
         else:
             affected = self.repository.get_snapshots_by_ids(db, snapshot_ids)
+        self.repository.lock_canonicalization_keys(db, affected)
         candidates = self.repository.load_canonicalization_candidates(
             db,
             affected,
-            lock=True,
+            lock=False,
         )
         return self.canonicalize_snapshots(
             db,
             candidates,
             evaluation_run_id=evaluation_run_id,
+            affected_snapshot_ids=tuple(snapshot.id for snapshot in affected),
         )
 
     def canonicalize_snapshots(
@@ -81,17 +83,37 @@ class SetupLifecycleCanonicalizer:
         snapshots: list[SetupSignalSnapshot] | tuple[SetupSignalSnapshot, ...],
         *,
         evaluation_run_id: int | None = None,
+        affected_snapshot_ids: tuple[int, ...] | None = None,
     ) -> CanonicalizationResult:
         selected_ids: list[int] = []
         changed_ids: list[int] = []
         unchanged_ids: list[int] = []
         audit_ids: list[int] = []
+        affected_ids = set(affected_snapshot_ids or (snapshot.id for snapshot in snapshots))
 
         for group in _groups(snapshots).values():
             selected = select_canonical_snapshot(group)
-            previous = next((snapshot for snapshot in group if snapshot.is_canonical), None)
             selected_ids.append(selected.id)
-            changed = previous is None or previous.id != selected.id
+            decision = {
+                "previous_snapshot_id": None,
+                "selected_snapshot_id": selected.id,
+                "precedence": list(self.config.canonicalization.precedence),
+                "score": _json_value(list(_canonical_sort_key(selected))),
+            }
+            advance = self.repository.advance_canonical_selection(
+                db,
+                selected,
+                reason="phase_4_canonical_precedence",
+                decision=decision,
+                evaluation_run_id=evaluation_run_id,
+            )
+            previous = advance.previous_snapshot
+            decision["changed"] = advance.changed
+            decision["previous_snapshot_id"] = previous.id if previous is not None else None
+            advance.selection.selection_decision_json = dict(decision)
+            if advance.audit_event is not None:
+                advance.audit_event.decision_json = dict(decision)
+            changed = advance.changed
             if changed:
                 changed_ids.append(selected.id)
                 event = self._canonical_revision_event(
@@ -103,18 +125,13 @@ class SetupLifecycleCanonicalizer:
                 audit_ids.append(audit_event.id)
             else:
                 unchanged_ids.append(selected.id)
-            self.repository.promote_canonical_snapshot(
-                db,
-                selected,
-                reason="phase_4_canonical_precedence",
-                decision={
-                    "changed": changed,
-                    "previous_snapshot_id": previous.id if previous is not None else None,
-                    "selected_snapshot_id": selected.id,
-                    "precedence": list(self.config.canonicalization.precedence),
-                    "score": _json_value(list(_canonical_sort_key(selected))),
-                },
-            )
+            if selected.id in affected_ids:
+                self.repository.record_snapshot_canonical_decision(
+                    db,
+                    selected,
+                    reason="phase_4_canonical_precedence",
+                    decision=decision,
+                )
 
         return CanonicalizationResult(
             selected_snapshot_ids=tuple(selected_ids),

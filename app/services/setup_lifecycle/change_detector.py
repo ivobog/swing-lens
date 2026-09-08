@@ -320,7 +320,6 @@ def velocity_by_window(
     by_date = {
         snapshot.data_as_of_date: snapshot
         for snapshot in sorted(history, key=lambda item: (item.data_as_of_date, item.id or 0))
-        if snapshot.is_canonical is not False
     }
     current_value = _signal_value(current, definition)
     result: dict[str, dict[str, Any]] = {}

@@ -11,7 +11,10 @@ from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertServic
 from app.services.setup_lifecycle.change_detector import SetupLifecycleChangeDetector
 from app.services.setup_lifecycle.enums import SetupFamily
 from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeService
-from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+from app.services.setup_lifecycle.repository import (
+    SetupLifecycleRepository,
+    current_canonical_snapshot_predicate,
+)
 
 
 @dataclass(frozen=True)
@@ -187,7 +190,7 @@ class SetupLifecycleMaintenanceService:
         statement = (
             select(SetupSignalSnapshot)
             .where(SetupSignalSnapshot.ticker == self.repository.normalize_ticker(ticker))
-            .where(SetupSignalSnapshot.is_canonical.is_(True))
+            .where(current_canonical_snapshot_predicate())
         )
         if as_of_date is not None:
             statement = statement.where(SetupSignalSnapshot.data_as_of_date == as_of_date)

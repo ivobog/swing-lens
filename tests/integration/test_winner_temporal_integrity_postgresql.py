@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import StrEnum
+from pathlib import Path
 
 import pytest
+from alembic.config import Config
 from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from app.database_safety import run_guarded_alembic_upgrade
 from app.models.tables import (
     IBContract,
     PriceBar,
@@ -895,11 +895,5 @@ def _generation_with_members(
 
 
 def _upgrade(database_url: str, revision: str = "head") -> None:
-    env = {**os.environ, "DATABASE_URL": database_url}
-    subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", revision],
-        check=True,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+    config = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+    run_guarded_alembic_upgrade(config, database_url, revision)
