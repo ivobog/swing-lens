@@ -104,11 +104,48 @@ Full non-slow unit lane:
 
 Result: `2132 passed, 155 deselected, 22 warnings in 442.46s`.
 
-Disposable PostgreSQL 16 migration test: `1 passed, 3 warnings in 6.37s`. Existing technical-cache and Winner temporal PostgreSQL integrations were then run on uniquely named disposable databases in the local PostgreSQL 18 cluster: `12 passed, 1 warning in 197.62s`. The first attempt to run those older integration fixtures against PostgreSQL 16 produced 12 setup failures because their Alembic helper intentionally requires the configured production-major environment; no test body ran. The guarded PostgreSQL 18 disposable rerun passed and supersedes that infrastructure mismatch.
+Disposable PostgreSQL 16 migration test:
 
-Final IBMI/remediation targeted lane: `73 passed, 7 deselected, 1 warning in 1.00s`. Final pipeline/remediation smoke: `42 passed, 1 warning in 0.66s`.
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\integration\test_session_temporal_integrity_postgresql.py -q --tb=short
+```
 
-Changed-file lint: `ruff check` passed for all 42 changed Python files. Changed-file formatter check: `42 files already formatted`. `compileall` passed. Repository CI has no configured static type-check step. No remediation-caused failure remains.
+Result: `1 passed, 3 warnings in 6.37s`. The disposable admin URL was injected through the environment and was not printed.
+
+Existing technical-cache and Winner temporal PostgreSQL integrations were then run on uniquely named disposable databases in the local PostgreSQL 18 cluster:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\integration\test_technical_artifact_cache_postgresql.py tests\integration\test_winner_temporal_integrity_postgresql.py -q --tb=short
+```
+
+Result: `12 passed, 1 warning in 197.62s`. The first attempt to run those older integration fixtures against PostgreSQL 16 produced 12 setup failures because their Alembic helper intentionally requires the configured production-major environment; no test body ran. The guarded PostgreSQL 18 disposable rerun passed and supersedes that infrastructure mismatch.
+
+Final IBMI/remediation targeted lane:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_session_temporal_integrity_remediation.py tests\ib_market_intelligence -m "not external" -q --tb=short
+```
+
+Result: `73 passed, 7 deselected, 1 warning in 1.00s`.
+
+Final pipeline/remediation smoke:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_pipeline_service.py tests\test_session_temporal_integrity_remediation.py -q --tb=short
+```
+
+Result: `42 passed, 1 warning in 0.66s`.
+
+Final static checks:
+
+```powershell
+$files = @(git diff 006d74e..HEAD --name-only --diff-filter=ACM | Where-Object { $_.EndsWith('.py') })
+.\.venv\Scripts\ruff.exe check $files
+.\.venv\Scripts\ruff.exe format --check $files
+.\.venv\Scripts\python.exe -m compileall -q app tests
+```
+
+Changed-file lint passed for all 42 changed Python files, the formatter reported `42 files already formatted`, and `compileall` passed. Repository CI has no configured static type-check step. No remediation-caused failure remains.
 
 ## H. Performance evidence
 
