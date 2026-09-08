@@ -7,8 +7,9 @@ Revises: 0067_worker_quiesce
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "0068_market_calc_context"
 down_revision: str | None = "0067_worker_quiesce"
@@ -29,7 +30,9 @@ def upgrade() -> None:
         sa.Column("calendar_version", sa.String(length=64), nullable=False),
         sa.Column("bar_readiness_version", sa.String(length=64), nullable=False),
         sa.Column("cutoff_reason", sa.String(length=128), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["pipeline_run_id"], ["pipeline_runs.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["upload_run_id"], ["upload_runs.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
@@ -49,12 +52,17 @@ def upgrade() -> None:
         "sector_rotation_snapshots",
         "setup_signal_snapshots",
     ):
-        op.add_column(table_name, sa.Column("calculation_context_id", sa.BigInteger(), nullable=True))
         op.add_column(
-            table_name, sa.Column("calculation_cutoff_at", sa.DateTime(timezone=True), nullable=True)
+            table_name, sa.Column("calculation_context_id", sa.BigInteger(), nullable=True)
+        )
+        op.add_column(
+            table_name,
+            sa.Column("calculation_cutoff_at", sa.DateTime(timezone=True), nullable=True),
         )
         op.add_column(table_name, sa.Column("input_as_of_session", sa.Date(), nullable=True))
-        op.add_column(table_name, sa.Column("calendar_version", sa.String(length=64), nullable=True))
+        op.add_column(
+            table_name, sa.Column("calendar_version", sa.String(length=64), nullable=True)
+        )
         op.create_foreign_key(
             f"fk_{table_name}_market_calc_context",
             table_name,
@@ -73,17 +81,20 @@ def upgrade() -> None:
         "ceri_price_response_features", sa.Column("feature_as_of_session", sa.Date(), nullable=True)
     )
     op.add_column(
-        "ceri_price_response_features", sa.Column("reaction_start_session", sa.Date(), nullable=True)
+        "ceri_price_response_features",
+        sa.Column("reaction_start_session", sa.Date(), nullable=True),
     )
     op.add_column(
-        "ceri_price_response_features", sa.Column("prior_reference_session", sa.Date(), nullable=True)
+        "ceri_price_response_features",
+        sa.Column("prior_reference_session", sa.Date(), nullable=True),
     )
     op.add_column(
         "ceri_price_response_features",
         sa.Column("window_session_map_json", postgresql.JSONB(), nullable=True),
     )
     op.add_column(
-        "ceri_price_response_features", sa.Column("reaction_policy_version", sa.Text(), nullable=True)
+        "ceri_price_response_features",
+        sa.Column("reaction_policy_version", sa.Text(), nullable=True),
     )
     op.add_column(
         "ceri_derived_features",
@@ -106,7 +117,9 @@ def upgrade() -> None:
         "ib_intelligence_features",
         sa.Column("calculation_cutoff_at", sa.DateTime(timezone=True), nullable=True),
     )
-    op.add_column("ib_intelligence_features", sa.Column("calendar_version", sa.Text(), nullable=True))
+    op.add_column(
+        "ib_intelligence_features", sa.Column("calendar_version", sa.Text(), nullable=True)
+    )
 
 
 def downgrade() -> None:
@@ -138,9 +151,7 @@ def downgrade() -> None:
         )
     ):
         op.drop_index(f"idx_{table_name}_temporal_lineage", table_name=table_name)
-        op.drop_constraint(
-            f"fk_{table_name}_market_calc_context", table_name, type_="foreignkey"
-        )
+        op.drop_constraint(f"fk_{table_name}_market_calc_context", table_name, type_="foreignkey")
         for column in (
             "calendar_version",
             "input_as_of_session",
@@ -148,7 +159,9 @@ def downgrade() -> None:
             "calculation_context_id",
         ):
             op.drop_column(table_name, column)
-    op.drop_index("idx_market_calculation_contexts_cutoff", table_name="market_calculation_contexts")
+    op.drop_index(
+        "idx_market_calculation_contexts_cutoff", table_name="market_calculation_contexts"
+    )
     op.drop_index(
         "idx_market_calculation_contexts_upload_session", table_name="market_calculation_contexts"
     )

@@ -224,6 +224,15 @@ def execute_historical_refresh(
                             "bar_size": "1 day",
                             "start_date": range_start.isoformat(),
                             "end_date": range_end.isoformat(),
+                            "requested_start_session": range_start.isoformat(),
+                            "requested_end_session": range_end.isoformat(),
+                            "provider_duration": duration,
+                            "provider_request_end": datetime.combine(
+                                range_end + timedelta(days=1),
+                                datetime.min.time(),
+                                tzinfo=UTC,
+                            ).isoformat(),
+                            "provider_calendar_days": (range_end - range_start).days + 1,
                             "weight": 2 if metric == HistoricalMetricType.BID_ASK else 1,
                         },
                     )
@@ -1405,9 +1414,8 @@ def _historical_date_ranges(
         # IB accepts calendar duration. Over-request enough history, then the
         # adapter post-filters to this exact semantic session range.
         start_date = end_date - timedelta(days=max(0, duration_days - 1))
-    else:
-        while not is_us_trading_day(start_date):
-            start_date = next_us_trading_day(start_date)
+    while not is_us_trading_day(start_date):
+        start_date = next_us_trading_day(start_date)
     if start_date > end_date:
         raise ValueError("historical start_date cannot be after end_date")
     ranges: list[tuple[date, date]] = []
@@ -1415,8 +1423,10 @@ def _historical_date_ranges(
     chunk_days = settings.ib_intelligence_historical_chunk_days
     while cursor <= end_date:
         chunk_end = min(end_date, cursor + timedelta(days=chunk_days - 1))
+        while not is_us_trading_day(chunk_end):
+            chunk_end = previous_us_trading_day(chunk_end)
         ranges.append((cursor, chunk_end))
-        cursor = chunk_end + timedelta(days=1)
+        cursor = next_us_trading_day(chunk_end)
     return ranges
 
 

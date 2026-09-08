@@ -7,12 +7,15 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app.services.ceri.price_response_service import CeriPriceResponseService
+from app.services.ib_market_intelligence.enums import IntelligenceModule
+from app.services.ib_market_intelligence.orchestration import _historical_date_ranges
 from app.services.market_clock_service import (
     BAR_READINESS_VERSION,
     CALENDAR_VERSION,
     MarketClockService,
     SessionTimestampPolicy,
 )
+from app.settings import Settings
 
 NY = ZoneInfo("America/New_York")
 
@@ -108,3 +111,22 @@ def test_session_distance_ignores_weekends_and_holidays() -> None:
     service = MarketClockService()
     assert service.trading_session_distance(date(2026, 9, 4), date(2026, 9, 8)) == 1
     assert service.trading_session_distance(date(2026, 9, 8), date(2026, 9, 4)) == -1
+
+
+def test_ibmi_semantic_range_chunks_have_session_boundaries() -> None:
+    settings = Settings(
+        _env_file=None,
+        job_worker_enabled=False,
+        ib_intelligence_historical_chunk_days=3,
+    )
+
+    ranges = _historical_date_ranges(
+        {"start_date": "2026-09-05", "end_date": "2026-09-13"},
+        IntelligenceModule.LIQUIDITY,
+        settings,
+    )
+
+    assert ranges == [
+        (date(2026, 9, 8), date(2026, 9, 10)),
+        (date(2026, 9, 11), date(2026, 9, 11)),
+    ]
