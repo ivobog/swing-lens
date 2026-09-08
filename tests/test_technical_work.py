@@ -717,11 +717,23 @@ class _FakeTechnicalDb:
 
 
 def _technical_fingerprint(row) -> dict:
-    return {
+    fingerprint = {
         column.name: getattr(row, column.name)
         for column in row.__table__.columns
-        if column.name not in {"id", "created_at"}
+        if column.name
+        not in {
+            "id",
+            "created_at",
+            "calculation_context_id",
+            "calculation_cutoff_at",
+            "input_as_of_session",
+            "calendar_version",
+        }
     }
+    debug = dict(fingerprint.get("debug_json") or {})
+    debug.pop("temporal_lineage", None)
+    fingerprint["debug_json"] = debug
+    return fingerprint
 
 
 def _ready_event(ticker: str) -> TickerReadyEvent:

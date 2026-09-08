@@ -4,8 +4,9 @@ from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import asdict, dataclass, replace
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
+from inspect import Parameter, signature
 from time import perf_counter
 from typing import Any
 
@@ -16,6 +17,11 @@ from sqlalchemy.orm import Session
 from app.models.tables import RawCompanyRow, TechnicalScore
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.leadership_v5 import rank_leadership_v5
+from app.services.market_calculation_context_service import (
+    market_context_for_upload_run,
+    standalone_market_context,
+)
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.operational_metrics import operational_metrics
 from app.services.pine_replica_engine import (
     ENGINE_VERSION,
@@ -101,23 +107,32 @@ def score_run_technicals(
     run_id: int,
     tickers: list[str] | None = None,
     benchmark_ticker: str = "SPY",
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> list[TechnicalScore]:
     input_started = perf_counter()
+    market_cutoff = (
+        market_cutoff
+        or market_context_for_upload_run(db, run_id)
+        or standalone_market_context(reason="STANDALONE_TECHNICAL_SCORING")
+    )
     symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
     v4_params = load_technical_scoring_v4_config()
     v5_params = load_technical_scoring_v5_config()
     pine_params = load_pine_defaults()
-    benchmark_price = _load_price_frame(db, benchmark_ticker)
+    benchmark_price = _call_price_frame(db, benchmark_ticker, market_cutoff)
     market_features = _market_features(benchmark_price, benchmark_ticker)
-    sector_price = _sector_benchmark_price(db, pine_params)
-    qqq_market_features = _optional_market_features(db, "QQQ", v4_params)
+    sector_price = _sector_benchmark_price(db, pine_params, market_cutoff=market_cutoff)
+    qqq_market_features = _optional_market_features(
+        db, "QQQ", v4_params, market_cutoff=market_cutoff
+    )
 
     settings = get_settings()
     calculate_v5 = getattr(settings, "technical_v5_enabled", False) or getattr(
         settings, "technical_v5_shadow_compare_enabled", True
     )
     v5_context = (
-        _technical_v5_run_context(db, run_id, symbols, v5_params)
+        _technical_v5_run_context(db, run_id, symbols, v5_params, market_cutoff=market_cutoff)
         if calculate_v5
         else TechnicalV5RunContext(resolutions={}, sector_features={})
     )
@@ -142,6 +157,7 @@ def score_run_technicals(
             run_id=run_id,
             feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
+            market_cutoff=market_cutoff,
         )
     elif (
         settings.technical_pure_boundary_enabled
@@ -162,6 +178,7 @@ def score_run_technicals(
             settings=settings,
             feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
+            market_cutoff=market_cutoff,
         )
     else:
         score_results = _score_tickers_legacy(
@@ -173,6 +190,7 @@ def score_run_technicals(
             qqq_market_features=qqq_market_features,
             v4_params=v4_params,
             run_id=run_id,
+            market_cutoff=market_cutoff,
         )
     _record_technical_duration("worker_span", worker_started, run_id=run_id)
 
@@ -186,6 +204,7 @@ def score_run_technicals(
         v5_params=v5_params,
         v5_context=v5_context,
         settings=settings,
+        market_cutoff=market_cutoff,
     )
     _record_technical_duration("finalize", finalize_started, run_id=run_id)
     return scores
@@ -201,6 +220,7 @@ def finalize_technical_scores(
     v5_params: dict[str, Any] | None = None,
     v5_context: TechnicalV5RunContext | None = None,
     settings: Settings | None = None,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> list[TechnicalScore]:
     v4_params = v4_params or load_technical_scoring_v4_config()
     v5_params = v5_params or load_technical_scoring_v5_config()
@@ -220,7 +240,17 @@ def finalize_technical_scores(
         settings, "technical_v5_shadow_compare_enabled", True
     )
     v5_context = v5_context or (
-        _technical_v5_run_context(db, run_id, symbols, v5_params)
+        _technical_v5_run_context(
+            db,
+            run_id,
+            symbols,
+            v5_params,
+            market_cutoff=(
+                market_cutoff
+                or market_context_for_upload_run(db, run_id)
+                or standalone_market_context(reason="STANDALONE_TECHNICAL_FINALIZE")
+            ),
+        )
         if calculate_v5
         else TechnicalV5RunContext(resolutions={}, sector_features={})
     )
@@ -242,7 +272,13 @@ def finalize_technical_scores(
     )
     scores: list[TechnicalScore] = []
     for result in score_results:
+        _record_temporal_lineage_metrics(result)
         if not isinstance(result, PineReplicaScore):
+            if market_cutoff is not None:
+                result.calculation_context_id = market_cutoff.context_id
+                result.calculation_cutoff_at = market_cutoff.cutoff_at
+                result.input_as_of_session = market_cutoff.latest_completed_session
+                result.calendar_version = market_cutoff.calendar_version
             scores.append(result)
             continue
         base_with_v4_leadership = _with_leadership_debug(result, leadership)
@@ -273,18 +309,22 @@ def finalize_technical_scores(
                 v5_config=v5_params,
                 pine_config=pine_params,
             )
-        scores.append(
-            build_technical_score(
-                run_id=run_id,
-                score=v4_score,
-                v5_score=v5_score,
-                v5_active=getattr(settings, "technical_v5_enabled", False),
-                persist_v5=(
-                    getattr(settings, "technical_v5_enabled", False)
-                    or getattr(settings, "technical_v5_persist_shadow_results", True)
-                ),
-            )
+        persisted = build_technical_score(
+            run_id=run_id,
+            score=v4_score,
+            v5_score=v5_score,
+            v5_active=getattr(settings, "technical_v5_enabled", False),
+            persist_v5=(
+                getattr(settings, "technical_v5_enabled", False)
+                or getattr(settings, "technical_v5_persist_shadow_results", True)
+            ),
         )
+        if market_cutoff is not None:
+            persisted.calculation_context_id = market_cutoff.context_id
+            persisted.calculation_cutoff_at = market_cutoff.cutoff_at
+            persisted.input_as_of_session = market_cutoff.latest_completed_session
+            persisted.calendar_version = market_cutoff.calendar_version
+        scores.append(persisted)
     if symbols:
         db.execute(
             delete(TechnicalScore).where(
@@ -295,6 +335,25 @@ def finalize_technical_scores(
     db.add_all(scores)
     db.flush()
     return scores
+
+
+def _record_temporal_lineage_metrics(result: PineReplicaScore | TechnicalScore) -> None:
+    debug = result.debug if isinstance(result, PineReplicaScore) else result.debug_json
+    lineage = (debug or {}).get("temporal_lineage") or {}
+    lags = lineage.get("session_lags") or {}
+    degraded = False
+    for source, value in lags.items():
+        if value is None:
+            continue
+        lag = int(value)
+        operational_metrics.observe(
+            "swinglens_technical_source_session_lag",
+            lag,
+            source=str(source),
+        )
+        degraded = degraded or lag > 0
+    if degraded:
+        operational_metrics.increment("swinglens_technical_scores_temporally_degraded_total")
 
 
 class TechnicalScoringOverlapCoordinator:
@@ -311,6 +370,7 @@ class TechnicalScoringOverlapCoordinator:
         lease_guard: Callable[[], None] | None = None,
         required_market_tickers: list[str] | tuple[str, ...] | None = None,
         wait_for_market_events: bool = False,
+        market_cutoff: MarketCalculationCutoff | None = None,
     ) -> None:
         input_started = perf_counter()
         self.db = db
@@ -319,6 +379,11 @@ class TechnicalScoringOverlapCoordinator:
         self.settings = settings or get_settings()
         self.should_cancel = should_cancel or (lambda: False)
         self.lease_guard = lease_guard or (lambda: None)
+        self.market_cutoff = (
+            market_cutoff
+            or market_context_for_upload_run(db, run_id)
+            or standalone_market_context(reason="STANDALONE_TECHNICAL_OVERLAP")
+        )
         self.pine_params = load_pine_defaults()
         self.v4_params = load_technical_scoring_v4_config()
         self.v5_params = load_technical_scoring_v5_config()
@@ -429,6 +494,7 @@ class TechnicalScoringOverlapCoordinator:
                 v4_params=self.v4_params,
                 v5_params=self.v5_params,
                 settings=self.settings,
+                market_cutoff=self.market_cutoff,
             )
             _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
             return scores
@@ -476,13 +542,14 @@ class TechnicalScoringOverlapCoordinator:
                 self._cancelled = True
                 return
             input_started = perf_counter()
-            price, trades = load_preferred_ohlcv_frames(self.db, ticker)
+            price, trades = _load_preferred_bounded(self.db, ticker, self.market_cutoff)
             artifact_key, cached_artifact = _artifact_cache_context(
                 db=self.db,
                 ticker=ticker,
                 settings=self.settings,
                 feature_config_hash=self.feature_config_hash,
                 scoring_config_hash=self.scoring_config_hash,
+                input_as_of_session=self.market_cutoff.latest_completed_session,
             )
             item = _build_work_item(
                 ticker=ticker,
@@ -505,6 +572,7 @@ class TechnicalScoringOverlapCoordinator:
                     if self.settings.technical_artifact_cache_shadow_validation_enabled
                     else None
                 ),
+                market_cutoff=self.market_cutoff,
             )
             _record_technical_duration("input_load", input_started, run_id=self.run_id)
             self._submitted_market_signatures[ticker] = self._market_input_signature
@@ -616,6 +684,7 @@ class TechnicalScoringOverlapCoordinator:
             settings=self.settings,
             feature_config_hash=self.feature_config_hash,
             scoring_config_hash=self.scoring_config_hash,
+            market_cutoff=self.market_cutoff,
         )
         _record_technical_duration(
             "worker_span",
@@ -634,14 +703,17 @@ class TechnicalScoringOverlapCoordinator:
             v4_params=self.v4_params,
             v5_params=self.v5_params,
             settings=self.settings,
+            market_cutoff=self.market_cutoff,
         )
         _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
         return scores
 
     def _refresh_run_level_inputs(self) -> None:
-        self._benchmark_price = _load_price_frame(self.db, "SPY")
+        self._benchmark_price = _call_price_frame(self.db, "SPY", self.market_cutoff)
         self._market_features = _market_features(self._benchmark_price, "SPY")
-        self._sector_price = _sector_benchmark_price(self.db, self.pine_params)
+        self._sector_price = _sector_benchmark_price(
+            self.db, self.pine_params, market_cutoff=self.market_cutoff
+        )
         market_rs = self.pine_params.get("market_rs", {})
         self._sector_ticker = (
             str(market_rs.get("sectorSymbol") or "").strip().upper()
@@ -650,7 +722,7 @@ class TechnicalScoringOverlapCoordinator:
         )
         market_regime_params = self.v4_params.get("market_regime_v4", {})
         if market_regime_params.get("use_qqq", True):
-            self._qqq_market_price = _load_price_frame(self.db, "QQQ")
+            self._qqq_market_price = _call_price_frame(self.db, "QQQ", self.market_cutoff)
             self._qqq_market_features = _market_features(
                 self._qqq_market_price,
                 "QQQ",
@@ -720,6 +792,7 @@ def _score_tickers_legacy(
     qqq_market_features: dict[str, Any],
     v4_params: dict[str, Any],
     run_id: int,
+    market_cutoff: MarketCalculationCutoff,
 ) -> list[PineReplicaScore | TechnicalScore]:
     score_results: list[PineReplicaScore | TechnicalScore] = []
     for ticker in symbols:
@@ -733,6 +806,7 @@ def _score_tickers_legacy(
                     market_features=market_features,
                     qqq_market_features=qqq_market_features,
                     v4_params=v4_params,
+                    market_cutoff=market_cutoff,
                 )
             )
         except Exception as exc:
@@ -761,17 +835,19 @@ def _score_tickers_pure_sequential(
     settings: Settings,
     feature_config_hash: str,
     scoring_config_hash: str,
+    market_cutoff: MarketCalculationCutoff,
 ) -> list[PineReplicaScore | TechnicalScore]:
     results: list[PineReplicaScore | TechnicalScore] = []
     for ticker in symbols:
         try:
-            price, trades = load_preferred_ohlcv_frames(db, ticker)
+            price, trades = _load_preferred_bounded(db, ticker, market_cutoff)
             artifact_key, cached_artifact = _artifact_cache_context(
                 db=db,
                 ticker=ticker,
                 settings=settings,
                 feature_config_hash=feature_config_hash,
                 scoring_config_hash=scoring_config_hash,
+                input_as_of_session=market_cutoff.latest_completed_session,
             )
             item = _build_work_item(
                 ticker=ticker,
@@ -794,6 +870,7 @@ def _score_tickers_pure_sequential(
                     if settings.technical_artifact_cache_shadow_validation_enabled
                     else None
                 ),
+                market_cutoff=market_cutoff,
             )
             pure_result = execute_technical_work_item(item)
             pure_score = _score_from_work_result(pure_result)
@@ -807,6 +884,7 @@ def _score_tickers_pure_sequential(
                     qqq_market_features=qqq_market_features,
                     v4_params=v4_params,
                     run_id=run_id,
+                    market_cutoff=market_cutoff,
                 )
                 if _technical_score_fingerprint(pure_score) != _technical_score_fingerprint(
                     legacy_score
@@ -854,18 +932,23 @@ def _score_tickers_process_pool(
     run_id: int,
     feature_config_hash: str,
     scoring_config_hash: str,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> list[PineReplicaScore | TechnicalScore]:
+    market_cutoff = market_cutoff or standalone_market_context(
+        reason="STANDALONE_TECHNICAL_PROCESS_POOL"
+    )
     items: list[tuple[int, TechnicalWorkItem]] = []
     results: list[PineReplicaScore | TechnicalScore | None] = [None] * len(symbols)
     for index, ticker in enumerate(symbols):
         try:
-            price, trades = load_preferred_ohlcv_frames(db, ticker)
+            price, trades = _load_preferred_bounded(db, ticker, market_cutoff)
             artifact_key, cached_artifact = _artifact_cache_context(
                 db=db,
                 ticker=ticker,
                 settings=settings,
                 feature_config_hash=feature_config_hash,
                 scoring_config_hash=scoring_config_hash,
+                input_as_of_session=market_cutoff.latest_completed_session,
             )
             items.append(
                 (
@@ -891,6 +974,7 @@ def _score_tickers_process_pool(
                             if settings.technical_artifact_cache_shadow_validation_enabled
                             else None
                         ),
+                        market_cutoff=market_cutoff,
                     ),
                 )
             )
@@ -1015,6 +1099,7 @@ def _build_work_item(
     artifact_key: LocalArtifactKey | None = None,
     cached_local_artifact: dict[str, Any] | None = None,
     shadow_local_artifact: dict[str, Any] | None = None,
+    market_cutoff: MarketCalculationCutoff,
 ) -> TechnicalWorkItem:
     return build_technical_work_item(
         ticker=ticker,
@@ -1027,6 +1112,15 @@ def _build_work_item(
         relative_config=v4_params.get("relative_leadership", {}),
         market_features=market_features,
         qqq_market_features=qqq_market_features,
+        input_as_of_session=market_cutoff.latest_completed_session,
+        calculation_cutoff_at=market_cutoff.cutoff_at,
+        calculation_context_id=market_cutoff.context_id,
+        price_basis=str(price.attrs.get("price_basis") or "UNKNOWN"),
+        volume_basis=(
+            str(trades.attrs.get("volume_basis") or "TRADES")
+            if trades is not None and not trades.empty
+            else "UNAVAILABLE"
+        ),
         input_signature=artifact_key.input_signature if artifact_key else "",
         artifact_key=asdict(artifact_key) if artifact_key else None,
         cached_local_artifact=cached_local_artifact,
@@ -1041,6 +1135,7 @@ def _artifact_cache_context(
     settings: Settings,
     feature_config_hash: str,
     scoring_config_hash: str,
+    input_as_of_session: date,
 ) -> tuple[LocalArtifactKey | None, dict[str, Any] | None]:
     cache_reads = settings.technical_artifact_cache_reads_enabled
     cache_writes = settings.technical_artifact_cache_writes_enabled
@@ -1056,6 +1151,7 @@ def _artifact_cache_context(
         feature_config_hash=feature_config_hash,
         scoring_config_hash=scoring_config_hash,
         technical_engine_version=ENGINE_VERSION,
+        input_as_of_session=input_as_of_session,
     )
     if not cache_reads:
         return key, None
@@ -1140,6 +1236,7 @@ def _legacy_score_or_error(
     qqq_market_features: dict[str, Any],
     v4_params: dict[str, Any],
     run_id: int,
+    market_cutoff: MarketCalculationCutoff,
 ) -> PineReplicaScore | TechnicalScore:
     try:
         return _score_ticker(
@@ -1150,6 +1247,7 @@ def _legacy_score_or_error(
             market_features=market_features,
             qqq_market_features=qqq_market_features,
             v4_params=v4_params,
+            market_cutoff=market_cutoff,
         )
     except Exception as exc:
         return unavailable_technical_score(run_id, ticker, str(exc), v4_params=v4_params)
@@ -1371,16 +1469,24 @@ def _score_ticker(
     market_features: dict[str, Any],
     qqq_market_features: dict[str, Any] | None = None,
     v4_params: dict[str, Any] | None = None,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> PineReplicaScore:
     v4_params = v4_params or load_technical_scoring_v4_config()
-    price, trades = load_preferred_ohlcv_frames(db, ticker)
+    market_cutoff = market_cutoff or standalone_market_context(reason="STANDALONE_TECHNICAL_TICKER")
+    price, trades = _load_preferred_bounded(db, ticker, market_cutoff)
     if price.empty:
         raise TechnicalScoringError(
             f"No cached OHLCV bars for {ticker.upper()}. Fetch IB data first."
         )
 
     features = calculate_technical_features(price, trades, ticker=ticker)
-    htf_features = calculate_htf_trend_features(price) if not price.empty else {}
+    htf_features = (
+        calculate_htf_trend_features(
+            price, latest_completed_session=market_cutoff.latest_completed_session
+        )
+        if not price.empty
+        else {}
+    )
     relative_strength_features = _relative_strength_features(
         price,
         benchmark_price,
@@ -1416,6 +1522,8 @@ def _relative_strength_features(
 def _sector_benchmark_price(
     db: Session,
     pine_params: dict[str, Any],
+    *,
+    market_cutoff: MarketCalculationCutoff,
 ) -> pd.DataFrame | None:
     market_rs = pine_params.get("market_rs", {})
     if not market_rs.get("useSectorBenchmark", False):
@@ -1424,7 +1532,7 @@ def _sector_benchmark_price(
     sector_symbol = str(market_rs.get("sectorSymbol") or "").strip().upper()
     if not sector_symbol:
         return None
-    return _load_price_frame(db, sector_symbol)
+    return _call_price_frame(db, sector_symbol, market_cutoff)
 
 
 def _technical_v5_run_context(
@@ -1432,7 +1540,12 @@ def _technical_v5_run_context(
     run_id: int,
     symbols: list[str],
     v5_params: dict[str, Any],
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> TechnicalV5RunContext:
+    market_cutoff = market_cutoff or standalone_market_context(
+        reason="STANDALONE_TECHNICAL_V5_CONTEXT"
+    )
     sector_result = db.execute(
         select(RawCompanyRow.ticker, RawCompanyRow.sector).where(RawCompanyRow.run_id == run_id)
     )
@@ -1451,7 +1564,7 @@ def _technical_v5_run_context(
             if resolution.status == "RESOLVED" and resolution.benchmark_symbol
         }
     ):
-        frame = _load_price_frame(db, symbol)
+        frame = _call_price_frame(db, symbol, market_cutoff)
         features = _benchmark_roc_features(frame)
         if features:
             sector_features[symbol] = features
@@ -1559,20 +1672,54 @@ def _market_frames_signature(
     return digest.hexdigest()
 
 
-def _load_price_frame(db: Session, ticker: str) -> pd.DataFrame:
-    price, _ = load_preferred_ohlcv_frames(db, ticker)
+def _load_price_frame(
+    db: Session, ticker: str, *, market_cutoff: MarketCalculationCutoff
+) -> pd.DataFrame:
+    price, _ = _load_preferred_bounded(db, ticker, market_cutoff)
     return price
+
+
+def _call_price_frame(
+    db: Session, ticker: str, market_cutoff: MarketCalculationCutoff
+) -> pd.DataFrame:
+    parameters = signature(_load_price_frame).parameters
+    if "market_cutoff" in parameters:
+        return _load_price_frame(db, ticker, market_cutoff=market_cutoff)
+    return _load_price_frame(db, ticker)
+
+
+def _load_preferred_bounded(
+    db: Session,
+    ticker: str,
+    market_cutoff: MarketCalculationCutoff,
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    parameters = signature(load_preferred_ohlcv_frames).parameters
+    supports_boundary = "max_session" in parameters or any(
+        item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
+    )
+    if not supports_boundary:
+        # Compatibility for narrow injected test doubles. The worker-level
+        # temporal assertion remains authoritative defense in depth.
+        return load_preferred_ohlcv_frames(db, ticker)
+    return load_preferred_ohlcv_frames(
+        db,
+        ticker,
+        max_session=market_cutoff.latest_completed_session,
+        as_of=market_cutoff.cutoff_at,
+    )
 
 
 def _optional_market_features(
     db: Session,
     ticker: str,
     v4_params: dict[str, Any],
+    *,
+    market_cutoff: MarketCalculationCutoff,
 ) -> dict[str, Any]:
     market_regime_params = v4_params.get("market_regime_v4", {})
     if ticker.upper() == "QQQ" and not market_regime_params.get("use_qqq", True):
         return {}
-    price = _load_price_frame(db, ticker)
+    price = _call_price_frame(db, ticker, market_cutoff)
     return _market_features(price, ticker)
 
 

@@ -69,7 +69,18 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     )
     assert job.status == JobStatus.QUEUED
     assert job.payload_json == {"pipeline_run_id": pipeline.id}
-    assert pipeline.result_json == {
+    assert {
+        key: value
+        for key, value in pipeline.result_json.items()
+        if key
+        not in {
+            "market_calculation_context_id",
+            "market_cutoff_at",
+            "input_as_of_session",
+            "market_calendar_version",
+            "bar_readiness_version",
+        }
+    } == {
         "background_job_id": job.id,
         "market_data_policy": "REQUIRE_IB",
         "ib_preflight_status": None,
@@ -77,6 +88,9 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
         "ib_host": None,
         "ib_port": None,
     }
+    assert pipeline.result_json["input_as_of_session"] == "2026-09-04"
+    assert pipeline.result_json["market_calendar_version"] == "swinglens-us-equities-v1"
+    assert pipeline.result_json["bar_readiness_version"] == "daily-close-plus-15m-v1"
 
 
 def test_new_pipeline_requests_running_prewarm_preemption(
@@ -93,7 +107,18 @@ def test_new_pipeline_requests_running_prewarm_preemption(
     pipeline = start_pipeline(db, upload_run_id=7, requested_by="local-user")
 
     assert calls == [pipeline.id]
-    assert pipeline.result_json == {
+    assert {
+        key: value
+        for key, value in pipeline.result_json.items()
+        if key
+        not in {
+            "market_calculation_context_id",
+            "market_cutoff_at",
+            "input_as_of_session",
+            "market_calendar_version",
+            "bar_readiness_version",
+        }
+    } == {
         "background_job_id": 1,
         "market_data_policy": "REQUIRE_IB",
         "ib_preflight_status": None,
@@ -102,6 +127,7 @@ def test_new_pipeline_requests_running_prewarm_preemption(
         "ib_port": None,
         "preempted_prewarm_job_ids": [91],
     }
+    assert pipeline.result_json["input_as_of_session"] == "2026-09-04"
 
 
 def test_start_pipeline_coalesces_matching_active_pipeline_request() -> None:

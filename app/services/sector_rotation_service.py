@@ -14,6 +14,8 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.market_calculation_context_service import standalone_market_context
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.sector_etf_rotation_service import SectorEtfRotationService
 from app.services.sector_rotation_config import (
@@ -61,6 +63,7 @@ class SectorRotationService:
         as_of_date: date | None = None,
         persist: bool = True,
         config: dict[str, Any] | None = None,
+        market_cutoff: MarketCalculationCutoff | None = None,
     ) -> SectorRotationSnapshotDto:
         return build_sector_rotation_snapshot(
             db=db,
@@ -73,6 +76,7 @@ class SectorRotationService:
             policy_service=self.policy_service,
             repository=self.repository,
             market_repository=self.market_repository,
+            market_cutoff=market_cutoff,
         )
 
 
@@ -87,6 +91,7 @@ def build_sector_rotation_snapshot(
     policy_service: SectorRotationPolicyService | None = None,
     repository: SectorRotationRepository | None = None,
     market_repository: MarketRegimeRepository | None = None,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> SectorRotationSnapshotDto:
     config = config or load_sector_rotation_config()
     config_hash = sector_rotation_config_hash(config)
@@ -96,7 +101,10 @@ def build_sector_rotation_snapshot(
         if bool(config.get("etf_score", {}).get("enabled", False))
         else MODE_UNIVERSE_ONLY
     )
-    as_of_date = as_of_date or _resolve_as_of_date(db, run_id)
+    market_cutoff = market_cutoff or standalone_market_context(reason="STANDALONE_SECTOR_ROTATION")
+    if as_of_date is not None and as_of_date > market_cutoff.latest_completed_session:
+        raise ValueError("sector as_of_date exceeds the market calculation cutoff")
+    as_of_date = as_of_date or market_cutoff.latest_completed_session
     universe_service = universe_service or SectorUniverseService()
     etf_service = etf_service or SectorEtfRotationService()
     policy_service = policy_service or SectorRotationPolicyService()
@@ -119,7 +127,9 @@ def build_sector_rotation_snapshot(
         if run_id is not None
         else []
     )
-    etf_rows = etf_service.build(db=db, universe_rows=universe_rows, config=config)
+    etf_rows = etf_service.build(
+        db=db, universe_rows=universe_rows, config=config, market_cutoff=market_cutoff
+    )
     etf_by_slug = {row.sector_slug: row for row in etf_rows}
     previous_snapshot = repository.get_previous_snapshot(
         db,
@@ -170,6 +180,15 @@ def build_sector_rotation_snapshot(
             "etf_count": len(etf_rows),
             "market_regime": _market_debug(market_snapshot),
             "persist_requested": persist,
+            "temporal_lineage": {
+                "calculation_context_id": market_cutoff.context_id,
+                "calculation_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
+                "calendar_version": market_cutoff.calendar_version,
+                "sector_latest_source_sessions": {
+                    row.proxy_ticker: row.as_of_date for row in etf_rows
+                },
+            },
         },
     )
 
@@ -194,11 +213,7 @@ def _rank_decisions(decisions: list[SectorRotationDecision]) -> list[SectorRotat
     )
     result: list[SectorRotationDecision] = []
     for rank, decision in enumerate(ranked, start=1):
-        rank_change = (
-            decision.previous_rank - rank
-            if decision.previous_rank is not None
-            else None
-        )
+        rank_change = decision.previous_rank - rank if decision.previous_rank is not None else None
         result.append(replace(decision, rank=rank, rank_change=rank_change))
     return result
 

@@ -49,7 +49,7 @@ def test_local_artifact_signature_is_canonical_and_revision_aware() -> None:
     assert first.input_signature != revised.input_signature
     assert first.input_versions["adjusted_series_version"] == 12
     assert canonical_json({"b": 2, "a": 1}) == '{"a":1,"b":2}'
-    assert ARTIFACT_SCHEMA_VERSION == "1"
+    assert ARTIFACT_SCHEMA_VERSION == "2-temporal"
 
 
 @pytest.mark.parametrize(
@@ -146,9 +146,9 @@ def test_series_version_maintenance_advances_once_per_changed_series() -> None:
 
 
 def test_phase4_migration_follows_current_head() -> None:
-    migration = Path(
-        "alembic/versions/20260805_0026_add_technical_artifact_cache.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260805_0026_add_technical_artifact_cache.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0026_technical_artifact_cache"' in migration
     assert 'down_revision: str | None = "0025_winner_combined_result_set_null"' in migration

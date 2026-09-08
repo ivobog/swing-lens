@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import UTC, date, datetime, time
+from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from app.services.market_calculation_context_service import standalone_market_context
+from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.services.market_participation_service import MarketParticipationService
 from app.services.market_regime import MarketRegimeResult, classify_market_regime
 from app.services.market_regime_dtos import (
@@ -58,8 +61,15 @@ class MarketRegimeCommandCenterService:
         run_id: int | None = None,
         today: date | None = None,
         config_path: Path | None = None,
+        market_cutoff: MarketCalculationCutoff | None = None,
     ) -> MarketRegimeCommandCenterDto:
-        today = today or date.today()
+        market_cutoff = market_cutoff or standalone_market_context(
+            reason="STANDALONE_MARKET_REGIME",
+            cutoff_at=(
+                datetime.combine(today, time.max, tzinfo=UTC) if today is not None else None
+            ),
+        )
+        today = market_cutoff.latest_completed_session
         config = load_market_regime_command_center_config(
             config_path
             if config_path is not None
@@ -67,13 +77,13 @@ class MarketRegimeCommandCenterService:
         )
         primary_symbol = str(config.symbols["primary_market"]).strip().upper()
         risk_symbol = str(config.symbols.get("risk_proxy") or "").strip().upper()
-        use_risk_proxy = bool(config.symbols.get("use_risk_proxy", True)) and bool(
-            risk_symbol
-        )
+        use_risk_proxy = bool(config.symbols.get("use_risk_proxy", True)) and bool(risk_symbol)
 
-        primary = self._load_market_input(db, primary_symbol, config, today)
+        primary = self._load_market_input(
+            db, primary_symbol, config, today, market_cutoff=market_cutoff
+        )
         risk_proxy = (
-            self._load_market_input(db, risk_symbol, config, today)
+            self._load_market_input(db, risk_symbol, config, today, market_cutoff=market_cutoff)
             if use_risk_proxy
             else None
         )
@@ -97,12 +107,8 @@ class MarketRegimeCommandCenterService:
             "risk_proxy": risk_symbol if use_risk_proxy else None,
             "use_risk_proxy": use_risk_proxy,
         }
-        participation = (
-            self.participation_service.build(db, run_id) if run_id is not None else None
-        )
-        sector_leadership = (
-            self.sector_service.build(db, run_id) if run_id is not None else []
-        )
+        participation = self.participation_service.build(db, run_id) if run_id is not None else None
+        sector_leadership = self.sector_service.build(db, run_id) if run_id is not None else []
 
         dto = MarketRegimeCommandCenterDto(
             as_of_date=as_of_date,
@@ -123,6 +129,17 @@ class MarketRegimeCommandCenterService:
             universe_participation=participation,
             sector_leadership=sector_leadership,
             debug={
+                "temporal_lineage": {
+                    "calculation_context_id": market_cutoff.context_id,
+                    "calculation_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                    "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
+                    "calendar_version": market_cutoff.calendar_version,
+                    "source_latest_sessions": {
+                        item.symbol: item.as_of_date.isoformat() if item.as_of_date else None
+                        for item in [primary, risk_proxy]
+                        if item is not None
+                    },
+                },
                 "input_symbols": input_symbols,
                 "market_inputs": {
                     item.symbol: item.debug for item in [primary, risk_proxy] if item is not None
@@ -139,8 +156,10 @@ class MarketRegimeCommandCenterService:
         symbol: str,
         config: MarketRegimeCommandCenterConfig,
         today: date,
+        *,
+        market_cutoff: MarketCalculationCutoff,
     ) -> MarketInput:
-        price, trades = load_preferred_ohlcv_frames(db, symbol)
+        price, trades = _load_bounded_market_frames(db, symbol, market_cutoff)
         as_of_date = _frame_as_of_date(price)
         if price.empty:
             return MarketInput(
@@ -245,7 +264,7 @@ class MarketRegimeCommandCenterService:
         if as_of_date is None:
             return MarketDataFreshness(stale=True, severely_stale=True)
         max_stale_days = int(config.freshness.get("max_stale_trading_days", 3))
-        age_days = max(0, (today - as_of_date).days)
+        age_days = max(0, MarketClockService().trading_session_distance(as_of_date, today))
         return MarketDataFreshness(
             stale=age_days > max_stale_days,
             severely_stale=age_days > max_stale_days * 2,
@@ -301,17 +320,14 @@ class MarketRegimeCommandCenterService:
             blocked_setups=dto.policy.blocked_setups,
             input_symbols=input_symbols,
             index_health={
-                symbol: _json_ready(asdict(health))
-                for symbol, health in dto.index_health.items()
+                symbol: _json_ready(asdict(health)) for symbol, health in dto.index_health.items()
             },
             universe_participation=(
                 _json_ready(asdict(dto.universe_participation))
                 if dto.universe_participation is not None
                 else {}
             ),
-            sector_leadership=[
-                _json_ready(asdict(row)) for row in dto.sector_leadership
-            ],
+            sector_leadership=[_json_ready(asdict(row)) for row in dto.sector_leadership],
             reasons=dto.reasons,
             warnings=dto.warnings,
             debug=_json_ready(dto.debug),
@@ -323,6 +339,32 @@ def _frame_as_of_date(frame: pd.DataFrame) -> date | None:
         return None
     value = pd.to_datetime(frame["date"].iloc[-1])
     return value.date()
+
+
+def _load_bounded_market_frames(
+    db: Session,
+    symbol: str,
+    market_cutoff: MarketCalculationCutoff,
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    parameters = signature(load_preferred_ohlcv_frames).parameters.values()
+    accepts_kwargs = any(item.kind is Parameter.VAR_KEYWORD for item in parameters)
+    if "max_session" in signature(load_preferred_ohlcv_frames).parameters or accepts_kwargs:
+        frames = load_preferred_ohlcv_frames(
+            db,
+            symbol,
+            max_session=market_cutoff.latest_completed_session,
+            as_of=market_cutoff.cutoff_at,
+        )
+    else:
+        frames = load_preferred_ohlcv_frames(db, symbol)
+    for frame in frames:
+        latest = _frame_as_of_date(frame) if frame is not None else None
+        if latest is not None and latest > market_cutoff.latest_completed_session:
+            raise ValueError(
+                f"temporal integrity violation: {symbol} session {latest} exceeds "
+                f"{market_cutoff.latest_completed_session}"
+            )
+    return frames
 
 
 def _float_or_none(value: Any) -> float | None:

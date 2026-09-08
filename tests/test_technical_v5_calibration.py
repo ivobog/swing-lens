@@ -238,7 +238,10 @@ def test_confirmed_htf_ignores_unconfirmed_current_week() -> None:
     frame = _frame(360)
     thursday = frame.iloc[:-1]
     friday = frame
-    assert calculate_htf_trend_features(thursday) == calculate_htf_trend_features(friday)
+    completed_through = pd.Timestamp(thursday["date"].iloc[-1]).date()
+    assert calculate_htf_trend_features(
+        thursday, latest_completed_session=completed_through
+    ) == calculate_htf_trend_features(friday, latest_completed_session=completed_through)
 
 
 def test_feature_value_at_decision_date_does_not_use_future_pivots() -> None:

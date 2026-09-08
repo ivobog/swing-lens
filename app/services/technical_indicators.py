@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -69,12 +70,8 @@ def calculate_technical_features(
         "start_date": str(df["date"].iloc[0].date()),
         "end_date": str(df["date"].iloc[-1].date()),
         "columns": list(df.columns),
-        "adaptive_percentiles_enabled": bool(
-            adaptive_params.get("enabled", True)
-        ),
-        "volatility_contraction_enabled": bool(
-            contraction_params.get("enabled", True)
-        ),
+        "adaptive_percentiles_enabled": bool(adaptive_params.get("enabled", True)),
+        "volatility_contraction_enabled": bool(contraction_params.get("enabled", True)),
         "donchian_darvas_enabled": bool(box_params.get("enabled", True)),
         "stage_analysis_enabled": bool(stage_params.get("enabled", True)),
         "climax_risk_enabled": bool(climax_params.get("enabled", True)),
@@ -171,10 +168,15 @@ def _relative_strength_features_for_aligned(
     aligned["rs_roc21"] = roc_pct(aligned["rs_line"], market_rs["rocShortLen"])
     aligned["rs_roc63"] = roc_pct(aligned["rs_line"], market_rs["rocMediumLen"])
     aligned["rs_roc126"] = roc_pct(aligned["rs_line"], market_rs["rocLongLen"])
-    aligned["rs_new_high"] = aligned["rs_line"] >= aligned["rs_line"].rolling(
-        market_rs["rsNewHighLookback"],
-        min_periods=market_rs["rsNewHighLookback"],
-    ).max()
+    aligned["rs_new_high"] = (
+        aligned["rs_line"]
+        >= aligned["rs_line"]
+        .rolling(
+            market_rs["rsNewHighLookback"],
+            min_periods=market_rs["rsNewHighLookback"],
+        )
+        .max()
+    )
     latest = {
         f"{prefix}_{key}": value
         for key, value in _latest_features(aligned).items()
@@ -233,7 +235,20 @@ def _aligned_close_by_session_date(
 
 
 def _market_session_dates(values: pd.Series) -> pd.Series:
-    return pd.to_datetime(values, errors="coerce", utc=True).dt.tz_convert(None).dt.normalize()
+    return pd.Series([_canonical_market_session(value) for value in values], index=values.index)
+
+
+def _canonical_market_session(value: Any) -> pd.Timestamp:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return pd.Timestamp(value)
+    timestamp = pd.Timestamp(value)
+    if pd.isna(timestamp):
+        return pd.NaT
+    if timestamp.tzinfo is None:
+        if timestamp.time() != datetime.min.time():
+            raise ValueError("naive market timestamp requires an explicit source contract")
+        return timestamp.normalize()
+    return timestamp.tz_convert("America/New_York").tz_localize(None).normalize()
 
 
 def _timezone_mismatch(left: pd.Series, right: pd.Series) -> bool:
@@ -263,10 +278,32 @@ def _insufficient_relative_strength_history(
 def calculate_htf_trend_features(
     price_df: pd.DataFrame,
     params: dict[str, Any] | None = None,
+    *,
+    latest_completed_session: date | None = None,
 ) -> dict[str, Any]:
     params = params or load_pine_defaults()
     htf = params["htf"]
-    weekly = resample_weekly_ohlcv(prepare_ohlcv_frame(price_df))
+    daily = prepare_ohlcv_frame(price_df)
+    weekly = resample_weekly_ohlcv(daily)
+    if weekly.empty:
+        return {"htf_insufficient_confirmed_history": True, "htf_confirmed": False}
+    from app.services.market_clock_service import MarketClockService
+
+    clock = MarketClockService()
+    completed = latest_completed_session or pd.Timestamp(daily["date"].iloc[-1]).date()
+    daily_sessions = {pd.Timestamp(value).date() for value in daily["date"]}
+    confirmed_mask = []
+    for bucket in weekly["date"]:
+        final_session = clock.last_us_trading_session_of_week(pd.Timestamp(bucket).date())
+        confirmed_mask.append(final_session <= completed and final_session in daily_sessions)
+    latest_excluded = bool(confirmed_mask and not confirmed_mask[-1])
+    weekly = weekly.loc[confirmed_mask].reset_index(drop=True)
+    if weekly.empty:
+        return {
+            "htf_confirmed": False,
+            "htf_latest_week_excluded": latest_excluded,
+            "htf_insufficient_confirmed_history": True,
+        }
     weekly["htf_ema_fast"] = ema(weekly["close"], htf["htfFastLen"])
     weekly["htf_sma_mid"] = sma(weekly["close"], htf["htfMidLen"])
     weekly["htf_sma_slow"] = sma(weekly["close"], htf["htfSlowLen"])
@@ -275,9 +312,16 @@ def calculate_htf_trend_features(
     weekly["htf_roc"] = roc_pct(weekly["close"], htf["htfRocLookback"])
     weekly["htf_close_above_mid"] = weekly["close"] > weekly["htf_sma_mid"]
     weekly["htf_mid_above_slow"] = weekly["htf_sma_mid"] > weekly["htf_sma_slow"]
-    if htf.get("useConfirmedHtf", True) and len(weekly) > 1:
-        return _features_at(weekly, -2)
-    return _latest_features(weekly)
+    result = _latest_features(weekly)
+    result.update(
+        {
+            "htf_source_week": pd.Timestamp(weekly["date"].iloc[-1]).date().isoformat(),
+            "htf_confirmed": True,
+            "htf_latest_week_excluded": latest_excluded,
+            "htf_insufficient_confirmed_history": False,
+        }
+    )
+    return result
 
 
 def resample_weekly_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
@@ -442,13 +486,11 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     features["atr14"] = atr(high, low, close, momentum["atrLen"])
     features["atr_pct"] = features["atr14"] / close * 100
     features["sma50_slope_atr"] = (
-        (features["sma50"] - features["sma50"].shift(trend["midSlopeLookback"]))
-        / features["atr14"].replace(0, np.nan)
-    )
+        features["sma50"] - features["sma50"].shift(trend["midSlopeLookback"])
+    ) / features["atr14"].replace(0, np.nan)
     features["sma200_slope_atr"] = (
-        (features["sma200"] - features["sma200"].shift(trend["slowSlopeLookback"]))
-        / features["atr14"].replace(0, np.nan)
-    )
+        features["sma200"] - features["sma200"].shift(trend["slowSlopeLookback"])
+    ) / features["atr14"].replace(0, np.nan)
     features["avg_volume"] = sma(volume, momentum["volLen"])
     features["volume_ratio"] = volume / features["avg_volume"].replace(0, np.nan)
     features["obv"] = obv(close, volume)
@@ -512,10 +554,14 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         / features["prior_high"].replace(0, np.nan)
         * 100
     ).fillna(0)
-    features["rsi_pullback_low"] = features["rsi14"].rolling(
-        pullback_breakout["pullbackLookback"],
-        min_periods=pullback_breakout["pullbackLookback"],
-    ).min()
+    features["rsi_pullback_low"] = (
+        features["rsi14"]
+        .rolling(
+            pullback_breakout["pullbackLookback"],
+            min_periods=pullback_breakout["pullbackLookback"],
+        )
+        .min()
+    )
     features["had_pullback"] = features["pullback_depth_pct"] >= pullback_breakout["minPullbackPct"]
     features["not_too_deep"] = features["pullback_depth_pct"] <= pullback_breakout["maxPullbackPct"]
     features["near_ema20"] = _near_level_within_lookback(
@@ -551,9 +597,8 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         features["previous_resistance"],
         risk["nearResistancePct"],
     ) & (features["previous_resistance"] >= close)
-    features["fresh_breakout"] = (
-        (close > features["previous_resistance"])
-        & (features["volume_ratio"] >= pullback_breakout["breakoutVolRatio"])
+    features["fresh_breakout"] = (close > features["previous_resistance"]) & (
+        features["volume_ratio"] >= pullback_breakout["breakoutVolRatio"]
     )
     features["active_breakout_level"] = (
         features["previous_resistance"].where(features["fresh_breakout"]).ffill()
@@ -570,22 +615,26 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
     red_bar = close < open_
     green_volume = volume.where(green_bar, 0.0)
     red_volume = volume.where(red_bar, 0.0)
-    features["green_volume_avg"] = rolling_sum(
-        green_volume,
-        momentum["greenRedVolLookback"],
-    ) / momentum["greenRedVolLookback"]
-    features["red_volume_avg"] = rolling_sum(
-        red_volume,
-        momentum["greenRedVolLookback"],
-    ) / momentum["greenRedVolLookback"]
+    features["green_volume_avg"] = (
+        rolling_sum(
+            green_volume,
+            momentum["greenRedVolLookback"],
+        )
+        / momentum["greenRedVolLookback"]
+    )
+    features["red_volume_avg"] = (
+        rolling_sum(
+            red_volume,
+            momentum["greenRedVolLookback"],
+        )
+        / momentum["greenRedVolLookback"]
+    )
     features["green_beats_red"] = features["green_volume_avg"] > features["red_volume_avg"]
     features["recent_red_volume"] = rolling_sum(red_volume, momentum["recentRedVolLookback"])
     features["prior_red_volume"] = features["recent_red_volume"].shift(
         momentum["recentRedVolLookback"]
     )
-    features["red_volume_declining"] = features["recent_red_volume"] <= features[
-        "prior_red_volume"
-    ]
+    features["red_volume_declining"] = features["recent_red_volume"] <= features["prior_red_volume"]
     features["short_volume_avg"] = sma(volume, 5)
     features["volume_dry_up"] = (
         features["had_pullback"]
@@ -598,9 +647,7 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         risk["notionalVolumeLookback"],
     )
     if risk["useNotionalLiquidityFilter"]:
-        features["liquidity_warning"] = features["avg_notional_volume"] < risk[
-            "minNotionalVolume"
-        ]
+        features["liquidity_warning"] = features["avg_notional_volume"] < risk["minNotionalVolume"]
     else:
         features["liquidity_warning"] = features["avg_volume"] < risk["minAvgVolume"]
 
@@ -631,8 +678,10 @@ def _calculate_feature_frame(df: pd.DataFrame, params: dict[str, Any]) -> pd.Dat
         & (features["gap_exhaustion"] | features["heavy_red_candle"])
     )
     features["distribution_risk"] = (
-        features["distribution_count"] >= 4
-    ) | features["heavy_red_candle"] | features["failed_breakout"]
+        (features["distribution_count"] >= 4)
+        | features["heavy_red_candle"]
+        | features["failed_breakout"]
+    )
 
     swing_low_stop = features["recent_low_after_high"]
     sma50_stop = features["sma50"] * (1.0 - stop_target["smaStopAtrBuffer"] / 100.0)
@@ -706,9 +755,7 @@ def _features_at(features: pd.DataFrame, index: int) -> dict[str, Any]:
 
 def _row_features(features: pd.DataFrame, row: pd.Series) -> dict[str, Any]:
     return {
-        column: _to_python_value(row[column])
-        for column in features.columns
-        if column != "date"
+        column: _to_python_value(row[column]) for column in features.columns if column != "date"
     }
 
 
@@ -721,9 +768,7 @@ def _higher_last_pivot(pivots: pd.Series) -> pd.Series:
             previous_pivot = last_pivot
             last_pivot = float(value)
         values.append(
-            last_pivot is not None
-            and previous_pivot is not None
-            and last_pivot > previous_pivot
+            last_pivot is not None and previous_pivot is not None and last_pivot > previous_pivot
         )
     return pd.Series(values, index=pivots.index)
 
@@ -818,9 +863,8 @@ def _validate_bar_quality(df: pd.DataFrame, *, frame_name: str) -> None:
         sample = ", ".join(duplicated_dates.head(5).tolist())
         raise ValueError(f"{frame_name} OHLCV frame has duplicate bar dates: {sample}")
 
-    invalid_ohlc = (
-        (df["high"] < df[["open", "close", "low"]].max(axis=1))
-        | (df["low"] > df[["open", "close", "high"]].min(axis=1))
+    invalid_ohlc = (df["high"] < df[["open", "close", "low"]].max(axis=1)) | (
+        df["low"] > df[["open", "close", "high"]].min(axis=1)
     )
     if invalid_ohlc.any():
         sample = ", ".join(df.loc[invalid_ohlc, "date"].dt.strftime("%Y-%m-%d").head(5).tolist())
@@ -828,9 +872,7 @@ def _validate_bar_quality(df: pd.DataFrame, *, frame_name: str) -> None:
 
     negative_volume = df["volume"] < 0
     if negative_volume.any():
-        sample = ", ".join(
-            df.loc[negative_volume, "date"].dt.strftime("%Y-%m-%d").head(5).tolist()
-        )
+        sample = ", ".join(df.loc[negative_volume, "date"].dt.strftime("%Y-%m-%d").head(5).tolist())
         raise ValueError(f"{frame_name} OHLCV frame has negative volume: {sample}")
 
 

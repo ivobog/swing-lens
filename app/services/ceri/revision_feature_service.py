@@ -17,6 +17,7 @@ from app.services.ceri.point_in_time_query import (
     CeriPointInTimeQuery,
     canonical_estimate_key,
 )
+from app.services.market_clock_service import MarketClockService
 
 
 @dataclass(frozen=True)
@@ -118,9 +119,11 @@ class CeriRevisionFeatureService:
             if feature.period_slot is not None:
                 by_slot.setdefault(feature.period_slot, []).append(feature.pct_change)
         available_weight = sum(
-            (Decimal(str(weight))
-            for slot, weight in self.config.revision.period_weights.items()
-            if slot.value in by_slot),
+            (
+                Decimal(str(weight))
+                for slot, weight in self.config.revision.period_weights.items()
+                if slot.value in by_slot
+            ),
             Decimal("0"),
         )
         coverage = float(Decimal("100") * available_weight)
@@ -243,7 +246,9 @@ class CeriRevisionFeatureService:
             metric=metric,
             period_key=period_key,
             period_slot=period_slot,
-            as_of_session=cutoff_at.date(),
+            as_of_session=MarketClockService()
+            .cutoff_for(cutoff_at, reason="CERI_REVISION_FEATURE")
+            .latest_completed_session,
             window_days=window_days,
             baseline_snapshot_id=baseline.id if baseline is not None else None,
             current_snapshot_id=current.id if current is not None else None,
@@ -260,7 +265,9 @@ class CeriRevisionFeatureService:
             baseline_origin=(
                 "ACCUMULATED_IMMUTABLE_OBSERVATION"
                 if baseline is not None and comparison_mode == "HISTORICAL_OBSERVATION"
-                else baseline.baseline_origin if baseline is not None else None
+                else baseline.baseline_origin
+                if baseline is not None
+                else None
             ),
             comparison_mode=comparison_mode,
             current_source_record_id=(current.source_record_id if current is not None else None),
@@ -272,9 +279,7 @@ class CeriRevisionFeatureService:
             ),
             known_at=current.known_at if current is not None else None,
             reference_at=(
-                baseline.reference_at
-                or baseline.known_at
-                or baseline.effective_at
+                baseline.reference_at or baseline.known_at or baseline.effective_at
                 if baseline is not None
                 else None
             ),

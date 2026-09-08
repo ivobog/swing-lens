@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from time import perf_counter
 from typing import Any
 
@@ -281,6 +281,8 @@ def execute_feature_batch_job(
                 tickers=remaining_tickers,
                 run_id=int(payload.get("run_id") or job.related_run_id),
                 mode="AS_KNOWN",
+                as_of_session=_optional_date(payload.get("as_of_session")),
+                cutoff_at=_optional_datetime(payload.get("cutoff_at")),
             ),
         )
     failed = 0
@@ -313,6 +315,8 @@ def execute_feature_batch_job(
                     ticker=ticker,
                     run_id=int(payload.get("run_id") or job.related_run_id),
                     mode="AS_KNOWN",
+                    as_of_session=_optional_date(payload.get("as_of_session")),
+                    cutoff_at=_optional_datetime(payload.get("cutoff_at")),
                 ),
                 processing_run=processing,
                 **({"batch_context": batch_context} if batch_context is not None else {}),
@@ -425,6 +429,16 @@ def execute_run_finalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
             "workflow_key": workflow_key,
             "request_key": request_key,
             "run_id": run_id,
+            **{
+                key: payload[key]
+                for key in (
+                    "cutoff_at",
+                    "as_of_session",
+                    "calendar_version",
+                    "calculation_context_id",
+                )
+                if key in payload
+            },
         },
         related_run_id=run_id,
         priority=max(0, int(job.priority or 140) - 1),
@@ -591,6 +605,24 @@ def _checkpoint_interval(payload: dict[str, Any]) -> int:
         1,
         int(configured or get_settings().ceri_batch_checkpoint_interval),
     )
+
+
+def _optional_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _optional_date(value: Any) -> date | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10])
 
 
 def _required_text(payload: dict[str, Any], key: str) -> str:

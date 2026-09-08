@@ -148,9 +148,7 @@ class MarketRegimeRepository:
         )
 
     def delete_for_run(self, db: Session, run_id: int) -> None:
-        db.execute(
-            delete(MarketRegimeSnapshot).where(MarketRegimeSnapshot.run_id == run_id)
-        )
+        db.execute(delete(MarketRegimeSnapshot).where(MarketRegimeSnapshot.run_id == run_id))
         db.flush()
 
     def _matching_snapshot(
@@ -198,9 +196,7 @@ class MarketRegimeRepository:
         if dto.config_version is None:
             statement = statement.where(MarketRegimeSnapshot.config_version.is_(None))
         else:
-            statement = statement.where(
-                MarketRegimeSnapshot.config_version == dto.config_version
-            )
+            statement = statement.where(MarketRegimeSnapshot.config_version == dto.config_version)
 
         return statement
 
@@ -247,6 +243,11 @@ class MarketRegimeRepository:
         snapshot.reasons_json = list(dto.reasons)
         snapshot.warnings_json = list(dto.warnings)
         snapshot.debug_json = dict(dto.debug)
+        temporal = dict(dto.debug.get("temporal_lineage") or {})
+        snapshot.calculation_context_id = temporal.get("calculation_context_id")
+        snapshot.calculation_cutoff_at = _optional_datetime(temporal.get("calculation_cutoff_at"))
+        snapshot.input_as_of_session = _optional_date(temporal.get("input_as_of_session"))
+        snapshot.calendar_version = temporal.get("calendar_version")
         snapshot.evidence_hash = self.snapshot_evidence_hash(dto)
 
     @staticmethod
@@ -254,3 +255,11 @@ class MarketRegimeRepository:
         payload = asdict(dto)
         data = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
+
+
+def _optional_datetime(value: Any) -> datetime | None:
+    return datetime.fromisoformat(str(value)) if value else None
+
+
+def _optional_date(value: Any) -> date | None:
+    return date.fromisoformat(str(value)) if value else None

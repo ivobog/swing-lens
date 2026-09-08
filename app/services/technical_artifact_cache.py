@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from sqlalchemy import select
@@ -15,7 +15,7 @@ from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redact_text
 
 LOCAL_ARTIFACT_KIND = "LOCAL"
-ARTIFACT_SCHEMA_VERSION = "1"
+ARTIFACT_SCHEMA_VERSION = "2-temporal"
 SHADOW_UNVALIDATED = "UNVALIDATED"
 SHADOW_MATCH = "MATCH"
 SHADOW_MISMATCH = "MISMATCH"
@@ -50,12 +50,16 @@ def build_local_artifact_key(
     feature_config_hash: str,
     scoring_config_hash: str,
     technical_engine_version: str,
+    input_as_of_session: date | None = None,
     artifact_schema_version: str = ARTIFACT_SCHEMA_VERSION,
 ) -> LocalArtifactKey:
     input_versions = {
         "adjusted_series_version": adjusted_series_version,
         "trades_series_version": trades_series_version,
         "feature_config_hash": feature_config_hash,
+        "input_as_of_session": (
+            input_as_of_session.isoformat() if input_as_of_session is not None else None
+        ),
     }
     signature_payload = {
         "ticker": ticker.upper(),
@@ -104,11 +108,7 @@ def get_local_artifact(
         operational_metrics.increment(
             "swinglens_technical_artifact_cache_total",
             result="invalid",
-            reason=(
-                "artifact_status"
-                if artifact.status != "READY"
-                else "shadow_not_certified"
-            ),
+            reason=("artifact_status" if artifact.status != "READY" else "shadow_not_certified"),
         )
         return None
     artifact.last_used_at = datetime.now(UTC)

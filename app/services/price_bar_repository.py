@@ -68,8 +68,14 @@ def load_preferred_ohlcv_frames(
     trades = load_price_bars_frame(
         db, ticker, "TRADES", timeframe, max_session=max_session, as_of=as_of
     )
-    price = adjusted if not adjusted.empty else trades
+    adjusted_complete = not adjusted.empty and (
+        trades.empty or set(adjusted["date"]) >= set(trades["date"])
+    )
+    price = adjusted if adjusted_complete else trades
     volume = trades if not trades.empty else None
+    price.attrs["price_basis"] = "ADJUSTED_LAST" if adjusted_complete else "TRADES"
+    if volume is not None:
+        volume.attrs["volume_basis"] = "TRADES"
     return price, volume
 
 

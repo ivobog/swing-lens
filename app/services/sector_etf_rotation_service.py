@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from inspect import Parameter, signature
 from typing import Any
 
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from app.services.market_calculation_context_service import standalone_market_context
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.price_bar_repository import load_preferred_ohlcv_frames
 from app.services.sector_rotation_dtos import (
     SectorEtfRotationMetrics,
@@ -22,12 +25,21 @@ class SectorEtfRotationService:
         db: Session,
         universe_rows: list[SectorUniverseMetrics],
         config: dict[str, Any],
+        market_cutoff: MarketCalculationCutoff | None = None,
     ) -> list[SectorEtfRotationMetrics]:
         if not bool(config.get("etf_score", {}).get("enabled", False)):
             return []
 
+        market_cutoff = market_cutoff or standalone_market_context(
+            reason="STANDALONE_SECTOR_ETF_ROTATION"
+        )
         benchmark_ticker = str(config["etf_score"]["benchmark_ticker"]).strip().upper()
-        benchmark_price, _benchmark_volume = load_preferred_ohlcv_frames(db, benchmark_ticker)
+        benchmark_price, _benchmark_volume = _load_preferred_bounded(
+            db, benchmark_ticker, market_cutoff
+        )
+        _assert_temporal_boundary(
+            benchmark_ticker, benchmark_price, market_cutoff.latest_completed_session
+        )
         return [
             self._build_sector_metrics(
                 db=db,
@@ -35,6 +47,7 @@ class SectorEtfRotationService:
                 benchmark_ticker=benchmark_ticker,
                 benchmark_price=benchmark_price,
                 config=config,
+                market_cutoff=market_cutoff,
             )
             for universe in universe_rows
         ]
@@ -46,6 +59,7 @@ class SectorEtfRotationService:
         benchmark_ticker: str,
         benchmark_price: pd.DataFrame,
         config: dict[str, Any],
+        market_cutoff: MarketCalculationCutoff,
     ) -> SectorEtfRotationMetrics:
         proxy_ticker = str(config.get("sector_etf_proxies", {}).get(universe.sector) or "")
         warnings: list[str] = []
@@ -61,7 +75,8 @@ class SectorEtfRotationService:
                 debug={"missing_proxy": True},
             )
 
-        price, volume = load_preferred_ohlcv_frames(db, proxy_ticker)
+        price, volume = _load_preferred_bounded(db, proxy_ticker, market_cutoff)
+        _assert_temporal_boundary(proxy_ticker, price, market_cutoff.latest_completed_session)
         if price.empty:
             return SectorEtfRotationMetrics(
                 sector=universe.sector,
@@ -241,6 +256,35 @@ def _frame_as_of_date(frame: pd.DataFrame) -> str | None:
     if frame.empty or "date" not in frame:
         return None
     return pd.to_datetime(frame["date"].iloc[-1]).date().isoformat()
+
+
+def _assert_temporal_boundary(ticker: str, frame: pd.DataFrame, cutoff) -> None:
+    if frame.empty or "date" not in frame:
+        return
+    latest = pd.to_datetime(frame["date"].iloc[-1]).date()
+    if latest > cutoff:
+        raise ValueError(
+            f"temporal integrity violation: {ticker} session {latest} exceeds {cutoff}"
+        )
+
+
+def _load_preferred_bounded(
+    db: Session,
+    ticker: str,
+    market_cutoff: MarketCalculationCutoff,
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    parameters = signature(load_preferred_ohlcv_frames).parameters
+    supports_boundary = "max_session" in parameters or any(
+        item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
+    )
+    if not supports_boundary:
+        return load_preferred_ohlcv_frames(db, ticker)
+    return load_preferred_ohlcv_frames(
+        db,
+        ticker,
+        max_session=market_cutoff.latest_completed_session,
+        as_of=market_cutoff.cutoff_at,
+    )
 
 
 def _greater_than(left: float | None, right: float | None) -> bool | None:

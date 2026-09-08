@@ -180,6 +180,10 @@ def start_pipeline(
     db.add(pipeline)
     db.flush()
 
+    from app.services.market_calculation_context_service import create_pipeline_market_context
+
+    market_cutoff = create_pipeline_market_context(db, pipeline)
+
     for step_order, step_name in enumerate(step_names, start=1):
         db.add(
             PipelineStep(
@@ -227,6 +231,11 @@ def start_pipeline(
         "ib_preflight_checked_at": preflight.get("checked_at"),
         "ib_host": preflight.get("host", getattr(settings, "ib_host", None)),
         "ib_port": preflight.get("port", getattr(settings, "ib_port", None)),
+        "market_calculation_context_id": market_cutoff.context_id,
+        "market_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+        "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
+        "market_calendar_version": market_cutoff.calendar_version,
+        "bar_readiness_version": market_cutoff.bar_readiness_version,
     }
     preempted_prewarm_jobs = request_active_prewarm_preemption(
         db,

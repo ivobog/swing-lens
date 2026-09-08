@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from inspect import Parameter, signature
@@ -48,6 +48,8 @@ from app.services.ib_gateway_health_service import (
 from app.services.ib_gateway_health_service import (
     check_status as check_ib_gateway_status,
 )
+from app.services.market_calculation_context_service import market_context_for_pipeline
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_data_prewarm_service import (
     record_pipeline_prewarm_reuse,
     resolve_pipeline_prewarm_context,
@@ -94,18 +96,41 @@ class IBGatewayUnavailable(Exception):
     code = "IB_GATEWAY_UNAVAILABLE"
 
 
+def _call_market_sensitive(
+    function: Callable[..., Any],
+    db: Session,
+    run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+) -> Any:
+    """Pass the frozen cutoff without breaking narrow test doubles."""
+    parameters = signature(function).parameters
+    if "market_cutoff" in parameters or any(
+        item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
+    ):
+        return function(db, run_id, market_cutoff=market_cutoff)
+    return function(db, run_id)
+
+
 def build_market_regime_snapshot_for_run(
     db: Session,
     run_id: int,
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> MarketRegimeCommandCenterDto:
-    return MarketRegimeCommandCenterService().build_snapshot(db, run_id=run_id)
+    return MarketRegimeCommandCenterService().build_snapshot(
+        db, run_id=run_id, market_cutoff=market_cutoff
+    )
 
 
 def build_sector_rotation_snapshot_for_run(
     db: Session,
     run_id: int,
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> SectorRotationSnapshotDto:
-    return SectorRotationService().build_sector_rotation_snapshot(db, run_id=run_id)
+    return SectorRotationService().build_sector_rotation_snapshot(
+        db, run_id=run_id, market_cutoff=market_cutoff
+    )
 
 
 @dataclass(frozen=True)
@@ -169,6 +194,7 @@ class PipelineExecutionResult:
 
 @dataclass(frozen=True)
 class PipelineExecutionDependencies:
+    market_cutoff: MarketCalculationCutoff | None = None
     validate_pipeline_preflight: Callable[[Session, list[str]], dict[str, Any]] | None = None
     schedule_sec_readiness_repair: Callable[..., Any] | None = None
     validate_resume_checkpoint: Callable[[Session, int, str], dict[str, Any]] | None = None
@@ -213,6 +239,9 @@ def execute_full_pipeline(
 ) -> PipelineExecutionResult:
     dependencies = dependencies or PipelineExecutionDependencies()
     pipeline = _require_pipeline(db, pipeline_run_id)
+    market_cutoff = dependencies.market_cutoff or market_context_for_pipeline(db, pipeline)
+    if dependencies.market_cutoff is None:
+        dependencies = replace(dependencies, market_cutoff=market_cutoff)
     pipeline._job_progress_callback = progress_callback
     upload_run = _require_upload_run(db, pipeline.upload_run_id)
     if resume_from_step is not None and resume_from_step != "VALIDATING_RUN":
@@ -362,6 +391,7 @@ def execute_full_pipeline(
                     lease_guard=lease_guard,
                     required_market_tickers=benchmark_tickers,
                     wait_for_market_events=bool(plan.estimated_request_count),
+                    market_cutoff=market_cutoff,
                 )
             elif _fetch_technical_overlap_enabled(dependencies):
                 performance.add_fallback("technical_overlap_callback_unsupported")
@@ -425,7 +455,9 @@ def execute_full_pipeline(
                         f"technical_overlap:{overlap_coordinator.fallback_reason}"
                     )
             else:
-                technical_scores = dependencies.score_technicals(db, upload_run.id)
+                technical_scores = _call_market_sensitive(
+                    dependencies.score_technicals, db, upload_run.id, market_cutoff
+                )
             if result["market_data_mode"] == "CACHE_FALLBACK":
                 _mark_technical_scores_degraded(technical_scores, result)
             performance.set_metric(
@@ -499,7 +531,9 @@ def execute_full_pipeline(
             lease_guard=lease_guard,
             performance=performance,
         ):
-            snapshot = dependencies.build_market_regime_snapshot(db, upload_run.id)
+            snapshot = _call_market_sensitive(
+                dependencies.build_market_regime_snapshot, db, upload_run.id, market_cutoff
+            )
             result["market_regime_snapshots"] = 1
             result["market_regime"] = snapshot.regime
             result["market_risk_state"] = snapshot.risk_state
@@ -559,7 +593,9 @@ def execute_full_pipeline(
             lease_guard=lease_guard,
             performance=performance,
         ):
-            sector_snapshot = dependencies.build_sector_rotation_snapshot(db, upload_run.id)
+            sector_snapshot = _call_market_sensitive(
+                dependencies.build_sector_rotation_snapshot, db, upload_run.id, market_cutoff
+            )
             result["sector_rotation_snapshots"] = 1
             result["sector_rotation_sector_count"] = int(
                 sector_snapshot.summary.get("sector_count") or len(sector_snapshot.rows)
@@ -580,7 +616,9 @@ def execute_full_pipeline(
                 schedule = (
                     dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
                 )
-                result["ceri_provider_jobs"] = int(schedule(db, upload_run.id) or 0)
+                result["ceri_provider_jobs"] = int(
+                    _call_market_sensitive(schedule, db, upload_run.id, market_cutoff) or 0
+                )
         elif _ceri_run_capture_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
@@ -591,7 +629,7 @@ def execute_full_pipeline(
                 performance=performance,
             ):
                 capture = dependencies.capture_ceri_snapshot or _capture_ceri_snapshot
-                ceri_result = capture(db, upload_run.id)
+                ceri_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)
                 _apply_ceri_capture_result(result, ceri_result)
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
@@ -604,7 +642,7 @@ def execute_full_pipeline(
                 performance=performance,
             ):
                 capture = dependencies.capture_setup_signals or _capture_setup_signals
-                capture_result = capture(db, upload_run.id)
+                capture_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)
                 _apply_setup_lifecycle_capture_result(
                     result,
                     capture_result,
@@ -763,7 +801,9 @@ def _execute_resumed_pipeline(
                 else validate_sec_pipeline_preflight(db, tickers=tickers)
             )
             schedule = dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
-            result["ceri_provider_jobs"] = int(schedule(db, upload_run.id) or 0)
+            result["ceri_provider_jobs"] = int(
+                _call_market_sensitive(schedule, db, upload_run.id, dependencies.market_cutoff) or 0
+            )
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
@@ -775,7 +815,11 @@ def _execute_resumed_pipeline(
                 performance=performance,
             ):
                 capture = dependencies.capture_setup_signals or _capture_setup_signals
-                capture_result = capture(db, upload_run.id)
+                if dependencies.market_cutoff is None:
+                    raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
+                capture_result = _call_market_sensitive(
+                    capture, db, upload_run.id, dependencies.market_cutoff
+                )
                 _apply_setup_lifecycle_capture_result(
                     result,
                     capture_result,
@@ -1603,12 +1647,21 @@ def _ceri_provider_ingest_enabled(dependencies: PipelineExecutionDependencies) -
     )
 
 
-def _schedule_ceri_provider_ingest(db: Session, run_id: int) -> int:
+def _schedule_ceri_provider_ingest(
+    db: Session,
+    run_id: int,
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
+) -> int:
     """Queue provider-specific ingestion jobs for the current SwingLens run."""
     settings = get_settings()
     if getattr(settings, "ceri_batched_workflow_enabled", False):
         from app.services.ceri.batched_workflow import schedule_ceri_batched_workflow
 
+        if market_cutoff is not None:
+            return schedule_ceri_batched_workflow(
+                db, run_id, market_cutoff=market_cutoff
+            ).provider_batches
         return schedule_ceri_batched_workflow(db, run_id).provider_batches
     if not getattr(settings, "ceri_legacy_pipeline_scheduling_enabled", True):
         return 0
@@ -1674,6 +1727,16 @@ def _schedule_ceri_provider_ingest(db: Session, run_id: int) -> int:
                         "run_id": run_id,
                         "request_key": request_key,
                         "scope": {"ticker": ticker, "run_id": run_id},
+                        **(
+                            {
+                                "cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                                "as_of_session": market_cutoff.latest_completed_session.isoformat(),
+                                "calendar_version": market_cutoff.calendar_version,
+                                "calculation_context_id": market_cutoff.context_id,
+                            }
+                            if market_cutoff is not None
+                            else {}
+                        ),
                     },
                     related_run_id=run_id,
                     request_key=request_key,
@@ -1706,10 +1769,15 @@ def _accepts_keyword(callable_obj: Callable[..., Any], keyword: str) -> bool:
     )
 
 
-def _capture_ceri_snapshot(db: Session, run_id: int):
+def _capture_ceri_snapshot(
+    db: Session,
+    run_id: int,
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
+):
     from app.services.ceri.capture_service import CeriRunCaptureService
 
-    return CeriRunCaptureService().capture_run(db, run_id)
+    return CeriRunCaptureService().capture_run(db, run_id, market_cutoff=market_cutoff)
 
 
 def _capture_winner_predictions(db: Session, run_id: int):
@@ -1718,12 +1786,19 @@ def _capture_winner_predictions(db: Session, run_id: int):
     return WinnerPredictionCaptureService().capture_run(db, run_id=run_id)
 
 
-def _capture_setup_signals(db: Session, run_id: int):
+def _capture_setup_signals(
+    db: Session,
+    run_id: int,
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
+):
     from app.services.setup_lifecycle.snapshot_builder import (
         SetupLifecycleSnapshotCaptureService,
     )
 
-    return SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(db, run_id)
+    return SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(
+        db, run_id, market_cutoff=market_cutoff
+    )
 
 
 def _evaluate_setup_lifecycles(

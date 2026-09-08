@@ -1,0 +1,265 @@
+{
+  "ceri_alert_cooldown": {
+    "alert_calendar_date_diff": 456,
+    "alert_count": 1057,
+    "caveat": "Suppressed alerts leave no row; this reconstruction can certify only persisted evaluations.",
+    "change_calendar_date_diff": 456,
+    "decision_difference_id_sha256": "0863942597fc34f3b9e4f5933914468bc7a0ed74e77394bc81f7be557e3b7a80",
+    "evaluations_with_age_difference": 104,
+    "evaluations_with_decision_difference": 97
+  },
+  "ceri_features_and_capture": {
+    "ceri_derived_features": {
+      "ahead_by_family": {
+        "catalysts": 7215,
+        "confidence": 8338,
+        "earnings_surprise": 7481,
+        "guidance": 118
+      },
+      "ahead_id_sha256": "8828198adc3905067ea13d4c930edb9f5cfc041a7f040fdcee218855682f0952",
+      "distribution": {
+        "ahead": 23152,
+        "aligned": 683
+      },
+      "non_session_calendar_label_count": 7397,
+      "one_session_ahead_count": 15755
+    },
+    "ceri_feature_build_states": {
+      "ahead_by_family": {
+        "build_state": 4725
+      },
+      "ahead_id_sha256": "8d8c186aad6c3976c7f57c632787b923cd53ba98b3b4a73cd705d463a421a7f0",
+      "distribution": {
+        "ahead": 4725,
+        "aligned": 625
+      },
+      "non_session_calendar_label_count": 1127,
+      "one_session_ahead_count": 3598
+    },
+    "ceri_score_snapshots": {
+      "ahead_id_sha256": "d172f9972428520bf97af1d083fe70e51af5d11624a779a0da284e5ba29b6756",
+      "ahead_run_count": 35,
+      "distribution": {
+        "ahead": 8319,
+        "aligned": 2399
+      },
+      "non_session_calendar_label_count": 3239,
+      "one_session_ahead_count": 5080
+    },
+    "score_snapshots_with_source_bar_ahead": {
+      "ahead_id_sha256": "f7829850b462a511fba927568d57b4e08b3ffbcc47eb82a7c8d498d7962c8da7",
+      "distribution": {
+        "ahead": 137,
+        "aligned": 4717,
+        "behind": 4453,
+        "no_price_bars": 1411
+      }
+    }
+  },
+  "ceri_price_response": {
+    "event_type:CATALYST": 2704,
+    "event_type:EARNINGS": 1,
+    "exact_open_equal": 10,
+    "id_sha256": "523c2d1e438b4493b30f23f8afd4d168a09e43084107e8289984e4ca18431406",
+    "independent_direct_sql_count": 2705,
+    "pre_event_contaminated": 2705,
+    "pre_market_safe": 2962,
+    "score_snapshots_with_available_scored_component": 318,
+    "score_snapshots_with_lineage": 4700,
+    "timestamp_resolvable": 5677,
+    "timestamp_unresolved": 105,
+    "total": 5782
+  },
+  "certification": {
+    "final_pipeline_canary_safe": false,
+    "finding_statuses": {
+      "STI-F001": "CONFIRMED",
+      "STI-F002": "CONFIRMED",
+      "STI-F003": "PARTIALLY_CONFIRMED",
+      "STI-F004": "CONFIRMED",
+      "STI-F005": "CONFIRMED",
+      "STI-F006": "PARTIALLY_CONFIRMED",
+      "STI-F007": "CONFIRMED",
+      "STI-F008": "CONFIRMED",
+      "STI-F009": "CONFIRMED",
+      "STI-F010": "CONFIRMED",
+      "STI-F011": "PARTIALLY_CONFIRMED",
+      "STI-F012": "CONFIRMED",
+      "STI-F013": "CONFIRMED",
+      "STI-F014": "PARTIALLY_CONFIRMED",
+      "STI-F015": "CONFIRMED",
+      "STI-F016": "CONFIRMED",
+      "STI-F017": "CONFIRMED",
+      "STI-F018": "CONFIRMED"
+    },
+    "findings_checked": 18,
+    "status_counts": {
+      "CONFIRMED": 14,
+      "PARTIALLY_CONFIRMED": 4
+    }
+  },
+  "early_price_bars": {
+    "bars_first_seen_before_safe_boundary": 2306,
+    "distribution": {
+      "1 day:ADJUSTED_LAST": 1153,
+      "1 day:TRADES": 1153
+    },
+    "id_sha256": "06d23734c907fe2071a3ef1b39eeef63f54247f43ea60ce1904368fd9c91617c"
+  },
+  "generated_at": "2026-09-08T00:08:32.016774+02:00",
+  "ib_market_intelligence": {
+    "calendar_days_requested": 120,
+    "feature_ahead_id_sha256": "e7acf2932d24aea777799296bebb566becf429ce4cf5105e7fd2ac813cd2d092",
+    "feature_as_of_ahead_count": 8,
+    "historical_bar_id_sha256": "48449a14a4ff7d79bb7a1b6f3d488eba397c36ef25634c111b49baf362511afc",
+    "historical_bars_first_seen_before_safe_boundary": 1,
+    "historical_requests": [
+      {
+        "calendar_days_requested": 60,
+        "end_date": "2026-08-09",
+        "expected_end_at_request_start": "2026-08-07",
+        "non_session_dates_in_scope": 20,
+        "post_filter_rows": 40,
+        "request_item_id": 6,
+        "start_date": "2026-06-11",
+        "ticker": "AAPL",
+        "trading_sessions_in_scope": 40
+      },
+      {
+        "calendar_days_requested": 60,
+        "end_date": "2026-08-10",
+        "expected_end_at_request_start": "2026-08-07",
+        "non_session_dates_in_scope": 20,
+        "post_filter_rows": 40,
+        "request_item_id": 9,
+        "start_date": "2026-06-12",
+        "ticker": "MSFT",
+        "trading_sessions_in_scope": 40
+      }
+    ],
+    "ib_intelligence_feature_count": 8,
+    "non_session_dates_in_scope": 40,
+    "trading_sessions_in_scope": 80
+  },
+  "market_regime": {
+    "input_relation_to_completed_session": {
+      "aligned": 79,
+      "behind": 9
+    },
+    "spy_qqq_session_mismatch_count": 0,
+    "stale_classification_difference_count": 3,
+    "stale_classification_differences": [
+      {
+        "as_of_date": "2026-07-31",
+        "calendar_day_stale": true,
+        "created_at": "2026-08-04T00:39:23.281740+02:00",
+        "snapshot_id": 19,
+        "stored_stale": true,
+        "trading_session_stale": false
+      },
+      {
+        "as_of_date": "2026-07-31",
+        "calendar_day_stale": true,
+        "created_at": "2026-08-04T00:44:04.769341+02:00",
+        "snapshot_id": 20,
+        "stored_stale": true,
+        "trading_session_stale": false
+      },
+      {
+        "as_of_date": "2026-07-31",
+        "calendar_day_stale": true,
+        "created_at": "2026-08-04T01:14:12.451107+02:00",
+        "snapshot_id": 21,
+        "stored_stale": true,
+        "trading_session_stale": false
+      }
+    ]
+  },
+  "safety": {
+    "database_transactions": "READ ONLY",
+    "external_requests": 0
+  },
+  "sector_rotation": {
+    "historical_modes": [
+      {
+        "count": 86,
+        "etf_enabled": "false",
+        "mode": "universe_only"
+      },
+      {
+        "count": 1,
+        "etf_enabled": null,
+        "mode": "universe_only"
+      }
+    ]
+  },
+  "setup_lifecycle": {
+    "context_newer_than_ticker_count": 0,
+    "evaluation_run_count": 18,
+    "id_sha256": "cb50d4e3390cc1bdf54f60a05022c0c084fcde937150a14a4e69c86b6ffa952f",
+    "non_session_calendar_label_count": 15,
+    "one_session_ahead_count": 375,
+    "potential_downstream": {
+      "alerts_via_changes": 147,
+      "alerts_via_lifecycle": 14,
+      "episodes_any_snapshot_role": 141,
+      "lifecycle_events": 607,
+      "signal_changes_any_side": 6233,
+      "signal_changes_current": 4985
+    },
+    "snapshot_count": 390,
+    "upload_run_count": 17
+  },
+  "technical": {
+    "affected_id_sha256": "82a2468efa2671ecf92c142bb89c62e9952f47e5daf1cf4800d594d4ad9577f8",
+    "affected_run_count": 8,
+    "affected_run_ids": [
+      57,
+      60,
+      68,
+      72,
+      73,
+      77,
+      120,
+      128
+    ],
+    "affected_score_count": 1122,
+    "first_affected_score_id": 7224,
+    "last_affected_score_id": 29268,
+    "score_distribution": {
+      "ahead": 1122,
+      "aligned": 20782,
+      "behind": 1817,
+      "unknown_lineage": 145
+    }
+  },
+  "technical_artifacts": {
+    "ahead_artifact_count": 363,
+    "ahead_id_sha256": "5ecce996461c541508168f7ef18dcb339016f3dd04cc989539cf9b351b57e7fa",
+    "distribution": {
+      "ahead:UNVALIDATED": 363,
+      "aligned:MATCH": 468,
+      "aligned:UNVALIDATED": 8039,
+      "behind:MATCH": 1,
+      "behind:UNVALIDATED": 23
+    }
+  },
+  "technical_source_coherence": {
+    "distribution": {
+      "all_aligned": 22514,
+      "multiple_mismatches": 1207,
+      "unknown_lineage": 145
+    },
+    "lineage_caveat": "Peer end dates reconstructed from first_seen_at; technical rows do not persist peer sessions.",
+    "mismatch_id_sha256": "79bf5efc5065c8675a51d149b468668b8f86c3d50f8156e32402150955430aed",
+    "multiple_mismatch_directions": {
+      "ahead+ahead": 417,
+      "behind+behind": 790
+    }
+  },
+  "weekly_htf": {
+    "completed_week_dropped_stale_one_week": 6808,
+    "insufficient_or_unknown": 145,
+    "partial_week_previous_week_selected": 16913
+  }
+}
