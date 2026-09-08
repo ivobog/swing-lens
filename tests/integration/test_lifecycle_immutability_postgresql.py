@@ -80,9 +80,7 @@ def test_0069_migration_and_later_run_preserve_historical_evidence(
         assert bootstrap.selection_reason == "LEGACY_CURRENT_FLAG_BOOTSTRAP"
 
         canonicalizer = SetupLifecycleCanonicalizer()
-        first = canonicalizer.canonicalize_run(
-            db, run_id=run_b, snapshot_ids=(snapshot_b,)
-        )
+        first = canonicalizer.canonicalize_run(db, run_id=run_b, snapshot_ids=(snapshot_b,))
         db.commit()
         assert first.selected_snapshot_ids == (snapshot_b,)
         assert first.changed_snapshot_ids == (snapshot_b,)
