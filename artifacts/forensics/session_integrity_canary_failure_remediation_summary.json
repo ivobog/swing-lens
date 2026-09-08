@@ -1,0 +1,68 @@
+{
+  "baseline_canary_head": "545292d55def3cf0ba825ff95b5ccf25bcd2db7a",
+  "remediation_head": "121fbe4f4f9bd319a7704452f30aab741a711d56",
+  "branch": "codex/session-temporal-integrity-canary-remediation",
+  "implementation_commit": "8b5082c036b2d5cd3c733241f3b6891cf5fa6c8c",
+  "test_commit": "121fbe4f4f9bd319a7704452f30aab741a711d56",
+  "failed_run_id": 148,
+  "failed_pipeline_id": 141,
+  "failed_job_id": 42862,
+  "authoritative_calculation_context_id": 1,
+  "authoritative_cutoff_at": "2026-09-08T12:06:38.383968+02:00",
+  "authoritative_latest_completed_session": "2026-09-04",
+  "violating_lifecycle_rows": [36934, 36935, 36936, 36937, 36938],
+  "violating_ceri_rows": [10914, 10915, 10916, 10917, 10918],
+  "lifecycle_root_cause": "Pipeline evaluation did not express a mandatory market-context contract; the source loader resolved context 1 for bounded queries but omitted it from build_run_source_context, so snapshot construction persisted null temporal lineage.",
+  "ceri_root_cause": "The durable capture job carried context 1 and matching cutoff/session/calendar, but execute_capture_run_job ignored those fields and invoked the optional capture API without market_cutoff, permitting its standalone now()-derived fallback.",
+  "internet_outage_partial_assessment": "NO: Pipeline 141 became PARTIAL because all five complete combined rows contained analytical warning flags; stages and jobs completed without provider errors or retries.",
+  "internet_outage_temporal_assessment": "NO: the lifecycle drop and CERI handler fallback are latent deterministic code defects and reproduced without network failure; the canary violations occurred during an uninterrupted execution.",
+  "new_findings": [
+    {
+      "id": "STI-CANARY-F003",
+      "status": "CLOSED",
+      "summary": "The legacy CERI child-job chain did not preserve temporal payload fields across every provider/normalize/feature/capture/change/alert transition."
+    }
+  ],
+  "migration_required": false,
+  "migration_head": "0068_market_calc_context",
+  "production_migration_applied": false,
+  "tests": {
+    "pre_fix_minimal_reproduction": {
+      "failed": 3
+    },
+    "post_fix_minimal_reproduction": {
+      "passed": 3
+    },
+    "focused_remediation": {
+      "passed": 367,
+      "warnings": 1
+    },
+    "focused_temporal_development": {
+      "passed": 333,
+      "skipped": 5
+    },
+    "cross_domain_temporal": {
+      "passed": 703,
+      "skipped": 7,
+      "warnings": 1
+    },
+    "full_non_slow": {
+      "passed": 2152,
+      "deselected": 156,
+      "warnings": 22
+    },
+    "postgresql": {
+      "passed": 14,
+      "warnings": 4
+    },
+    "ruff_lint_app_tests": "PASS",
+    "ruff_format_changed_files": "PASS (14 files)",
+    "compileall": "PASS",
+    "whole_tree_format_baseline": "203 pre-existing unformatted files; none changed by this remediation"
+  },
+  "production_business_writes": false,
+  "historical_repair_performed": false,
+  "second_canary_run": false,
+  "run_148_rows_changed": false,
+  "safe_for_second_canary": true
+}
