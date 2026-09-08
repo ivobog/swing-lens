@@ -1,9 +1,11 @@
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import make_url
 
 from alembic import context
-from app.database_safety import assert_alembic_connection_matches
+from app.database_safety import assert_alembic_connection_matches, assert_disposable_database
 from app.db import Base
 from app.models import (
     ceri_tables,  # noqa: F401
@@ -26,6 +28,16 @@ database_url = config.attributes.get("database_url") or config.get_main_option(
     "sqlalchemy.url", None
 )
 database_url = str(database_url or settings.database_url)
+if (
+    config.attributes.get("disposable_database_identity") is None
+    and os.environ.get("SWINGLENS_TEST_DISPOSABLE_ALEMBIC") == "1"
+):
+    candidate_url = make_url(database_url)
+    admin_url = candidate_url.set(database="postgres")
+    config.attributes["disposable_database_identity"] = assert_disposable_database(
+        candidate_url,
+        active_database_url=admin_url,
+    )
 # ConfigParser treats percent-encoded credentials as interpolation tokens.
 # Escape only for Alembic's config layer; SQLAlchemy receives the original URL.
 config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
