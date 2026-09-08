@@ -1,0 +1,76 @@
+{
+  "baseline_commit": "006d74e0713c5896d6aa6bc518e188467d8a884d",
+  "forensic_commit": "006d74e0713c5896d6aa6bc518e188467d8a884d",
+  "remediation_commit": "3df713653f7d234198108312f4038a36caf377c1",
+  "branch": "codex/session-temporal-integrity-remediation",
+  "verdict": "REMEDIATION CERTIFIED: YES",
+  "findings_closed": [
+    "STI-F001",
+    "STI-F002",
+    "STI-F003",
+    "STI-F004",
+    "STI-F005",
+    "STI-F006",
+    "STI-F007",
+    "STI-F008",
+    "STI-F009",
+    "STI-F010",
+    "STI-F011",
+    "STI-F012",
+    "STI-F013",
+    "STI-F014",
+    "STI-F015",
+    "STI-F016",
+    "STI-F017",
+    "STI-F018"
+  ],
+  "findings_partially_closed": [],
+  "findings_open": [],
+  "tests_run": [
+    "focused temporal subsystem lane",
+    "full non-slow unit lane",
+    "PostgreSQL 16 migration integration",
+    "PostgreSQL 18 technical-cache and Winner temporal integrations",
+    "final IBMI and remediation targeted lane",
+    "final pipeline and remediation smoke lane",
+    "Ruff changed-file lint and formatter checks",
+    "compileall"
+  ],
+  "test_counts": {
+    "focused": {
+      "passed": 650,
+      "skipped": 7,
+      "warnings": 1
+    },
+    "full_non_slow_unit": {
+      "passed": 2132,
+      "deselected": 155,
+      "warnings": 22
+    },
+    "postgresql_migration": {
+      "passed": 1,
+      "warnings": 3
+    },
+    "postgresql_existing_integrations": {
+      "passed": 12,
+      "warnings": 1
+    },
+    "final_ibmi_targeted": {
+      "passed": 73,
+      "deselected": 7,
+      "warnings": 1
+    },
+    "final_smoke": {
+      "passed": 42,
+      "warnings": 1
+    }
+  },
+  "migration_head": "0068_market_calc_context",
+  "production_head_observed": "0067_worker_quiesce",
+  "production_mutation_performed": false,
+  "historical_repair_performed": false,
+  "canary_run": false,
+  "safe_for_canary": true,
+  "historical_contamination_remains": true,
+  "production_state_unchanged": true
+}
