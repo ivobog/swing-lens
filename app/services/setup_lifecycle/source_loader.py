@@ -200,6 +200,7 @@ class SetupLifecycleSourceLoader:
             sector_rotation_snapshots_by_ticker=sector_by_ticker,
             sector_rotation_rows=sector_rows,
             price_bars=price_bars,
+            market_cutoff=market_cutoff,
         )
         self.last_metrics["setup_context_build_ms"] = round(
             (perf_counter() - context_started_at) * 1000, 3

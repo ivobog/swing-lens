@@ -49,6 +49,7 @@ from app.services.ceri.purge_service import (
     CeriPurgePreviewRequest,
     CeriPurgeService,
 )
+from app.services.market_calculation_context_service import resolve_pipeline_market_context
 from app.services.redaction import redact_text
 
 CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
@@ -307,6 +308,31 @@ def execute_capture_run_job(
         return _skipped_job(CERI_CAPTURE_RUN, "run_capture_disabled")
     payload = job.payload_json or {}
     run_id = _required_int(payload, "run_id")
+    market_cutoff = None
+    if _is_pipeline_owned_ceri_job(job, payload):
+        missing = [
+            key
+            for key in (
+                "calculation_context_id",
+                "cutoff_at",
+                "as_of_session",
+                "calendar_version",
+            )
+            if payload.get(key) in (None, "")
+        ]
+        if missing:
+            raise ValueError(
+                "Pipeline-owned CERI capture job is missing frozen context fields: "
+                + ", ".join(missing)
+            )
+        market_cutoff = resolve_pipeline_market_context(
+            db,
+            calculation_context_id=_optional_int(payload.get("calculation_context_id")),
+            upload_run_id=run_id,
+            expected_cutoff_at=_optional_datetime(payload.get("cutoff_at")),
+            expected_latest_completed_session=_optional_date(payload.get("as_of_session")),
+            expected_calendar_version=str(payload["calendar_version"]),
+        )
     processing, created = _processing_run(
         db,
         CERI_CAPTURE_RUN,
@@ -330,7 +356,12 @@ def execute_capture_run_job(
         publish_after_commit(db, "increment", "swinglens_ceri_scoring_total", result="coalesced")
         return values
     with job_phase("capture_calculation_and_persistence"):
-        result = (capture_service or CeriRunCaptureService()).capture_run(db, run_id)
+        capture = capture_service or CeriRunCaptureService()
+        result = (
+            capture.capture_run(db, run_id, market_cutoff=market_cutoff)
+            if market_cutoff is not None
+            else capture.capture_run(db, run_id)
+        )
     values = result.as_dict()
     CeriProcessingRunService().finish(
         db,
@@ -672,6 +703,7 @@ def _processing_run(
         config_version=str(payload.get("config_version") or config.engine.config_version),
         config_hash=str(payload.get("config_hash") or config.config_hash),
         actor=payload.get("actor"),
+        cutoff_at=_optional_datetime(payload.get("cutoff_at")),
     )
 
 
@@ -776,6 +808,7 @@ def _enqueue_normalize_job(
             "config_version": source_payload.get("config_version"),
             "config_hash": source_payload.get("config_hash"),
             "actor": source_payload.get("actor"),
+            **_temporal_context_payload(source_payload),
         },
         related_run_id=source_job.related_run_id,
         priority=_child_priority(source_job),
@@ -808,6 +841,7 @@ def _enqueue_feature_rebuild_after_normalize(
             "run_id": source_payload.get("run_id") or source_job.related_run_id,
             "scope": source_payload.get("scope") or {"ticker": str(ticker).upper()},
             "mode": "AS_KNOWN",
+            **_temporal_context_payload(source_payload),
         },
         related_run_id=source_payload.get("run_id") or source_job.related_run_id,
         priority=_child_priority(source_job),
@@ -834,7 +868,11 @@ def _enqueue_capture_after_features(
     capture_job = enqueue_job(
         db,
         CERI_CAPTURE_RUN,
-        {"request_key": request_key, "run_id": run_id},
+        {
+            "request_key": request_key,
+            "run_id": run_id,
+            **_temporal_context_payload(payload),
+        },
         related_run_id=run_id,
         priority=_child_priority(job),
         max_retries=job.max_retries or 3,
@@ -854,6 +892,7 @@ def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: in
             "request_key": request_key,
             "run_id": run_id,
             "workflow_key": job.workflow_key,
+            **_temporal_context_payload(job.payload_json or {}),
         },
         related_run_id=run_id,
         priority=_child_priority(job),
@@ -887,6 +926,7 @@ def _enqueue_alert_after_change(
             "run_id": payload.get("run_id"),
             "workflow_key": job.workflow_key,
             "change_ids": list(change_ids),
+            **_temporal_context_payload(payload),
         },
         related_run_id=job.related_run_id,
         priority=_child_priority(job),
@@ -899,6 +939,32 @@ def _enqueue_alert_after_change(
 
 def _skipped_job(job_type: str, reason: str) -> dict[str, Any]:
     return {"job_type": job_type, "status": "SKIPPED", "skipped": 1, "reason": reason}
+
+
+def _is_pipeline_owned_ceri_job(job: BackgroundJob, payload: dict[str, Any]) -> bool:
+    workflow_key = str(payload.get("workflow_key") or job.workflow_key or "")
+    return workflow_key.startswith("ceri:pipeline:") or any(
+        payload.get(key) not in (None, "")
+        for key in (
+            "calculation_context_id",
+            "cutoff_at",
+            "as_of_session",
+            "calendar_version",
+        )
+    )
+
+
+def _temporal_context_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: payload[key]
+        for key in (
+            "calculation_context_id",
+            "cutoff_at",
+            "as_of_session",
+            "calendar_version",
+        )
+        if payload.get(key) not in (None, "")
+    }
 
 
 def _safe_job_error(exc: Exception) -> str:
