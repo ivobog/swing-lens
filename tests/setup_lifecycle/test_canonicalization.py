@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -63,6 +65,31 @@ def test_canonicalizer_promotes_exactly_one_snapshot_and_audits_changes() -> Non
     assert isinstance(repository.events[0].evidence_json["canonical_score"][4], str)
     assert selected.canonical_decision_json["score"][2] == 1.0
     assert isinstance(selected.canonical_decision_json["score"][4], str)
+
+
+def test_canary_2_reproduction_later_run_mutates_prior_snapshot_evidence() -> None:
+    """Lock the pre-remediation failure mechanism into the commit history."""
+    prior_run_snapshot = _snapshot(36934, is_canonical=True)
+    later_run_snapshot = _snapshot(
+        36939,
+        calculated_at=datetime(2026, 9, 8, 15, 32, 53, tzinfo=UTC),
+    )
+    repository = FakeCanonicalRepository([prior_run_snapshot, later_run_snapshot])
+    canonicalizer = SetupLifecycleCanonicalizer(
+        repository=repository,
+        config=load_setup_lifecycle_config(),
+    )
+    before = _historical_evidence_hash(prior_run_snapshot)
+
+    canonicalizer.canonicalize_snapshots(
+        db=object(),
+        snapshots=[prior_run_snapshot, later_run_snapshot],
+        evaluation_run_id=257,
+    )
+
+    assert _historical_evidence_hash(prior_run_snapshot) != before
+    assert prior_run_snapshot.is_canonical is False
+    assert prior_run_snapshot.superseded_by_snapshot_id == 36939
 
 
 def test_canonicalizer_does_not_emit_audit_when_choice_is_unchanged() -> None:
@@ -139,3 +166,16 @@ def _snapshot(
         },
     )
     return snapshot
+
+
+def _historical_evidence_hash(snapshot: SetupSignalSnapshot) -> str:
+    payload = {
+        "id": snapshot.id,
+        "run_id": snapshot.run_id,
+        "ticker": snapshot.ticker,
+        "data_as_of_date": snapshot.data_as_of_date.isoformat(),
+        "source_data_hash": snapshot.source_data_hash,
+        "is_canonical": snapshot.is_canonical,
+        "superseded_by_snapshot_id": snapshot.superseded_by_snapshot_id,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
