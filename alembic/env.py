@@ -18,7 +18,10 @@ from app.settings import get_settings
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Programmatic migrations run inside integration and administrative processes.
+    # Preserve application loggers so later preflight/lifecycle forensic events
+    # cannot be silently disabled by logging.config's default behavior.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 settings = get_settings()
 # Programmatic callers (especially disposable integration tests) may provide an
