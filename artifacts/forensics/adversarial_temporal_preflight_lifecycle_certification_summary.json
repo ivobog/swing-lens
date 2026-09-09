@@ -1,0 +1,127 @@
+{
+  "baseline_head": "c59a6550a744bcb576ce17042f4bd4feb39337d9",
+  "final_head": "refs/heads/codex/adversarial-temporal-preflight-certification",
+  "certified_implementation_head": "2b392c641d17a36d56a985c26475025fa949a4a9",
+  "production_alembic_head": "0071_transition_preflight_plan",
+  "migration_required": false,
+  "migration_head": "0071_transition_preflight_plan",
+  "invariant_count": 50,
+  "invariants_passed": 50,
+  "invariants_failed": 0,
+  "systemic_defect_count": 12,
+  "systemic_defects_fixed": 12,
+  "blocking_defects_remaining": 0,
+  "canonical_serializer_implemented": true,
+  "datetime_timezone_invariant_passed": true,
+  "postgres_roundtrip_invariant_passed": true,
+  "json_roundtrip_invariant_passed": true,
+  "ordering_invariant_passed": true,
+  "preflight_state_machine_passed": true,
+  "concurrency_cas_passed": true,
+  "pointer_ledger_atomicity_passed": true,
+  "derived_current_state_passed": true,
+  "technical_pit_reconstruction_passed": true,
+  "ceri_pit_replay_passed": true,
+  "production_clone_replay_cases": {
+    "count": 10,
+    "runs": [148, 149, 150, 151, 152],
+    "tickers": ["TBLA", "NNI", "TPL", "DRS"],
+    "ceri_snapshot_ids": [10929],
+    "broad_candidate_scan_count": 1491,
+    "high_candidates": 1273,
+    "low_candidates": 218,
+    "same_session_replacements": 341,
+    "new_session_initializations": 932
+  },
+  "randomized_scenarios": 512,
+  "failure_injection_cases": {
+    "count": 12,
+    "boundaries": [
+      "after_plan_persisted",
+      "after_context_reserved",
+      "before_enqueue_commit",
+      "after_run_creation",
+      "before_pipeline_creation",
+      "after_pipeline_creation",
+      "before_job_enqueue",
+      "after_job_enqueue",
+      "during_worker_execution",
+      "before_pointer_update",
+      "after_pointer_update_before_ledger_append",
+      "after_ledger_append_before_commit"
+    ]
+  },
+  "adjacent_findings": {
+    "run_full_pipeline_preflight": "SAFE",
+    "ib_gateway_readiness": "OUT_OF_SCOPE_NON_BLOCKING",
+    "ceri_active_preflight": "SAFE",
+    "winner_maturation": "SAFE",
+    "market_data_readiness_prewarm": "SAFE",
+    "technical_process_pool_fallback": "SAFE"
+  },
+  "tests": {
+    "status": "PASS",
+    "full_non_slow": {
+      "passed": 2318,
+      "failed": 0,
+      "skipped": 9,
+      "deselected": 58,
+      "duration_seconds": 1524.01
+    },
+    "postgres_preflight_and_winner_regression": {
+      "passed": 22,
+      "failed": 0
+    },
+    "canonical_and_adversarial_focused": {
+      "passed": 16,
+      "failed": 0
+    },
+    "affected_domain_regression": {
+      "passed": 1010,
+      "failed": 0
+    },
+    "active_source_ruff": "PASS",
+    "changed_python_ruff": "PASS",
+    "changed_python_format": "PASS_31_FILES",
+    "compileall": "PASS",
+    "alembic_head_count": 1,
+    "repository_wide_ruff_legacy_migration_findings": 24,
+    "repository_wide_ruff_legacy_migration_scope": "pre-existing immutable migrations 0001-0015 and 0066"
+  },
+  "final_production_read_only_check": {
+    "alembic_head": "0071_transition_preflight_plan",
+    "latest_run": [152, "COMPLETED"],
+    "latest_pipeline": [144, 151, "COMPLETED"],
+    "latest_job": [42931, "CERI_ALERT_REBUILD", 151, "COMPLETED"],
+    "preflight_plan_count": 1,
+    "cancelled_plan_count": 1,
+    "unowned_context_count": 1,
+    "active_job_count": 0,
+    "protected_run_ids": [148, 149, 150, 151, 152],
+    "protected_ceri_snapshot_id": 10929,
+    "protected_ceri_evidence_hash": "1df165a0cbeba82db61e9545a4f820a6599a687e0b45c7df1cb8f37fdf9a8eb8",
+    "app_worker_supervisor_processes": 0,
+    "port_8000_listener": false
+  },
+  "production_baseline": {
+    "database": "swinglens",
+    "postgres_version": "18.3",
+    "session_timezone": "Europe/Berlin",
+    "latest_run_id": 152,
+    "latest_pipeline_id": 144,
+    "latest_job_id": 42931,
+    "preflight_plan_count": 1,
+    "cancelled_plan_count": 1,
+    "unowned_reserved_context_count": 1,
+    "active_jobs": 0,
+    "queued_jobs": 0,
+    "running_jobs": 0,
+    "recovering_jobs": 0
+  },
+  "production_business_writes": false,
+  "production_pipeline_run": false,
+  "live_canary_run": false,
+  "historical_repair": false,
+  "merge_performed": false,
+  "safe_for_one_final_live_canary": true
+}
