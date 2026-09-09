@@ -155,15 +155,17 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
             )
         )
         full_jobs = list(
-            db.scalars(
-                select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")
-            ).all()
+            db.scalars(select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")).all()
         )
         assert len(full_jobs) == 1
-        assert full_jobs[0].payload_json == {
-            "pipeline_run_id": pipeline.id,
-            "resume_from_step": "VALIDATING_RUN",
-        }
+        resume_payload = full_jobs[0].payload_json
+        assert resume_payload["pipeline_run_id"] == pipeline.id
+        assert resume_payload["resume_from_step"] == "VALIDATING_RUN"
+        assert resume_payload["market_calculation_context_id"] > 0
+        assert resume_payload["market_cutoff_at"].endswith("Z")
+        assert resume_payload["input_as_of_session"]
+        assert resume_payload["market_calendar_version"]
+        assert resume_payload["bar_readiness_version"]
         assert provider.client.download_calls == 1
 
         repeated = execute_sec_readiness_repair(
@@ -175,18 +177,22 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
         db.commit()
         assert repeated["resume_job_id"] == full_jobs[0].id
         assert repeated["telemetry"]["documents_downloaded"] == 1
-        assert db.scalar(
-            select(BackgroundJob).where(
-                BackgroundJob.job_type == SEC_READINESS_REPAIR_JOB_TYPE
+        assert (
+            db.scalar(
+                select(BackgroundJob).where(BackgroundJob.job_type == SEC_READINESS_REPAIR_JOB_TYPE)
+            ).id
+            == repair.id
+        )
+        assert (
+            len(
+                list(
+                    db.scalars(
+                        select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")
+                    ).all()
+                )
             )
-        ).id == repair.id
-        assert len(
-            list(
-                db.scalars(
-                    select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")
-                ).all()
-            )
-        ) == 1
+            == 1
+        )
         assert provider.client.download_calls == 1
     engine.dispose()
 
@@ -296,9 +302,7 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
         assert set(unresolved) == {"BAD"}
         assert provider.client.download_calls == 1
         assert not list(
-            db.scalars(
-                select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")
-            ).all()
+            db.scalars(select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")).all()
         )
     engine.dispose()
 
