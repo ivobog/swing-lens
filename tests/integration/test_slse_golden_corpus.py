@@ -1105,6 +1105,7 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
             confidence="HIGH",
             action_summary="Golden fixture",
             evidence_hash=f"market-{run.id}",
+            calculation_cutoff_at=processed_at,
         )
         db.add(market)
         db.flush()
@@ -1119,6 +1120,7 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
             sector_count=1,
             ticker_count=1,
             evidence_hash=f"sector-evidence-{run.id}",
+            calculation_cutoff_at=processed_at,
         )
         db.add(sector)
         db.flush()
