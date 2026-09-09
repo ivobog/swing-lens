@@ -1,0 +1,164 @@
+{
+  "baseline_head": "bb7dcf5a8fc801ddfba38fd547ce1af3fa82bf82",
+  "remediation_head": "6805492817f78ccb2a6a46d53cb1d5bba3c24a4e",
+  "production_alembic_head": "0070_ceri_price_response_pit_context",
+  "current_preflight_context_model": "in_memory_wall_clock_derived_C1_before_remediation",
+  "current_execution_context_model": "independently_persisted_wall_clock_derived_C2_before_remediation",
+  "c1_c2_mismatch_confirmed": true,
+  "chosen_context_contract": "IMMUTABLE_PREFLIGHT_PLAN_WITH_RESERVED_PERSISTED_MARKET_CALCULATION_CONTEXT",
+  "preflight_plan_fields": [
+    "market_calculation_context_id",
+    "cutoff_at_via_context",
+    "latest_completed_session_via_context",
+    "calendar_version_via_context",
+    "bar_readiness_version_via_context",
+    "upload_run_id",
+    "tickers",
+    "selection_keys",
+    "expected_latest_pointer_snapshot_ids_and_revisions",
+    "expected_exact_pointer_snapshot_ids_and_revisions",
+    "predicted_prospective_session_and_snapshot_identities",
+    "required_pit_evidence_fingerprint",
+    "technical_reconstruction_fingerprint",
+    "candidate_classification",
+    "candidate_results",
+    "idempotency_key",
+    "created_at",
+    "expires_at",
+    "status",
+    "pipeline_run_id"
+  ],
+  "stale_preflight_guards": [
+    "plan_exists_and_is_reserved",
+    "upload_run_matches",
+    "ttl_not_expired",
+    "reserved_context_exists_and_is_unowned",
+    "selection_key_unchanged",
+    "current_pointer_snapshot_and_revision_unchanged",
+    "required_pit_evidence_fingerprint_unchanged",
+    "technical_reconstruction_fingerprint_unchanged",
+    "candidate_still_high",
+    "pipeline_job_context_envelope_matches_authoritative_context"
+  ],
+  "idempotency_strategy": {
+    "duplicate_preflight": "same idempotency key and upload run returns the same plan; another run is IDEMPOTENCY_CONFLICT",
+    "duplicate_enqueue": "a consumed plan deterministically returns its one existing pipeline",
+    "database_constraints": "unique idempotency key, market context, and pipeline",
+    "abandoned_plan": "cancel explicitly or expire after default 30-minute TTL; no transaction-spanning lock or business-state mutation",
+    "restart_recovery": "reload durable plan and reserved context; consumed plan remains bound to one pipeline"
+  },
+  "current_selection_key_fields": [
+    "ticker",
+    "timeframe",
+    "data_as_of_date"
+  ],
+  "selection_key_contract_classification": "SELECTION_KEY_CORRECT_CANARY_EXPECTATION_WRONG",
+  "selection_key_blocker_count": 939,
+  "selection_key_blocker_breakdown": {
+    "data_as_of_date": 939,
+    "ticker": 0,
+    "timeframe": 0,
+    "model_version": 0,
+    "source_scope": 0,
+    "run_scope": 0,
+    "other": 0
+  },
+  "chosen_selection_architecture": "SESSION_SCOPED_CANONICAL_POINTER_WITH_DERIVED_CROSS_SESSION_CURRENT_STATE",
+  "technical_score_requirement_classification": "SAFE_TO_RECOMPUTE_READ_ONLY_FROM_PIT_RAW_INPUTS",
+  "pit_raw_reconstruction_enabled": true,
+  "post_remediation_universe_size": 1491,
+  "post_remediation_high_candidates": 1273,
+  "post_remediation_predicted_transitions": 1273,
+  "post_remediation_selection_key_blockers": 0,
+  "post_remediation_legacy_provenance_blockers": 0,
+  "post_remediation_overconstraint_blockers": 0,
+  "post_remediation_transition_breakdown": {
+    "same_session_replacements": 341,
+    "new_session_canonical_initializations_and_derived_current_advances": 932,
+    "medium_candidates": 0,
+    "low_candidates": 218
+  },
+  "new_findings": [
+    {
+      "id": "STI-CONTRACT-F001",
+      "finding": "build_fetch_plan derives its fetch horizon from wall clock instead of the authoritative context",
+      "blocking": false
+    },
+    {
+      "id": "STI-CONTRACT-F002",
+      "finding": "IB Gateway UI preflight is operational state and is intentionally rechecked by the worker",
+      "blocking": false
+    },
+    {
+      "id": "STI-CONTRACT-F003",
+      "finding": "CERI ACTIVE readiness is rechecked in the worker and must block or repair instead of changing the evidence cutoff",
+      "blocking": false
+    },
+    {
+      "id": "STI-CONTRACT-F004",
+      "finding": "Winner maturation uses an immutable reviewed manifest plus per-row revalidation and CAS",
+      "blocking": false,
+      "status": "PASS"
+    },
+    {
+      "id": "STI-CONTRACT-F005",
+      "finding": "market-data prewarm is an optimization; downstream cutoff eligibility remains authoritative",
+      "blocking": false
+    }
+  ],
+  "migration_required": true,
+  "migration_head": "0071_transition_preflight_plan",
+  "production_business_writes": false,
+  "pipeline_run": false,
+  "canary_run": false,
+  "historical_repair": false,
+  "merge_performed": false,
+  "tests": {
+    "focused_contract_subset": {
+      "passed": 32,
+      "failed": 0
+    },
+    "focused_broad": {
+      "passed": 37,
+      "skipped": 5,
+      "failed": 0
+    },
+    "pipeline_and_lifecycle_targeted": {
+      "passed": 323,
+      "failed": 0
+    },
+    "cross_domain_temporal_ceri_winner": {
+      "passed": 1020,
+      "failed": 0
+    },
+    "disposable_postgresql": {
+      "passed": 29,
+      "failed": 0
+    },
+    "full_non_slow": {
+      "passed": 2186,
+      "skipped": 112,
+      "deselected": 58,
+      "timing_only_failures": 1,
+      "timing_test_passed_in_isolation_seconds": 0.31,
+      "functional_failures": 0
+    },
+    "ruff_changed_files": "passed",
+    "compileall": "passed",
+    "git_diff_check": "passed",
+    "alembic_heads": [
+      "0071_transition_preflight_plan"
+    ]
+  },
+  "protected_history": {
+    "runs_148_151_unchanged": true,
+    "run_151_snapshot_36949_immutable_hash": "18edc2ad7695aa3bd154295fa01f2a6550db62f72d457621f84b981ee43fcbfa",
+    "ceri_snapshot_10929_unchanged": true,
+    "ceri_snapshot_10929_full_row_hash": "75971daad3f89f7f3500d616346b43d4217edd75482f8b4a65f7040dfb883d87",
+    "ceri_snapshot_10929_evidence_hash": "1df165a0cbeba82db61e9545a4f820a6599a687e0b45c7df1cb8f37fdf9a8eb8"
+  },
+  "preflight_execution_context_contract_certified": true,
+  "lifecycle_selection_key_contract_certified": true,
+  "architecture_remediation_certified": true,
+  "safe_for_final_targeted_transition_canary": true
+}
