@@ -209,7 +209,7 @@ def test_concurrent_completion_converges_on_deterministic_selection(
 def test_0069_downgrade_is_inspectable_and_restores_legacy_shape(
     disposable_postgres_database: str,
 ) -> None:
-    _upgrade(disposable_postgres_database)
+    _upgrade(disposable_postgres_database, "0069_lifecycle_current_selection")
     engine = create_engine(disposable_postgres_database)
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (

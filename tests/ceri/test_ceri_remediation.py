@@ -484,6 +484,7 @@ def _estimate(
         effective_session=effective_at.date(),
         reference_at=effective_at,
         known_at=known_at,
+        retrieved_at=known_at,
         trend_baseline_window_days=trend_days,
         baseline_origin=origin,
         current_observation_reference="same",

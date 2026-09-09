@@ -30,6 +30,12 @@ from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureServic
 from app.services.ceri.confidence_service import CeriConfidenceService
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import HistoricalViewMode
+from app.services.ceri.pit_eligibility import (
+    eligible_source_record_ids,
+    price_bar_is_eligible,
+    price_bar_knowledge_predicates,
+    referenced_sources_are_eligible,
+)
 from app.services.ceri.point_in_time_query import CeriPointInTimeQuery
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.revision_feature_service import CeriRevisionFeatureService
@@ -42,7 +48,7 @@ from app.services.market_clock_service import (
 )
 from app.services.us_market_calendar import us_market_session
 
-FEATURE_REBUILD_IMPL_VERSION = "batch-prefetch-v1"
+FEATURE_REBUILD_IMPL_VERSION = "batch-prefetch-pit-v2"
 
 
 @dataclass(frozen=True)
@@ -285,6 +291,7 @@ class CeriFeatureRebuildService:
                         CeriSourceRecord.observed_at,
                         CeriSourceRecord.source_timestamp,
                         CeriSourceRecord.retrieved_at,
+                        CeriSourceRecord.ingested_at,
                         CeriSourceRecord.content_hash,
                         CeriSourceRecord.normalized_hash,
                         CeriSourceRecord.idempotency_key,
@@ -343,9 +350,12 @@ class CeriFeatureRebuildService:
             .where(func.lower(PriceBar.timeframe).in_(("1d", "1 day", "day", "daily")))
             .where(func.lower(PriceBar.source).in_(("ib", "ibkr", "interactive_brokers")))
             .where(PriceBar.close.is_not(None))
-            .where(PriceBar.bar_date <= cutoff)
-            .where(PriceBar.first_seen_at <= cutoff_at)
-            .where((PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= cutoff_at))
+            .where(
+                *price_bar_knowledge_predicates(
+                    latest_completed_session=cutoff,
+                    cutoff_at=cutoff_at,
+                )
+            )
             .order_by(PriceBar.ticker, PriceBar.bar_date),
         )
         bars = [
@@ -355,8 +365,97 @@ class CeriFeatureRebuildService:
             and row.timeframe.lower() in {"1d", "1 day", "day", "daily"}
             and row.source.lower() in {"ib", "ibkr", "interactive_brokers"}
             and row.close is not None
+            and (
+                not isinstance(db, Session)
+                or price_bar_is_eligible(
+                    row,
+                    latest_completed_session=cutoff,
+                    cutoff_at=cutoff_at,
+                )
+            )
         ]
         rows_loaded[PriceBar.__tablename__] = len(bars)
+
+        eligible_source_ids = (
+            eligible_source_record_ids(sources, cutoff_at)
+            if isinstance(db, Session)
+            else {int(row.id) for row in sources if row.id is not None}
+        )
+        enforce_pit = isinstance(db, Session)
+        estimates = [
+            row
+            for row in estimates
+            if not enforce_pit
+            or referenced_sources_are_eligible(
+                row,
+                eligible_source_ids,
+                scalar_fields=("source_record_id", "conversion_source_record_id"),
+            )
+        ]
+        earnings = [
+            row
+            for row in earnings
+            if (not enforce_pit or referenced_sources_are_eligible(row, eligible_source_ids))
+            and (row.report_session is None or row.report_session <= cutoff)
+            and (row.report_at is None or row.report_at <= cutoff_at)
+        ]
+        guidance = [
+            row
+            for row in guidance
+            if (not enforce_pit or referenced_sources_are_eligible(row, eligible_source_ids))
+            and (row.effective_session is None or row.effective_session <= cutoff)
+            and (row.effective_at is None or row.effective_at <= cutoff_at)
+        ]
+        revisions = [
+            row
+            for row in revisions
+            if (not enforce_pit or referenced_sources_are_eligible(row, eligible_source_ids))
+            and (row.effective_session is None or row.effective_session <= cutoff)
+            and (row.announced_at is None or row.announced_at <= cutoff_at)
+        ]
+        revisions = _latest_eligible_catalyst_revisions(revisions)
+        eligible_event_ids = {row.catalyst_event_id for row in revisions}
+        events = [row for row in events if row.id in eligible_event_ids]
+        revision_features = [
+            row
+            for row in revision_features
+            if not enforce_pit
+            or (
+                (row.known_at is None or row.known_at <= cutoff_at)
+                and referenced_sources_are_eligible(
+                    row,
+                    eligible_source_ids,
+                    scalar_fields=(
+                        "current_source_record_id",
+                        "baseline_source_record_id",
+                        "provider_retrospective_source_record_id",
+                    ),
+                    collection_fields=("source_observation_ids_json",),
+                    allow_unreferenced=True,
+                )
+            )
+        ]
+        derived_features = [
+            row
+            for row in derived_features
+            if not enforce_pit
+            or (
+                row.calculation_cutoff_at is not None
+                and row.calculation_cutoff_at <= cutoff_at
+                and referenced_sources_are_eligible(
+                    row,
+                    eligible_source_ids,
+                    scalar_fields=(),
+                    collection_fields=("source_ids_json",),
+                    allow_unreferenced=True,
+                )
+            )
+        ]
+        if enforce_pit:
+            price_features = [
+                row for row in price_features if row.calculation_cutoff_at == cutoff_at
+            ]
+            sources = [row for row in sources if row.id in eligible_source_ids]
 
         estimates_by_company = _group_by(estimates, "company_id")
         earnings_by_company = _group_by(earnings, "company_id")
@@ -376,9 +475,7 @@ class CeriFeatureRebuildService:
             if row.company_id is not None and row.metric and slot:
                 slots.setdefault(row.company_id, set()).add((row.metric, slot))
         eligible_event_ids = {
-            row.catalyst_event_id
-            for row in revisions
-            if row.is_current and row.issuer_relevance is True
+            row.catalyst_event_id for row in revisions if row.issuer_relevance is True
         }
         capabilities = CeriCapabilityMatrixService().build(
             company_ids=company_ids,
@@ -836,7 +933,10 @@ class CeriFeatureRebuildService:
         )
         if event is None:
             result = self.price_response.unavailable(
-                company_id=company.id, event_type="NONE", reason="NO_ACCEPTED_EVENT"
+                company_id=company.id,
+                event_type="NONE",
+                reason="NO_ACCEPTED_EVENT",
+                cutoff_at=context.cutoff_at,
             )
             event = ("NONE", None, None, None)
         else:
@@ -853,6 +953,7 @@ class CeriFeatureRebuildService:
                     self.config.price_response.benchmark.upper(), []
                 ),
                 feature_as_of_session=context.cutoff,
+                cutoff_at=context.cutoff_at,
             )
         return self.price_response.build_feature(
             result=result,
@@ -862,6 +963,8 @@ class CeriFeatureRebuildService:
             event_effective_at=event[2],
             event_effective_session=event[3],
             feature_as_of_session=context.cutoff,
+            cutoff_at=context.cutoff_at,
+            calendar_version=CALENDAR_VERSION,
         )
 
     def _persist_company(
@@ -1014,6 +1117,7 @@ class CeriFeatureRebuildService:
             {
                 "company_id": company.id,
                 "as_of_session": context.cutoff.isoformat(),
+                "cutoff_at": context.cutoff_at.isoformat(),
                 "from_session": request.from_session.isoformat() if request.from_session else None,
                 "to_session": request.to_session.isoformat() if request.to_session else None,
                 "historical_view_mode": context.mode.value,
@@ -1399,13 +1503,30 @@ def _current_catalysts(
         revisions if revisions is not None else _scalars(db, select(CeriCatalystEventRevision))
     )
     event_map = {event.id: event for event in event_rows if event.company_id == company_id}
-    return [
-        (event_map[row.catalyst_event_id], row)
+    eligible = [
+        row
         for row in revision_rows
-        if row.is_current
-        and row.catalyst_event_id in event_map
+        if row.catalyst_event_id in event_map
         and (row.effective_session is None or row.effective_session <= cutoff)
     ]
+    return [
+        (event_map[row.catalyst_event_id], row)
+        for row in _latest_eligible_catalyst_revisions(eligible)
+    ]
+
+
+def _latest_eligible_catalyst_revisions(
+    revisions: list[CeriCatalystEventRevision],
+) -> list[CeriCatalystEventRevision]:
+    latest: dict[int, CeriCatalystEventRevision] = {}
+    for revision in revisions:
+        current = latest.get(revision.catalyst_event_id)
+        if current is None or (revision.revision_number, revision.id or 0) > (
+            current.revision_number,
+            current.id or 0,
+        ):
+            latest[revision.catalyst_event_id] = revision
+    return list(latest.values())
 
 
 def _latest_price_event(

@@ -272,7 +272,7 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(
         capture_module,
         "_revision_features_for_companies",
-        lambda _db, _company_ids, _date: features,
+        lambda _db, _company_ids, _date, _cutoff: features,
     )
     monkeypatch.setattr(capture_module, "_catalyst_features_for_company", lambda *_args: [])
     monkeypatch.setattr(capture_module, "_guidance_for_company", lambda *_args: [])

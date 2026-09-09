@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import HistoricalViewMode
+from app.services.ceri.pit_eligibility import source_record_known_at
 
 
 @dataclass(frozen=True)
@@ -39,9 +40,7 @@ class CeriPointInTimeQuery:
             indexed: dict[tuple[int, str], list[CeriEstimateSnapshot]] = {}
             for snapshot in snapshots:
                 indexed.setdefault((snapshot.company_id, snapshot.metric), []).append(snapshot)
-            self._snapshot_index = {
-                key: tuple(rows) for key, rows in indexed.items()
-            }
+            self._snapshot_index = {key: tuple(rows) for key, rows in indexed.items()}
 
     def eligible_estimates(
         self,
@@ -60,10 +59,7 @@ class CeriPointInTimeQuery:
             if snapshot.company_id == company_id
             and snapshot.metric == metric
             and (period_type is None or snapshot.period_type == period_type)
-            and (
-                fiscal_period_end is None
-                or snapshot.fiscal_period_end == fiscal_period_end
-            )
+            and (fiscal_period_end is None or snapshot.fiscal_period_end == fiscal_period_end)
             and _current_candidate(snapshot)
             and _is_current_observation(snapshot)
         ]
@@ -72,7 +68,8 @@ class CeriPointInTimeQuery:
                 [
                     snapshot
                     for snapshot in snapshots
-                    if _effective_at(snapshot) <= cutoff_at and _known_at(snapshot) <= cutoff_at
+                    if _effective_at(snapshot) <= cutoff_at
+                    and self._known_at(snapshot) <= cutoff_at
                 ],
                 key=_snapshot_sort,
             )
@@ -114,19 +111,14 @@ class CeriPointInTimeQuery:
                 snapshot
                 for snapshot in eligible
                 if snapshot.canonical_period_slot == period_slot
-                or (
-                    snapshot.canonical_period_slot is None
-                    and snapshot.period_type == period_slot
-                )
+                or (snapshot.canonical_period_slot is None and snapshot.period_type == period_slot)
             ]
             if slot_candidates:
                 # Provider-defined slots remain current until the result is
                 # reported, even when the fiscal end precedes the cutoff.
                 # Duplicate slot rows are resolved to the latest fiscal end.
                 target_end = max(row.fiscal_period_end for row in slot_candidates)
-                eligible = [
-                    row for row in slot_candidates if row.fiscal_period_end == target_end
-                ]
+                eligible = [row for row in slot_candidates if row.fiscal_period_end == target_end]
             else:
                 eligible = []
         return eligible[-1] if eligible else None
@@ -161,9 +153,8 @@ class CeriPointInTimeQuery:
             and snapshot.metric == metric
             and snapshot is not current
             and snapshot.trend_baseline_window_days == window_days
-            and snapshot.current_observation_reference
-            == current.current_observation_reference
-            and _known_at(snapshot) <= cutoff_at
+            and snapshot.current_observation_reference == current.current_observation_reference
+            and self._known_at(snapshot) <= cutoff_at
         ]
         semantic_rejections = [
             (
@@ -244,14 +235,9 @@ class CeriPointInTimeQuery:
                 and snapshot.period_type == current.period_type
                 and snapshot.fiscal_period_end == current.fiscal_period_end
                 and snapshot.canonical_scale == current.canonical_scale
-                and (
-                    snapshot.canonical_currency is None
-                    or current.canonical_currency is None
-                )
-                and _known_at(snapshot) <= cutoff_at
-                for snapshot in self._load_snapshots(
-                    db, company_id=company_id, metric=metric
-                )
+                and (snapshot.canonical_currency is None or current.canonical_currency is None)
+                and self._known_at(snapshot) <= cutoff_at
+                for snapshot in self._load_snapshots(db, company_id=company_id, metric=metric)
             )
             return BaselineSelection(
                 current=current,
@@ -280,9 +266,7 @@ class CeriPointInTimeQuery:
             target_baseline_date=target_date,
             actual_elapsed_days=elapsed,
             comparison_mode=(
-                "HISTORICAL_OBSERVATION"
-                if metric == "REVENUE"
-                else "ABSOLUTE_CANONICAL"
+                "HISTORICAL_OBSERVATION" if metric == "REVENUE" else "ABSOLUTE_CANONICAL"
             ),
         )
 
@@ -328,17 +312,38 @@ class CeriPointInTimeQuery:
         if metric is not None:
             statement = statement.where(CeriEstimateSnapshot.metric == metric)
         result = scalars(statement)
-        return list(result.all() if hasattr(result, "all") else result)
+        rows = list(result.all() if hasattr(result, "all") else result)
+        missing_source_ids = {
+            row.source_record_id for row in rows if row.source_record_id not in self._source_records
+        }
+        if missing_source_ids:
+            sources = scalars(
+                select(CeriSourceRecord).where(CeriSourceRecord.id.in_(missing_source_ids))
+            )
+            self._source_records.update(
+                {
+                    source.id: source
+                    for source in (sources.all() if hasattr(sources, "all") else sources)
+                    if source.id is not None
+                }
+            )
+        return rows
 
     def _latest_corrected_estimates(
         self,
         snapshots: list[CeriEstimateSnapshot],
         cutoff_at: datetime,
     ) -> list[CeriEstimateSnapshot]:
-        as_known = [snapshot for snapshot in snapshots if _effective_at(snapshot) <= cutoff_at]
+        # Filter the version universe first.  A correction first received after
+        # the cutoff must not displace the version SwingLens actually knew then.
+        as_known = [
+            snapshot
+            for snapshot in snapshots
+            if _effective_at(snapshot) <= cutoff_at and self._known_at(snapshot) <= cutoff_at
+        ]
         eligible_source_ids = {snapshot.source_record_id for snapshot in as_known}
         correction_snapshots = []
-        for snapshot in snapshots:
+        for snapshot in as_known:
             source = self._source_records.get(snapshot.source_record_id)
             if source is None or source.supersedes_id is None:
                 continue
@@ -354,6 +359,20 @@ class CeriPointInTimeQuery:
             *[snapshot for snapshot in as_known if snapshot.source_record_id not in superseded],
             *correction_snapshots,
         ]
+
+    def _known_at(self, snapshot: CeriEstimateSnapshot) -> datetime:
+        source = self._source_records.get(snapshot.source_record_id)
+        value = source_record_known_at(source) if source is not None else None
+        value = value or snapshot.retrieved_at
+        if self._snapshots is not None and not self._source_records:
+            # Explicitly injected calculation fixtures predate the source graph;
+            # production database loads populate source records above.
+            value = value or snapshot.known_at or snapshot.effective_at
+        if value is None:
+            # Provider/effective timestamps do not prove receipt.  Legacy rows
+            # without source receipt provenance are ineligible in AS_KNOWN mode.
+            return datetime.max.replace(tzinfo=UTC)
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def canonical_estimate_key(snapshot: CeriEstimateSnapshot) -> str:
@@ -492,19 +511,6 @@ def _effective_at(snapshot: CeriEstimateSnapshot) -> datetime:
             return datetime.min.replace(tzinfo=UTC)
         return datetime.combine(snapshot.effective_session, datetime.min.time(), tzinfo=UTC)
     return snapshot.effective_at
-
-
-def _known_at(snapshot: CeriEstimateSnapshot) -> datetime:
-    value = (
-        snapshot.known_at
-        or snapshot.provider_observed_at
-        or snapshot.source_timestamp
-        or snapshot.retrieved_at
-        or snapshot.effective_at
-    )
-    if value is None:
-        return datetime.max.replace(tzinfo=UTC)
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _target_period_end(

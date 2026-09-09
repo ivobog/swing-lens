@@ -27,12 +27,17 @@ def test_as_known_returns_only_evidence_effective_at_or_before_cutoff() -> None:
     assert rows == [old]
 
 
-def test_latest_corrected_applies_later_corrections_without_leaking_into_as_known() -> None:
+def test_late_correction_does_not_displace_version_known_at_cutoff() -> None:
     original = _estimate(1, 101, date(2026, 8, 1), Decimal("10"))
     correction = _estimate(2, 102, date(2026, 8, 10), Decimal("11"))
     sources = {
-        101: _source(101),
-        102: _source(102, supersedes_id=101, correction_type="CORRECTION"),
+        101: _source(101, retrieved_at=datetime(2026, 8, 1, 12, tzinfo=UTC)),
+        102: _source(
+            102,
+            supersedes_id=101,
+            correction_type="CORRECTION",
+            retrieved_at=datetime(2026, 8, 10, 12, tzinfo=UTC),
+        ),
     }
     query = CeriPointInTimeQuery(snapshots=[original, correction], source_records=sources)
     cutoff = datetime(2026, 8, 3, 21, tzinfo=UTC)
@@ -53,7 +58,7 @@ def test_latest_corrected_applies_later_corrections_without_leaking_into_as_know
     )
 
     assert as_known is original
-    assert latest_corrected is correction
+    assert latest_corrected is original
 
 
 def test_baseline_selection_uses_tolerance_and_records_elapsed_days() -> None:
@@ -111,6 +116,7 @@ def _source(
     *,
     supersedes_id: int | None = None,
     correction_type: str | None = None,
+    retrieved_at: datetime | None = None,
 ) -> CeriSourceRecord:
     return CeriSourceRecord(
         id=source_record_id,
@@ -119,6 +125,7 @@ def _source(
         provider_record_id=f"est-{source_record_id}",
         supersedes_id=supersedes_id,
         correction_type=correction_type,
+        retrieved_at=retrieved_at,
         content_hash="hash",
         idempotency_key=f"key-{source_record_id}",
     )

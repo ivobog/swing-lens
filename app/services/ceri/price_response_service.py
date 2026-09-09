@@ -14,6 +14,10 @@ from app.models.ceri_tables import CeriPriceResponseFeature
 from app.models.tables import PriceBar
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
+from app.services.ceri.pit_eligibility import (
+    price_bar_is_eligible,
+    price_bar_knowledge_predicates,
+)
 from app.services.market_clock_service import MarketClockService, SessionTimestampPolicy
 from app.services.operational_metrics import operational_metrics
 from app.services.us_market_calendar import next_us_trading_day, previous_us_trading_day
@@ -54,6 +58,7 @@ class CeriPriceResponseService:
         stock_bars: list[PriceBar] | None = None,
         benchmark_bars: list[PriceBar] | None = None,
         feature_as_of_session: date | None = None,
+        cutoff_at: datetime | None = None,
     ) -> PriceResponseResult:
         reaction = self.reaction_session(event_effective_at, event_effective_session)
         if event_effective_at is not None and reaction is not None:
@@ -74,6 +79,7 @@ class CeriPriceResponseService:
             self.config.config_hash,
             self.config.engine.calculation_version,
             REACTION_POLICY_VERSION,
+            *([cutoff_at.isoformat()] if cutoff_at is not None else []),
         )
         if reaction is None:
             return PriceResponseResult(
@@ -90,7 +96,12 @@ class CeriPriceResponseService:
         stock = (
             stock_bars
             if stock_bars is not None
-            else self._bars(db, ticker, max_session=feature_as_of_session)
+            else self._bars(
+                db,
+                ticker,
+                max_session=feature_as_of_session,
+                cutoff_at=cutoff_at,
+            )
         )
         benchmark = (
             benchmark_bars
@@ -99,6 +110,7 @@ class CeriPriceResponseService:
                 db,
                 self.config.price_response.benchmark,
                 max_session=feature_as_of_session,
+                cutoff_at=cutoff_at,
             )
         )
         if not stock:
@@ -264,6 +276,7 @@ class CeriPriceResponseService:
         company_id: int,
         event_type: str,
         reason: str,
+        cutoff_at: datetime | None = None,
     ) -> PriceResponseResult:
         return PriceResponseResult(
             quality=None,
@@ -274,6 +287,7 @@ class CeriPriceResponseService:
                 self.config.config_hash,
                 self.config.engine.calculation_version,
                 REACTION_POLICY_VERSION,
+                *([cutoff_at.isoformat()] if cutoff_at is not None else []),
             ),
             event_type=event_type,
             reaction_session=None,
@@ -295,6 +309,9 @@ class CeriPriceResponseService:
         event_effective_at: datetime | None,
         event_effective_session: date | None,
         feature_as_of_session: date | None = None,
+        cutoff_at: datetime | None = None,
+        calculation_context_id: int | None = None,
+        calendar_version: str | None = None,
     ) -> CeriPriceResponseFeature:
         existing = _maybe_scalar(
             db,
@@ -310,6 +327,9 @@ class CeriPriceResponseService:
             event_effective_at=event_effective_at,
             event_effective_session=event_effective_session,
             feature_as_of_session=feature_as_of_session,
+            cutoff_at=cutoff_at,
+            calculation_context_id=calculation_context_id,
+            calendar_version=calendar_version,
         )
         if existing is None:
             existing = feature
@@ -333,6 +353,9 @@ class CeriPriceResponseService:
         event_effective_at: datetime | None,
         event_effective_session: date | None,
         feature_as_of_session: date | None = None,
+        cutoff_at: datetime | None = None,
+        calculation_context_id: int | None = None,
+        calendar_version: str | None = None,
     ) -> CeriPriceResponseFeature:
         """Build a persistence row without querying or flushing the database."""
         payload = {
@@ -355,6 +378,9 @@ class CeriPriceResponseService:
             event_effective_session=event_effective_session,
             reaction_session=result.reaction_session,
             feature_as_of_session=feature_as_of_session,
+            calculation_cutoff_at=cutoff_at,
+            calculation_context_id=calculation_context_id,
+            calendar_version=calendar_version,
             reaction_start_session=result.reaction_session,
             prior_reference_session=(
                 date.fromisoformat(str(result.metrics["prior_reference_session"]))
@@ -398,7 +424,14 @@ class CeriPriceResponseService:
         # same-day reaction window that may precede the event.
         return None
 
-    def _bars(self, db: Session, ticker: str, *, max_session: date | None = None) -> list[PriceBar]:
+    def _bars(
+        self,
+        db: Session,
+        ticker: str,
+        *,
+        max_session: date | None = None,
+        cutoff_at: datetime | None = None,
+    ) -> list[PriceBar]:
         statement = (
             select(PriceBar)
             .where(PriceBar.ticker == ticker.upper())
@@ -408,6 +441,15 @@ class CeriPriceResponseService:
         )
         if max_session is not None:
             statement = statement.where(PriceBar.bar_date <= max_session)
+        if cutoff_at is not None:
+            if max_session is None:
+                raise ValueError("max_session is required for point-in-time price-bar loading")
+            statement = statement.where(
+                *price_bar_knowledge_predicates(
+                    latest_completed_session=max_session,
+                    cutoff_at=cutoff_at,
+                )
+            )
         rows = _scalars(
             db,
             statement.order_by(PriceBar.bar_date),
@@ -423,6 +465,14 @@ class CeriPriceResponseService:
                 and row.source.lower() in {"ib", "ibkr", "interactive_brokers"}
                 and row.close is not None
                 and (max_session is None or row.bar_date <= max_session)
+                and (
+                    cutoff_at is None
+                    or price_bar_is_eligible(
+                        row,
+                        latest_completed_session=max_session,
+                        cutoff_at=cutoff_at,
+                    )
+                )
             ],
             key=lambda row: row.bar_date,
         )

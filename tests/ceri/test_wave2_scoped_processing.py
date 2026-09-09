@@ -86,6 +86,7 @@ def test_capture_catalysts_are_company_and_as_of_scoped() -> None:
         db,
         1,
         date(2026, 8, 7),
+        datetime(2026, 8, 7, 21, tzinfo=UTC),
         CatalystFeatureStub(),
     )
 
@@ -271,9 +272,7 @@ def test_change_detection_retry_reuses_exact_alert_scope(
         payload_json=payload,
         related_run_id=7,
     )
-    service = FixedChangeService(
-        CeriChangeRebuildResult(changes=1, change_ids=(20,))
-    )
+    service = FixedChangeService(CeriChangeRebuildResult(changes=1, change_ids=(20,)))
 
     first = execute_change_detection_job(db, first_job, change_service=service)
     processing = next(row for row in db.added if isinstance(row, CeriProcessingRun))
@@ -393,9 +392,7 @@ class RecordingDetector:
 
     def detect_score_changes(self, _db, *, current, prior, scope):
         self.score_companies.append(current.company_id)
-        self.score_comparisons.append(
-            (current.id, prior.id if prior is not None else None)
-        )
+        self.score_comparisons.append((current.id, prior.id if prior is not None else None))
         return ChangeDetectionResult(1, 0)
 
     def detect_catalyst_revision(self, _db, *, revision, prior_revision, company_id):

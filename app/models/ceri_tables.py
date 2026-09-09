@@ -842,6 +842,11 @@ class CeriPriceResponseFeature(Base):
     event_effective_session: Mapped[date | None] = mapped_column(Date)
     reaction_session: Mapped[date | None] = mapped_column(Date)
     feature_as_of_session: Mapped[date | None] = mapped_column(Date)
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="SET NULL")
+    )
+    calendar_version: Mapped[str | None] = mapped_column(Text)
     reaction_start_session: Mapped[date | None] = mapped_column(Date)
     prior_reference_session: Mapped[date | None] = mapped_column(Date)
     window_session_map_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

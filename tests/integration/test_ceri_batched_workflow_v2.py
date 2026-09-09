@@ -219,9 +219,7 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
         statements.append(statement.lstrip().split(None, 1)[0].upper())
 
     with Session(engine, expire_on_commit=False) as db:
-        run_id, ingestion_run_id = _seed_fixture(
-            db, request_key="perf-fixture:ingest:MSFT"
-        )
+        run_id, ingestion_run_id = _seed_fixture(db, request_key="perf-fixture:ingest:MSFT")
         processing = BackgroundJob(
             job_type="CERI_NORMALIZE",
             related_run_id=run_id,
@@ -256,9 +254,9 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
             db.scalar(select(func.count()).select_from(CeriDerivedFeature)),
             db.scalar(select(func.count()).select_from(CeriFeatureBuildState)),
         )
-        first_hashes = tuple(db.scalars(
-            select(CeriRevisionFeature.evidence_hash).order_by(CeriRevisionFeature.id)
-        ))
+        first_hashes = tuple(
+            db.scalars(select(CeriRevisionFeature.evidence_hash).order_by(CeriRevisionFeature.id))
+        )
 
         statements.clear()
         second = service.rebuild(db, request)
@@ -268,9 +266,9 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
             db.scalar(select(func.count()).select_from(CeriDerivedFeature)),
             db.scalar(select(func.count()).select_from(CeriFeatureBuildState)),
         )
-        second_hashes = tuple(db.scalars(
-            select(CeriRevisionFeature.evidence_hash).order_by(CeriRevisionFeature.id)
-        ))
+        second_hashes = tuple(
+            db.scalars(select(CeriRevisionFeature.evidence_hash).order_by(CeriRevisionFeature.id))
+        )
 
         assert first.companies_rebuilt == 1
         assert first_selects <= 12
@@ -308,38 +306,40 @@ def test_optimized_50_company_batch_emits_bounded_performance_telemetry(
                 export_policy="exportable",
                 redistribution_allowed=False,
                 purge_eligible=False,
+                retrieved_at=datetime(2026, 8, 10, 20, tzinfo=UTC),
+                ingested_at=datetime(2026, 8, 10, 20, tzinfo=UTC),
             )
             for company in companies
         ]
         db.add_all(sources)
         db.flush()
-        db.add_all([
-            CeriEstimateSnapshot(
-                source_record_id=source.id,
-                company_id=company.id,
-                metric="EPS_DILUTED",
-                fiscal_period_end=date(2026, 9, 30),
-                period_type="CURRENT_QUARTER",
-                canonical_period_slot="CURRENT_QUARTER",
-                consensus="2.0",
-                high="2.2",
-                low="1.8",
-                analyst_count=10,
-                upward_count=6,
-                downward_count=2,
-                canonical_currency="USD",
-                canonical_scale="1",
-                effective_at=datetime(2026, 8, 10, 20, tzinfo=UTC),
-                known_at=datetime(2026, 8, 10, 20, tzinfo=UTC),
-                effective_session=date(2026, 8, 10),
-                canonical_observation_key=f"{company.ticker}:EPS:CQ:2026Q3",
-            )
-            for company, source in zip(companies, sources, strict=True)
-        ])
-        db.commit()
-        request = CeriFeatureRebuildRequest(
-            tickers=tickers, as_of_session=date(2026, 8, 12)
+        db.add_all(
+            [
+                CeriEstimateSnapshot(
+                    source_record_id=source.id,
+                    company_id=company.id,
+                    metric="EPS_DILUTED",
+                    fiscal_period_end=date(2026, 9, 30),
+                    period_type="CURRENT_QUARTER",
+                    canonical_period_slot="CURRENT_QUARTER",
+                    consensus="2.0",
+                    high="2.2",
+                    low="1.8",
+                    analyst_count=10,
+                    upward_count=6,
+                    downward_count=2,
+                    canonical_currency="USD",
+                    canonical_scale="1",
+                    effective_at=datetime(2026, 8, 10, 20, tzinfo=UTC),
+                    known_at=datetime(2026, 8, 10, 20, tzinfo=UTC),
+                    effective_session=date(2026, 8, 10),
+                    canonical_observation_key=f"{company.ticker}:EPS:CQ:2026Q3",
+                )
+                for company, source in zip(companies, sources, strict=True)
+            ]
         )
+        db.commit()
+        request = CeriFeatureRebuildRequest(tickers=tickers, as_of_session=date(2026, 8, 12))
         service = CeriFeatureRebuildService()
 
         statements.clear()
@@ -348,9 +348,7 @@ def test_optimized_50_company_batch_emits_bounded_performance_telemetry(
         db.commit()
         first_wall_ms = int((perf_counter() - started) * 1000)
         first_selects = statements.count("SELECT")
-        first_writes = sum(
-            statements.count(verb) for verb in ("INSERT", "UPDATE", "DELETE")
-        )
+        first_writes = sum(statements.count(verb) for verb in ("INSERT", "UPDATE", "DELETE"))
 
         statements.clear()
         started = perf_counter()
@@ -430,17 +428,13 @@ def _execute_legacy_fixture(database_url: str) -> dict:
             select(BackgroundJob).where(BackgroundJob.job_type == CERI_REBUILD_FEATURES)
         )
         _execute_handler(db, feature, execute_rebuild_features_job)
-        capture = db.scalar(
-            select(BackgroundJob).where(BackgroundJob.job_type == CERI_CAPTURE_RUN)
-        )
+        capture = db.scalar(select(BackgroundJob).where(BackgroundJob.job_type == CERI_CAPTURE_RUN))
         _execute_handler(db, capture, execute_capture_run_job)
         change = db.scalar(
             select(BackgroundJob).where(BackgroundJob.job_type == CERI_CHANGE_DETECTION)
         )
         _execute_handler(db, change, execute_change_detection_job)
-        alert = db.scalar(
-            select(BackgroundJob).where(BackgroundJob.job_type == CERI_ALERT_REBUILD)
-        )
+        alert = db.scalar(select(BackgroundJob).where(BackgroundJob.job_type == CERI_ALERT_REBUILD))
         if alert is not None:
             _execute_handler(db, alert, execute_alert_rebuild_job)
         fingerprint = _parity_fingerprint(db)
@@ -539,17 +533,13 @@ def _execute_batched_fixture(database_url: str) -> dict:
         db.add(finalizer)
         db.commit()
         _execute_handler(db, finalizer, execute_run_finalize_job)
-        capture = db.scalar(
-            select(BackgroundJob).where(BackgroundJob.job_type == CERI_CAPTURE_RUN)
-        )
+        capture = db.scalar(select(BackgroundJob).where(BackgroundJob.job_type == CERI_CAPTURE_RUN))
         _execute_handler(db, capture, execute_capture_run_job)
         change = db.scalar(
             select(BackgroundJob).where(BackgroundJob.job_type == CERI_CHANGE_DETECTION)
         )
         _execute_handler(db, change, execute_change_detection_job)
-        alert = db.scalar(
-            select(BackgroundJob).where(BackgroundJob.job_type == CERI_ALERT_REBUILD)
-        )
+        alert = db.scalar(select(BackgroundJob).where(BackgroundJob.job_type == CERI_ALERT_REBUILD))
         _execute_handler(db, alert, execute_alert_rebuild_job)
         effects_before_retry = _effect_counts(db)
         _execute_handler(db, capture, execute_capture_run_job)
@@ -634,6 +624,8 @@ def _seed_fixture(db: Session, *, request_key: str) -> tuple[int, int]:
                 export_policy="exportable",
                 redistribution_allowed=False,
                 purge_eligible=False,
+                retrieved_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
+                ingested_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
             )
         )
     db.commit()

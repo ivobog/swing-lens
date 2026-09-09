@@ -17,8 +17,12 @@ def test_later_corrections_do_not_affect_historical_as_known_queries() -> None:
     query = CeriPointInTimeQuery(
         snapshots=[original, correction],
         source_records={
-            101: _source(101),
-            102: _source(102, supersedes_id=101),
+            101: _source(101, retrieved_at=datetime(2026, 8, 1, tzinfo=UTC)),
+            102: _source(
+                102,
+                supersedes_id=101,
+                retrieved_at=datetime(2026, 9, 1, tzinfo=UTC),
+            ),
         },
     )
     cutoff = datetime(2026, 8, 15, 21, tzinfo=UTC)
@@ -39,7 +43,7 @@ def test_later_corrections_do_not_affect_historical_as_known_queries() -> None:
     )
 
     assert as_known is original
-    assert latest_corrected is correction
+    assert latest_corrected is original
 
 
 def _estimate(
@@ -64,7 +68,11 @@ def _estimate(
     )
 
 
-def _source(source_record_id: int, supersedes_id: int | None = None) -> CeriSourceRecord:
+def _source(
+    source_record_id: int,
+    supersedes_id: int | None = None,
+    retrieved_at: datetime | None = None,
+) -> CeriSourceRecord:
     return CeriSourceRecord(
         id=source_record_id,
         provider="manual",
@@ -72,6 +80,7 @@ def _source(source_record_id: int, supersedes_id: int | None = None) -> CeriSour
         provider_record_id=f"est-{source_record_id}",
         supersedes_id=supersedes_id,
         correction_type="CORRECTION" if supersedes_id else None,
+        retrieved_at=retrieved_at,
         content_hash="hash",
         idempotency_key=f"key-{source_record_id}",
     )
