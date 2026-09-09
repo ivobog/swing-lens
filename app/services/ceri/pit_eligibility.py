@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import func
@@ -107,11 +107,13 @@ def price_bar_knowledge_predicates(*, latest_completed_session: date, cutoff_at:
 def _aware(value: datetime | None) -> datetime | None:
     if value is None:
         return None
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    if value.tzinfo is None or value.utcoffset() is None:
+        return None
+    return value
 
 
 def _required_aware(value: datetime) -> datetime:
     aware = _aware(value)
-    if aware is None:  # pragma: no cover - type-level defensive guard
-        raise ValueError("cutoff_at is required")
+    if aware is None:
+        raise ValueError("cutoff_at must be timezone-aware")
     return aware

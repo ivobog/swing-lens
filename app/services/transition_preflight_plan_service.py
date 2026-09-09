@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,6 +26,22 @@ from app.services.setup_lifecycle.transition_candidate_service import (
 )
 
 DEFAULT_PREFLIGHT_TTL = timedelta(minutes=30)
+
+
+class TransitionPreflightPlanStatus(StrEnum):
+    RESERVED = "RESERVED"
+    CONSUMED = "CONSUMED"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+    STALE = "STALE"
+
+
+PREFLIGHT_STATE_TRANSITIONS = {
+    (TransitionPreflightPlanStatus.RESERVED, "CONSUME"): TransitionPreflightPlanStatus.CONSUMED,
+    (TransitionPreflightPlanStatus.RESERVED, "CANCEL"): TransitionPreflightPlanStatus.CANCELLED,
+    (TransitionPreflightPlanStatus.RESERVED, "EXPIRE"): TransitionPreflightPlanStatus.EXPIRED,
+    (TransitionPreflightPlanStatus.RESERVED, "INVALIDATE"): TransitionPreflightPlanStatus.STALE,
+}
 
 
 class TransitionPreflightError(ValueError):
@@ -66,6 +83,23 @@ def create_transition_preflight_plan(
                 "IDEMPOTENCY_CONFLICT",
                 "the idempotency key is already bound to a different upload run",
             )
+        if tickers is not None and sorted(ticker.strip().upper() for ticker in tickers) != sorted(
+            existing.tickers_json
+        ):
+            raise TransitionPreflightError(
+                "IDEMPOTENCY_CONFLICT",
+                "the idempotency key is already bound to a different ticker set",
+            )
+        if cutoff_at is not None:
+            existing_context = db.get(
+                MarketCalculationContext,
+                existing.market_calculation_context_id,
+            )
+            if existing_context is None or existing_context.cutoff_at != _aware(cutoff_at):
+                raise TransitionPreflightError(
+                    "IDEMPOTENCY_CONFLICT",
+                    "the idempotency key is already bound to a different cutoff instant",
+                )
         return existing
 
     market_cutoff = reserve_preflight_market_context(

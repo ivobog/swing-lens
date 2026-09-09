@@ -1,5 +1,7 @@
 from datetime import UTC, date, datetime, timedelta
 
+import pytest
+
 from app.models.ceri_tables import CeriEarningsActual, CeriSourceRecord
 from app.models.tables import PriceBar
 from app.services.ceri.capture_service import _eligible_source_backed_rows
@@ -49,6 +51,20 @@ def test_source_known_at_uses_receipt_not_older_publication_time() -> None:
 
     assert source_record_known_at(source) == CUTOFF + timedelta(seconds=1)
     assert source_record_is_eligible(source, CUTOFF) is False
+
+
+def test_missing_or_naive_receipt_provenance_fails_closed() -> None:
+    missing = _source(1, CUTOFF)
+    missing.retrieved_at = None
+    missing.ingested_at = None
+    naive = _source(2, CUTOFF.replace(tzinfo=None))
+
+    assert source_record_known_at(missing) is None
+    assert source_record_known_at(naive) is None
+    assert not source_record_is_eligible(missing, CUTOFF)
+    assert not source_record_is_eligible(naive, CUTOFF)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        source_record_is_eligible(_source(3, CUTOFF), CUTOFF.replace(tzinfo=None))
 
 
 def test_old_session_late_known_bar_fails_knowledge_gate() -> None:

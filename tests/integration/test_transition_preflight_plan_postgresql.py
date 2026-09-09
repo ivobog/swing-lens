@@ -29,7 +29,10 @@ from app.services.market_calculation_context_service import (
 from app.services.pipeline_service import start_pipeline
 from app.services.setup_lifecycle.canonicalization import SetupLifecycleCanonicalizer
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
-from app.services.setup_lifecycle.transition_candidate_service import TransitionCandidateResult
+from app.services.setup_lifecycle.transition_candidate_service import (
+    TransitionCandidateDiscoveryService,
+    TransitionCandidateResult,
+)
 from app.services.transition_preflight_plan_service import (
     TransitionPreflightError,
     create_transition_preflight_plan,
@@ -112,6 +115,47 @@ def test_pointer_change_after_preflight_rejects_enqueue(
             )
         db.rollback()
         assert db.scalar(select(text("count(*)")).select_from(SetupSignalSnapshot)) == 0
+
+
+def test_preflight_idempotency_key_rejects_materially_different_request(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    with Session(engine) as db:
+        run_id = _insert_upload(db)
+        first = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key="semantic-idempotency",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            discovery=discovery,
+        )
+        db.commit()
+        first_id = first.id
+
+    with Session(engine) as db:
+        equivalent = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key="semantic-idempotency",
+            cutoff_at=CUTOFF.astimezone(ZoneInfo("Europe/Zurich")),
+            tickers={"msft"},
+            discovery=discovery,
+        )
+        assert equivalent.id == first_id
+        with pytest.raises(TransitionPreflightError) as caught:
+            create_transition_preflight_plan(
+                db,
+                upload_run_id=run_id,
+                idempotency_key="semantic-idempotency",
+                cutoff_at=CUTOFF + timedelta(microseconds=1),
+                tickers={"MSFT"},
+                discovery=discovery,
+            )
+        assert caught.value.code == "IDEMPOTENCY_CONFLICT"
 
 
 def test_session_boundary_reuses_reserved_context_and_duplicate_enqueue_is_idempotent(
@@ -361,6 +405,145 @@ def test_pointer_and_ledger_roll_back_together_on_injected_failure(
         )
 
 
+@pytest.mark.parametrize(
+    "failure_point", ["before_job_enqueue", "after_job_enqueue", "before_commit"]
+)
+def test_pipeline_enqueue_failure_injection_rolls_back_every_half_applied_state(
+    disposable_postgres_database: str,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_point: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key=f"failure-{failure_point}",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            expires_in=timedelta(days=2),
+            discovery=discovery,
+        )
+        db.commit()
+        plan_id = plan.id
+        context_id = plan.market_calculation_context_id
+
+    def injected(*_args, **_kwargs):
+        raise RuntimeError(f"injected {failure_point}")
+
+    if failure_point == "before_job_enqueue":
+        monkeypatch.setattr("app.services.pipeline_service.enqueue_job", injected)
+    elif failure_point == "after_job_enqueue":
+        monkeypatch.setattr(
+            "app.services.pipeline_service.request_active_prewarm_preemption",
+            injected,
+        )
+
+    with Session(engine) as db:
+        with pytest.raises(RuntimeError, match="injected"):
+            start_pipeline(
+                db,
+                run_id,
+                transition_preflight_plan_id=plan_id,
+                transition_candidate_discovery=discovery,
+            )
+            if failure_point == "before_commit":
+                raise RuntimeError("injected before_commit")
+        db.rollback()
+
+    with Session(engine) as db:
+        plan = db.get(TransitionPreflightPlan, plan_id)
+        context = db.get(MarketCalculationContext, context_id)
+        assert plan.status == "RESERVED"
+        assert plan.pipeline_run_id is None
+        assert context.pipeline_run_id is None
+        assert db.execute(text("SELECT count(*) FROM pipeline_runs")).scalar_one() == 0
+        assert db.execute(text("SELECT count(*) FROM background_jobs")).scalar_one() == 0
+
+
+@pytest.mark.parametrize("failure_point", ["after_context_reserved", "after_plan_persisted"])
+def test_preflight_creation_failure_injection_leaves_no_orphan(
+    disposable_postgres_database: str,
+    failure_point: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+
+    class FailingDiscovery:
+        def discover_for_run(self, *_args, **_kwargs):
+            raise RuntimeError("injected after_context_reserved")
+
+    with Session(engine) as db:
+        run_id = _insert_upload(db)
+        db.commit()
+        with pytest.raises(RuntimeError, match="injected"):
+            create_transition_preflight_plan(
+                db,
+                upload_run_id=run_id,
+                idempotency_key=f"creation-{failure_point}",
+                cutoff_at=CUTOFF,
+                tickers={"MSFT"},
+                discovery=(
+                    FailingDiscovery() if failure_point == "after_context_reserved" else discovery
+                ),
+            )
+            raise RuntimeError("injected after_plan_persisted")
+        db.rollback()
+
+    with Session(engine) as db:
+        assert db.execute(text("SELECT count(*) FROM transition_preflight_plans")).scalar_one() == 0
+        assert (
+            db.execute(text("SELECT count(*) FROM market_calculation_contexts")).scalar_one() == 0
+        )
+
+
+def test_failure_between_pointer_update_and_ledger_insert_rolls_back_both(
+    disposable_postgres_database: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        snapshot = _snapshot(run_id, 1, date(2026, 9, 8), "1d", hour=10)
+        db.add(snapshot)
+        db.commit()
+        snapshot_id = snapshot.id
+
+    repository = SetupLifecycleRepository()
+
+    def fail_event_key(*_parts: str) -> str:
+        raise RuntimeError("injected before ledger insert")
+
+    monkeypatch.setattr(repository, "stable_key", fail_event_key)
+    with Session(engine) as db:
+        with pytest.raises(RuntimeError, match="before ledger"):
+            SetupLifecycleCanonicalizer(repository=repository).canonicalize_run(
+                db,
+                run_id=run_id,
+                snapshot_ids=(snapshot_id,),
+            )
+        db.rollback()
+
+    with Session(engine) as db:
+        assert (
+            db.execute(
+                text("SELECT count(*) FROM setup_signal_snapshot_current_selections")
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            db.execute(
+                text("SELECT count(*) FROM setup_signal_snapshot_selection_events")
+            ).scalar_one()
+            == 0
+        )
+
+
 def test_post_cutoff_evidence_change_rejects_instead_of_creating_c2(
     disposable_postgres_database: str,
 ) -> None:
@@ -478,6 +661,38 @@ def test_session_canonical_keys_and_cross_session_current_state_are_distinct(
             "SAME_SESSION_REPLACEMENT",
             "NEW_SESSION_CANONICAL_INITIALIZATION",
         }
+
+
+def test_pointer_precondition_reads_current_admin_state_not_frozen_pit_cutoff(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    earlier = date(2026, 9, 4)
+    later = date(2026, 9, 8)
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        first = _snapshot(run_id, 1, earlier, "1d", hour=10)
+        second = _snapshot(run_id, 2, later, "1d", hour=11)
+        db.add_all([first, second])
+        db.flush()
+        canonicalizer = SetupLifecycleCanonicalizer()
+        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(first.id,))
+        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(second.id,))
+        db.commit()
+
+    with Session(engine) as db:
+        latest, exact, latest_revision, exact_revision = (
+            TransitionCandidateDiscoveryService._pointers(
+                db,
+                ticker="MSFT",
+                timeframe="1d",
+                data_as_of_date=later,
+            )
+        )
+        assert latest.id == second.id
+        assert exact.id == second.id
+        assert latest_revision == exact_revision == 1
 
 
 def _insert_upload(db: Session) -> int:

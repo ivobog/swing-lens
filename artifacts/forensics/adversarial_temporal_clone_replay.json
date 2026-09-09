@@ -1,0 +1,268 @@
+{
+  "ceri_10929": {
+    "matches": true,
+    "reproduced_hash": "1df165a0cbeba82db61e9545a4f820a6599a687e0b45c7df1cb8f37fdf9a8eb8",
+    "source_count": 7,
+    "stored_hash": "1df165a0cbeba82db61e9545a4f820a6599a687e0b45c7df1cb8f37fdf9a8eb8"
+  },
+  "ceri_sources": [
+    {
+      "eligible": true,
+      "id": 867459,
+      "known_at": "2026-09-09T09:31:56.393435Z",
+      "present": true
+    },
+    {
+      "eligible": true,
+      "id": 867460,
+      "known_at": "2026-09-09T09:31:56.499459Z",
+      "present": true
+    },
+    {
+      "eligible": true,
+      "id": 867461,
+      "known_at": "2026-09-09T09:31:56.667520Z",
+      "present": true
+    },
+    {
+      "eligible": true,
+      "id": 867462,
+      "known_at": "2026-09-09T09:31:56.762760Z",
+      "present": true
+    },
+    {
+      "eligible": true,
+      "id": 867463,
+      "known_at": "2026-09-09T09:31:56.849008Z",
+      "present": true
+    },
+    {
+      "eligible": true,
+      "id": 867464,
+      "known_at": "2026-09-09T09:31:56.994388Z",
+      "present": true
+    },
+    {
+      "eligible": true,
+      "id": 867465,
+      "known_at": "2026-09-09T09:31:59.195489Z",
+      "present": true
+    }
+  ],
+  "clone_final_counts": {
+    "background_jobs": 42521,
+    "ceri_score_snapshots": 10734,
+    "ceri_source_records": 867461,
+    "market_calculation_contexts": 6,
+    "pipeline_runs": 145,
+    "price_bars": 2262432,
+    "setup_signal_snapshot_current_selections": 14646,
+    "setup_signal_snapshot_selection_events": 1,
+    "setup_signal_snapshots": 26539,
+    "transition_preflight_plans": 2,
+    "upload_runs": 152
+  },
+  "database": "swinglens_qa_temporal_cert_20260909",
+  "database_url": "postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_qa_temporal_cert_20260909",
+  "frozen_context": {
+    "calendar_version": "swinglens-us-equities-v1",
+    "cutoff_at": "2026-09-09T19:55:33.682959Z",
+    "id": 5,
+    "latest_completed_session": "2026-09-08"
+  },
+  "historical_repair": false,
+  "live_canary_run": false,
+  "passed": true,
+  "preflight_execution": {
+    "context_id": 6,
+    "context_owner_pipeline_id": 145,
+    "duplicate_pipeline_id": 145,
+    "one_pipeline": true,
+    "pipeline_id": 145,
+    "plan_id": 2,
+    "plan_status": "CONSUMED"
+  },
+  "price_bars": [
+    {
+      "eligible": true,
+      "id": 2263479,
+      "present": true
+    },
+    {
+      "eligible": true,
+      "id": 2263504,
+      "present": true
+    }
+  ],
+  "production_business_writes": false,
+  "production_pipeline_run": false,
+  "read_only_counts_unchanged": true,
+  "run_152_candidates": [
+    {
+      "can_compete_with_existing_pointer": true,
+      "confidence": "HIGH",
+      "current_pointer_key": "TBLA/1d/2026-08-03",
+      "current_pointer_snapshot_id": 18885,
+      "current_pointer_target_session": "2026-08-03",
+      "evidence_fingerprint": "7e08025ef4aef07bcc4f17f7202fd9dbcea7a516dd0ab01511bf2a7f6cf4aa23",
+      "expected_exact_pointer_revision": 1,
+      "expected_exact_pointer_snapshot_id": 18885,
+      "expected_latest_pointer_revision": 1,
+      "latest_reconstructable_session": "2026-08-03",
+      "market_calculation_context_id": 5,
+      "predicted_current_state_advance": false,
+      "predicted_pointer_advance": true,
+      "prospective_cutoff": "2026-09-09T19:55:33.682959Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "prospective_new_key": "TBLA/1d/2026-08-03",
+      "reason": "EXISTING_POINTER_ADVANCE_DETERMINISTIC_UNDER_FROZEN_CONTEXT",
+      "technical_reconstruction_fingerprint": "c5cce39cf1827c75c8dfc819b7bafaf363c1f1d643ce25fa3136f241801b9b74",
+      "ticker": "TBLA",
+      "would_initialize_new_key": false
+    },
+    {
+      "can_compete_with_existing_pointer": false,
+      "confidence": "HIGH",
+      "current_pointer_key": "DRS/1d/2026-08-03",
+      "current_pointer_snapshot_id": 19017,
+      "current_pointer_target_session": "2026-08-03",
+      "evidence_fingerprint": "60714714f984a67aa4a47b93d8a199de706ae99ae01e41a81145070f28e25b2c",
+      "expected_exact_pointer_revision": null,
+      "expected_exact_pointer_snapshot_id": null,
+      "expected_latest_pointer_revision": 1,
+      "latest_reconstructable_session": "2026-09-08",
+      "market_calculation_context_id": 5,
+      "predicted_current_state_advance": true,
+      "predicted_pointer_advance": false,
+      "prospective_cutoff": "2026-09-09T19:55:33.682959Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "prospective_new_key": "DRS/1d/2026-09-08",
+      "reason": "NEW_SESSION_CANONICAL_INITIALIZATION_ADVANCES_CURRENT_STATE",
+      "technical_reconstruction_fingerprint": "aac29e5944d193bad9c5def40759af3746b6d8db347d14985dd7459476ce5966",
+      "ticker": "DRS",
+      "would_initialize_new_key": true
+    }
+  ],
+  "run_replays": [
+    {
+      "immutable_snapshot_digest": "16317a517fe0a90145cf424231c8868b7e7aee50dfae712a1847ec5363cecec4",
+      "run_id": 148,
+      "snapshot_count": 5,
+      "status": "COMPLETED"
+    },
+    {
+      "immutable_snapshot_digest": "8d3dd47fdc1ebbd3177ff6fae6ad924f98eda6a33b52541163771ecd9eeabd52",
+      "run_id": 149,
+      "snapshot_count": 5,
+      "status": "COMPLETED"
+    },
+    {
+      "immutable_snapshot_digest": "a5f9c75bfe8f3fb1b6d7f513531d257b534258a151a207530234951bd53a1952",
+      "run_id": 150,
+      "snapshot_count": 5,
+      "status": "COMPLETED"
+    },
+    {
+      "immutable_snapshot_digest": "713c9c5feabe58ca031a9af7e54e68b2c7ee419d1782149daac07b45e89c02eb",
+      "run_id": 151,
+      "snapshot_count": 1,
+      "status": "COMPLETED"
+    },
+    {
+      "immutable_snapshot_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "run_id": 152,
+      "snapshot_count": 0,
+      "status": "COMPLETED"
+    }
+  ],
+  "targeted_candidates": [
+    {
+      "can_compete_with_existing_pointer": true,
+      "confidence": "HIGH",
+      "current_pointer_key": "TBLA/1d/2026-08-03",
+      "current_pointer_snapshot_id": 18885,
+      "current_pointer_target_session": "2026-08-03",
+      "evidence_fingerprint": "db892092631c24ed34fb7f43f46dbb16f24a4d87d63563ef9d077ec24af00f25",
+      "expected_exact_pointer_revision": 1,
+      "expected_exact_pointer_snapshot_id": 18885,
+      "expected_latest_pointer_revision": 1,
+      "latest_reconstructable_session": "2026-08-03",
+      "market_calculation_context_id": 5,
+      "predicted_current_state_advance": false,
+      "predicted_pointer_advance": true,
+      "prospective_cutoff": "2026-09-09T19:55:33.682959Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "prospective_new_key": "TBLA/1d/2026-08-03",
+      "reason": "EXISTING_POINTER_ADVANCE_DETERMINISTIC_UNDER_FROZEN_CONTEXT",
+      "technical_reconstruction_fingerprint": "d3fb89fa2212360509121355226f05910ac9086e743aa8a0fc2ee45303acd736",
+      "ticker": "TBLA",
+      "would_initialize_new_key": false
+    },
+    {
+      "can_compete_with_existing_pointer": true,
+      "confidence": "HIGH",
+      "current_pointer_key": "NNI/1d/2026-08-03",
+      "current_pointer_snapshot_id": 18927,
+      "current_pointer_target_session": "2026-08-03",
+      "evidence_fingerprint": "4d282a22b393332075f18f3f0f0b0013c0fb20a7987c95bed6f2db01db18b0ca",
+      "expected_exact_pointer_revision": 1,
+      "expected_exact_pointer_snapshot_id": 18927,
+      "expected_latest_pointer_revision": 1,
+      "latest_reconstructable_session": "2026-08-03",
+      "market_calculation_context_id": 5,
+      "predicted_current_state_advance": false,
+      "predicted_pointer_advance": true,
+      "prospective_cutoff": "2026-09-09T19:55:33.682959Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "prospective_new_key": "NNI/1d/2026-08-03",
+      "reason": "EXISTING_POINTER_ADVANCE_DETERMINISTIC_UNDER_FROZEN_CONTEXT",
+      "technical_reconstruction_fingerprint": "7e43bd60b648a207c7795d80588f5db26f10e44df1b9a3cc26ee4a2be6457f38",
+      "ticker": "NNI",
+      "would_initialize_new_key": false
+    },
+    {
+      "can_compete_with_existing_pointer": true,
+      "confidence": "HIGH",
+      "current_pointer_key": "TPL/1d/2026-08-03",
+      "current_pointer_snapshot_id": 18961,
+      "current_pointer_target_session": "2026-08-03",
+      "evidence_fingerprint": "a5a58356e9272338126c863d25191e0e84bac3e67d8a1afc1af87aa27173c3b3",
+      "expected_exact_pointer_revision": 1,
+      "expected_exact_pointer_snapshot_id": 18961,
+      "expected_latest_pointer_revision": 1,
+      "latest_reconstructable_session": "2026-08-03",
+      "market_calculation_context_id": 5,
+      "predicted_current_state_advance": false,
+      "predicted_pointer_advance": true,
+      "prospective_cutoff": "2026-09-09T19:55:33.682959Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "prospective_new_key": "TPL/1d/2026-08-03",
+      "reason": "EXISTING_POINTER_ADVANCE_DETERMINISTIC_UNDER_FROZEN_CONTEXT",
+      "technical_reconstruction_fingerprint": "d9d26153196a431b90115399f1346ea7b87e8e1804d7d0a59e86d25f518bee99",
+      "ticker": "TPL",
+      "would_initialize_new_key": false
+    },
+    {
+      "can_compete_with_existing_pointer": false,
+      "confidence": "HIGH",
+      "current_pointer_key": "DRS/1d/2026-08-03",
+      "current_pointer_snapshot_id": 19017,
+      "current_pointer_target_session": "2026-08-03",
+      "evidence_fingerprint": "d540f3841437fc97de363ad31c3792abc2e8478943f91aec0337640790ae9d77",
+      "expected_exact_pointer_revision": null,
+      "expected_exact_pointer_snapshot_id": null,
+      "expected_latest_pointer_revision": 1,
+      "latest_reconstructable_session": "2026-09-08",
+      "market_calculation_context_id": 5,
+      "predicted_current_state_advance": true,
+      "predicted_pointer_advance": false,
+      "prospective_cutoff": "2026-09-09T19:55:33.682959Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "prospective_new_key": "DRS/1d/2026-09-08",
+      "reason": "NEW_SESSION_CANONICAL_INITIALIZATION_ADVANCES_CURRENT_STATE",
+      "technical_reconstruction_fingerprint": "a8d9279a5de73f815e856a2254012934cc785a87f6ee6f4bc45dfd6e4e7dd7fc",
+      "ticker": "DRS",
+      "would_initialize_new_key": true
+    }
+  ]
+}

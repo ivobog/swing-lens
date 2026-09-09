@@ -149,6 +149,29 @@ def test_score_reproduction_succeeds_from_stored_snapshot_inputs() -> None:
     assert snapshot.evidence_lineage_json["price_bar_ids"] == [9, 10]
 
 
+def test_score_fingerprint_is_invariant_to_equivalent_timezone_representation() -> None:
+    service = CeriSnapshotService()
+    utc_cutoff = datetime.fromisoformat("2026-09-09T19:55:33.682959+00:00")
+    zurich_cutoff = datetime.fromisoformat("2026-09-09T21:55:33.682959+02:00")
+    kwargs = {
+        "company_id": 42,
+        "ticker": "MSFT",
+        "as_of_session": date(2026, 9, 8),
+        "opportunity": _opportunity(),
+        "event_risk": _risk(),
+        "confidence": _confidence(),
+        "source_ids": [3, 2, 1],
+    }
+
+    first = service.build_snapshot(**kwargs, cutoff_at=utc_cutoff)
+    second = service.build_snapshot(
+        **{**kwargs, "source_ids": [1, 2, 3]},
+        cutoff_at=zurich_cutoff,
+    )
+
+    assert first.evidence_hash == second.evidence_hash
+
+
 def test_legacy_snapshot_reproduction_is_read_only() -> None:
     snapshot = CeriScoreSnapshot(
         id=99,
