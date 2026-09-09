@@ -25,6 +25,14 @@ def schedule_primary_h5_maturation(
     """Idempotently schedule one durable primary-H5 drain per completed US session."""
     completed_session = latest_completed_session(now or datetime.now(UTC))
     request_key = f"winner:h5-next-open:session:{completed_session.isoformat()}"
+    session_info = getattr(db, "info", None)
+    if session_info is None:
+        session_info = {}
+        db.info = session_info
+    session_cache = session_info.setdefault("winner_primary_h5_schedule_cache", {})
+    cached = session_cache.get(request_key)
+    if cached is not None:
+        return cached
     existing = db.scalar(
         select(BackgroundJob)
         .where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION)
@@ -49,9 +57,10 @@ def schedule_primary_h5_maturation(
     # completed job for this trading session terminates before a root context or
     # durable enqueue-attempt record can be created.
     if existing is not None:
+        session_cache[request_key] = existing
         return existing
     with root_action_scope("SCHEDULER", f"winner-primary-h5:{completed_session.isoformat()}"):
-        return enqueue_outcome_maturation_workflow(
+        scheduled = enqueue_outcome_maturation_workflow(
             db,
             payload={
                 "entry_model": "NEXT_OPEN",
@@ -64,3 +73,5 @@ def schedule_primary_h5_maturation(
             trigger_source="SCHEDULER",
             priority=35,
         )
+    session_cache[request_key] = scheduled
+    return scheduled
