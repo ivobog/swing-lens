@@ -128,9 +128,9 @@ def test_metric_revision_and_flex_import_are_idempotent(
         rebuilt = rebuild_trade_episodes(db)
         db.commit()
         assert len(rebuilt) == 1
-        episodes = db.execute(
-            select(IBTradeEpisode.status).order_by(IBTradeEpisode.id)
-        ).scalars().all()
+        episodes = (
+            db.execute(select(IBTradeEpisode.status).order_by(IBTradeEpisode.id)).scalars().all()
+        )
         assert episodes == ["SUPERSEDED", "OPEN"]
         active_fills = db.scalars(
             select(IBExecutionFill).where(IBExecutionFill.is_superseded.is_(False))
@@ -166,7 +166,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
             db,
             ticker="XYZ",
             ib_conid=123,
-            as_of_session=date(2026, 8, 9),
+            as_of_session=date(2026, 8, 7),
             feature=available,
             config=config,
             calculated_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC),
@@ -176,7 +176,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
             db,
             ticker="XYZ",
             ib_conid=123,
-            as_of_session=date(2026, 8, 9),
+            as_of_session=date(2026, 8, 7),
             feature=unavailable,
             config=config,
             calculated_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC) + timedelta(seconds=1),
@@ -221,7 +221,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
             db,
             ticker="XYZ",
             ib_conid=123,
-            as_of_session=date(2026, 8, 9),
+            as_of_session=date(2026, 8, 7),
             feature=short_context,
             config=config,
             calculated_at=datetime(2026, 8, 9, 12, 1, tzinfo=UTC),
