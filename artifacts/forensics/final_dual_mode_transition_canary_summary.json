@@ -1,0 +1,133 @@
+{
+  "timestamp": "2026-09-09T20:05:16.441628+00:00",
+  "branch": "codex/preflight-context-selection-key-remediation",
+  "execution_head": "b27860143ea7d62d381f3d8f3a090edc7664967e",
+  "certified_remediation_head": "b27860143ea7d62d381f3d8f3a090edc7664967e",
+  "pre_migration_head": "0070_ceri_price_response_pit_context",
+  "post_migration_head": "0071_transition_preflight_plan",
+  "backup_created": true,
+  "backup": {
+    "method": "PostgreSQL 18 pg_dump custom format",
+    "path": "backups/final_dual_mode_canary_pre_0071_20260909T191843Z.dump",
+    "size_bytes": 791664731,
+    "sha256": "ae6f3268efa27a8d87c0878793042d03fd50281852412e1e393780a9961e74b6",
+    "pg_restore_list_entries": 1277,
+    "verification": "PASS"
+  },
+  "preflight_plan_ids": [
+    1
+  ],
+  "market_calculation_context_ids": [
+    5
+  ],
+  "selected_same_session_tickers": [
+    "TBLA"
+  ],
+  "selected_new_session_tickers": [
+    "DRS"
+  ],
+  "run_id": 152,
+  "pipeline_id": null,
+  "job_id": null,
+  "preflight_plan_final_status": "CANCELLED",
+  "reserved_context_pipeline_run_id": null,
+  "failure_classification": "PREFLIGHT_CONTRACT_FAILURE",
+  "failure_reason": "Equivalent UTC and +02:00 representations of the same persisted cutoff hash differently after PostgreSQL round-trip, changing candidate and technical fingerprints and causing PRECONDITION_CHANGED before pipeline creation.",
+  "preflight_error": "PRECONDITION_CHANGED: pointer, selection key, or required PIT evidence changed after preflight",
+  "fingerprint_evidence": {
+    "plan_cutoff": "2026-09-09T19:55:33.682959+00:00",
+    "rehydrated_cutoff": "2026-09-09T21:55:33.682959+02:00",
+    "same_instant": true,
+    "stored_aggregate_evidence": "3b4b8ae6fd86088de6b1a106487652ba5e84bfb38359aedec568922105b117ec",
+    "observed_aggregate_evidence": "b071f126b790049853317d00c549025becebad7db3a2365f87f32a86832ab10e",
+    "stored_aggregate_technical": "febe19d665ae7042768fa5fac917635f400c44b232e0077be1c4cddece3933ba",
+    "observed_aggregate_technical": "cd2658134d2018d3c3d529035289e218d7e06d2d646392fac4ab4c1c15234487"
+  },
+  "candidate_discovery": {
+    "cutoff_at": "2026-09-09T19:32:00+00:00",
+    "universe_size": 1491,
+    "high_candidates": 1273,
+    "high_same_session_replacements": 341,
+    "high_new_session_initializations": 932,
+    "selected_plan_candidates_both_high": true,
+    "production_business_writes_during_global_scan": false
+  },
+  "same_session_replacements": 0,
+  "new_session_canonical_initializations": 0,
+  "same_session_ledger_events": 0,
+  "new_session_initialization_events": 0,
+  "derived_cross_session_current_state_violations": 0,
+  "current_pointer_violations": 0,
+  "selection_ledger_violations": 0,
+  "duplicate_selection_events": 0,
+  "preflight_execution_context_mismatches": 1,
+  "preflight_revalidation_failures": 1,
+  "stale_preflight_acceptances": 0,
+  "duplicate_pipeline_from_same_plan": 0,
+  "historical_snapshot_rewrites": 0,
+  "run_148_immutable_hash_changes": 0,
+  "run_149_immutable_hash_changes": 0,
+  "run_150_immutable_hash_changes": 0,
+  "run_151_immutable_hash_changes": 0,
+  "lifecycle_context_violations": 0,
+  "ceri_parent_context_violations": 0,
+  "ceri_child_context_violations": 0,
+  "ceri_snapshot_context_violations": 0,
+  "post_cutoff_ceri_sources_consumed": 0,
+  "post_cutoff_price_bars_consumed": 0,
+  "missing_pit_provenance_inputs_used": 0,
+  "future_session_inputs_consumed": 0,
+  "pre_event_ceri_reactions": 0,
+  "htf_confirmation_violations": 0,
+  "rs_alignment_violations": 0,
+  "ibmi_session_violations": 0,
+  "duplicate_job_execution": 0,
+  "unexpected_business_mutations": 0,
+  "historical_repair_performed": false,
+  "production_code_changed": false,
+  "merge_performed": false,
+  "live_execution_exercised": false,
+  "ceri_pit_live_evidence_exercised": false,
+  "database_delta": {
+    "upload_runs": 1,
+    "raw_company_rows": 2,
+    "fundamental_scores": 2,
+    "transition_preflight_plans": 1,
+    "market_calculation_contexts": 1,
+    "pipeline_runs": 0,
+    "background_jobs": 0,
+    "technical_scores": 0,
+    "combined_results": 0,
+    "ranking_results": 0,
+    "setup_lifecycle_evaluation_runs": 0,
+    "setup_signal_snapshots": 0,
+    "setup_signal_snapshot_current_selections": 0,
+    "setup_signal_snapshot_selection_events": 0,
+    "ceri_score_snapshots": 0,
+    "ceri_source_records": 0,
+    "price_bars": 0
+  },
+  "protected_history": {
+    "ceri_snapshot_10929_full_row_hash": "75971daad3f89f7f3500d616346b43d4217edd75482f8b4a65f7040dfb883d87",
+    "selection_ledger_baseline_and_final_hash": "d116d88cf5740d648f0af43b650b8172105576ca1b3180c2bb3b157e0071997e",
+    "sources_867459_867465_unchanged": true,
+    "bars_2263479_2263504_unchanged": true,
+    "tbla_old_snapshot_18885_hash": "61b78dbfd43c0e2f33a129b85072b2f648f906d5fc5006d9bc7ad057ed009e95",
+    "drs_old_snapshot_19017_hash": "b900c89d2f05fb6b55b7122c81efc6a7883120e0d88883494ae8abf75db02ec5"
+  },
+  "pipeline_status": "NOT_CREATED_PREFLIGHT_CONTRACT_FAILURE",
+  "post_canary_tests": {
+    "status": "SKIPPED_FAIL_FAST_PREFLIGHT_CONTRACT_FAILURE",
+    "reason": "The requested regression lane is permitted only when live certification has not already failed. No patch-and-continue was performed."
+  },
+  "final_runtime_state": {
+    "app": "STOPPED",
+    "worker": "STOPPED",
+    "supervisor": "STOPPED",
+    "active_jobs": 0,
+    "queued_jobs": 0,
+    "port_8000_listeners": 0
+  },
+  "canary_result": "FAIL",
+  "safe_to_merge": false
+}
