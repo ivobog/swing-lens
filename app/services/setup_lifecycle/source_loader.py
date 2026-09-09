@@ -135,30 +135,38 @@ class SetupLifecycleSourceLoader:
             if row.ticker and row.ticker.strip()
         }
         latest_cutoff = max(ticker_cutoffs.values(), default=context_cutoff)
-        market_candidates = tuple(
-            db.scalars(
-                _latest_context_statement(MarketRegimeSnapshot, latest_cutoff)
-                .where(
-                    or_(
-                        MarketRegimeSnapshot.run_id == run_id,
-                        MarketRegimeSnapshot.run_id.is_(None),
-                    )
-                )
-                .where(MarketRegimeSnapshot.is_current_revision.is_(True))
+        market_statement = _latest_context_statement(
+            MarketRegimeSnapshot,
+            latest_cutoff,
+            cutoff_at=market_cutoff.cutoff_at if isinstance(db, Session) else None,
+        ).where(
+            or_(
+                MarketRegimeSnapshot.run_id == run_id,
+                MarketRegimeSnapshot.run_id.is_(None),
             )
         )
-        sector_candidates = tuple(
-            db.scalars(
-                _latest_context_statement(SectorRotationSnapshot, latest_cutoff)
-                .where(
-                    or_(
-                        SectorRotationSnapshot.run_id == run_id,
-                        SectorRotationSnapshot.run_id.is_(None),
-                    )
-                )
-                .where(SectorRotationSnapshot.is_current_revision.is_(True))
+        sector_statement = _latest_context_statement(
+            SectorRotationSnapshot,
+            latest_cutoff,
+            cutoff_at=market_cutoff.cutoff_at if isinstance(db, Session) else None,
+        ).where(
+            or_(
+                SectorRotationSnapshot.run_id == run_id,
+                SectorRotationSnapshot.run_id.is_(None),
             )
         )
+        # Current-revision flags describe the present.  A PIT selection filters
+        # eligible versions first and then ranks them; lightweight unit adapters
+        # retain their legacy current-row behavior.
+        if not isinstance(db, Session):
+            market_statement = market_statement.where(
+                MarketRegimeSnapshot.is_current_revision.is_(True)
+            )
+            sector_statement = sector_statement.where(
+                SectorRotationSnapshot.is_current_revision.is_(True)
+            )
+        market_candidates = tuple(db.scalars(market_statement))
+        sector_candidates = tuple(db.scalars(sector_statement))
         market_by_ticker = {
             ticker: _select_context_candidate(market_candidates, cutoff, run_id)
             for ticker, cutoff in ticker_cutoffs.items()
@@ -491,8 +499,13 @@ def _bar_identity(bar: PriceBar | None) -> tuple[object, ...] | None:
     return (bar.id, bar.bar_date, bar.what_to_show)
 
 
-def _latest_context_statement(model, cutoff: date):
-    return select(model).where(model.as_of_date <= cutoff)
+def _latest_context_statement(model, cutoff: date, *, cutoff_at: datetime | None = None):
+    statement = select(model).where(model.as_of_date <= cutoff)
+    if cutoff_at is not None:
+        statement = statement.where(model.calculation_cutoff_at.is_not(None)).where(
+            model.calculation_cutoff_at <= cutoff_at
+        )
+    return statement
 
 
 def _run_context_cutoff_date(

@@ -196,6 +196,17 @@ def standalone_market_context(
     return MarketClockService().cutoff_for(cutoff_at or datetime.now(UTC), reason=reason)
 
 
+def prospective_pipeline_market_context(
+    *, cutoff_at: datetime | None = None, clock: MarketClockService | None = None
+) -> MarketCalculationCutoff:
+    """Build, but do not persist, the context a pipeline enqueued now would freeze."""
+
+    return (clock or MarketClockService()).cutoff_for(
+        cutoff_at or datetime.now(UTC),
+        reason="FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+    )
+
+
 def cutoff_from_row(row: MarketCalculationContext) -> MarketCalculationCutoff:
     return MarketCalculationCutoff(
         cutoff_at=row.cutoff_at,

@@ -22,6 +22,7 @@ from app.services.ceri.feature_rebuild_service import (
 )
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ib_market_intelligence.orchestration import _historical_date_ranges
+from app.services.market_clock_service import MarketClockService
 from app.services.relative_leadership import _market_session_dates as leadership_dates
 from app.services.sector_etf_rotation_service import SectorEtfRotationService
 from app.services.sector_rotation_config import load_sector_rotation_config
@@ -114,7 +115,14 @@ def test_sti_f006_enabled_sector_etf_loader_enforces_cutoff(monkeypatch) -> None
     config = load_sector_rotation_config()
     config["etf_score"]["enabled"] = True
     with pytest.raises(ValueError, match="temporal integrity violation"):
-        SectorEtfRotationService().build(object(), [_sector_metrics()], config)
+        SectorEtfRotationService().build(
+            object(),
+            [_sector_metrics()],
+            config,
+            market_cutoff=MarketClockService().cutoff_for(
+                _ny(date(2026, 9, 8), 15), reason="FORENSIC_FIXTURE"
+            ),
+        )
     assert calls and all(kwargs.get("max_session") == date(2026, 9, 4) for _, kwargs in calls)
 
 
