@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-09-09T10:03:10.1935889Z",
+  "branch": "codex/lifecycle-historical-immutability-remediation",
+  "execution_head": "b651b18da634289947c739fd84075de713331dfc",
+  "certified_immutability_remediation_head": "730570d94308f514ab24c15825e7743ffd4d7ee0",
+  "alembic_head": "0069_lifecycle_current_selection",
+  "candidate_tickers": [
+    "DRS",
+    "NNI",
+    "TBLA",
+    "TPL"
+  ],
+  "selected_tickers": [
+    "DRS"
+  ],
+  "run_id": 151,
+  "pipeline_id": 144,
+  "job_id": 42916,
+  "market_calculation_context_id": 4,
+  "cutoff_at": "2026-09-09T09:30:53.203249Z",
+  "latest_completed_session": "2026-09-08",
+  "calendar_version": "swinglens-us-equities-v1",
+  "bar_readiness_version": "daily-close-plus-15m-v1",
+  "pipeline_status": "COMPLETED",
+  "job_status": "COMPLETED",
+  "pointer_advances": 0,
+  "selection_events_appended": 1,
+  "new_key_initializations": 1,
+  "mandatory_pointer_ledger_transition_exercised": false,
+  "current_pointer_violations": 0,
+  "selection_ledger_violations": 0,
+  "duplicate_selection_events": 0,
+  "historical_snapshot_rewrites": 0,
+  "run_148_immutable_hash_changes": 0,
+  "run_149_immutable_hash_changes": 0,
+  "run_150_immutable_hash_changes": 0,
+  "lifecycle_context_violations": 0,
+  "ceri_parent_context_violations": 0,
+  "ceri_child_context_violations": 0,
+  "ceri_snapshot_context_violations": 1,
+  "ceri_snapshot_context_violation_detail": "Snapshot 10929 persisted the correct context envelope but consumed seven CERI source records retrieved after the cutoff and two DRS price bars first observed after the cutoff.",
+  "post_cutoff_ceri_source_inputs_consumed": 7,
+  "post_cutoff_ceri_price_bar_inputs_consumed": 2,
+  "future_session_inputs_consumed": 0,
+  "pre_event_ceri_reactions": 0,
+  "htf_confirmation_violations": 0,
+  "rs_alignment_violations": 0,
+  "ibmi_session_violations": 0,
+  "ibmi_live_status": "NOT_EXERCISED",
+  "duplicate_job_execution": 0,
+  "unexpected_business_mutations": 0,
+  "historical_repair_performed": false,
+  "production_code_changed": false,
+  "merge_performed": false,
+  "non_advancing_tickers": [
+    {
+      "ticker": "DRS",
+      "classification": "OTHER_PROVEN_REASON",
+      "detail": "The frozen technical view ended at 2026-07-30 after post-cutoff revisions made later current rows historically unreconstructable, so the run initialized a different key instead of advancing the existing 2026-08-03 pointer."
+    }
+  ],
+  "post_canary_tests": {
+    "status": "NOT_RUN_FAIL_FAST",
+    "reason": "FAIL_FAST_NO_POINTER_ADVANCE_AND_CERI_TEMPORAL_INTEGRITY_FAILURE"
+  },
+  "certification_failure_reasons": [
+    "No existing lifecycle current-selection pointer advanced; event 1 was a new-key initialization with previous_snapshot_id null.",
+    "CERI score snapshot 10929 consumed evidence first known after its persisted frozen cutoff."
+  ],
+  "final_runtime": {
+    "app": "STOPPED",
+    "worker": "STOPPED",
+    "supervisor": "STOPPED",
+    "active_jobs": 0,
+    "queued_jobs": 0,
+    "port_8000_listeners": 0
+  },
+  "canary_result": "FAIL",
+  "safe_to_merge": false
+}
