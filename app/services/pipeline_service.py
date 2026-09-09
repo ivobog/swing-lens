@@ -120,6 +120,8 @@ def start_pipeline(
     setup_lifecycle_pipeline_step_enabled: bool | None = None,
     market_data_policy: MarketDataPolicy | str = MarketDataPolicy.REQUIRE_IB,
     ib_preflight_status: dict[str, Any] | None = None,
+    transition_preflight_plan_id: int | None = None,
+    transition_candidate_discovery: Any | None = None,
 ) -> PipelineRun:
     upload_run = db.get(UploadRun, upload_run_id)
     if upload_run is None:
@@ -130,6 +132,25 @@ def start_pipeline(
     except ValueError as exc:
         raise ValueError(f"Unsupported market data policy: {market_data_policy}") from exc
 
+    verified_transition_preflight = None
+    if transition_preflight_plan_id is not None:
+        from app.services.transition_preflight_plan_service import (
+            TransitionPreflightError,
+            pipeline_for_consumed_preflight,
+            verify_transition_preflight_for_enqueue,
+        )
+
+        consumed_pipeline = pipeline_for_consumed_preflight(db, transition_preflight_plan_id)
+        if consumed_pipeline is not None:
+            consumed_pipeline._coalesced = True
+            return consumed_pipeline
+        verified_transition_preflight = verify_transition_preflight_for_enqueue(
+            db,
+            plan_id=transition_preflight_plan_id,
+            upload_run_id=upload_run_id,
+            discovery=transition_candidate_discovery,
+        )
+
     step_names = pipeline_step_names(
         ceri_run_capture_enabled=ceri_run_capture_enabled,
         ceri_provider_ingest_enabled=ceri_provider_ingest_enabled,
@@ -137,6 +158,11 @@ def start_pipeline(
     )
     authoritative = _authoritative_pipeline_for_run(db, upload_run_id)
     if authoritative is not None:
+        if verified_transition_preflight is not None:
+            raise TransitionPreflightError(
+                "PRECONDITION_CHANGED",
+                f"upload run already has authoritative pipeline {authoritative.id}",
+            )
         if _is_recoverable_sec_block(authoritative):
             from app.services.ceri.sec.readiness_repair import (
                 schedule_sec_readiness_repair,
@@ -180,9 +206,22 @@ def start_pipeline(
     db.add(pipeline)
     db.flush()
 
-    from app.services.market_calculation_context_service import create_pipeline_market_context
+    if verified_transition_preflight is None:
+        from app.services.market_calculation_context_service import (
+            create_pipeline_market_context,
+        )
 
-    market_cutoff = create_pipeline_market_context(db, pipeline)
+        market_cutoff = create_pipeline_market_context(db, pipeline)
+    else:
+        from app.services.transition_preflight_plan_service import (
+            consume_transition_preflight,
+        )
+
+        market_cutoff = consume_transition_preflight(
+            db,
+            verified=verified_transition_preflight,
+            pipeline=pipeline,
+        )
 
     for step_order, step_name in enumerate(step_names, start=1):
         db.add(
@@ -199,7 +238,20 @@ def start_pipeline(
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
-        payload={"pipeline_run_id": pipeline.id},
+        payload={
+            "pipeline_run_id": pipeline.id,
+            "market_calculation_context_id": market_cutoff.context_id,
+            "market_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+            "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
+            "market_calendar_version": market_cutoff.calendar_version,
+            "bar_readiness_version": market_cutoff.bar_readiness_version,
+            "transition_preflight_plan_id": transition_preflight_plan_id,
+            "transition_evidence_fingerprint": (
+                verified_transition_preflight.plan.evidence_fingerprint
+                if verified_transition_preflight is not None
+                else None
+            ),
+        },
         related_run_id=upload_run_id,
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
@@ -236,6 +288,12 @@ def start_pipeline(
         "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
         "market_calendar_version": market_cutoff.calendar_version,
         "bar_readiness_version": market_cutoff.bar_readiness_version,
+        "transition_preflight_plan_id": transition_preflight_plan_id,
+        "transition_evidence_fingerprint": (
+            verified_transition_preflight.plan.evidence_fingerprint
+            if verified_transition_preflight is not None
+            else None
+        ),
     }
     preempted_prewarm_jobs = request_active_prewarm_preemption(
         db,
@@ -406,7 +464,11 @@ def resume_pipeline(
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
-        payload={"pipeline_run_id": pipeline.id, "resume_from_step": target},
+        payload={
+            "pipeline_run_id": pipeline.id,
+            "resume_from_step": target,
+            **_pipeline_context_payload(db, pipeline),
+        },
         related_run_id=pipeline.upload_run_id,
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
@@ -450,7 +512,11 @@ def enqueue_pipeline_after_sec_repair(
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
-        payload={"pipeline_run_id": pipeline.id, "resume_from_step": resume_from_step},
+        payload={
+            "pipeline_run_id": pipeline.id,
+            "resume_from_step": resume_from_step,
+            **_pipeline_context_payload(db, pipeline),
+        },
         related_run_id=pipeline.upload_run_id,
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
@@ -497,6 +563,19 @@ def _background_job_id(pipeline: PipelineRun) -> int | None:
     result = pipeline.result_json or {}
     value = result.get("background_job_id")
     return int(value) if value is not None else None
+
+
+def _pipeline_context_payload(db: Session, pipeline: PipelineRun) -> dict[str, Any]:
+    from app.services.market_calculation_context_service import market_context_for_pipeline
+
+    context = market_context_for_pipeline(db, pipeline)
+    return {
+        "market_calculation_context_id": context.context_id,
+        "market_cutoff_at": context.cutoff_at.isoformat(),
+        "input_as_of_session": context.latest_completed_session.isoformat(),
+        "market_calendar_version": context.calendar_version,
+        "bar_readiness_version": context.bar_readiness_version,
+    }
 
 
 def _pipeline_request_key(

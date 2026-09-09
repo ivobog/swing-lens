@@ -49,7 +49,7 @@ def test_genuine_same_key_transition_is_high() -> None:
     assert result.would_initialize_new_key is False
 
 
-def test_new_key_initialization_never_counts_as_transition() -> None:
+def test_new_session_key_initialization_advances_derived_current_state() -> None:
     service = TransitionCandidateDiscoveryService()
     result = service.assess(
         _built(date(2026, 8, 4)),
@@ -59,9 +59,10 @@ def test_new_key_initialization_never_counts_as_transition() -> None:
         all_required_pit_inputs=True,
     )
 
-    assert result.reason == "NEW_KEY_INITIALIZATION_NOT_TRANSITION_COVERAGE"
-    assert result.confidence == "LOW"
+    assert result.reason == "NEW_SESSION_CANONICAL_INITIALIZATION_ADVANCES_CURRENT_STATE"
+    assert result.confidence == "HIGH"
     assert not result.predicted_pointer_advance
+    assert result.predicted_current_state_advance
 
 
 def test_post_cutoff_revision_state_cannot_produce_high_confidence() -> None:

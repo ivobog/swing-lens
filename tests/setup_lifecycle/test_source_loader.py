@@ -136,6 +136,20 @@ def test_price_bar_history_projection_keeps_two_sessions_with_one_source_each() 
     assert "source_rank =" in rendered
 
 
+def test_price_bar_projection_excludes_post_cutoff_receipt_and_revision() -> None:
+    cutoff_at = datetime(2026, 9, 8, 20, 30, tzinfo=UTC)
+    statement = _latest_price_bar_history_statement(
+        ("MSFT",),
+        cutoff=date(2026, 9, 8),
+        cutoff_at=cutoff_at,
+        session_count=2,
+    )
+    rendered = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "price_bars.first_seen_at <=" in rendered
+    assert "price_bars.revised_at IS NULL OR price_bars.revised_at <=" in rendered
+
+
 def test_latest_bar_projection_shadow_comparison_detects_lineage_drift() -> None:
     legacy = (_bar("MSFT", date(2026, 8, 1), close=101),)
     projected = (_bar("MSFT", date(2026, 8, 1), close=102),)

@@ -412,9 +412,7 @@ def run_worker_once(
         recovered_count = recover_stale_jobs(db, stale_after_seconds)
         if recovered_count:
             logger.info("job.stale_recovered", extra={"count": recovered_count})
-        heartbeat_worker_control_loop(
-            db, worker_id, instance_id=worker_instance_id
-        )
+        heartbeat_worker_control_loop(db, worker_id, instance_id=worker_instance_id)
         db.commit()
 
         if schedule_winner_probability:
@@ -548,18 +546,21 @@ def execute_job(
     ticker = payload.get("ticker")
     company = payload.get("company")
     try:
-        with worker_job_scope(job), background_job_scope(
-            job_id=job.id,
-            job_type=job.job_type,
-            run_id=run_id,
-            worker_id=job.worker_id,
-            workflow_key=workflow_key,
-            attempt=int(job.retry_count or 0) + 1,
-            ticker=str(ticker) if ticker else None,
-            company=str(company) if company else None,
-            root_correlation_id=getattr(job, "root_correlation_id", None),
-            causation_id=getattr(job, "causation_id", None),
-            job_status_getter=lambda: str(job.status) if job.status is not None else None,
+        with (
+            worker_job_scope(job),
+            background_job_scope(
+                job_id=job.id,
+                job_type=job.job_type,
+                run_id=run_id,
+                worker_id=job.worker_id,
+                workflow_key=workflow_key,
+                attempt=int(job.retry_count or 0) + 1,
+                ticker=str(ticker) if ticker else None,
+                company=str(company) if company else None,
+                root_correlation_id=getattr(job, "root_correlation_id", None),
+                causation_id=getattr(job, "causation_id", None),
+                job_status_getter=lambda: str(job.status) if job.status is not None else None,
+            ),
         ):
             with job_phase("job_handler"):
                 return handler(db, job)
@@ -638,11 +639,23 @@ def _execute_worker_recovery_probe(db: Session, job: BackgroundJob) -> dict[str,
 
 def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any] | None:
     from app.services.background_job_service import is_cancel_requested
-    from app.services.pipeline_executor import PipelineCancelled, execute_full_pipeline
+    from app.services.market_calculation_context_service import (
+        validate_pipeline_job_market_context,
+    )
+    from app.services.pipeline_executor import (
+        PipelineCancelled,
+        PipelineExecutionDependencies,
+        execute_full_pipeline,
+    )
 
     pipeline_run_id = job.payload_json.get("pipeline_run_id")
     if pipeline_run_id is None:
         raise ValueError("FULL_PIPELINE job payload is missing pipeline_run_id.")
+    market_cutoff = validate_pipeline_job_market_context(
+        db,
+        pipeline_run_id=int(pipeline_run_id),
+        payload=job.payload_json or {},
+    )
 
     def lease_guard() -> None:
         heartbeat = getattr(job, "_heartbeat", None)
@@ -709,6 +722,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
                 progress_callback=progress_callback,
                 memory_probe=memory_probe,
                 execution_token=execution_token,
+                dependencies=PipelineExecutionDependencies(market_cutoff=market_cutoff),
             )
     except PipelineCancelled as exc:
         raise CancelRequested(str(exc)) from exc

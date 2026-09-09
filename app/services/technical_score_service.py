@@ -67,7 +67,7 @@ from app.services.technical_work import (
     execute_technical_work_item,
 )
 from app.services.us_market_calendar import latest_completed_us_trading_day
-from app.settings import Settings, get_settings
+from app.settings import Settings, TechnicalArtifactCacheMode, get_settings
 
 
 class TechnicalScoringError(ValueError):
@@ -210,6 +210,89 @@ def score_run_technicals(
     return scores
 
 
+def preview_run_technicals(
+    db: Session,
+    run_id: int,
+    tickers: list[str] | None = None,
+    benchmark_ticker: str = "SPY",
+    *,
+    market_cutoff: MarketCalculationCutoff,
+) -> list[TechnicalScore]:
+    """Reconstruct technical decision inputs without persisting derived artifacts.
+
+    The preview deliberately uses the same bounded frame loader, pure calculation
+    boundary, universe-relative leadership pass, V4/V5 conversion, and frozen
+    market context as production scoring.  Cache reads/writes, score replacement,
+    and ORM flushes are disabled so a transition preflight cannot mutate business
+    state.
+    """
+
+    symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
+    v4_params = load_technical_scoring_v4_config()
+    v5_params = load_technical_scoring_v5_config()
+    pine_params = load_pine_defaults()
+    benchmark_price = _call_price_frame(db, benchmark_ticker, market_cutoff)
+    market_features = _market_features(benchmark_price, benchmark_ticker)
+    sector_price = _sector_benchmark_price(db, pine_params, market_cutoff=market_cutoff)
+    qqq_market_features = _optional_market_features(
+        db, "QQQ", v4_params, market_cutoff=market_cutoff
+    )
+    settings = get_settings().model_copy(
+        update={
+            "technical_process_pool_enabled": False,
+            "technical_pure_boundary_enabled": True,
+            "technical_pure_boundary_shadow_compare_enabled": False,
+            "technical_artifact_cache_mode": TechnicalArtifactCacheMode.OFF,
+        }
+    )
+    calculate_v5 = settings.technical_v5_enabled or settings.technical_v5_shadow_compare_enabled
+    v5_context = (
+        _technical_v5_run_context(
+            db,
+            run_id,
+            symbols,
+            v5_params,
+            market_cutoff=market_cutoff,
+        )
+        if calculate_v5
+        else TechnicalV5RunContext(resolutions={}, sector_features={})
+    )
+    scoring_arguments = {
+        "db": db,
+        "symbols": symbols,
+        "benchmark_price": benchmark_price,
+        "sector_price": sector_price,
+        "market_features": market_features,
+        "qqq_market_features": qqq_market_features,
+        "pine_params": pine_params,
+        "v4_params": v4_params,
+        "run_id": run_id,
+        "settings": settings,
+        "feature_config_hash": config_hash({"pine": pine_params, "v4_features": v4_params}),
+        "scoring_config_hash": config_hash(
+            {"v4": v4_params, "v5": v5_params} if calculate_v5 else v4_params
+        ),
+        "market_cutoff": market_cutoff,
+    }
+    if len(symbols) >= 20:
+        results = _score_tickers_process_pool(**scoring_arguments)
+    else:
+        scoring_arguments["shadow_compare"] = False
+        results = _score_tickers_pure_sequential(**scoring_arguments)
+    return finalize_technical_scores(
+        db,
+        run_id,
+        results,
+        symbols=symbols,
+        v4_params=v4_params,
+        v5_params=v5_params,
+        v5_context=v5_context,
+        settings=settings,
+        market_cutoff=market_cutoff,
+        persist=False,
+    )
+
+
 def finalize_technical_scores(
     db: Session,
     run_id: int,
@@ -221,6 +304,7 @@ def finalize_technical_scores(
     v5_context: TechnicalV5RunContext | None = None,
     settings: Settings | None = None,
     market_cutoff: MarketCalculationCutoff | None = None,
+    persist: bool = True,
 ) -> list[TechnicalScore]:
     v4_params = v4_params or load_technical_scoring_v4_config()
     v5_params = v5_params or load_technical_scoring_v5_config()
@@ -325,15 +409,16 @@ def finalize_technical_scores(
             persisted.input_as_of_session = market_cutoff.latest_completed_session
             persisted.calendar_version = market_cutoff.calendar_version
         scores.append(persisted)
-    if symbols:
+    if persist and symbols:
         db.execute(
             delete(TechnicalScore).where(
                 TechnicalScore.run_id == run_id,
                 TechnicalScore.ticker.in_(symbols),
             )
         )
-    db.add_all(scores)
-    db.flush()
+    if persist:
+        db.add_all(scores)
+        db.flush()
     return scores
 
 

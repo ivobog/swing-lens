@@ -1,0 +1,315 @@
+from __future__ import annotations
+
+import hashlib
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
+
+import pytest
+from alembic.config import Config
+from sqlalchemy import create_engine, select, text
+from sqlalchemy.orm import Session
+
+from alembic import command
+from app.database_safety import configure_guarded_alembic
+from app.models.tables import (
+    MarketCalculationContext,
+    SetupSignalSnapshot,
+    SetupSignalSnapshotCurrentSelection,
+    SetupSignalSnapshotSelectionEvent,
+    TechnicalScore,
+    TransitionPreflightPlan,
+)
+from app.services.pipeline_service import start_pipeline
+from app.services.setup_lifecycle.canonicalization import SetupLifecycleCanonicalizer
+from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+from app.services.setup_lifecycle.transition_candidate_service import TransitionCandidateResult
+from app.services.transition_preflight_plan_service import (
+    TransitionPreflightError,
+    create_transition_preflight_plan,
+    expire_abandoned_preflights,
+    verify_transition_preflight_for_enqueue,
+)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CUTOFF = datetime(2026, 9, 8, 20, 30, tzinfo=UTC)
+
+
+class MutableDiscovery:
+    def __init__(self) -> None:
+        self.pointer_revision = 1
+        self.evidence_revision = 1
+
+    def discover_for_run(self, _db, _run_id, *, market_cutoff, tickers=None):
+        ticker = sorted(tickers or {"MSFT"})[0]
+        evidence = hashlib.sha256(
+            f"{market_cutoff.context_id}:{self.pointer_revision}:{self.evidence_revision}".encode()
+        ).hexdigest()
+        return [
+            TransitionCandidateResult(
+                ticker=ticker,
+                prospective_cutoff=market_cutoff.cutoff_at,
+                prospective_latest_completed_session=market_cutoff.latest_completed_session,
+                latest_reconstructable_session=market_cutoff.latest_completed_session,
+                current_pointer_key=f"{ticker}/1d/2026-09-04",
+                current_pointer_snapshot_id=10,
+                current_pointer_target_session=date(2026, 9, 4),
+                prospective_new_key=(
+                    f"{ticker}/1d/{market_cutoff.latest_completed_session.isoformat()}"
+                ),
+                can_compete_with_existing_pointer=False,
+                would_initialize_new_key=True,
+                predicted_pointer_advance=False,
+                predicted_current_state_advance=True,
+                reason="NEW_SESSION_CANONICAL_INITIALIZATION_ADVANCES_CURRENT_STATE",
+                confidence="HIGH",
+                market_calculation_context_id=market_cutoff.context_id,
+                expected_latest_pointer_revision=self.pointer_revision,
+                technical_reconstruction_fingerprint=f"technical-{self.evidence_revision}",
+                evidence_fingerprint=evidence,
+            )
+        ]
+
+
+def test_pointer_change_after_preflight_rejects_enqueue(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key="pointer-cas",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            discovery=discovery,
+        )
+        db.commit()
+        plan_id = plan.id
+
+    discovery.pointer_revision = 2
+    with Session(engine) as db:
+        with pytest.raises(TransitionPreflightError, match="PRECONDITION_CHANGED"):
+            verify_transition_preflight_for_enqueue(
+                db,
+                plan_id=plan_id,
+                upload_run_id=run_id,
+                discovery=discovery,
+            )
+        db.rollback()
+        assert db.scalar(select(text("count(*)")).select_from(SetupSignalSnapshot)) == 0
+
+
+def test_session_boundary_reuses_reserved_context_and_duplicate_enqueue_is_idempotent(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    with Session(engine) as db:
+        run_id = _insert_upload(db)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key="boundary-reuse",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            expires_in=timedelta(days=2),
+            discovery=discovery,
+        )
+        db.commit()
+        plan_id = plan.id
+        context_id = plan.market_calculation_context_id
+
+    with Session(engine) as db:
+        first = start_pipeline(
+            db,
+            run_id,
+            transition_preflight_plan_id=plan_id,
+            transition_candidate_discovery=discovery,
+        )
+        db.commit()
+        first_id = first.id
+
+    with Session(engine) as db:
+        duplicate = start_pipeline(
+            db,
+            run_id,
+            transition_preflight_plan_id=plan_id,
+            transition_candidate_discovery=discovery,
+        )
+        assert duplicate.id == first_id
+        context = db.get(MarketCalculationContext, context_id)
+        assert context.pipeline_run_id == first_id
+        assert context.cutoff_at == CUTOFF
+        plan = db.get(TransitionPreflightPlan, plan_id)
+        assert plan.status == "CONSUMED"
+        assert plan.pipeline_run_id == first_id
+
+
+def test_post_cutoff_evidence_change_rejects_instead_of_creating_c2(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    with Session(engine) as db:
+        run_id = _insert_upload(db)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key="revision-guard",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            discovery=discovery,
+        )
+        db.commit()
+        plan_id = plan.id
+        context_id = plan.market_calculation_context_id
+
+    discovery.evidence_revision = 2
+    with Session(engine) as db:
+        with pytest.raises(TransitionPreflightError, match="PRECONDITION_CHANGED"):
+            start_pipeline(
+                db,
+                run_id,
+                transition_preflight_plan_id=plan_id,
+                transition_candidate_discovery=discovery,
+            )
+        db.rollback()
+        context = db.get(MarketCalculationContext, context_id)
+        assert context.pipeline_run_id is None
+        assert db.execute(text("SELECT count(*) FROM pipeline_runs")).scalar_one() == 0
+
+
+def test_abandoned_preflight_expires_without_business_state_or_lock_leak(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    with Session(engine) as db:
+        run_id = _insert_upload(db)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key="abandoned",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            expires_in=timedelta(seconds=1),
+            discovery=discovery,
+        )
+        db.commit()
+        plan_id = plan.id
+        context_id = plan.market_calculation_context_id
+        expires_at = plan.expires_at
+
+    with Session(engine) as db:
+        assert expire_abandoned_preflights(db, now=expires_at + timedelta(minutes=1)) == 1
+        db.commit()
+        plan = db.get(TransitionPreflightPlan, plan_id)
+        context = db.get(MarketCalculationContext, context_id)
+        assert plan.status == "EXPIRED"
+        assert context.pipeline_run_id is None
+        assert db.scalar(select(text("count(*)")).select_from(TechnicalScore)) == 0
+        assert db.scalar(select(text("count(*)")).select_from(SetupSignalSnapshot)) == 0
+
+
+def test_session_canonical_keys_and_cross_session_current_state_are_distinct(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    first_session = date(2026, 9, 4)
+    next_session = date(2026, 9, 8)
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        first = _snapshot(run_id, 1, first_session, "1d", hour=10)
+        db.add(first)
+        db.flush()
+        canonicalizer = SetupLifecycleCanonicalizer()
+        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(first.id,))
+        replacement = _snapshot(run_id, 2, first_session, "1d", hour=11)
+        next_day = _snapshot(run_id, 3, next_session, "1d", hour=12)
+        weekly = _snapshot(run_id, 4, next_session, "1w", hour=12)
+        db.add_all([replacement, next_day, weekly])
+        db.flush()
+        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(replacement.id,))
+        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(next_day.id,))
+        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(weekly.id,))
+        db.commit()
+
+    repository = SetupLifecycleRepository()
+    with Session(engine) as db:
+        assert (
+            repository.historical_session_canonical_snapshot(
+                db, ticker="MSFT", timeframe="1d", data_as_of_date=first_session
+            ).id
+            == replacement.id
+        )
+        assert (
+            repository.current_cross_session_snapshot(db, ticker="MSFT", timeframe="1d").id
+            == next_day.id
+        )
+        assert (
+            repository.current_cross_session_snapshot(db, ticker="MSFT", timeframe="1w").id
+            == weekly.id
+        )
+        assert (
+            db.scalar(select(text("count(*)")).select_from(SetupSignalSnapshotCurrentSelection))
+            == 3
+        )
+        assert set(db.scalars(select(SetupSignalSnapshotSelectionEvent.reason))) == {
+            "NEW_KEY_INITIALIZATION",
+            "SAME_SESSION_REPLACEMENT",
+            "NEW_SESSION_CANONICAL_INITIALIZATION",
+        }
+
+
+def _insert_upload(db: Session) -> int:
+    return int(
+        db.execute(
+            text(
+                "INSERT INTO upload_runs (filename, status) "
+                "VALUES ('preflight.csv', 'COMPLETED') RETURNING id"
+            )
+        ).scalar_one()
+    )
+
+
+def _snapshot(
+    run_id: int,
+    ordinal: int,
+    as_of: date,
+    timeframe: str,
+    *,
+    hour: int,
+) -> SetupSignalSnapshot:
+    calculated_at = datetime(2026, 9, 9, hour, tzinfo=UTC)
+    return SetupSignalSnapshot(
+        run_id=run_id,
+        source_run_id_text=str(run_id),
+        ticker="MSFT",
+        timeframe=timeframe,
+        data_as_of_date=as_of,
+        calculated_at=calculated_at,
+        captured_at=calculated_at,
+        origin_type="LIVE_RUN",
+        engine_version="test",
+        config_version="test",
+        config_hash="config-hash",
+        source_data_hash=f"source-{ordinal}",
+        schema_version="test",
+        data_quality_label="HIGH",
+        required_feature_coverage=1,
+        warning_flags_json=[],
+        source_lineage_json={"latest_bar": {"bar_date": as_of.isoformat()}},
+    )
+
+
+def _upgrade(database_url: str) -> None:
+    config = Config(str(REPO_ROOT / "alembic.ini"))
+    configure_guarded_alembic(config, database_url)
+    command.upgrade(config, "head")

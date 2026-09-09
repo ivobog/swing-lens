@@ -90,6 +90,7 @@ class SetupLifecycleSourceLoader:
         run_id: int,
         *,
         market_cutoff: MarketCalculationCutoff | None = None,
+        tickers: set[str] | None = None,
     ) -> RunSourceContext:
         upload_run = db.get(UploadRun, run_id)
         if upload_run is None:
@@ -97,13 +98,12 @@ class SetupLifecycleSourceLoader:
         if str(upload_run.status).upper() != "COMPLETED":
             raise ValueError(f"Upload run {run_id} is not completed.")
 
-        raw_rows = tuple(
-            db.scalars(
-                select(RawCompanyRow)
-                .where(RawCompanyRow.run_id == run_id)
-                .order_by(RawCompanyRow.row_number)
+        raw_statement = select(RawCompanyRow).where(RawCompanyRow.run_id == run_id)
+        if tickers:
+            raw_statement = raw_statement.where(
+                func.upper(RawCompanyRow.ticker).in_({ticker.upper() for ticker in tickers})
             )
-        )
+        raw_rows = tuple(db.scalars(raw_statement.order_by(RawCompanyRow.row_number)))
         tickers = tuple(row.ticker.upper() for row in raw_rows if row.ticker)
         market_cutoff = (
             market_cutoff
@@ -123,7 +123,11 @@ class SetupLifecycleSourceLoader:
             mode="latest_projection" if self.latest_bar_projection_enabled else "legacy",
         )
         technical_scores = tuple(
-            db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id))
+            db.scalars(
+                select(TechnicalScore)
+                .where(TechnicalScore.run_id == run_id)
+                .where(TechnicalScore.ticker.in_(tickers))
+            )
         )
         context_cutoff = source_cutoff
         context_started_at = perf_counter()
@@ -196,14 +200,26 @@ class SetupLifecycleSourceLoader:
             upload_run=upload_run,
             raw_rows=raw_rows,
             fundamental_scores=tuple(
-                db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id))
+                db.scalars(
+                    select(FundamentalScore)
+                    .where(FundamentalScore.run_id == run_id)
+                    .where(FundamentalScore.ticker.in_(tickers))
+                )
             ),
             technical_scores=technical_scores,
             combined_results=tuple(
-                db.scalars(select(CombinedResult).where(CombinedResult.run_id == run_id))
+                db.scalars(
+                    select(CombinedResult)
+                    .where(CombinedResult.run_id == run_id)
+                    .where(CombinedResult.ticker.in_(tickers))
+                )
             ),
             ranking_results=tuple(
-                db.scalars(select(RankingResult).where(RankingResult.run_id == run_id))
+                db.scalars(
+                    select(RankingResult)
+                    .where(RankingResult.run_id == run_id)
+                    .where(RankingResult.ticker.in_(tickers))
+                )
             ),
             market_regime_snapshot=market_snapshot,
             sector_rotation_snapshot=sector_snapshot,

@@ -82,7 +82,11 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
         "CAPTURING_WINNER_PREDICTIONS"
     )
     assert job.status == JobStatus.QUEUED
-    assert job.payload_json == {"pipeline_run_id": pipeline.id}
+    assert job.payload_json["pipeline_run_id"] == pipeline.id
+    assert job.payload_json["market_cutoff_at"]
+    assert job.payload_json["input_as_of_session"]
+    assert job.payload_json["market_calendar_version"] == "swinglens-us-equities-v1"
+    assert job.payload_json["bar_readiness_version"] == "daily-close-plus-15m-v1"
     assert {
         key: value
         for key, value in pipeline.result_json.items()
@@ -93,6 +97,8 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
             "input_as_of_session",
             "market_calendar_version",
             "bar_readiness_version",
+            "transition_preflight_plan_id",
+            "transition_evidence_fingerprint",
         }
     } == {
         "background_job_id": job.id,
@@ -131,6 +137,8 @@ def test_new_pipeline_requests_running_prewarm_preemption(
             "input_as_of_session",
             "market_calendar_version",
             "bar_readiness_version",
+            "transition_preflight_plan_id",
+            "transition_evidence_fingerprint",
         }
     } == {
         "background_job_id": 1,
@@ -476,10 +484,10 @@ def test_resume_pipeline_queues_checkpoint_job_without_rewriting_completed_steps
     assert steps[0].status == PipelineStepStatus.COMPLETED
     assert steps[0].retry_count == 0
     job = next(iter(db.background_jobs.values()))
-    assert job.payload_json == {
-        "pipeline_run_id": 3,
-        "resume_from_step": "CERI_PROVIDER_INGEST",
-    }
+    assert job.payload_json["pipeline_run_id"] == 3
+    assert job.payload_json["resume_from_step"] == "CERI_PROVIDER_INGEST"
+    assert job.payload_json["market_cutoff_at"]
+    assert job.payload_json["input_as_of_session"]
     assert pipeline.result_json["background_job_id"] == job.id
 
 

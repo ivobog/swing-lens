@@ -83,9 +83,7 @@ def current_canonical_snapshot_predicate(snapshot_entity=SetupSignalSnapshot):
     """Return an EXISTS predicate for the separately modeled current pointer."""
     return (
         select(SetupSignalSnapshotCurrentSelection.id)
-        .where(
-            SetupSignalSnapshotCurrentSelection.selected_snapshot_id == snapshot_entity.id
-        )
+        .where(SetupSignalSnapshotCurrentSelection.selected_snapshot_id == snapshot_entity.id)
         .exists()
     )
 
@@ -331,10 +329,7 @@ class SetupLifecycleRepository:
             select(SetupSignalSnapshotCurrentSelection)
             .where(SetupSignalSnapshotCurrentSelection.ticker == snapshot.ticker)
             .where(SetupSignalSnapshotCurrentSelection.timeframe == snapshot.timeframe)
-            .where(
-                SetupSignalSnapshotCurrentSelection.data_as_of_date
-                == snapshot.data_as_of_date
-            )
+            .where(SetupSignalSnapshotCurrentSelection.data_as_of_date == snapshot.data_as_of_date)
             .with_for_update()
         )
         previous = (
@@ -344,6 +339,31 @@ class SetupLifecycleRepository:
         )
         if selection is not None and selection.selected_snapshot_id == snapshot.id:
             return CanonicalSelectionAdvance(selection, previous, False, None)
+
+        if selection is None:
+            latest_other_session = db.scalar(
+                select(SetupSignalSnapshot.data_as_of_date)
+                .join(
+                    SetupSignalSnapshotCurrentSelection,
+                    SetupSignalSnapshotCurrentSelection.selected_snapshot_id
+                    == SetupSignalSnapshot.id,
+                )
+                .where(SetupSignalSnapshot.ticker == snapshot.ticker)
+                .where(SetupSignalSnapshot.timeframe == snapshot.timeframe)
+                .where(SetupSignalSnapshot.data_as_of_date != snapshot.data_as_of_date)
+                .order_by(SetupSignalSnapshot.data_as_of_date.desc())
+                .limit(1)
+            )
+            event_semantics = (
+                "NEW_SESSION_CANONICAL_INITIALIZATION"
+                if latest_other_session is not None
+                and snapshot.data_as_of_date > latest_other_session
+                else "NEW_KEY_INITIALIZATION"
+            )
+        else:
+            event_semantics = "SAME_SESSION_REPLACEMENT"
+        if decision is not None:
+            decision["selection_event_type"] = event_semantics
 
         now = _utcnow()
         if selection is None:
@@ -389,7 +409,7 @@ class SetupLifecycleRepository:
             selected_snapshot_id=snapshot.id,
             run_id=snapshot.run_id,
             evaluation_run_id=evaluation_run_id,
-            reason=reason,
+            reason=event_semantics,
             decision_json=dict(decision or {}),
             event_key=event_key,
             occurred_at=now,
@@ -425,11 +445,58 @@ class SetupLifecycleRepository:
     ) -> SetupSignalSnapshotCurrentSelection | None:
         return db.scalar(
             select(SetupSignalSnapshotCurrentSelection)
-            .where(
-                SetupSignalSnapshotCurrentSelection.ticker == self.normalize_ticker(ticker)
-            )
+            .where(SetupSignalSnapshotCurrentSelection.ticker == self.normalize_ticker(ticker))
             .where(SetupSignalSnapshotCurrentSelection.timeframe == timeframe)
             .where(SetupSignalSnapshotCurrentSelection.data_as_of_date == data_as_of_date)
+        )
+
+    def historical_session_canonical_snapshot(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        timeframe: str,
+        data_as_of_date: date,
+    ) -> SetupSignalSnapshot | None:
+        """Return the canonical snapshot for one immutable session key."""
+
+        return db.scalar(
+            select(SetupSignalSnapshot)
+            .join(
+                SetupSignalSnapshotCurrentSelection,
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == SetupSignalSnapshot.id,
+            )
+            .where(SetupSignalSnapshot.ticker == self.normalize_ticker(ticker))
+            .where(SetupSignalSnapshot.timeframe == timeframe)
+            .where(SetupSignalSnapshot.data_as_of_date == data_as_of_date)
+        )
+
+    def current_cross_session_snapshot(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        timeframe: str = "1d",
+        as_of_date: date | None = None,
+    ) -> SetupSignalSnapshot | None:
+        """Derive current lifecycle state from the latest session-canonical row."""
+
+        statement = (
+            select(SetupSignalSnapshot)
+            .join(
+                SetupSignalSnapshotCurrentSelection,
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == SetupSignalSnapshot.id,
+            )
+            .where(SetupSignalSnapshot.ticker == self.normalize_ticker(ticker))
+            .where(SetupSignalSnapshot.timeframe == timeframe)
+        )
+        if as_of_date is not None:
+            statement = statement.where(SetupSignalSnapshot.data_as_of_date <= as_of_date)
+        return db.scalar(
+            statement.order_by(
+                SetupSignalSnapshot.data_as_of_date.desc(),
+                SetupSignalSnapshot.id.desc(),
+            ).limit(1)
         )
 
     def current_selection_snapshot_ids(
@@ -455,23 +522,11 @@ class SetupLifecycleRepository:
         timeframe: str = "1d",
         as_of_date: date | None = None,
     ) -> SetupSignalSnapshot | None:
-        statement = (
-            select(SetupSignalSnapshot)
-            .join(
-                SetupSignalSnapshotCurrentSelection,
-                SetupSignalSnapshotCurrentSelection.selected_snapshot_id
-                == SetupSignalSnapshot.id,
-            )
-            .where(SetupSignalSnapshot.ticker == self.normalize_ticker(ticker))
-            .where(SetupSignalSnapshot.timeframe == timeframe)
-        )
-        if as_of_date is not None:
-            statement = statement.where(SetupSignalSnapshot.data_as_of_date <= as_of_date)
-        return db.scalar(
-            statement.order_by(
-                SetupSignalSnapshot.data_as_of_date.desc(),
-                SetupSignalSnapshot.id.desc(),
-            ).limit(1)
+        return self.current_cross_session_snapshot(
+            db,
+            ticker=ticker,
+            timeframe=timeframe,
+            as_of_date=as_of_date,
         )
 
     def previous_canonical_snapshot(
@@ -486,8 +541,7 @@ class SetupLifecycleRepository:
             select(SetupSignalSnapshot)
             .join(
                 SetupSignalSnapshotCurrentSelection,
-                SetupSignalSnapshotCurrentSelection.selected_snapshot_id
-                == SetupSignalSnapshot.id,
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == SetupSignalSnapshot.id,
             )
             .where(SetupSignalSnapshot.ticker == self.normalize_ticker(ticker))
             .where(SetupSignalSnapshot.timeframe == timeframe)
@@ -569,8 +623,7 @@ class SetupLifecycleRepository:
             )
             .join(
                 SetupSignalSnapshotCurrentSelection,
-                SetupSignalSnapshotCurrentSelection.selected_snapshot_id
-                == SetupSignalSnapshot.id,
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == SetupSignalSnapshot.id,
             )
             .where(or_(*cutoff_predicates))
             .subquery()
