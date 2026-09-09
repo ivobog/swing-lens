@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
@@ -20,6 +22,18 @@ from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 
 @pytest.fixture(autouse=True)
 def _disable_optional_pipeline_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import market_calculation_context_service
+
+    create_context = market_calculation_context_service.create_pipeline_market_context
+    monkeypatch.setattr(
+        market_calculation_context_service,
+        "create_pipeline_market_context",
+        lambda db, pipeline: create_context(
+            db,
+            pipeline,
+            cutoff_at=datetime(2026, 9, 5, 12, tzinfo=UTC),
+        ),
+    )
     monkeypatch.setattr(
         "app.services.pipeline_service.ceri_flags",
         lambda: CeriFeatureFlags(True, False, False, False, False, False, False),
