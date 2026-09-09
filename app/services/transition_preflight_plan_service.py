@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -26,6 +27,7 @@ from app.services.setup_lifecycle.transition_candidate_service import (
 )
 
 DEFAULT_PREFLIGHT_TTL = timedelta(minutes=30)
+logger = logging.getLogger(__name__)
 
 
 class TransitionPreflightPlanStatus(StrEnum):
@@ -204,14 +206,49 @@ def verify_transition_preflight_for_enqueue(
         market_cutoff=market_cutoff,
         tickers=set(plan.tickers_json),
     )
-    if aggregate_evidence_fingerprint(results) != plan.evidence_fingerprint:
-        raise TransitionPreflightError(
-            "PRECONDITION_CHANGED",
-            "pointer, selection key, or required PIT evidence changed after preflight",
+    observed_selection_keys = sorted(row.prospective_new_key for row in results)
+    if observed_selection_keys != sorted(plan.selection_keys_json):
+        raise _rejection(
+            plan,
+            code="SELECTION_KEY_MISMATCH",
+            category="selection_keys",
+            message="candidate selection keys changed after preflight",
         )
-    if _aggregate_technical_fingerprint(results) != plan.technical_reconstruction_fingerprint:
-        raise TransitionPreflightError(
-            "PRECONDITION_CHANGED", "technical reconstruction changed after preflight"
+    observed_pointers = {
+        row.ticker: {
+            "latest_snapshot_id": row.current_pointer_snapshot_id,
+            "latest_revision": row.expected_latest_pointer_revision,
+            "exact_snapshot_id": row.expected_exact_pointer_snapshot_id,
+            "exact_revision": row.expected_exact_pointer_revision,
+        }
+        for row in results
+    }
+    if observed_pointers != plan.expected_pointers_json:
+        raise _rejection(
+            plan,
+            code="PRECONDITION_CHANGED",
+            category="canonical_pointer",
+            message="canonical pointer state changed after preflight",
+        )
+    observed_evidence = aggregate_evidence_fingerprint(results)
+    if observed_evidence != plan.evidence_fingerprint:
+        raise _rejection(
+            plan,
+            code="PRECONDITION_CHANGED",
+            category="pit_evidence",
+            message="required PIT evidence changed after preflight",
+            expected_fingerprint=plan.evidence_fingerprint,
+            actual_fingerprint=observed_evidence,
+        )
+    observed_technical = _aggregate_technical_fingerprint(results)
+    if observed_technical != plan.technical_reconstruction_fingerprint:
+        raise _rejection(
+            plan,
+            code="PRECONDITION_CHANGED",
+            category="technical_reconstruction",
+            message="technical reconstruction changed after preflight",
+            expected_fingerprint=plan.technical_reconstruction_fingerprint,
+            actual_fingerprint=observed_technical,
         )
     if not results or not any(row.confidence == "HIGH" for row in results):
         raise TransitionPreflightError(
@@ -237,6 +274,18 @@ def consume_transition_preflight(
     verified.plan.pipeline_run_id = pipeline.id
     verified.plan.consumed_at = _utcnow()
     db.flush()
+    logger.info(
+        "transition_preflight_consumed plan_id=%s context_id=%s upload_run_id=%s "
+        "pipeline_id=%s candidate_type=%s selection_keys=%s cutoff=%s session=%s",
+        verified.plan.id,
+        verified.plan.market_calculation_context_id,
+        verified.plan.upload_run_id,
+        pipeline.id,
+        verified.plan.candidate_classification,
+        ",".join(verified.plan.selection_keys_json),
+        CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
+        market_cutoff.latest_completed_session.isoformat(),
+    )
     return market_cutoff
 
 
@@ -286,6 +335,33 @@ def _aggregate_technical_fingerprint(results: list[TransitionCandidateResult]) -
         for row in sorted(results, key=lambda item: item.ticker)
     ]
     return CanonicalEvidenceSerializer.fingerprint(payload)
+
+
+def _rejection(
+    plan: TransitionPreflightPlan,
+    *,
+    code: str,
+    category: str,
+    message: str,
+    expected_fingerprint: str | None = None,
+    actual_fingerprint: str | None = None,
+) -> TransitionPreflightError:
+    logger.warning(
+        "transition_preflight_rejected code=%s category=%s plan_id=%s context_id=%s "
+        "upload_run_id=%s pipeline_id=%s candidate_type=%s selection_keys=%s "
+        "expected_fingerprint=%s actual_fingerprint=%s",
+        code,
+        category,
+        plan.id,
+        plan.market_calculation_context_id,
+        plan.upload_run_id,
+        plan.pipeline_run_id,
+        plan.candidate_classification,
+        ",".join(plan.selection_keys_json),
+        expected_fingerprint,
+        actual_fingerprint,
+    )
+    return TransitionPreflightError(code, message)
 
 
 def _aware(value: datetime) -> datetime:
