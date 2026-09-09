@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models.tables import BackgroundJob, IBFetchItem, IBFetchRun
+from app.models.tables import BackgroundJob, BackgroundWorker, IBFetchItem, IBFetchRun
 from app.services.background_job_service import (
     JobLeaseLost,
     claim_next_job,
@@ -32,6 +32,17 @@ def test_stalled_owner_is_fenced_and_late_checkpoint_rolls_back(
     sessions = sessionmaker(bind=engine, expire_on_commit=False)
     now = datetime.now(UTC)
     with sessions() as db:
+        db.add_all(
+            [
+                BackgroundWorker(
+                    worker_id=worker_id,
+                    instance_id=f"{worker_id}-instance",
+                    generation=1,
+                    queues_json=["interactive", "broker", "background"],
+                )
+                for worker_id in ("worker-a", "worker-b")
+            ]
+        )
         job = enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": 117})
         fetch_run = IBFetchRun(
             requested_tickers=["LATE"],
