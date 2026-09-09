@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import hashlib
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from threading import Barrier
+from zoneinfo import ZoneInfo
 
 import pytest
 from alembic.config import Config
@@ -18,6 +20,11 @@ from app.models.tables import (
     SetupSignalSnapshotSelectionEvent,
     TechnicalScore,
     TransitionPreflightPlan,
+)
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.market_calculation_context_service import (
+    cutoff_from_row,
+    market_calculation_context_fingerprint,
 )
 from app.services.pipeline_service import start_pipeline
 from app.services.setup_lifecycle.canonicalization import SetupLifecycleCanonicalizer
@@ -41,9 +48,14 @@ class MutableDiscovery:
 
     def discover_for_run(self, _db, _run_id, *, market_cutoff, tickers=None):
         ticker = sorted(tickers or {"MSFT"})[0]
-        evidence = hashlib.sha256(
-            f"{market_cutoff.context_id}:{self.pointer_revision}:{self.evidence_revision}".encode()
-        ).hexdigest()
+        evidence = CanonicalEvidenceSerializer.fingerprint(
+            {
+                "context_id": market_cutoff.context_id,
+                "cutoff_at": market_cutoff.cutoff_at,
+                "pointer_revision": self.pointer_revision,
+                "evidence_revision": self.evidence_revision,
+            }
+        )
         return [
             TransitionCandidateResult(
                 ticker=ticker,
@@ -147,6 +159,206 @@ def test_session_boundary_reuses_reserved_context_and_duplicate_enqueue_is_idemp
         plan = db.get(TransitionPreflightPlan, plan_id)
         assert plan.status == "CONSUMED"
         assert plan.pipeline_run_id == first_id
+
+
+@pytest.mark.parametrize("session_timezone", ["UTC", "Europe/Zurich", "America/New_York"])
+def test_preflight_fingerprints_survive_postgresql_session_timezone_roundtrip(
+    disposable_postgres_database: str,
+    session_timezone: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    instant = datetime.fromisoformat("2026-09-09T19:55:33.682959+00:00")
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key=f"timezone-{session_timezone}",
+            cutoff_at=instant,
+            tickers={"MSFT"},
+            expires_in=timedelta(days=2),
+            discovery=discovery,
+        )
+        original_context = cutoff_from_row(
+            db.get(MarketCalculationContext, plan.market_calculation_context_id)
+        )
+        original_fingerprint = market_calculation_context_fingerprint(original_context)
+        plan_id = plan.id
+        db.commit()
+
+    with Session(engine) as db:
+        db.execute(text(f"SET LOCAL TIME ZONE '{session_timezone}'"))
+        plan = db.get(TransitionPreflightPlan, plan_id)
+        reloaded = cutoff_from_row(
+            db.get(MarketCalculationContext, plan.market_calculation_context_id)
+        )
+        assert reloaded.cutoff_at == instant.astimezone(ZoneInfo(session_timezone))
+        assert reloaded.cutoff_at.tzinfo == UTC
+        assert market_calculation_context_fingerprint(reloaded) == original_fingerprint
+        verified = verify_transition_preflight_for_enqueue(
+            db,
+            plan_id=plan_id,
+            upload_run_id=run_id,
+            discovery=discovery,
+        )
+        assert verified.plan.evidence_fingerprint == plan.evidence_fingerprint
+
+
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [
+        ("CANCELLED", "PLAN_CANCELLED"),
+        ("EXPIRED", "PLAN_EXPIRED"),
+        ("STALE", "STALE_PREFLIGHT"),
+    ],
+)
+def test_terminal_plan_states_have_deterministic_rejection_codes(
+    disposable_postgres_database: str,
+    status: str,
+    code: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key=f"terminal-{status}",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            discovery=discovery,
+        )
+        plan.status = status
+        db.commit()
+        plan_id = plan.id
+
+    with Session(engine) as db:
+        with pytest.raises(TransitionPreflightError) as caught:
+            start_pipeline(
+                db,
+                run_id,
+                transition_preflight_plan_id=plan_id,
+                transition_candidate_discovery=discovery,
+            )
+        assert caught.value.code == code
+        assert db.execute(text("SELECT count(*) FROM pipeline_runs")).scalar_one() == 0
+        assert db.execute(text("SELECT count(*) FROM background_jobs")).scalar_one() == 0
+
+
+def test_two_concurrent_plan_consumers_create_exactly_one_pipeline(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    discovery = MutableDiscovery()
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key="concurrent-consume",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            expires_in=timedelta(days=2),
+            discovery=discovery,
+        )
+        db.commit()
+        plan_id = plan.id
+
+    barrier = Barrier(2)
+
+    def consume() -> tuple[str, int | str]:
+        with Session(engine) as db:
+            barrier.wait(timeout=10)
+            try:
+                pipeline = start_pipeline(
+                    db,
+                    run_id,
+                    transition_preflight_plan_id=plan_id,
+                    transition_candidate_discovery=discovery,
+                )
+                db.commit()
+                return "pipeline", pipeline.id
+            except TransitionPreflightError as exc:
+                db.rollback()
+                return "error", exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = [
+            future.result(timeout=30) for future in (pool.submit(consume), pool.submit(consume))
+        ]
+
+    with Session(engine) as db:
+        assert db.execute(text("SELECT count(*) FROM pipeline_runs")).scalar_one() == 1
+        assert db.execute(text("SELECT count(*) FROM background_jobs")).scalar_one() == 1
+        plan = db.get(TransitionPreflightPlan, plan_id)
+        assert plan.status == "CONSUMED"
+        pipeline_ids = {value for kind, value in outcomes if kind == "pipeline"}
+        assert pipeline_ids == {plan.pipeline_run_id}
+        assert all(kind == "pipeline" or value == "DUPLICATE_ENQUEUE" for kind, value in outcomes)
+
+
+def test_pointer_and_ledger_roll_back_together_on_injected_failure(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        snapshot = _snapshot(run_id, 1, date(2026, 9, 8), "1d", hour=10)
+        db.add(snapshot)
+        db.commit()
+        snapshot_id = snapshot.id
+
+    with Session(engine) as db:
+        try:
+            SetupLifecycleCanonicalizer().canonicalize_run(
+                db,
+                run_id=run_id,
+                snapshot_ids=(snapshot_id,),
+            )
+            raise RuntimeError("injected after pointer and ledger flush, before commit")
+        except RuntimeError:
+            db.rollback()
+
+    with Session(engine) as db:
+        assert (
+            db.execute(
+                text("SELECT count(*) FROM setup_signal_snapshot_current_selections")
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            db.execute(
+                text("SELECT count(*) FROM setup_signal_snapshot_selection_events")
+            ).scalar_one()
+            == 0
+        )
+
+    with Session(engine) as db:
+        SetupLifecycleCanonicalizer().canonicalize_run(
+            db,
+            run_id=run_id,
+            snapshot_ids=(snapshot_id,),
+        )
+        db.commit()
+    with Session(engine) as db:
+        assert (
+            db.execute(
+                text("SELECT count(*) FROM setup_signal_snapshot_current_selections")
+            ).scalar_one()
+            == 1
+        )
+        assert (
+            db.execute(
+                text("SELECT count(*) FROM setup_signal_snapshot_selection_events")
+            ).scalar_one()
+            == 1
+        )
 
 
 def test_post_cutoff_evidence_change_rejects_instead_of_creating_c2(

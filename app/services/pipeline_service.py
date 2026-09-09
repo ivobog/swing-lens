@@ -15,6 +15,7 @@ from app.services.background_job_service import (
     enqueue_job,
     request_job_cancel,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.market_data_prewarm_service import request_active_prewarm_preemption
@@ -241,7 +242,7 @@ def start_pipeline(
         payload={
             "pipeline_run_id": pipeline.id,
             "market_calculation_context_id": market_cutoff.context_id,
-            "market_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+            "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
             "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
             "market_calendar_version": market_cutoff.calendar_version,
             "bar_readiness_version": market_cutoff.bar_readiness_version,
@@ -284,7 +285,7 @@ def start_pipeline(
         "ib_host": preflight.get("host", getattr(settings, "ib_host", None)),
         "ib_port": preflight.get("port", getattr(settings, "ib_port", None)),
         "market_calculation_context_id": market_cutoff.context_id,
-        "market_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+        "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
         "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
         "market_calendar_version": market_cutoff.calendar_version,
         "bar_readiness_version": market_cutoff.bar_readiness_version,
@@ -571,7 +572,7 @@ def _pipeline_context_payload(db: Session, pipeline: PipelineRun) -> dict[str, A
     context = market_context_for_pipeline(db, pipeline)
     return {
         "market_calculation_context_id": context.context_id,
-        "market_cutoff_at": context.cutoff_at.isoformat(),
+        "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(context.cutoff_at),
         "input_as_of_session": context.latest_completed_session.isoformat(),
         "market_calendar_version": context.calendar_version,
         "bar_readiness_version": context.bar_readiness_version,

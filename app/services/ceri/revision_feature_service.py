@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -10,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriRevisionFeature
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import CeriConfidenceLabel, HistoricalViewMode
 from app.services.ceri.point_in_time_query import (
@@ -373,8 +372,7 @@ class CeriRevisionFeatureService:
 
 
 def revision_evidence_hash(payload: dict[str, Any]) -> str:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(payload)
 
 
 def _net_breadth(upward_count: int | None, downward_count: int | None) -> Decimal | None:

@@ -226,7 +226,7 @@ def test_manifest_canonicalization_stabilizes_exact_scalars_and_unordered_reason
     }
 
     assert canonical_manifest_bytes(left) == canonical_manifest_bytes(right)
-    assert canonicalize_manifest_value(left)["weight"] == "1.2300"
+    assert canonicalize_manifest_value(left)["weight"] == "1.23"
 
 
 def test_manifest_canonicalization_does_not_normalize_different_instants_together() -> None:

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -12,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.deployment_identity import current_deployment_identity
 from app.services.ceri.dtos import RawProviderRecord
 from app.services.ceri.observability import ceri_log_event, ceri_metrics
@@ -330,9 +329,7 @@ class CeriSourceRecordService:
 
 
 def source_record_content_hash(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(
-        _stable_json(source_record_economic_projection(payload)).encode("utf-8")
-    ).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(source_record_economic_projection(payload))
 
 
 def source_record_economic_projection(payload: dict[str, Any]) -> dict[str, Any]:
@@ -361,7 +358,7 @@ def source_record_idempotency_key(
 
 
 def _stable_json(payload: dict[str, Any]) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return CanonicalEvidenceSerializer.dumps(payload)
 
 
 def _json_safe(value: Any) -> Any:

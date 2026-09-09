@@ -1,5 +1,4 @@
 import hashlib
-import json
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
@@ -15,6 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import RawCompanyRow, TechnicalScore
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.leadership_v5 import rank_leadership_v5
 from app.services.market_calculation_context_service import (
@@ -1339,7 +1339,7 @@ def _legacy_score_or_error(
 
 
 def _technical_score_fingerprint(score: PineReplicaScore | TechnicalScore) -> str:
-    return json.dumps(_technical_score_payload(score), default=str, sort_keys=True)
+    return CanonicalEvidenceSerializer.dumps(_technical_score_payload(score))
 
 
 def _technical_score_payload(
@@ -1395,7 +1395,7 @@ def _technical_score_payload(
 
 
 def _technical_score_digest(score: PineReplicaScore | TechnicalScore) -> str:
-    return hashlib.sha256(_technical_score_fingerprint(score).encode("utf-8")).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(_technical_score_payload(score))
 
 
 def _technical_score_differences(

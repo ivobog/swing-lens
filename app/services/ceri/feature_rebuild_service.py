@@ -25,6 +25,7 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.models.tables import PriceBar, RawCompanyRow
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.capability_matrix_service import CeriCapabilityMatrixService
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
 from app.services.ceri.confidence_service import CeriConfidenceService
@@ -1116,10 +1117,10 @@ class CeriFeatureRebuildService:
         return _stable_hash(
             {
                 "company_id": company.id,
-                "as_of_session": context.cutoff.isoformat(),
-                "cutoff_at": context.cutoff_at.isoformat(),
-                "from_session": request.from_session.isoformat() if request.from_session else None,
-                "to_session": request.to_session.isoformat() if request.to_session else None,
+                "as_of_session": context.cutoff,
+                "cutoff_at": context.cutoff_at,
+                "from_session": request.from_session,
+                "to_session": request.to_session,
                 "historical_view_mode": context.mode.value,
                 "config_hash": self.config.config_hash,
                 "calculation_version": self.config.engine.calculation_version,
@@ -1430,9 +1431,9 @@ def _row_fingerprint(row: Any) -> tuple[str, tuple[tuple[str, Any], ...]]:
             "idempotency_key",
             "supersedes_id",
         )
-        return row.__tablename__, tuple((name, _json_safe(getattr(row, name))) for name in names)
+        return row.__tablename__, tuple((name, getattr(row, name)) for name in names)
     return row.__tablename__, tuple(
-        (column.name, _json_safe(getattr(row, column.name)))
+        (column.name, getattr(row, column.name))
         for column in row.__table__.columns
         if column.name not in {"created_at", "updated_at", "last_seen_at"}
     )
@@ -1643,12 +1644,7 @@ def _json_safe(value: Any) -> Any:
 
 
 def _stable_hash(value: Any) -> str:
-    import hashlib
-    import json
-
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode()
-    ).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(value)
 
 
 def _safe_error(exc: Exception) -> str:

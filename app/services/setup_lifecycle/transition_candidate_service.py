@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Any
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,6 +12,7 @@ from app.models.tables import (
     SetupSignalSnapshotCurrentSelection,
     TechnicalScore,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.market_calculation_context_service import (
     prospective_pipeline_market_context,
 )
@@ -56,7 +53,7 @@ class TransitionCandidateResult:
     def as_dict(self) -> dict[str, object]:
         return {
             "ticker": self.ticker,
-            "prospective_cutoff": self.prospective_cutoff.isoformat(),
+            "prospective_cutoff": CanonicalEvidenceSerializer.canonicalize(self.prospective_cutoff),
             "prospective_latest_completed_session": str(self.prospective_latest_completed_session),
             "latest_reconstructable_session": str(self.latest_reconstructable_session),
             "current_pointer_key": self.current_pointer_key,
@@ -142,7 +139,6 @@ class TransitionCandidateDiscoveryService:
                 ticker=built.dto.ticker,
                 timeframe=built.dto.timeframe,
                 data_as_of_date=built.dto.data_as_of_date,
-                cutoff_at=prospective.cutoff_at,
             )
             assessed = self.assess(
                 built,
@@ -256,7 +252,6 @@ class TransitionCandidateDiscoveryService:
         ticker: str,
         timeframe: str,
         data_as_of_date,
-        cutoff_at: datetime,
     ) -> tuple[
         SetupSignalSnapshot | None,
         SetupSignalSnapshot | None,
@@ -273,7 +268,6 @@ class TransitionCandidateDiscoveryService:
                 )
                 .where(SetupSignalSnapshot.ticker == ticker.upper())
                 .where(SetupSignalSnapshot.timeframe == timeframe)
-                .where(SetupSignalSnapshotCurrentSelection.created_at <= cutoff_at)
                 .order_by(
                     SetupSignalSnapshot.data_as_of_date.desc(),
                     SetupSignalSnapshot.id.desc(),
@@ -341,10 +335,10 @@ def _prospective_inputs_are_complete(context, built, prospective) -> bool:
 
 def _technical_reconstruction_fingerprint(technical: TechnicalScore | None) -> str:
     if technical is None:
-        return hashlib.sha256(b"missing-technical").hexdigest()
+        return CanonicalEvidenceSerializer.fingerprint({"technical": None})
     excluded = {"id", "run_id", "created_at"}
     payload = {
-        column.name: _json_value(getattr(technical, column.name, None))
+        column.name: getattr(technical, column.name, None)
         for column in TechnicalScore.__table__.columns
         if column.name not in excluded
     }
@@ -359,17 +353,24 @@ def _candidate_evidence_fingerprint(
     prospective: MarketCalculationCutoff,
     technical_fingerprint: str,
 ) -> str:
-    bars = [
-        {
-            "id": row.id,
-            "session": row.bar_date,
-            "what_to_show": row.what_to_show,
-            "first_seen_at": row.first_seen_at,
-            "revised_at": row.revised_at,
-            "revision_count": row.revision_count,
-        }
-        for row in context.price_bars
-    ]
+    bars = sorted(
+        [
+            {
+                "id": row.id,
+                "session": row.bar_date,
+                "what_to_show": row.what_to_show,
+                "first_seen_at": row.first_seen_at,
+                "revised_at": row.revised_at,
+                "revision_count": row.revision_count,
+            }
+            for row in context.price_bars
+        ],
+        key=lambda row: (
+            str(row["session"]),
+            str(row["what_to_show"]),
+            int(row["id"] or 0),
+        ),
+    )
     return _stable_hash(
         {
             "context": {
@@ -408,19 +409,5 @@ def aggregate_evidence_fingerprint(results: list[TransitionCandidateResult]) -> 
     )
 
 
-def _stable_hash(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(_json_value(value), sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-
-
-def _json_value(value: Any) -> Any:
-    if isinstance(value, datetime | date):
-        return value.isoformat()
-    if isinstance(value, Decimal):
-        return str(value)
-    if isinstance(value, dict):
-        return {str(key): _json_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_value(item) for item in value]
-    return value
+def _stable_hash(value: object) -> str:
+    return CanonicalEvidenceSerializer.fingerprint(value)

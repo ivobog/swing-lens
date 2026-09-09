@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.market_clock_service import MarketClockService
 from app.services.setup_lifecycle.change_detector import velocity_by_window
 from app.services.setup_lifecycle.config import (
@@ -181,7 +182,9 @@ class SetupLifecycleSnapshotBuilder:
         if context.market_cutoff is not None:
             source_lineage["temporal_lineage"] = {
                 "calculation_context_id": context.market_cutoff.context_id,
-                "calculation_cutoff_at": context.market_cutoff.cutoff_at.isoformat(),
+                "calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(
+                    context.market_cutoff.cutoff_at
+                ),
                 "input_as_of_session": context.market_cutoff.latest_completed_session.isoformat(),
                 "calendar_version": context.market_cutoff.calendar_version,
                 "ticker_latest_session": (

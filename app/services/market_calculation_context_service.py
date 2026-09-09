@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import MarketCalculationContext, PipelineRun
 from app.observability.transaction_metrics import publish_after_commit
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 
 
@@ -330,4 +331,21 @@ def cutoff_from_row(row: MarketCalculationContext) -> MarketCalculationCutoff:
         bar_readiness_version=row.bar_readiness_version,
         cutoff_reason=row.cutoff_reason,
         context_id=row.id,
+    )
+
+
+def market_calculation_context_fingerprint(value: MarketCalculationCutoff) -> str:
+    """Hash every persisted semantic field of a frozen market context."""
+
+    return CanonicalEvidenceSerializer.fingerprint(
+        {
+            "context_id": value.context_id,
+            "cutoff_at": value.cutoff_at,
+            "exchange_timezone": value.exchange_timezone,
+            "latest_completed_session": value.latest_completed_session,
+            "daily_bar_ready_at": value.daily_bar_ready_at,
+            "calendar_version": value.calendar_version,
+            "bar_readiness_version": value.bar_readiness_version,
+            "cutoff_reason": value.cutoff_reason,
+        }
     )

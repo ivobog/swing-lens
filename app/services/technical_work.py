@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.pine_replica_engine import PineReplicaScore, score_from_feature_result
 from app.services.redaction import redact_text
 from app.services.relative_leadership import calculate_beta_adjusted_rs
@@ -286,7 +287,9 @@ def _with_temporal_lineage(
         return score
     lineage = {
         "calculation_context_id": item.calculation_context_id,
-        "calculation_cutoff_at": item.calculation_cutoff_at.isoformat(),
+        "calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(
+            item.calculation_cutoff_at
+        ),
         "input_as_of_session": item.input_as_of_session.isoformat(),
         "source_latest_sessions": {
             key: value.isoformat() if value is not None else None

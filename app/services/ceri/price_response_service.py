@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -12,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriPriceResponseFeature
 from app.models.tables import PriceBar
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 from app.services.ceri.pit_eligibility import (
@@ -534,9 +533,7 @@ def _event_key(*parts: Any) -> str:
 
 
 def _hash(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode()
-    ).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(value)
 
 
 def _scalars(db: Session, statement: Any) -> list[Any]:

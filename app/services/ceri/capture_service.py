@@ -22,6 +22,7 @@ from app.models.ceri_tables import (
 )
 from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import RawCompanyRow
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
@@ -291,7 +292,9 @@ class CeriRunCaptureService:
                 evidence_lineage = {
                     "temporal_lineage": {
                         "calculation_context_id": market_cutoff.context_id,
-                        "calculation_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                        "calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(
+                            market_cutoff.cutoff_at
+                        ),
                         "input_as_of_session": as_of_session.isoformat(),
                         "calendar_version": market_cutoff.calendar_version,
                     },

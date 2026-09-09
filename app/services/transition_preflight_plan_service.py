@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +11,7 @@ from app.models.tables import (
     PipelineRun,
     TransitionPreflightPlan,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.market_calculation_context_service import (
     attach_reserved_market_context,
     cutoff_from_row,
@@ -104,7 +103,9 @@ def create_transition_preflight_plan(
         predicted_snapshot_identities_json={
             row.ticker: {
                 "selection_key": row.prospective_new_key,
-                "latest_reconstructable_session": str(row.latest_reconstructable_session),
+                "latest_reconstructable_session": CanonicalEvidenceSerializer.canonicalize(
+                    row.latest_reconstructable_session
+                ),
                 "technical_reconstruction_fingerprint": (row.technical_reconstruction_fingerprint),
                 "evidence_fingerprint": row.evidence_fingerprint,
             }
@@ -146,17 +147,21 @@ def verify_transition_preflight_for_enqueue(
     if plan.upload_run_id != upload_run_id:
         raise TransitionPreflightError("STALE_PREFLIGHT", "plan belongs to a different upload run")
     if plan.status == "CONSUMED":
-        raise TransitionPreflightError("ALREADY_CONSUMED", "plan already has a pipeline")
+        raise TransitionPreflightError("DUPLICATE_ENQUEUE", "plan already has a pipeline")
+    if plan.status == "CANCELLED":
+        raise TransitionPreflightError("PLAN_CANCELLED", "plan was cancelled")
+    if plan.status == "EXPIRED":
+        raise TransitionPreflightError("PLAN_EXPIRED", "plan has expired")
     if plan.status != "RESERVED":
         raise TransitionPreflightError("STALE_PREFLIGHT", f"plan status is {plan.status}")
     observed_at = now or _utcnow()
     if _aware(plan.expires_at) <= _aware(observed_at):
-        raise TransitionPreflightError("STALE_PREFLIGHT", "plan has expired")
+        raise TransitionPreflightError("PLAN_EXPIRED", "plan has expired")
 
     context_row = db.get(MarketCalculationContext, plan.market_calculation_context_id)
     if context_row is None or context_row.pipeline_run_id is not None:
         raise TransitionPreflightError(
-            "STALE_PREFLIGHT", "reserved market context is missing or already owned"
+            "CONTEXT_MISMATCH", "reserved market context is missing or already owned"
         )
     market_cutoff = cutoff_from_row(context_row)
     results = (discovery or TransitionCandidateDiscoveryService()).discover_for_run(
@@ -246,11 +251,15 @@ def _aggregate_technical_fingerprint(results: list[TransitionCandidateResult]) -
         (row.ticker, row.technical_reconstruction_fingerprint)
         for row in sorted(results, key=lambda item: item.ticker)
     ]
-    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(payload)
 
 
 def _aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise TransitionPreflightError(
+            "INVARIANT_VIOLATION", "preflight timestamps must be timezone-aware"
+        )
+    return value
 
 
 def _utcnow() -> datetime:

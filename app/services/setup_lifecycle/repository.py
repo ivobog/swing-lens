@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -23,6 +22,7 @@ from app.models.tables import (
     SignalAlertRule,
     SignalChangeEvent,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.setup_lifecycle.config import (
     SetupLifecycleConfig,
     load_setup_lifecycle_config,
@@ -1219,8 +1219,7 @@ class SetupLifecycleRepository:
 
     @staticmethod
     def stable_hash(payload: Any) -> str:
-        data = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-        return hashlib.sha256(data.encode("utf-8")).hexdigest()
+        return CanonicalEvidenceSerializer.fingerprint(payload)
 
     @classmethod
     def hash_token(cls, token: str) -> str:
