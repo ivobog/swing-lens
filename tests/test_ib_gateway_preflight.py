@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,16 +16,39 @@ from app.services.ib_gateway_launcher import IBGatewayLaunchState, launch_gatewa
 from app.settings import Settings
 
 
+class FakeClient:
+    def __init__(self, owner: FakeIB) -> None:
+        self.owner = owner
+
+    def isReady(self) -> bool:  # noqa: N802 - mirrors ib_insync
+        return self.owner.session_ready
+
+    def serverVersion(self) -> int:  # noqa: N802 - mirrors ib_insync
+        return 176 if self.owner.session_ready else 0
+
+
 class FakeIB:
-    def __init__(self, *, connects: bool = True, raises: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        connects: bool = True,
+        raises: bool | Exception = False,
+        session_ready: bool = True,
+        smoke_raises: bool = False,
+    ) -> None:
         self.connects = connects
         self.raises = raises
+        self.session_ready = session_ready
+        self.smoke_raises = smoke_raises
         self.connected = False
+        self.client = FakeClient(self)
         self.connect_calls = []
         self.disconnect_calls = 0
 
     def connect(self, host, port, **kwargs) -> None:
         self.connect_calls.append((host, port, kwargs))
+        if isinstance(self.raises, Exception):
+            raise self.raises
         if self.raises:
             raise ConnectionError("connection refused")
         self.connected = self.connects
@@ -36,6 +60,12 @@ class FakeIB:
         self.connected = False
         self.disconnect_calls += 1
 
+    def reqCurrentTime(self):  # noqa: N802 - mirrors ib_insync
+        if self.smoke_raises:
+            self.connected = False
+            raise ConnectionError("session lost")
+        return "2026-09-10T14:00:00+00:00"
+
 
 def test_health_ready_requires_real_api_handshake() -> None:
     ib = FakeIB()
@@ -45,6 +75,9 @@ def test_health_ready_requires_real_api_handshake() -> None:
 
     assert status.status == IBGatewayHealthState.READY
     assert status.api_connected is True
+    assert status.api_ready is True
+    assert status.server_version == 176
+    assert status.smoke_response_received is True
     assert ib.connect_calls == [
         (
             "127.0.0.1",
@@ -79,6 +112,63 @@ def test_health_running_process_with_failed_handshake_is_not_ready() -> None:
     assert status.api_connected is False
 
 
+def test_connected_socket_without_api_handshake_is_not_ready() -> None:
+    status = check_status(
+        Settings(_env_file=None),
+        ib_factory=lambda: FakeIB(session_ready=False),
+        process_detector=lambda: True,
+    )
+
+    assert status.status == IBGatewayHealthState.IB_PROCESS_RUNNING_API_NOT_READY
+    assert status.api_ready is False
+
+
+def test_session_loss_during_smoke_request_is_distinct() -> None:
+    status = check_status(
+        Settings(_env_file=None),
+        ib_factory=lambda: FakeIB(smoke_raises=True),
+    )
+
+    assert status.status == IBGatewayHealthState.IB_SESSION_LOST
+    assert status.error_code == "IB_GATEWAY_SESSION_LOST"
+    assert status.api_ready is False
+
+
+def test_timeout_and_client_id_conflict_are_deterministically_classified() -> None:
+    timeout = check_status(
+        Settings(_env_file=None),
+        ib_factory=lambda: FakeIB(raises=TimeoutError("probe timed out")),
+        process_detector=lambda: True,
+    )
+    conflict_ib = FakeIB()
+
+    def conflicting_connect(*_args, **_kwargs):
+        raise ConnectionError("client id already in use")
+
+    conflict_ib.connect = conflicting_connect
+    conflict = check_status(
+        Settings(_env_file=None),
+        ib_factory=lambda: conflict_ib,
+        process_detector=lambda: True,
+    )
+
+    assert timeout.error_code == "IB_GATEWAY_PROBE_TIMEOUT"
+    assert conflict.error_code == "IB_GATEWAY_CLIENT_ID_IN_USE"
+
+
+def test_readiness_has_explicit_expiry_and_cannot_be_reused_stale() -> None:
+    status = check_status(
+        Settings(_env_file=None, ib_readiness_max_age_seconds=2),
+        ib_factory=FakeIB,
+    )
+
+    assert status.is_fresh(max_age_seconds=2, now=status.checked_at + timedelta(seconds=1))
+    assert not status.is_fresh(
+        max_age_seconds=2,
+        now=status.checked_at + timedelta(seconds=3),
+    )
+
+
 def test_health_invalid_config_is_structured_and_has_no_client_side_effect() -> None:
     created = []
 
@@ -109,9 +199,7 @@ def test_repeated_health_calls_only_open_and_close_transient_connections() -> No
 
 def test_launcher_disabled_and_missing_path_are_explicit(tmp_path: Path) -> None:
     disabled = launch_gateway(Settings(_env_file=None))
-    not_configured = launch_gateway(
-        Settings(_env_file=None, ib_gateway_auto_launch_enabled=True)
-    )
+    not_configured = launch_gateway(Settings(_env_file=None, ib_gateway_auto_launch_enabled=True))
     missing = launch_gateway(
         Settings(
             _env_file=None,

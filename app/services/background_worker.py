@@ -60,7 +60,7 @@ from app.services.worker_registry import (
     mark_worker_stopping,
     register_worker,
 )
-from app.settings import SecDocumentIncrementalMode, Settings, get_settings
+from app.settings import RuntimeMode, SecDocumentIncrementalMode, Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,10 @@ def run_worker(
 
     try:
         while not runtime_stop_event.is_set():
-            if time.monotonic() >= next_evidence_cleanup:
+            if (
+                settings.runtime_mode is not RuntimeMode.CERTIFICATION
+                and time.monotonic() >= next_evidence_cleanup
+            ):
                 cleanup_db = session_factory()
                 try:
                     execute_durable_evidence_retention(cleanup_db, settings)
@@ -197,6 +200,7 @@ def run_worker(
                 session_factory=session_factory,
                 handlers=handlers,
                 schedule_winner_probability=(settings.winner_probability_auto_maturation_enabled),
+                certification_mode=settings.runtime_mode is RuntimeMode.CERTIFICATION,
             )
             if stop_after_one:
                 return
@@ -225,6 +229,7 @@ def run_worker(
 def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str, Any]:
     from app.services.ceri.deployment_identity import current_deployment_identity
     from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+    from app.services.certification_runtime import effective_runtime_configuration
 
     # Treat a missing/unreadable migration identity as a startup failure.  On
     # PostgreSQL, swallowing the query error would still leave this worker's
@@ -242,6 +247,7 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
         # revision scalar used above. Real database errors remain fail-closed.
         processor_state = None
     return {
+        **effective_runtime_configuration(settings),
         "ceri_enabled": settings.ceri_enabled,
         "ceri_batched_workflow_enabled": settings.ceri_batched_workflow_enabled,
         "ceri_provider_ingest_enabled": settings.ceri_provider_ingest_enabled,
@@ -383,6 +389,7 @@ def run_worker_once(
     session_factory: sessionmaker[Session],
     handlers: Mapping[str, JobHandler] | None = None,
     schedule_winner_probability: bool = False,
+    certification_mode: bool = False,
 ) -> bool:
     handlers = handlers or default_job_handlers()
     db = session_factory()
@@ -390,10 +397,14 @@ def run_worker_once(
         queue_names = normalize_worker_queues(queues)
         hostname = socket.gethostname()
         process_id = os.getpid()
-        abandoned_count = recover_abandoned_jobs_for_worker(
-            db,
-            worker_id=worker_id,
-            heartbeat_timeout_seconds=heartbeat_timeout_seconds,
+        abandoned_count = (
+            0
+            if certification_mode
+            else recover_abandoned_jobs_for_worker(
+                db,
+                worker_id=worker_id,
+                heartbeat_timeout_seconds=heartbeat_timeout_seconds,
+            )
         )
         if abandoned_count:
             logger.info(
@@ -409,13 +420,13 @@ def run_worker_once(
             process_id=process_id,
             instance_id=worker_instance_id,
         )
-        recovered_count = recover_stale_jobs(db, stale_after_seconds)
+        recovered_count = 0 if certification_mode else recover_stale_jobs(db, stale_after_seconds)
         if recovered_count:
             logger.info("job.stale_recovered", extra={"count": recovered_count})
         heartbeat_worker_control_loop(db, worker_id, instance_id=worker_instance_id)
         db.commit()
 
-        if schedule_winner_probability:
+        if schedule_winner_probability and not certification_mode:
             from app.services.winner_probability.scheduler import (
                 schedule_primary_h5_maturation,
             )
@@ -438,6 +449,7 @@ def run_worker_once(
             lease_seconds=stale_after_seconds,
             queues=queue_names,
             claim_groups=claim_groups,
+            certification_only=certification_mode,
         )
         if job is None:
             db.commit()

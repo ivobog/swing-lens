@@ -408,9 +408,12 @@ class ReadinessService:
         required = bool(self.settings.observability_ib_required or workload_required)
         available = self.ib_available
         if available is None and required:
-            from app.services.ib_gateway_health_service import IBGatewayHealthState, check_status
+            from app.services.ib_gateway_health_service import (
+                check_status,
+                is_api_ready_status,
+            )
 
-            available = check_status(self.settings).status == IBGatewayHealthState.READY
+            available = is_api_ready_status(check_status(self.settings))
         if available:
             return ReadinessCheck(True, "available")
         if required:

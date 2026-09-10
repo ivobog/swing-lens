@@ -42,8 +42,8 @@ from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, build_fetch_plan
 from app.services.ib_gateway_health_service import (
-    IBGatewayHealthState,
     IBGatewayHealthStatus,
+    is_api_ready_status,
 )
 from app.services.ib_gateway_health_service import (
     check_status as check_ib_gateway_status,
@@ -323,14 +323,13 @@ def execute_full_pipeline(
         ):
             ib_health = dependencies.check_ib_gateway()
             _apply_ib_execution_status(result, ib_health)
-            if (
-                market_data_policy is MarketDataPolicy.REQUIRE_IB
-                and ib_health.status != IBGatewayHealthState.READY
+            if market_data_policy is MarketDataPolicy.REQUIRE_IB and not is_api_ready_status(
+                ib_health
             ):
                 result["failure_reason"] = IBGatewayUnavailable.code
                 result["market_data_mode"] = "BLOCKED"
                 raise IBGatewayUnavailable(f"{IBGatewayUnavailable.code}: {ib_health.message}")
-            cache_fallback = ib_health.status != IBGatewayHealthState.READY
+            cache_fallback = not is_api_ready_status(ib_health)
             if cache_fallback:
                 result["market_data_mode"] = "CACHE_FALLBACK"
                 result["degraded"] = True

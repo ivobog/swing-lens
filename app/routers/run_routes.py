@@ -76,6 +76,7 @@ from app.services.pipeline_service import (
     resume_pipeline,
     start_pipeline,
 )
+from app.services.pre_enqueue_operational_gate import PreEnqueueOperationalGateError
 from app.services.ranking_profile_config import get_ranking_profile
 from app.services.ranking_profile_service import (
     get_ranking_profiles,
@@ -102,7 +103,7 @@ from app.services.technical_display_fields import (
 from app.services.technical_score_service import score_run_technicals
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 from app.services.worker_registry import has_live_worker_for_job
-from app.settings import get_settings
+from app.settings import RuntimeMode, get_settings
 from app.templates import templates
 
 router = APIRouter(tags=["runs"])
@@ -113,6 +114,7 @@ WhatToShowForm = Annotated[list[str] | None, Form()]
 ForceRefreshForm = Annotated[bool, Form()]
 ForceFullBackfillForm = Annotated[bool, Form()]
 MarketDataPolicyForm = Annotated[str, Form()]
+TransitionPreflightPlanForm = Annotated[int | None, Form()]
 
 WARNING_BADGE_LABELS = {
     "incomplete_data": "Incomplete",
@@ -627,8 +629,12 @@ def run_full_pipeline_action(
     run_id: int,
     db: DbSession,
     market_data_policy: MarketDataPolicyForm = MarketDataPolicy.REQUIRE_IB.value,
+    transition_preflight_plan_id: TransitionPreflightPlanForm = None,
 ) -> RedirectResponse:
     settings = get_settings()
+    certification_mode = (
+        getattr(settings, "runtime_mode", RuntimeMode.NORMAL) is RuntimeMode.CERTIFICATION
+    )
     try:
         policy = MarketDataPolicy(market_data_policy)
     except ValueError as exc:
@@ -639,8 +645,12 @@ def run_full_pipeline_action(
                 "message": "Choose REQUIRE_IB or ALLOW_CACHE_FALLBACK.",
             },
         ) from exc
-    ib_preflight = check_status(settings=settings)
-    if policy is MarketDataPolicy.REQUIRE_IB and ib_preflight.status != IBGatewayHealthState.READY:
+    ib_preflight = None if certification_mode else check_status(settings=settings)
+    if (
+        not certification_mode
+        and policy is MarketDataPolicy.REQUIRE_IB
+        and ib_preflight.status not in {IBGatewayHealthState.IB_API_READY.value, "READY"}
+    ):
         raise HTTPException(
             status_code=409,
             detail={
@@ -650,7 +660,7 @@ def run_full_pipeline_action(
             },
         )
     if settings.use_durable_pipeline:
-        if not has_live_worker_for_job(
+        if not certification_mode and not has_live_worker_for_job(
             db,
             job_type="FULL_PIPELINE",
             heartbeat_timeout_seconds=getattr(settings, "job_worker_heartbeat_timeout_seconds", 30),
@@ -670,7 +680,8 @@ def run_full_pipeline_action(
                 db,
                 run_id,
                 market_data_policy=policy,
-                ib_preflight_status=ib_preflight.to_dict(),
+                ib_preflight_status=(ib_preflight.to_dict() if ib_preflight else None),
+                transition_preflight_plan_id=transition_preflight_plan_id,
             )
             db.commit()
             query = "?duplicate_action=coalesced" if getattr(pipeline, "_coalesced", False) else ""
@@ -678,6 +689,12 @@ def run_full_pipeline_action(
                 url=f"/runs/{run_id}/pipeline/{pipeline.id}{query}",
                 status_code=303,
             )
+        except PreEnqueueOperationalGateError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=(503 if "WORKER" in exc.code else 409),
+                detail=exc.to_dict(),
+            ) from exc
         except ValueError as exc:
             db.rollback()
             raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
@@ -708,7 +725,10 @@ def run_full_pipeline_action(
         what_to_show_values=DEFAULT_WHAT_TO_SHOW,
     )
     fetch_run = None
-    if plan.estimated_request_count and ib_preflight.status == IBGatewayHealthState.READY:
+    if plan.estimated_request_count and ib_preflight.status in {
+        IBGatewayHealthState.IB_API_READY.value,
+        "READY",
+    }:
         fetch_run = execute_fetch_plan(
             db=db,
             plan=plan,
@@ -733,7 +753,7 @@ def run_full_pipeline_action(
     )
     status = (
         "pipeline-cache-fallback"
-        if ib_preflight.status != IBGatewayHealthState.READY
+        if ib_preflight.status not in {IBGatewayHealthState.IB_API_READY.value, "READY"}
         else "pipeline-refreshed"
     )
     if fetch_run is not None:
@@ -1296,9 +1316,9 @@ def _winner_probability_context(db: Session, run_id: int) -> dict[str, object]:
     if prediction_ids:
         estimate_count = int(
             db.scalar(
-                select(func.count(WinnerProbabilityEstimate.id)).where(
-                    WinnerProbabilityEstimate.prediction_id.in_(prediction_ids)
-                ).where(estimate_is_serving())
+                select(func.count(WinnerProbabilityEstimate.id))
+                .where(WinnerProbabilityEstimate.prediction_id.in_(prediction_ids))
+                .where(estimate_is_serving())
             )
             or 0
         )
@@ -1800,9 +1820,7 @@ def _pipeline_status_payload(
     completed_steps = sum(step["status"] in {"COMPLETED", "SKIPPED"} for step in steps)
     total_steps = len(steps)
     job = db.get(BackgroundJob, status.background_job_id) if status.background_job_id else None
-    worker = (
-        db.get(BackgroundWorker, job.worker_id) if job is not None and job.worker_id else None
-    )
+    worker = db.get(BackgroundWorker, job.worker_id) if job is not None and job.worker_id else None
     return {
         "pipeline_run_id": status.pipeline_run_id,
         "upload_run_id": status.upload_run_id,

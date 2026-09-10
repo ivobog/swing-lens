@@ -24,6 +24,11 @@ class SecReadinessPolicy(StrEnum):
     ALLOW_DEGRADED = "ALLOW_DEGRADED"
 
 
+class RuntimeMode(StrEnum):
+    NORMAL = "NORMAL"
+    CERTIFICATION = "CERTIFICATION"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -37,6 +42,7 @@ class Settings(BaseSettings):
     debug: bool = True
     allow_public_bind: bool = False
     use_durable_pipeline: bool = True
+    runtime_mode: RuntimeMode = RuntimeMode.NORMAL
 
     database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
     database_connect_timeout_seconds: int = Field(default=3, ge=1, le=30)
@@ -46,9 +52,7 @@ class Settings(BaseSettings):
     swinglens_postgres_service: str = "postgresql-x64-18"
     swinglens_postgres_expected_major: int = Field(default=18, ge=10, le=99)
     swinglens_postgres_data_dir: Path = Path(r"C:\Program Files\PostgreSQL\18\data")
-    swinglens_postgres_executable: Path = Path(
-        r"C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe"
-    )
+    swinglens_postgres_executable: Path = Path(r"C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe")
     swinglens_manage_postgres: bool = False
     swinglens_migration_timeout_seconds: int = Field(default=120, ge=10, le=1800)
     swinglens_lifecycle_lock_timeout_seconds: int = Field(default=10, ge=1, le=300)
@@ -95,9 +99,7 @@ class Settings(BaseSettings):
     observability_db_pool_wait_warning_seconds: float = Field(default=1.0, ge=0)
     observability_ib_required: bool = False
     observability_enqueue_attempt_retention_days: int = Field(default=30, ge=1, le=365)
-    observability_evidence_cleanup_interval_seconds: int = Field(
-        default=3600, ge=60, le=86400
-    )
+    observability_evidence_cleanup_interval_seconds: int = Field(default=3600, ge=60, le=86400)
     observability_operations_window_hours: int = Field(default=24, ge=1, le=168)
     observability_operations_root_scan_limit: int = Field(default=5000, ge=100, le=50000)
     observability_operations_provider_sample_limit: int = Field(default=10000, ge=100, le=50000)
@@ -147,6 +149,7 @@ class Settings(BaseSettings):
     ib_client_id: int = 21
     ib_timeout_seconds: int = 30
     ib_health_timeout_seconds: float = Field(default=3.0, ge=0.25, le=10.0)
+    ib_readiness_max_age_seconds: float = Field(default=5.0, ge=0.25, le=30.0)
     ib_gateway_auto_launch_enabled: bool = False
     ib_gateway_executable_path: Path | None = None
     ib_use_rth: bool = True
@@ -433,6 +436,26 @@ class Settings(BaseSettings):
             raise ValueError("job_worker_heartbeat_interval_seconds must be positive")
         if self.job_worker_heartbeat_interval_seconds >= self.job_worker_heartbeat_timeout_seconds:
             raise ValueError("job_worker_heartbeat_interval_seconds must be less than the timeout")
+        if self.runtime_mode is RuntimeMode.CERTIFICATION:
+            if not self.use_durable_pipeline:
+                raise ValueError("CERTIFICATION runtime requires USE_DURABLE_PIPELINE=true")
+            if not self.job_worker_enabled:
+                raise ValueError("CERTIFICATION runtime requires JOB_WORKER_ENABLED=true")
+            conflicting_automatic_work = {
+                "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": (
+                    self.winner_probability_auto_maturation_enabled
+                ),
+                "WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED": (
+                    self.winner_probability_auto_cohort_refresh_enabled
+                ),
+                "MARKET_DATA_PREWARM_ENABLED": self.market_data_prewarm_enabled,
+            }
+            enabled = sorted(name for name, value in conflicting_automatic_work.items() if value)
+            if enabled:
+                raise ValueError(
+                    "CERTIFICATION runtime forbids automatic/unrelated work settings: "
+                    + ", ".join(enabled)
+                )
         if (
             self.winner_probability_auto_cohort_refresh_enabled
             and not self.winner_cohort_refresh_v2_enabled

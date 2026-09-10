@@ -20,7 +20,7 @@ from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.market_data_prewarm_service import request_active_prewarm_preemption
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
-from app.settings import get_settings
+from app.settings import RuntimeMode, get_settings
 
 FULL_PIPELINE_JOB_TYPE = "FULL_PIPELINE"
 PIPELINE_JOB_PRIORITY = 100
@@ -124,6 +124,10 @@ def start_pipeline(
     transition_preflight_plan_id: int | None = None,
     transition_candidate_discovery: Any | None = None,
 ) -> PipelineRun:
+    settings = get_settings()
+    certification_mode = (
+        getattr(settings, "runtime_mode", RuntimeMode.NORMAL) is RuntimeMode.CERTIFICATION
+    )
     upload_run = db.get(UploadRun, upload_run_id)
     if upload_run is None:
         raise ValueError(f"Upload run {upload_run_id} was not found.")
@@ -134,6 +138,7 @@ def start_pipeline(
         raise ValueError(f"Unsupported market data policy: {market_data_policy}") from exc
 
     verified_transition_preflight = None
+    operational_gate_result = None
     if transition_preflight_plan_id is not None:
         from app.services.transition_preflight_plan_service import (
             TransitionPreflightError,
@@ -145,11 +150,34 @@ def start_pipeline(
         if consumed_pipeline is not None:
             consumed_pipeline._coalesced = True
             return consumed_pipeline
-        verified_transition_preflight = verify_transition_preflight_for_enqueue(
-            db,
-            plan_id=transition_preflight_plan_id,
-            upload_run_id=upload_run_id,
-            discovery=transition_candidate_discovery,
+        if certification_mode:
+            from app.services.pre_enqueue_operational_gate import (
+                validate_pre_enqueue_operational_gate,
+            )
+
+            operational_gate_result = validate_pre_enqueue_operational_gate(
+                db,
+                upload_run_id=upload_run_id,
+                plan_id=transition_preflight_plan_id,
+                settings=settings,
+                discovery=transition_candidate_discovery,
+            )
+            verified_transition_preflight = operational_gate_result.verified_preflight
+            ib_preflight_status = operational_gate_result.ib_status.to_dict()
+        else:
+            verified_transition_preflight = verify_transition_preflight_for_enqueue(
+                db,
+                plan_id=transition_preflight_plan_id,
+                upload_run_id=upload_run_id,
+                discovery=transition_candidate_discovery,
+            )
+    elif certification_mode:
+        from app.services.pre_enqueue_operational_gate import PreEnqueueOperationalGateError
+
+        raise PreEnqueueOperationalGateError(
+            "CERTIFICATION_PREFLIGHT_REQUIRED",
+            "Certification pipeline enqueue requires a reserved transition preflight plan.",
+            plan_id=None,
         )
 
     step_names = pipeline_step_names(
@@ -236,6 +264,14 @@ def start_pipeline(
         )
     db.flush()
 
+    certification_authorization = (
+        {
+            "certification_authorized": True,
+            "transition_preflight_plan_id": transition_preflight_plan_id,
+        }
+        if certification_mode
+        else {}
+    )
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
@@ -247,6 +283,7 @@ def start_pipeline(
             "market_calendar_version": market_cutoff.calendar_version,
             "bar_readiness_version": market_cutoff.bar_readiness_version,
             "transition_preflight_plan_id": transition_preflight_plan_id,
+            **certification_authorization,
             "transition_evidence_fingerprint": (
                 verified_transition_preflight.plan.evidence_fingerprint
                 if verified_transition_preflight is not None
@@ -275,7 +312,6 @@ def start_pipeline(
             )
             return existing_pipeline
 
-    settings = get_settings()
     preflight = dict(ib_preflight_status or {})
     pipeline.result_json = {
         "background_job_id": job.id,
@@ -296,6 +332,8 @@ def start_pipeline(
             else None
         ),
     }
+    if operational_gate_result is not None:
+        pipeline.result_json["pre_enqueue_operational_gate"] = operational_gate_result.to_dict()
     preempted_prewarm_jobs = request_active_prewarm_preemption(
         db,
         pipeline_run_id=pipeline.id,

@@ -17,7 +17,9 @@ from app.services.pipeline_service import (
     resume_pipeline,
     start_pipeline,
 )
+from app.services.pre_enqueue_operational_gate import PreEnqueueOperationalGateError
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
+from app.settings import RuntimeMode
 
 
 @pytest.fixture(autouse=True)
@@ -319,6 +321,71 @@ def test_start_pipeline_raises_for_missing_upload_run() -> None:
 
     with pytest.raises(ValueError, match="Upload run 404 was not found"):
         start_pipeline(db, upload_run_id=404)
+
+
+def test_certification_gate_failure_precedes_pipeline_and_job_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upload_run = UploadRun(id=154, filename="canary.csv", status="COMPLETED")
+    db = FakeDb(upload_runs={154: upload_run})
+    monkeypatch.setattr(
+        "app.services.pipeline_service.get_settings",
+        lambda: type(
+            "CertificationSettingsStub",
+            (),
+            {
+                "runtime_mode": RuntimeMode.CERTIFICATION,
+                "setup_lifecycle_pipeline_step_enabled": True,
+                "ceri_legacy_pipeline_scheduling_enabled": True,
+                "ceri_batched_workflow_enabled": False,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        "app.services.pre_enqueue_operational_gate.validate_pre_enqueue_operational_gate",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            PreEnqueueOperationalGateError(
+                "IB_API_NOT_READY",
+                "IB API session unavailable. No pipeline was created.",
+                plan_id=3,
+                context_id=7,
+            )
+        ),
+    )
+
+    with pytest.raises(PreEnqueueOperationalGateError, match="IB_API_NOT_READY"):
+        start_pipeline(db, upload_run_id=154, transition_preflight_plan_id=3)
+
+    assert db.pipeline_runs == {}
+    assert db.background_jobs == {}
+    assert db.added == []
+
+
+def test_certification_duplicate_action_returns_consumed_pipeline_without_new_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upload_run = UploadRun(id=154, filename="canary.csv", status="COMPLETED")
+    pipeline = PipelineRun(id=145, upload_run_id=154, status=PipelineStatus.PENDING)
+    db = FakeDb(upload_runs={154: upload_run}, pipeline_runs={145: pipeline})
+    monkeypatch.setattr(
+        "app.services.pipeline_service.get_settings",
+        lambda: type(
+            "CertificationSettingsStub",
+            (),
+            {"runtime_mode": RuntimeMode.CERTIFICATION},
+        )(),
+    )
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service.pipeline_for_consumed_preflight",
+        lambda *_args, **_kwargs: pipeline,
+    )
+
+    returned = start_pipeline(db, upload_run_id=154, transition_preflight_plan_id=3)
+
+    assert returned is pipeline
+    assert returned.__dict__["_coalesced"] is True
+    assert len(db.pipeline_runs) == 1
+    assert db.background_jobs == {}
 
 
 def test_get_pipeline_status_returns_status_dto() -> None:
