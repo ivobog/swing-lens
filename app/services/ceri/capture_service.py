@@ -24,6 +24,7 @@ from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import RawCompanyRow
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.alert_service import CeriAlertService
+from app.services.ceri.artifact_lineage import CeriArtifactOwnership
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.change_semantics import select_prior_comparison
@@ -137,7 +138,11 @@ class CeriRunCaptureService:
         )
         company_ids = {company.id for company in companies_by_ticker.values()}
         features_by_company = _revision_features_for_companies(
-            db, company_ids, as_of_session, cutoff_at
+            db,
+            company_ids,
+            as_of_session,
+            cutoff_at,
+            calculation_context_id=market_cutoff.context_id,
         )
         features_by_company = {
             company_id: [
@@ -454,6 +459,8 @@ def _revision_features_for_companies(
     company_ids: set[int],
     as_of_session,
     cutoff_at: datetime,
+    *,
+    calculation_context_id: int | None,
 ) -> dict[int, list[CeriRevisionFeature]]:
     if not company_ids:
         return {}
@@ -461,7 +468,12 @@ def _revision_features_for_companies(
         db,
         select(CeriRevisionFeature)
         .where(CeriRevisionFeature.company_id.in_(sorted(company_ids)))
-        .where(CeriRevisionFeature.as_of_session == as_of_session),
+        .where(CeriRevisionFeature.as_of_session == as_of_session)
+        .where(
+            CeriRevisionFeature.calculation_context_id == calculation_context_id
+            if calculation_context_id is not None
+            else CeriRevisionFeature.ownership_mode != CeriArtifactOwnership.PIPELINE.value
+        ),
     )
     eligible = _eligible_source_backed_rows(
         db,
@@ -682,6 +694,11 @@ def _price_response_for_company(
             cutoff_at=cutoff_at,
             calculation_context_id=calculation_context_id,
             calendar_version=calendar_version,
+            ownership_mode=(
+                CeriArtifactOwnership.PIPELINE.value
+                if calculation_context_id is not None
+                else CeriArtifactOwnership.STANDALONE.value
+            ),
         )
         return result, feature
     event_type, event_id, event_at, event_session = max(
@@ -715,6 +732,11 @@ def _price_response_for_company(
         cutoff_at=cutoff_at,
         calculation_context_id=calculation_context_id,
         calendar_version=calendar_version,
+        ownership_mode=(
+            CeriArtifactOwnership.PIPELINE.value
+            if calculation_context_id is not None
+            else CeriArtifactOwnership.STANDALONE.value
+        ),
     )
     return result, feature
 

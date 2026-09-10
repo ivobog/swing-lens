@@ -666,6 +666,58 @@ class SetupLifecycleSnapshotBuilder:
         }
 
 
+def build_run_context_snapshots(
+    db,
+    run_context,
+    *,
+    builder: SetupLifecycleSnapshotBuilder,
+    repository: SetupLifecycleRepository,
+    errors_by_ticker: dict[str, str] | None = None,
+) -> tuple[tuple[TickerSourceContext, BuiltSnapshot], ...]:
+    """Build lifecycle inputs through the one production history/query contract."""
+
+    cutoffs = {
+        (ticker_context.ticker, builder.config.engine.timeframe): builder._resolve_data_as_of_date(
+            ticker_context
+        )
+        for ticker_context in run_context.tickers
+    }
+    history_loader = getattr(repository, "canonical_snapshot_histories_before", None)
+    max_window = max(
+        (
+            window
+            for key in ("technical_score", "setup_score")
+            for window in builder.config.signal_registry.require(key).velocity_windows
+        ),
+        default=10,
+    )
+    histories = (
+        history_loader(db, cutoffs=cutoffs, limit=max_window) if history_loader is not None else {}
+    )
+    built_rows: list[tuple[TickerSourceContext, BuiltSnapshot]] = []
+    for ticker_context in run_context.tickers:
+        try:
+            built_rows.append(
+                (
+                    ticker_context,
+                    builder.build(
+                        ticker_context,
+                        history=tuple(
+                            histories.get(
+                                (ticker_context.ticker, builder.config.engine.timeframe),
+                                (),
+                            )
+                        ),
+                    ),
+                )
+            )
+        except Exception as exc:
+            if errors_by_ticker is None:
+                raise
+            errors_by_ticker[ticker_context.ticker] = str(exc)
+    return tuple(built_rows)
+
+
 class SetupLifecycleSnapshotCaptureService:
     def __init__(
         self,
@@ -706,6 +758,46 @@ class SetupLifecycleSnapshotCaptureService:
                 )
             raise
 
+        snapshot_ids: list[int] = []
+        warnings_by_ticker: dict[str, tuple[str, ...]] = {}
+        errors_by_ticker: dict[str, str] = {}
+        low_confidence = 0
+
+        try:
+            built_rows = build_run_context_snapshots(
+                db,
+                run_context,
+                builder=self.builder,
+                repository=self.repository,
+                errors_by_ticker=errors_by_ticker,
+            )
+        except Exception:
+            if evaluation_run is not None:
+                self.repository.complete_evaluation_run(
+                    db,
+                    evaluation_run,
+                    status=EvaluationStatus.FAILED.value,
+                    current_phase="snapshot_build_failed",
+                    counts={"read": len(run_context.tickers), "failed": 1},
+                )
+            raise
+
+        # A consumed transition plan is checked after all upstream production
+        # stages and immediately before the first lifecycle write. The import is
+        # local to keep the persistence service independent of preflight setup.
+        if market_cutoff is not None:
+            from app.services.transition_preflight_plan_service import (
+                verify_transition_decision_manifests_before_mutation,
+            )
+
+            verify_transition_decision_manifests_before_mutation(
+                db,
+                upload_run_id=run_id,
+                market_cutoff=market_cutoff,
+                built_rows=built_rows,
+                repository=self.repository,
+            )
+
         if evaluation_run is None:
             evaluation_run = self.repository.create_evaluation_run(
                 db,
@@ -719,44 +811,8 @@ class SetupLifecycleSnapshotCaptureService:
                 requester=requester,
             )
 
-        snapshot_ids: list[int] = []
-        warnings_by_ticker: dict[str, tuple[str, ...]] = {}
-        errors_by_ticker: dict[str, str] = {}
-        low_confidence = 0
-
-        cutoffs = {
-            (
-                ticker_context.ticker,
-                self.config.engine.timeframe,
-            ): self.builder._resolve_data_as_of_date(ticker_context)
-            for ticker_context in run_context.tickers
-        }
-        history_loader = getattr(self.repository, "canonical_snapshot_histories_before", None)
-        max_window = max(
-            (
-                window
-                for key in ("technical_score", "setup_score")
-                for window in self.config.signal_registry.require(key).velocity_windows
-            ),
-            default=10,
-        )
-        histories = (
-            history_loader(db, cutoffs=cutoffs, limit=max_window)
-            if history_loader is not None
-            else {}
-        )
-
-        for ticker_context in run_context.tickers:
+        for ticker_context, built in built_rows:
             try:
-                built = self.builder.build(
-                    ticker_context,
-                    history=tuple(
-                        histories.get(
-                            (ticker_context.ticker, self.config.engine.timeframe),
-                            (),
-                        )
-                    ),
-                )
                 dto = replace(built.dto, evaluation_run_id=evaluation_run.id)
                 snapshot = self.repository.upsert_snapshot(db, dto)
                 snapshot_ids.append(snapshot.id)

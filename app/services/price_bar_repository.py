@@ -1,10 +1,11 @@
 from datetime import date, datetime
+from decimal import Decimal
 
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tables import PriceBar
+from app.models.tables import PriceBar, PriceBarRevision
 
 
 def load_price_bars_frame(
@@ -31,12 +32,9 @@ def load_price_bars_frame(
         statement = statement.where(PriceBar.created_at <= as_of).where(
             PriceBar.first_seen_at <= as_of
         )
-        # Current rows revised after the boundary cannot safely stand in for
-        # their historical value without revision reconstruction.
-        statement = statement.where(
-            (PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= as_of)
-        )
-    rows = db.scalars(statement).all()
+    rows = list(db.scalars(statement).all())
+    if as_of is not None:
+        rows = project_price_bar_rows_as_of(db, rows, as_of=as_of)
 
     return pd.DataFrame(
         [
@@ -52,6 +50,86 @@ def load_price_bars_frame(
         ],
         columns=["date", "open", "high", "low", "close", "volume"],
     )
+
+
+def project_price_bar_rows_as_of(
+    db: Session,
+    rows: list[PriceBar] | tuple[PriceBar, ...],
+    *,
+    as_of: datetime,
+) -> list[PriceBar]:
+    """Project current cache rows back to the exact values known at ``as_of``.
+
+    A post-cutoff revision must not make the pre-revision row disappear.  The
+    first revision after the boundary contains the prior values and data hash;
+    earlier revision records provide the then-current revision metadata.
+    Returned revised rows are detached transient objects and cannot be flushed
+    back accidentally.
+    """
+
+    materialized = list(rows)
+    revised_ids = [
+        int(row.id)
+        for row in materialized
+        if row.id is not None and row.revised_at is not None and row.revised_at > as_of
+    ]
+    if not revised_ids:
+        return materialized
+    revisions = list(
+        db.scalars(
+            select(PriceBarRevision)
+            .where(PriceBarRevision.price_bar_id.in_(revised_ids))
+            .order_by(
+                PriceBarRevision.price_bar_id,
+                PriceBarRevision.revision_number,
+                PriceBarRevision.id,
+            )
+        )
+    )
+    by_bar: dict[int, list[PriceBarRevision]] = {}
+    for revision in revisions:
+        by_bar.setdefault(int(revision.price_bar_id), []).append(revision)
+
+    projected: list[PriceBar] = []
+    for row in materialized:
+        history = by_bar.get(int(row.id or 0), [])
+        first_after = next((item for item in history if item.observed_at > as_of), None)
+        if first_after is None:
+            # A mutable current row cannot stand in for its historical value.
+            # Without the first post-boundary revision record, provenance is
+            # incomplete and the only safe behavior is conservative exclusion.
+            if row.revised_at is None or row.revised_at <= as_of:
+                projected.append(row)
+            continue
+        prior_revisions = [item for item in history if item.observed_at <= as_of]
+        values = dict(first_after.previous_values_json or {})
+        projected.append(
+            PriceBar(
+                id=row.id,
+                ticker=row.ticker,
+                bar_date=row.bar_date,
+                timeframe=row.timeframe,
+                open=_decimal_or_none(values.get("open")),
+                high=_decimal_or_none(values.get("high")),
+                low=_decimal_or_none(values.get("low")),
+                close=_decimal_or_none(values.get("close")),
+                volume=_decimal_or_none(values.get("volume")),
+                source=values.get("source") or row.source,
+                what_to_show=values.get("what_to_show") or row.what_to_show,
+                adjustment_type=values.get("adjustment_type"),
+                created_at=row.created_at,
+                first_seen_at=row.first_seen_at,
+                last_seen_at=row.last_seen_at,
+                revised_at=(prior_revisions[-1].observed_at if prior_revisions else None),
+                revision_count=max(0, int(first_after.revision_number) - 1),
+                data_hash=first_after.previous_data_hash,
+            )
+        )
+    return projected
+
+
+def _decimal_or_none(value: object) -> Decimal | None:
+    return None if value is None else Decimal(str(value))
 
 
 def load_preferred_ohlcv_frames(

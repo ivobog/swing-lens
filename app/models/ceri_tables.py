@@ -764,6 +764,12 @@ class CeriRevisionFeature(Base):
     period_key: Mapped[str] = mapped_column(Text, nullable=False)
     period_slot: Mapped[str | None] = mapped_column(String(64))
     as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="SET NULL")
+    )
+    calendar_version: Mapped[str | None] = mapped_column(Text)
+    ownership_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="STANDALONE")
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
     baseline_snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("ceri_estimate_snapshots.id", ondelete="SET NULL")
@@ -814,7 +820,20 @@ class CeriRevisionFeature(Base):
             "window_days",
             "config_hash",
             "calculation_version",
+            "ownership_mode",
+            "calculation_context_id",
             name="uq_ceri_revision_features_identity",
+            postgresql_nulls_not_distinct=True,
+        ),
+        CheckConstraint(
+            "ownership_mode <> 'PIPELINE' OR "
+            "(calculation_context_id IS NOT NULL AND calculation_cutoff_at IS NOT NULL "
+            "AND calendar_version IS NOT NULL)",
+            name="ck_ceri_revision_features_pipeline_context",
+        ),
+        CheckConstraint(
+            "ownership_mode IN ('PIPELINE', 'STANDALONE', 'LEGACY_UNKNOWN')",
+            name="ck_ceri_revision_features_ownership_mode",
         ),
         Index("ix_ceri_revision_features_company_session", "company_id", "as_of_session"),
         Index(
@@ -847,6 +866,7 @@ class CeriPriceResponseFeature(Base):
         ForeignKey("market_calculation_contexts.id", ondelete="SET NULL")
     )
     calendar_version: Mapped[str | None] = mapped_column(Text)
+    ownership_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="STANDALONE")
     reaction_start_session: Mapped[date | None] = mapped_column(Date)
     prior_reference_session: Mapped[date | None] = mapped_column(Date)
     window_session_map_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
@@ -867,6 +887,16 @@ class CeriPriceResponseFeature(Base):
 
     __table_args__ = (
         UniqueConstraint("event_key", name="uq_ceri_price_response_event_key"),
+        CheckConstraint(
+            "ownership_mode <> 'PIPELINE' OR "
+            "(calculation_context_id IS NOT NULL AND calculation_cutoff_at IS NOT NULL "
+            "AND calendar_version IS NOT NULL)",
+            name="ck_ceri_price_response_features_pipeline_context",
+        ),
+        CheckConstraint(
+            "ownership_mode IN ('PIPELINE', 'STANDALONE', 'LEGACY_UNKNOWN')",
+            name="ck_ceri_price_response_features_ownership_mode",
+        ),
         Index("ix_ceri_price_response_company_session", "company_id", "reaction_session"),
     )
 
@@ -882,7 +912,11 @@ class CeriDerivedFeature(Base):
     feature_key: Mapped[str] = mapped_column(Text, nullable=False)
     as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
     calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="SET NULL")
+    )
     calendar_version: Mapped[str | None] = mapped_column(Text)
+    ownership_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="STANDALONE")
     value_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     source_ids_json: Mapped[list[int] | None] = mapped_column(JSONB)
     evidence_hash: Mapped[str] = mapped_column(Text, nullable=False)
@@ -901,7 +935,20 @@ class CeriDerivedFeature(Base):
             "as_of_session",
             "config_hash",
             "calculation_version",
+            "ownership_mode",
+            "calculation_context_id",
             name="uq_ceri_derived_features_identity",
+            postgresql_nulls_not_distinct=True,
+        ),
+        CheckConstraint(
+            "ownership_mode <> 'PIPELINE' OR "
+            "(calculation_context_id IS NOT NULL AND calculation_cutoff_at IS NOT NULL "
+            "AND calendar_version IS NOT NULL)",
+            name="ck_ceri_derived_features_pipeline_context",
+        ),
+        CheckConstraint(
+            "ownership_mode IN ('PIPELINE', 'STANDALONE', 'LEGACY_UNKNOWN')",
+            name="ck_ceri_derived_features_ownership_mode",
         ),
         Index("ix_ceri_derived_features_company_session", "company_id", "as_of_session"),
         Index(
@@ -924,6 +971,12 @@ class CeriFeatureBuildState(Base):
         ForeignKey("ceri_companies.id", ondelete="CASCADE"), nullable=False
     )
     as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="SET NULL")
+    )
+    calendar_version: Mapped[str | None] = mapped_column(Text)
+    ownership_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="STANDALONE")
     historical_view_mode: Mapped[str] = mapped_column(String(32), nullable=False)
     config_hash: Mapped[str] = mapped_column(Text, nullable=False)
     calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
@@ -940,7 +993,20 @@ class CeriFeatureBuildState(Base):
             "historical_view_mode",
             "config_hash",
             "calculation_version",
+            "ownership_mode",
+            "calculation_context_id",
             name="uq_ceri_feature_build_states_identity",
+            postgresql_nulls_not_distinct=True,
+        ),
+        CheckConstraint(
+            "ownership_mode <> 'PIPELINE' OR "
+            "(calculation_context_id IS NOT NULL AND calculation_cutoff_at IS NOT NULL "
+            "AND calendar_version IS NOT NULL)",
+            name="ck_ceri_feature_build_states_pipeline_context",
+        ),
+        CheckConstraint(
+            "ownership_mode IN ('PIPELINE', 'STANDALONE', 'LEGACY_UNKNOWN')",
+            name="ck_ceri_feature_build_states_ownership_mode",
         ),
         Index(
             "ix_ceri_feature_build_states_company_session",

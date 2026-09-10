@@ -147,7 +147,9 @@ def test_price_bar_projection_excludes_post_cutoff_receipt_and_revision() -> Non
     rendered = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "price_bars.first_seen_at <=" in rendered
-    assert "price_bars.revised_at IS NULL OR price_bars.revised_at <=" in rendered
+    # Post-cutoff revisions remain query candidates so the repository can
+    # reconstruct their pre-revision values from price_bar_revisions.
+    assert "price_bars.revised_at IS NULL OR price_bars.revised_at <=" not in rendered
 
 
 def test_latest_bar_projection_shadow_comparison_detects_lineage_drift() -> None:

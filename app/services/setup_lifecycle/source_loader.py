@@ -26,6 +26,7 @@ from app.services.market_calculation_context_service import (
 )
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.services.operational_metrics import operational_metrics
+from app.services.price_bar_repository import project_price_bar_rows_as_of
 from app.settings import get_settings
 
 DAILY_PRICE_TIMEFRAMES = ("1 day", "1d")
@@ -261,12 +262,20 @@ class SetupLifecycleSourceLoader:
                     )
                 )
             )
+            if cutoff_at is not None:
+                projected_price_bars = tuple(
+                    project_price_bar_rows_as_of(db, projected_price_bars, as_of=cutoff_at)
+                )
         if not self.latest_bar_projection_enabled or self.shadow_compare_enabled:
             legacy_price_bars = tuple(
                 db.scalars(
                     _legacy_price_bars_statement(tickers, cutoff=cutoff, cutoff_at=cutoff_at)
                 )
             )
+            if cutoff_at is not None:
+                legacy_price_bars = tuple(
+                    project_price_bar_rows_as_of(db, legacy_price_bars, as_of=cutoff_at)
+                )
 
         if self.shadow_compare_enabled:
             assert legacy_price_bars is not None
@@ -462,9 +471,7 @@ def _legacy_price_bars_statement(
         .order_by(PriceBar.ticker, PriceBar.bar_date)
     )
     if cutoff_at is not None:
-        statement = statement.where(PriceBar.first_seen_at <= cutoff_at).where(
-            (PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= cutoff_at)
-        )
+        statement = statement.where(PriceBar.first_seen_at <= cutoff_at)
     return statement
 
 
@@ -669,9 +676,7 @@ def _latest_price_bar_history_statement(
         .where(PriceBar.close.is_not(None))
     )
     if cutoff_at is not None:
-        statement = statement.where(PriceBar.first_seen_at <= cutoff_at).where(
-            (PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= cutoff_at)
-        )
+        statement = statement.where(PriceBar.first_seen_at <= cutoff_at)
     ranked = statement.subquery()
     return (
         select(PriceBar)

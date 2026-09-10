@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriRevisionFeature
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.ceri.artifact_lineage import CeriArtifactOwnership
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import CeriConfidenceLabel, HistoricalViewMode
 from app.services.ceri.point_in_time_query import (
@@ -149,6 +150,10 @@ class CeriRevisionFeatureService:
                 "metric": feature.metric,
                 "period_key": feature.period_key,
                 "as_of_session": feature.as_of_session.isoformat(),
+                "calculation_cutoff_at": feature.calculation_cutoff_at,
+                "calculation_context_id": feature.calculation_context_id,
+                "calendar_version": feature.calendar_version,
+                "ownership_mode": feature.ownership_mode,
                 "window_days": feature.window_days,
                 "baseline_snapshot_id": feature.baseline_snapshot_id,
                 "current_snapshot_id": feature.current_snapshot_id,
@@ -248,6 +253,7 @@ class CeriRevisionFeatureService:
             as_of_session=MarketClockService()
             .cutoff_for(cutoff_at, reason="CERI_REVISION_FEATURE")
             .latest_completed_session,
+            ownership_mode=CeriArtifactOwnership.STANDALONE.value,
             window_days=window_days,
             baseline_snapshot_id=baseline.id if baseline is not None else None,
             current_snapshot_id=current.id if current is not None else None,

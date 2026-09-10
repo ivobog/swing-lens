@@ -26,6 +26,10 @@ from app.models.ceri_tables import (
 )
 from app.models.tables import PriceBar, RawCompanyRow
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.ceri.artifact_lineage import (
+    CeriArtifactOwnership,
+    validate_ceri_artifact_lineage,
+)
 from app.services.ceri.capability_matrix_service import CeriCapabilityMatrixService
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
 from app.services.ceri.confidence_service import CeriConfidenceService
@@ -34,7 +38,6 @@ from app.services.ceri.enums import HistoricalViewMode
 from app.services.ceri.pit_eligibility import (
     eligible_source_record_ids,
     price_bar_is_eligible,
-    price_bar_knowledge_predicates,
     referenced_sources_are_eligible,
 )
 from app.services.ceri.point_in_time_query import CeriPointInTimeQuery
@@ -47,6 +50,7 @@ from app.services.market_clock_service import (
     MarketClockService,
     SessionTimestampPolicy,
 )
+from app.services.price_bar_repository import project_price_bar_rows_as_of
 from app.services.us_market_calendar import us_market_session
 
 FEATURE_REBUILD_IMPL_VERSION = "batch-prefetch-pit-v2"
@@ -63,6 +67,9 @@ class CeriFeatureRebuildRequest:
     to_session: date | None = None
     run_id: int | None = None
     mode: str = "AS_KNOWN"
+    calculation_context_id: int | None = None
+    calendar_version: str | None = None
+    ownership_mode: str = CeriArtifactOwnership.STANDALONE.value
 
 
 @dataclass(frozen=True)
@@ -106,6 +113,8 @@ class RevisionFeatureKey:
     window_days: int
     config_hash: str
     calculation_version: str
+    ownership_mode: str
+    calculation_context_id: int | None
 
 
 @dataclass(frozen=True)
@@ -116,6 +125,8 @@ class DerivedFeatureKey:
     as_of_session: date
     config_hash: str
     calculation_version: str
+    ownership_mode: str
+    calculation_context_id: int | None
 
 
 @dataclass(frozen=True)
@@ -125,6 +136,8 @@ class BuildStateKey:
     historical_view_mode: str
     config_hash: str
     calculation_version: str
+    ownership_mode: str
+    calculation_context_id: int | None
 
 
 @dataclass
@@ -149,6 +162,9 @@ class CeriFeatureBatchContext:
     load_context_ms: int
     select_count: int
     rows_loaded: dict[str, int]
+    calculation_context_id: int | None = None
+    calendar_version: str | None = None
+    ownership_mode: str = CeriArtifactOwnership.STANDALONE.value
     write_count: int = 0
 
 
@@ -176,6 +192,12 @@ class CeriFeatureRebuildService:
         self, db: Session, request: CeriFeatureRebuildRequest
     ) -> CeriFeatureBatchContext:
         started = perf_counter()
+        validate_ceri_artifact_lineage(
+            ownership_mode=request.ownership_mode,
+            calculation_context_id=request.calculation_context_id,
+            calculation_cutoff_at=request.cutoff_at,
+            calendar_version=request.calendar_version,
+        )
         select_count = 0
         rows_loaded: dict[str, int] = {}
         companies = self._companies(db, request)
@@ -238,6 +260,9 @@ class CeriFeatureRebuildService:
                 int((perf_counter() - started) * 1000),
                 select_count,
                 rows_loaded,
+                calculation_context_id=request.calculation_context_id,
+                calendar_version=request.calendar_version,
+                ownership_mode=request.ownership_mode,
             )
 
         estimates = load(
@@ -312,6 +337,10 @@ class CeriFeatureRebuildService:
                 CeriRevisionFeature.as_of_session == cutoff,
                 CeriRevisionFeature.config_hash == self.config.config_hash,
                 CeriRevisionFeature.calculation_version == self.config.engine.calculation_version,
+                CeriRevisionFeature.ownership_mode == request.ownership_mode,
+                CeriRevisionFeature.calculation_context_id.is_not_distinct_from(
+                    request.calculation_context_id
+                ),
             ),
         )
         derived_features = load(
@@ -321,6 +350,10 @@ class CeriFeatureRebuildService:
                 CeriDerivedFeature.as_of_session == cutoff,
                 CeriDerivedFeature.config_hash == self.config.config_hash,
                 CeriDerivedFeature.calculation_version == self.config.engine.calculation_version,
+                CeriDerivedFeature.ownership_mode == request.ownership_mode,
+                CeriDerivedFeature.calculation_context_id.is_not_distinct_from(
+                    request.calculation_context_id
+                ),
             ),
         )
         price_features = load(
@@ -330,6 +363,10 @@ class CeriFeatureRebuildService:
                 CeriPriceResponseFeature.config_hash == self.config.config_hash,
                 CeriPriceResponseFeature.calculation_version
                 == self.config.engine.calculation_version,
+                CeriPriceResponseFeature.ownership_mode == request.ownership_mode,
+                CeriPriceResponseFeature.calculation_context_id.is_not_distinct_from(
+                    request.calculation_context_id
+                ),
             ),
         )
         states = load(
@@ -340,6 +377,10 @@ class CeriFeatureRebuildService:
                 CeriFeatureBuildState.historical_view_mode == mode.value,
                 CeriFeatureBuildState.config_hash == self.config.config_hash,
                 CeriFeatureBuildState.calculation_version == self.config.engine.calculation_version,
+                CeriFeatureBuildState.ownership_mode == request.ownership_mode,
+                CeriFeatureBuildState.calculation_context_id.is_not_distinct_from(
+                    request.calculation_context_id
+                ),
             ),
         )
         requested_tickers = {company.ticker.upper() for company in companies}
@@ -351,14 +392,12 @@ class CeriFeatureRebuildService:
             .where(func.lower(PriceBar.timeframe).in_(("1d", "1 day", "day", "daily")))
             .where(func.lower(PriceBar.source).in_(("ib", "ibkr", "interactive_brokers")))
             .where(PriceBar.close.is_not(None))
-            .where(
-                *price_bar_knowledge_predicates(
-                    latest_completed_session=cutoff,
-                    cutoff_at=cutoff_at,
-                )
-            )
+            .where(PriceBar.bar_date <= cutoff)
+            .where(PriceBar.first_seen_at <= cutoff_at)
             .order_by(PriceBar.ticker, PriceBar.bar_date),
         )
+        if isinstance(db, Session):
+            bars = project_price_bar_rows_as_of(db, bars, as_of=cutoff_at)
         bars = [
             row
             for row in bars
@@ -515,6 +554,9 @@ class CeriFeatureRebuildService:
             int((perf_counter() - started) * 1000),
             select_count,
             rows_loaded,
+            calculation_context_id=request.calculation_context_id,
+            calendar_version=request.calendar_version,
+            ownership_mode=request.ownership_mode,
         )
 
     def rebuild(
@@ -575,6 +617,8 @@ class CeriFeatureRebuildService:
             context.mode.value,
             self.config.config_hash,
             self.config.engine.calculation_version,
+            context.ownership_mode,
+            context.calculation_context_id,
         )
         state = context.feature_build_state.get(key)
         output_hash, output_count = self._existing_output_fingerprint(company.id, context)
@@ -817,9 +861,20 @@ class CeriFeatureRebuildService:
 
         family_started = perf_counter()
         price_row = self._price_response_row(company, context, current_catalysts)
+        for row in revision_rows:
+            row.calculation_cutoff_at = context.cutoff_at
+            row.calculation_context_id = context.calculation_context_id
+            row.calendar_version = context.calendar_version or CALENDAR_VERSION
+            row.ownership_mode = context.ownership_mode
+            reproduce_hash = getattr(self.revisions, "reproduce_evidence_hash", None)
+            if callable(reproduce_hash):
+                row.evidence_hash = reproduce_hash(row)
         for row in derived_rows:
             row.calculation_cutoff_at = context.cutoff_at
-            row.calendar_version = CALENDAR_VERSION
+            row.calculation_context_id = context.calculation_context_id
+            row.calendar_version = context.calendar_version or CALENDAR_VERSION
+            row.ownership_mode = context.ownership_mode
+            row.evidence_hash = _derived_evidence_hash(row)
         timings["price_response"] = int((perf_counter() - family_started) * 1000)
         output_rows = self._prospective_output_rows(
             company.id, revision_rows, derived_rows, price_row, context
@@ -828,6 +883,10 @@ class CeriFeatureRebuildService:
             company_id=company.id,
             as_of_session=context.cutoff,
             historical_view_mode=context.mode.value,
+            calculation_cutoff_at=context.cutoff_at,
+            calculation_context_id=context.calculation_context_id,
+            calendar_version=context.calendar_version or CALENDAR_VERSION,
+            ownership_mode=context.ownership_mode,
             config_hash=self.config.config_hash,
             calculation_version=self.config.engine.calculation_version,
             input_evidence_hash=input_hash,
@@ -910,6 +969,7 @@ class CeriFeatureRebuildService:
             feature_family=family,
             feature_key=key,
             as_of_session=as_of_session,
+            ownership_mode=CeriArtifactOwnership.STANDALONE.value,
             value_json=value,
             source_ids_json=source_ids,
             evidence_hash=_stable_hash(evidence),
@@ -965,7 +1025,9 @@ class CeriFeatureRebuildService:
             event_effective_session=event[3],
             feature_as_of_session=context.cutoff,
             cutoff_at=context.cutoff_at,
-            calendar_version=CALENDAR_VERSION,
+            calculation_context_id=context.calculation_context_id,
+            calendar_version=context.calendar_version or CALENDAR_VERSION,
+            ownership_mode=context.ownership_mode,
         )
 
     def _persist_company(
@@ -1001,7 +1063,9 @@ class CeriFeatureRebuildService:
                         "evidence_hash",
                         "config_version",
                         "calculation_cutoff_at",
+                        "calculation_context_id",
                         "calendar_version",
+                        "ownership_mode",
                     ),
                 )
                 writes += 1
@@ -1024,6 +1088,10 @@ class CeriFeatureRebuildService:
                     "output_feature_count",
                     "implementation_version",
                     "completed_at",
+                    "calculation_cutoff_at",
+                    "calculation_context_id",
+                    "calendar_version",
+                    "ownership_mode",
                 ),
             )
             db.flush()
@@ -1263,6 +1331,10 @@ class CeriFeatureRebuildService:
                 CeriRevisionFeature.window_days == feature.window_days,
                 CeriRevisionFeature.config_hash == feature.config_hash,
                 CeriRevisionFeature.calculation_version == feature.calculation_version,
+                CeriRevisionFeature.ownership_mode == feature.ownership_mode,
+                CeriRevisionFeature.calculation_context_id.is_not_distinct_from(
+                    feature.calculation_context_id
+                ),
             ),
         )
 
@@ -1278,6 +1350,10 @@ class CeriFeatureRebuildService:
 
 
 _REVISION_UPDATE_COLUMNS = (
+    "calculation_cutoff_at",
+    "calculation_context_id",
+    "calendar_version",
+    "ownership_mode",
     "period_slot",
     "baseline_snapshot_id",
     "current_snapshot_id",
@@ -1316,6 +1392,10 @@ _PRICE_UPDATE_COLUMNS = (
     "event_effective_session",
     "reaction_session",
     "feature_as_of_session",
+    "calculation_cutoff_at",
+    "calculation_context_id",
+    "calendar_version",
+    "ownership_mode",
     "reaction_start_session",
     "prior_reference_session",
     "window_session_map_json",
@@ -1391,6 +1471,8 @@ def _revision_key(row: CeriRevisionFeature) -> RevisionFeatureKey:
         row.window_days,
         row.config_hash,
         row.calculation_version,
+        row.ownership_mode,
+        row.calculation_context_id,
     )
 
 
@@ -1402,6 +1484,8 @@ def _derived_key(row: CeriDerivedFeature) -> DerivedFeatureKey:
         row.as_of_session,
         row.config_hash,
         row.calculation_version,
+        row.ownership_mode,
+        row.calculation_context_id,
     )
 
 
@@ -1412,6 +1496,8 @@ def _state_key(row: CeriFeatureBuildState) -> BuildStateKey:
         row.historical_view_mode,
         row.config_hash,
         row.calculation_version,
+        row.ownership_mode,
+        row.calculation_context_id,
     )
 
 
@@ -1470,7 +1556,9 @@ def _copy_derived(target: CeriDerivedFeature, source: CeriDerivedFeature) -> Non
         "evidence_hash",
         "config_version",
         "calculation_cutoff_at",
+        "calculation_context_id",
         "calendar_version",
+        "ownership_mode",
     ):
         setattr(target, name, getattr(source, name))
 
@@ -1482,6 +1570,10 @@ def _copy_price(target: CeriPriceResponseFeature, source: CeriPriceResponseFeatu
 
 def _copy_state(target: CeriFeatureBuildState, source: CeriFeatureBuildState) -> None:
     for name in (
+        "calculation_cutoff_at",
+        "calculation_context_id",
+        "calendar_version",
+        "ownership_mode",
         "input_evidence_hash",
         "output_evidence_hash",
         "output_feature_count",
@@ -1489,6 +1581,25 @@ def _copy_state(target: CeriFeatureBuildState, source: CeriFeatureBuildState) ->
         "completed_at",
     ):
         setattr(target, name, getattr(source, name))
+
+
+def _derived_evidence_hash(row: CeriDerivedFeature) -> str:
+    return _stable_hash(
+        {
+            "company_id": row.company_id,
+            "family": row.feature_family,
+            "key": row.feature_key,
+            "as_of_session": row.as_of_session,
+            "value": row.value_json,
+            "source_ids": row.source_ids_json or [],
+            "config_hash": row.config_hash,
+            "calculation_version": row.calculation_version,
+            "calculation_cutoff_at": row.calculation_cutoff_at,
+            "calculation_context_id": row.calculation_context_id,
+            "calendar_version": row.calendar_version,
+            "ownership_mode": row.ownership_mode,
+        }
+    )
 
 
 def _current_catalysts(

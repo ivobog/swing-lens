@@ -20,9 +20,15 @@ from app.services.market_calculation_context_service import (
     reserve_preflight_market_context,
 )
 from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.setup_lifecycle.decision_manifest import (
+    build_transition_decision_manifest,
+    candidate_type_for,
+)
 from app.services.setup_lifecycle.transition_candidate_service import (
     TransitionCandidateDiscoveryService,
     TransitionCandidateResult,
+    _prospective_inputs_are_complete,
+    _technical_reconstruction_fingerprint,
     aggregate_evidence_fingerprint,
 )
 
@@ -144,6 +150,8 @@ def create_transition_preflight_plan(
                 ),
                 "technical_reconstruction_fingerprint": (row.technical_reconstruction_fingerprint),
                 "evidence_fingerprint": row.evidence_fingerprint,
+                "decision_manifest": row.decision_manifest,
+                "decision_manifest_fingerprint": row.decision_manifest_fingerprint,
             }
             for row in results
         },
@@ -250,11 +258,140 @@ def verify_transition_preflight_for_enqueue(
             expected_fingerprint=plan.technical_reconstruction_fingerprint,
             actual_fingerprint=observed_technical,
         )
+    expected_manifests = {
+        ticker: values.get("decision_manifest_fingerprint")
+        for ticker, values in plan.predicted_snapshot_identities_json.items()
+    }
+    observed_manifests = {row.ticker: row.decision_manifest_fingerprint for row in results}
+    if observed_manifests != expected_manifests:
+        raise _rejection(
+            plan,
+            code="DECISION_MANIFEST_MISMATCH",
+            category="decision_manifest",
+            message="semantic decision manifest changed after preflight",
+            expected_fingerprint=CanonicalEvidenceSerializer.fingerprint(expected_manifests),
+            actual_fingerprint=CanonicalEvidenceSerializer.fingerprint(observed_manifests),
+        )
     if not results or not any(row.confidence == "HIGH" for row in results):
         raise TransitionPreflightError(
             "STALE_PREFLIGHT", "candidate set no longer contains a HIGH result"
         )
     return VerifiedTransitionPreflight(plan, market_cutoff, tuple(results))
+
+
+def verify_transition_decision_manifests_before_mutation(
+    db: Session,
+    *,
+    upload_run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+    built_rows,
+    repository,
+) -> None:
+    """Fail atomically if production inputs differ from the consumed preflight."""
+
+    plan = db.scalar(
+        select(TransitionPreflightPlan)
+        .where(
+            TransitionPreflightPlan.market_calculation_context_id == market_cutoff.context_id,
+            TransitionPreflightPlan.upload_run_id == upload_run_id,
+            TransitionPreflightPlan.status == "CONSUMED",
+        )
+        .with_for_update()
+    )
+    if plan is None:
+        return
+
+    expected_rows = plan.predicted_snapshot_identities_json or {}
+    expected_tickers = set(plan.tickers_json or ())
+    actual = reconstruct_transition_decision_manifests(
+        db,
+        market_cutoff=market_cutoff,
+        built_rows=built_rows,
+        repository=repository,
+        tickers=expected_tickers,
+    )
+    expected = {
+        ticker: {
+            "decision_manifest": values.get("decision_manifest"),
+            "decision_manifest_fingerprint": values.get("decision_manifest_fingerprint"),
+        }
+        for ticker, values in expected_rows.items()
+        if ticker in expected_tickers
+    }
+    if actual != expected or set(actual) != expected_tickers:
+        differing = sorted(
+            ticker
+            for ticker in expected_tickers | set(actual)
+            if actual.get(ticker) != expected.get(ticker)
+        )
+        raise _rejection(
+            plan,
+            code="DECISION_MANIFEST_MISMATCH",
+            category="production_execution_manifest",
+            message=(
+                "production lifecycle inputs differ from the immutable preflight manifest; "
+                f"tickers={','.join(differing)}"
+            ),
+            expected_fingerprint=CanonicalEvidenceSerializer.fingerprint(expected),
+            actual_fingerprint=CanonicalEvidenceSerializer.fingerprint(actual),
+        )
+
+
+def reconstruct_transition_decision_manifests(
+    db: Session,
+    *,
+    market_cutoff: MarketCalculationCutoff,
+    built_rows,
+    repository,
+    tickers: set[str] | None = None,
+) -> dict[str, dict[str, object]]:
+    """Reconstruct the exact manifest consumed by lifecycle persistence."""
+
+    discovery = TransitionCandidateDiscoveryService(repository=repository)
+    actual: dict[str, dict[str, object]] = {}
+    for ticker_context, built in built_rows:
+        if tickers is not None and ticker_context.ticker not in tickers:
+            continue
+        latest_pointer, exact_pointer, latest_revision, exact_revision = discovery._pointers(
+            db,
+            ticker=built.dto.ticker,
+            timeframe=built.dto.timeframe,
+            data_as_of_date=built.dto.data_as_of_date,
+        )
+        assessed = discovery.assess(
+            built,
+            prospective=market_cutoff,
+            latest_pointer=latest_pointer,
+            exact_pointer=exact_pointer,
+            all_required_pit_inputs=_prospective_inputs_are_complete(
+                ticker_context, built, market_cutoff
+            ),
+            latest_pointer_revision=latest_revision,
+            exact_pointer_revision=exact_revision,
+        )
+        technical_fingerprint = _technical_reconstruction_fingerprint(
+            ticker_context.technical_score
+        )
+        manifest = build_transition_decision_manifest(
+            built=built,
+            context=ticker_context,
+            market_cutoff=market_cutoff,
+            technical_reconstruction_fingerprint=technical_fingerprint,
+            current_pointer_snapshot_id=assessed.current_pointer_snapshot_id,
+            current_pointer_revision=assessed.expected_latest_pointer_revision,
+            exact_pointer_snapshot_id=assessed.expected_exact_pointer_snapshot_id,
+            exact_pointer_revision=assessed.expected_exact_pointer_revision,
+            candidate_type=candidate_type_for(assessed),
+            candidate_reason=assessed.reason,
+            candidate_confidence=assessed.confidence,
+            predicted_pointer_advance=assessed.predicted_pointer_advance,
+            predicted_current_state_advance=assessed.predicted_current_state_advance,
+        )
+        actual[ticker_context.ticker] = {
+            "decision_manifest": manifest.as_dict(),
+            "decision_manifest_fingerprint": manifest.fingerprint,
+        }
+    return actual
 
 
 def consume_transition_preflight(

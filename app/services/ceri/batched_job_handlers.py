@@ -20,6 +20,7 @@ from app.services.background_job_service import (
     record_job_progress,
 )
 from app.services.background_worker import CancelRequested, JobDeferred
+from app.services.ceri.artifact_lineage import CeriArtifactOwnership
 from app.services.ceri.batched_workflow import (
     CERI_FEATURE_BATCH,
     CERI_NORMALIZE_BATCH,
@@ -255,6 +256,16 @@ def execute_feature_batch_job(
     if not ceri_flags().enabled:
         return _skipped(CERI_FEATURE_BATCH, "ceri_disabled")
     payload = job.payload_json or {}
+    missing_context = [
+        key
+        for key in ("calculation_context_id", "cutoff_at", "as_of_session", "calendar_version")
+        if payload.get(key) in (None, "")
+    ]
+    if missing_context:
+        raise ValueError(
+            "Pipeline-owned CERI feature job is missing frozen context fields: "
+            + ", ".join(missing_context)
+        )
     workflow_key = _workflow_key(job, payload)
     _require_terminal_stage(
         db,
@@ -283,6 +294,9 @@ def execute_feature_batch_job(
                 mode="AS_KNOWN",
                 as_of_session=_optional_date(payload.get("as_of_session")),
                 cutoff_at=_optional_datetime(payload.get("cutoff_at")),
+                calculation_context_id=int(payload["calculation_context_id"]),
+                calendar_version=str(payload["calendar_version"]),
+                ownership_mode=CeriArtifactOwnership.PIPELINE.value,
             ),
         )
     failed = 0
@@ -296,10 +310,17 @@ def execute_feature_batch_job(
             db,
             job_type=CERI_FEATURE_BATCH,
             request_key=processing_key,
-            scope={"ticker": ticker, "run_id": job.related_run_id},
+            scope={
+                "ticker": ticker,
+                "run_id": job.related_run_id,
+                "calculation_context_id": int(payload["calculation_context_id"]),
+                "as_of_session": payload["as_of_session"],
+                "calendar_version": payload["calendar_version"],
+            },
             config_version=config.engine.config_version,
             config_hash=config.config_hash,
             actor=None,
+            cutoff_at=_optional_datetime(payload.get("cutoff_at")),
         )
         if processing.status in {"COMPLETED", "PARTIAL"}:
             values = {
@@ -317,6 +338,9 @@ def execute_feature_batch_job(
                     mode="AS_KNOWN",
                     as_of_session=_optional_date(payload.get("as_of_session")),
                     cutoff_at=_optional_datetime(payload.get("cutoff_at")),
+                    calculation_context_id=int(payload["calculation_context_id"]),
+                    calendar_version=str(payload["calendar_version"]),
+                    ownership_mode=CeriArtifactOwnership.PIPELINE.value,
                 ),
                 processing_run=processing,
                 **({"batch_context": batch_context} if batch_context is not None else {}),

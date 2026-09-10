@@ -18,10 +18,15 @@ from app.services.market_calculation_context_service import (
 )
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.setup_lifecycle.canonicalization import select_canonical_snapshot
+from app.services.setup_lifecycle.decision_manifest import (
+    build_transition_decision_manifest,
+    candidate_type_for,
+)
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.snapshot_builder import (
     BuiltSnapshot,
     SetupLifecycleSnapshotBuilder,
+    build_run_context_snapshots,
 )
 from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
 from app.services.technical_score_service import preview_run_technicals
@@ -49,6 +54,8 @@ class TransitionCandidateResult:
     expected_latest_pointer_revision: int | None = None
     technical_reconstruction_fingerprint: str = ""
     evidence_fingerprint: str = ""
+    decision_manifest: dict[str, object] | None = None
+    decision_manifest_fingerprint: str = ""
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -76,6 +83,8 @@ class TransitionCandidateResult:
             "expected_latest_pointer_revision": self.expected_latest_pointer_revision,
             "technical_reconstruction_fingerprint": (self.technical_reconstruction_fingerprint),
             "evidence_fingerprint": self.evidence_fingerprint,
+            "decision_manifest": self.decision_manifest,
+            "decision_manifest_fingerprint": self.decision_manifest_fingerprint,
         }
 
 
@@ -126,14 +135,23 @@ class TransitionCandidateDiscoveryService:
         )
         preview_by_ticker = {row.ticker.upper(): row for row in preview_scores}
         results: list[TransitionCandidateResult] = []
+        preview_contexts = []
         for ticker_context in context.tickers:
             if requested is not None and ticker_context.ticker not in requested:
                 continue
-            ticker_context = replace(
-                ticker_context,
-                technical_score=preview_by_ticker.get(ticker_context.ticker),
+            preview_contexts.append(
+                replace(
+                    ticker_context,
+                    technical_score=preview_by_ticker.get(ticker_context.ticker),
+                )
             )
-            built = self.snapshot_builder.build(ticker_context)
+        preview_run_context = replace(context, tickers=tuple(preview_contexts))
+        for ticker_context, built in build_run_context_snapshots(
+            db,
+            preview_run_context,
+            builder=self.snapshot_builder,
+            repository=self.repository,
+        ):
             latest_pointer, exact_pointer, latest_revision, exact_revision = self._pointers(
                 db,
                 ticker=built.dto.ticker,
@@ -156,17 +174,37 @@ class TransitionCandidateDiscoveryService:
             technical_fingerprint = _technical_reconstruction_fingerprint(
                 ticker_context.technical_score
             )
+            assessed = replace(
+                assessed,
+                technical_reconstruction_fingerprint=technical_fingerprint,
+                evidence_fingerprint=_candidate_evidence_fingerprint(
+                    assessed,
+                    built=built,
+                    context=ticker_context,
+                    prospective=prospective,
+                    technical_fingerprint=technical_fingerprint,
+                ),
+            )
+            manifest = build_transition_decision_manifest(
+                built=built,
+                context=ticker_context,
+                market_cutoff=prospective,
+                technical_reconstruction_fingerprint=technical_fingerprint,
+                current_pointer_snapshot_id=assessed.current_pointer_snapshot_id,
+                current_pointer_revision=assessed.expected_latest_pointer_revision,
+                exact_pointer_snapshot_id=assessed.expected_exact_pointer_snapshot_id,
+                exact_pointer_revision=assessed.expected_exact_pointer_revision,
+                candidate_type=candidate_type_for(assessed),
+                candidate_reason=assessed.reason,
+                candidate_confidence=assessed.confidence,
+                predicted_pointer_advance=assessed.predicted_pointer_advance,
+                predicted_current_state_advance=assessed.predicted_current_state_advance,
+            )
             results.append(
                 replace(
                     assessed,
-                    technical_reconstruction_fingerprint=technical_fingerprint,
-                    evidence_fingerprint=_candidate_evidence_fingerprint(
-                        assessed,
-                        built=built,
-                        context=ticker_context,
-                        prospective=prospective,
-                        technical_fingerprint=technical_fingerprint,
-                    ),
+                    decision_manifest=manifest.as_dict(),
+                    decision_manifest_fingerprint=manifest.fingerprint,
                 )
             )
         return results

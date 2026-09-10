@@ -22,6 +22,7 @@ from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
 from app.services.background_worker import CancelRequested
 from app.services.ceri.alert_service import CeriAlertService
+from app.services.ceri.artifact_lineage import CeriArtifactOwnership
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.capture_service import CeriRunCaptureService
 from app.services.ceri.change_rebuild_service import (
@@ -227,6 +228,18 @@ def execute_rebuild_features_job(
     if not ceri_flags().enabled:
         return _skipped_job(CERI_REBUILD_FEATURES, "ceri_disabled")
     payload = job.payload_json or {}
+    pipeline_owned = _is_pipeline_owned_ceri_job(job, payload)
+    if pipeline_owned:
+        missing_context = [
+            key
+            for key in ("calculation_context_id", "cutoff_at", "as_of_session", "calendar_version")
+            if payload.get(key) in (None, "")
+        ]
+        if missing_context:
+            raise ValueError(
+                "Pipeline-owned CERI feature job is missing frozen context fields: "
+                + ", ".join(missing_context)
+            )
     processing, created = _processing_run(
         db,
         CERI_REBUILD_FEATURES,
@@ -262,6 +275,15 @@ def execute_rebuild_features_job(
             to_session=_optional_date(payload.get("to_session")),
             run_id=_optional_int(payload.get("run_id")),
             mode=str(payload.get("mode") or "AS_KNOWN"),
+            calculation_context_id=_optional_int(payload.get("calculation_context_id")),
+            calendar_version=(
+                str(payload["calendar_version"]) if payload.get("calendar_version") else None
+            ),
+            ownership_mode=(
+                CeriArtifactOwnership.PIPELINE.value
+                if pipeline_owned
+                else CeriArtifactOwnership.STANDALONE.value
+            ),
         ),
         processing_run=processing,
     )

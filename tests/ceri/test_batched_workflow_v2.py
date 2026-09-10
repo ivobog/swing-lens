@@ -61,21 +61,30 @@ def test_402_ticker_plan_is_deterministic_bounded_and_under_sanity_target() -> N
     assert plan.initial_job_count == 114
     assert plan.expected_total_job_count == 117
     assert plan.expected_total_job_count < 150
-    assert max(
-        len(spec.payload["tickers"])
-        for spec in plan.jobs
-        if spec.job_type == CERI_PROVIDER_INGEST_BATCH
-    ) == 25
-    assert max(
-        len(spec.payload["tickers"])
-        for spec in plan.jobs
-        if spec.job_type == CERI_NORMALIZE_BATCH
-    ) == 50
-    assert max(
-        len(spec.payload["tickers"])
-        for spec in plan.jobs
-        if spec.job_type == CERI_FEATURE_BATCH
-    ) == 50
+    assert (
+        max(
+            len(spec.payload["tickers"])
+            for spec in plan.jobs
+            if spec.job_type == CERI_PROVIDER_INGEST_BATCH
+        )
+        == 25
+    )
+    assert (
+        max(
+            len(spec.payload["tickers"])
+            for spec in plan.jobs
+            if spec.job_type == CERI_NORMALIZE_BATCH
+        )
+        == 50
+    )
+    assert (
+        max(
+            len(spec.payload["tickers"])
+            for spec in plan.jobs
+            if spec.job_type == CERI_FEATURE_BATCH
+        )
+        == 50
+    )
     assert sum(spec.job_type == CERI_RUN_FINALIZE for spec in plan.jobs) == 1
 
 
@@ -355,6 +364,7 @@ def test_sec_readiness_coverage_requires_current_signature_per_ticker() -> None:
     assert coverage.missing_tickers == ("AMZN", "MISS")
     assert coverage.missing_ciks == ("0001018724",)
 
+
 def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch) -> None:
     monkeypatch.setattr(
         batched_job_handlers,
@@ -421,6 +431,10 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
             "run_id": 95,
             "tickers": ["T0", "T1", "T2"],
             "expected_normalization_batches": 1,
+            "calculation_context_id": 6,
+            "cutoff_at": "2026-09-10T08:13:04.357207Z",
+            "as_of_session": "2026-09-09",
+            "calendar_version": "swinglens-us-equities-v1",
         },
         operational_metadata_json={
             "ceri_batch": {
@@ -498,6 +512,10 @@ def test_feature_batch_cancellation_never_checkpoints_unfinished_ticker(monkeypa
             "run_id": 95,
             "tickers": ["T1", "T2"],
             "expected_normalization_batches": 1,
+            "calculation_context_id": 6,
+            "cutoff_at": "2026-09-10T08:13:04.357207Z",
+            "as_of_session": "2026-09-09",
+            "calendar_version": "swinglens-us-equities-v1",
         },
         operational_metadata_json={},
     )

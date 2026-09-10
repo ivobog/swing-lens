@@ -1139,6 +1139,7 @@ def _score_tickers_process_pool(
             settings=settings,
             feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
+            market_cutoff=market_cutoff,
         )
 
     operational_metrics.increment(
