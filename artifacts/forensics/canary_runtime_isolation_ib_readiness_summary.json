@@ -1,0 +1,215 @@
+{
+  "timestamp": "2026-09-10T16:19:52Z",
+  "branch": "codex/canary-runtime-isolation-ib-readiness",
+  "baseline_head": "c706821afeb4187826f5b93873bd8e96cf82ca55",
+  "certified_implementation_ancestor": "d5accbf70fcd0c5e7244a7ab05eb20f62f2ffb60",
+  "final_head": "3ec207614bfc364a32548fe5471c30968bb222f3",
+  "production_alembic_head": "0072_ceri_artifact_context_lineage",
+  "migration_required": false,
+  "winner_job_42981_root_cause": "The normal durable worker invoked schedule_primary_h5_maturation before every claim because winner auto maturation was enabled. No certification runtime or scheduler/enqueue/claim isolation existed, so the missing per-session request key allowed a SCHEDULER WINNER_OUTCOME_MATURATION root. Its executor created processing run 9999 but found zero eligible due rows and completed NO_WORK_REMAINING with zero material evidence changes.",
+  "automatic_workflows_audited": [
+    "winner_primary_h5_maturation",
+    "winner_cohort_refresh",
+    "winner_latest_rescore",
+    "winner_prediction_capture",
+    "winner_revision_backfill_training_and_cache_jobs",
+    "ceri_provider_normalize_feature_capture_change_alert_chain",
+    "ceri_admin_backfill_repair_and_purge",
+    "market_data_prewarm",
+    "provider_prefetch",
+    "cache_refresh",
+    "durable_evidence_retention",
+    "retry_and_due_work_claim",
+    "continuation_jobs",
+    "startup_abandoned_and_stale_recovery",
+    "embedded_worker",
+    "durable_worker",
+    "worker_supervisor",
+    "web_resource_database_samplers_and_heartbeats"
+  ],
+  "certification_runtime_mode": "CERTIFICATION",
+  "certification_allowed_activity": [
+    "web_runtime",
+    "worker_registration",
+    "worker_heartbeat",
+    "worker_control_loop_heartbeat",
+    "supervisor_heartbeat",
+    "transition_preflight_read_and_lock",
+    "explicit_authorized_FULL_PIPELINE_root_with_transition_plan_id",
+    "authorized_root_correlation_lineage_descendants"
+  ],
+  "certification_disabled_workflows": [
+    "winner_primary_h5_maturation",
+    "winner_cohort_refresh",
+    "winner_latest_rescore",
+    "winner_prediction_capture_unless_authorized_pipeline_descendant",
+    "ceri_unrelated_background_work",
+    "market_data_prewarm",
+    "provider_prefetch",
+    "cache_refresh",
+    "durable_evidence_retention",
+    "stale_job_recovery",
+    "unrelated_retry_and_continuation_claims"
+  ],
+  "conflicting_configuration_behavior": "FAIL_STARTUP_EXPLICIT_VALIDATION_ERROR",
+  "startup_cycles_tested": 10,
+  "startup_unrelated_jobs_created": 0,
+  "startup_unrelated_jobs_executed": 0,
+  "scheduler_isolation_passed": true,
+  "explicit_authorized_work_enqueueable": true,
+  "due_work_isolation": {
+    "winner_maturation": "QUEUED_UNCLAIMED_OR_NOT_SCHEDULED",
+    "winner_cohort_refresh": "QUEUED_UNCLAIMED",
+    "winner_rescore": "QUEUED_UNCLAIMED",
+    "ceri_background": "QUEUED_UNCLAIMED",
+    "prewarm": "QUEUED_UNCLAIMED",
+    "retryable_unrelated": "QUEUED_UNCLAIMED",
+    "stale_continuation": "QUEUED_UNCLAIMED_NOT_RECOVERED"
+  },
+  "ib_readiness_states": [
+    "IB_PROCESS_NOT_RUNNING",
+    "IB_PROCESS_RUNNING_API_NOT_READY",
+    "IB_API_READY",
+    "IB_SESSION_LOST",
+    "CONFIG_ERROR"
+  ],
+  "ib_api_ready_contract": [
+    "configured_host_and_port_connect_read_only",
+    "ib_api_handshake_client_is_ready",
+    "positive_server_version",
+    "read_only_req_current_time_response",
+    "connection_still_live_at_probe_completion",
+    "clean_disconnect"
+  ],
+  "ib_probe_timeout": "3.0 seconds per bounded connect/request; no indefinite wait",
+  "ib_readiness_freshness_policy": "A newly invoked full API probe at the pre-enqueue gate must remain IB_API_READY and no older than 5.0 seconds at the enqueue decision; startup READY is never reused.",
+  "ib_failure_injection_cases": [
+    "ready_at_startup_unavailable_before_enqueue",
+    "process_alive_login_or_api_incomplete",
+    "process_starts_then_api_becomes_ready",
+    "session_lost_during_smoke",
+    "timeout",
+    "client_id_conflict",
+    "freshness_expiry"
+  ],
+  "pre_enqueue_gate_checks": [
+    "run_owned_reserved_unexpired_preflight_plan",
+    "reserved_unowned_market_context",
+    "certification_runtime_active",
+    "exactly_one_live_full_pipeline_capable_durable_worker",
+    "fresh_worker_control_loop_heartbeat",
+    "zero_unrelated_runnable_or_scheduled_due_jobs",
+    "one_repository_alembic_head_equal_to_database",
+    "fresh_authoritative_IB_API_READY_probe",
+    "final_locked_decision_manifest_pointer_and_evidence_verification",
+    "atomic_plan_consume_context_bind_pipeline_and_root_job_create"
+  ],
+  "run_without_pipeline_classification": "VALID_AUDIT_RECORD",
+  "plan_abort_state_semantics": "RESERVED_REUSABLE_UNTIL_EXPIRY",
+  "context_abort_state_semantics": "RESERVED_UNOWNED_REUSABLE_WITH_PLAN",
+  "duplicate_action_behavior": "A consumed-plan retry returns the existing Pipeline before a new probe or artifact creation; operational rejection leaves the same active plan/context reusable until expiry.",
+  "production_clone_replay_cases": [
+    {
+      "case": "pre_remediation_winner_scheduler",
+      "result": "REPRODUCED",
+      "job_delta": 1,
+      "equivalent_job_id": 42982
+    },
+    {
+      "case": "post_remediation_certification_scheduler",
+      "result": "SUPPRESSED",
+      "job_delta": 0,
+      "unrelated_execution_delta": 0
+    },
+    {
+      "case": "process_running_api_not_ready",
+      "result": "IB_API_NOT_READY",
+      "pipeline_delta": 0,
+      "job_delta": 0
+    },
+    {
+      "case": "genuine_api_ready",
+      "result": "ENQUEUE_ALLOWED",
+      "pipeline_delta": 1,
+      "job_delta": 1,
+      "clone_pipeline_id": 146,
+      "clone_job_id": 42983,
+      "pipeline_executed": false
+    },
+    {
+      "case": "duplicate_consumed_plan_action",
+      "result": "COALESCED_TO_PIPELINE_146",
+      "duplicate_pipeline_delta": 0,
+      "duplicate_job_delta": 0
+    }
+  ],
+  "blocking_findings_found": 3,
+  "blocking_findings_fixed": 3,
+  "blocking_findings_remaining": 0,
+  "findings": [
+    "OPS-ISO-F001",
+    "OPS-IB-F001",
+    "OPS-GATE-F001",
+    "OPS-GATE-F002"
+  ],
+  "tests": {
+    "focused_runtime_ib_gate_service": {
+      "passed": 123,
+      "warnings": 1
+    },
+    "disposable_postgresql_certification_and_transition_preflight": {
+      "passed": 23,
+      "warnings": 24
+    },
+    "dedicated_certification_postgresql_integration": {
+      "passed": 2
+    },
+    "recorded_failure_recheck": {
+      "passed": 429,
+      "deselected": 25,
+      "warnings": 1
+    },
+    "full_non_slow": {
+      "passed": 2356,
+      "skipped": 9,
+      "deselected": 58,
+      "warnings": 23,
+      "exit_code": 0
+    },
+    "ruff_app_and_tests": "PASS",
+    "ruff_format_changed_python_files": "PASS_15_FILES",
+    "ruff_format_repository_legacy_baseline": "190_UNCHANGED_FILES_WOULD_REFORMAT",
+    "compileall_app_and_tests": "PASS",
+    "alembic_one_head": "PASS_0072_ceri_artifact_context_lineage",
+    "json_report_and_diff_validation": "PASS"
+  },
+  "production_read_only_baseline": {
+    "latest_run_id": 154,
+    "latest_pipeline_id": 145,
+    "latest_job_id": 42981,
+    "active_jobs": 0,
+    "queued_jobs": 0,
+    "retrying_jobs": 0,
+    "recovering_jobs": 0,
+    "scheduled_due_jobs": 0,
+    "plan_3_persisted_state": "RESERVED_BUT_TIME_EXPIRED",
+    "context_7_pipeline_id": null
+  },
+  "closing_runtime": {
+    "app_processes": 0,
+    "worker_processes": 0,
+    "supervisor_processes": 0,
+    "port_8000_listeners": 0,
+    "ib_state": "IB_API_READY",
+    "ib_server_version": 176,
+    "ib_smoke_response_received": true,
+    "ib_checked_at": "2026-09-10T17:07:36.074698Z",
+    "ib_latency_ms": 419
+  },
+  "production_business_writes": false,
+  "production_pipeline_run": false,
+  "live_canary_run": false,
+  "historical_repair": false,
+  "merge_performed": false,
+  "safe_for_one_final_live_dual_mode_canary": true
+}
