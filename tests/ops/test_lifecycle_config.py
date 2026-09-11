@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from app.settings import Settings
@@ -34,7 +36,10 @@ def test_lifecycle_config_uses_exact_pydantic_dotenv_semantics(
     provenance = report["provenance"]["DATABASE_URL"]
     assert provenance["value"].startswith("postgresql+psycopg://127.0.0.1:5432/")
     assert "postgres:postgres" not in provenance["value"].lower()
-    assert provenance["source"] in {".env", "application default"}
+    if "DATABASE_URL" in os.environ:
+        assert provenance["source"] == "process environment"
+    else:
+        assert provenance["source"] in {".env", "application default"}
 
 
 def test_metrics_ports_and_disabled_state_come_from_canonical_settings(monkeypatch) -> None:

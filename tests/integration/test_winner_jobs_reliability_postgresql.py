@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import app.routers.winner_probability_routes as winner_routes
+import app.services.winner_probability.api_service as winner_api_service
 from app.db import get_db
 from app.main import create_app
 from app.models.tables import (
@@ -212,7 +213,13 @@ def test_estimate_lifecycle_is_persisted_and_candidates_are_not_serving(
 
 def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_old_rows(
     disposable_postgres_database: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This fixture constructs and publishes a v2 cohort explicitly. Keep the API
+    # read path in that same mode regardless of the developer or CI .env that
+    # happened to initialize the process-wide settings cache first.
+    api_settings = Settings(_env_file=None, winner_cohort_refresh_v2_enabled=True)
+    monkeypatch.setattr(winner_api_service, "get_settings", lambda: api_settings)
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     observed = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)

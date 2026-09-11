@@ -6,7 +6,7 @@ import re
 import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import psutil
@@ -74,9 +74,9 @@ def verify_postgres_provenance(
         raise LifecycleConflict("PostgreSQL listener ownership is missing or ambiguous")
     listener_pid = int(owners[0].get("pid") or 0)
     listener = processes.get(listener_pid)
-    if listener is None or Path(str(listener.get("executable", ""))).name.lower() != "postgres.exe":
+    if listener is None or _executable_name(listener.get("executable")).lower() != "postgres.exe":
         raise LifecycleConflict("configured PostgreSQL port is not owned by postgres.exe")
-    expected_listener = Path(expected.service_executable).with_name("postgres.exe")
+    expected_listener = _sibling_executable(expected.service_executable, "postgres.exe")
     if normalize_path(listener.get("executable")) != normalize_path(expected_listener):
         raise LifecycleConflict("PostgreSQL listener executable does not match configured install")
     if not listener.get("createdAt"):
@@ -98,6 +98,20 @@ def verify_postgres_provenance(
         "host": database.get("host"),
         "port": port,
     }
+
+
+def _executable_name(value: str | Path | None) -> str:
+    """Extract a process image name independent of the current host's path flavor."""
+    rendered = os.fspath(value) if value is not None else ""
+    path_type = PureWindowsPath if "\\" in rendered else Path
+    return path_type(rendered).name
+
+
+def _sibling_executable(value: str | Path, name: str) -> str:
+    """Replace an executable name while preserving Windows paths on POSIX CI."""
+    rendered = os.fspath(value)
+    path_type = PureWindowsPath if "\\" in rendered else Path
+    return str(path_type(rendered).with_name(name))
 
 
 def _descends_from(pid: int, ancestor_pid: int, processes: dict[int, dict[str, Any]]) -> bool:
