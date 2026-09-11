@@ -17,9 +17,9 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
-          POSTGRES_DB: postgres
+          POSTGRES_DB: swinglens_ci_main
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
         ports:
@@ -31,8 +31,9 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_ci_main
       SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
 
     steps:
       - name: Check out repository
@@ -112,9 +113,9 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
-          POSTGRES_DB: postgres
+          POSTGRES_DB: swinglens_ci_browser
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
         ports:
@@ -126,8 +127,9 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_ci_browser
       SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
 
     steps:
       - name: Check out repository
@@ -202,6 +204,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
       SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

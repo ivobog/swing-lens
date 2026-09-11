@@ -5,16 +5,18 @@ data-recovery risk. Keep notes with timestamps, command output, backup IDs, and 
 
 ## Readiness Degraded
 
-1. Open `http://127.0.0.1:8000/ready`.
-2. Inspect the failing `checks` entry.
-3. If `database` fails, run `Get-Service postgresql-x64-18`, verify the sanitized endpoint with
+1. Run `pwsh .\swinglens.ps1 diagnose` before changing runtime state; retain the reported bundle.
+2. Compare `http://127.0.0.1:8000/ready/core` with `http://127.0.0.1:8000/ready`.
+   Core failure is a lifecycle incident; application-only failure is degraded capability.
+3. Inspect the failing `checks` entry and its stable lifecycle reason code.
+4. If `database` fails, run `Get-Service postgresql-x64-18`, verify the sanitized endpoint with
    `pwsh .\swinglens.ps1 status`, and inspect the local Windows PostgreSQL logs. Docker PostgreSQL
    is disposable test infrastructure and is not a production troubleshooting target.
-4. If `migrations` fails, stop writes and run `uv run alembic current` and `uv run alembic heads`.
-5. If `storage` fails, verify permissions on `UPLOAD_DIR`, `EXPORT_DIR`, and `CACHE_DIR`.
-6. If `worker` fails, inspect the supervisor event and durable job state; the supervisor fences
+5. If `migrations` fails, stop writes and run `uv run alembic current` and `uv run alembic heads`.
+6. If `storage` fails, verify permissions on `UPLOAD_DIR`, `EXPORT_DIR`, and `CACHE_DIR`.
+7. If `worker` fails, inspect the supervisor event and durable job state; the supervisor fences
    the former owner, requeues from checkpoint, and starts a replacement worker automatically.
-7. If `jobs` fails, follow the stale-job runbook below.
+8. If `jobs` fails, follow the stale-job runbook below.
 
 ## Stale Or Failed Jobs
 
@@ -28,8 +30,8 @@ data-recovery risk. Keep notes with timestamps, command output, backup IDs, and 
    limit 50;
    ```
 
-3. Run `pwsh .\swinglens.ps1 status`. The web-owned supervisor must be present; never start an
-   independent supervisor manually.
+3. Run `pwsh .\swinglens.ps1 status`. The supervisor must be the single root owner of web and
+   durable-worker children; never start an independent supervisor or alternate ownership tree.
 4. Let normal stale-job recovery requeue expired leases.
 5. For repeated failures, preserve the job row, redacted `error_message`, and related run ID before
    retrying manually.

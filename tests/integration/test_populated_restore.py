@@ -559,6 +559,9 @@ def _readiness_settings(tmp_path: Path, database_url: str) -> Settings:
         cache_dir=tmp_path / "cache",
         job_worker_enabled=True,
         use_durable_pipeline=True,
+        observability_metrics_enabled=False,
+        observability_disk_warning_percent=0,
+        observability_disk_critical_percent=0,
     )
 
 

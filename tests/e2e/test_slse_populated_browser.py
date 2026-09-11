@@ -15,6 +15,7 @@ from app.models.tables import (
     SetupLifecycleEvaluationRun,
     SetupLifecycleEvent,
     SetupSignalSnapshot,
+    SetupSignalSnapshotCurrentSelection,
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
@@ -57,6 +58,14 @@ def test_populated_market_changes_and_alert_center_contract(
     with Session(engine) as db:
         db.get(SetupSignalSnapshot, current_snapshot_id).is_canonical = False
         db.get(SetupLifecycleEvent, lifecycle_event_id).is_current_version = False
+        current_selection = db.scalar(
+            select(SetupSignalSnapshotCurrentSelection).where(
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id
+                == current_snapshot_id
+            )
+        )
+        assert current_selection is not None
+        db.delete(current_selection)
         db.commit()
 
     page.goto(
@@ -161,6 +170,19 @@ def _seed_vertical_fixture(db: Session) -> tuple[int, int, int]:
     current = _snapshot(date(2026, 8, 10), Decimal("8.1"), 5, evaluation.id, 2, source_run.id)
     db.add_all([previous, current])
     db.flush()
+    db.add(
+        SetupSignalSnapshotCurrentSelection(
+            ticker=current.ticker,
+            timeframe=current.timeframe,
+            data_as_of_date=current.data_as_of_date,
+            selected_snapshot_id=current.id,
+            selected_run_id=source_run.id,
+            selected_evaluation_run_id=evaluation.id,
+            revision=1,
+            selection_reason="browser-fixture",
+            selection_decision_json={"source": "test"},
+        )
+    )
     episode = SetupLifecycleEpisode(
         ticker="FIX",
         timeframe="1d",

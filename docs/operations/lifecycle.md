@@ -1,90 +1,84 @@
-# Unified Local Lifecycle
+# Unified local lifecycle
 
-SwingLens has one daily operator interface:
+SwingLens has one NORMAL operator entry point:
 
 ```powershell
 pwsh .\swinglens.ps1 start
 pwsh .\swinglens.ps1 status
+pwsh .\swinglens.ps1 status -Json
+pwsh .\swinglens.ps1 diagnose
 pwsh .\swinglens.ps1 restart
 pwsh .\swinglens.ps1 stop
 ```
 
-## Ownership model
+The canonical ownership tree is `lifecycle controller -> app.worker_supervisor -> app.serve +
+app.worker`. See [the ownership decision](../architecture/runtime_process_ownership.md). Do not
+start a second supervisor or use the web process as a supervisor owner.
 
-PowerShell 7.4 or newer is required. Python/Pydantic is the only `.env` parser. The database selected
-by the effective `DATABASE_URL` must also match the configured service name, major version, service
-executable, SQL-reported data directory, database name, listener PID/creation time/executable, and
-listener-to-service process ancestry. If any signal is missing or ambiguous, the lifecycle reports
-`CONFLICT` and does not run Alembic or control PostgreSQL.
+## Start and runtime reuse
 
-The normal process tree is:
+PowerShell obtains Pydantic-parsed configuration and sanitized source provenance from the Python
+probe. Canonical durable startup forces `DURABLE_WORKER_PROCESS_ENABLED=true`,
+`EMBEDDED_JOB_WORKER_ENABLED=false`, and legacy `JOB_WORKER_ENABLED=false`. Contradictory raw
+configuration fails before launch.
 
-```text
-app.serve (JOB_WORKER_ENABLED=true)
-  -> SupervisorProcessManager
-     -> app.worker_supervisor
-        -> app.worker (JOB_WORKER_ENABLED=false)
-```
+With `AUTHORITATIVE_LOCAL`, the selected database must match its loopback endpoint, configured
+database name, PostgreSQL major, exact Windows service and executable, SQL data directory, listener
+PID/executable, and listener/service ancestry. Only after that proof may Alembic run under the
+repository lifecycle lock and PostgreSQL advisory lock.
 
-Do not manually start a second supervisor.
+The desired generation fingerprint covers Git SHA, normalized checkout, Python executable, runtime
+mode, topology version, sanitized database endpoint and verified identity, repository Alembic heads,
+critical configuration, ports, and worker modes. An active runtime is reused only when its exact
+process tree, database/schema checks, and fingerprint match. A same-Git mismatch returns
+`RESTART_REQUIRED`; migrations never run underneath an active runtime.
 
-Docker is an optional observability dependency only. Normal commands use exactly
-`docker-compose.observability.yml` for Prometheus and Grafana. Docker Desktop itself is never
-stopped. If Docker is unavailable, healthy core services remain running and overall status is
-`DEGRADED`.
+Start waits on `GET /ready/core`. Prometheus and Grafana are optional: their failure leaves a
+core-ready runtime running and produces `DEGRADED`.
 
-## Start
+## Readiness contracts
 
-`start` obtains sanitized configuration from the Python lifecycle probe. It reuses a strongly
-identified runtime at the same Git commit without migrating under it. Otherwise it proves database
-provenance, then runs bounded Alembic under both the full lifecycle mutex and a PostgreSQL advisory
-migration lock. `app.serve` independently verifies the database, the complete Alembic head set, and
-local storage before Uvicorn binds.
+- `/health`: web-process liveness only.
+- `/ready/core`: database safety/provenance, Alembic heads, storage, canonical supervisor/web/worker
+  identities and parentage, fresh registrations, and mandatory listener identities.
+- `/ready`: comprehensive application-operational state, including queues, telemetry, collectors,
+  providers, and optional integrations.
 
-Port 8000 is handled idempotently. A verified healthy SwingLens process is reused. A verified but
-unhealthy SwingLens process is reported without being killed by `start`. A foreign listener causes
-`CONFLICT` with its PID and process name.
+A historical recovery, unavailable optional provider, telemetry loss, queue pressure, or Docker
+failure does not turn a valid runtime tree into a startup failure. `status` reports CORE,
+APPLICATION, and OBSERVABILITY separately; non-core trouble is `DEGRADED`.
 
-After core readiness, the lifecycle verifies that `GRAFANA_ADMIN_PASSWORD` exists without printing
-it, starts only the observability Compose file, checks Prometheus and Grafana, and expects the
-`swinglens-web`, `swinglens-worker`, and `swinglens-supervisor` targets to be 3/3 UP.
+## Stop, restart, and active leases
 
-## Stop and restart
+Stop requests durable quiescence and classifies `RUNNING` and `RECOVERING` rows. A fresh execution
+lease or fresh recovery owner fails closed with `ACTIVE_LEASE_BLOCKS_STOP` and reports job ID/type,
+owner, lease expiry, heartbeat/update age, and blocking reason. Stale rows are diagnosed but never
+mutated merely to permit shutdown.
 
-`stop` first writes a durable quiesce request. Every claim transaction locks and checks that same
-worker registration row, so acknowledgement means no later job can become `RUNNING`. It then
-re-checks `RUNNING` and `RECOVERING` leases. `QUEUED`, future-scheduled, `BLOCKED`, and `STALLED` jobs
-may remain durable. An active lease aborts stop and clears quiesce. Process signaling requires PID,
-creation time, role/module, checkout path, runtime/registry instance identity, generation, and web
-listener ownership; the tuple is inspected again immediately before signaling. Metrics listeners
-are supplementary only and may be disabled or moved.
+Signals target only revalidated members of the recorded runtime generation and process tree. Stop
+then verifies WEB, SUPERVISOR, and DURABLE_WORKER are gone and ports 8000, 9101, and 9102 (when
+enabled) are released. It never kills Python or PostgreSQL by process name. `restart` uses one
+operation ID with explicit stop and start phases under the same repository lock.
 
-One repository-scoped Windows named mutex covers the entire `start`, `stop`, or `restart`
-transition, including stop-plus-start for restart. Acquisition is bounded by
-`SWINGLENS_LIFECYCLE_LOCK_TIMEOUT_SECONDS`.
+## Failure evidence and diagnosis
 
-Grafana and Prometheus are stopped individually through the observability Compose file. Their stop
-or start failures and bounded CLI timeouts are warnings and never prevent core restart recovery. The
-conservative default is `SWINGLENS_MANAGE_POSTGRES=false`, because a system-wide Windows service
-may be shared or require an elevated service-control token. With that setting, the exact service is
-reported but deliberately left running. Set `SWINGLENS_MANAGE_POSTGRES=true` only when full-stack
-service shutdown is wanted and the shell is authorized; the lifecycle then stops only the verified
-service through Windows service control. No database files or Docker volumes are deleted.
+Every invocation has a lifecycle operation ID. Supervisor, web, and worker logs also carry the
+runtime instance ID, Git SHA, and configuration fingerprint. Redacted lifecycle transitions are
+appended to `logs/lifecycle/lifecycle.jsonl`; lifecycle metric handoff is atomically persisted under
+`data/cache`.
 
-`restart` is the same `stop` implementation followed by the same `start` implementation.
+`diagnose` is read-only with respect to database and business state. It writes a sanitized bundle to
+`artifacts/diagnostics/lifecycle-<timestamp>-<operation-id>/` with process/listener evidence,
+configuration sources, database/schema provenance, registrations/jobs, readiness, observability
+health and actual Prometheus target results, redacted log tails, a summary, manifest, and SHA256
+checksums. It never migrates, launches, stops, enqueues, or runs a pipeline.
 
-## Status
+## Disposable databases
 
-`status` is read-only and reports core service/endpoint/schema/process health, Docker Engine,
-Prometheus, Grafana, and one of `HEALTHY`, `DEGRADED`, `FAILED`, `STOPPED`, or `CONFLICT`.
-Application readiness JSON, not HTTP status alone, determines core health. Exit codes are 0 for
-healthy/stopped-as-requested, 2 for degraded, and 1 for failed, conflict, or incomplete operations.
-Database credentials and the Grafana password are never emitted.
+CI and tests must explicitly set `SWINGLENS_DATABASE_SAFETY_CONTEXT=DISPOSABLE_TEST` and use an
+allowed disposable database prefix such as `swinglens_ci_` or `swinglens_pytest_`. NORMAL lifecycle
+sets `AUTHORITATIVE_LOCAL`. Neither context is inferred from CI/pytest, and disposable checks reject
+the active SwingLens database.
 
-## Disposable PostgreSQL Compose file
-
-`docker-compose.postgres-test.yml` is quarantined test infrastructure. It uses the separate Compose
-project `swinglens-postgres-test`, container `swinglens-postgres-test`, host port 5433, and database
-name `swinglens_disposable`. It is not used by CI, routine lifecycle, certification, backup, or
-restore. Use it only when explicitly creating isolated disposable test infrastructure, and never
-point the real SwingLens `DATABASE_URL` at it.
+The optional `docker-compose.postgres-test.yml` remains quarantined test infrastructure and is not
+used by NORMAL lifecycle.

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from urllib.request import urlopen
 
 import pytest
@@ -132,6 +133,7 @@ def test_postgresql_worker_registry_and_queue_allowlist(
 
 def test_external_worker_process_registers_and_stops_gracefully(
     disposable_postgres_database: str,
+    tmp_path: Path,
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
@@ -147,6 +149,10 @@ def test_external_worker_process_registers_and_stops_gracefully(
         "WORKER_MEMORY_TRACEMALLOC_ENABLED": "false",
     }
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+    worker_stdout_path = tmp_path / "external-worker.stdout.log"
+    worker_stderr_path = tmp_path / "external-worker.stderr.log"
+    worker_stdout = worker_stdout_path.open("w", encoding="utf-8")
+    worker_stderr = worker_stderr_path.open("w", encoding="utf-8")
     process = subprocess.Popen(
         [
             sys.executable,
@@ -159,20 +165,24 @@ def test_external_worker_process_registers_and_stops_gracefully(
         ],
         cwd=os.getcwd(),
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+        stdout=worker_stdout,
+        stderr=worker_stderr,
         creationflags=creationflags,
     )
     web_process = None
+    web_stdout = None
+    web_stderr = None
     try:
         try:
             worker = _wait_for_worker(engine, "process-worker")
         except AssertionError:
             if process.poll() is not None:
-                stdout, stderr = process.communicate(timeout=5)
+                worker_stdout.close()
+                worker_stderr.close()
                 pytest.fail(
-                    f"external worker exited before registration:\nstdout={stdout}\nstderr={stderr}"
+                    "external worker exited before registration:\n"
+                    f"stdout={worker_stdout_path.read_text(encoding='utf-8')}\n"
+                    f"stderr={worker_stderr_path.read_text(encoding='utf-8')}"
                 )
             raise
         assert worker.queues_json == ["interactive", "broker", "background"]
@@ -180,6 +190,8 @@ def test_external_worker_process_registers_and_stops_gracefully(
         first_heartbeat = worker.heartbeat_at
 
         port = _free_port()
+        web_stdout = (tmp_path / "external-web.stdout.log").open("w", encoding="utf-8")
+        web_stderr = (tmp_path / "external-web.stderr.log").open("w", encoding="utf-8")
         web_process = subprocess.Popen(
             [
                 sys.executable,
@@ -193,9 +205,8 @@ def test_external_worker_process_registers_and_stops_gracefully(
             ],
             cwd=os.getcwd(),
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+            stdout=web_stdout,
+            stderr=web_stderr,
         )
         _wait_for_url(f"http://127.0.0.1:{port}/health", process=web_process)
         web_process.terminate()
@@ -207,7 +218,18 @@ def test_external_worker_process_registers_and_stops_gracefully(
             process.send_signal(signal.CTRL_BREAK_EVENT)
         else:
             process.send_signal(signal.SIGTERM)
-        process.wait(timeout=15)
+        try:
+            process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=10)
+            worker_stdout.close()
+            worker_stderr.close()
+            pytest.fail(
+                "external worker did not stop after the shutdown signal:\n"
+                f"stdout_tail={worker_stdout_path.read_text(encoding='utf-8')[-4000:]}\n"
+                f"stderr_tail={worker_stderr_path.read_text(encoding='utf-8')[-8000:]}"
+            )
         with Session(engine) as db:
             stopped = db.get(BackgroundWorker, "process-worker")
             assert stopped is not None
@@ -219,6 +241,14 @@ def test_external_worker_process_registers_and_stops_gracefully(
         if process.poll() is None:
             process.kill()
             process.wait(timeout=10)
+        if not worker_stdout.closed:
+            worker_stdout.close()
+        if not worker_stderr.closed:
+            worker_stderr.close()
+        if web_stdout is not None and not web_stdout.closed:
+            web_stdout.close()
+        if web_stderr is not None and not web_stderr.closed:
+            web_stderr.close()
         engine.dispose()
 
 

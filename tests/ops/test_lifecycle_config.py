@@ -31,7 +31,10 @@ def test_lifecycle_config_uses_exact_pydantic_dotenv_semantics(
     assert lifecycle_probe._settings().app_name == expected
     report = lifecycle_probe._config_report()
     assert "postgres:postgres" not in str(report).lower()
-    assert "database_url" not in str(report).lower()
+    provenance = report["provenance"]["DATABASE_URL"]
+    assert provenance["value"].startswith("postgresql+psycopg://127.0.0.1:5432/")
+    assert "postgres:postgres" not in provenance["value"].lower()
+    assert provenance["source"] in {".env", "application default"}
 
 
 def test_metrics_ports_and_disabled_state_come_from_canonical_settings(monkeypatch) -> None:

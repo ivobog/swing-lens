@@ -11,9 +11,11 @@ pwsh .\swinglens.ps1 status
 ```
 
 The configured locally installed Windows PostgreSQL service is authoritative. Docker PostgreSQL is
-never part of routine operation. The web lifespan owns the durable supervisor, which owns the
-worker; do not start a second supervisor manually. Use `pwsh .\swinglens.ps1 restart` and
-`pwsh .\swinglens.ps1 stop` for controlled transitions.
+never part of routine operation. The lifecycle controller starts `app.worker_supervisor` as the
+process-group root; that supervisor owns both `app.serve` and `app.worker`. The web lifespan owns
+neither child. Do not start a second supervisor manually. Use `pwsh .\swinglens.ps1 restart` and
+`pwsh .\swinglens.ps1 stop` for controlled transitions. See
+[`runtime_process_ownership.md`](../architecture/runtime_process_ownership.md).
 
 ## Subsystem Smoke Matrix
 
@@ -30,7 +32,7 @@ worker; do not start a second supervisor manually. Use `pwsh .\swinglens.ps1 res
 | CERI | `/ceri`, changes, operations, provider APIs | `tests/ceri -q` |
 | Background jobs | pipeline, IB, OWPE, SLSE, CERI jobs | background worker/job tests |
 | Security/admin | unsafe POST/admin routes | route security tests |
-| Operations/recovery | `/health`, `/ready`, backup/restore scripts | ops tests and runbooks |
+| Operations/recovery | `/health`, `/ready/core`, `/ready`, backup/restore scripts | ops tests and runbooks |
 
 ## Troubleshooting
 

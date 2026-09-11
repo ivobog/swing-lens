@@ -844,6 +844,7 @@ class CeriRevisionFeature(Base):
             "calculation_version",
         ),
         Index("ix_ceri_revision_features_controlled_replay", "controlled_replay_id"),
+        Index("ix_ceri_revision_features_context", "calculation_context_id"),
     )
 
 
@@ -898,6 +899,8 @@ class CeriPriceResponseFeature(Base):
             name="ck_ceri_price_response_features_ownership_mode",
         ),
         Index("ix_ceri_price_response_company_session", "company_id", "reaction_session"),
+        Index("ix_ceri_price_response_features_cutoff", "calculation_cutoff_at"),
+        Index("ix_ceri_price_response_features_context", "calculation_context_id"),
     )
 
 
@@ -958,6 +961,7 @@ class CeriDerivedFeature(Base):
             "config_hash",
             "calculation_version",
         ),
+        Index("ix_ceri_derived_features_context", "calculation_context_id"),
     )
 
 
@@ -1013,6 +1017,7 @@ class CeriFeatureBuildState(Base):
             "company_id",
             "as_of_session",
         ),
+        Index("ix_ceri_feature_build_states_context", "calculation_context_id"),
     )
 
 
@@ -1293,7 +1298,12 @@ class CeriProviderRequestTelemetry(Base):
 
     __table_args__ = (
         Index("ix_ceri_provider_telemetry_provider_observed", "provider", "observed_at"),
-        Index("ix_ceri_provider_telemetry_observed_provider", "observed_at", "provider"),
+        Index(
+            "ix_ceri_provider_telemetry_observed_provider",
+            observed_at.desc(),
+            "provider",
+            postgresql_include=("latency_ms", "retry_count", "error_code"),
+        ),
         Index("ix_ceri_provider_telemetry_endpoint_observed", "endpoint", "observed_at"),
         Index("ix_ceri_provider_telemetry_root", "root_correlation_id", "observed_at"),
     )

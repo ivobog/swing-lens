@@ -8,7 +8,6 @@ import secrets
 import signal
 import socket
 import subprocess
-import sys
 import tempfile
 import time
 import urllib.parse
@@ -27,13 +26,9 @@ from app.database_safety import run_guarded_alembic_upgrade
 from app.models.tables import BackgroundJob, BackgroundWorker
 from app.observability.correlation import root_action_scope
 from app.services.background_job_service import JobStatus, enqueue_job
-from app.services.ceri.sec.processor_lifecycle import (
-    certify_processor,
-    promote_processor,
-    register_deployed_processor,
-)
+from app.services.canonical_runtime_launcher import build_canonical_runtime_launch
 from app.services.redaction import redact_text
-from app.settings import get_settings
+from app.settings import Settings, get_settings
 
 DATABASE_PREFIX = "swinglens_obs_cert_"
 PROMETHEUS_URL = ""
@@ -202,25 +197,23 @@ def main() -> int:
             actual = connection.exec_driver_sql("select current_database()").scalar()
             if actual != database_name or not str(actual).startswith(DATABASE_PREFIX):
                 raise RuntimeError("refusing certification against a non-disposable database")
-        with Session(engine) as session:
-            deployed = register_deployed_processor(session, git_sha="observability-certification")
-            certify_processor(
-                session,
-                processor_signature=deployed.processor_signature,
-                evidence={"scope": "disposable-observability-certification"},
-                actor="observability-certification",
-            )
-            promote_processor(
-                session,
-                processor_signature=deployed.processor_signature,
-                actor="observability-certification",
-            )
-            session.commit()
-
+        runtime_instance_id = f"obs-cert-runtime-{uuid4().hex}"
         process_environment = dict(os.environ)
         process_environment.update(
             {
                 "DATABASE_URL": database_url,
+                "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
+                "SWINGLENS_RUNTIME_INSTANCE_ID": runtime_instance_id,
+                "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": f"disposable-{uuid4().hex}",
+                "SWINGLENS_GIT_SHA": "observability-certification",
+                "PROCESS_ROLE": "SUPERVISOR",
+                "RUNTIME_MODE": "NORMAL",
+                "USE_DURABLE_PIPELINE": "true",
+                "DURABLE_WORKER_PROCESS_ENABLED": "true",
+                "EMBEDDED_JOB_WORKER_ENABLED": "false",
+                "JOB_WORKER_ENABLED": "false",
+                "APP_HOST": "127.0.0.1",
+                "APP_PORT": str(web_port),
                 "OBSERVABILITY_METRICS_ENABLED": "true",
                 "OBSERVABILITY_METRICS_HOST": "127.0.0.1",
                 "OBSERVABILITY_WORKER_METRICS_PORT": str(worker_metrics_port),
@@ -232,38 +225,40 @@ def main() -> int:
                 "JOB_WORKER_HEARTBEAT_TIMEOUT_SECONDS": "10",
                 "JOB_WORKER_ID": worker_id,
                 "DB_MONITOR_ENABLED": "true",
+                "CERI_ENABLED": "false",
+                "CERI_PROVIDER_INGEST_ENABLED": "false",
             }
         )
-        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
-        web_environment = dict(process_environment)
-        web_environment["JOB_WORKER_ENABLED"] = "false"
-        web = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "uvicorn",
-                "app.main:app",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(web_port),
-            ],
-            cwd=root,
-            env=web_environment,
-            creationflags=creationflags,
-            stdout=web_log,
-            stderr=subprocess.STDOUT,
+        launch_settings = Settings(
+            _env_file=None,
+            database_url=database_url,
+            process_role="SUPERVISOR",
+            runtime_mode="NORMAL",
+            use_durable_pipeline=True,
+            durable_worker_process_enabled=True,
+            embedded_job_worker_enabled=False,
+            job_worker_enabled=False,
+            app_host="127.0.0.1",
+            app_port=web_port,
+            observability_metrics_enabled=True,
+            observability_metrics_host="127.0.0.1",
+            observability_worker_metrics_port=worker_metrics_port,
+            observability_supervisor_metrics_port=supervisor_metrics_port,
+            job_worker_id=worker_id,
         )
+        launch = build_canonical_runtime_launch(
+            settings=launch_settings,
+            parent_environment=process_environment,
+            repo_root=root,
+            git_sha="observability-certification",
+            runtime_instance_id=runtime_instance_id,
+            worker_id=worker_id,
+        )
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
         supervisor = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "app.worker_supervisor",
-                "--worker-id",
-                worker_id,
-            ],
+            launch.command,
             cwd=root,
-            env=process_environment,
+            env=launch.environment,
             creationflags=creationflags,
             stdout=supervisor_log,
             stderr=subprocess.STDOUT,

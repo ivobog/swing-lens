@@ -31,7 +31,7 @@ def test_all_required_alerts_are_provisioned_without_forbidden_dimensions() -> N
         assert forbidden not in rules
 
 
-def test_six_provisioned_dashboards_are_valid_json() -> None:
+def test_seven_provisioned_dashboards_are_valid_json() -> None:
     paths = sorted(Path("monitoring/grafana/dashboards").glob("*.json"))
     dashboards = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
     titles = {dashboard["title"] for dashboard in dashboards}
@@ -42,6 +42,7 @@ def test_six_provisioned_dashboards_are_valid_json() -> None:
         "CERI & Providers",
         "Database / SQL Flight Recorder",
         "Worker Resources",
+        "SwingLens Lifecycle Control Plane",
     }
 
     for dashboard in dashboards:

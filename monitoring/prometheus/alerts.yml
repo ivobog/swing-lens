@@ -1,6 +1,41 @@
 groups:
   - name: swinglens
     rules:
+      - alert: SwingLensLifecycleFailure
+        expr: swinglens_lifecycle_last_operation_success == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "The most recent SwingLens lifecycle operation failed" }
+      - alert: SwingLensRepeatedLifecycleFailure
+        expr: sum(increase(swinglens_lifecycle_failures_total[15m])) >= 3
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens lifecycle operations are repeatedly failing" }
+      - alert: SwingLensSupervisorChildCrashLoop
+        expr: max by (role) (swinglens_supervisor_child_crash_loop) == 1
+        for: 0m
+        labels: { severity: critical }
+        annotations: { summary: "A canonical SwingLens child exhausted its restart budget" }
+      - alert: SwingLensRuntimeGenerationMissing
+        expr: absent(swinglens_runtime_generation_info{topology="supervisor-root-v1"})
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "The canonical SwingLens runtime generation is not being exported" }
+      - alert: SwingLensWorkerHeartbeatStale
+        expr: max(swinglens_worker_heartbeat_age_seconds) > 30
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens worker registration heartbeat is stale" }
+      - alert: SwingLensSupervisorHeartbeatStale
+        expr: max(swinglens_supervisor_heartbeat_age_seconds) > 30
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "SwingLens supervisor registration heartbeat is stale" }
+      - alert: SwingLensPrometheusTargetDown
+        expr: min by (job) (up{job=~"swinglens-(web|worker|supervisor)"}) == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "A canonical SwingLens Prometheus target is down" }
       - alert: SwingLensWebMissing
         expr: absent(up{job="swinglens-web"}) or max(up{job="swinglens-web"}) == 0
         for: 1m

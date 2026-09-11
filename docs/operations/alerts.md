@@ -6,9 +6,16 @@ can be added later without application changes.
 
 | Alert | Default condition | Hold | Operator response |
 | --- | --- | ---: | --- |
+| `SwingLensLifecycleFailure` | Last lifecycle operation failed | 1m | Run `pwsh .\swinglens.ps1 diagnose`; use its operation ID and reason code to locate the failed stage. |
+| `SwingLensRepeatedLifecycleFailure` | More than two lifecycle failures in 15m | 1m | Stop retries and classify the repeated bounded reason/stage from the diagnostic bundle. |
+| `SwingLensSupervisorChildCrashLoop` | Web or worker exhausted its bounded restart budget | immediate | Inspect the preserved first startup failure and child log; correct the deterministic cause before restarting. |
+| `SwingLensRuntimeGenerationMissing` | Core runtime is up but generation telemetry is absent | 2m | Compare lifecycle state and current desired fingerprint; use controlled restart if they differ. |
+| `SwingLensWorkerHeartbeatStale` | Durable-worker heartbeat age exceeds 30s | 1m | Inspect worker identity, current lease, and progress before intervening. |
+| `SwingLensSupervisorHeartbeatStale` | Supervisor heartbeat age exceeds 30s | 1m | Inspect the supervisor root and child restart state. |
+| `SwingLensPrometheusTargetDown` | Any expected SwingLens scrape target is down | 2m | Inspect Prometheus `/api/v1/targets`; treat this as observability degradation while core remains ready. |
 | `SwingLensWebMissing` | Web scrape target absent/down | 1m | Restore the web process; queue, stall, disk, DB and system-collector projections are not authoritative while it is absent. |
 | `SwingLensWorkerMissing` | Worker scrape target absent/down or all `worker_up` zero | 1m | Inspect supervisor and worker JSON logs, then causality for interrupted work. |
-| `SwingLensSupervisorMissing` | Supervisor target absent/down or supervisor gauge zero | 1m | Check web child-process manager and supervisor registration. |
+| `SwingLensSupervisorMissing` | Supervisor target absent/down or supervisor gauge zero | 1m | Check the lifecycle-owned supervisor root and supervisor registration. |
 | `SwingLensWorkerControlLoopHung` | Worker process is present but the durable claim-loop heartbeat is absent/stale | 1m | Inspect the worker stack, DB wait state and current job before restarting it. |
 | `SwingLensSupervisorControlLoopHung` | Supervisor process is present but its supervision loop is absent/stale | 1m | Inspect supervisor logs and registration before intervening. |
 | `SwingLensSystemCollectorMissing` | Web target or authoritative system collector is absent/down | 1m | Treat queue, stall, disk and DB projections as unavailable and restore the collector. |

@@ -503,6 +503,11 @@ class TechnicalScore(Base):
     __table_args__ = (
         UniqueConstraint("run_id", "ticker", name="uq_technical_scores_run_ticker"),
         Index("idx_technical_scores_run_id", "run_id"),
+        Index(
+            "idx_technical_scores_temporal_lineage",
+            "input_as_of_session",
+            "calculation_context_id",
+        ),
     )
 
 
@@ -866,6 +871,11 @@ class MarketRegimeSnapshot(Base):
         Index("idx_market_regime_snapshots_risk_state", "risk_state"),
         Index("idx_market_regime_snapshots_evidence_hash", "evidence_hash"),
         Index(
+            "idx_market_regime_snapshots_temporal_lineage",
+            "input_as_of_session",
+            "calculation_context_id",
+        ),
+        Index(
             "idx_market_regime_snapshots_current_revision",
             "is_current_revision",
             "as_of_date",
@@ -971,6 +981,11 @@ class SectorRotationSnapshot(Base):
         Index("idx_sector_rotation_snapshot_run_date", "run_id", "as_of_date"),
         Index("idx_sector_rotation_snapshot_date", "as_of_date"),
         Index("idx_sector_rotation_snapshot_evidence_hash", "evidence_hash"),
+        Index(
+            "idx_sector_rotation_snapshots_temporal_lineage",
+            "input_as_of_session",
+            "calculation_context_id",
+        ),
         Index(
             "idx_sector_rotation_snapshot_current_revision",
             "is_current_revision",
@@ -1638,7 +1653,12 @@ class BackgroundJobEnqueueAttempt(Base):
 
     __table_args__ = (
         Index("idx_enqueue_attempts_root_time", "root_correlation_id", "occurred_at", "id"),
-        Index("idx_enqueue_attempts_time_root", "occurred_at", "id", "root_correlation_id"),
+        Index(
+            "idx_enqueue_attempts_time_root",
+            occurred_at.desc(),
+            id.desc(),
+            "root_correlation_id",
+        ),
         Index("idx_enqueue_attempts_parent_time", "parent_job_id", "occurred_at", "id"),
         Index("idx_enqueue_attempts_authoritative_job", "authoritative_job_id"),
     )
@@ -3667,6 +3687,11 @@ class SetupSignalSnapshot(Base):
         Index("idx_setup_signal_snapshots_quality", "data_quality_label"),
         Index("idx_setup_signal_snapshots_source_hash", "source_data_hash"),
         Index("idx_setup_signal_snapshots_eval_run", "evaluation_run_id"),
+        Index(
+            "idx_setup_signal_snapshots_temporal_lineage",
+            "input_as_of_session",
+            "calculation_context_id",
+        ),
         Index(
             "idx_setup_signal_snapshots_canonical_date_id",
             "data_as_of_date",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from enum import StrEnum
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL, make_url
@@ -14,7 +15,30 @@ DEFAULT_DISPOSABLE_PREFIXES = (
     "swinglens_pytest_",
     "swinglens_qa_",
     "swinglens_obs_cert_",
+    "swinglens_ci_",
 )
+
+DATABASE_SAFETY_CONTEXT_ENV = "SWINGLENS_DATABASE_SAFETY_CONTEXT"
+
+
+class DatabaseSafetyContext(StrEnum):
+    """Explicit migration/runtime database trust boundary."""
+
+    AUTHORITATIVE_LOCAL = "AUTHORITATIVE_LOCAL"
+    DISPOSABLE_TEST = "DISPOSABLE_TEST"
+
+
+def require_database_safety_context(value: str | None = None) -> DatabaseSafetyContext:
+    raw = value if value is not None else os.environ.get(DATABASE_SAFETY_CONTEXT_ENV)
+    if not raw:
+        raise RuntimeError(
+            f"{DATABASE_SAFETY_CONTEXT_ENV} must be explicitly set to "
+            "AUTHORITATIVE_LOCAL or DISPOSABLE_TEST"
+        )
+    try:
+        return DatabaseSafetyContext(str(raw).strip().upper())
+    except ValueError as exc:
+        raise RuntimeError(f"unsupported database safety context: {raw!r}") from exc
 
 
 @dataclass(frozen=True)
@@ -34,6 +58,7 @@ def assert_disposable_database(
     *,
     active_database_url: str | URL | None = None,
     allowed_prefixes: tuple[str, ...] | None = None,
+    announce: bool = True,
 ) -> DisposableDatabaseIdentity:
     """Fail closed before Alembic is invoked for a disposable test database."""
     try:
@@ -63,11 +88,12 @@ def assert_disposable_database(
         server_identity=candidate_server,
         safe_url=safe_database_url(candidate),
     )
-    print(
-        "verified disposable database before Alembic: "
-        f"database={identity.database_name} server={identity.server_identity} "
-        f"url={identity.safe_url}"
-    )
+    if announce:
+        print(
+            "verified disposable database before Alembic: "
+            f"database={identity.database_name} server={identity.server_identity} "
+            f"url={identity.safe_url}"
+        )
     return identity
 
 
@@ -79,6 +105,7 @@ def configure_guarded_alembic(config, candidate_database_url: str | URL):
         else candidate_database_url
     )
     config.attributes["disposable_database_identity"] = identity
+    config.attributes["database_safety_context"] = DatabaseSafetyContext.DISPOSABLE_TEST
     return identity
 
 

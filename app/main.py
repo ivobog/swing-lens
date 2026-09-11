@@ -13,6 +13,7 @@ from app.observability.db_monitor import (
     DatabaseHealthSampler,
     DatabaseMonitorMiddleware,
 )
+from app.observability.logging import log_event
 from app.observability.metrics import operational_metrics
 from app.observability.resource_sampler import ResourceSampler, SystemMetricsCollector
 from app.routers import (
@@ -76,6 +77,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "FastAPI lifespan may run only in WEB (or an explicit test/maintenance process)"
         )
     operational_metrics.configure(enabled=worker_settings.observability_metrics_enabled)
+    log_event(
+        logger,
+        "runtime.uvicorn_ready",
+        stage="uvicorn_ready",
+        result="success",
+        port=worker_settings.app_port,
+    )
     database_health_sampler = DatabaseHealthSampler(worker_settings)
     database_health_sampler.start()
     resource_sampler = None

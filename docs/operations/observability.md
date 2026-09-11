@@ -7,8 +7,10 @@ semantics.
 
 ## Process topology
 
-The web process starts an out-of-process supervisor, which starts and replaces the durable worker.
-Each process owns a normal Prometheus registry and a distinct scrape target:
+The canonical supervisor-root tree is documented in
+[runtime process ownership](../architecture/runtime_process_ownership.md). The supervisor starts
+and replaces both web and durable-worker children. Each process owns a normal Prometheus registry
+and a distinct scrape target:
 
 | Process | Endpoint | Content |
 | --- | --- | --- |
@@ -143,7 +145,9 @@ user paths, payloads, and execution tokens. Detailed SQL parameters are never lo
 
 ## Readiness
 
-`/health` remains shallow liveness. `/ready` exposes `ok`, `degraded`, `failed`, and
+`/health` remains shallow liveness. `/ready/core` is the lifecycle establishment contract and
+contains only DB/provenance/schema/storage, canonical process ownership/registrations, and mandatory
+listener identity. `/ready` is the broader application-operational contract and exposes `ok`, `degraded`, `failed`, and
 `optional_unavailable` check states. Overall `failed` returns HTTP 503; `ok` or `degraded` returns
 HTTP 200. Database/migration/storage failures, required IB absence, missing worker/supervisor,
 worker SQL-recorder failure and dead collectors are explicit rather than web-local assumptions.

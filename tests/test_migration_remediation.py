@@ -60,7 +60,11 @@ def _connect_admin_or_skip() -> psycopg.Connection:
 
 def _run_alembic(database_url: str, *args: str) -> subprocess.CompletedProcess[str]:
     assert_disposable_database(database_url)
-    env = {**os.environ, "DATABASE_URL": database_url}
+    env = {
+        **os.environ,
+        "DATABASE_URL": database_url,
+        "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
+    }
     return subprocess.run(
         [sys.executable, "-m", "alembic", *args],
         cwd=REPO_ROOT,
@@ -102,6 +106,10 @@ def test_clean_postgresql_database_can_upgrade_to_alembic_head() -> None:
             current = _run_alembic(database_url, "current")
             assert current.returncode == 0, current.stdout + current.stderr
             assert any(head in current.stdout for head in _alembic_heads())
+
+            metadata_check = _run_alembic(database_url, "check")
+            assert metadata_check.returncode == 0, metadata_check.stdout + metadata_check.stderr
+            assert "No new upgrade operations detected" in metadata_check.stdout
         finally:
             conn.execute(
                 sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(

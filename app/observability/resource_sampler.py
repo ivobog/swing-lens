@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import time
@@ -171,6 +172,7 @@ class SystemMetricsCollector:
         self._job_state_series: set[tuple[str, str]] = set()
         self._progress_series: set[tuple[str, str]] = set()
         self._worker_series: set[str] = set()
+        self._lifecycle_failure_counts: dict[str, int] = {}
 
     def start(self) -> None:
         if not self.settings.observability_metrics_enabled:
@@ -202,8 +204,42 @@ class SystemMetricsCollector:
         _fault_contained_sample("web", "disk", self._disk_space)
         _fault_contained_sample("web", "log_storage", self._log_storage)
         _fault_contained_sample("web", "sql_recorder", self._db_monitor)
+        _fault_contained_sample("web", "lifecycle_control", self._lifecycle_control)
         operational_metrics.set_gauge("swinglens_system_collector_up", 1)
         _component_success("web", "system_metrics_collector")
+
+    def _lifecycle_control(self) -> None:
+        path = Path(__file__).resolve().parents[2] / "data" / "cache" / "lifecycle-metrics.json"
+        if not path.is_file():
+            return
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        operational_metrics.set_gauge(
+            "swinglens_lifecycle_last_operation_timestamp_seconds",
+            float(payload.get("last_operation_timestamp") or 0),
+        )
+        operational_metrics.set_gauge(
+            "swinglens_lifecycle_last_operation_success",
+            float(payload.get("last_operation_success") or 0),
+        )
+        operational_metrics.set_gauge(
+            "swinglens_lifecycle_operation_duration_seconds",
+            float(payload.get("last_operation_duration_seconds") or 0),
+            action=str(payload.get("last_action") or "unknown"),
+            stage=str(payload.get("last_stage") or "unknown"),
+        )
+        for key, count_value in dict(payload.get("failures") or {}).items():
+            previous = self._lifecycle_failure_counts.get(key, 0)
+            count = int(count_value)
+            if count > previous:
+                action, stage, reason = (key.split("|", 2) + ["unknown"] * 3)[:3]
+                operational_metrics.increment(
+                    "swinglens_lifecycle_failures_total",
+                    count - previous,
+                    action=action,
+                    stage=stage,
+                    reason=reason,
+                )
+            self._lifecycle_failure_counts[key] = count
 
     def _db_category(self, category: str, callback) -> bool:
         succeeded = False

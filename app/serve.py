@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import logging
 import os
 import re
 import signal
@@ -13,7 +14,7 @@ from dataclasses import dataclass
 
 import uvicorn
 
-from app.observability.logging import configure_json_logging
+from app.observability.logging import configure_json_logging, log_event
 from app.services.parent_watchdog import install_parent_watchdog
 from app.services.process_roles import require_process_role
 from app.services.redaction import redact_text
@@ -31,6 +32,7 @@ RUNTIME_RELOAD_EXCLUDES = (
     "**/__pycache__/**",
     "*.log",
 )
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -53,30 +55,110 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    args = parse_args(argv)
-    require_process_role(get_settings(), ProcessRole.WEB)
-    install_parent_watchdog(lambda: os.kill(os.getpid(), signal.SIGTERM))
+    configure_json_logging("web")
+    log_event(logger, "runtime.process_boot", stage="process_boot", reason_code="NONE")
+    try:
+        args = parse_args(argv)
+        settings = get_settings()
+        require_process_role(settings, ProcessRole.WEB)
+        log_event(logger, "runtime.role_validation", stage="role_validation", result="success")
+    except Exception as exc:
+        log_event(
+            logger,
+            "runtime.role_validation_failed",
+            level=logging.ERROR,
+            stage="role_validation",
+            result="failure",
+            reason_code="CONFIGURATION_CONFLICT",
+            error=redact_text(str(exc)),
+        )
+        raise
+    watchdog = install_parent_watchdog(lambda: os.kill(os.getpid(), signal.SIGTERM))
+    log_event(
+        logger,
+        "runtime.parent_watchdog_install",
+        stage="parent_watchdog_install",
+        result="success",
+        supervised=watchdog is not None,
+    )
+    log_event(logger, "runtime.listener_probe", stage="listener_probe", port=args.port)
     conflict = diagnose_listener(args.host, args.port)
     if conflict is not None:
         name = f" ({conflict.process_name})" if conflict.process_name else ""
+        log_event(
+            logger,
+            "runtime.listener_conflict",
+            level=logging.ERROR,
+            stage="listener_probe",
+            result="failure",
+            reason_code="FOREIGN_LISTENER",
+            listener_pid=conflict.process_id,
+            port=args.port,
+        )
         raise SystemExit(
             f"SwingLens cannot bind {args.host}:{args.port}: an existing listener is owned "
             f"by PID {conflict.process_id}{name}. Verify whether that process is a stale "
             "SwingLens instance before stopping it."
         )
+    log_event(logger, "runtime.startup_preflight_begin", stage="startup_preflight_begin")
     try:
         run_startup_preflight()
     except StartupPreflightError as exc:
+        failure_stage, reason_code = _preflight_failure_identity(str(exc))
+        log_event(
+            logger,
+            "runtime.startup_preflight_failed",
+            level=logging.ERROR,
+            stage=failure_stage,
+            result="failure",
+            reason_code=reason_code,
+            error=redact_text(str(exc)),
+        )
         raise SystemExit(f"SwingLens startup preflight failed: {redact_text(str(exc))}") from exc
-    configure_json_logging("web")
-    uvicorn.run(
-        "app.main:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-        log_config=None,
-        reload_excludes=list(RUNTIME_RELOAD_EXCLUDES) if args.reload else None,
+    log_event(logger, "runtime.database_probe", stage="database_probe", result="success")
+    log_event(
+        logger,
+        "runtime.database_provenance",
+        stage="database_provenance",
+        result="pending",
+        reason_code="CORE_READINESS_VALIDATION",
     )
+    log_event(
+        logger,
+        "runtime.alembic_head_check",
+        stage="alembic_head_check",
+        result="success",
+    )
+    log_event(logger, "runtime.storage_check", stage="storage_check", result="success")
+    log_event(
+        logger,
+        "runtime.startup_preflight_complete",
+        stage="startup_preflight",
+        result="success",
+    )
+    log_event(logger, "runtime.uvicorn_bind_begin", stage="uvicorn_bind_begin", port=args.port)
+    try:
+        uvicorn.run(
+            "app.main:app",
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+            log_config=None,
+            reload_excludes=list(RUNTIME_RELOAD_EXCLUDES) if args.reload else None,
+        )
+    finally:
+        log_event(logger, "runtime.process_shutdown", stage="process_shutdown")
+
+
+def _preflight_failure_identity(message: str) -> tuple[str, str]:
+    normalized = message.lower()
+    if "database" in normalized and "migration" not in normalized:
+        return "database_probe", "DATABASE_UNAVAILABLE"
+    if "migration" in normalized or "alembic" in normalized:
+        return "alembic_head_check", "ALEMBIC_MISMATCH"
+    if "storage" in normalized or "directory" in normalized:
+        return "storage_check", "STORAGE_UNAVAILABLE"
+    return "startup_preflight", "STARTUP_PREFLIGHT_FAILED"
 
 
 def diagnose_listener(host: str, port: int) -> ListenerOwner | None:

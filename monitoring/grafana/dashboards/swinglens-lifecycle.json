@@ -1,0 +1,109 @@
+{
+  "uid": "swinglens-lifecycle",
+  "title": "SwingLens Lifecycle Control Plane",
+  "description": "Canonical supervisor-root lifecycle, readiness, database provenance, schema, restarts, and scrape health.",
+  "tags": ["swinglens", "lifecycle", "control-plane", "provisioned"],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Last lifecycle operation",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_lifecycle_last_operation_success", "legendFormat": "success"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1, "mappings": [{"type": "value", "options": {"0": {"text": "FAILED", "color": "red"}, "1": {"text": "SUCCEEDED", "color": "green"}}}]}, "overrides": []},
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 5}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Last operation age",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "time() - swinglens_lifecycle_last_operation_timestamp_seconds", "legendFormat": "age"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 5}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Core / application readiness",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_readiness_state == 1", "legendFormat": "{{scope}} / {{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 5}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Database / Alembic",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_database_provenance_ok", "legendFormat": "DB provenance"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_alembic_head_match", "legendFormat": "Alembic head"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 5}
+    },
+    {
+      "id": 5, "type": "stat", "title": "Canonical scrape targets",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "up{job=~\"swinglens-(web|worker|supervisor)\"}", "legendFormat": "{{job}}"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"x": 0, "y": 5, "w": 8, "h": 6}
+    },
+    {
+      "id": 6, "type": "stat", "title": "Active runtime generation",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_runtime_generation_info == 1", "legendFormat": "{{mode}} / {{topology}}"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"x": 8, "y": 5, "w": 8, "h": 6}
+    },
+    {
+      "id": 7, "type": "stat", "title": "Role liveness",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "max(up{job=\"swinglens-web\"})", "legendFormat": "web"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "max(swinglens_worker_up)", "legendFormat": "worker"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "max(swinglens_supervisor_up)", "legendFormat": "supervisor"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"x": 16, "y": 5, "w": 8, "h": 6}
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Lifecycle failures by stage / reason",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "increase(swinglens_lifecycle_failures_total[15m])", "legendFormat": "{{action}} / {{stage}} / {{reason}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "gridPos": {"x": 0, "y": 11, "w": 12, "h": 7}
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Child restarts",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "increase(swinglens_supervisor_child_restarts_total[15m])", "legendFormat": "{{role}} / {{reason}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "gridPos": {"x": 12, "y": 11, "w": 12, "h": 7}
+    },
+    {
+      "id": 10, "type": "stat", "title": "Child crash-loop state",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_supervisor_child_crash_loop", "legendFormat": "{{role}}"}],
+      "fieldConfig": {"defaults": {"unit": "bool", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"x": 0, "y": 18, "w": 8, "h": 5}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Registration heartbeat age",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "max(swinglens_worker_heartbeat_age_seconds)", "legendFormat": "worker"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_supervisor_heartbeat_age_seconds", "legendFormat": "supervisor"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"x": 8, "y": 18, "w": 8, "h": 5}
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Lifecycle operation duration",
+      "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "swinglens-prometheus"}, "expr": "swinglens_lifecycle_operation_duration_seconds", "legendFormat": "{{action}} / {{stage}}"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"x": 16, "y": 18, "w": 8, "h": 5}
+    }
+  ]
+}

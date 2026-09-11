@@ -9,6 +9,9 @@ ROOT = Path(__file__).resolve().parents[2]
 MODULE = (ROOT / "scripts" / "ops" / "SwingLensLifecycle.psm1").read_text(encoding="utf-8")
 PROBE = (ROOT / "scripts" / "ops" / "lifecycle_probe.py").read_text(encoding="utf-8")
 LAUNCHER = (ROOT / "swinglens.ps1").read_text(encoding="utf-8")
+SERVE = (ROOT / "app" / "serve.py").read_text(encoding="utf-8")
+MAIN = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+SUPERVISOR = (ROOT / "app" / "worker_supervisor.py").read_text(encoding="utf-8")
 
 
 def _docker_compose_commands() -> list[str]:
@@ -16,8 +19,9 @@ def _docker_compose_commands() -> list[str]:
 
 
 def test_root_lifecycle_exposes_exact_canonical_actions() -> None:
-    assert "ValidateSet('start', 'stop', 'restart', 'status')" in LAUNCHER
+    assert "ValidateSet('start', 'stop', 'restart', 'status', 'diagnose')" in LAUNCHER
     assert "SwingLensLifecycle.psm1" in LAUNCHER
+    assert "canonical lifecycle requires USE_DURABLE_PIPELINE=true" in MODULE
 
 
 def test_normal_lifecycle_never_operates_docker_postgresql() -> None:
@@ -85,3 +89,34 @@ def test_restart_composes_shared_stop_and_start_implementations() -> None:
     restart = MODULE.split("'restart' {", 1)[1]
     assert restart.index("Stop-SwingLensStack") < restart.index("Start-SwingLensStack")
     assert "Invoke-WithLifecycleLock" in MODULE
+
+
+def test_web_lifespan_never_owns_supervisor_and_supervisor_owns_both_children() -> None:
+    assert "SupervisorProcessManager" not in MAIN
+    assert "app.worker_supervisor" not in MAIN
+    assert not (ROOT / "app/services/supervisor_process_manager.py").exists()
+    assert 'add_parser("launch-runtime")' in PROBE
+    assert 'add_parser("launch-web")' not in PROBE
+    assert '"app.worker_supervisor"' in PROBE
+    assert '"-m",\n            "app.serve"' in SUPERVISOR
+    assert '"-m",\n            "app.worker"' in SUPERVISOR
+
+
+def test_structured_logging_precedes_web_argument_and_preflight_work() -> None:
+    main_body = SERVE.split("def main(", 1)[1]
+    assert main_body.index('configure_json_logging("web")') < main_body.index("parse_args(")
+    assert main_body.index('configure_json_logging("web")') < main_body.index(
+        "startup_preflight"
+    )
+    for event in (
+        "runtime.process_boot",
+        "runtime.role_validation",
+        "runtime.listener_probe",
+        "runtime.startup_preflight_begin",
+        "runtime.database_probe",
+        "runtime.database_provenance",
+        "runtime.alembic_head_check",
+        "runtime.storage_check",
+        "runtime.uvicorn_bind_begin",
+    ):
+        assert event in SERVE

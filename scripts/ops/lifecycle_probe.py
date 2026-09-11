@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import signal
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,8 +21,21 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
-from app.models.tables import BackgroundSupervisor, BackgroundWorker
+from app.database_safety import DATABASE_SAFETY_CONTEXT_ENV, DatabaseSafetyContext
+from app.models.tables import BackgroundJob, BackgroundSupervisor, BackgroundWorker
 from app.services.alembic_heads import database_alembic_heads, repository_alembic_heads
+from app.services.canonical_runtime_launcher import build_canonical_runtime_launch
+from app.services.lifecycle_control import (
+    GIT_SHA_ENV,
+    RUNTIME_FINGERPRINT_ENV,
+    TOPOLOGY_VERSION,
+    append_lifecycle_event,
+    configuration_provenance,
+    redacted_tail,
+    runtime_generation,
+    supervisor_state_path,
+    update_lifecycle_metrics,
+)
 from app.services.lifecycle_quiesce import (
     blocking_jobs,
     request_worker_quiesce,
@@ -35,12 +51,12 @@ from app.services.lifecycle_safety import (
     validate_runtime_process,
     verify_postgres_provenance,
 )
-from app.services.process_roles import build_process_environment
-from app.services.redaction import redact_text
-from app.settings import ProcessRole, Settings
+from app.services.redaction import redact_sensitive, redact_text
+from app.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_STATE = ROOT / "data" / "cache" / "swinglens-lifecycle.json"
+LIFECYCLE_CONTROLLER_VERSION = 5
 
 
 def _settings() -> Settings:
@@ -82,6 +98,9 @@ def _config_report() -> dict[str, object]:
         "processRole": settings.process_role.value,
         "durableWorkerProcessEnabled": settings.durable_worker_process_enabled,
         "embeddedJobWorkerEnabled": settings.embedded_job_worker_enabled,
+        "jobWorkerEnabledLegacy": settings.job_worker_enabled,
+        "topologyVersion": TOPOLOGY_VERSION,
+        "provenance": configuration_provenance(settings, env_file=ROOT / ".env"),
     }
 
 
@@ -151,43 +170,24 @@ def _provenance_report() -> dict[str, object]:
         return {"verified": False, "error": str(exc), "database": database}
 
 
-def _launch_web(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
+def _launch_runtime(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
     settings = _settings()
     runtime_instance_id = uuid4().hex
-    supervised = settings.durable_worker_process_enabled
-    role = ProcessRole.SUPERVISOR if supervised else ProcessRole.WEB
-    environment = build_process_environment(os.environ, role=role, settings=settings)
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
     with (
         stdout_path.open("ab", buffering=0) as stdout,
         stderr_path.open("ab", buffering=0) as stderr,
     ):
-        command = [sys.executable, "-m"]
-        if supervised:
-            command.extend(
-                [
-                    "app.worker_supervisor",
-                    "--worker-id",
-                    settings.job_worker_id,
-                    "--queues",
-                    "interactive,broker,background",
-                ]
-            )
-        else:
-            command.append("app.serve")
-        command.extend(
-            [
-                "--host",
-                settings.app_host,
-                "--port",
-                str(settings.app_port),
-                "--runtime-instance-id",
-                runtime_instance_id,
-                "--repo-root",
-                str(ROOT),
-            ]
+        launch = build_canonical_runtime_launch(
+            settings=settings,
+            parent_environment=os.environ,
+            repo_root=ROOT,
+            git_sha=_git_commit(),
+            runtime_instance_id=runtime_instance_id,
         )
+        command = list(launch.command)
+        environment = launch.environment
         process = subprocess.Popen(
             command,
             cwd=ROOT,
@@ -244,17 +244,14 @@ def _launch_web(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
         selectable = nested_web if os.name == "nt" else matching
         if listener is not None:
             identity = listener
-            if supervised:
-                supervisors = [
-                    candidate
-                    for candidate in candidates
-                    if _process_matches_runtime(
-                        candidate, "app.worker_supervisor", runtime_instance_id
-                    )
-                ]
-                if supervisors:
-                    supervisor_identity = supervisors[-1]
-            if not supervised or _process_matches_runtime(
+            supervisors = [
+                candidate
+                for candidate in candidates
+                if _process_matches_runtime(candidate, "app.worker_supervisor", runtime_instance_id)
+            ]
+            if supervisors:
+                supervisor_identity = supervisors[-1]
+            if _process_matches_runtime(
                 supervisor_identity, "app.worker_supervisor", runtime_instance_id
             ):
                 break
@@ -283,20 +280,17 @@ def _launch_web(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
     report = {
         "pid": identity["pid"],
         "createdAt": identity["createdAt"],
-        "launcherPid": supervisor_identity["pid"] if supervised else launcher["pid"],
-        "launcherCreatedAt": (
-            supervisor_identity["createdAt"] if supervised else launcher["createdAt"]
-        ),
+        "launcherPid": supervisor_identity["pid"],
+        "launcherCreatedAt": supervisor_identity["createdAt"],
         # CREATE_NEW_PROCESS_GROUP applies to the exact Popen PID.  On Windows
         # the venv launcher may then create a real-interpreter child, so this
         # identity is deliberately distinct from supervisorPid.
         "processGroupPid": launcher["pid"],
         "processGroupCreatedAt": launcher["createdAt"],
         "runtimeInstanceId": runtime_instance_id,
+        "supervisorPid": supervisor_identity["pid"],
+        "supervisorCreatedAt": supervisor_identity["createdAt"],
     }
-    if supervised:
-        report["supervisorPid"] = supervisor_identity["pid"]
-        report["supervisorCreatedAt"] = supervisor_identity["createdAt"]
     return report
 
 
@@ -360,6 +354,13 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
                 "conflict": False,
                 "error": "runtime state is missing",
             }
+        desired_fingerprint = os.environ.get(RUNTIME_FINGERPRINT_ENV)
+        if (
+            int(state.get("version") or 0) >= 5
+            and desired_fingerprint
+            and state.get("runtimeConfigFingerprint") != desired_fingerprint
+        ):
+            raise LifecycleConflict("RESTART_REQUIRED: runtime generation fingerprint differs")
         web = state.get("web")
         if not isinstance(web, dict):
             raise LifecycleConflict("runtime web identity is missing")
@@ -448,6 +449,7 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
             if worker is not None:
                 db.refresh(worker)
             active = blocking_jobs(db)
+            now = datetime.now(UTC)
             process_roles = {row["role"] for row in _role_processes()}
             # A failed startup may have WEB/SUPERVISOR alive but no worker able
             # to acknowledge quiesce. With zero active business jobs, absence
@@ -460,14 +462,46 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
                 "acknowledged": absent_is_safe
                 or (worker is not None and worker.quiesced_at is not None),
                 "activeCount": len(active),
-                "active": [
-                    {"id": row.id, "job_type": row.job_type, "status": row.status} for row in active
-                ],
+                "active": [_blocking_job_dict(row, now, settings) for row in active],
             }
     except Exception as exc:
         return {"reachable": False, "error": redact_text(str(exc))}
     finally:
         engine.dispose()
+
+
+def _blocking_job_dict(row: BackgroundJob, now: datetime, settings: Settings) -> dict[str, object]:
+    lease = row.lease_expires_at
+    if lease is not None and lease.tzinfo is None:
+        lease = lease.replace(tzinfo=UTC)
+    heartbeat = row.heartbeat_at or row.last_progress_at or row.started_at
+    if heartbeat is not None and heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=UTC)
+    fresh_lease = bool(lease is not None and lease > now)
+    fresh_heartbeat = bool(
+        heartbeat is not None
+        and (now - heartbeat).total_seconds() <= settings.job_worker_heartbeat_timeout_seconds
+    )
+    if fresh_lease:
+        reason = "fresh lease"
+    elif fresh_heartbeat:
+        reason = "fresh recovery/worker heartbeat"
+    else:
+        reason = "stale active state; conservative stop requires operator diagnosis"
+    return {
+        "id": row.id,
+        "job_type": row.job_type,
+        "status": row.status,
+        "worker_id": row.worker_id,
+        "worker_instance_id": row.worker_instance_id,
+        "lease_owner": row.lease_owner,
+        "lease_expires_at": lease.isoformat() if lease else None,
+        "heartbeat_at": heartbeat.isoformat() if heartbeat else None,
+        "heartbeat_age_seconds": max(0.0, (now - heartbeat).total_seconds()) if heartbeat else None,
+        "fresh_lease": fresh_lease,
+        "fresh_heartbeat": fresh_heartbeat,
+        "blocking_reason": reason,
+    }
 
 
 def _migrate() -> dict[str, object]:
@@ -481,6 +515,8 @@ def _migrate() -> dict[str, object]:
         }
     timeout = _settings().swinglens_migration_timeout_seconds
     try:
+        environment = dict(os.environ)
+        environment[DATABASE_SAFETY_CONTEXT_ENV] = DatabaseSafetyContext.AUTHORITATIVE_LOCAL.value
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
             cwd=ROOT,
@@ -488,6 +524,7 @@ def _migrate() -> dict[str, object]:
             text=True,
             timeout=timeout,
             check=False,
+            env=environment,
         )
     except subprocess.TimeoutExpired:
         return {"migrated": False, "error": f"Alembic exceeded {timeout} seconds"}
@@ -519,7 +556,10 @@ def _docker_command(arguments: list[str], timeout: int) -> dict[str, object]:
             "ok": False,
             "error": f"Docker command exited with code {result.returncode}",
         }
-    return {"ok": True}
+    return {
+        "ok": True,
+        "output": redact_text((result.stdout or "").strip())[:20000],
+    }
 
 
 def _observability_report(action: str) -> dict[str, object]:
@@ -529,6 +569,12 @@ def _observability_report(action: str) -> dict[str, object]:
     if not info["ok"] or action == "info":
         return info
     compose = ["compose", "-f", str(ROOT / "docker-compose.observability.yml")]
+    if action == "status":
+        return {
+            "ok": True,
+            "engine": info,
+            "compose": _docker_command([*compose, "ps", "--format", "json"], timeout),
+        }
     if action == "start":
         return _docker_command([*compose, "up", "-d"], timeout)
     components = {
@@ -674,6 +720,299 @@ def _registrations_report() -> dict[str, object]:
         engine.dispose()
 
 
+def _git_commit() -> str:
+    configured = os.environ.get(GIT_SHA_ENV)
+    if configured:
+        return configured
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    return result.stdout.strip() if result.returncode == 0 else "UNKNOWN"
+
+
+def _runtime_generation_report() -> dict[str, object]:
+    settings = _settings()
+    database = _database_report()
+    provenance = _provenance_report()
+    return runtime_generation(
+        settings,
+        repo_root=ROOT,
+        database=database,
+        provenance=provenance,
+    )
+
+
+def _journal_report(payload: str) -> dict[str, object]:
+    value = json.loads(payload)
+    if not isinstance(value, dict):
+        raise ValueError("journal payload must be an object")
+    path = append_lifecycle_event(ROOT, **value)
+    if value.get("event") == "operation_complete":
+        update_lifecycle_metrics(ROOT, value)
+    return {"written": True, "path": str(path)}
+
+
+def _listeners_report() -> dict[str, object]:
+    ports = {
+        8000,
+        9101,
+        9102,
+        9090,
+        3000,
+        int(make_url(_settings().database_url).port or 5432),
+    }
+    rows: list[dict[str, object]] = []
+    try:
+        connections = psutil.net_connections(kind="tcp")
+    except (OSError, psutil.Error) as exc:
+        return {"error": type(exc).__name__, "listeners": []}
+    for connection in connections:
+        if connection.status != psutil.CONN_LISTEN or not connection.laddr:
+            continue
+        port = int(connection.laddr.port)
+        if port not in ports:
+            continue
+        identity: dict[str, object] = {}
+        if connection.pid:
+            try:
+                identity = inspect_process(connection.pid)
+            except (OSError, psutil.Error):
+                identity = {"pid": connection.pid}
+        rows.append(
+            {
+                "address": str(connection.laddr.ip),
+                "port": port,
+                **identity,
+            }
+        )
+    return {"listeners": sorted(rows, key=lambda row: (int(row["port"]), int(row.get("pid") or 0)))}
+
+
+def _jobs_report() -> dict[str, object]:
+    settings = _settings()
+    engine = create_engine(
+        settings.database_url,
+        poolclass=NullPool,
+        connect_args={"connect_timeout": settings.database_connect_timeout_seconds},
+    )
+    try:
+        with Session(engine) as db:
+            now = datetime.now(UTC)
+            rows = db.query(BackgroundJob).filter(
+                BackgroundJob.status.in_(("RUNNING", "RECOVERING"))
+            ).order_by(BackgroundJob.id).limit(100).all()
+            active = []
+            for row in rows:
+                lease = row.lease_expires_at
+                if lease is not None and lease.tzinfo is None:
+                    lease = lease.replace(tzinfo=UTC)
+                heartbeat = row.heartbeat_at or row.last_progress_at or row.started_at
+                if heartbeat is not None and heartbeat.tzinfo is None:
+                    heartbeat = heartbeat.replace(tzinfo=UTC)
+                lease_fresh = bool(lease is not None and lease > now)
+                owner_fresh = bool(
+                    heartbeat is not None
+                    and (now - heartbeat).total_seconds()
+                    <= settings.job_worker_heartbeat_timeout_seconds
+                )
+                classification = (
+                    f"{row.status}_FRESH_OWNERSHIP"
+                    if lease_fresh or owner_fresh
+                    else f"STALE_{row.status}"
+                )
+                active.append(
+                    {
+                        "id": row.id,
+                        "job_type": row.job_type,
+                        "status": row.status,
+                        "worker_id": row.worker_id,
+                        "worker_instance_id": row.worker_instance_id,
+                        "lease_owner": row.lease_owner,
+                        "lease_expires_at": lease.isoformat() if lease else None,
+                        "heartbeat_at": heartbeat.isoformat() if heartbeat else None,
+                        "heartbeat_age_seconds": (
+                            max(0.0, (now - heartbeat).total_seconds()) if heartbeat else None
+                        ),
+                        "classification": classification,
+                        "blocks_stop": lease_fresh or owner_fresh,
+                    }
+                )
+            return {"reachable": True, "active": active, "activeCount": len(active)}
+    except Exception as exc:
+        return {"reachable": False, "error": redact_text(str(exc)), "active": []}
+    finally:
+        engine.dispose()
+
+
+def _http_json(url: str) -> dict[str, object]:
+    try:
+        with urllib.request.urlopen(url, timeout=3) as response:  # noqa: S310 - loopback only
+            body = response.read().decode("utf-8", errors="replace")
+            try:
+                payload: object = json.loads(body)
+            except json.JSONDecodeError:
+                payload = body[:2000]
+            return {"reachable": True, "statusCode": response.status, "payload": payload}
+    except (OSError, urllib.error.URLError) as exc:
+        return {"reachable": False, "error": redact_text(str(exc))}
+
+
+def _prometheus_targets_report() -> dict[str, object]:
+    response = _http_json("http://127.0.0.1:9090/api/v1/targets")
+    expected = ("swinglens-web", "swinglens-worker", "swinglens-supervisor")
+    rows = []
+    payload = response.get("payload")
+    if isinstance(payload, dict):
+        active = payload.get("data", {}).get("activeTargets", [])
+        for job in expected:
+            matches = [row for row in active if row.get("labels", {}).get("job") == job]
+            if matches:
+                target = matches[0]
+                rows.append(
+                    {
+                        "job": job,
+                        "discoveredTarget": target.get("discoveredLabels", {}).get("__address__"),
+                        "health": target.get("health"),
+                        "lastScrape": target.get("lastScrape"),
+                        "lastScrapeError": redact_text(str(target.get("lastError") or "")),
+                    }
+                )
+            else:
+                rows.append({"job": job, "health": "missing", "lastScrapeError": "not discovered"})
+    else:
+        rows = [{"job": job, "health": "unavailable"} for job in expected]
+    return {
+        "reachable": bool(response.get("reachable")),
+        "allUp": len(rows) == len(expected) and all(row.get("health") == "up" for row in rows),
+        "targets": rows,
+        "error": response.get("error"),
+    }
+
+
+def _process_tree_report() -> dict[str, object]:
+    roots = _role_processes()
+    rows: dict[int, dict[str, object]] = {}
+    for root in roots:
+        try:
+            process = psutil.Process(int(root["pid"]))
+            for item in (process, *process.children(recursive=True)):
+                rows[item.pid] = inspect_process(item.pid)
+        except (OSError, psutil.Error):
+            continue
+    return {"roots": roots, "processes": [rows[key] for key in sorted(rows)]}
+
+
+def _read_json_file(path: Path) -> object:
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return {"error": type(exc).__name__}
+
+
+def _diagnose(operation_id: str) -> dict[str, object]:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    safe_operation = "".join(ch for ch in operation_id if ch.isalnum() or ch in "-_")[:64]
+    bundle = ROOT / "artifacts" / "diagnostics" / f"lifecycle-{timestamp}-{safe_operation}"
+    bundle.mkdir(parents=True, exist_ok=False)
+    reports: dict[str, object] = {
+        "configuration.json": _config_report(),
+        "database.json": _database_report(),
+        "database-provenance.json": _provenance_report(),
+        "runtime-generation.json": _runtime_generation_report(),
+        "process-tree.json": _process_tree_report(),
+        "listeners.json": _listeners_report(),
+        "registrations.json": _registrations_report(),
+        "active-jobs.json": _jobs_report(),
+        "runtime-state.json": _read_json_file(RUNTIME_STATE),
+        "supervisor-state.json": _read_json_file(supervisor_state_path(ROOT)),
+        "health.json": _http_json("http://127.0.0.1:8000/health"),
+        "ready-core.json": _http_json("http://127.0.0.1:8000/ready/core"),
+        "ready-application.json": _http_json("http://127.0.0.1:8000/ready"),
+        "prometheus-readiness.json": _http_json("http://127.0.0.1:9090/-/ready"),
+        "prometheus-targets.json": _prometheus_targets_report(),
+        "grafana-health.json": _http_json("http://127.0.0.1:3000/api/health"),
+        "docker.json": _observability_report("status"),
+    }
+    reports["status.json"] = {
+        "lifecycleControllerVersion": LIFECYCLE_CONTROLLER_VERSION,
+        "operationId": operation_id,
+        "database": reports["database.json"],
+        "runtime": reports["runtime-state.json"],
+        "supervisor": reports["supervisor-state.json"],
+        "processTree": reports["process-tree.json"],
+        "activeJobs": reports["active-jobs.json"],
+        "core": reports["ready-core.json"],
+        "application": reports["ready-application.json"],
+        "observability": {
+            "prometheus": reports["prometheus-targets.json"],
+            "grafana": reports["grafana-health.json"],
+        },
+    }
+    git = subprocess.run(
+        ["git", "status", "--short", "--branch"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    reports["git.json"] = {
+        "head": _git_commit(),
+        "status": redact_text(git.stdout),
+        "exitCode": git.returncode,
+    }
+    for name, payload in reports.items():
+        atomic_write_json(bundle / name, redact_sensitive(payload))
+    log_paths = {
+        "lifecycle.log": ROOT / "logs" / "lifecycle" / "lifecycle.jsonl",
+        "supervisor-stdout.log": ROOT / "logs" / "lifecycle-supervisor.out.log",
+        "supervisor-stderr.log": ROOT / "logs" / "lifecycle-supervisor.err.log",
+        "web.log": ROOT / "logs" / "lifecycle-web.log",
+        "worker.log": ROOT / "logs" / "lifecycle-worker.log",
+    }
+    for name, path in log_paths.items():
+        (bundle / name).write_text(redacted_tail(path), encoding="utf-8")
+    core = reports["ready-core.json"]
+    likely = "CORE_RUNTIME_STOPPED_OR_UNREACHABLE"
+    if isinstance(core, dict) and core.get("reachable"):
+        payload = core.get("payload")
+        likely = (
+            "CORE_READY"
+            if isinstance(payload, dict) and payload.get("status") == "ok"
+            else "CORE_READINESS_FAILED"
+        )
+    summary = (
+        "# SwingLens lifecycle diagnostic summary\n\n"
+        f"- Operation ID: `{operation_id}`\n"
+        f"- Captured: `{datetime.now(UTC).isoformat()}`\n"
+        f"- Most likely boundary: `{likely}`\n"
+        "- This bundle was collected read-only with respect to business state; it did not migrate, "
+        "start, stop, restart, enqueue, or run a pipeline.\n"
+    )
+    (bundle / "SUMMARY.md").write_text(summary, encoding="utf-8")
+    checksums = {}
+    for path in sorted(bundle.iterdir()):
+        if path.name == "manifest.json":
+            continue
+        checksums[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    atomic_write_json(
+        bundle / "manifest.json",
+        {
+            "version": 1,
+            "operation_id": operation_id,
+            "created_at": datetime.now(UTC).isoformat(),
+            "files": checksums,
+        },
+    )
+    return {"created": True, "bundle": str(bundle), "reasonCode": likely}
+
+
 def _registration_dict(row, role: str) -> dict[str, object] | None:
     if row is None:
         return None
@@ -754,12 +1093,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "migrate",
         "processes",
         "registrations",
+        "fingerprint",
+        "jobs",
+        "listeners",
+        "prometheus-targets",
         "observability-info",
         "observability-start",
         "observability-stop",
     ):
         subparsers.add_parser(name)
-    launch = subparsers.add_parser("launch-web")
+    journal = subparsers.add_parser("journal")
+    journal.add_argument("--json", required=True)
+    diagnose = subparsers.add_parser("diagnose")
+    diagnose.add_argument("--operation-id", required=True)
+    launch = subparsers.add_parser("launch-runtime")
     launch.add_argument("--stdout", type=Path, required=True)
     launch.add_argument("--stderr", type=Path, required=True)
     write_state = subparsers.add_parser("write-state")
@@ -785,16 +1132,24 @@ def main(argv: Sequence[str] | None = None) -> None:
         "migrate": _migrate,
         "processes": lambda: {"processes": _role_processes()},
         "registrations": _registrations_report,
+        "fingerprint": _runtime_generation_report,
+        "jobs": _jobs_report,
+        "listeners": _listeners_report,
+        "prometheus-targets": _prometheus_targets_report,
         "observability-info": lambda: _observability_report("info"),
         "observability-start": lambda: _observability_report("start"),
         "observability-stop": lambda: _observability_report("stop"),
     }
     if args.command in commands:
         report = commands[args.command]()
-    elif args.command == "launch-web":
-        report = _launch_web(args.stdout, args.stderr)
+    elif args.command == "launch-runtime":
+        report = _launch_runtime(args.stdout, args.stderr)
     elif args.command == "write-state":
         report = _write_state(args.json)
+    elif args.command == "journal":
+        report = _journal_report(args.json)
+    elif args.command == "diagnose":
+        report = _diagnose(args.operation_id)
     elif args.command == "runtime-state":
         report = _runtime_state_report(args.listener_pid)
     elif args.command == "signal-break":

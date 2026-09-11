@@ -92,6 +92,7 @@ def verify_postgres_provenance(
         "executable": service.get("executable"),
         "dataDirectory": database.get("dataDirectory"),
         "listenerPid": listener_pid,
+        "listenerExecutable": listener.get("executable"),
         "listenerCreatedAt": listener.get("createdAt"),
         "database": expected.database,
         "host": database.get("host"),
