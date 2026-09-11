@@ -76,7 +76,33 @@ function Get-ReadinessState {
 
 function Get-ReadinessProbe {
     param([int]$WebPort)
-    return Invoke-HttpProbe -Uri ("http://127.0.0.1:{0}/ready" -f $WebPort) -TimeoutSeconds 5
+    $probe = $null
+    foreach ($attempt in 1..3) {
+        $probe = Invoke-HttpProbe -Uri ("http://127.0.0.1:{0}/ready" -f $WebPort) -TimeoutSeconds 5
+        $state = $(if ($probe.Reachable) { Resolve-ReadinessPayloadState -Payload $probe.Payload } else { 'failed' })
+        if ($state -ne 'failed') {
+            if ($attempt -gt 1) { Write-Host ("Readiness probe recovered on attempt {0}/3." -f $attempt) }
+            return $probe
+        }
+        if (-not (Test-ReadinessProbeRetryable -Probe $probe)) { return $probe }
+        if ($attempt -lt 3) {
+            Write-Warning ("Transient readiness probe failure on attempt {0}/3; retrying." -f $attempt)
+            Start-Sleep -Milliseconds 300
+        }
+        else { Write-Warning 'Transient readiness probe failure exhausted the 3-attempt budget.' }
+    }
+    return $probe
+}
+
+function Test-ReadinessProbeRetryable {
+    param($Probe)
+    if (-not $Probe.Reachable -or $null -eq $Probe.Payload) { return $true }
+    if ((Resolve-ReadinessPayloadState -Payload $Probe.Payload) -ne 'failed') { return $false }
+    if ($null -eq $Probe.Payload.check_states) { return $false }
+    # Database connectivity failure makes dependent checks report skipped.
+    # Retry only this sampling case; schema, worker/topology, runtime, and SEC
+    # semantic failures return immediately.
+    return ([string]$Probe.Payload.check_states.database) -eq 'failed'
 }
 
 function Get-GitCommit {

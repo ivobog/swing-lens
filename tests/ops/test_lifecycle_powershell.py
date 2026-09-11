@@ -48,6 +48,55 @@ def test_powershell_parses_readiness_payload_not_http_status(payload, expected) 
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_readiness_probe_retries_transient_database_failure_and_logs_recovery() -> None:
+    command = _module_command(
+        "$script:calls=0; function Invoke-HttpProbe { $script:calls++; "
+        "if ($script:calls -eq 1) { [pscustomobject]@{Reachable=$true;"
+        "Payload=[pscustomobject]@{status='failed';"
+        "check_states=[pscustomobject]@{database='failed'}}} } else { "
+        "[pscustomobject]@{Reachable=$true;Payload=[pscustomobject]@{status='degraded'}} } }; "
+        "$probe=Get-ReadinessProbe -WebPort 8000; "
+        "([string]$probe.Payload.status) + ':' + $script:calls"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    output = result.stdout + result.stderr
+    assert "Transient readiness probe failure on attempt 1/3; retrying." in output
+    assert "Readiness probe recovered on attempt 2/3." in output
+    assert result.stdout.strip().endswith("degraded:2")
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+@pytest.mark.parametrize("failed_component", ["migrations", "worker", "topology", "runtime", "sec"])
+def test_readiness_probe_does_not_retry_semantic_failure(failed_component) -> None:
+    command = _module_command(
+        "$script:calls=0; function Invoke-HttpProbe { $script:calls++; "
+        f"[pscustomobject]@{{Reachable=$true;Payload=[pscustomobject]@{{status='failed';"
+        f"check_states=[pscustomobject]@{{database='ok';{failed_component}='failed'}}}}}} }}; "
+        "$probe=Get-ReadinessProbe -WebPort 8000; $script:calls"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "1"
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_readiness_probe_persistent_database_failure_exhausts_budget_and_fails_closed() -> None:
+    command = _module_command(
+        "$script:calls=0; function Invoke-HttpProbe { $script:calls++; "
+        "[pscustomobject]@{Reachable=$true;Payload=[pscustomobject]@{status='failed';"
+        "check_states=[pscustomobject]@{database='failed'}}} }; "
+        "$probe=Get-ReadinessProbe -WebPort 8000; "
+        "(Resolve-ReadinessPayloadState -Payload $probe.Payload) + ':' + $script:calls"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    output = result.stdout + result.stderr
+    assert "exhausted the 3-attempt budget" in output
+    assert result.stdout.strip().endswith("failed:3")
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
 @pytest.mark.parametrize(
     ("owner_action", "contender_action"),
     [("start", "start"), ("start", "stop"), ("restart", "start"), ("stop", "stop")],
