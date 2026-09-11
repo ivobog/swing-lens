@@ -148,6 +148,9 @@ def effective_runtime_configuration(settings: Settings) -> dict[str, Any]:
     certification = is_certification_mode(settings)
     return {
         "runtime_mode": settings.runtime_mode.value,
+        "process_role": settings.process_role.value,
+        "durable_worker_process_enabled": settings.durable_worker_process_enabled,
+        "embedded_job_worker_enabled": settings.embedded_job_worker_enabled,
         "certification_isolation_active": certification,
         "effective_disabled_automatic_workflows": (
             list(CERTIFICATION_DISABLED_AUTOMATIC_WORKFLOWS) if certification else []

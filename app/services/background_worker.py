@@ -38,8 +38,11 @@ from app.services.background_queue import (
     build_worker_claim_groups,
     normalize_worker_queues,
 )
+from app.services.ceri.sec.processor_capability import (
+    SEC_CAPABILITY_JOB_TYPES,
+    evaluate_sec_processor_capability,
+)
 from app.services.ceri.sec.processor_lifecycle import (
-    fence_worker_against_active_processor,
     lifecycle_state,
     register_deployed_processor,
 )
@@ -178,15 +181,6 @@ def run_worker(
                 next_evidence_cleanup = time.monotonic() + float(
                     settings.observability_evidence_cleanup_interval_seconds
                 )
-            if (
-                settings.ceri_provider_ingest_enabled
-                and settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
-            ):
-                fence_db = session_factory()
-                try:
-                    fence_worker_against_active_processor(fence_db)
-                finally:
-                    fence_db.close()
             ran_job = run_worker_once(
                 worker_id=worker_id,
                 worker_instance_id=instance_id,
@@ -201,6 +195,9 @@ def run_worker(
                 handlers=handlers,
                 schedule_winner_probability=(settings.winner_probability_auto_maturation_enabled),
                 certification_mode=settings.runtime_mode is RuntimeMode.CERTIFICATION,
+                sec_capability_required=(
+                    settings.ceri_enabled or settings.ceri_provider_ingest_enabled
+                ),
             )
             if stop_after_one:
                 return
@@ -242,10 +239,12 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
     )
     try:
         processor_state = lifecycle_state(db)
+        processor_capability = evaluate_sec_processor_capability(db)
     except AttributeError:
         # Lightweight unit-test/session doubles may only implement the schema
         # revision scalar used above. Real database errors remain fail-closed.
         processor_state = None
+        processor_capability = None
     return {
         **effective_runtime_configuration(settings),
         "ceri_enabled": settings.ceri_enabled,
@@ -258,6 +257,12 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
         ),
         "sec_processor_compatible": (
             processor_state.deployed_is_active if processor_state is not None else None
+        ),
+        "sec_capability_state": (
+            processor_capability.state.value if processor_capability is not None else None
+        ),
+        "sec_signature_algorithm_version": (
+            processor_capability.algorithm_version if processor_capability is not None else None
         ),
         "sec_readiness_policy": settings.sec_readiness_policy.value,
         "sec_requests_per_second": settings.sec_requests_per_second,
@@ -390,6 +395,7 @@ def run_worker_once(
     handlers: Mapping[str, JobHandler] | None = None,
     schedule_winner_probability: bool = False,
     certification_mode: bool = False,
+    sec_capability_required: bool = False,
 ) -> bool:
     handlers = handlers or default_job_handlers()
     db = session_factory()
@@ -442,6 +448,17 @@ def run_worker_once(
             max_consecutive_interactive=max_consecutive_interactive,
             age_promotion_seconds=age_promotion_seconds,
         )
+        sec_capability = evaluate_sec_processor_capability(db) if sec_capability_required else None
+        excluded_job_types = (
+            SEC_CAPABILITY_JOB_TYPES
+            if sec_capability is not None and not sec_capability.ready
+            else ()
+        )
+        if sec_capability is not None and not sec_capability.ready:
+            logger.warning(
+                "job.worker.sec_capability_blocked",
+                extra={"worker_id": worker_id, "sec_capability": sec_capability.to_dict()},
+            )
         job = claim_next_job(
             db,
             worker_id,
@@ -450,6 +467,7 @@ def run_worker_once(
             queues=queue_names,
             claim_groups=claim_groups,
             certification_only=certification_mode,
+            excluded_job_types=excluded_job_types,
         )
         if job is None:
             db.commit()

@@ -204,3 +204,41 @@ def test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt(
     monkeypatch.setattr(lifecycle_probe, "inspect_process", missing)
 
     assert lifecycle_probe._runtime_state_report(listener_pid=None)["stale"] is True
+
+
+def test_listener_identity_uses_socket_owner_not_intermediate_windows_launcher(
+    monkeypatch,
+) -> None:
+    listener = {
+        "pid": 303,
+        "commandLine": [
+            "python.exe",
+            "-m",
+            "app.serve",
+            "--runtime-instance-id",
+            "runtime-a",
+        ],
+        "cwd": str(lifecycle_probe.ROOT),
+    }
+    connection = type(
+        "Connection",
+        (),
+        {
+            "status": psutil.CONN_LISTEN,
+            "pid": 303,
+            "laddr": type("Address", (), {"port": 8000})(),
+        },
+    )()
+    monkeypatch.setattr(lifecycle_probe.psutil, "net_connections", lambda **_kwargs: [connection])
+    monkeypatch.setattr(lifecycle_probe, "inspect_process", lambda _pid: listener)
+    monkeypatch.setattr(
+        lifecycle_probe,
+        "_process_descends_from",
+        lambda child, ancestor: (child, ancestor) == (303, 101),
+    )
+
+    assert lifecycle_probe._listener_process_identity(
+        port=8000,
+        runtime_instance_id="runtime-a",
+        ancestor_pid=101,
+    ) == listener

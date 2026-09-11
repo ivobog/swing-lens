@@ -29,6 +29,13 @@ class RuntimeMode(StrEnum):
     CERTIFICATION = "CERTIFICATION"
 
 
+class ProcessRole(StrEnum):
+    SUPERVISOR = "SUPERVISOR"
+    WEB = "WEB"
+    DURABLE_WORKER = "DURABLE_WORKER"
+    CLI_OR_MAINTENANCE = "CLI_OR_MAINTENANCE"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -43,6 +50,7 @@ class Settings(BaseSettings):
     allow_public_bind: bool = False
     use_durable_pipeline: bool = True
     runtime_mode: RuntimeMode = RuntimeMode.NORMAL
+    process_role: ProcessRole = ProcessRole.CLI_OR_MAINTENANCE
 
     database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
     database_connect_timeout_seconds: int = Field(default=3, ge=1, le=30)
@@ -224,7 +232,11 @@ class Settings(BaseSettings):
     market_data_prewarm_cancel_bound_seconds: int = 45
     market_data_prewarm_resume_delay_seconds: int = 30
 
+    # Compatibility input retained for one release. Runtime code must use the
+    # explicit process role and the two single-purpose settings below.
     job_worker_enabled: bool = False
+    durable_worker_process_enabled: bool = False
+    embedded_job_worker_enabled: bool = False
     job_poll_interval_seconds: float = 2.0
     job_stale_after_seconds: int = 900
     job_worker_heartbeat_interval_seconds: float = 5.0
@@ -341,6 +353,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_local_runtime_boundary(self) -> "Settings":
+        if self.job_worker_enabled and not self.durable_worker_process_enabled:
+            # One-release compatibility mapping. JOB_WORKER_ENABLED no longer
+            # has a runtime reader; it maps only to the standalone deployment
+            # capability and can never enable work inside WEB.
+            self.durable_worker_process_enabled = True
         public_bind_hosts = {"0.0.0.0", "::", ""}
         if self.app_host in public_bind_hosts and self.debug:
             raise ValueError("debug mode is not allowed on a public bind host")
@@ -436,11 +453,17 @@ class Settings(BaseSettings):
             raise ValueError("job_worker_heartbeat_interval_seconds must be positive")
         if self.job_worker_heartbeat_interval_seconds >= self.job_worker_heartbeat_timeout_seconds:
             raise ValueError("job_worker_heartbeat_interval_seconds must be less than the timeout")
+        if self.embedded_job_worker_enabled:
+            raise ValueError(
+                "EMBEDDED_JOB_WORKER_ENABLED is unsupported; use the standalone durable worker"
+            )
         if self.runtime_mode is RuntimeMode.CERTIFICATION:
             if not self.use_durable_pipeline:
                 raise ValueError("CERTIFICATION runtime requires USE_DURABLE_PIPELINE=true")
-            if not self.job_worker_enabled:
-                raise ValueError("CERTIFICATION runtime requires JOB_WORKER_ENABLED=true")
+            if not self.durable_worker_process_enabled:
+                raise ValueError(
+                    "CERTIFICATION runtime requires DURABLE_WORKER_PROCESS_ENABLED=true"
+                )
             conflicting_automatic_work = {
                 "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": (
                     self.winner_probability_auto_maturation_enabled

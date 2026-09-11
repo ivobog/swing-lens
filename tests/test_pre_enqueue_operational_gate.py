@@ -5,6 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.services.ceri.sec.processor_capability import (
+    SecProcessorCapability,
+    SecProcessorCapabilityState,
+)
 from app.services.certification_runtime import QueueIsolationStatus
 from app.services.ib_gateway_health_service import IBGatewayHealthStatus
 from app.services.pre_enqueue_operational_gate import (
@@ -14,7 +18,7 @@ from app.services.pre_enqueue_operational_gate import (
     validate_pre_enqueue_operational_gate,
 )
 from app.services.transition_preflight_plan_service import TransitionPreflightError
-from app.settings import RuntimeMode, Settings
+from app.settings import ProcessRole, RuntimeMode, Settings
 
 NOW = datetime(2026, 9, 10, 14, 0, tzinfo=UTC)
 
@@ -23,8 +27,9 @@ def _settings() -> Settings:
     return Settings(
         _env_file=None,
         runtime_mode=RuntimeMode.CERTIFICATION,
+        process_role=ProcessRole.WEB,
         use_durable_pipeline=True,
-        job_worker_enabled=True,
+        durable_worker_process_enabled=True,
         winner_probability_auto_maturation_enabled=False,
         winner_probability_auto_cohort_refresh_enabled=False,
         market_data_prewarm_enabled=False,
@@ -127,6 +132,37 @@ def test_all_green_gate_returns_authoritative_observability(
     assert result.to_dict()["passed"] is True
     assert result.to_dict()["worker_count"] == 1
     assert result.to_dict()["queue_isolation"]["unrelated_runnable_jobs"] == 0
+    assert gate_db.added == []
+
+
+def test_sec_capability_mismatch_fails_before_pipeline_creation(
+    monkeypatch: pytest.MonkeyPatch,
+    gate_db,
+) -> None:
+    _green_dependencies(monkeypatch)
+    settings = _settings().model_copy(update={"ceri_enabled": True})
+    monkeypatch.setattr(
+        "app.services.pre_enqueue_operational_gate.evaluate_sec_processor_capability",
+        lambda _db: SecProcessorCapability(
+            ready=False,
+            state=SecProcessorCapabilityState.SIGNATURE_MISMATCH,
+            expected_signature="sec-guidance:eed017654682a0c9",
+            active_signature="sec-guidance:948beb114caa8da9",
+        ),
+    )
+
+    with pytest.raises(PreEnqueueOperationalGateError) as caught:
+        validate_pre_enqueue_operational_gate(
+            gate_db,
+            upload_run_id=154,
+            plan_id=3,
+            settings=settings,
+            health_probe=lambda **_kwargs: _ib_status(),
+            now=NOW,
+        )
+
+    assert caught.value.code == "SEC_PROCESSOR_SIGNATURE_MISMATCH"
+    assert caught.value.details["sec_capability"]["ready"] is False
     assert gate_db.added == []
 
 

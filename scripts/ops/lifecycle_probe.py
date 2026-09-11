@@ -35,8 +35,9 @@ from app.services.lifecycle_safety import (
     validate_runtime_process,
     verify_postgres_provenance,
 )
+from app.services.process_roles import build_process_environment
 from app.services.redaction import redact_text
-from app.settings import Settings
+from app.settings import ProcessRole, Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_STATE = ROOT / "data" / "cache" / "swinglens-lifecycle.json"
@@ -70,14 +71,17 @@ def _config_report() -> dict[str, object]:
             "supervisorPort": settings.observability_supervisor_metrics_port,
         },
         "grafanaPasswordConfigured": bool(
-            settings.grafana_admin_password
-            and settings.grafana_admin_password.get_secret_value()
+            settings.grafana_admin_password and settings.grafana_admin_password.get_secret_value()
         ),
         "migrationTimeoutSeconds": settings.swinglens_migration_timeout_seconds,
         "lockTimeoutSeconds": settings.swinglens_lifecycle_lock_timeout_seconds,
         "observabilityTimeoutSeconds": settings.swinglens_observability_timeout_seconds,
         "workerId": settings.job_worker_id,
         "useDurablePipeline": settings.use_durable_pipeline,
+        "runtimeMode": settings.runtime_mode.value,
+        "processRole": settings.process_role.value,
+        "durableWorkerProcessEnabled": settings.durable_worker_process_enabled,
+        "embeddedJobWorkerEnabled": settings.embedded_job_worker_enabled,
     }
 
 
@@ -149,20 +153,31 @@ def _provenance_report() -> dict[str, object]:
 
 def _launch_web(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
     settings = _settings()
-    environment = dict(os.environ)
-    environment["JOB_WORKER_ENABLED"] = "true"
     runtime_instance_id = uuid4().hex
+    supervised = settings.durable_worker_process_enabled
+    role = ProcessRole.SUPERVISOR if supervised else ProcessRole.WEB
+    environment = build_process_environment(os.environ, role=role, settings=settings)
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
     with (
         stdout_path.open("ab", buffering=0) as stdout,
         stderr_path.open("ab", buffering=0) as stderr,
     ):
-        process = subprocess.Popen(
+        command = [sys.executable, "-m"]
+        if supervised:
+            command.extend(
+                [
+                    "app.worker_supervisor",
+                    "--worker-id",
+                    settings.job_worker_id,
+                    "--queues",
+                    "interactive,broker,background",
+                ]
+            )
+        else:
+            command.append("app.serve")
+        command.extend(
             [
-                sys.executable,
-                "-m",
-                "app.serve",
                 "--host",
                 settings.app_host,
                 "--port",
@@ -171,7 +186,10 @@ def _launch_web(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
                 runtime_instance_id,
                 "--repo-root",
                 str(ROOT),
-            ],
+            ]
+        )
+        process = subprocess.Popen(
+            command,
             cwd=ROOT,
             env=environment,
             stdin=subprocess.DEVNULL,
@@ -182,11 +200,18 @@ def _launch_web(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
         )
     launcher = inspect_process(process.pid)
     identity = launcher
-    deadline = monotonic() + 15
+    supervisor_identity = launcher
+    # The Windows venv launcher can create more than one same-command Python
+    # process.  A command-line match alone is not a canonical WEB identity: the
+    # only process safe to publish is the descendant that actually owns the
+    # listening socket.  Imports on a cold certification database can take
+    # materially longer than the creation of the intermediate launcher.
+    deadline = monotonic() + 90
     while monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(
-                "SwingLens web launcher exited before runtime identity was established"
+                "CANONICAL_RUNTIME_START_FAILED: supervisor exited before the WEB listener "
+                f"was established (exit_code={process.returncode})"
             )
         candidates = []
         try:
@@ -199,21 +224,119 @@ def _launch_web(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
             for candidate in candidates
             if _process_matches_runtime(candidate, "app.serve", runtime_instance_id)
         ]
-        if matching:
-            identity = matching[-1]
-            break
-        if _process_matches_runtime(launcher, "app.serve", runtime_instance_id):
-            identity = launcher
-            if os.name != "nt":
+        listener = _listener_process_identity(
+            port=settings.app_port,
+            runtime_instance_id=runtime_instance_id,
+            ancestor_pid=process.pid,
+        )
+        nested_web = [
+            candidate
+            for candidate in matching
+            if any(
+                int(other["pid"]) != int(candidate["pid"])
+                and _process_descends_from(int(candidate["pid"]), int(other["pid"]))
+                for other in matching
+            )
+        ]
+        # On Windows a venv python.exe launcher creates the real interpreter as
+        # a same-command child. Recording the wrapper breaks strong listener
+        # ownership validation because only the child owns the socket.
+        selectable = nested_web if os.name == "nt" else matching
+        if listener is not None:
+            identity = listener
+            if supervised:
+                supervisors = [
+                    candidate
+                    for candidate in candidates
+                    if _process_matches_runtime(
+                        candidate, "app.worker_supervisor", runtime_instance_id
+                    )
+                ]
+                if supervisors:
+                    supervisor_identity = supervisors[-1]
+            if not supervised or _process_matches_runtime(
+                supervisor_identity, "app.worker_supervisor", runtime_instance_id
+            ):
                 break
+        # Preserve the best command-line candidate only for the eventual error
+        # report.  Never publish it unless it becomes the verified listener.
+        if selectable:
+            identity = max(
+                selectable,
+                key=lambda candidate: len(psutil.Process(int(candidate["pid"])).parents()),
+            )
         sleep(0.05)
-    return {
+    if (
+        not _process_matches_runtime(identity, "app.serve", runtime_instance_id)
+        or _listener_process_identity(
+            port=settings.app_port,
+            runtime_instance_id=runtime_instance_id,
+            ancestor_pid=process.pid,
+        )
+        is None
+    ):
+        _terminate_process_tree(process)
+        raise RuntimeError(
+            "WEB_LISTENER_IDENTITY_TIMEOUT: SwingLens supervisor did not establish a verified "
+            "WEB listener within 90 seconds"
+        )
+    report = {
         "pid": identity["pid"],
         "createdAt": identity["createdAt"],
-        "launcherPid": launcher["pid"],
-        "launcherCreatedAt": launcher["createdAt"],
+        "launcherPid": supervisor_identity["pid"] if supervised else launcher["pid"],
+        "launcherCreatedAt": (
+            supervisor_identity["createdAt"] if supervised else launcher["createdAt"]
+        ),
         "runtimeInstanceId": runtime_instance_id,
     }
+    if supervised:
+        report["supervisorPid"] = supervisor_identity["pid"]
+        report["supervisorCreatedAt"] = supervisor_identity["createdAt"]
+    return report
+
+
+def _listener_process_identity(
+    *, port: int, runtime_instance_id: str, ancestor_pid: int
+) -> dict[str, object] | None:
+    """Return the exact app.serve descendant that owns ``port``."""
+
+    try:
+        connections = psutil.net_connections(kind="tcp")
+    except (OSError, psutil.Error):
+        return None
+    for connection in connections:
+        if connection.status != psutil.CONN_LISTEN or connection.pid is None:
+            continue
+        local_address = connection.laddr
+        local_port = getattr(local_address, "port", None)
+        if local_port is None and len(local_address) >= 2:
+            local_port = local_address[1]
+        if int(local_port or 0) != int(port):
+            continue
+        try:
+            identity = inspect_process(int(connection.pid))
+        except (OSError, psutil.Error):
+            continue
+        if _process_matches_runtime(
+            identity, "app.serve", runtime_instance_id
+        ) and _process_descends_from(int(connection.pid), ancestor_pid):
+            return identity
+    return None
+
+
+def _terminate_process_tree(process: subprocess.Popen) -> None:
+    try:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        else:
+            process.terminate()
+    except (OSError, psutil.Error):
+        pass
 
 
 def _write_state(payload: str) -> dict[str, object]:
@@ -246,7 +369,17 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
             }
         validate_runtime_process(web, actual, listener_pid=listener_pid)
         launcher = actual
-        if web.get("launcherPid") is not None:
+        supervisor = state.get("supervisor")
+        if isinstance(supervisor, dict):
+            launcher = inspect_process(int(supervisor.get("pid") or 0))
+            validate_runtime_process(supervisor, launcher)
+            if not _process_matches_runtime(
+                launcher, "app.worker_supervisor", str(state.get("runtimeInstanceId"))
+            ):
+                raise LifecycleConflict("recorded supervisor command identity mismatch")
+            if not _process_descends_from(int(actual["pid"]), int(launcher["pid"])):
+                raise LifecycleConflict("web listener is not owned by its recorded supervisor")
+        elif web.get("launcherPid") is not None:
             launcher_expected = {
                 **web,
                 "pid": web.get("launcherPid"),
@@ -254,8 +387,6 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
             }
             launcher = inspect_process(int(web.get("launcherPid") or 0))
             validate_runtime_process(launcher_expected, launcher)
-            if not _process_descends_from(int(actual["pid"]), int(launcher["pid"])):
-                raise LifecycleConflict("web listener is not owned by its recorded launcher")
         return {
             "valid": True,
             "stale": False,
@@ -287,9 +418,10 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
                 db.refresh(worker)
             active = blocking_jobs(db)
             process_roles = {row["role"] for row in _role_processes()}
-            absent_is_safe = worker is None and not process_roles.intersection(
-                {"web", "supervisor", "worker"}
-            )
+            # A failed startup may have WEB/SUPERVISOR alive but no worker able
+            # to acknowledge quiesce. With zero active business jobs, absence
+            # of a worker process is itself a safe, deterministic acknowledgement.
+            absent_is_safe = "worker" not in process_roles and not active
             return {
                 "reachable": True,
                 "workerPresent": worker is not None,
@@ -391,11 +523,8 @@ def _signal_break(process_id: int, listener_pid: int | None) -> dict[str, object
     if not second.get("valid"):
         return {"signaled": False, "conflict": True, "error": second.get("error")}
     try:
-        signal_pid = (
-            int(report["state"]["web"].get("launcherPid") or process_id)
-            if os.name == "nt"
-            else process_id
-        )
+        supervisor = report["state"].get("supervisor")
+        signal_pid = int(supervisor["pid"]) if isinstance(supervisor, dict) else process_id
         os.kill(signal_pid, signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
         return {"signaled": True, "signalPid": signal_pid}
     except Exception as exc:
@@ -529,7 +658,7 @@ def _signal_registered(role: str) -> dict[str, object]:
             or os.path.normcase(actual.get("cwd") or "") != os.path.normcase(str(ROOT))
         ):
             raise LifecycleConflict(f"{role} OS process identity mismatch")
-        signal_pid = int(expected.get("launcherPid") or actual.get("parentPid") or expected["pid"])
+        signal_pid = int(expected.get("launcherPid") or expected["pid"])
         launcher = inspect_process(signal_pid)
         if not _process_matches_runtime(launcher, module) or not _process_descends_from(
             int(expected["pid"]), signal_pid

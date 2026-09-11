@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 
 from app.routers import health_routes
 from app.services.readiness_service import ReadinessCheck, ReadinessReport, ReadinessService
-from app.settings import Settings
+from app.settings import RuntimeMode, Settings
 
 
 @pytest.fixture(autouse=True)
@@ -187,6 +187,18 @@ def test_ib_required_and_optional_states(tmp_path) -> None:
     assert service._ib_check().status == "ok"
 
 
+def test_certification_ib_is_a_separate_pre_enqueue_gate(tmp_path) -> None:
+    service = _service(tmp_path)
+    service.settings.runtime_mode = RuntimeMode.CERTIFICATION
+    service.ib_available = False
+    service.settings.observability_ib_required = False
+
+    check = service._ib_check()
+
+    assert check.status == "ok"
+    assert check.message == "separate_pre_enqueue_gate"
+
+
 def test_worker_recorder_and_collector_failures_are_durable_readiness_inputs(
     tmp_path, monkeypatch
 ) -> None:
@@ -227,7 +239,7 @@ def test_resource_collector_dead_and_supervisor_missing(tmp_path, monkeypatch) -
     )
     assert service._resource_collector_check().message == "collector_dead"
 
-    service.settings.job_worker_enabled = True
+    service.settings.durable_worker_process_enabled = True
     monkeypatch.setattr("app.services.readiness_service.live_supervisors", lambda *_a, **_k: [])
 
     class FakeSession:

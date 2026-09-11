@@ -10,7 +10,9 @@ from app.observability.metrics import operational_metrics, start_metrics_http_se
 from app.observability.resource_sampler import ResourceSampler
 from app.services.background_queue import VALID_WORKER_QUEUES, normalize_worker_queues
 from app.services.background_worker import run_worker
-from app.settings import get_settings
+from app.services.parent_watchdog import install_parent_watchdog
+from app.services.process_roles import require_process_role
+from app.settings import ProcessRole, get_settings
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -36,7 +38,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     settings = get_settings()
+    require_process_role(settings, ProcessRole.DURABLE_WORKER)
     stop_event = Event()
+    install_parent_watchdog(stop_event.set)
 
     def request_shutdown(_signum, _frame) -> None:
         stop_event.set()

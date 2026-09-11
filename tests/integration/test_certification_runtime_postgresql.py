@@ -18,12 +18,13 @@ from app.services.background_job_service import (
     enqueue_job,
     mark_job_completed,
 )
+from app.services.ceri.sec.processor_capability import SEC_CAPABILITY_JOB_TYPES
 from app.services.certification_runtime import (
     CertificationRuntimeViolation,
     queue_isolation_status,
 )
 from app.services.worker_registry import register_worker
-from app.settings import RuntimeMode, Settings
+from app.settings import ProcessRole, RuntimeMode, Settings
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -39,8 +40,9 @@ def _settings() -> Settings:
     return Settings(
         _env_file=None,
         runtime_mode=RuntimeMode.CERTIFICATION,
+        process_role=ProcessRole.DURABLE_WORKER,
         use_durable_pipeline=True,
-        job_worker_enabled=True,
+        durable_worker_process_enabled=True,
         winner_probability_auto_maturation_enabled=False,
         winner_probability_auto_cohort_refresh_enabled=False,
         market_data_prewarm_enabled=False,
@@ -205,4 +207,55 @@ def test_certification_enqueue_boundary_rejects_unrelated_and_allows_lineage(
 
         assert root.job_type == "FULL_PIPELINE"
         assert child.root_correlation_id == root.root_correlation_id
+    engine.dispose()
+
+
+def test_sec_capability_exclusion_claims_non_sec_but_never_sec(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    now = datetime.now(UTC)
+    with Session(engine, expire_on_commit=False) as db:
+        worker = register_worker(
+            db,
+            worker_id="sec-capability-worker",
+            queues=("interactive", "broker", "background"),
+            heartbeat_timeout_seconds=30,
+            now=now,
+            instance_id="sec-capability-instance",
+        )
+        sec_job = BackgroundJob(
+            job_type="CERI_PROVIDER_INGEST",
+            status=JobStatus.QUEUED,
+            priority=0,
+            payload_json={},
+            max_retries=3,
+            retry_count=0,
+            run_after=now,
+        )
+        non_sec_job = BackgroundJob(
+            job_type="WORKER_RECOVERY_PROBE",
+            status=JobStatus.QUEUED,
+            priority=1,
+            payload_json={},
+            max_retries=3,
+            retry_count=0,
+            run_after=now,
+        )
+        db.add_all((sec_job, non_sec_job))
+        db.commit()
+
+        claimed = claim_next_job(
+            db,
+            worker.worker_id,
+            worker_instance_id="sec-capability-instance",
+            queues=("interactive", "broker", "background"),
+            excluded_job_types=SEC_CAPABILITY_JOB_TYPES,
+        )
+
+        assert claimed is not None
+        assert claimed.id == non_sec_job.id
+        assert claimed.job_type == "WORKER_RECOVERY_PROBE"
+        assert db.get(BackgroundJob, sec_job.id).status == JobStatus.QUEUED
     engine.dispose()

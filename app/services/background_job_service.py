@@ -689,6 +689,7 @@ def claim_next_job(
     queues: Iterable[str] | None = None,
     claim_groups: Iterable[QueueClaimGroup] | None = None,
     certification_only: bool = False,
+    excluded_job_types: Iterable[str] = (),
 ) -> BackgroundJob | None:
     # Serialize claims against the lifecycle quiesce fence on the durable
     # registration row. Whichever transaction wins this lock determines a
@@ -714,7 +715,12 @@ def claim_next_job(
     )
     job_id = None
     for group in groups:
-        job_id = _claim_ready_job_id(db, group, certification_only=certification_only)
+        job_id = _claim_ready_job_id(
+            db,
+            group,
+            certification_only=certification_only,
+            excluded_job_types=excluded_job_types,
+        )
         if job_id is not None:
             break
     if job_id is None:
@@ -1034,6 +1040,7 @@ def _claim_ready_job_id(
     group: QueueClaimGroup,
     *,
     certification_only: bool = False,
+    excluded_job_types: Iterable[str] = (),
 ) -> int | None:
     query = select(BackgroundJob.id).where(
         BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RECOVERING))
@@ -1043,6 +1050,9 @@ def _claim_ready_job_id(
         from app.services.certification_runtime import apply_certification_claim_scope
 
         query = apply_certification_claim_scope(query)
+    excluded = tuple(sorted({str(value) for value in excluded_job_types if str(value)}))
+    if excluded:
+        query = query.where(BackgroundJob.job_type.not_in(excluded))
     if group.queues:
         queue_filter = worker_queue_filter(group.queues)
         if queue_filter is not None:

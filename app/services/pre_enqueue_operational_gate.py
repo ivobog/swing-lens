@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.tables import MarketCalculationContext, TransitionPreflightPlan
 from app.services.alembic_heads import repository_alembic_heads
 from app.services.background_queue import job_queue_class
+from app.services.ceri.sec.processor_capability import evaluate_sec_processor_capability
 from app.services.certification_runtime import (
     QueueIsolationStatus,
     effective_runtime_configuration,
@@ -152,6 +153,17 @@ def validate_pre_enqueue_operational_gate(
                 "full_pipeline_worker_count": len(capable_workers),
             },
         )
+
+    if settings.ceri_enabled or settings.ceri_provider_ingest_enabled:
+        sec_capability = evaluate_sec_processor_capability(db)
+        if not sec_capability.ready:
+            _reject(
+                sec_capability.state.value,
+                "The SEC processor capability is not compatible; no pipeline was created.",
+                plan_id=plan_id,
+                context_id=context_id,
+                details={"sec_capability": sec_capability.to_dict()},
+            )
 
     queue_status = queue_isolation_status(
         db,

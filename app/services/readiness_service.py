@@ -21,7 +21,7 @@ from app.services.background_job_service import JobStatus
 from app.services.redaction import redact_text
 from app.services.supervisor_registry import live_supervisors
 from app.services.worker_registry import has_live_worker_for_job, live_workers
-from app.settings import Settings
+from app.settings import ProcessRole, RuntimeMode, Settings
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,8 @@ class ReadinessService:
             migrations = self._migration_check()
             jobs = self._jobs_check()
             supervisor = self._supervisor_check()
+            runtime = self._runtime_contract_check()
+            topology = self._certification_topology_check()
             worker_registered = self._worker_registration_check()
             worker_heartbeat = self._worker_heartbeat_check()
             worker = self._worker_check()
@@ -92,6 +94,8 @@ class ReadinessService:
             migrations = ReadinessCheck(False, dependency_message)
             jobs = ReadinessCheck(False, dependency_message)
             supervisor = ReadinessCheck(False, dependency_message)
+            runtime = ReadinessCheck(False, dependency_message)
+            topology = ReadinessCheck(False, dependency_message)
             worker_registered = ReadinessCheck(False, dependency_message)
             worker_heartbeat = ReadinessCheck(False, dependency_message)
             worker = ReadinessCheck(False, dependency_message)
@@ -104,6 +108,8 @@ class ReadinessService:
             "storage": self._storage_check(),
             "disk": self._disk_check(),
             "supervisor": supervisor,
+            "runtime": runtime,
+            "topology": topology,
             "worker_registered": worker_registered,
             "worker_heartbeat": worker_heartbeat,
             "worker": worker,
@@ -419,6 +425,8 @@ class ReadinessService:
         if required:
             detail = "runnable_work" if workload_required else "configuration"
             return ReadinessCheck(False, f"required_unavailable:{detail}")
+        if self.settings.runtime_mode is RuntimeMode.CERTIFICATION:
+            return ReadinessCheck(True, "separate_pre_enqueue_gate")
         return ReadinessCheck(True, "optional_unavailable", "optional_unavailable")
 
     def _ib_workload_required(self) -> bool:
@@ -494,7 +502,14 @@ class ReadinessService:
         except SQLAlchemyError as exc:
             return ReadinessCheck(False, _safe_message(exc))
         if not workers:
-            return ReadinessCheck(False, "no live durable worker heartbeat")
+            message = (
+                "WEB_ALIVE_NO_WORKER"
+                if self.settings.runtime_mode is RuntimeMode.CERTIFICATION
+                else "no live durable worker heartbeat"
+            )
+            return ReadinessCheck(False, message)
+        if self.settings.runtime_mode is RuntimeMode.CERTIFICATION and len(workers) != 1:
+            return ReadinessCheck(False, f"DUPLICATE_WORKER:live={len(workers)}")
         if missing_capabilities:
             return ReadinessCheck(
                 False,
@@ -557,7 +572,7 @@ class ReadinessService:
             return False
 
     def _supervisor_check(self) -> ReadinessCheck:
-        if not self.settings.job_worker_enabled:
+        if not self.settings.durable_worker_process_enabled:
             return ReadinessCheck(True, "not managed")
         try:
             with Session(self.engine) as session:
@@ -569,6 +584,10 @@ class ReadinessService:
         except SQLAlchemyError as exc:
             return ReadinessCheck(False, _safe_message(exc))
         matching = [row for row in supervisors if row.worker_id == self.settings.job_worker_id]
+        if self.settings.runtime_mode is RuntimeMode.CERTIFICATION and len(supervisors) != 1:
+            return ReadinessCheck(
+                False, f"CERTIFICATION_ISOLATION_FAILURE:supervisors={len(supervisors)}"
+            )
         if not matching:
             return ReadinessCheck(False, "no live durable worker supervisor heartbeat")
         row = matching[0]
@@ -624,6 +643,8 @@ class ReadinessService:
         ]
         if not valid:
             return ReadinessCheck(False, "worker registration lacks process-instance identity")
+        if self.settings.runtime_mode is RuntimeMode.CERTIFICATION and len(valid) != 1:
+            return ReadinessCheck(False, f"DUPLICATE_WORKER:registrations={len(valid)}")
         return ReadinessCheck(True, "registered:" + ",".join(row.worker_id for row in valid))
 
     def _worker_heartbeat_check(self) -> ReadinessCheck:
@@ -640,10 +661,65 @@ class ReadinessService:
             return ReadinessCheck(False, _safe_message(exc))
         if not workers:
             return ReadinessCheck(False, "no fresh durable worker heartbeat")
+        if self.settings.runtime_mode is RuntimeMode.CERTIFICATION and len(workers) != 1:
+            return ReadinessCheck(False, f"DUPLICATE_WORKER:fresh={len(workers)}")
         return ReadinessCheck(True, "fresh:" + ",".join(row.worker_id for row in workers))
 
+    def _runtime_contract_check(self) -> ReadinessCheck:
+        if self.settings.runtime_mode is not RuntimeMode.CERTIFICATION:
+            return ReadinessCheck(True, f"runtime:{self.settings.runtime_mode.value}")
+        violations = []
+        if self.settings.process_role is not ProcessRole.WEB:
+            violations.append(f"role={self.settings.process_role.value}")
+        if not self.settings.durable_worker_process_enabled:
+            violations.append("standalone_worker_disabled")
+        if self.settings.embedded_job_worker_enabled:
+            violations.append("embedded_worker_enabled")
+        automatic = {
+            "winner_maturation": self.settings.winner_probability_auto_maturation_enabled,
+            "winner_cohort": self.settings.winner_probability_auto_cohort_refresh_enabled,
+            "prewarm": self.settings.market_data_prewarm_enabled,
+        }
+        violations.extend(name for name, enabled in automatic.items() if enabled)
+        if violations:
+            return ReadinessCheck(
+                False, "CERTIFICATION_ISOLATION_FAILURE:" + ",".join(sorted(violations))
+            )
+        return ReadinessCheck(True, "CERTIFICATION_ISOLATION_ACTIVE")
+
+    def _certification_topology_check(self) -> ReadinessCheck:
+        if self.settings.runtime_mode is not RuntimeMode.CERTIFICATION:
+            return ReadinessCheck(True, "not required")
+        try:
+            with Session(self.engine) as session:
+                workers = live_workers(
+                    session,
+                    heartbeat_timeout_seconds=self.settings.job_worker_heartbeat_timeout_seconds,
+                    now=self.now,
+                )
+                supervisors = live_supervisors(
+                    session,
+                    heartbeat_timeout_seconds=self.settings.job_worker_heartbeat_timeout_seconds,
+                    now=self.now,
+                )
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        if not workers:
+            return ReadinessCheck(False, "WEB_ALIVE_NO_WORKER")
+        if len(workers) != 1:
+            return ReadinessCheck(False, f"DUPLICATE_WORKER:live={len(workers)}")
+        if len(supervisors) != 1:
+            return ReadinessCheck(
+                False, f"CERTIFICATION_ISOLATION_FAILURE:supervisors={len(supervisors)}"
+            )
+        if workers[0].worker_id != self.settings.job_worker_id:
+            return ReadinessCheck(False, "CERTIFICATION_ISOLATION_FAILURE:worker_identity")
+        if supervisors[0].worker_id != self.settings.job_worker_id:
+            return ReadinessCheck(False, "CERTIFICATION_ISOLATION_FAILURE:supervisor_identity")
+        return ReadinessCheck(True, "READY_EXACTLY_ONE_WORKER")
+
     def _sec_provider_check(self) -> ReadinessCheck:
-        if not self.settings.ceri_provider_ingest_enabled:
+        if not (self.settings.ceri_enabled or self.settings.ceri_provider_ingest_enabled):
             return ReadinessCheck(True, "not required")
         try:
             from app.services.ceri.config import load_ceri_config
@@ -652,22 +728,31 @@ class ReadinessService:
                 CeriProvider,
                 CeriProviderCapability,
             )
-            from app.services.ceri.sec.processor_lifecycle import lifecycle_state
+            from app.services.ceri.sec.processor_capability import (
+                evaluate_sec_processor_capability,
+            )
 
             config = load_ceri_config()
             guidance = config.datasets.get(CeriDataset.GUIDANCE)
             capabilities = config.providers.capabilities.get(CeriProvider.SEC, ())
             with Session(self.engine) as session:
-                processor = lifecycle_state(session)
+                processor = evaluate_sec_processor_capability(session)
             if not guidance or not guidance.enabled:
                 return ReadinessCheck(False, "SEC guidance dataset is disabled")
             if CeriProviderCapability.GUIDANCE not in capabilities:
                 return ReadinessCheck(False, "SEC guidance capability is not configured")
-            if not processor.deployed_is_active:
-                return ReadinessCheck(False, "deployed SEC processor is not ACTIVE")
+            if not processor.ready:
+                return ReadinessCheck(
+                    False,
+                    f"{processor.state.value}:expected={processor.expected_signature}:"
+                    f"active={processor.active_signature or 'NONE'}",
+                )
         except (OSError, SQLAlchemyError, ValueError) as exc:
             return ReadinessCheck(False, _safe_message(exc))
-        return ReadinessCheck(True, f"ready:{processor.active_signature}")
+        return ReadinessCheck(
+            True,
+            f"SEC_CAPABILITY_READY:{processor.active_signature}:{processor.algorithm_version}",
+        )
 
     def _jobs_check(self) -> ReadinessCheck:
         try:
