@@ -6,12 +6,13 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from threading import Lock
 from time import perf_counter
 from typing import Any
 
 from app.services.ib_api import IB
 from app.services.ib_connection import create_ib_client
-from app.settings import Settings, get_settings
+from app.settings import ProcessRole, Settings, get_settings
 
 
 class IBGatewayHealthState(StrEnum):
@@ -42,6 +43,7 @@ class IBGatewayHealthStatus:
     status: str
     host: str
     port: int
+    client_id: int
     api_connected: bool
     api_ready: bool
     process_running: bool
@@ -71,6 +73,13 @@ class IBGatewayHealthStatus:
 
 IBFactory = Callable[[], IB]
 ProcessDetector = Callable[[], bool]
+_HEALTH_PROBE_LOCK = Lock()
+_HEALTH_CLIENT_ROLE_OFFSET = {
+    ProcessRole.WEB: 0,
+    ProcessRole.DURABLE_WORKER: 1,
+    ProcessRole.SUPERVISOR: 2,
+    ProcessRole.CLI_OR_MAINTENANCE: 3,
+}
 
 
 def is_api_ready_status(status: IBGatewayHealthStatus | str | Any) -> bool:
@@ -107,76 +116,81 @@ def check_status(
             message=config_error,
         )
 
-    ib = create_ib_client(ib_factory)
-    try:
-        if hasattr(ib, "RequestTimeout"):
-            ib.RequestTimeout = settings.ib_health_timeout_seconds
-        ib.connect(
-            settings.ib_host,
-            settings.ib_port,
-            clientId=settings.ib_client_id,
-            timeout=settings.ib_health_timeout_seconds,
-            readonly=True,
-        )
-        if not ib.isConnected():
-            return _not_ready_status(
-                settings,
-                checked_at=checked_at,
-                started_at=started_at,
-                process_detector=process_detector,
-            )
-        api_ready, server_version = _api_session_ready(ib)
-        if not api_ready:
-            return _not_ready_status(
-                settings,
-                checked_at=checked_at,
-                started_at=started_at,
-                process_detector=process_detector,
-                known_process_running=True,
-            )
+    # Browser load, modal preflight, and enqueue checks can arrive together.
+    # Serialize this process's probes so the deterministic health client ID is
+    # never reused concurrently.
+    with _HEALTH_PROBE_LOCK:
+        ib = create_ib_client(ib_factory)
+        health_client_id = _health_client_id(settings)
         try:
-            smoke_response = ib.reqCurrentTime()
+            if hasattr(ib, "RequestTimeout"):
+                ib.RequestTimeout = settings.ib_health_timeout_seconds
+            ib.connect(
+                settings.ib_host,
+                settings.ib_port,
+                clientId=health_client_id,
+                timeout=settings.ib_health_timeout_seconds,
+                readonly=True,
+            )
+            if not ib.isConnected():
+                return _not_ready_status(
+                    settings,
+                    checked_at=checked_at,
+                    started_at=started_at,
+                    process_detector=process_detector,
+                )
+            api_ready, server_version = _api_session_ready(ib)
+            if not api_ready:
+                return _not_ready_status(
+                    settings,
+                    checked_at=checked_at,
+                    started_at=started_at,
+                    process_detector=process_detector,
+                    known_process_running=True,
+                )
+            try:
+                smoke_response = ib.reqCurrentTime()
+            except Exception as exc:
+                return _session_lost_status(
+                    settings,
+                    checked_at=checked_at,
+                    started_at=started_at,
+                    server_version=server_version,
+                    error=exc,
+                )
+            if smoke_response is None or not ib.isConnected():
+                return _session_lost_status(
+                    settings,
+                    checked_at=checked_at,
+                    started_at=started_at,
+                    server_version=server_version,
+                )
+            return _status(
+                state=IBGatewayHealthState.IB_API_READY,
+                settings=settings,
+                connected=True,
+                api_ready=True,
+                process_running=True,
+                server_version=server_version,
+                smoke_response_received=True,
+                checked_at=checked_at,
+                started_at=started_at,
+                error_code=None,
+                message="IB Gateway API connection successful.",
+            )
         except Exception as exc:
-            return _session_lost_status(
+            return _not_ready_status(
                 settings,
                 checked_at=checked_at,
                 started_at=started_at,
-                server_version=server_version,
+                process_detector=process_detector,
                 error=exc,
             )
-        if smoke_response is None or not ib.isConnected():
-            return _session_lost_status(
-                settings,
-                checked_at=checked_at,
-                started_at=started_at,
-                server_version=server_version,
-            )
-        return _status(
-            state=IBGatewayHealthState.IB_API_READY,
-            settings=settings,
-            connected=True,
-            api_ready=True,
-            process_running=True,
-            server_version=server_version,
-            smoke_response_received=True,
-            checked_at=checked_at,
-            started_at=started_at,
-            error_code=None,
-            message="IB Gateway API connection successful.",
-        )
-    except Exception as exc:
-        return _not_ready_status(
-            settings,
-            checked_at=checked_at,
-            started_at=started_at,
-            process_detector=process_detector,
-            error=exc,
-        )
-    finally:
-        try:
-            ib.disconnect()
-        except Exception:
-            pass
+        finally:
+            try:
+                ib.disconnect()
+            except Exception:
+                pass
 
 
 def is_gateway_process_running(executable_name: str | None = None) -> bool:
@@ -216,7 +230,15 @@ def _validate_config(settings: Settings) -> str | None:
         return "IB Gateway API port is invalid. Configure IB_PORT and retry."
     if int(settings.ib_client_id) < 0:
         return "IB Gateway client ID is invalid. Configure IB_CLIENT_ID and retry."
+    if not 0 <= _health_client_id(settings) <= 65535:
+        return "IB Gateway health client ID is invalid. Configure IB_HEALTH_CLIENT_ID and retry."
     return None
+
+
+def _health_client_id(settings: Settings) -> int:
+    """Return a deterministic, process-role-specific transient probe ID."""
+
+    return int(settings.ib_health_client_id) + _HEALTH_CLIENT_ROLE_OFFSET[settings.process_role]
 
 
 def _not_ready_status(
@@ -288,6 +310,7 @@ def _status(
         status=state.value,
         host=str(settings.ib_host),
         port=int(settings.ib_port),
+        client_id=_health_client_id(settings),
         api_connected=connected,
         api_ready=api_ready,
         process_running=process_running,

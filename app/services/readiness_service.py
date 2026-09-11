@@ -124,7 +124,9 @@ class ReadinessService:
             "sec": sec,
         }
         states = {str(check.status) for check in checks.values()}
-        status = "failed" if "failed" in states else ("degraded" if states - {"ok"} else "ok")
+        # Optional capabilities are informational.  They must not degrade the
+        # core application when no current workload requires them.
+        status = "failed" if "failed" in states else ("degraded" if "degraded" in states else "ok")
         if status != "ok":
             log_event(
                 logger,

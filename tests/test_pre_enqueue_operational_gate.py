@@ -46,6 +46,7 @@ def _ib_status(
         status=status,
         host="127.0.0.1",
         port=4002,
+        client_id=22,
         api_connected=api_ready,
         api_ready=api_ready,
         process_running=True,

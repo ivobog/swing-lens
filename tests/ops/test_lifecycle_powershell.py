@@ -192,7 +192,7 @@ def test_observability_failure_return_does_not_block_core_restart_sequence() -> 
     assert "stop-core,stop-observability,start-database,migrate,start-core,start-observability" in (
         result.stdout
     )
-    assert result.stdout.strip().endswith("2")
+    assert result.stdout.strip().endswith("0")
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")

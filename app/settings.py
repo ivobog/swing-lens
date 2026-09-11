@@ -155,6 +155,10 @@ class Settings(BaseSettings):
     ib_host: str = "127.0.0.1"
     ib_port: int = 4002
     ib_client_id: int = 21
+    # Health checks use short-lived, read-only sessions.  This is the base of
+    # a four-ID process-role range, kept separate from the longer-lived
+    # market-data client so probes cannot evict or collide with IB work.
+    ib_health_client_id: int = 22
     ib_timeout_seconds: int = 30
     ib_health_timeout_seconds: float = Field(default=3.0, ge=0.25, le=10.0)
     ib_readiness_max_age_seconds: float = Field(default=5.0, ge=0.25, le=30.0)
@@ -390,6 +394,10 @@ class Settings(BaseSettings):
             "ib_intelligence_request_max_attempts": self.ib_intelligence_request_max_attempts,
             "ib_intelligence_historical_chunk_days": self.ib_intelligence_historical_chunk_days,
         }
+        if not 0 <= self.ib_health_client_id <= 65_532:
+            raise ValueError("ib_health_client_id must be between 0 and 65532")
+        if self.ib_client_id in range(self.ib_health_client_id, self.ib_health_client_id + 4):
+            raise ValueError("IB health client-ID range must not include ib_client_id")
         for field_name, value in positive_fields.items():
             if value < 1:
                 raise ValueError(f"{field_name} must be positive")

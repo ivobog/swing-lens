@@ -69,9 +69,14 @@ function Resolve-ReadinessPayloadState {
 
 function Get-ReadinessState {
     param([int]$WebPort)
-    $probe = Invoke-HttpProbe -Uri ("http://127.0.0.1:{0}/ready" -f $WebPort) -TimeoutSeconds 5
+    $probe = Get-ReadinessProbe -WebPort $WebPort
     if (-not $probe.Reachable) { return 'failed' }
     return Resolve-ReadinessPayloadState -Payload $probe.Payload
+}
+
+function Get-ReadinessProbe {
+    param([int]$WebPort)
+    return Invoke-HttpProbe -Uri ("http://127.0.0.1:{0}/ready" -f $WebPort) -TimeoutSeconds 5
 }
 
 function Get-GitCommit {
@@ -212,7 +217,7 @@ function Invoke-AlembicUpgrade {
 function Save-WebRuntimeState {
     param($Launch, [int]$WebPort)
     $state = [ordered]@{
-        version = 3
+        version = 4
         runtimeInstanceId = [string]$Launch.runtimeInstanceId
         repoRoot = $script:RepoRoot
         gitCommit = Get-GitCommit
@@ -227,6 +232,14 @@ function Save-WebRuntimeState {
             repoRoot = $script:RepoRoot
             runtimeInstanceId = [string]$Launch.runtimeInstanceId
             port = $WebPort
+        }
+        processGroup = [ordered]@{
+            pid = [int]$Launch.processGroupPid
+            createdAt = $(if ($Launch.processGroupCreatedAt -is [DateTime]) { $Launch.processGroupCreatedAt.ToUniversalTime().ToString('o') } else { [string]$Launch.processGroupCreatedAt })
+            role = $(if ($Launch.PSObject.Properties.Name -contains 'supervisorPid') { 'supervisor' } else { 'web' })
+            module = $(if ($Launch.PSObject.Properties.Name -contains 'supervisorPid') { 'app.worker_supervisor' } else { 'app.serve' })
+            repoRoot = $script:RepoRoot
+            runtimeInstanceId = [string]$Launch.runtimeInstanceId
         }
     }
     if ($Launch.PSObject.Properties.Name -contains 'supervisorPid') {
@@ -382,12 +395,18 @@ function Get-SwingLensStatusReport {
     $owner = Get-WebOwner -Port ([int]$Config.web.port)
     $runtimeValid = $false
     $readiness = 'failed'
+    $readinessProbe = $null
+    $readinessPayload = $null
     $conflict = $false
     if ($null -ne $owner) {
         $runtime = Invoke-LifecycleProbe -Command 'runtime-state' -Arguments @('--listener-pid', [string]$owner.ProcessId)
         $runtimeValid = [bool]$runtime.valid
         $conflict = -not $runtimeValid
-        if ($runtimeValid) { $readiness = Get-ReadinessState -WebPort ([int]$Config.web.port) }
+        if ($runtimeValid) {
+            $readinessProbe = Get-ReadinessProbe -WebPort ([int]$Config.web.port)
+            $readinessPayload = $readinessProbe.Payload
+            $readiness = $(if ($readinessProbe.Reachable) { Resolve-ReadinessPayloadState -Payload $readinessPayload } else { 'failed' })
+        }
     }
     elseif (Test-Path -LiteralPath $script:RuntimeStatePath) {
         $state = Invoke-LifecycleProbe -Command 'runtime-state'
@@ -397,13 +416,32 @@ function Get-SwingLensStatusReport {
     $prometheus = $docker -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:9090/-/ready').StatusCode -eq 200
     $grafana = $docker -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:3000/api/health').StatusCode -eq 200
     $roleProcesses = @((Invoke-LifecycleProbe -Command 'processes').processes | Where-Object { $_.role -in @('worker','supervisor') })
+    $blockingFailures = @()
+    $warnings = @()
+    $informational = @()
+    if ($null -ne $readinessPayload -and $null -ne $readinessPayload.check_states) {
+        foreach ($property in $readinessPayload.check_states.PSObject.Properties) {
+            switch ([string]$property.Value) {
+                'failed' { $blockingFailures += [string]$property.Name }
+                'degraded' { $warnings += [string]$property.Name }
+                'optional_unavailable' { $informational += [string]$property.Name }
+            }
+        }
+    }
+    $webReady = $runtimeValid -and $null -ne $readinessProbe -and $readinessProbe.Reachable
+    $workerReady = $webReady -and $null -ne $readinessPayload -and [bool]$readinessPayload.worker_ok
     if ($conflict) { $overall = 'CONFLICT' }
     elseif ($null -eq $owner -and $roleProcesses.Count -gt 0) { $overall = 'FAILED' }
     elseif ($null -eq $owner) { $overall = 'STOPPED' }
     elseif (-not $database.reachable -or -not $database.schemaAtHead -or $readiness -eq 'failed') { $overall = 'FAILED' }
-    elseif ($readiness -in @('degraded', 'optional_unavailable') -or -not $prometheus -or -not $grafana) { $overall = 'DEGRADED' }
+    elseif ($readiness -eq 'degraded' -or -not $prometheus -or -not $grafana) { $overall = 'DEGRADED' }
     else { $overall = 'HEALTHY' }
-    return [pscustomobject]@{ Database=$database; Owner=$owner; RuntimeValid=$runtimeValid; Readiness=$readiness; Docker=$docker; Prometheus=$prometheus; Grafana=$grafana; Overall=$overall }
+    return [pscustomobject]@{
+        Database=$database; Owner=$owner; RuntimeValid=$runtimeValid; WebReady=$webReady
+        WorkerReady=$workerReady; Readiness=$readiness; ReadinessPayload=$readinessPayload
+        BlockingFailures=@($blockingFailures); Warnings=@($warnings); Informational=@($informational)
+        Docker=$docker; Prometheus=$prometheus; Grafana=$grafana; Overall=$overall
+    }
 }
 
 function Write-SwingLensStatus {
@@ -414,10 +452,22 @@ function Write-SwingLensStatus {
     Write-Host '----------------------------------------'
     Write-Host ('Database           {0}' -f $(if ($status.Database.reachable) { 'READY' } else { 'UNAVAILABLE' }))
     Write-Host ('Schema             {0}' -f $(if ($status.Database.schemaAtHead) { 'HEAD' } else { 'MISMATCH/UNAVAILABLE' }))
-    Write-Host ('Web/API            {0}' -f $(if ($status.RuntimeValid) { $status.Readiness.ToUpperInvariant() } elseif ($status.Owner) { 'CONFLICT' } else { 'STOPPED' }))
+    Write-Host ('Web/API            {0}' -f $(if ($status.WebReady) { 'READY' } elseif ($status.Owner -and -not $status.RuntimeValid) { 'CONFLICT' } elseif ($status.Owner) { 'UNHEALTHY' } else { 'STOPPED' }))
+    Write-Host ('Application        {0}' -f $(if (-not $status.Owner) { 'STOPPED' } elseif ($status.BlockingFailures.Count -eq 0) { 'READY' } else { 'FAILED - ' + ($status.BlockingFailures -join ', ') }))
+    Write-Host ('Worker             {0}' -f $(if ($status.WorkerReady) { 'READY' } elseif (-not $status.Owner) { 'STOPPED' } else { 'UNAVAILABLE' }))
+    $diskState = $(if ($null -ne $status.ReadinessPayload) { [string]$status.ReadinessPayload.check_states.disk } else { '' })
+    $diskDetail = $(if ($null -ne $status.ReadinessPayload) { [string]$status.ReadinessPayload.checks.disk } else { '' })
+    $diskPercent = $(if ($diskDetail -match '([0-9]+(?:\.[0-9]+)?)%') { $Matches[1] + '% free' } else { $diskDetail })
+    Write-Host ('Disk               {0}' -f $(switch ($diskState) { 'ok' { 'READY - ' + $diskPercent } 'degraded' { 'WARNING - ' + $diskPercent } 'failed' { 'CRITICAL - ' + $diskPercent } default { 'UNAVAILABLE' } }))
+    $ibState = $(if ($null -ne $status.ReadinessPayload) { [string]$status.ReadinessPayload.check_states.ib } else { '' })
+    Write-Host ('IB API             {0}' -f $(switch ($ibState) { 'ok' { 'READY' } 'optional_unavailable' { 'ON DEMAND - verified before IB-required work' } 'degraded' { 'WARNING' } 'failed' { 'UNAVAILABLE' } default { $(if ($status.Owner) { 'UNKNOWN' } else { 'STOPPED' }) } }))
     Write-Host ('Prometheus         {0}' -f $(if ($status.Prometheus) { 'READY' } else { 'UNAVAILABLE' }))
     Write-Host ('Grafana            {0}' -f $(if ($status.Grafana) { 'READY' } else { 'UNAVAILABLE' }))
-    Write-Host ('OVERALL            {0}' -f $status.Overall)
+    $warningNames = @($status.Warnings | ForEach-Object { (Get-Culture).TextInfo.ToTitleCase(($_ -replace '_', ' ')) })
+    if ($status.Owner -and -not $status.Prometheus) { $warningNames += 'Prometheus' }
+    if ($status.Owner -and -not $status.Grafana) { $warningNames += 'Grafana' }
+    $overallText = $(if ($status.Overall -eq 'DEGRADED' -and $warningNames.Count -gt 0) { 'DEGRADED (non-blocking warnings: ' + ($warningNames -join ', ') + ')' } else { $status.Overall })
+    Write-Host ('OVERALL            {0}' -f $overallText)
     return $status
 }
 
@@ -436,8 +486,7 @@ function Start-SwingLensStack {
     }
     $null = Start-SwingLensObservability -Config $Config
     $status = Write-SwingLensStatus -Config $Config
-    if ($status.Overall -eq 'HEALTHY') { return 0 }
-    if ($status.Overall -eq 'DEGRADED') { return 2 }
+    if ($status.Overall -in @('HEALTHY','DEGRADED')) { return 0 }
     throw ('Start certification failed with state ' + $status.Overall)
 }
 
@@ -469,8 +518,7 @@ function Invoke-SwingLensLifecycle {
         $config = Get-LifecycleConfig
         if ($Action -eq 'status') {
             $status = Write-SwingLensStatus -Config $config
-            if ($status.Overall -in @('HEALTHY','STOPPED')) { return 0 }
-            if ($status.Overall -eq 'DEGRADED') { return 2 }
+            if ($status.Overall -in @('HEALTHY','DEGRADED','STOPPED')) { return 0 }
             return 1
         }
         return Invoke-WithLifecycleLock -Action $Action -TimeoutSeconds ([int]$config.lockTimeoutSeconds) -Body {
