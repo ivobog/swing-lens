@@ -1764,6 +1764,61 @@ class MarketCalculationContext(Base):
     )
 
 
+class TransitionPreflightPlan(Base):
+    """Durable, immutable evidence contract consumed by one pipeline enqueue."""
+
+    __tablename__ = "transition_preflight_plans"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    market_calculation_context_id: Mapped[int] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    upload_run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    pipeline_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT"), unique=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    candidate_classification: Mapped[str] = mapped_column(String(32), nullable=False)
+    tickers_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    selection_keys_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    expected_pointers_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    predicted_snapshot_identities_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    candidate_results_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    evidence_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    technical_reconstruction_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stale_reason: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('RESERVED', 'CONSUMED', 'CANCELLED', 'EXPIRED', 'STALE')",
+            name="ck_transition_preflight_plan_status",
+        ),
+        Index("idx_transition_preflight_plans_upload_status", "upload_run_id", "status"),
+        Index("idx_transition_preflight_plans_expiry", "status", "expires_at"),
+    )
+
+
 class BackgroundSupervisor(Base):
     __tablename__ = "background_supervisors"
 
@@ -3630,12 +3685,121 @@ class SetupSignalSnapshot(Base):
             postgresql_where=text("is_canonical"),
         ),
         Index(
-            "uq_setup_signal_snapshots_canonical_day",
+            "idx_setup_signal_snapshots_canonical_at_decision",
             "ticker",
             "timeframe",
             "data_as_of_date",
-            unique=True,
             postgresql_where=text("is_canonical"),
+        ),
+    )
+
+
+class SetupSignalSnapshotCurrentSelection(Base):
+    """Mutable current-selection pointer kept outside immutable snapshot evidence."""
+
+    __tablename__ = "setup_signal_snapshot_current_selections"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    data_as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    selected_snapshot_id: Mapped[int] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    selected_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="SET NULL")
+    )
+    selected_evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    selection_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    selection_decision_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    selected_snapshot: Mapped["SetupSignalSnapshot"] = relationship(
+        foreign_keys=[selected_snapshot_id]
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "ticker",
+            "timeframe",
+            "data_as_of_date",
+            name="uq_setup_signal_snapshot_current_selection_key",
+        ),
+        UniqueConstraint(
+            "selected_snapshot_id",
+            name="uq_setup_signal_snapshot_current_selection_snapshot",
+        ),
+        Index("idx_setup_signal_snapshot_current_selection_run", "selected_run_id"),
+        Index(
+            "idx_setup_signal_snapshot_current_selection_evaluation",
+            "selected_evaluation_run_id",
+        ),
+    )
+
+
+class SetupSignalSnapshotSelectionEvent(Base):
+    """Append-only audit evidence for changes to the current selection pointer."""
+
+    __tablename__ = "setup_signal_snapshot_selection_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    data_as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    selection_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    previous_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="RESTRICT")
+    )
+    selected_snapshot_id: Mapped[int] = mapped_column(
+        ForeignKey("setup_signal_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("upload_runs.id", ondelete="SET NULL"))
+    evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    decision_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    event_key: Mapped[str] = mapped_column(Text, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    previous_snapshot: Mapped["SetupSignalSnapshot | None"] = relationship(
+        foreign_keys=[previous_snapshot_id]
+    )
+    selected_snapshot: Mapped["SetupSignalSnapshot"] = relationship(
+        foreign_keys=[selected_snapshot_id]
+    )
+
+    __table_args__ = (
+        UniqueConstraint("event_key", name="uq_setup_signal_snapshot_selection_event_key"),
+        UniqueConstraint(
+            "ticker",
+            "timeframe",
+            "data_as_of_date",
+            "selection_revision",
+            name="uq_setup_signal_snapshot_selection_event_revision",
+        ),
+        Index(
+            "idx_setup_signal_snapshot_selection_events_selected",
+            "selected_snapshot_id",
+        ),
+        Index(
+            "idx_setup_signal_snapshot_selection_events_run",
+            "run_id",
+            "evaluation_run_id",
         ),
     )
 

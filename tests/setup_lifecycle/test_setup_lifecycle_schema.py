@@ -11,6 +11,8 @@ from app.models.tables import (
     SetupLifecycleEvaluationRun,
     SetupLifecycleEvent,
     SetupSignalSnapshot,
+    SetupSignalSnapshotCurrentSelection,
+    SetupSignalSnapshotSelectionEvent,
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
@@ -19,12 +21,19 @@ from app.models.tables import (
 SETUP_LIFECYCLE_TABLES = {
     "setup_lifecycle_evaluation_runs",
     "setup_signal_snapshots",
+    "setup_signal_snapshot_current_selections",
+    "setup_signal_snapshot_selection_events",
     "setup_lifecycle_episodes",
     "setup_lifecycle_events",
     "signal_change_events",
     "signal_alert_rules",
     "signal_alert_events",
     "setup_lifecycle_administrative_audit_events",
+}
+
+LIFECYCLE_SELECTION_TABLES = {
+    "setup_signal_snapshot_current_selections",
+    "setup_signal_snapshot_selection_events",
 }
 
 
@@ -145,13 +154,23 @@ def test_setup_lifecycle_unique_constraints_and_partial_indexes_are_defined() ->
         "config_hash",
         "source_data_hash",
     ]
-    assert "uq_setup_signal_snapshots_canonical_day" in snapshot_indexes
-    assert snapshot_indexes["uq_setup_signal_snapshots_canonical_day"].unique
+    assert "idx_setup_signal_snapshots_canonical_at_decision" in snapshot_indexes
     assert (
-        snapshot_indexes["uq_setup_signal_snapshots_canonical_day"]
+        snapshot_indexes["idx_setup_signal_snapshots_canonical_at_decision"]
         .dialect_options["postgresql"]["where"]
         is not None
     )
+    current_constraints = {
+        constraint.name
+        for constraint in SetupSignalSnapshotCurrentSelection.__table__.constraints
+    }
+    selection_event_constraints = {
+        constraint.name for constraint in SetupSignalSnapshotSelectionEvent.__table__.constraints
+    }
+    assert "uq_setup_signal_snapshot_current_selection_key" in current_constraints
+    assert "uq_setup_signal_snapshot_current_selection_snapshot" in current_constraints
+    assert "uq_setup_signal_snapshot_selection_event_key" in selection_event_constraints
+    assert "uq_setup_signal_snapshot_selection_event_revision" in selection_event_constraints
     assert "uq_setup_lifecycle_episodes_active_family" in episode_indexes
     assert episode_indexes["uq_setup_lifecycle_episodes_active_family"].unique
     assert (
@@ -224,5 +243,13 @@ def test_setup_lifecycle_migration_follows_current_head() -> None:
 
     assert 'revision: str = "0017_create_setup_lifecycle_tables"' in migration
     assert 'down_revision: str | None = "0016_add_winner_probability_engine"' in migration
-    for table_name in SETUP_LIFECYCLE_TABLES:
+    for table_name in SETUP_LIFECYCLE_TABLES - LIFECYCLE_SELECTION_TABLES:
         assert table_name in migration
+
+    selection_migration = Path(
+        "alembic/versions/20260908_0069_lifecycle_current_selection.py"
+    ).read_text(encoding="utf-8")
+    assert 'revision: str = "0069_lifecycle_current_selection"' in selection_migration
+    assert 'down_revision: str | None = "0068_market_calc_context"' in selection_migration
+    for table_name in LIFECYCLE_SELECTION_TABLES:
+        assert table_name in selection_migration

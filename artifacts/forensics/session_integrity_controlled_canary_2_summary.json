@@ -1,0 +1,102 @@
+{
+  "timestamp": "2026-09-08T15:53:10.432480Z",
+  "branch": "codex/session-temporal-integrity-canary-remediation",
+  "head": "dfd0f8bfd9b7ad09f7f1a69a02896599d94f3c7e",
+  "certified_canary_remediation_head": "dfd0f8bfd9b7ad09f7f1a69a02896599d94f3c7e",
+  "pre_canary_run_id": 148,
+  "canary_2_run_id": 149,
+  "pipeline_id": 142,
+  "job_id": 42876,
+  "tickers": [
+    "AAPL",
+    "AMGN",
+    "AWK",
+    "CBOE",
+    "DHT"
+  ],
+  "market_calculation_context_id": 2,
+  "market_calculation_context_count": 1,
+  "cutoff_at": "2026-09-08T15:32:05.731953Z",
+  "latest_completed_session": "2026-09-04",
+  "calendar_version": "swinglens-us-equities-v1",
+  "bar_readiness_version": "daily-close-plus-15m-v1",
+  "cutoff_reason": "FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+  "pipeline_status": "PARTIAL",
+  "job_status": "COMPLETED",
+  "partial_reason_classifications": [
+    {
+      "ticker": "AAPL",
+      "classification": "ANALYTICAL_WARNING",
+      "reasons": ["balance_sheet_stress", "box_failure", "failed_breakout", "value_trap_risk"]
+    },
+    {
+      "ticker": "AMGN",
+      "classification": "ANALYTICAL_WARNING",
+      "reasons": ["balance_sheet_stress", "distribution_risk", "value_trap_risk"]
+    },
+    {
+      "ticker": "AWK",
+      "classification": "ANALYTICAL_WARNING",
+      "reasons": ["balance_sheet_stress", "earnings_quality_risk", "liquidity_buffer_weak", "poor_cash_conversion", "value_trap_risk"]
+    },
+    {
+      "ticker": "CBOE",
+      "classification": "ANALYTICAL_WARNING",
+      "reasons": ["distribution_risk"]
+    },
+    {
+      "ticker": "DHT",
+      "classification": "ANALYTICAL_WARNING",
+      "reasons": ["distribution_risk", "earnings_quality_risk", "poor_cash_conversion", "value_trap_risk"]
+    }
+  ],
+  "technical_scores_created": 5,
+  "lifecycle_rows_created": 5,
+  "ceri_snapshots_created": 5,
+  "ceri_child_jobs_created": 13,
+  "frozen_context_persistence_violations": 0,
+  "lifecycle_context_violations": 0,
+  "ceri_parent_context_violations": 0,
+  "ceri_handler_context_violations": 0,
+  "ceri_child_context_violations": 0,
+  "ceri_snapshot_context_violations": 0,
+  "future_session_inputs_consumed": 0,
+  "pre_event_ceri_reactions": 0,
+  "htf_confirmation_violations": 0,
+  "rs_alignment_violations": 0,
+  "ibmi_session_violations": 0,
+  "ibmi_live_status": "NOT_EXERCISED_LIVE",
+  "ceri_cooldown_live_status": "NOT_EXERCISED_LIVE",
+  "unexpected_business_mutations": 5,
+  "unexpected_business_mutation_detail": {
+    "table": "setup_signal_snapshots",
+    "run_id": 148,
+    "row_ids": [36934, 36935, 36936, 36937, 36938],
+    "changed_fields": ["is_canonical", "superseded_by_snapshot_id"],
+    "cause": "Run 149 same-session canonicalization superseded the Run 148 failed-control lifecycle snapshots"
+  },
+  "duplicate_job_execution": 0,
+  "historical_repair_performed": false,
+  "run_148_evidence_unchanged": false,
+  "run_148_evidence_hashes_changed": 5,
+  "run_148_evidence_hashes_total": 10,
+  "run_148_ceri_evidence_unchanged": true,
+  "run_148_lifecycle_evidence_unchanged": false,
+  "post_canary_tests": {
+    "status": "NOT_RUN_FAIL_FAST",
+    "reason": "The canary contract requires immediate stop after a historical row rewrite; runtime was stopped and read-only evidence was preserved."
+  },
+  "alembic_head": "0068_market_calc_context",
+  "production_code_changed": false,
+  "final_runtime_state": {
+    "application": "STOPPED",
+    "worker": "STOPPED",
+    "supervisor": "STOPPED",
+    "port_8000_listeners": 0,
+    "runnable_jobs": 0,
+    "canary_nonterminal_jobs": 0
+  },
+  "canary_result": "FAIL",
+  "safe_to_merge": false,
+  "failure_condition": "RUN_148_CONTROL_EVIDENCE_MUTATED"
+}

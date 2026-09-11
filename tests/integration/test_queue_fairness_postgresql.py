@@ -10,7 +10,7 @@ from time import perf_counter
 from sqlalchemy import create_engine, func, inspect, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob
+from app.models.tables import BackgroundJob, BackgroundWorker
 from app.services.background_job_service import (
     JobStatus,
     claim_next_job,
@@ -190,13 +190,16 @@ def test_request_key_coalescing_is_preserved_with_queue_fairness(
 
         assert second.id == first_id
         assert getattr(second, "_coalesced", False) is True
-        assert db.scalar(
-            select(func.count(BackgroundJob.id)).where(
-                BackgroundJob.job_type == "FULL_PIPELINE",
-                BackgroundJob.request_key == request_key,
-                BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RUNNING)),
+        assert (
+            db.scalar(
+                select(func.count(BackgroundJob.id)).where(
+                    BackgroundJob.job_type == "FULL_PIPELINE",
+                    BackgroundJob.request_key == request_key,
+                    BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RUNNING)),
+                )
             )
-        ) == 1
+            == 1
+        )
     engine.dispose()
 
 
@@ -206,6 +209,16 @@ def _fair_claim(
     *,
     worker_id: str,
 ) -> BackgroundJob | None:
+    if db.get(BackgroundWorker, worker_id) is None:
+        db.add(
+            BackgroundWorker(
+                worker_id=worker_id,
+                instance_id=f"{worker_id}-instance",
+                generation=1,
+                queues_json=list(ALL_QUEUES),
+            )
+        )
+        db.flush()
     groups = build_worker_claim_groups(
         ALL_QUEUES,
         fairness_enabled=True,

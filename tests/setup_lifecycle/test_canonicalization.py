@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 from app.models.tables import SetupSignalSnapshot
 from app.services.setup_lifecycle.canonicalization import (
@@ -55,14 +58,69 @@ def test_canonicalizer_promotes_exactly_one_snapshot_and_audits_changes() -> Non
     assert result.changed_snapshot_ids == (2,)
     assert result.audit_event_ids == (1001,)
     assert selected.is_canonical is True
-    assert previous.is_canonical is False
-    assert previous.superseded_by_snapshot_id == 2
+    assert previous.is_canonical is True
+    assert previous.superseded_by_snapshot_id is None
     assert repository.events[0].event_type == "CANONICAL_REVISION"
     assert repository.events[0].source_event_key
     assert repository.events[0].evidence_json["canonical_score"][2] == 1.0
     assert isinstance(repository.events[0].evidence_json["canonical_score"][4], str)
     assert selected.canonical_decision_json["score"][2] == 1.0
     assert isinstance(selected.canonical_decision_json["score"][4], str)
+
+
+def test_later_run_advances_current_selection_without_mutating_prior_evidence() -> None:
+    prior_run_snapshot = _snapshot(36934, run_id=148, is_canonical=True)
+    later_run_snapshot = _snapshot(
+        36939,
+        run_id=149,
+        calculated_at=datetime(2026, 9, 8, 15, 32, 53, tzinfo=UTC),
+    )
+    repository = FakeCanonicalRepository([prior_run_snapshot, later_run_snapshot])
+    canonicalizer = SetupLifecycleCanonicalizer(
+        repository=repository,
+        config=load_setup_lifecycle_config(),
+    )
+    before = _historical_evidence_hash(prior_run_snapshot)
+
+    canonicalizer.canonicalize_snapshots(
+        db=object(),
+        snapshots=[prior_run_snapshot, later_run_snapshot],
+        evaluation_run_id=257,
+    )
+
+    assert _historical_evidence_hash(prior_run_snapshot) == before
+    assert prior_run_snapshot.is_canonical is True
+    assert prior_run_snapshot.superseded_by_snapshot_id is None
+    assert repository.current_snapshot().id == 36939
+
+
+def test_current_and_historical_selection_have_distinct_meanings() -> None:
+    run_a = _snapshot(10, run_id=100, is_canonical=True)
+    run_b = _snapshot(
+        11,
+        run_id=101,
+        calculated_at=datetime(2026, 8, 1, 22, tzinfo=UTC),
+    )
+    repository = FakeCanonicalRepository([run_a, run_b])
+    canonicalizer = SetupLifecycleCanonicalizer(repository=repository)
+
+    canonicalizer.canonicalize_snapshots(object(), [run_a, run_b])
+
+    assert next(row for row in repository.peers if row.run_id == 100) is run_a
+    assert repository.current_snapshot() is run_b
+
+
+def test_retry_is_idempotent_for_pointer_and_audit_event() -> None:
+    selected = _snapshot(2)
+    repository = FakeCanonicalRepository([selected])
+    canonicalizer = SetupLifecycleCanonicalizer(repository=repository)
+
+    first = canonicalizer.canonicalize_snapshots(object(), [selected])
+    second = canonicalizer.canonicalize_snapshots(object(), [selected])
+
+    assert first.changed_snapshot_ids == (2,)
+    assert second.changed_snapshot_ids == ()
+    assert len(repository.selection_events) == 1
 
 
 def test_canonicalizer_does_not_emit_audit_when_choice_is_unchanged() -> None:
@@ -86,25 +144,49 @@ class FakeCanonicalRepository:
     def __init__(self, peers) -> None:
         self.peers = peers
         self.events = []
+        self.selection_events = []
+        self.selected = next((peer for peer in peers if peer.is_canonical), None)
 
     def add_lifecycle_event(self, _db, event):
         event.id = 1000 + len(self.events) + 1
         self.events.append(event)
         return event
 
-    def promote_canonical_snapshot(self, _db, snapshot, *, reason, decision):
-        for peer in self.peers:
-            if peer.id != snapshot.id and peer.is_canonical:
-                peer.is_canonical = False
-                peer.superseded_by_snapshot_id = snapshot.id
+    def advance_canonical_selection(
+        self,
+        _db,
+        snapshot,
+        *,
+        reason,
+        decision,
+        evaluation_run_id,
+    ):
+        previous = self.selected
+        changed = previous is None or previous.id != snapshot.id
+        audit_event = None
+        if changed:
+            audit_event = SimpleNamespace(decision_json=dict(decision))
+            self.selection_events.append(audit_event)
+            self.selected = snapshot
+        return SimpleNamespace(
+            selection=SimpleNamespace(selection_decision_json=dict(decision)),
+            previous_snapshot=previous,
+            changed=changed,
+            audit_event=audit_event,
+        )
+
+    def record_snapshot_canonical_decision(self, _db, snapshot, *, reason, decision):
         snapshot.is_canonical = True
         snapshot.canonical_reason = reason
         snapshot.canonical_decision_json = decision
-        return snapshot
+
+    def current_snapshot(self):
+        return self.selected
 
 def _snapshot(
     snapshot_id: int,
     *,
+    run_id: int = 7,
     coverage: Decimal = Decimal("1.0"),
     has_bar: bool = True,
     is_canonical: bool = False,
@@ -112,7 +194,7 @@ def _snapshot(
 ) -> SetupSignalSnapshot:
     snapshot = SetupSignalSnapshot(
         id=snapshot_id,
-        run_id=7,
+        run_id=run_id,
         ticker="MSFT",
         timeframe="1d",
         data_as_of_date=date(2026, 8, 1),
@@ -139,3 +221,16 @@ def _snapshot(
         },
     )
     return snapshot
+
+
+def _historical_evidence_hash(snapshot: SetupSignalSnapshot) -> str:
+    payload = {
+        "id": snapshot.id,
+        "run_id": snapshot.run_id,
+        "ticker": snapshot.ticker,
+        "data_as_of_date": snapshot.data_as_of_date.isoformat(),
+        "source_data_hash": snapshot.source_data_hash,
+        "is_canonical": snapshot.is_canonical,
+        "superseded_by_snapshot_id": snapshot.superseded_by_snapshot_id,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()

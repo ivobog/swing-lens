@@ -80,7 +80,14 @@ Pipeline inserts use immutable source identity and canonicalization precedence:
 - latest calculated timestamp
 - highest snapshot id
 
-The canonicalization index keeps one canonical snapshot per ticker, timeframe, and date. Dashboard/event queries are indexed by ticker/date, episode, status, family/state, evaluation run, and alert status/severity.
+Canonicalization has two deliberately separate meanings:
+
+- `setup_signal_snapshots` is immutable decision evidence. Its `is_canonical` field records that the snapshot was selected when its own evaluation completed; it is never demoted by a later run. `superseded_by_snapshot_id` is retained only as frozen legacy compatibility metadata and is not written by current code.
+- `setup_signal_snapshot_current_selections` is the mutable, uniquely constrained pointer for the snapshot currently selected for each ticker, timeframe, and date. Every pointer advance emits an append-only `setup_signal_snapshot_selection_events` record.
+
+Current-market dashboards, changes, alerts, maintenance, and replay resolve through the current-selection pointer. Run-scoped and historical views load the original snapshots directly and therefore retain the decision evidence visible at that run's completion. API payloads keep `is_canonical` as the derived current-state field and expose the immutable fact separately as `canonical_at_decision`.
+
+Canonicalization serializes each ticker/timeframe/date key with a PostgreSQL transaction advisory lock, reloads all committed candidates after acquiring the lock, and applies the documented deterministic precedence. This makes concurrent run completion converge on one current pointer without rewriting either candidate.
 
 ## Routes And APIs
 

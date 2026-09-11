@@ -54,10 +54,9 @@ class CeriEstimateNormalizer:
             effective_session = None
             session_warnings = ["missing_observation_timestamp"]
         source_currency = _currency(payload.get("source_currency") or payload.get("currency"))
-        source_scale = (
-            decimal_or_none(payload.get("source_scale") or payload.get("scale"))
-            or Decimal("1")
-        )
+        source_scale = decimal_or_none(
+            payload.get("source_scale") or payload.get("scale")
+        ) or Decimal("1")
         canonical_currency = _currency(payload.get("canonical_currency")) or source_currency
         canonical_scale = decimal_or_none(payload.get("canonical_scale")) or source_scale
         currency_basis = _text(payload.get("currency_basis"))
@@ -106,17 +105,11 @@ class CeriEstimateNormalizer:
 
         baseline_origin = _text(payload.get("baseline_origin"))
         retrieved_at = source_record.retrieved_at or source_record.ingested_at
-        provider_reference_at = (
-            _datetime(payload.get("provider_observation_at"))
-            or _datetime(payload.get("provider_observed_at"))
-            or source_record.source_timestamp
-        )
         reference_at = _datetime(payload.get("reference_at")) or effective_at
-        known_at = (
-            retrieved_at
-            if baseline_origin in {"PROVIDER_RELATIVE_WINDOW", "PROVIDER_RETROSPECTIVE_WINDOW"}
-            else provider_reference_at or effective_at or retrieved_at
-        )
+        # ``known_at`` is a SwingLens knowledge boundary, not a provider event
+        # timestamp.  Provider-supplied observation time remains available as
+        # reference/provenance but cannot predate actual receipt for PIT use.
+        known_at = retrieved_at
 
         return CeriEstimateSnapshot(
             source_record_id=source_record.id,

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriCompany
 from app.models.tables import RawCompanyRow
 from app.services.background_job_service import enqueue_job
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.provider_registry import CeriProviderRegistry
@@ -298,7 +299,7 @@ def schedule_ceri_batched_workflow(
     for spec in plan.jobs:
         temporal_payload = (
             {
-                "cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                "cutoff_at": CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
                 "as_of_session": market_cutoff.latest_completed_session.isoformat(),
                 "calendar_version": market_cutoff.calendar_version,
                 "calculation_context_id": market_cutoff.context_id,

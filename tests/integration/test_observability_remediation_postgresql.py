@@ -55,7 +55,7 @@ def remediated_postgres(disposable_postgres_database_factory) -> Iterator:
                 assert str(database_name).startswith("swinglens_pytest_")
                 assert connection.execute(
                     text("select version_num from alembic_version")
-                    ).scalar() == ("0067_worker_quiesce")
+                ).scalar() == ("0072_ceri_artifact_context_lineage")
             yield engine
         finally:
             engine.dispose()
@@ -344,9 +344,12 @@ def test_migration_0066_downgrade_and_reupgrade_are_consistent(
                 assert connection.scalar(text("select version_num from alembic_version")) == (
                     "0064_observability_downstream_correlation"
                 )
-                assert connection.scalar(
-                    text("select to_regclass('public.background_job_fanout_roots')")
-                ) is None
+                assert (
+                    connection.scalar(
+                        text("select to_regclass('public.background_job_fanout_roots')")
+                    )
+                    is None
+                )
                 legacy_predicate = connection.scalar(
                     text(
                         "select pg_get_expr(indpred, indrelid) from pg_index "
@@ -357,11 +360,14 @@ def test_migration_0066_downgrade_and_reupgrade_are_consistent(
             command.upgrade(config, "head")
             with engine.connect() as connection:
                 assert connection.scalar(text("select version_num from alembic_version")) == (
-                    "0067_worker_quiesce"
+                    "0072_ceri_artifact_context_lineage"
                 )
-                assert connection.scalar(
-                    text("select to_regclass('public.background_job_fanout_roots')")
-                ) == "background_job_fanout_roots"
+                assert (
+                    connection.scalar(
+                        text("select to_regclass('public.background_job_fanout_roots')")
+                    )
+                    == "background_job_fanout_roots"
+                )
                 active_predicate = connection.scalar(
                     text(
                         "select pg_get_expr(indpred, indrelid) from pg_index "
@@ -369,13 +375,16 @@ def test_migration_0066_downgrade_and_reupgrade_are_consistent(
                     )
                 )
                 assert "RECOVERING" in str(active_predicate)
-                assert connection.scalar(
-                    text(
-                        "select count(*) from information_schema.columns "
-                        "where table_name in ('background_workers','background_supervisors') "
-                        "and column_name='control_loop_heartbeat_at'"
+                assert (
+                    connection.scalar(
+                        text(
+                            "select count(*) from information_schema.columns "
+                            "where table_name in ('background_workers','background_supervisors') "
+                            "and column_name='control_loop_heartbeat_at'"
+                        )
                     )
-                ) == 2
+                    == 2
+                )
         finally:
             engine.dispose()
 
@@ -625,6 +634,7 @@ def test_operations_plans_at_representative_isolated_volumes(
 ) -> None:
     if os.environ.get("SWINGLENS_RUN_OBSERVABILITY_LOAD_CERTIFICATION") != "1":
         pytest.skip("set SWINGLENS_RUN_OBSERVABILITY_LOAD_CERTIFICATION=1 for the 1M-row gate")
+
     def percentile(values: list[float], fraction: float) -> float:
         return sorted(values)[min(len(values) - 1, int(len(values) * fraction))]
 

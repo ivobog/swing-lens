@@ -1,0 +1,164 @@
+{
+  "schema": "swinglens-run153-systemic-remediation-certification-v1",
+  "certification_date": "2026-09-10",
+  "baseline_head": "0363a1483b747ee8f551766421e4fc04704d912f",
+  "final_head": "RECORDED_IN_DELIVERY_RESPONSE",
+  "certified_implementation_head": "0529a0ee6dc7dc2811898417e19cbb6232a1f8ee",
+  "production_alembic_head": "0071_transition_preflight_plan",
+  "migration_required": true,
+  "migration_head": "0072_ceri_artifact_context_lineage",
+  "tbla_preflight_key": "TBLA/1d/2026-08-03",
+  "tbla_execution_key": "TBLA/1d/2026-07-31",
+  "tbla_fixed_loader_key": "TBLA/1d/2026-08-03",
+  "tbla_root_causes": [
+    "TPI-DM-F001: post-cutoff-revised current price-bar rows were discarded instead of reconstructed from revision history",
+    "TPI-DM-F002: no exact semantic manifest gate existed before lifecycle mutation",
+    "TPI-DM-F003: preflight did not use the shared production history/velocity builder",
+    "TPI-DM-F004: technical process-pool fallback omitted the frozen market cutoff"
+  ],
+  "decision_manifest_implemented": true,
+  "decision_manifest_model": "B",
+  "decision_manifest_contract": "transition-decision-manifest-v1",
+  "manifest_fields": [
+    "market_context.id",
+    "market_context.cutoff_at",
+    "market_context.latest_completed_session",
+    "market_context.calendar_version",
+    "market_context.bar_readiness_version",
+    "candidate.ticker",
+    "candidate.timeframe",
+    "candidate.data_as_of_date",
+    "candidate.selection_key",
+    "candidate.type/reason/confidence",
+    "candidate.predicted_pointer_advance",
+    "candidate.predicted_current_state_advance",
+    "expected_pointer.latest/exact_snapshot_id",
+    "expected_pointer.latest/exact_revision",
+    "technical.fingerprint/input_session/context/cutoff/engine_version",
+    "eligible_price_bars.id/session/basis/revision/data_hash/immutable_evidence_hash",
+    "source_ids",
+    "lifecycle_semantics"
+  ],
+  "manifest_equivalence_cases": 138,
+  "manifest_equivalence_failures": 0,
+  "production_path_replay_cases": 138,
+  "production_path_replay_transition_types": {
+    "NEW_SESSION_CANONICAL_INITIALIZATION": 93,
+    "SAME_SESSION_REPLACEMENT": 1,
+    "NON_TRANSITION": 44
+  },
+  "manifest_failure_injection": {
+    "material_bar_change_detected": true,
+    "error_code": "DECISION_MANIFEST_MISMATCH",
+    "lifecycle_mutations_after_mismatch": 0
+  },
+  "ceri_artifact_types_audited": [
+    "background parent/child jobs",
+    "processing runs",
+    "source and normalization records",
+    "revision features",
+    "derived features",
+    "price-response features",
+    "feature build states",
+    "score snapshots",
+    "change events",
+    "alert events",
+    "controlled replays"
+  ],
+  "ceri_lineage_findings": [
+    "TPI-CERI-LIN-F001",
+    "TPI-CERI-LIN-F002",
+    "TPI-CERI-LIN-F003",
+    "TPI-CERI-LIN-F004"
+  ],
+  "rows_8684_8685_root_cause": "Run 153 feature/capture job payloads carried Context 6, but the batch rebuild request/context dropped it; price-response construction therefore emitted NULL, and the context-independent retry/update path copied only metrics and preserved NULL.",
+  "rows_8684_8685_result": "Historical production rows unchanged. Equivalent clone service replay persisted explicit PIPELINE ownership, context, cutoff and calendar and preserved identity on retry.",
+  "pipeline_owned_null_context_paths_remaining": 0,
+  "price_bar_field_classification": {
+    "id": "ADMINISTRATIVE_METADATA",
+    "ticker": "IMMUTABLE_MARKET_EVIDENCE",
+    "bar_date": "IMMUTABLE_MARKET_EVIDENCE",
+    "timeframe": "IMMUTABLE_MARKET_EVIDENCE",
+    "open": "IMMUTABLE_MARKET_EVIDENCE",
+    "high": "IMMUTABLE_MARKET_EVIDENCE",
+    "low": "IMMUTABLE_MARKET_EVIDENCE",
+    "close": "IMMUTABLE_MARKET_EVIDENCE",
+    "volume": "IMMUTABLE_MARKET_EVIDENCE",
+    "source": "IMMUTABLE_MARKET_EVIDENCE",
+    "what_to_show": "IMMUTABLE_MARKET_EVIDENCE",
+    "adjustment_type": "IMMUTABLE_MARKET_EVIDENCE",
+    "created_at": "IMMUTABLE_PIT_PROVENANCE",
+    "first_seen_at": "IMMUTABLE_PIT_PROVENANCE",
+    "last_seen_at": "MUTABLE_OPERATIONAL_METADATA",
+    "revised_at": "IMMUTABLE_PIT_PROVENANCE",
+    "revision_count": "IMMUTABLE_PIT_PROVENANCE",
+    "data_hash": "IMMUTABLE_PIT_PROVENANCE"
+  },
+  "price_bar_fields_not_present": [
+    "ingested_at",
+    "updated_at",
+    "source_batch_id",
+    "source_version"
+  ],
+  "last_seen_at_classification": "MUTABLE_OPERATIONAL_METADATA",
+  "protected_bar_2263479_classification": "EXPECTED_OPERATIONAL_METADATA_CHANGE",
+  "protected_bar_2263504_classification": "EXPECTED_OPERATIONAL_METADATA_CHANGE",
+  "protected_bar_immutable_hashes": {
+    "2263479_before_after": "c9049dcc13baaefabb3b99ea24dfb8ce927485e55749b99fca05d0c236285ab5",
+    "2263504_before_after": "36127195b9fcce23befdef9d9db6cc926ba2fdd4b973fc870eab056860f013fa"
+  },
+  "immutable_hash_contract_updated": true,
+  "immutable_hash_contract": "price-bar-immutable-evidence-v1",
+  "full_row_diagnostic_contract": "price-bar-full-row-diagnostic-v1",
+  "adjacent_lineage_findings": [
+    "TPI-LIN-F001: setup lifecycle and CERI price PIT loaders shared the revised-row rejection defect; fixed through common as-of projection",
+    "technical/lifecycle/alerts/Winner/market/sector lineage complete",
+    "IBMI context optional by design with independent source-known/session provenance"
+  ],
+  "adjacent_hash_findings": [
+    "TPI-HASH-F002: Winner maturation price-state gate used full rows",
+    "TPI-HASH-F002: Winner candidate-estimate protected state used full price rows",
+    "both now use immutable PASS/FAIL and retain full-row diagnostics"
+  ],
+  "blocking_defects_found": 11,
+  "blocking_defects_fixed": 11,
+  "blocking_defects_remaining": 0,
+  "tests": {
+    "full_non_slow": {
+      "passed": 2208,
+      "skipped": 130,
+      "deselected": 58,
+      "failed": 0
+    },
+    "post_collection_focused": {
+      "passed": 71,
+      "failed": 0
+    },
+    "final_run153_focused": {
+      "passed": 12,
+      "failed": 0
+    },
+    "final_projection_ownership_hardening": {
+      "passed": 32,
+      "failed": 0
+    },
+    "broad_subsystem_initial": {
+      "passed": 732,
+      "fixture_contract_failures_fixed": 4
+    },
+    "production_path_clone_replay": "PASS",
+    "ceri_lineage_clone_replay": "PASS",
+    "migration_clone_downgrade_upgrade": "PASS",
+    "ruff_changed_files": "PASS",
+    "format_changed_files": "PASS",
+    "compileall": "PASS",
+    "alembic_one_head": "PASS",
+    "postgres_pytest_fixture": "3 SKIPPED: configured admin login unavailable; equivalent guarded-clone validation PASS"
+  },
+  "production_business_writes": false,
+  "production_pipeline_run": false,
+  "live_canary_run": false,
+  "historical_repair": false,
+  "merge_performed": false,
+  "safe_for_one_final_live_dual_mode_canary": true
+}

@@ -21,6 +21,7 @@ from app.db import get_db
 from app.main import create_app
 from app.models.tables import (
     BackgroundJob,
+    BackgroundWorker,
     EstimateLifecycleStatus,
     UploadRun,
     WinnerCohortGeneration,
@@ -524,7 +525,7 @@ def test_incident_shape_4227_retry_deferred_rows_creates_no_child(
         root_id = root.id
 
     with Session(engine) as db:
-        job = claim_next_job(db, "incident-reproduction-worker")
+        job = _claim_registered_job(db, "incident-reproduction-worker")
         assert job is not None and job.id == root_id
         db.commit()
         started = perf_counter()
@@ -882,7 +883,7 @@ def test_useful_slice_persists_one_child_with_root_parent_and_depth(
         eligible_remaining=700,
     )
     with Session(engine) as db:
-        job = claim_next_job(db, "useful-slice-worker")
+        job = _claim_registered_job(db, "useful-slice-worker")
         assert job is not None and job.id == root_id
         db.commit()
         response = execute_outcome_maturation_job(
@@ -1279,7 +1280,7 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             request_key=f"winner:latest-rescore:generation:{replacement_id}:fixture",
         )
         db.commit()
-        targeted_job = claim_next_job(db, "rescore-worker", lease_seconds=60)
+        targeted_job = _claim_registered_job(db, "rescore-worker", lease_seconds=60)
         db.commit()
         with pytest.raises(JobDeferred):
             execute_latest_rescore_job(db, targeted_job)
@@ -1537,7 +1538,7 @@ def test_stale_lease_owner_cannot_publish_generation(
         with Session(engine) as recovery:
             assert recover_stale_jobs(recovery, stale_after_seconds=1) == 1
             recovery.commit()
-            claimed = claim_next_job(recovery, "worker-new")
+            claimed = _claim_registered_job(recovery, "worker-new")
             assert claimed is not None and claimed.execution_token != "old-token"
             recovery.commit()
 
@@ -2033,6 +2034,25 @@ def _upgrade(database_url: str, revision: str = "head") -> None:
         capture_output=True,
         text=True,
     )
+
+
+def _claim_registered_job(
+    db: Session,
+    worker_id: str,
+    *,
+    lease_seconds: int = 300,
+) -> BackgroundJob | None:
+    if db.get(BackgroundWorker, worker_id) is None:
+        db.add(
+            BackgroundWorker(
+                worker_id=worker_id,
+                instance_id=f"{worker_id}-instance",
+                generation=1,
+                queues_json=["interactive", "broker", "background"],
+            )
+        )
+        db.flush()
+    return claim_next_job(db, worker_id, lease_seconds=lease_seconds)
 
 
 def _snapshot_without_ids(snapshot: dict[str, object]) -> dict[str, object]:

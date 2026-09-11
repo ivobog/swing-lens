@@ -1,9 +1,11 @@
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import make_url
 
 from alembic import context
-from app.database_safety import assert_alembic_connection_matches
+from app.database_safety import assert_alembic_connection_matches, assert_disposable_database
 from app.db import Base
 from app.models import (
     ceri_tables,  # noqa: F401
@@ -16,7 +18,10 @@ from app.settings import get_settings
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Programmatic migrations run inside integration and administrative processes.
+    # Preserve application loggers so later preflight/lifecycle forensic events
+    # cannot be silently disabled by logging.config's default behavior.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 settings = get_settings()
 # Programmatic callers (especially disposable integration tests) may provide an
@@ -26,6 +31,16 @@ database_url = config.attributes.get("database_url") or config.get_main_option(
     "sqlalchemy.url", None
 )
 database_url = str(database_url or settings.database_url)
+if (
+    config.attributes.get("disposable_database_identity") is None
+    and os.environ.get("SWINGLENS_TEST_DISPOSABLE_ALEMBIC") == "1"
+):
+    candidate_url = make_url(database_url)
+    admin_url = candidate_url.set(database="postgres")
+    config.attributes["disposable_database_identity"] = assert_disposable_database(
+        candidate_url,
+        active_database_url=admin_url,
+    )
 # ConfigParser treats percent-encoded credentials as interpolation tokens.
 # Escape only for Alembic's config layer; SQLAlchemy receives the original URL.
 config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))

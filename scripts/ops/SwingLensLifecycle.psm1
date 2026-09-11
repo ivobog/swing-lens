@@ -229,6 +229,16 @@ function Save-WebRuntimeState {
             port = $WebPort
         }
     }
+    if ($Launch.PSObject.Properties.Name -contains 'supervisorPid') {
+        $state['supervisor'] = [ordered]@{
+            pid = [int]$Launch.supervisorPid
+            createdAt = $(if ($Launch.supervisorCreatedAt -is [DateTime]) { $Launch.supervisorCreatedAt.ToUniversalTime().ToString('o') } else { [string]$Launch.supervisorCreatedAt })
+            role = 'supervisor'
+            module = 'app.worker_supervisor'
+            repoRoot = $script:RepoRoot
+            runtimeInstanceId = [string]$Launch.runtimeInstanceId
+        }
+    }
     $json = $state | ConvertTo-Json -Depth 6 -Compress
     $null = Invoke-LifecycleProbe -Command 'write-state' -Arguments @('--json', $json)
 }

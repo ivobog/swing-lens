@@ -2,7 +2,10 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [ValidateSet('start', 'stop', 'restart', 'status')]
-    [string]$Action
+    [string]$Action,
+
+    [ValidateSet('NORMAL', 'CERTIFICATION')]
+    [string]$RuntimeMode
 )
 
 if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [Version]'7.4') {
@@ -15,6 +18,22 @@ if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [Vers
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# This mutation is confined to the short-lived pwsh launcher process. Each
+# Python child receives a fresh role-specific environment derived from Settings.
+$env:PROCESS_ROLE = 'CLI_OR_MAINTENANCE'
+if ($PSBoundParameters.ContainsKey('RuntimeMode')) {
+    $env:RUNTIME_MODE = $RuntimeMode
+    if ($RuntimeMode -eq 'CERTIFICATION') {
+        $env:USE_DURABLE_PIPELINE = 'true'
+        $env:DURABLE_WORKER_PROCESS_ENABLED = 'true'
+        $env:EMBEDDED_JOB_WORKER_ENABLED = 'false'
+        $env:JOB_WORKER_ENABLED = 'false'
+        $env:WINNER_PROBABILITY_AUTO_MATURATION_ENABLED = 'false'
+        $env:WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED = 'false'
+        $env:MARKET_DATA_PREWARM_ENABLED = 'false'
+    }
+}
 
 $modulePath = Join-Path $PSScriptRoot 'scripts\ops\SwingLensLifecycle.psm1'
 Import-Module $modulePath -Force

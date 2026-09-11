@@ -33,8 +33,7 @@ from app.routers import (
     winner_probability_routes,
 )
 from app.security import install_trusted_host_middleware, issue_local_admin_csrf_token
-from app.services.supervisor_process_manager import SupervisorProcessManager
-from app.settings import Settings, get_settings
+from app.settings import ProcessRole, Settings, get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -69,6 +68,13 @@ def _introspection_routes(routes: list[BaseRoute]) -> list[BaseRoute]:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     worker_settings: Settings = app.state.settings
+    if worker_settings.process_role not in {
+        ProcessRole.WEB,
+        ProcessRole.CLI_OR_MAINTENANCE,
+    }:
+        raise RuntimeError(
+            "FastAPI lifespan may run only in WEB (or an explicit test/maintenance process)"
+        )
     operational_metrics.configure(enabled=worker_settings.observability_metrics_enabled)
     database_health_sampler = DatabaseHealthSampler(worker_settings)
     database_health_sampler.start()
@@ -82,21 +88,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         system_metrics = SystemMetricsCollector(engine, worker_settings)
         resource_sampler.start()
         system_metrics.start()
-    supervisor_manager: SupervisorProcessManager | None = None
-    if worker_settings.job_worker_enabled:
-        supervisor_manager = SupervisorProcessManager(worker_settings)
-        supervisor_manager.start()
-        app.state.supervisor_manager = supervisor_manager
-        logger.info(
-            "JOB_WORKER_ENABLED is maintaining an out-of-process durable worker supervisor.",
-            extra={"worker_id": worker_settings.job_worker_id},
-        )
-
     try:
         yield
     finally:
-        if supervisor_manager is not None:
-            supervisor_manager.stop()
         if system_metrics is not None:
             system_metrics.stop()
         if resource_sampler is not None:

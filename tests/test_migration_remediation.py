@@ -19,7 +19,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.database_safety import assert_disposable_database
-from app.models.tables import BackgroundJob
+from app.models.tables import BackgroundJob, BackgroundWorker
 from app.services.background_job_service import (
     JobLeaseLost,
     JobStatus,
@@ -178,9 +178,7 @@ def test_run101_fail_closed_migration_preserves_snapshots_and_demotes_null_guida
         try:
             conn.execute(sql.SQL("CREATE DATABASE {} ").format(sql.Identifier(database_name)))
             database_url = _database_url_for(database_name)
-            upgrade = _run_alembic(
-                database_url, "upgrade", "0041_sec_incremental_documents"
-            )
+            upgrade = _run_alembic(database_url, "upgrade", "0041_sec_incremental_documents")
             assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
             with psycopg.connect(
                 database_url.replace("+psycopg", ""), autocommit=True
@@ -217,12 +215,9 @@ def test_run101_fail_closed_migration_preserves_snapshots_and_demotes_null_guida
                 )
             upgrade = _run_alembic(database_url, "upgrade", "head")
             assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
-            with psycopg.connect(
-                database_url.replace("+psycopg", ""), autocommit=True
-            ) as check:
+            with psycopg.connect(database_url.replace("+psycopg", ""), autocommit=True) as check:
                 guidance = check.execute(
-                    "SELECT accepted_for_scoring, rejection_reason "
-                    "FROM ceri_guidance_events"
+                    "SELECT accepted_for_scoring, rejection_reason FROM ceri_guidance_events"
                 ).fetchone()
                 snapshot = check.execute(
                     "SELECT evidence_hash, calculation_version FROM ceri_score_snapshots"
@@ -280,9 +275,7 @@ def test_ceri_estimate_identity_migration_allows_corrected_observation() -> None
 
             upgrade = _run_alembic(database_url, "upgrade", "head")
             assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
-            with psycopg.connect(
-                database_url.replace("+psycopg", ""), autocommit=True
-            ) as check:
+            with psycopg.connect(database_url.replace("+psycopg", ""), autocommit=True) as check:
                 check.execute(
                     """
                     INSERT INTO ceri_estimate_snapshots
@@ -292,9 +285,7 @@ def test_ceri_estimate_identity_migration_allows_corrected_observation() -> None
                             'NEXT_FISCAL_YEAR', 'same-canonical-observation')
                     """
                 )
-                count = check.execute(
-                    "SELECT count(*) FROM ceri_estimate_snapshots"
-                ).fetchone()[0]
+                count = check.execute("SELECT count(*) FROM ceri_estimate_snapshots").fetchone()[0]
                 assert count == 2
                 with pytest.raises(psycopg.errors.UniqueViolation):
                     check.execute(
@@ -385,6 +376,14 @@ def test_postgresql_old_worker_cannot_complete_after_stale_recovery() -> None:
             engine = create_engine(database_url)
             try:
                 with Session(engine, expire_on_commit=False) as setup_session:
+                    setup_session.add(
+                        BackgroundWorker(
+                            worker_id="old-worker",
+                            instance_id="old-worker-instance",
+                            generation=1,
+                            queues_json=["interactive", "broker", "background"],
+                        )
+                    )
                     enqueue_job(
                         setup_session,
                         job_type="FULL_PIPELINE",

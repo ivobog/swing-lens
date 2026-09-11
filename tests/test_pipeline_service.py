@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
@@ -15,11 +17,25 @@ from app.services.pipeline_service import (
     resume_pipeline,
     start_pipeline,
 )
+from app.services.pre_enqueue_operational_gate import PreEnqueueOperationalGateError
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
+from app.settings import RuntimeMode
 
 
 @pytest.fixture(autouse=True)
 def _disable_optional_pipeline_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import market_calculation_context_service
+
+    create_context = market_calculation_context_service.create_pipeline_market_context
+    monkeypatch.setattr(
+        market_calculation_context_service,
+        "create_pipeline_market_context",
+        lambda db, pipeline: create_context(
+            db,
+            pipeline,
+            cutoff_at=datetime(2026, 9, 5, 12, tzinfo=UTC),
+        ),
+    )
     monkeypatch.setattr(
         "app.services.pipeline_service.ceri_flags",
         lambda: CeriFeatureFlags(True, False, False, False, False, False, False),
@@ -68,7 +84,11 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
         "CAPTURING_WINNER_PREDICTIONS"
     )
     assert job.status == JobStatus.QUEUED
-    assert job.payload_json == {"pipeline_run_id": pipeline.id}
+    assert job.payload_json["pipeline_run_id"] == pipeline.id
+    assert job.payload_json["market_cutoff_at"]
+    assert job.payload_json["input_as_of_session"]
+    assert job.payload_json["market_calendar_version"] == "swinglens-us-equities-v1"
+    assert job.payload_json["bar_readiness_version"] == "daily-close-plus-15m-v1"
     assert {
         key: value
         for key, value in pipeline.result_json.items()
@@ -79,6 +99,8 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
             "input_as_of_session",
             "market_calendar_version",
             "bar_readiness_version",
+            "transition_preflight_plan_id",
+            "transition_evidence_fingerprint",
         }
     } == {
         "background_job_id": job.id,
@@ -117,6 +139,8 @@ def test_new_pipeline_requests_running_prewarm_preemption(
             "input_as_of_session",
             "market_calendar_version",
             "bar_readiness_version",
+            "transition_preflight_plan_id",
+            "transition_evidence_fingerprint",
         }
     } == {
         "background_job_id": 1,
@@ -299,6 +323,71 @@ def test_start_pipeline_raises_for_missing_upload_run() -> None:
         start_pipeline(db, upload_run_id=404)
 
 
+def test_certification_gate_failure_precedes_pipeline_and_job_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upload_run = UploadRun(id=154, filename="canary.csv", status="COMPLETED")
+    db = FakeDb(upload_runs={154: upload_run})
+    monkeypatch.setattr(
+        "app.services.pipeline_service.get_settings",
+        lambda: type(
+            "CertificationSettingsStub",
+            (),
+            {
+                "runtime_mode": RuntimeMode.CERTIFICATION,
+                "setup_lifecycle_pipeline_step_enabled": True,
+                "ceri_legacy_pipeline_scheduling_enabled": True,
+                "ceri_batched_workflow_enabled": False,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        "app.services.pre_enqueue_operational_gate.validate_pre_enqueue_operational_gate",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            PreEnqueueOperationalGateError(
+                "IB_API_NOT_READY",
+                "IB API session unavailable. No pipeline was created.",
+                plan_id=3,
+                context_id=7,
+            )
+        ),
+    )
+
+    with pytest.raises(PreEnqueueOperationalGateError, match="IB_API_NOT_READY"):
+        start_pipeline(db, upload_run_id=154, transition_preflight_plan_id=3)
+
+    assert db.pipeline_runs == {}
+    assert db.background_jobs == {}
+    assert db.added == []
+
+
+def test_certification_duplicate_action_returns_consumed_pipeline_without_new_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upload_run = UploadRun(id=154, filename="canary.csv", status="COMPLETED")
+    pipeline = PipelineRun(id=145, upload_run_id=154, status=PipelineStatus.PENDING)
+    db = FakeDb(upload_runs={154: upload_run}, pipeline_runs={145: pipeline})
+    monkeypatch.setattr(
+        "app.services.pipeline_service.get_settings",
+        lambda: type(
+            "CertificationSettingsStub",
+            (),
+            {"runtime_mode": RuntimeMode.CERTIFICATION},
+        )(),
+    )
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service.pipeline_for_consumed_preflight",
+        lambda *_args, **_kwargs: pipeline,
+    )
+
+    returned = start_pipeline(db, upload_run_id=154, transition_preflight_plan_id=3)
+
+    assert returned is pipeline
+    assert returned.__dict__["_coalesced"] is True
+    assert len(db.pipeline_runs) == 1
+    assert db.background_jobs == {}
+
+
 def test_get_pipeline_status_returns_status_dto() -> None:
     pipeline = PipelineRun(
         id=3,
@@ -462,10 +551,10 @@ def test_resume_pipeline_queues_checkpoint_job_without_rewriting_completed_steps
     assert steps[0].status == PipelineStepStatus.COMPLETED
     assert steps[0].retry_count == 0
     job = next(iter(db.background_jobs.values()))
-    assert job.payload_json == {
-        "pipeline_run_id": 3,
-        "resume_from_step": "CERI_PROVIDER_INGEST",
-    }
+    assert job.payload_json["pipeline_run_id"] == 3
+    assert job.payload_json["resume_from_step"] == "CERI_PROVIDER_INGEST"
+    assert job.payload_json["market_cutoff_at"]
+    assert job.payload_json["input_as_of_session"]
     assert pipeline.result_json["background_job_id"] == job.id
 
 

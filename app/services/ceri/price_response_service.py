@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -12,10 +10,19 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriPriceResponseFeature
 from app.models.tables import PriceBar
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.ceri.artifact_lineage import (
+    CeriArtifactOwnership,
+    validate_ceri_artifact_lineage,
+)
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
+from app.services.ceri.pit_eligibility import (
+    price_bar_is_eligible,
+)
 from app.services.market_clock_service import MarketClockService, SessionTimestampPolicy
 from app.services.operational_metrics import operational_metrics
+from app.services.price_bar_repository import project_price_bar_rows_as_of
 from app.services.us_market_calendar import next_us_trading_day, previous_us_trading_day
 
 REACTION_POLICY_VERSION = "daily-open-causal-v1"
@@ -54,6 +61,7 @@ class CeriPriceResponseService:
         stock_bars: list[PriceBar] | None = None,
         benchmark_bars: list[PriceBar] | None = None,
         feature_as_of_session: date | None = None,
+        cutoff_at: datetime | None = None,
     ) -> PriceResponseResult:
         reaction = self.reaction_session(event_effective_at, event_effective_session)
         if event_effective_at is not None and reaction is not None:
@@ -74,6 +82,7 @@ class CeriPriceResponseService:
             self.config.config_hash,
             self.config.engine.calculation_version,
             REACTION_POLICY_VERSION,
+            *([cutoff_at.isoformat()] if cutoff_at is not None else []),
         )
         if reaction is None:
             return PriceResponseResult(
@@ -90,7 +99,12 @@ class CeriPriceResponseService:
         stock = (
             stock_bars
             if stock_bars is not None
-            else self._bars(db, ticker, max_session=feature_as_of_session)
+            else self._bars(
+                db,
+                ticker,
+                max_session=feature_as_of_session,
+                cutoff_at=cutoff_at,
+            )
         )
         benchmark = (
             benchmark_bars
@@ -99,6 +113,7 @@ class CeriPriceResponseService:
                 db,
                 self.config.price_response.benchmark,
                 max_session=feature_as_of_session,
+                cutoff_at=cutoff_at,
             )
         )
         if not stock:
@@ -264,6 +279,7 @@ class CeriPriceResponseService:
         company_id: int,
         event_type: str,
         reason: str,
+        cutoff_at: datetime | None = None,
     ) -> PriceResponseResult:
         return PriceResponseResult(
             quality=None,
@@ -274,6 +290,7 @@ class CeriPriceResponseService:
                 self.config.config_hash,
                 self.config.engine.calculation_version,
                 REACTION_POLICY_VERSION,
+                *([cutoff_at.isoformat()] if cutoff_at is not None else []),
             ),
             event_type=event_type,
             reaction_session=None,
@@ -295,13 +312,11 @@ class CeriPriceResponseService:
         event_effective_at: datetime | None,
         event_effective_session: date | None,
         feature_as_of_session: date | None = None,
+        cutoff_at: datetime | None = None,
+        calculation_context_id: int | None = None,
+        calendar_version: str | None = None,
+        ownership_mode: str = CeriArtifactOwnership.STANDALONE.value,
     ) -> CeriPriceResponseFeature:
-        existing = _maybe_scalar(
-            db,
-            select(CeriPriceResponseFeature).where(
-                CeriPriceResponseFeature.event_key == result.event_key
-            ),
-        )
         feature = self.build_feature(
             result=result,
             company_id=company_id,
@@ -310,16 +325,24 @@ class CeriPriceResponseService:
             event_effective_at=event_effective_at,
             event_effective_session=event_effective_session,
             feature_as_of_session=feature_as_of_session,
+            cutoff_at=cutoff_at,
+            calculation_context_id=calculation_context_id,
+            calendar_version=calendar_version,
+            ownership_mode=ownership_mode,
+        )
+        existing = _maybe_scalar(
+            db,
+            select(CeriPriceResponseFeature).where(
+                CeriPriceResponseFeature.event_key == feature.event_key
+            ),
         )
         if existing is None:
             existing = feature
             db.add(existing)
         else:
-            existing.metrics_json = feature.metrics_json
-            existing.reasons_json = feature.reasons_json
-            existing.warnings_json = feature.warnings_json
-            existing.price_bar_ids_json = feature.price_bar_ids_json
-            existing.evidence_hash = feature.evidence_hash
+            for column in CeriPriceResponseFeature.__table__.columns:
+                if column.name not in {"id", "created_at"}:
+                    setattr(existing, column.name, getattr(feature, column.name))
         db.flush()
         return existing
 
@@ -333,8 +356,23 @@ class CeriPriceResponseService:
         event_effective_at: datetime | None,
         event_effective_session: date | None,
         feature_as_of_session: date | None = None,
+        cutoff_at: datetime | None = None,
+        calculation_context_id: int | None = None,
+        calendar_version: str | None = None,
+        ownership_mode: str = CeriArtifactOwnership.STANDALONE.value,
     ) -> CeriPriceResponseFeature:
         """Build a persistence row without querying or flushing the database."""
+        validate_ceri_artifact_lineage(
+            ownership_mode=ownership_mode,
+            calculation_context_id=calculation_context_id,
+            calculation_cutoff_at=cutoff_at,
+            calendar_version=calendar_version,
+        )
+        event_key = (
+            f"{result.event_key}:context:{calculation_context_id}"
+            if ownership_mode == CeriArtifactOwnership.PIPELINE.value
+            else result.event_key
+        )
         payload = {
             "quality": result.quality,
             "event_key": result.event_key,
@@ -345,6 +383,10 @@ class CeriPriceResponseService:
             "unavailable_reason": result.unavailable_reason,
             "config_hash": self.config.config_hash,
             "calculation_version": self.config.engine.calculation_version,
+            "calculation_context_id": calculation_context_id,
+            "calculation_cutoff_at": cutoff_at,
+            "calendar_version": calendar_version,
+            "ownership_mode": ownership_mode,
         }
         return CeriPriceResponseFeature(
             company_id=company_id,
@@ -355,6 +397,10 @@ class CeriPriceResponseService:
             event_effective_session=event_effective_session,
             reaction_session=result.reaction_session,
             feature_as_of_session=feature_as_of_session,
+            calculation_cutoff_at=cutoff_at,
+            calculation_context_id=calculation_context_id,
+            calendar_version=calendar_version,
+            ownership_mode=ownership_mode,
             reaction_start_session=result.reaction_session,
             prior_reference_session=(
                 date.fromisoformat(str(result.metrics["prior_reference_session"]))
@@ -376,7 +422,7 @@ class CeriPriceResponseService:
             or None,
             warnings_json=list(result.warnings) or None,
             price_bar_ids_json=list(result.price_bar_ids) or None,
-            event_key=result.event_key,
+            event_key=event_key,
             config_version=self.config.engine.config_version,
             config_hash=self.config.config_hash,
             calculation_version=self.config.engine.calculation_version,
@@ -398,7 +444,14 @@ class CeriPriceResponseService:
         # same-day reaction window that may precede the event.
         return None
 
-    def _bars(self, db: Session, ticker: str, *, max_session: date | None = None) -> list[PriceBar]:
+    def _bars(
+        self,
+        db: Session,
+        ticker: str,
+        *,
+        max_session: date | None = None,
+        cutoff_at: datetime | None = None,
+    ) -> list[PriceBar]:
         statement = (
             select(PriceBar)
             .where(PriceBar.ticker == ticker.upper())
@@ -408,10 +461,16 @@ class CeriPriceResponseService:
         )
         if max_session is not None:
             statement = statement.where(PriceBar.bar_date <= max_session)
+        if cutoff_at is not None:
+            if max_session is None:
+                raise ValueError("max_session is required for point-in-time price-bar loading")
+            statement = statement.where(PriceBar.first_seen_at <= cutoff_at)
         rows = _scalars(
             db,
             statement.order_by(PriceBar.bar_date),
         )
+        if cutoff_at is not None and isinstance(db, Session):
+            rows = project_price_bar_rows_as_of(db, rows, as_of=cutoff_at)
         # Retain the same filtering for lightweight test/session adapters that
         # do not execute SQLAlchemy predicates themselves.
         return sorted(
@@ -423,6 +482,14 @@ class CeriPriceResponseService:
                 and row.source.lower() in {"ib", "ibkr", "interactive_brokers"}
                 and row.close is not None
                 and (max_session is None or row.bar_date <= max_session)
+                and (
+                    cutoff_at is None
+                    or price_bar_is_eligible(
+                        row,
+                        latest_completed_session=max_session,
+                        cutoff_at=cutoff_at,
+                    )
+                )
             ],
             key=lambda row: row.bar_date,
         )
@@ -484,9 +551,7 @@ def _event_key(*parts: Any) -> str:
 
 
 def _hash(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode()
-    ).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(value)
 
 
 def _scalars(db: Session, statement: Any) -> list[Any]:

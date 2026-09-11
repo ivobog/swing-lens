@@ -1,0 +1,80 @@
+{
+  "critical_row_counts": {
+    "background_jobs": 42520,
+    "ceri_purge_audits": 1,
+    "ceri_score_snapshots": 10734,
+    "ceri_source_records": 867461,
+    "combined_results": 23774,
+    "pipeline_runs": 144,
+    "price_bars": 2262432,
+    "raw_company_rows": 26551,
+    "setup_lifecycle_administrative_audit_events": 1,
+    "setup_signal_snapshots": 26539,
+    "upload_runs": 152,
+    "winner_prediction_snapshots": 17973
+  },
+  "current_alembic_revision": "0071_transition_preflight_plan",
+  "database_url_fingerprint": "postgresql+psycopg://<redacted>@127.0.0.1:5432/swinglens_qa_temporal_cert_20260909",
+  "expected_alembic_heads": [
+    "0071_transition_preflight_plan"
+  ],
+  "foreign_key_violations": [],
+  "generated_at": "2026-09-09T21:17:19.314367+00:00",
+  "hash_column_checks": {
+    "ceri_purge_audits.preview_manifest_hash": {
+      "blank_or_null": 0,
+      "rows": 1
+    },
+    "ceri_revision_features.evidence_hash": {
+      "blank_or_null": 0,
+      "rows": 186342
+    },
+    "ceri_score_snapshots.config_hash": {
+      "blank_or_null": 0,
+      "rows": 10734
+    },
+    "ceri_score_snapshots.evidence_hash": {
+      "blank_or_null": 0,
+      "rows": 10734
+    },
+    "ceri_source_records.content_hash": {
+      "blank_or_null": 0,
+      "rows": 867461
+    },
+    "market_regime_snapshots.evidence_hash": {
+      "blank_or_null": 0,
+      "rows": 92
+    },
+    "price_bars.data_hash": {
+      "blank_or_null": 0,
+      "rows": 2262432
+    },
+    "sector_rotation_snapshots.evidence_hash": {
+      "blank_or_null": 0,
+      "rows": 91
+    },
+    "setup_signal_snapshots.config_hash": {
+      "blank_or_null": 0,
+      "rows": 26539
+    },
+    "setup_signal_snapshots.source_data_hash": {
+      "blank_or_null": 0,
+      "rows": 26539
+    },
+    "winner_evidence_manifests.manifest_hash": {
+      "blank_or_null": 0,
+      "rows": 1895
+    },
+    "winner_prediction_snapshots.config_hash": {
+      "blank_or_null": 0,
+      "rows": 17973
+    },
+    "winner_prediction_snapshots.feature_vector_hash": {
+      "blank_or_null": 0,
+      "rows": 17973
+    }
+  },
+  "missing_critical_tables": [],
+  "passed": true,
+  "schema_head_ok": true
+}

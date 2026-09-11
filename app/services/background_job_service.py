@@ -81,6 +81,24 @@ def enqueue_job(
     triggered_by_request_id: str | None = None,
     fanout_group_id: str | None = None,
 ) -> BackgroundJob:
+    causal = enqueue_causality(
+        job_type=job_type,
+        explicit=causality,
+        parent_job_id=parent_job_id,
+        trigger_kind=trigger_kind,
+        trigger_name=trigger_name,
+        request_id=triggered_by_request_id,
+        fanout_group_id=fanout_group_id,
+    )
+    from app.services.certification_runtime import require_enqueue_authorized
+
+    require_enqueue_authorized(
+        db,
+        job_type=job_type,
+        payload=payload,
+        causality=causal,
+        settings=get_settings(),
+    )
     if not _database_has_job_progress_columns(db):
         return _enqueue_pre_migration_job(
             db,
@@ -92,15 +110,6 @@ def enqueue_job(
             run_after=run_after,
             request_key=request_key,
         )
-    causal = enqueue_causality(
-        job_type=job_type,
-        explicit=causality,
-        parent_job_id=parent_job_id,
-        trigger_kind=trigger_kind,
-        trigger_name=trigger_name,
-        request_id=triggered_by_request_id,
-        fanout_group_id=fanout_group_id,
-    )
     if workflow_key and single_flight_workflow and coalesce:
         existing = active_job_for_workflow_key(db, job_type, workflow_key)
         if existing is None:
@@ -679,6 +688,8 @@ def claim_next_job(
     lease_seconds: int = DEFAULT_LEASE_SECONDS,
     queues: Iterable[str] | None = None,
     claim_groups: Iterable[QueueClaimGroup] | None = None,
+    certification_only: bool = False,
+    excluded_job_types: Iterable[str] = (),
 ) -> BackgroundJob | None:
     # Serialize claims against the lifecycle quiesce fence on the durable
     # registration row. Whichever transaction wins this lock determines a
@@ -704,7 +715,12 @@ def claim_next_job(
     )
     job_id = None
     for group in groups:
-        job_id = _claim_ready_job_id(db, group)
+        job_id = _claim_ready_job_id(
+            db,
+            group,
+            certification_only=certification_only,
+            excluded_job_types=excluded_job_types,
+        )
         if job_id is not None:
             break
     if job_id is None:
@@ -1019,11 +1035,24 @@ def fence_jobs_for_worker(
     return fenced
 
 
-def _claim_ready_job_id(db: Session, group: QueueClaimGroup) -> int | None:
+def _claim_ready_job_id(
+    db: Session,
+    group: QueueClaimGroup,
+    *,
+    certification_only: bool = False,
+    excluded_job_types: Iterable[str] = (),
+) -> int | None:
     query = select(BackgroundJob.id).where(
         BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RECOVERING))
     )
     query = query.where(BackgroundJob.run_after <= _utcnow())
+    if certification_only:
+        from app.services.certification_runtime import apply_certification_claim_scope
+
+        query = apply_certification_claim_scope(query)
+    excluded = tuple(sorted({str(value) for value in excluded_job_types if str(value)}))
+    if excluded:
+        query = query.where(BackgroundJob.job_type.not_in(excluded))
     if group.queues:
         queue_filter = worker_queue_filter(group.queues)
         if queue_filter is not None:

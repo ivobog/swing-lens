@@ -38,8 +38,11 @@ from app.services.background_queue import (
     build_worker_claim_groups,
     normalize_worker_queues,
 )
+from app.services.ceri.sec.processor_capability import (
+    SEC_CAPABILITY_JOB_TYPES,
+    evaluate_sec_processor_capability,
+)
 from app.services.ceri.sec.processor_lifecycle import (
-    fence_worker_against_active_processor,
     lifecycle_state,
     register_deployed_processor,
 )
@@ -60,7 +63,7 @@ from app.services.worker_registry import (
     mark_worker_stopping,
     register_worker,
 )
-from app.settings import SecDocumentIncrementalMode, Settings, get_settings
+from app.settings import RuntimeMode, SecDocumentIncrementalMode, Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +165,10 @@ def run_worker(
 
     try:
         while not runtime_stop_event.is_set():
-            if time.monotonic() >= next_evidence_cleanup:
+            if (
+                settings.runtime_mode is not RuntimeMode.CERTIFICATION
+                and time.monotonic() >= next_evidence_cleanup
+            ):
                 cleanup_db = session_factory()
                 try:
                     execute_durable_evidence_retention(cleanup_db, settings)
@@ -175,15 +181,6 @@ def run_worker(
                 next_evidence_cleanup = time.monotonic() + float(
                     settings.observability_evidence_cleanup_interval_seconds
                 )
-            if (
-                settings.ceri_provider_ingest_enabled
-                and settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
-            ):
-                fence_db = session_factory()
-                try:
-                    fence_worker_against_active_processor(fence_db)
-                finally:
-                    fence_db.close()
             ran_job = run_worker_once(
                 worker_id=worker_id,
                 worker_instance_id=instance_id,
@@ -197,6 +194,10 @@ def run_worker(
                 session_factory=session_factory,
                 handlers=handlers,
                 schedule_winner_probability=(settings.winner_probability_auto_maturation_enabled),
+                certification_mode=settings.runtime_mode is RuntimeMode.CERTIFICATION,
+                sec_capability_required=(
+                    settings.ceri_enabled or settings.ceri_provider_ingest_enabled
+                ),
             )
             if stop_after_one:
                 return
@@ -225,6 +226,7 @@ def run_worker(
 def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str, Any]:
     from app.services.ceri.deployment_identity import current_deployment_identity
     from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+    from app.services.certification_runtime import effective_runtime_configuration
 
     # Treat a missing/unreadable migration identity as a startup failure.  On
     # PostgreSQL, swallowing the query error would still leave this worker's
@@ -237,11 +239,14 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
     )
     try:
         processor_state = lifecycle_state(db)
+        processor_capability = evaluate_sec_processor_capability(db)
     except AttributeError:
         # Lightweight unit-test/session doubles may only implement the schema
         # revision scalar used above. Real database errors remain fail-closed.
         processor_state = None
+        processor_capability = None
     return {
+        **effective_runtime_configuration(settings),
         "ceri_enabled": settings.ceri_enabled,
         "ceri_batched_workflow_enabled": settings.ceri_batched_workflow_enabled,
         "ceri_provider_ingest_enabled": settings.ceri_provider_ingest_enabled,
@@ -252,6 +257,12 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
         ),
         "sec_processor_compatible": (
             processor_state.deployed_is_active if processor_state is not None else None
+        ),
+        "sec_capability_state": (
+            processor_capability.state.value if processor_capability is not None else None
+        ),
+        "sec_signature_algorithm_version": (
+            processor_capability.algorithm_version if processor_capability is not None else None
         ),
         "sec_readiness_policy": settings.sec_readiness_policy.value,
         "sec_requests_per_second": settings.sec_requests_per_second,
@@ -383,6 +394,8 @@ def run_worker_once(
     session_factory: sessionmaker[Session],
     handlers: Mapping[str, JobHandler] | None = None,
     schedule_winner_probability: bool = False,
+    certification_mode: bool = False,
+    sec_capability_required: bool = False,
 ) -> bool:
     handlers = handlers or default_job_handlers()
     db = session_factory()
@@ -390,10 +403,14 @@ def run_worker_once(
         queue_names = normalize_worker_queues(queues)
         hostname = socket.gethostname()
         process_id = os.getpid()
-        abandoned_count = recover_abandoned_jobs_for_worker(
-            db,
-            worker_id=worker_id,
-            heartbeat_timeout_seconds=heartbeat_timeout_seconds,
+        abandoned_count = (
+            0
+            if certification_mode
+            else recover_abandoned_jobs_for_worker(
+                db,
+                worker_id=worker_id,
+                heartbeat_timeout_seconds=heartbeat_timeout_seconds,
+            )
         )
         if abandoned_count:
             logger.info(
@@ -409,15 +426,13 @@ def run_worker_once(
             process_id=process_id,
             instance_id=worker_instance_id,
         )
-        recovered_count = recover_stale_jobs(db, stale_after_seconds)
+        recovered_count = 0 if certification_mode else recover_stale_jobs(db, stale_after_seconds)
         if recovered_count:
             logger.info("job.stale_recovered", extra={"count": recovered_count})
-        heartbeat_worker_control_loop(
-            db, worker_id, instance_id=worker_instance_id
-        )
+        heartbeat_worker_control_loop(db, worker_id, instance_id=worker_instance_id)
         db.commit()
 
-        if schedule_winner_probability:
+        if schedule_winner_probability and not certification_mode:
             from app.services.winner_probability.scheduler import (
                 schedule_primary_h5_maturation,
             )
@@ -433,6 +448,17 @@ def run_worker_once(
             max_consecutive_interactive=max_consecutive_interactive,
             age_promotion_seconds=age_promotion_seconds,
         )
+        sec_capability = evaluate_sec_processor_capability(db) if sec_capability_required else None
+        excluded_job_types = (
+            SEC_CAPABILITY_JOB_TYPES
+            if sec_capability is not None and not sec_capability.ready
+            else ()
+        )
+        if sec_capability is not None and not sec_capability.ready:
+            logger.warning(
+                "job.worker.sec_capability_blocked",
+                extra={"worker_id": worker_id, "sec_capability": sec_capability.to_dict()},
+            )
         job = claim_next_job(
             db,
             worker_id,
@@ -440,6 +466,8 @@ def run_worker_once(
             lease_seconds=stale_after_seconds,
             queues=queue_names,
             claim_groups=claim_groups,
+            certification_only=certification_mode,
+            excluded_job_types=excluded_job_types,
         )
         if job is None:
             db.commit()
@@ -548,18 +576,21 @@ def execute_job(
     ticker = payload.get("ticker")
     company = payload.get("company")
     try:
-        with worker_job_scope(job), background_job_scope(
-            job_id=job.id,
-            job_type=job.job_type,
-            run_id=run_id,
-            worker_id=job.worker_id,
-            workflow_key=workflow_key,
-            attempt=int(job.retry_count or 0) + 1,
-            ticker=str(ticker) if ticker else None,
-            company=str(company) if company else None,
-            root_correlation_id=getattr(job, "root_correlation_id", None),
-            causation_id=getattr(job, "causation_id", None),
-            job_status_getter=lambda: str(job.status) if job.status is not None else None,
+        with (
+            worker_job_scope(job),
+            background_job_scope(
+                job_id=job.id,
+                job_type=job.job_type,
+                run_id=run_id,
+                worker_id=job.worker_id,
+                workflow_key=workflow_key,
+                attempt=int(job.retry_count or 0) + 1,
+                ticker=str(ticker) if ticker else None,
+                company=str(company) if company else None,
+                root_correlation_id=getattr(job, "root_correlation_id", None),
+                causation_id=getattr(job, "causation_id", None),
+                job_status_getter=lambda: str(job.status) if job.status is not None else None,
+            ),
         ):
             with job_phase("job_handler"):
                 return handler(db, job)
@@ -638,11 +669,23 @@ def _execute_worker_recovery_probe(db: Session, job: BackgroundJob) -> dict[str,
 
 def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any] | None:
     from app.services.background_job_service import is_cancel_requested
-    from app.services.pipeline_executor import PipelineCancelled, execute_full_pipeline
+    from app.services.market_calculation_context_service import (
+        validate_pipeline_job_market_context,
+    )
+    from app.services.pipeline_executor import (
+        PipelineCancelled,
+        PipelineExecutionDependencies,
+        execute_full_pipeline,
+    )
 
     pipeline_run_id = job.payload_json.get("pipeline_run_id")
     if pipeline_run_id is None:
         raise ValueError("FULL_PIPELINE job payload is missing pipeline_run_id.")
+    market_cutoff = validate_pipeline_job_market_context(
+        db,
+        pipeline_run_id=int(pipeline_run_id),
+        payload=job.payload_json or {},
+    )
 
     def lease_guard() -> None:
         heartbeat = getattr(job, "_heartbeat", None)
@@ -709,6 +752,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
                 progress_callback=progress_callback,
                 memory_probe=memory_probe,
                 execution_token=execution_token,
+                dependencies=PipelineExecutionDependencies(market_cutoff=market_cutoff),
             )
     except PipelineCancelled as exc:
         raise CancelRequested(str(exc)) from exc

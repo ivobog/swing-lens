@@ -10,7 +10,7 @@ from decimal import Decimal
 from io import StringIO
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -18,6 +18,7 @@ from app.models.tables import (
     SetupLifecycleEvaluationRun,
     SetupLifecycleEvent,
     SetupSignalSnapshot,
+    SetupSignalSnapshotCurrentSelection,
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
@@ -202,6 +203,31 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
             ticker="QUIET",
         )
         db.add(quiet)
+        db.flush()
+        db.add_all(
+            [
+                SetupSignalSnapshotCurrentSelection(
+                    ticker="FIX",
+                    timeframe="1d",
+                    data_as_of_date=current.data_as_of_date,
+                    selected_snapshot_id=current.id,
+                    selected_run_id=source_run.id,
+                    selected_evaluation_run_id=evaluation.id,
+                    selection_reason="TEST_FIXTURE_CURRENT_SELECTION",
+                    selection_decision_json={},
+                ),
+                SetupSignalSnapshotCurrentSelection(
+                    ticker="QUIET",
+                    timeframe="1d",
+                    data_as_of_date=quiet.data_as_of_date,
+                    selected_snapshot_id=quiet.id,
+                    selected_run_id=None,
+                    selected_evaluation_run_id=evaluation.id,
+                    selection_reason="TEST_FIXTURE_CURRENT_SELECTION",
+                    selection_decision_json={},
+                ),
+            ]
+        )
         db.commit()
 
         service = SetupLifecycleQueryService()
@@ -304,7 +330,11 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
         assert no_change["items"][0]["source_type"] == "SNAPSHOT_OBSERVATION"
         assert no_change["items"][0]["transition"] == "NO_MATERIAL_CHANGE"
 
-        current.is_canonical = False
+        db.execute(
+            delete(SetupSignalSnapshotCurrentSelection).where(
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == current.id
+            )
+        )
         lifecycle.is_current_version = False
         historical_keys = {
             ("LIFECYCLE_EVENT", lifecycle.id),

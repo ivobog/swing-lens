@@ -1534,8 +1534,8 @@ def _compare_lifecycle(page: Page, engine, recorder: CertificationRecorder, run_
         where evaluation_run_id in (
           select id from setup_lifecycle_evaluation_runs where source_run_id=:run_id
         ) and exists (
-          select 1 from setup_signal_snapshots s
-          where s.id=e.current_snapshot_id and s.is_canonical is true
+          select 1 from setup_signal_snapshot_current_selections selection
+          where selection.selected_snapshot_id=e.current_snapshot_id
         )
         """,
             {"run_id": run_id},
@@ -1844,8 +1844,8 @@ def _capture_exports(page: Page, engine, env, recorder, run_id: int) -> list[dic
             ") + ("
             "select count(*) from signal_change_events e where evaluation_run_id in "
             "(select id from setup_lifecycle_evaluation_runs where source_run_id=:run_id)"
-            " and exists (select 1 from setup_signal_snapshots s "
-            "where s.id=e.current_snapshot_id and s.is_canonical is true)"
+            " and exists (select 1 from setup_signal_snapshot_current_selections selection "
+            "where selection.selected_snapshot_id=e.current_snapshot_id)"
             ") as value"
         ),
         "winner-evidence.csv": (

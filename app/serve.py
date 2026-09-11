@@ -5,6 +5,7 @@ import csv
 import io
 import os
 import re
+import signal
 import socket
 import subprocess
 from collections.abc import Sequence
@@ -13,9 +14,11 @@ from dataclasses import dataclass
 import uvicorn
 
 from app.observability.logging import configure_json_logging
+from app.services.parent_watchdog import install_parent_watchdog
+from app.services.process_roles import require_process_role
 from app.services.redaction import redact_text
 from app.services.startup_preflight import StartupPreflightError, run_startup_preflight
-from app.settings import get_settings
+from app.settings import ProcessRole, get_settings
 
 RUNTIME_RELOAD_EXCLUDES = (
     "logs/**",
@@ -51,6 +54,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
+    require_process_role(get_settings(), ProcessRole.WEB)
+    install_parent_watchdog(lambda: os.kill(os.getpid(), signal.SIGTERM))
     conflict = diagnose_listener(args.host, args.port)
     if conflict is not None:
         name = f" ({conflict.process_name})" if conflict.process_name else ""

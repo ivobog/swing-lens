@@ -65,6 +65,26 @@ def test_exited_worker_launcher_is_replaced_automatically(monkeypatch, return_co
     assert operational_metrics.total("swinglens_worker_restarts_total", worker_id="worker-a") == 1
 
 
+def test_exited_worker_launcher_records_exit_before_registration(
+    monkeypatch, caplog
+) -> None:
+    replacement = FakeProcess(300, None)
+    monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
+    monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: None)
+    monkeypatch.setattr(worker_supervisor, "_start_worker", lambda *_args: replacement)
+
+    with caplog.at_level(logging.ERROR):
+        worker_supervisor._supervise_once(
+            worker_id="worker-a",
+            queues="interactive,broker,background",
+            child=worker_supervisor.LaunchedWorker(FakeProcess(100, 23), 0),
+        )
+
+    assert "worker.supervisor.child_exited_before_registration" in caplog.text
+    assert "DURABLE_WORKER_EXITED_BEFORE_REGISTRATION" in caplog.text
+    assert "'exit_code': 23" in caplog.text
+
+
 def test_worker_launcher_preserves_windows_virtual_environment(monkeypatch, tmp_path) -> None:
     executable = tmp_path / "Scripts" / "python.exe"
     executable.parent.mkdir()

@@ -18,10 +18,13 @@ from app.models.ceri_tables import (
     CeriIngestionRun,
     CeriRevisionFeature,
     CeriScoreSnapshot,
+    CeriSourceRecord,
 )
 from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import RawCompanyRow
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.alert_service import CeriAlertService
+from app.services.ceri.artifact_lineage import CeriArtifactOwnership
 from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureService
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.change_semantics import select_prior_comparison
@@ -31,6 +34,10 @@ from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.freshness_service import ticker_feed_freshness_from_runs
 from app.services.ceri.guidance_normalizer import guidance_eligibility_reason
 from app.services.ceri.opportunity_score_service import CeriOpportunityScoreService
+from app.services.ceri.pit_eligibility import (
+    eligible_source_record_ids,
+    referenced_sources_are_eligible,
+)
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
@@ -130,7 +137,13 @@ class CeriRunCaptureService:
             cutoff_at,
         )
         company_ids = {company.id for company in companies_by_ticker.values()}
-        features_by_company = _revision_features_for_companies(db, company_ids, as_of_session)
+        features_by_company = _revision_features_for_companies(
+            db,
+            company_ids,
+            as_of_session,
+            cutoff_at,
+            calculation_context_id=market_cutoff.context_id,
+        )
         features_by_company = {
             company_id: [
                 feature
@@ -175,6 +188,7 @@ class CeriRunCaptureService:
                     db,
                     company.id,
                     as_of_session,
+                    cutoff_at,
                     self.catalysts,
                 )
                 company_conflicted = sum(
@@ -185,15 +199,28 @@ class CeriRunCaptureService:
                 )
                 counts["conflicted"] += company_conflicted
                 counts["stale"] += company_stale
-                earnings = _scalars(
+                earnings = _eligible_source_backed_rows(
                     db,
-                    select(CeriEarningsActual).where(CeriEarningsActual.company_id == company.id),
-                )
-                estimates = _scalars(
-                    db,
-                    select(CeriEstimateSnapshot).where(
-                        CeriEstimateSnapshot.company_id == company.id
+                    _scalars(
+                        db,
+                        select(CeriEarningsActual).where(
+                            CeriEarningsActual.company_id == company.id,
+                            CeriEarningsActual.report_session <= as_of_session,
+                        ),
                     ),
+                    cutoff_at,
+                )
+                estimates = _eligible_source_backed_rows(
+                    db,
+                    _scalars(
+                        db,
+                        select(CeriEstimateSnapshot).where(
+                            CeriEstimateSnapshot.company_id == company.id,
+                            CeriEstimateSnapshot.effective_session <= as_of_session,
+                        ),
+                    ),
+                    cutoff_at,
+                    scalar_fields=("source_record_id", "conversion_source_record_id"),
                 )
                 surprise_summary = self.surprise.summarize(earnings, estimates)
                 price_result, price_feature = _price_response_for_company(
@@ -201,6 +228,9 @@ class CeriRunCaptureService:
                     company_id=company.id,
                     ticker=row.ticker,
                     as_of_session=as_of_session,
+                    cutoff_at=cutoff_at,
+                    calculation_context_id=market_cutoff.context_id,
+                    calendar_version=market_cutoff.calendar_version,
                     service=self.price_response,
                 )
                 confidence = self.confidence.calculate(
@@ -217,7 +247,7 @@ class CeriRunCaptureService:
                 opportunity = self.opportunity.calculate(
                     revision_features=features,
                     surprise_summary=surprise_summary,
-                    guidance_events=_guidance_for_company(db, company.id, as_of_session),
+                    guidance_events=_guidance_for_company(db, company.id, as_of_session, cutoff_at),
                     catalyst_features=catalyst_features,
                     price_response_quality=(
                         price_result.quality if price_result is not None else None
@@ -262,12 +292,14 @@ class CeriRunCaptureService:
                         else None
                     ),
                 )
-                guidance_rows = _guidance_for_company(db, company.id, as_of_session)
-                catalyst_lineage = _catalyst_lineage(db, company.id, as_of_session)
+                guidance_rows = _guidance_for_company(db, company.id, as_of_session, cutoff_at)
+                catalyst_lineage = _catalyst_lineage(db, company.id, as_of_session, cutoff_at)
                 evidence_lineage = {
                     "temporal_lineage": {
                         "calculation_context_id": market_cutoff.context_id,
-                        "calculation_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                        "calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(
+                            market_cutoff.cutoff_at
+                        ),
                         "input_as_of_session": as_of_session.isoformat(),
                         "calendar_version": market_cutoff.calendar_version,
                     },
@@ -426,6 +458,9 @@ def _revision_features_for_companies(
     db: Session,
     company_ids: set[int],
     as_of_session,
+    cutoff_at: datetime,
+    *,
+    calculation_context_id: int | None,
 ) -> dict[int, list[CeriRevisionFeature]]:
     if not company_ids:
         return {}
@@ -433,10 +468,31 @@ def _revision_features_for_companies(
         db,
         select(CeriRevisionFeature)
         .where(CeriRevisionFeature.company_id.in_(sorted(company_ids)))
-        .where(CeriRevisionFeature.as_of_session == as_of_session),
+        .where(CeriRevisionFeature.as_of_session == as_of_session)
+        .where(
+            CeriRevisionFeature.calculation_context_id == calculation_context_id
+            if calculation_context_id is not None
+            else CeriRevisionFeature.ownership_mode != CeriArtifactOwnership.PIPELINE.value
+        ),
+    )
+    eligible = _eligible_source_backed_rows(
+        db,
+        [
+            feature
+            for feature in features
+            if feature.known_at is None or feature.known_at <= cutoff_at
+        ],
+        cutoff_at,
+        scalar_fields=(
+            "current_source_record_id",
+            "baseline_source_record_id",
+            "provider_retrospective_source_record_id",
+        ),
+        collection_fields=("source_observation_ids_json",),
+        allow_unreferenced=True,
     )
     grouped: dict[int, list[CeriRevisionFeature]] = {}
-    for feature in features:
+    for feature in eligible:
         grouped.setdefault(feature.company_id, []).append(feature)
     return grouped
 
@@ -445,12 +501,17 @@ def _guidance_for_company(
     db: Session,
     company_id: int,
     as_of_session,
+    cutoff_at: datetime,
 ) -> list[CeriGuidanceEvent]:
-    return _scalars(
+    return _eligible_source_backed_rows(
         db,
-        select(CeriGuidanceEvent)
-        .where(CeriGuidanceEvent.company_id == company_id)
-        .where(CeriGuidanceEvent.effective_session <= as_of_session),
+        _scalars(
+            db,
+            select(CeriGuidanceEvent)
+            .where(CeriGuidanceEvent.company_id == company_id)
+            .where(CeriGuidanceEvent.effective_session <= as_of_session),
+        ),
+        cutoff_at,
     )
 
 
@@ -458,6 +519,7 @@ def _catalyst_features_for_company(
     db: Session,
     company_id: int,
     as_of_session,
+    cutoff_at: datetime,
     service: CeriCatalystFeatureService,
 ):
     events = [
@@ -469,16 +531,20 @@ def _catalyst_features_for_company(
         if event.company_id == company_id
     ]
     event_by_id = {event.id: event for event in events}
-    revisions = _scalars(
+    revisions = _eligible_source_backed_rows(
         db,
-        select(CeriCatalystEventRevision)
-        .join(
-            CeriCatalystEvent,
-            CeriCatalystEvent.id == CeriCatalystEventRevision.catalyst_event_id,
-        )
-        .where(CeriCatalystEvent.company_id == company_id)
-        .where(CeriCatalystEventRevision.is_current.is_(True)),
+        _scalars(
+            db,
+            select(CeriCatalystEventRevision)
+            .join(
+                CeriCatalystEvent,
+                CeriCatalystEvent.id == CeriCatalystEventRevision.catalyst_event_id,
+            )
+            .where(CeriCatalystEvent.company_id == company_id),
+        ),
+        cutoff_at,
     )
+    revisions = _latest_eligible_catalyst_revisions(revisions, as_of_session)
     return [
         service.calculate(
             event=event_by_id[revision.catalyst_event_id],
@@ -491,7 +557,9 @@ def _catalyst_features_for_company(
     ]
 
 
-def _catalyst_lineage(db: Session, company_id: int, as_of_session) -> dict[str, list[int]]:
+def _catalyst_lineage(
+    db: Session, company_id: int, as_of_session, cutoff_at: datetime
+) -> dict[str, list[int]]:
     events = [
         event
         for event in _scalars(
@@ -501,17 +569,19 @@ def _catalyst_lineage(db: Session, company_id: int, as_of_session) -> dict[str, 
     ]
     event_ids = {event.id for event in events if event.id is not None}
     revisions = (
-        [
-            revision
-            for revision in _scalars(
+        _latest_eligible_catalyst_revisions(
+            _eligible_source_backed_rows(
                 db,
-                select(CeriCatalystEventRevision).where(
-                    CeriCatalystEventRevision.catalyst_event_id.in_(event_ids),
-                    CeriCatalystEventRevision.is_current.is_(True),
+                _scalars(
+                    db,
+                    select(CeriCatalystEventRevision).where(
+                        CeriCatalystEventRevision.catalyst_event_id.in_(event_ids),
+                    ),
                 ),
-            )
-            if _revision_is_known_by(revision, as_of_session)
-        ]
+                cutoff_at,
+            ),
+            as_of_session,
+        )
         if event_ids
         else []
     )
@@ -530,14 +600,21 @@ def _price_response_for_company(
     company_id: int,
     ticker: str,
     as_of_session,
+    cutoff_at: datetime,
+    calculation_context_id: int | None,
+    calendar_version: str,
     service: CeriPriceResponseService,
 ):
     candidates: list[tuple[str, int | None, datetime | None, object]] = []
     earnings = [
         row
-        for row in _scalars(
+        for row in _eligible_source_backed_rows(
             db,
-            select(CeriEarningsActual).where(CeriEarningsActual.company_id == company_id),
+            _scalars(
+                db,
+                select(CeriEarningsActual).where(CeriEarningsActual.company_id == company_id),
+            ),
+            cutoff_at,
         )
         if row.report_session is not None
         and row.report_session <= as_of_session
@@ -548,9 +625,13 @@ def _price_response_for_company(
         candidates.append(("EARNINGS", event.id, event.report_at, event.report_session))
     guidance = [
         row
-        for row in _scalars(
+        for row in _eligible_source_backed_rows(
             db,
-            select(CeriGuidanceEvent).where(CeriGuidanceEvent.company_id == company_id),
+            _scalars(
+                db,
+                select(CeriGuidanceEvent).where(CeriGuidanceEvent.company_id == company_id),
+            ),
+            cutoff_at,
         )
         if (row.effective_session is None or row.effective_session <= as_of_session)
         and row.accepted_for_scoring is True
@@ -566,15 +647,20 @@ def _price_response_for_company(
     catalysts = (
         [
             revision
-            for revision in _scalars(
-                db,
-                select(CeriCatalystEventRevision).where(
-                    CeriCatalystEventRevision.catalyst_event_id.in_(company_event_ids),
-                    CeriCatalystEventRevision.is_current.is_(True),
+            for revision in _latest_eligible_catalyst_revisions(
+                _eligible_source_backed_rows(
+                    db,
+                    _scalars(
+                        db,
+                        select(CeriCatalystEventRevision).where(
+                            CeriCatalystEventRevision.catalyst_event_id.in_(company_event_ids),
+                        ),
+                    ),
+                    cutoff_at,
                 ),
+                as_of_session,
             )
-            if _revision_is_known_by(revision, as_of_session)
-            and revision.issuer_relevance is True
+            if revision.issuer_relevance is True
             and str(revision.review_state or "").upper() != "REJECTED"
         ]
         if company_event_ids
@@ -594,6 +680,7 @@ def _price_response_for_company(
             company_id=company_id,
             event_type="NONE",
             reason="NO_ACCEPTED_EVENT",
+            cutoff_at=cutoff_at,
         )
         feature = service.persist(
             db,
@@ -604,6 +691,14 @@ def _price_response_for_company(
             event_effective_at=None,
             event_effective_session=None,
             feature_as_of_session=as_of_session,
+            cutoff_at=cutoff_at,
+            calculation_context_id=calculation_context_id,
+            calendar_version=calendar_version,
+            ownership_mode=(
+                CeriArtifactOwnership.PIPELINE.value
+                if calculation_context_id is not None
+                else CeriArtifactOwnership.STANDALONE.value
+            ),
         )
         return result, feature
     event_type, event_id, event_at, event_session = max(
@@ -623,6 +718,7 @@ def _price_response_for_company(
         event_effective_at=event_at,
         event_effective_session=event_session,
         feature_as_of_session=as_of_session,
+        cutoff_at=cutoff_at,
     )
     feature = service.persist(
         db,
@@ -633,6 +729,14 @@ def _price_response_for_company(
         event_effective_at=event_at,
         event_effective_session=event_session,
         feature_as_of_session=as_of_session,
+        cutoff_at=cutoff_at,
+        calculation_context_id=calculation_context_id,
+        calendar_version=calendar_version,
+        ownership_mode=(
+            CeriArtifactOwnership.PIPELINE.value
+            if calculation_context_id is not None
+            else CeriArtifactOwnership.STANDALONE.value
+        ),
     )
     return result, feature
 
@@ -677,6 +781,70 @@ def _revision_is_known_by(revision: CeriCatalystEventRevision, as_of_session) ->
     if revision.announced_at is not None:
         return revision.announced_at.date() <= as_of_session
     return False
+
+
+def _latest_eligible_catalyst_revisions(
+    revisions: list[CeriCatalystEventRevision], as_of_session
+) -> list[CeriCatalystEventRevision]:
+    eligible = [
+        revision for revision in revisions if _revision_is_known_by(revision, as_of_session)
+    ]
+    latest: dict[int, CeriCatalystEventRevision] = {}
+    for revision in eligible:
+        current = latest.get(revision.catalyst_event_id)
+        if current is None or (revision.revision_number, revision.id or 0) > (
+            current.revision_number,
+            current.id or 0,
+        ):
+            latest[revision.catalyst_event_id] = revision
+    return list(latest.values())
+
+
+def _eligible_source_backed_rows(
+    db: Session,
+    rows: list[Any],
+    cutoff_at: datetime,
+    *,
+    scalar_fields: tuple[str, ...] = ("source_record_id",),
+    collection_fields: tuple[str, ...] = (),
+    allow_unreferenced: bool = False,
+) -> list[Any]:
+    source_ids = {
+        int(value)
+        for row in rows
+        for field in scalar_fields
+        if (value := getattr(row, field, None)) is not None
+    }
+    source_ids.update(
+        int(value)
+        for row in rows
+        for field in collection_fields
+        for value in (getattr(row, field, None) or [])
+    )
+    sources = (
+        _scalars(
+            db,
+            select(CeriSourceRecord).where(CeriSourceRecord.id.in_(sorted(source_ids))),
+        )
+        if source_ids
+        else []
+    )
+    if not isinstance(db, Session) and not sources:
+        # Legacy unit adapters do not model the source-record graph.  Real
+        # pipeline sessions and explicit PIT fixtures always enforce it.
+        return rows
+    eligible_ids = eligible_source_record_ids(sources, cutoff_at)
+    return [
+        row
+        for row in rows
+        if referenced_sources_are_eligible(
+            row,
+            eligible_ids,
+            scalar_fields=scalar_fields,
+            collection_fields=collection_fields,
+            allow_unreferenced=allow_unreferenced,
+        )
+    ]
 
 
 def _existing_snapshot(

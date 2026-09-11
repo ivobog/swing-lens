@@ -5,6 +5,10 @@ from dataclasses import dataclass, field
 from inspect import Parameter, signature
 from typing import Any
 
+from app.services.market_calculation_context_service import (
+    assert_pipeline_calculation_context,
+)
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
 from app.services.setup_lifecycle.canonicalization import (
     CanonicalizationResult,
@@ -115,8 +119,17 @@ class SetupLifecycleEvaluationService:
         should_cancel: Callable[[], bool] | None = None,
         capture_result: SnapshotCaptureResult | None = None,
         snapshot_ids: tuple[int, ...] | None = None,
+        market_cutoff: MarketCalculationCutoff | None = None,
+        pipeline_run_id: int | None = None,
     ) -> SetupLifecycleEvaluationResult:
         should_cancel = should_cancel or (lambda: False)
+        if pipeline_run_id is not None:
+            market_cutoff = assert_pipeline_calculation_context(
+                db,
+                pipeline_run_id=pipeline_run_id,
+                upload_run_id=run_id,
+                supplied_context=market_cutoff,
+            )
         handoff_snapshot_ids = _handoff_snapshot_ids(capture_result, snapshot_ids)
         evaluation_run = self.repository.create_evaluation_run(
             db,
@@ -140,6 +153,7 @@ class SetupLifecycleEvaluationService:
                     evaluation_run=evaluation_run,
                     requester=requester,
                     finalize_evaluation_run=False,
+                    market_cutoff=market_cutoff,
                 )
             else:
                 self._validate_capture_handoff(
@@ -147,6 +161,7 @@ class SetupLifecycleEvaluationService:
                     run_id=run_id,
                     capture_result=capture_result,
                     snapshot_ids=handoff_snapshot_ids,
+                    market_cutoff=market_cutoff,
                 )
                 capture = capture_result or SnapshotCaptureResult(
                     evaluation_run_id=None,
@@ -239,6 +254,7 @@ class SetupLifecycleEvaluationService:
         run_id: int,
         capture_result: SnapshotCaptureResult | None,
         snapshot_ids: tuple[int, ...],
+        market_cutoff: MarketCalculationCutoff | None,
     ) -> None:
         if len(snapshot_ids) != len(set(snapshot_ids)):
             raise ValueError("Setup capture handoff contains duplicate snapshot IDs.")
@@ -262,6 +278,15 @@ class SetupLifecycleEvaluationService:
                 and snapshot.evaluation_run_id != expected_evaluation_run_id
             ):
                 raise ValueError("Setup capture handoff snapshot ownership is inconsistent.")
+            if market_cutoff is not None and (
+                snapshot.calculation_context_id != market_cutoff.context_id
+                or snapshot.calculation_cutoff_at != market_cutoff.cutoff_at
+                or snapshot.input_as_of_session != market_cutoff.latest_completed_session
+                or snapshot.calendar_version != market_cutoff.calendar_version
+            ):
+                raise ValueError(
+                    "Setup capture handoff does not match the pipeline market context."
+                )
 
     def _checkpoint(
         self,
@@ -332,9 +357,7 @@ class SetupLifecycleEvaluationService:
             None,
         )
         prior_rows = (
-            history_loader(db, cutoffs=cutoffs, limit=window)
-            if history_loader is not None
-            else {}
+            history_loader(db, cutoffs=cutoffs, limit=window) if history_loader is not None else {}
         )
         history_by_key = {
             key: [normalized_snapshot_from_row(row) for row in rows]

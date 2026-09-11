@@ -16,7 +16,10 @@ from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup
 from app.services.setup_lifecycle.enums import EvaluationStatus
 from app.services.setup_lifecycle.episode_service import normalized_snapshot_from_row
 from app.services.setup_lifecycle.lifecycle_engine import evaluate_lifecycle
-from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+from app.services.setup_lifecycle.repository import (
+    SetupLifecycleRepository,
+    current_canonical_snapshot_predicate,
+)
 
 
 @dataclass(frozen=True)
@@ -127,7 +130,7 @@ class SetupLifecycleReplayService:
         }
 
     def _snapshots(self, db, request: SetupLifecycleReplayRequest):
-        statement = select(SetupSignalSnapshot).where(SetupSignalSnapshot.is_canonical.is_(True))
+        statement = select(SetupSignalSnapshot).where(current_canonical_snapshot_predicate())
         if request.ticker:
             statement = statement.where(
                 SetupSignalSnapshot.ticker == self.repository.normalize_ticker(request.ticker)

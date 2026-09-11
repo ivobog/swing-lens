@@ -29,6 +29,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerTemporalValidityDecision,
 )
+from app.services.price_bar_evidence import price_bar_immutable_evidence_set_hash
 from app.services.winner_probability.maturation_canary_service import (
     build_maturation_canary_manifest,
     canonical_canary_hash,
@@ -233,7 +234,10 @@ def verify(
             )
             == sorted(int(value) for value in execution["unchanged_target_stop_sibling_ids"]),
             "protected_and_non_canary_tables_unchanged": all(table_checks.values()),
-            "price_state_unchanged": before["canary_price_state"] == price_after,
+            "price_immutable_evidence_unchanged": (
+                before["canary_price_state"]["immutable_evidence"]
+                == price_after["immutable_evidence"]
+            ),
             "quarantine_unchanged": before["quarantine_count"] == quarantine_after == 1292,
             "clbk_unchanged": before["clbk_state"] == clbk_after,
             "active_winner_jobs_zero": controls_after["active_winner_jobs"] == 0,
@@ -257,6 +261,10 @@ def verify(
             "quarantine_count_after": quarantine_after,
             "clbk_state_after": clbk_after,
             "price_state_after": price_after,
+            "price_full_row_diagnostic_unchanged": (
+                before["canary_price_state"]["full_row_diagnostic"]
+                == price_after["full_row_diagnostic"]
+            ),
             "canary_outcome_state_after": _canary_outcome_state(db, artifact["manifest"]),
         }
         payload["artifact_hash"] = _hash_without_artifact_hash(payload)
@@ -493,7 +501,11 @@ def _canary_price_state(db, manifest: dict[str, Any]) -> dict[str, Any]:
         )
     )
     return {
-        "bars": _object_rows_hash(bars),
+        "immutable_evidence": {
+            "count": len(bars),
+            "sha256": price_bar_immutable_evidence_set_hash(bars),
+        },
+        "full_row_diagnostic": _object_rows_hash(bars),
         "series_versions": _object_rows_hash(series),
     }
 

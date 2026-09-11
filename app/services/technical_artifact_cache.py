@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any, Literal
@@ -11,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import TechnicalFeatureArtifact
 from app.observability.transaction_metrics import publish_after_commit
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive, redact_text
 
@@ -34,11 +33,11 @@ class LocalArtifactKey:
 
 
 def canonical_json(value: Any) -> str:
-    return json.dumps(value, default=str, separators=(",", ":"), sort_keys=True)
+    return CanonicalEvidenceSerializer.dumps(value)
 
 
 def config_hash(config: Any) -> str:
-    return hashlib.sha256(canonical_json(config).encode("utf-8")).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(config)
 
 
 def build_local_artifact_key(
@@ -68,7 +67,7 @@ def build_local_artifact_key(
         "technical_engine_version": technical_engine_version,
         "artifact_schema_version": artifact_schema_version,
     }
-    signature = hashlib.sha256(canonical_json(signature_payload).encode("utf-8")).hexdigest()
+    signature = CanonicalEvidenceSerializer.fingerprint(signature_payload)
     return LocalArtifactKey(
         ticker=ticker.upper(),
         timeframe=timeframe,

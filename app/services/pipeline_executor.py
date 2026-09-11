@@ -42,8 +42,8 @@ from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, build_fetch_plan
 from app.services.ib_gateway_health_service import (
-    IBGatewayHealthState,
     IBGatewayHealthStatus,
+    is_api_ready_status,
 )
 from app.services.ib_gateway_health_service import (
     check_status as check_ib_gateway_status,
@@ -323,14 +323,13 @@ def execute_full_pipeline(
         ):
             ib_health = dependencies.check_ib_gateway()
             _apply_ib_execution_status(result, ib_health)
-            if (
-                market_data_policy is MarketDataPolicy.REQUIRE_IB
-                and ib_health.status != IBGatewayHealthState.READY
+            if market_data_policy is MarketDataPolicy.REQUIRE_IB and not is_api_ready_status(
+                ib_health
             ):
                 result["failure_reason"] = IBGatewayUnavailable.code
                 result["market_data_mode"] = "BLOCKED"
                 raise IBGatewayUnavailable(f"{IBGatewayUnavailable.code}: {ib_health.message}")
-            cache_fallback = ib_health.status != IBGatewayHealthState.READY
+            cache_fallback = not is_api_ready_status(ib_health)
             if cache_fallback:
                 result["market_data_mode"] = "CACHE_FALLBACK"
                 result["degraded"] = True
@@ -665,6 +664,8 @@ def execute_full_pipeline(
                     capture_result=capture_result
                     if _setup_capture_handoff_enabled(dependencies)
                     else None,
+                    market_cutoff=market_cutoff,
+                    pipeline_run_id=pipeline.id,
                 )
                 _apply_setup_lifecycle_evaluation_result(result, evaluation_result)
 
@@ -1806,6 +1807,8 @@ def _evaluate_setup_lifecycles(
     run_id: int,
     *,
     capture_result: Any | None = None,
+    market_cutoff: MarketCalculationCutoff | None = None,
+    pipeline_run_id: int | None = None,
 ):
     from app.services.setup_lifecycle.evaluation_service import (
         SetupLifecycleEvaluationService,
@@ -1815,6 +1818,8 @@ def _evaluate_setup_lifecycles(
         db,
         run_id,
         capture_result=capture_result,
+        market_cutoff=market_cutoff,
+        pipeline_run_id=pipeline_run_id,
     )
 
 
@@ -1824,17 +1829,26 @@ def _invoke_setup_evaluation(
     run_id: int,
     *,
     capture_result: Any | None,
+    market_cutoff: MarketCalculationCutoff,
+    pipeline_run_id: int,
 ) -> Any:
-    if capture_result is None:
-        return evaluate(db, run_id)
     parameters = signature(evaluate).parameters.values()
-    accepts_capture_result = any(
-        parameter.name == "capture_result" or parameter.kind == Parameter.VAR_KEYWORD
-        for parameter in parameters
-    )
-    if accepts_capture_result:
-        return evaluate(db, run_id, capture_result=capture_result)
-    return evaluate(db, run_id)
+    names = {parameter.name for parameter in parameters}
+    accepts_kwargs = any(parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters)
+    required = {"market_cutoff", "pipeline_run_id"}
+    if not accepts_kwargs and not required.issubset(names):
+        raise TypeError(
+            "Pipeline setup lifecycle evaluator must accept market_cutoff and pipeline_run_id."
+        )
+    kwargs: dict[str, Any] = {
+        "market_cutoff": market_cutoff,
+        "pipeline_run_id": pipeline_run_id,
+    }
+    if capture_result is not None:
+        if not accepts_kwargs and "capture_result" not in names:
+            raise TypeError("Setup lifecycle evaluator does not accept capture_result handoff.")
+        kwargs["capture_result"] = capture_result
+    return evaluate(db, run_id, **kwargs)
 
 
 def _apply_ceri_capture_result(result: dict[str, Any], ceri_result: Any) -> None:

@@ -1,0 +1,170 @@
+{
+  "baseline_head": "946c7ee1bbf4bd8a35650704dd3e1ab4363417ee",
+  "production_alembic_head": "0070_ceri_price_response_pit_context",
+  "analysis_timestamp": "2026-09-09T15:47:17.341061+00:00",
+  "prospective_cutoff_at": "2026-09-09T15:47:17.341061+00:00",
+  "prospective_latest_completed_session": "2026-09-08",
+  "tbla_blockers": [
+    "STI-READINESS-F001",
+    "STI-READINESS-F002"
+  ],
+  "nni_blockers": [
+    "STI-READINESS-F001",
+    "STI-READINESS-F002"
+  ],
+  "tpl_blockers": [
+    "STI-READINESS-F001",
+    "STI-READINESS-F002"
+  ],
+  "drs_blockers": [
+    "STI-READINESS-F005",
+    "STI-READINESS-F002"
+  ],
+  "blocker_findings": [
+    {
+      "id": "STI-READINESS-F001",
+      "taxonomy": "PIT_VERSION_HISTORY_MISSING",
+      "primary_class": "B_LEGACY_PROVENANCE_GAP",
+      "detail": "23866 of 23882 technical scores lack frozen cutoff/session provenance."
+    },
+    {
+      "id": "STI-READINESS-F002",
+      "taxonomy": "OTHER_PROVEN",
+      "primary_class": "C_CANDIDATE_OVERCONSTRAINT",
+      "detail": "Candidate discovery requires exact equality to a newly generated prospective cutoff while enqueue independently generates another cutoff."
+    },
+    {
+      "id": "STI-READINESS-F003",
+      "taxonomy": "LEGACY_RECEIPT_PROVENANCE_MISSING",
+      "primary_class": "B_LEGACY_PROVENANCE_GAP",
+      "detail": "Run-76 market snapshot 20 has no calculation cutoff/context/calendar."
+    },
+    {
+      "id": "STI-READINESS-F004",
+      "taxonomy": "DATA_DID_NOT_EXIST_AT_CUTOFF",
+      "primary_class": "A_GENUINE_PIT_ABSENCE",
+      "detail": "Run-76 sector snapshot 19 is dated 2026-08-04 and is not applicable to the 2026-08-03 candidate key."
+    },
+    {
+      "id": "STI-READINESS-F005",
+      "taxonomy": "SELECTION_KEY_MISMATCH",
+      "primary_class": "D_CORRECT_NON_TRANSITION",
+      "detail": "DRS prospective key is 2026-09-08; current DRS keys are 2026-08-03 and 2026-07-30."
+    },
+    {
+      "id": "STI-READINESS-F006",
+      "taxonomy": "SELECTION_KEY_MISMATCH",
+      "primary_class": "D_CORRECT_NON_TRANSITION",
+      "detail": "939 universe candidates would initialize a new key."
+    },
+    {
+      "id": "STI-READINESS-F007",
+      "taxonomy": "PROSPECTIVE_STATE_NOT_BETTER",
+      "primary_class": "D_CORRECT_NON_TRANSITION",
+      "detail": "210 same-key candidates do not outrank their exact pointer after required-input completeness is established."
+    },
+    {
+      "id": "STI-READINESS-F008",
+      "taxonomy": "PIT_VERSION_HISTORY_MISSING",
+      "primary_class": "B_LEGACY_PROVENANCE_GAP",
+      "detail": "6599 of 39406 revised price rows lack a complete one-ledger-row-per-revision history."
+    },
+    {
+      "id": "STI-READINESS-F009",
+      "taxonomy": "DATA_DID_NOT_EXIST_AT_CUTOFF",
+      "primary_class": "A_GENUINE_PIT_ABSENCE",
+      "detail": "No daily sector ETF price bars exist; this input is pipeline-degradable."
+    },
+    {
+      "id": "STI-READINESS-F010",
+      "taxonomy": "PIT_VERSION_HISTORY_MISSING",
+      "primary_class": "B_LEGACY_PROVENANCE_GAP",
+      "detail": "All 5792 legacy CERI price-response rows have null 0070 context fields."
+    },
+    {
+      "id": "STI-READINESS-F011",
+      "taxonomy": "OTHER_PROVEN",
+      "primary_class": "D_CORRECT_NON_TRANSITION",
+      "detail": "No candidate is rejected solely for optional or degradable input absence."
+    },
+    {
+      "id": "STI-READINESS-F012",
+      "taxonomy": "DATA_DID_NOT_EXIST_AT_CUTOFF",
+      "primary_class": "A_GENUINE_PIT_ABSENCE",
+      "detail": "FIBK is the sole same-key candidate missing required technical, setup and classification inputs."
+    }
+  ],
+  "input_dependency_classification": [
+    {"input": "prospective_market_calculation_context", "classification": "REQUIRED_FOR_SELECTION", "pit_provenance_required": true, "missing_blocks_high": true},
+    {"input": "completed_upload_raw_row", "classification": "REQUIRED_FOR_LIFECYCLE_SNAPSHOT", "pit_provenance_required": true, "missing_blocks_high": true},
+    {"input": "ticker_daily_price_bars", "classification": "REQUIRED_FOR_SELECTION", "pit_provenance_required": true, "missing_blocks_high": true},
+    {"input": "technical_result", "classification": "REQUIRED_FOR_SELECTION", "pit_provenance_required": true, "missing_blocks_high": true},
+    {"input": "previous_ticker_bar", "classification": "REQUIRED_FOR_LIFECYCLE_SNAPSHOT", "pit_provenance_required": true, "missing_blocks_high": false},
+    {"input": "market_regime_snapshot", "classification": "REQUIRED_FOR_SELECTION", "pit_provenance_required": true, "missing_blocks_high": "conditional"},
+    {"input": "sector_rotation_snapshot_and_row", "classification": "REQUIRED_FOR_SELECTION", "pit_provenance_required": true, "missing_blocks_high": "conditional"},
+    {"input": "fundamental_score", "classification": "REQUIRED_FOR_LIFECYCLE_SNAPSHOT", "pit_provenance_required": false, "missing_blocks_high": false},
+    {"input": "combined_result", "classification": "REQUIRED_FOR_LIFECYCLE_SNAPSHOT", "pit_provenance_required": false, "missing_blocks_high": "conditional_fallback"},
+    {"input": "ranking_results", "classification": "OPTIONAL", "pit_provenance_required": false, "missing_blocks_high": false},
+    {"input": "broad_benchmark_bars", "classification": "REQUIRED_FOR_PIPELINE_BUT_DEGRADABLE", "pit_provenance_required": true, "missing_blocks_high": false},
+    {"input": "sector_etf_bars", "classification": "REQUIRED_FOR_PIPELINE_BUT_DEGRADABLE", "pit_provenance_required": true, "missing_blocks_high": false},
+    {"input": "ceri_sources", "classification": "NOT_RELEVANT_TO_POINTER_DECISION", "pit_provenance_required": true, "missing_blocks_high": false},
+    {"input": "ceri_price_response_bars_and_features", "classification": "NOT_RELEVANT_TO_POINTER_DECISION", "pit_provenance_required": true, "missing_blocks_high": false},
+    {"input": "provider_fetch_availability", "classification": "REQUIRED_FOR_PIPELINE_BUT_DEGRADABLE", "pit_provenance_required": true, "missing_blocks_high": false}
+  ],
+  "universe_size": 1491,
+  "same_key_candidates": 552,
+  "new_key_initializations": 939,
+  "pit_complete_candidates": 0,
+  "pit_incomplete_candidates": 1491,
+  "predicted_pointer_advances": 0,
+  "high_candidates": 0,
+  "medium_candidates": 0,
+  "low_candidates": 1491,
+  "high_candidate_tickers": [],
+  "candidate_readiness_tiers": {
+    "READY_HIGH": 0,
+    "READY_MEDIUM": 0,
+    "BLOCKED_GENUINE_PIT_ABSENCE": 1,
+    "BLOCKED_LEGACY_PROVENANCE": 341,
+    "BLOCKED_SELECTION_KEY": 939,
+    "BLOCKED_POINTER_ALREADY_NEWER": 0,
+    "BLOCKED_NOT_BETTER": 210,
+    "BLOCKED_OVERCONSTRAINT": 0,
+    "BLOCKED_PROVIDER_STATE": 0,
+    "UNRESOLVED": 0
+  },
+  "legacy_pit_coverage": {
+    "technical_price_bars": {"complete": 2259240, "denominator": 2259240, "percent": 100.0},
+    "broad_benchmark_bars": {"complete": 3192, "denominator": 3192, "percent": 100.0},
+    "sector_etf_bars": {"complete": 0, "denominator": 0, "percent": null},
+    "technical_scores": {"complete": 16, "denominator": 23882, "percent": 0.067},
+    "lifecycle_market_sector_snapshots": {"complete": 8, "denominator": 183, "percent": 4.372},
+    "ceri_sources": {"complete": 867461, "denominator": 867461, "percent": 100.0},
+    "ceri_referenced_price_bars": {"complete": 10992, "denominator": 10992, "percent": 100.0},
+    "ceri_price_response_context": {"complete": 0, "denominator": 5792, "percent": 0.0}
+  },
+  "post_0070_pit_coverage": {
+    "business_rows_observed": 0,
+    "complete": 0,
+    "denominator": 0,
+    "percent": null,
+    "interpretation": "No post-0070 production business data has accumulated; code paths populate provenance for future rows."
+  },
+  "protected_history": {
+    "runs_148_151_immutable_hashes_match": true,
+    "ceri_snapshot_10929_full_row_hash": "75971daad3f89f7f3500d616346b43d4217edd75482f8b4a65f7040dfb883d87",
+    "source_867459_867465_unchanged": true,
+    "bars_2263479_2263504_unchanged": true
+  },
+  "code_remediation_classification": "CODE_REMEDIATION_NEEDED_CANDIDATE_OVERCONSTRAINT",
+  "code_remediation_required": true,
+  "natural_provenance_accumulation_expected": true,
+  "natural_accumulation_alone_creates_high_candidate": false,
+  "pit_coverage_analysis_certified": true,
+  "transition_readiness_analysis_certified": true,
+  "production_business_writes": false,
+  "pipeline_enqueued": false,
+  "canary_run": false,
+  "merge_performed": false,
+  "safe_to_run_final_targeted_transition_canary": false
+}

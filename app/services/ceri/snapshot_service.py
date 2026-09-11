@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriScoreSnapshot
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.change_semantics import EVIDENCE_CONTRACT_VERSION
 from app.services.ceri.confidence_service import ConfidenceResult
 from app.services.ceri.config import CeriConfig, load_ceri_config
@@ -250,18 +251,11 @@ def derive_alignment_flags(inputs: dict[str, bool], earnings_level: str) -> dict
 
 
 def score_evidence_hash(payload: dict[str, Any]) -> str:
-    encoded = canonical_json_dumps(payload)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return CanonicalEvidenceSerializer.fingerprint(payload)
 
 
 def canonical_json_dumps(value: Any) -> str:
-    return json.dumps(
-        _canonical_json_value(value),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    )
+    return CanonicalEvidenceSerializer.dumps(value)
 
 
 def _canonical_json_value(value: Any) -> Any:

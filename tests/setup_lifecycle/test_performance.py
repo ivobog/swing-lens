@@ -42,7 +42,9 @@ def test_phase_12_performance_targets_match_config_constants_and_settings() -> N
 
 
 def test_phase_12_dashboard_and_canonical_queries_have_index_contracts() -> None:
-    assert _index_columns(SetupSignalSnapshot, "uq_setup_signal_snapshots_canonical_day") == (
+    assert _index_columns(
+        SetupSignalSnapshot, "idx_setup_signal_snapshots_canonical_at_decision"
+    ) == (
         "ticker",
         "timeframe",
         "data_as_of_date",

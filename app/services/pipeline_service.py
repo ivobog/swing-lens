@@ -15,11 +15,12 @@ from app.services.background_job_service import (
     enqueue_job,
     request_job_cancel,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.market_data_prewarm_service import request_active_prewarm_preemption
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
-from app.settings import get_settings
+from app.settings import RuntimeMode, get_settings
 
 FULL_PIPELINE_JOB_TYPE = "FULL_PIPELINE"
 PIPELINE_JOB_PRIORITY = 100
@@ -120,7 +121,13 @@ def start_pipeline(
     setup_lifecycle_pipeline_step_enabled: bool | None = None,
     market_data_policy: MarketDataPolicy | str = MarketDataPolicy.REQUIRE_IB,
     ib_preflight_status: dict[str, Any] | None = None,
+    transition_preflight_plan_id: int | None = None,
+    transition_candidate_discovery: Any | None = None,
 ) -> PipelineRun:
+    settings = get_settings()
+    certification_mode = (
+        getattr(settings, "runtime_mode", RuntimeMode.NORMAL) is RuntimeMode.CERTIFICATION
+    )
     upload_run = db.get(UploadRun, upload_run_id)
     if upload_run is None:
         raise ValueError(f"Upload run {upload_run_id} was not found.")
@@ -130,6 +137,49 @@ def start_pipeline(
     except ValueError as exc:
         raise ValueError(f"Unsupported market data policy: {market_data_policy}") from exc
 
+    verified_transition_preflight = None
+    operational_gate_result = None
+    if transition_preflight_plan_id is not None:
+        from app.services.transition_preflight_plan_service import (
+            TransitionPreflightError,
+            pipeline_for_consumed_preflight,
+            verify_transition_preflight_for_enqueue,
+        )
+
+        consumed_pipeline = pipeline_for_consumed_preflight(db, transition_preflight_plan_id)
+        if consumed_pipeline is not None:
+            consumed_pipeline._coalesced = True
+            return consumed_pipeline
+        if certification_mode:
+            from app.services.pre_enqueue_operational_gate import (
+                validate_pre_enqueue_operational_gate,
+            )
+
+            operational_gate_result = validate_pre_enqueue_operational_gate(
+                db,
+                upload_run_id=upload_run_id,
+                plan_id=transition_preflight_plan_id,
+                settings=settings,
+                discovery=transition_candidate_discovery,
+            )
+            verified_transition_preflight = operational_gate_result.verified_preflight
+            ib_preflight_status = operational_gate_result.ib_status.to_dict()
+        else:
+            verified_transition_preflight = verify_transition_preflight_for_enqueue(
+                db,
+                plan_id=transition_preflight_plan_id,
+                upload_run_id=upload_run_id,
+                discovery=transition_candidate_discovery,
+            )
+    elif certification_mode:
+        from app.services.pre_enqueue_operational_gate import PreEnqueueOperationalGateError
+
+        raise PreEnqueueOperationalGateError(
+            "CERTIFICATION_PREFLIGHT_REQUIRED",
+            "Certification pipeline enqueue requires a reserved transition preflight plan.",
+            plan_id=None,
+        )
+
     step_names = pipeline_step_names(
         ceri_run_capture_enabled=ceri_run_capture_enabled,
         ceri_provider_ingest_enabled=ceri_provider_ingest_enabled,
@@ -137,6 +187,11 @@ def start_pipeline(
     )
     authoritative = _authoritative_pipeline_for_run(db, upload_run_id)
     if authoritative is not None:
+        if verified_transition_preflight is not None:
+            raise TransitionPreflightError(
+                "PRECONDITION_CHANGED",
+                f"upload run already has authoritative pipeline {authoritative.id}",
+            )
         if _is_recoverable_sec_block(authoritative):
             from app.services.ceri.sec.readiness_repair import (
                 schedule_sec_readiness_repair,
@@ -180,9 +235,22 @@ def start_pipeline(
     db.add(pipeline)
     db.flush()
 
-    from app.services.market_calculation_context_service import create_pipeline_market_context
+    if verified_transition_preflight is None:
+        from app.services.market_calculation_context_service import (
+            create_pipeline_market_context,
+        )
 
-    market_cutoff = create_pipeline_market_context(db, pipeline)
+        market_cutoff = create_pipeline_market_context(db, pipeline)
+    else:
+        from app.services.transition_preflight_plan_service import (
+            consume_transition_preflight,
+        )
+
+        market_cutoff = consume_transition_preflight(
+            db,
+            verified=verified_transition_preflight,
+            pipeline=pipeline,
+        )
 
     for step_order, step_name in enumerate(step_names, start=1):
         db.add(
@@ -196,10 +264,32 @@ def start_pipeline(
         )
     db.flush()
 
+    certification_authorization = (
+        {
+            "certification_authorized": True,
+            "transition_preflight_plan_id": transition_preflight_plan_id,
+        }
+        if certification_mode
+        else {}
+    )
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
-        payload={"pipeline_run_id": pipeline.id},
+        payload={
+            "pipeline_run_id": pipeline.id,
+            "market_calculation_context_id": market_cutoff.context_id,
+            "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
+            "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
+            "market_calendar_version": market_cutoff.calendar_version,
+            "bar_readiness_version": market_cutoff.bar_readiness_version,
+            "transition_preflight_plan_id": transition_preflight_plan_id,
+            **certification_authorization,
+            "transition_evidence_fingerprint": (
+                verified_transition_preflight.plan.evidence_fingerprint
+                if verified_transition_preflight is not None
+                else None
+            ),
+        },
         related_run_id=upload_run_id,
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
@@ -222,7 +312,6 @@ def start_pipeline(
             )
             return existing_pipeline
 
-    settings = get_settings()
     preflight = dict(ib_preflight_status or {})
     pipeline.result_json = {
         "background_job_id": job.id,
@@ -232,11 +321,19 @@ def start_pipeline(
         "ib_host": preflight.get("host", getattr(settings, "ib_host", None)),
         "ib_port": preflight.get("port", getattr(settings, "ib_port", None)),
         "market_calculation_context_id": market_cutoff.context_id,
-        "market_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+        "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
         "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
         "market_calendar_version": market_cutoff.calendar_version,
         "bar_readiness_version": market_cutoff.bar_readiness_version,
+        "transition_preflight_plan_id": transition_preflight_plan_id,
+        "transition_evidence_fingerprint": (
+            verified_transition_preflight.plan.evidence_fingerprint
+            if verified_transition_preflight is not None
+            else None
+        ),
     }
+    if operational_gate_result is not None:
+        pipeline.result_json["pre_enqueue_operational_gate"] = operational_gate_result.to_dict()
     preempted_prewarm_jobs = request_active_prewarm_preemption(
         db,
         pipeline_run_id=pipeline.id,
@@ -406,7 +503,11 @@ def resume_pipeline(
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
-        payload={"pipeline_run_id": pipeline.id, "resume_from_step": target},
+        payload={
+            "pipeline_run_id": pipeline.id,
+            "resume_from_step": target,
+            **_pipeline_context_payload(db, pipeline),
+        },
         related_run_id=pipeline.upload_run_id,
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
@@ -450,7 +551,11 @@ def enqueue_pipeline_after_sec_repair(
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
-        payload={"pipeline_run_id": pipeline.id, "resume_from_step": resume_from_step},
+        payload={
+            "pipeline_run_id": pipeline.id,
+            "resume_from_step": resume_from_step,
+            **_pipeline_context_payload(db, pipeline),
+        },
         related_run_id=pipeline.upload_run_id,
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
@@ -497,6 +602,19 @@ def _background_job_id(pipeline: PipelineRun) -> int | None:
     result = pipeline.result_json or {}
     value = result.get("background_job_id")
     return int(value) if value is not None else None
+
+
+def _pipeline_context_payload(db: Session, pipeline: PipelineRun) -> dict[str, Any]:
+    from app.services.market_calculation_context_service import market_context_for_pipeline
+
+    context = market_context_for_pipeline(db, pipeline)
+    return {
+        "market_calculation_context_id": context.context_id,
+        "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(context.cutoff_at),
+        "input_as_of_session": context.latest_completed_session.isoformat(),
+        "market_calendar_version": context.calendar_version,
+        "bar_readiness_version": context.bar_readiness_version,
+    }
 
 
 def _pipeline_request_key(

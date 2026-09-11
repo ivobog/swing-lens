@@ -24,15 +24,17 @@ from app.services.background_job_service import (
     fence_stalled_jobs,
     requeue_stalled_jobs,
 )
+from app.services.parent_watchdog import PARENT_PID_ENV, PARENT_STARTED_AT_ENV
 from app.services.process_identity import process_is_alive, process_started_at
 from app.services.process_memory import memory_status, process_memory_snapshot
+from app.services.process_roles import build_process_environment, require_process_role
 from app.services.supervisor_registry import (
     acquire_supervisor,
     heartbeat_supervisor,
     release_supervisor,
 )
 from app.services.worker_registry import associate_worker_launcher, retire_worker_registration
-from app.settings import get_settings
+from app.settings import ProcessRole, get_settings
 
 logger = logging.getLogger(__name__)
 WORKER_REGISTRATION_TIMEOUT_SECONDS = 120.0
@@ -44,6 +46,12 @@ class LaunchedWorker:
     launched_at: float
 
 
+@dataclass
+class LaunchedWeb:
+    process: subprocess.Popen
+    launched_at: float
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     settings = get_settings()
     parser = argparse.ArgumentParser(
@@ -51,12 +59,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--worker-id", default=settings.job_worker_id)
     parser.add_argument("--queues", default="interactive,broker,background")
+    parser.add_argument("--host", default=getattr(settings, "app_host", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=getattr(settings, "app_port", 8000))
+    parser.add_argument("--runtime-instance-id", default=f"manual-{os.getpid()}")
+    parser.add_argument("--repo-root", default=str(Path.cwd()))
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     settings = get_settings()
+    require_process_role(settings, ProcessRole.SUPERVISOR)
     stop = Event()
     instance_id = uuid4().hex
     process_id = os.getpid()
@@ -86,7 +99,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         sampler.start()
         operational_metrics.set_gauge("swinglens_supervisor_up", 1)
     child: LaunchedWorker | None = None
+    web: LaunchedWeb | None = None
     owns_supervision = False
+    ownership_deadline = monotonic() + float(
+        getattr(settings, "job_worker_heartbeat_timeout_seconds", 30)
+        + getattr(settings, "job_watchdog_interval_seconds", 5)
+    )
     try:
         while not stop.is_set():
             try:
@@ -98,11 +116,18 @@ def main(argv: Sequence[str] | None = None) -> None:
                     already_owned=owns_supervision,
                 )
                 if owns_supervision:
+                    web = _supervise_web_once(args=args, child=web)
                     child = _supervise_once(
                         worker_id=args.worker_id,
                         queues=args.queues,
                         child=child,
                     )
+                elif monotonic() >= ownership_deadline:
+                    logger.error(
+                        "runtime.supervisor.ownership_timeout",
+                        extra={"worker_id": args.worker_id, "process_id": process_id},
+                    )
+                    return
             except Exception:
                 logger.exception(
                     "worker.supervisor.cycle_failed",
@@ -115,6 +140,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     finally:
         operational_metrics.set_gauge("swinglens_supervisor_up", 0)
         if owns_supervision:
+            _shutdown_web(web, settings.worker_shutdown_grace_seconds)
             _shutdown_owned_worker(args.worker_id, child)
             try:
                 with SessionLocal() as db:
@@ -215,6 +241,19 @@ def _supervise_once(
         return None
 
     registration_active = worker is not None and worker.stopping_at is None
+    if child is not None and child.process.poll() is not None and not registration_active:
+        context = {
+            "worker_id": worker_id,
+            "launcher_pid": child.process.pid,
+            "exit_code": child.process.returncode,
+            "startup_age_seconds": round(monotonic() - child.launched_at, 3),
+            "failure_code": "DURABLE_WORKER_EXITED_BEFORE_REGISTRATION",
+        }
+        logger.error(
+            "worker.supervisor.child_exited_before_registration %s",
+            context,
+            extra=context,
+        )
     if child is not None and child.process.poll() is None:
         startup_age = monotonic() - child.launched_at
         if not registration_active and startup_age < WORKER_REGISTRATION_TIMEOUT_SECONDS:
@@ -260,8 +299,13 @@ def _supervise_once(
 
 
 def _start_worker(worker_id: str, queues: str) -> subprocess.Popen:
-    environment = dict(os.environ)
-    environment["JOB_WORKER_ENABLED"] = "false"
+    settings = get_settings()
+    environment = build_process_environment(
+        os.environ,
+        role=ProcessRole.DURABLE_WORKER,
+        settings=settings,
+    )
+    _set_parent_identity(environment)
     kwargs: dict[str, object] = {"env": environment}
     if os.name == "nt":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -279,6 +323,59 @@ def _start_worker(worker_id: str, queues: str) -> subprocess.Popen:
         ],
         **kwargs,
     )
+
+
+def _supervise_web_once(*, args: argparse.Namespace, child: LaunchedWeb | None) -> LaunchedWeb:
+    if child is not None and child.process.poll() is None:
+        return child
+    process = _start_web(args)
+    logger.info(
+        "runtime.supervisor.web_started",
+        extra={"web_pid": process.pid, "runtime_instance_id": args.runtime_instance_id},
+    )
+    return LaunchedWeb(process=process, launched_at=monotonic())
+
+
+def _start_web(args: argparse.Namespace) -> subprocess.Popen:
+    settings = get_settings()
+    environment = build_process_environment(
+        os.environ,
+        role=ProcessRole.WEB,
+        settings=settings,
+    )
+    _set_parent_identity(environment)
+    kwargs: dict[str, object] = {"env": environment}
+    if os.name == "nt":
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs["start_new_session"] = True
+    return subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "app.serve",
+            "--host",
+            args.host,
+            "--port",
+            str(args.port),
+            "--runtime-instance-id",
+            args.runtime_instance_id,
+            "--repo-root",
+            args.repo_root,
+        ],
+        **kwargs,
+    )
+
+
+def _shutdown_web(child: LaunchedWeb | None, grace_seconds: float) -> None:
+    if child is not None:
+        _terminate_launcher(child.process, grace_seconds)
+
+
+def _set_parent_identity(environment: dict[str, str]) -> None:
+    process_id = os.getpid()
+    environment[PARENT_PID_ENV] = str(process_id)
+    environment[PARENT_STARTED_AT_ENV] = process_started_at(process_id).isoformat()
 
 
 def _worker_python_executable() -> str:

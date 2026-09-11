@@ -1,0 +1,212 @@
+{
+  "baseline_head": "830c2b6730345a2d4721a34d2b6789356ad9c474",
+  "remediation_head": "9c7920840cc57a69c99770e01a8b7444a32f0005",
+  "run_151_id": 151,
+  "pipeline_144_id": 144,
+  "job_42916_id": 42916,
+  "ceri_snapshot_10929_id": 10929,
+  "post_cutoff_source_record_ids": [
+    867459,
+    867460,
+    867461,
+    867462,
+    867463,
+    867464,
+    867465
+  ],
+  "post_cutoff_price_bar_ids": [
+    2263479,
+    2263504
+  ],
+  "ceri_root_causes": [
+    {
+      "id": "STI-CERI-PIT-F001",
+      "classifications": [
+        "KNOWN_AT_NOT_FILTERED",
+        "SOURCE_QUERY_FILTERS_SESSION_ONLY",
+        "POST_QUERY_FILTER_MISSING",
+        "CHILD_JOB_RELOADS_CURRENT_SOURCE_STATE"
+      ]
+    },
+    {
+      "id": "STI-CERI-PIT-F002",
+      "classifications": [
+        "KNOWN_AT_FIELD_PRECEDENCE_WRONG",
+        "FALLBACK_TIMESTAMP_SEMANTICS_UNSAFE"
+      ]
+    },
+    {
+      "id": "STI-CERI-PIT-F003",
+      "classifications": [
+        "REVISED_RECORD_SELECTED_AFTER_CUTOFF",
+        "DEDUP_SELECTS_LATEST_CURRENT_RECORD"
+      ]
+    },
+    {
+      "id": "STI-CERI-PIT-F004",
+      "classifications": [
+        "PRICE_BAR_QUERY_FILTERS_SESSION_ONLY"
+      ]
+    },
+    {
+      "id": "STI-CERI-PIT-F005",
+      "classifications": [
+        "CACHE_IGNORES_CUTOFF"
+      ]
+    }
+  ],
+  "known_at_policy": {
+    "categories": [
+      "earnings",
+      "estimates",
+      "guidance",
+      "catalysts",
+      "revisions"
+    ],
+    "precedence": [
+      "retrieved_at",
+      "ingested_at"
+    ],
+    "not_authoritative_for_receipt": [
+      "published_at",
+      "event_time",
+      "effective_time",
+      "observed_at",
+      "source_timestamp",
+      "created_at"
+    ],
+    "missing_receipt_provenance": "EXCLUDE_FAIL_CLOSED",
+    "eligibility": "effective_or_session_at_or_before_latest_completed_session AND known_at_at_or_before_cutoff_at"
+  },
+  "price_bar_pit_policy": {
+    "eligibility": "bar_session <= latest_completed_session AND first_seen_at <= cutoff_at AND (revised_at IS NULL OR revised_at <= cutoff_at)",
+    "missing_provenance": "EXCLUDE_FAIL_CLOSED",
+    "current_row_revised_after_cutoff": "EXCLUDE_UNLESS_A_CERTIFIED_VERSIONED_SOURCE_CAN_RECONSTRUCT_THE_ELIGIBLE_VERSION"
+  },
+  "new_ceri_findings": [
+    "STI-CERI-PIT-F001",
+    "STI-CERI-PIT-F002",
+    "STI-CERI-PIT-F003",
+    "STI-CERI-PIT-F004",
+    "STI-CERI-PIT-F005"
+  ],
+  "drs_current_pointer_snapshot_id": 19017,
+  "drs_current_pointer_session": "2026-08-03",
+  "drs_run151_snapshot_id": 36949,
+  "drs_run151_session": "2026-07-30",
+  "drs_old_confidence": "HIGH",
+  "drs_new_predicted_transition": false,
+  "drs_new_confidence": "LOW",
+  "drs_new_reason": "NEW_KEY_INITIALIZATION_NOT_TRANSITION_COVERAGE",
+  "candidate_model_root_cause": "Discovery ranked current/raw availability without reconstructing the exact prospective frozen MarketCalculationContext, enforcing PIT source eligibility, or comparing the prospective snapshot with an existing pointer in the exact selection key.",
+  "candidate_model_fix": "Build a read-only prospective MarketCalculationCutoff with the production MarketClock policy, load lifecycle inputs through shared PIT loaders, exclude pointers created after the cutoff, derive the exact prospective selection key, and predict an advance with the production canonical selector. HIGH requires complete exact PIT inputs, an existing same-key pointer, and a deterministic win; initialization is LOW.",
+  "candidate_replay": [
+    {
+      "ticker": "DRS",
+      "prospective_cutoff": "2026-09-09T09:30:53.203249Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "latest_reconstructable_session": "2026-07-30",
+      "current_pointer_key": "DRS/1d/2026-08-03",
+      "current_pointer_snapshot_id": 19017,
+      "current_pointer_target_session": "2026-08-03",
+      "prospective_new_key": "DRS/1d/2026-07-30",
+      "can_compete_with_existing_pointer": false,
+      "would_initialize_new_key": true,
+      "predicted_pointer_advance": false,
+      "reason": "NEW_KEY_INITIALIZATION_NOT_TRANSITION_COVERAGE",
+      "confidence": "LOW"
+    },
+    {
+      "ticker": "NNI",
+      "prospective_cutoff": "2026-09-09T09:30:53.203249Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "latest_reconstructable_session": "2026-08-03",
+      "current_pointer_key": "NNI/1d/2026-08-03",
+      "current_pointer_snapshot_id": 18927,
+      "current_pointer_target_session": "2026-08-03",
+      "prospective_new_key": "NNI/1d/2026-08-03",
+      "can_compete_with_existing_pointer": true,
+      "would_initialize_new_key": false,
+      "predicted_pointer_advance": false,
+      "reason": "PIT_INPUTS_INCOMPLETE_OR_NOT_PROSPECTIVELY_RECONSTRUCTED",
+      "confidence": "LOW"
+    },
+    {
+      "ticker": "TBLA",
+      "prospective_cutoff": "2026-09-09T09:30:53.203249Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "latest_reconstructable_session": "2026-08-03",
+      "current_pointer_key": "TBLA/1d/2026-08-03",
+      "current_pointer_snapshot_id": 18885,
+      "current_pointer_target_session": "2026-08-03",
+      "prospective_new_key": "TBLA/1d/2026-08-03",
+      "can_compete_with_existing_pointer": true,
+      "would_initialize_new_key": false,
+      "predicted_pointer_advance": false,
+      "reason": "PIT_INPUTS_INCOMPLETE_OR_NOT_PROSPECTIVELY_RECONSTRUCTED",
+      "confidence": "LOW"
+    },
+    {
+      "ticker": "TPL",
+      "prospective_cutoff": "2026-09-09T09:30:53.203249Z",
+      "prospective_latest_completed_session": "2026-09-08",
+      "latest_reconstructable_session": "2026-08-03",
+      "current_pointer_key": "TPL/1d/2026-08-03",
+      "current_pointer_snapshot_id": 18961,
+      "current_pointer_target_session": "2026-08-03",
+      "prospective_new_key": "TPL/1d/2026-08-03",
+      "can_compete_with_existing_pointer": true,
+      "would_initialize_new_key": false,
+      "predicted_pointer_advance": false,
+      "reason": "PIT_INPUTS_INCOMPLETE_OR_NOT_PROSPECTIVELY_RECONSTRUCTED",
+      "confidence": "LOW"
+    }
+  ],
+  "new_candidate_findings": [
+    "CANDIDATE_USES_CURRENT_STATE_INSTEAD_OF_PROSPECTIVE_FROZEN_CONTEXT",
+    "CANDIDATE_DOES_NOT_COMPARE_EXACT_SELECTION_KEY",
+    "NEW_KEY_INITIALIZATION_INCORRECTLY_RANKED_AS_TRANSITION_COVERAGE"
+  ],
+  "adjacent_pit_findings": [
+    {"id": "STI-PIT-F001", "area": "CERI source capture/rebuild", "result": "CONFIRMED_FIXED"},
+    {"id": "STI-PIT-F002", "area": "CERI estimate known-time precedence", "result": "CONFIRMED_FIXED"},
+    {"id": "STI-PIT-F003", "area": "CERI catalyst/revision dedup", "result": "CONFIRMED_FIXED"},
+    {"id": "STI-PIT-F004", "area": "CERI price-response bars", "result": "CONFIRMED_FIXED"},
+    {"id": "STI-PIT-F005", "area": "CERI materialization/cache identity", "result": "CONFIRMED_FIXED"},
+    {"id": "STI-PIT-F006", "area": "Lifecycle market/sector revision selection", "result": "CONFIRMED_FIXED"},
+    {"id": "STI-PIT-F007", "area": "IBMI loaders", "result": "AUDITED_PASS"},
+    {"id": "STI-PIT-F008", "area": "Technical artifact reuse", "result": "AUDITED_PASS"},
+    {"id": "STI-PIT-F009", "area": "Winner inputs", "result": "AUDITED_PASS"},
+    {"id": "STI-PIT-F010", "area": "Alerts/change generation", "result": "AUDITED_PASS"}
+  ],
+  "migration_required": true,
+  "migration_head": "0070_ceri_price_response_pit_context",
+  "production_migration_applied": false,
+  "production_business_writes": false,
+  "historical_repair_performed": false,
+  "live_canary_rerun": false,
+  "tests": {
+    "final_delivery_focused_rerun": {"passed": 56, "warnings": 1},
+    "focused_ceri_candidate_clock": {"passed": 96},
+    "entire_ceri": {"passed": 431, "warnings": 1},
+    "lifecycle_cross_domain_winner_focused": {"passed": 356, "warnings": 1},
+    "non_integration_non_slow": {"passed": 2154, "skipped": 14, "deselected": 54, "warnings": 22},
+    "powershell_lifecycle": {"passed": 21},
+    "postgresql_migration": {"passed": 1},
+    "postgresql_selected_final_segment": {"passed": 16, "warnings": 19},
+    "postgresql_observability": {"passed": 14, "skipped": 1, "warnings": 18},
+    "postgresql_winner_remainder": {"passed": 37},
+    "postgresql_progress_reliability_rerun": {"passed": 2},
+    "winner_claim_regression_reruns": {"passed": 4},
+    "ruff_changed_files": "PASS",
+    "compileall": "PASS",
+    "alembic_single_head": "PASS",
+    "disposable_upgrade_0069_to_0070": "PASS",
+    "full_non_slow_sharded_union": "PASS",
+    "repo_wide_ruff_preexisting_migration_findings": 24
+  },
+  "ceri_pit_root_cause_certified": true,
+  "ceri_pit_remediation_certified": true,
+  "transition_candidate_remediation_certified": true,
+  "safe_for_targeted_transition_canary_retry": true
+}

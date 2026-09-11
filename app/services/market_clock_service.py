@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
@@ -41,6 +41,18 @@ class MarketCalculationCutoff:
     def __post_init__(self) -> None:
         if self.cutoff_at.tzinfo is None or self.cutoff_at.utcoffset() is None:
             raise ValueError("cutoff_at must be timezone-aware")
+        object.__setattr__(self, "cutoff_at", self.cutoff_at.astimezone(UTC))
+        if self.daily_bar_ready_at is not None:
+            if (
+                self.daily_bar_ready_at.tzinfo is None
+                or self.daily_bar_ready_at.utcoffset() is None
+            ):
+                raise ValueError("daily_bar_ready_at must be timezone-aware")
+            object.__setattr__(
+                self,
+                "daily_bar_ready_at",
+                self.daily_bar_ready_at.astimezone(UTC),
+            )
         if self.exchange_timezone != EXCHANGE_TIMEZONE:
             raise ValueError(f"unsupported exchange timezone: {self.exchange_timezone}")
         if not is_us_trading_day(self.latest_completed_session):

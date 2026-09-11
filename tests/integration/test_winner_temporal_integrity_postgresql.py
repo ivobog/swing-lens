@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import StrEnum
+from pathlib import Path
 
 import pytest
+from alembic.config import Config
 from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from app.database_safety import run_guarded_alembic_upgrade
 from app.models.tables import (
     IBContract,
     PriceBar,
@@ -156,9 +156,7 @@ def test_invalid_pending_outcome_is_ignored_even_when_due_and_valid_peer_is_sele
             )
         db.flush()
         valid_forward = db.scalar(
-            select(WinnerForwardOutcome).where(
-                WinnerForwardOutcome.prediction_id == valid.id
-            )
+            select(WinnerForwardOutcome).where(WinnerForwardOutcome.prediction_id == valid.id)
         )
         db.add(
             WinnerMarketDataObligation(
@@ -355,14 +353,14 @@ def test_quarantine_bulk_metadata_is_json_safe_and_round_trips_exactly(
             "entry_open_at": "2026-08-20T13:30:00.000000Z",
             "source_date": "2026-08-19",
             "classification": "EXECUTION_INVALID",
-            "weight": "1.2300",
+            "weight": "1.23",
             "proven": True,
             "unknown": None,
             "run_id": 120,
             "ticker": "JSON1",
             "nested": {
                 "observed_at": "2026-08-20T13:30:00.123456Z",
-                "values": ["2026-08-18", "2.500"],
+                "values": ["2026-08-18", "2.5"],
             },
             "request_key": "json-safe-bulk",
             "manifest_hash": plan.manifest_hash,
@@ -692,9 +690,7 @@ def test_uncertified_and_quarantined_pending_outcomes_create_no_obligation(
         first = MarketDataObligationService().ensure_for_outcomes(db, outcomes)
         assert first.excluded == 2
         assert first.created == 2
-        assert set(
-            db.scalars(select(WinnerMarketDataObligation.prediction_id))
-        ) == {valid.id}
+        assert set(db.scalars(select(WinnerMarketDataObligation.prediction_id))) == {valid.id}
 
         # A later run/universe change does not remove the durable dependency.
         second = MarketDataObligationService().ensure_for_outcomes(db, [outcomes[-1]])
@@ -895,11 +891,5 @@ def _generation_with_members(
 
 
 def _upgrade(database_url: str, revision: str = "head") -> None:
-    env = {**os.environ, "DATABASE_URL": database_url}
-    subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", revision],
-        check=True,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+    config = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+    run_guarded_alembic_upgrade(config, database_url, revision)

@@ -26,6 +26,7 @@ from app.services.market_calculation_context_service import (
 )
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.services.operational_metrics import operational_metrics
+from app.services.price_bar_repository import project_price_bar_rows_as_of
 from app.settings import get_settings
 
 DAILY_PRICE_TIMEFRAMES = ("1 day", "1d")
@@ -90,6 +91,7 @@ class SetupLifecycleSourceLoader:
         run_id: int,
         *,
         market_cutoff: MarketCalculationCutoff | None = None,
+        tickers: set[str] | None = None,
     ) -> RunSourceContext:
         upload_run = db.get(UploadRun, run_id)
         if upload_run is None:
@@ -97,18 +99,20 @@ class SetupLifecycleSourceLoader:
         if str(upload_run.status).upper() != "COMPLETED":
             raise ValueError(f"Upload run {run_id} is not completed.")
 
-        raw_rows = tuple(
-            db.scalars(
-                select(RawCompanyRow)
-                .where(RawCompanyRow.run_id == run_id)
-                .order_by(RawCompanyRow.row_number)
+        raw_statement = select(RawCompanyRow).where(RawCompanyRow.run_id == run_id)
+        if tickers:
+            raw_statement = raw_statement.where(
+                func.upper(RawCompanyRow.ticker).in_({ticker.upper() for ticker in tickers})
             )
-        )
+        raw_rows = tuple(db.scalars(raw_statement.order_by(RawCompanyRow.row_number)))
         tickers = tuple(row.ticker.upper() for row in raw_rows if row.ticker)
         market_cutoff = (
             market_cutoff
             or market_context_for_upload_run(db, run_id)
-            or standalone_market_context(reason="STANDALONE_SETUP_LIFECYCLE")
+            or standalone_market_context(
+                reason="STANDALONE_SETUP_LIFECYCLE",
+                cutoff_at=upload_run.processed_at or upload_run.uploaded_at,
+            )
         )
         source_cutoff = market_cutoff.latest_completed_session
         price_bars = self._load_price_bars(
@@ -120,7 +124,11 @@ class SetupLifecycleSourceLoader:
             mode="latest_projection" if self.latest_bar_projection_enabled else "legacy",
         )
         technical_scores = tuple(
-            db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id))
+            db.scalars(
+                select(TechnicalScore)
+                .where(TechnicalScore.run_id == run_id)
+                .where(TechnicalScore.ticker.in_(tickers))
+            )
         )
         context_cutoff = source_cutoff
         context_started_at = perf_counter()
@@ -132,30 +140,38 @@ class SetupLifecycleSourceLoader:
             if row.ticker and row.ticker.strip()
         }
         latest_cutoff = max(ticker_cutoffs.values(), default=context_cutoff)
-        market_candidates = tuple(
-            db.scalars(
-                _latest_context_statement(MarketRegimeSnapshot, latest_cutoff)
-                .where(
-                    or_(
-                        MarketRegimeSnapshot.run_id == run_id,
-                        MarketRegimeSnapshot.run_id.is_(None),
-                    )
-                )
-                .where(MarketRegimeSnapshot.is_current_revision.is_(True))
+        market_statement = _latest_context_statement(
+            MarketRegimeSnapshot,
+            latest_cutoff,
+            cutoff_at=market_cutoff.cutoff_at if isinstance(db, Session) else None,
+        ).where(
+            or_(
+                MarketRegimeSnapshot.run_id == run_id,
+                MarketRegimeSnapshot.run_id.is_(None),
             )
         )
-        sector_candidates = tuple(
-            db.scalars(
-                _latest_context_statement(SectorRotationSnapshot, latest_cutoff)
-                .where(
-                    or_(
-                        SectorRotationSnapshot.run_id == run_id,
-                        SectorRotationSnapshot.run_id.is_(None),
-                    )
-                )
-                .where(SectorRotationSnapshot.is_current_revision.is_(True))
+        sector_statement = _latest_context_statement(
+            SectorRotationSnapshot,
+            latest_cutoff,
+            cutoff_at=market_cutoff.cutoff_at if isinstance(db, Session) else None,
+        ).where(
+            or_(
+                SectorRotationSnapshot.run_id == run_id,
+                SectorRotationSnapshot.run_id.is_(None),
             )
         )
+        # Current-revision flags describe the present.  A PIT selection filters
+        # eligible versions first and then ranks them; lightweight unit adapters
+        # retain their legacy current-row behavior.
+        if not isinstance(db, Session):
+            market_statement = market_statement.where(
+                MarketRegimeSnapshot.is_current_revision.is_(True)
+            )
+            sector_statement = sector_statement.where(
+                SectorRotationSnapshot.is_current_revision.is_(True)
+            )
+        market_candidates = tuple(db.scalars(market_statement))
+        sector_candidates = tuple(db.scalars(sector_statement))
         market_by_ticker = {
             ticker: _select_context_candidate(market_candidates, cutoff, run_id)
             for ticker, cutoff in ticker_cutoffs.items()
@@ -185,14 +201,26 @@ class SetupLifecycleSourceLoader:
             upload_run=upload_run,
             raw_rows=raw_rows,
             fundamental_scores=tuple(
-                db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id))
+                db.scalars(
+                    select(FundamentalScore)
+                    .where(FundamentalScore.run_id == run_id)
+                    .where(FundamentalScore.ticker.in_(tickers))
+                )
             ),
             technical_scores=technical_scores,
             combined_results=tuple(
-                db.scalars(select(CombinedResult).where(CombinedResult.run_id == run_id))
+                db.scalars(
+                    select(CombinedResult)
+                    .where(CombinedResult.run_id == run_id)
+                    .where(CombinedResult.ticker.in_(tickers))
+                )
             ),
             ranking_results=tuple(
-                db.scalars(select(RankingResult).where(RankingResult.run_id == run_id))
+                db.scalars(
+                    select(RankingResult)
+                    .where(RankingResult.run_id == run_id)
+                    .where(RankingResult.ticker.in_(tickers))
+                )
             ),
             market_regime_snapshot=market_snapshot,
             sector_rotation_snapshot=sector_snapshot,
@@ -200,6 +228,7 @@ class SetupLifecycleSourceLoader:
             sector_rotation_snapshots_by_ticker=sector_by_ticker,
             sector_rotation_rows=sector_rows,
             price_bars=price_bars,
+            market_cutoff=market_cutoff,
         )
         self.last_metrics["setup_context_build_ms"] = round(
             (perf_counter() - context_started_at) * 1000, 3
@@ -233,12 +262,20 @@ class SetupLifecycleSourceLoader:
                     )
                 )
             )
+            if cutoff_at is not None:
+                projected_price_bars = tuple(
+                    project_price_bar_rows_as_of(db, projected_price_bars, as_of=cutoff_at)
+                )
         if not self.latest_bar_projection_enabled or self.shadow_compare_enabled:
             legacy_price_bars = tuple(
                 db.scalars(
                     _legacy_price_bars_statement(tickers, cutoff=cutoff, cutoff_at=cutoff_at)
                 )
             )
+            if cutoff_at is not None:
+                legacy_price_bars = tuple(
+                    project_price_bar_rows_as_of(db, legacy_price_bars, as_of=cutoff_at)
+                )
 
         if self.shadow_compare_enabled:
             assert legacy_price_bars is not None
@@ -434,9 +471,7 @@ def _legacy_price_bars_statement(
         .order_by(PriceBar.ticker, PriceBar.bar_date)
     )
     if cutoff_at is not None:
-        statement = statement.where(PriceBar.first_seen_at <= cutoff_at).where(
-            (PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= cutoff_at)
-        )
+        statement = statement.where(PriceBar.first_seen_at <= cutoff_at)
     return statement
 
 
@@ -487,8 +522,13 @@ def _bar_identity(bar: PriceBar | None) -> tuple[object, ...] | None:
     return (bar.id, bar.bar_date, bar.what_to_show)
 
 
-def _latest_context_statement(model, cutoff: date):
-    return select(model).where(model.as_of_date <= cutoff)
+def _latest_context_statement(model, cutoff: date, *, cutoff_at: datetime | None = None):
+    statement = select(model).where(model.as_of_date <= cutoff)
+    if cutoff_at is not None:
+        statement = statement.where(model.calculation_cutoff_at.is_not(None)).where(
+            model.calculation_cutoff_at <= cutoff_at
+        )
+    return statement
 
 
 def _run_context_cutoff_date(
@@ -636,9 +676,7 @@ def _latest_price_bar_history_statement(
         .where(PriceBar.close.is_not(None))
     )
     if cutoff_at is not None:
-        statement = statement.where(PriceBar.first_seen_at <= cutoff_at).where(
-            (PriceBar.revised_at.is_(None)) | (PriceBar.revised_at <= cutoff_at)
-        )
+        statement = statement.where(PriceBar.first_seen_at <= cutoff_at)
     ranked = statement.subquery()
     return (
         select(PriceBar)

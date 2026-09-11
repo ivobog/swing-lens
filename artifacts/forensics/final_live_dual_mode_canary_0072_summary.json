@@ -1,0 +1,157 @@
+{
+  "timestamp": "2026-09-10T14:00:13.971932Z",
+  "branch": "codex/run153-decision-manifest-lineage-remediation",
+  "execution_head": "d5accbf70fcd0c5e7244a7ab05eb20f62f2ffb60",
+  "evidence_head": "RECORDED_IN_DELIVERY_RESPONSE",
+  "pre_migration_head": "0071_transition_preflight_plan",
+  "post_migration_head": "0072_ceri_artifact_context_lineage",
+  "backup_path": "backups/swinglens_final_live_dual_mode_canary_0072_20260910_131018.dump",
+  "backup_sha256": "B7AE8371C0141FD86D75B52DD8944A6F47375BFC2705D0A20B387A859D41AC89",
+  "backup_size_bytes": 791772888,
+  "backup_verification": "PASS_PG_RESTORE_LIST",
+  "selected_same_session_tickers": [
+    "ADAM"
+  ],
+  "selected_new_session_tickers": [
+    "DRS"
+  ],
+  "preflight_plan_ids": [
+    3
+  ],
+  "market_calculation_context_ids": [
+    7
+  ],
+  "decision_manifest_hashes": {
+    "ADAM": "a2dc4c78d518468f1bbade9d14ec4b47e3187e3e94a36901ecf39f2b640ba49f",
+    "DRS": "987ccd04c4326e5ccff5883168fab7a23a8f29e1a7540e354ff0d32846af9564"
+  },
+  "run_id": 154,
+  "pipeline_id": null,
+  "job_id": null,
+  "same_session_replacements": 0,
+  "new_session_canonical_initializations": 0,
+  "same_session_ledger_events": 0,
+  "new_session_initialization_events": 0,
+  "decision_manifest_mismatches": 0,
+  "preflight_execution_context_mismatches": 0,
+  "decision_manifest_execution_comparison": "NOT_EXERCISED_PIPELINE_NOT_CREATED",
+  "derived_cross_session_current_state_violations": 0,
+  "current_pointer_violations": 0,
+  "selection_ledger_violations": 0,
+  "duplicate_selection_events": 0,
+  "pipeline_owned_ceri_null_context_rows": 0,
+  "ceri_lineage_violations": 0,
+  "ceri_live_lineage_certification": "NOT_EXERCISED_PIPELINE_NOT_CREATED",
+  "post_cutoff_ceri_sources_consumed": 0,
+  "post_cutoff_price_bars_consumed": 0,
+  "missing_pit_provenance_inputs_used": 0,
+  "immutable_price_bar_evidence_hash_changes": 0,
+  "operational_metadata_changes": [
+    "runtime worker and supervisor registration/heartbeat metadata",
+    "unexpected zero-work scheduled Winner maturation control-plane rows"
+  ],
+  "price_bar_operational_metadata_changes": 0,
+  "historical_snapshot_rewrites": 0,
+  "run_148_immutable_hash_changes": 0,
+  "run_149_immutable_hash_changes": 0,
+  "run_150_immutable_hash_changes": 0,
+  "run_151_immutable_hash_changes": 0,
+  "run_152_immutable_hash_changes": 0,
+  "run_153_immutable_hash_changes": 0,
+  "protected_price_bars": {
+    "2263479": {
+      "immutable_hash": "c9049dcc13baaefabb3b99ea24dfb8ce927485e55749b99fca05d0c236285ab5",
+      "full_row_diagnostic_hash": "ee1db44fca17de8da90b60a029d09217d0ccfb128a86a4a5449dfc4b02360eda",
+      "changed_fields": []
+    },
+    "2263504": {
+      "immutable_hash": "36127195b9fcce23befdef9d9db6cc926ba2fdd4b973fc870eab056860f013fa",
+      "full_row_diagnostic_hash": "5caf3751ceebe82c480fa6bcc4cde8b0c3eb1945e85b0e449a85c477409beff9",
+      "changed_fields": []
+    }
+  },
+  "future_session_inputs_consumed": 0,
+  "pre_event_ceri_reactions": 0,
+  "htf_confirmation_violations": 0,
+  "rs_alignment_violations": 0,
+  "ibmi_session_violations": 0,
+  "stale_preflight_acceptances": 0,
+  "duplicate_pipeline_from_same_plan": 0,
+  "duplicate_job_execution": 0,
+  "unexpected_business_mutations": 1,
+  "unrelated_mutation_workflows": [
+    {
+      "job_id": 42981,
+      "job_type": "WINNER_OUTCOME_MATURATION",
+      "processing_run_id": 9999,
+      "result": "NO_WORK_REMAINING",
+      "material_evidence_changes": 0
+    }
+  ],
+  "database_delta": {
+    "alembic_version": "0071_transition_preflight_plan -> 0072_ceri_artifact_context_lineage",
+    "upload_runs": 1,
+    "raw_company_rows": 2,
+    "fundamental_scores": 2,
+    "market_calculation_contexts": 1,
+    "transition_preflight_plans": 1,
+    "pipeline_runs": 0,
+    "canary_background_jobs": 0,
+    "unrelated_background_jobs": 1,
+    "background_job_enqueue_attempts": 1,
+    "background_job_fanout_roots": 1,
+    "winner_processing_runs": 1,
+    "winner_material_evidence_rows": 0
+  },
+  "candidate_discovery": {
+    "cutoff_at": "2026-09-10T13:24:55.965490Z",
+    "universe_size": 1491,
+    "high_candidates": 1273,
+    "high_same_session_replacements": 340,
+    "high_new_session_initializations": 933,
+    "medium_candidates": 0,
+    "low_candidates": 218,
+    "business_writes": false
+  },
+  "preflight": {
+    "status": "RESERVED",
+    "cutoff_at": "2026-09-10T13:54:37.252136Z",
+    "latest_completed_session": "2026-09-09",
+    "calendar_version": "swinglens-us-equities-v1",
+    "bar_readiness_version": "daily-close-plus-15m-v1",
+    "evidence_fingerprint": "e92667dce9a1ced2f7719ee1c1cd7a8c645f436887e526c1201c5c75c2f20b2d",
+    "technical_reconstruction_fingerprint": "9f85de3c4c6b276999556c6ce5312064f87cd4ab39b8cf4eaedf5582536c98bf"
+  },
+  "hard_stop": {
+    "stage": "PRE_ENQUEUE_IB_GATE",
+    "error_code": "IB_GATEWAY_API_NOT_READY",
+    "status": "PROCESS_RUNNING_API_NOT_READY",
+    "checked_at": "2026-09-10T14:00:13.971932Z",
+    "message": "IB Gateway was running but its API was not ready; no pipeline or canary job was created."
+  },
+  "historical_repair_performed": false,
+  "production_code_changed": false,
+  "merge_performed": false,
+  "pipeline_status": "NOT_CREATED_FAIL_FAST_IB_GATE",
+  "partial_classification": [],
+  "post_canary_tests": {
+    "status": "SKIPPED_FAIL_FAST_PRE_ENQUEUE_OPERATIONAL_FAILURE",
+    "reason": "The runbook permits post-canary regression only when live certification has not failed."
+  },
+  "final_runtime_state": {
+    "all_canary_jobs_terminal": true,
+    "app": "STOPPED",
+    "worker": "STOPPED",
+    "supervisor": "STOPPED",
+    "active_jobs": 0,
+    "queued_jobs": 0,
+    "retrying_jobs": 0,
+    "port_8000_listeners": 0
+  },
+  "failure_classifications": [
+    "OPERATIONAL_FAILURE",
+    "UNEXPECTED_MUTATION"
+  ],
+  "canary_result": "FAIL",
+  "safe_to_merge": false
+}

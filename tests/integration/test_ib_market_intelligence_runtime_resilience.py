@@ -332,9 +332,7 @@ def test_restart_consumes_date_checkpoint_and_flex_cancellation_resumes_get_stat
     monkeypatch.setattr(
         orchestration,
         "resolve_us_stock_contract",
-        lambda _db, ticker, _ib: SimpleNamespace(
-            contract=SimpleNamespace(symbol=ticker, conId=1)
-        ),
+        lambda _db, ticker, _ib: SimpleNamespace(contract=SimpleNamespace(symbol=ticker, conId=1)),
     )
     monkeypatch.setattr(orchestration, "_rebuild_ticker_feature", lambda *_args, **_kwargs: None)
 
@@ -371,7 +369,7 @@ def test_restart_consumes_date_checkpoint_and_flex_cancellation_resumes_get_stat
             payload_json={
                 "module": "LIQUIDITY",
                 "tickers": ["AAPL"],
-                "start_date": "2026-08-01",
+                "start_date": "2026-07-31",
                 "end_date": "2026-08-04",
             },
             max_retries=3,

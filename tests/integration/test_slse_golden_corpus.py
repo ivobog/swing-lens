@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from alembic.config import Config
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+from app.database_safety import run_guarded_alembic_upgrade
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
@@ -23,6 +22,7 @@ from app.models.tables import (
     SetupLifecycleEvaluationRun,
     SetupLifecycleEvent,
     SetupSignalSnapshot,
+    SetupSignalSnapshotCurrentSelection,
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
@@ -744,8 +744,15 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
         )
         assert len(revisions) == 2
         assert len({row.source_data_hash for row in revisions}) == 2
-        assert sum(row.is_canonical for row in revisions) == 1
-        assert revisions[0].superseded_by_snapshot_id == revisions[1].id
+        assert all(row.is_canonical for row in revisions)
+        assert all(row.superseded_by_snapshot_id is None for row in revisions)
+        current_selection = db.scalar(
+            select(SetupSignalSnapshotCurrentSelection).where(
+                SetupSignalSnapshotCurrentSelection.ticker == "GREV"
+            )
+        )
+        assert current_selection is not None
+        assert current_selection.selected_snapshot_id == revisions[1].id
         canonical_audits = list(
             db.scalars(
                 select(SetupLifecycleEvent).where(
@@ -836,16 +843,8 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
 
 
 def _upgrade(database_url: str) -> None:
-    result = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
-        cwd=REPO_ROOT,
-        env={**os.environ, "DATABASE_URL": database_url},
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
+    config = Config(str(REPO_ROOT / "alembic.ini"))
+    run_guarded_alembic_upgrade(config, database_url)
 
 
 def _domain_counts(db: Session, ticker: str) -> tuple[int, int, int, int]:
@@ -1106,6 +1105,7 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
             confidence="HIGH",
             action_summary="Golden fixture",
             evidence_hash=f"market-{run.id}",
+            calculation_cutoff_at=processed_at,
         )
         db.add(market)
         db.flush()
@@ -1120,6 +1120,7 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
             sector_count=1,
             ticker_count=1,
             evidence_hash=f"sector-evidence-{run.id}",
+            calculation_cutoff_at=processed_at,
         )
         db.add(sector)
         db.flush()
@@ -1149,6 +1150,9 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
                 source="GOLDEN",
                 what_to_show="TRADES",
                 data_hash=f"{GOLDEN_FIXTURE_VERSION}:{ticker}:{spec.as_of}:{spec.close}",
+                created_at=processed_at,
+                first_seen_at=processed_at,
+                last_seen_at=processed_at,
             )
         )
     db.commit()
