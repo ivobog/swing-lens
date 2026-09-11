@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,6 +20,10 @@ class DeterministicReadOnlyIB:
     def __init__(self) -> None:
         self._connected = False
         self._log_path = Path(os.environ["CERTIFICATION_IB_LOG"])
+        self.client = SimpleNamespace(
+            isReady=lambda: self._connected,
+            serverVersion=lambda: 180,
+        )
 
     def connect(self, _host, _port, **kwargs):
         if kwargs.get("readonly") is not True:
@@ -34,6 +38,12 @@ class DeterministicReadOnlyIB:
 
     def isConnected(self) -> bool:  # noqa: N802 - matches ib-insync
         return self._connected
+
+    def reqCurrentTime(self):  # noqa: N802 - matches ib-insync
+        if not self._connected:
+            raise RuntimeError("deterministic IB is not connected")
+        self._record("current_time", {})
+        return datetime.now(UTC)
 
     def qualifyContracts(self, contract):  # noqa: N802 - matches ib-insync
         if not self._connected:
@@ -97,8 +107,16 @@ def _bars_for_ticker(ticker: str) -> list[SimpleNamespace]:
 def _install_deterministic_fetch_dependency() -> None:
     from app.services import background_worker
     from app.services.background_job_service import is_cancel_requested
+    from app.services.ceri.artifact_lineage import CeriArtifactOwnership
+    from app.services.ceri.feature_rebuild_service import (
+        CeriFeatureRebuildRequest,
+        CeriFeatureRebuildService,
+    )
     from app.services.ib_fetch_executor import execute_fetch_plan as real_execute_fetch_plan
     from app.services.ib_gateway_health_service import check_status as real_check_status
+    from app.services.market_calculation_context_service import (
+        validate_pipeline_job_market_context,
+    )
     from app.services.pipeline_executor import (
         PipelineCancelled,
         PipelineExecutionDependencies,
@@ -118,6 +136,27 @@ def _install_deterministic_fetch_dependency() -> None:
         pipeline_run_id = job.payload_json.get("pipeline_run_id")
         if pipeline_run_id is None:
             raise ValueError("FULL_PIPELINE job payload is missing pipeline_run_id.")
+        market_cutoff = validate_pipeline_job_market_context(
+            db,
+            pipeline_run_id=int(pipeline_run_id),
+            payload=job.payload_json,
+        )
+        feature_result = CeriFeatureRebuildService().rebuild(
+            db,
+            CeriFeatureRebuildRequest(
+                as_of_session=market_cutoff.latest_completed_session,
+                cutoff_at=market_cutoff.cutoff_at,
+                mode="AS_KNOWN",
+                calculation_context_id=market_cutoff.context_id,
+                calendar_version=market_cutoff.calendar_version,
+                ownership_mode=CeriArtifactOwnership.PIPELINE.value,
+            ),
+        )
+        if feature_result.failed:
+            raise RuntimeError(
+                "disposable certification CERI feature preparation failed: "
+                f"{feature_result.errors}"
+            )
 
         def lease_guard() -> None:
             heartbeat = getattr(job, "_heartbeat", None)
