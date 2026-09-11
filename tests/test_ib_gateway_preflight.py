@@ -13,7 +13,7 @@ from app.services.ib_gateway_health_service import (
     check_status,
 )
 from app.services.ib_gateway_launcher import IBGatewayLaunchState, launch_gateway
-from app.settings import Settings
+from app.settings import ProcessRole, Settings
 
 
 class FakeClient:
@@ -82,10 +82,30 @@ def test_health_ready_requires_real_api_handshake() -> None:
         (
             "127.0.0.1",
             4002,
-            {"clientId": 21, "timeout": 1.25, "readonly": True},
+            {"clientId": 25, "timeout": 1.25, "readonly": True},
         )
     ]
     assert ib.disconnect_calls == 1
+
+
+def test_health_client_ids_are_dedicated_and_unique_by_process_role() -> None:
+    observed = {}
+    for role in ProcessRole:
+        ib = FakeIB()
+        status = check_status(
+            Settings(_env_file=None, process_role=role),
+            ib_factory=lambda current=ib: current,
+        )
+        observed[role] = status.client_id
+        assert ib.connect_calls[0][2]["clientId"] == status.client_id
+
+    assert observed == {
+        ProcessRole.WEB: 22,
+        ProcessRole.DURABLE_WORKER: 23,
+        ProcessRole.SUPERVISOR: 24,
+        ProcessRole.CLI_OR_MAINTENANCE: 25,
+    }
+    assert 21 not in observed.values()
 
 
 def test_health_unreachable_distinguishes_process_not_running() -> None:

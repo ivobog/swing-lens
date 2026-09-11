@@ -287,6 +287,11 @@ def _launch_web(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
         "launcherCreatedAt": (
             supervisor_identity["createdAt"] if supervised else launcher["createdAt"]
         ),
+        # CREATE_NEW_PROCESS_GROUP applies to the exact Popen PID.  On Windows
+        # the venv launcher may then create a real-interpreter child, so this
+        # identity is deliberately distinct from supervisorPid.
+        "processGroupPid": launcher["pid"],
+        "processGroupCreatedAt": launcher["createdAt"],
         "runtimeInstanceId": runtime_instance_id,
     }
     if supervised:
@@ -369,6 +374,7 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
             }
         validate_runtime_process(web, actual, listener_pid=listener_pid)
         launcher = actual
+        process_group = None
         supervisor = state.get("supervisor")
         if isinstance(supervisor, dict):
             launcher = inspect_process(int(supervisor.get("pid") or 0))
@@ -379,6 +385,27 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
                 raise LifecycleConflict("recorded supervisor command identity mismatch")
             if not _process_descends_from(int(actual["pid"]), int(launcher["pid"])):
                 raise LifecycleConflict("web listener is not owned by its recorded supervisor")
+            recorded_group = state.get("processGroup")
+            if isinstance(recorded_group, dict):
+                process_group = inspect_process(int(recorded_group.get("pid") or 0))
+                validate_runtime_process(recorded_group, process_group)
+                if not _process_matches_runtime(
+                    process_group,
+                    "app.worker_supervisor",
+                    str(state.get("runtimeInstanceId")),
+                ):
+                    raise LifecycleConflict("recorded process-group command identity mismatch")
+                if not _process_descends_from(int(launcher["pid"]), int(process_group["pid"])):
+                    raise LifecycleConflict("supervisor is not owned by its recorded process group")
+            else:
+                # Version 3 states recorded only the inner real interpreter.
+                # Derive the outer venv launcher so an in-place upgrade can
+                # still stop safely without targeting the wrong group ID.
+                process_group = _runtime_group_identity(
+                    int(launcher["pid"]),
+                    "app.worker_supervisor",
+                    str(state.get("runtimeInstanceId")),
+                )
         elif web.get("launcherPid") is not None:
             launcher_expected = {
                 **web,
@@ -387,6 +414,9 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
             }
             launcher = inspect_process(int(web.get("launcherPid") or 0))
             validate_runtime_process(launcher_expected, launcher)
+            process_group = launcher
+        else:
+            process_group = actual
         return {
             "valid": True,
             "stale": False,
@@ -394,6 +424,7 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
             "state": state,
             "actual": actual,
             "launcher": launcher,
+            "processGroup": process_group,
         }
     except (LifecycleConflict, OSError, psutil.Error, ValueError) as exc:
         return {"valid": False, "stale": False, "conflict": True, "error": str(exc)}
@@ -523,8 +554,15 @@ def _signal_break(process_id: int, listener_pid: int | None) -> dict[str, object
     if not second.get("valid"):
         return {"signaled": False, "conflict": True, "error": second.get("error")}
     try:
-        supervisor = report["state"].get("supervisor")
-        signal_pid = int(supervisor["pid"]) if isinstance(supervisor, dict) else process_id
+        first_group = report.get("processGroup") or report.get("launcher") or report["actual"]
+        second_group = second.get("processGroup") or second.get("launcher") or second["actual"]
+        if int(first_group["pid"]) != int(second_group["pid"]):
+            return {
+                "signaled": False,
+                "conflict": True,
+                "error": "runtime process-group identity changed during validation",
+            }
+        signal_pid = int(second_group["pid"])
         os.kill(signal_pid, signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
         return {"signaled": True, "signalPid": signal_pid}
     except Exception as exc:
@@ -590,6 +628,28 @@ def _process_descends_from(process_id: int, ancestor_id: int) -> bool:
         return any(parent.pid == ancestor_id for parent in psutil.Process(process_id).parents())
     except (OSError, psutil.Error):
         return False
+
+
+def _runtime_group_identity(
+    process_id: int, module: str, runtime_instance_id: str
+) -> dict[str, object]:
+    """Find the outermost same-runtime launcher that owns a process group."""
+
+    candidates = [inspect_process(process_id)]
+    try:
+        candidates.extend(
+            inspect_process(parent.pid) for parent in psutil.Process(process_id).parents()
+        )
+    except (OSError, psutil.Error):
+        pass
+    matching = [
+        candidate
+        for candidate in candidates
+        if _process_matches_runtime(candidate, module, runtime_instance_id)
+    ]
+    if not matching:
+        raise LifecycleConflict("runtime process-group identity could not be derived")
+    return matching[-1]
 
 
 def _registrations_report() -> dict[str, object]:

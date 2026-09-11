@@ -9,6 +9,37 @@ document.addEventListener("DOMContentLoaded", () => {
   bindFileInputs();
 });
 
+function ibGatewayPreflightView(status) {
+  const state = status?.status || "PROBE_ERROR";
+  const ready = ["IB_API_READY", "READY"].includes(state)
+    && status?.api_connected === true
+    && status?.api_ready !== false;
+  if (ready) {
+    return { ready: true, indicator: "IB Connected", title: "IB Gateway connected — API ready" };
+  }
+  const views = {
+    IB_PROCESS_RUNNING_API_NOT_READY: {
+      indicator: "IB API Not Ready",
+      title: "IB Gateway is open — API not ready",
+    },
+    IB_PROCESS_NOT_RUNNING: {
+      indicator: "IB Gateway Not Running",
+      title: "IB Gateway is not running",
+    },
+    IB_SESSION_LOST: {
+      indicator: "IB Session Lost",
+      title: "IB Gateway API session was lost",
+    },
+  };
+  return {
+    ready: false,
+    ...(views[state] || {
+      indicator: "IB Probe Error",
+      title: "SwingLens could not verify IB API status",
+    }),
+  };
+}
+
 function bindIbGatewayPreflight() {
   const form = document.querySelector("[data-ib-pipeline-form]");
   const panel = document.querySelector("[data-ib-preflight-panel]");
@@ -38,7 +69,9 @@ function bindIbGatewayPreflight() {
   };
 
   const showUnavailable = (status) => {
-    if (title) title.textContent = "Interactive Brokers is not connected";
+    const view = ibGatewayPreflightView(status);
+    setIndicator("offline", view.indicator);
+    if (title) title.textContent = view.title;
     if (detail) detail.textContent = status?.message || "IB Gateway API is unavailable.";
     if (waiting) waiting.hidden = true;
     if (readyButton) readyButton.hidden = true;
@@ -49,8 +82,9 @@ function bindIbGatewayPreflight() {
   };
 
   const showReady = (status) => {
-    setIndicator("ready", "IB Connected");
-    if (title) title.textContent = "IB Gateway connected — API ready";
+    const view = ibGatewayPreflightView(status);
+    setIndicator("ready", view.indicator);
+    if (title) title.textContent = view.title;
     if (detail) detail.textContent = status?.message || "IB Gateway API connection successful.";
     if (waiting) waiting.hidden = true;
     if (launchButton) launchButton.hidden = true;
@@ -69,17 +103,20 @@ function bindIbGatewayPreflight() {
       const response = await fetch(statusUrl, { headers: { Accept: "application/json" } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const status = await response.json();
-      if (status.status === "READY" && status.api_connected) {
+      if (ibGatewayPreflightView(status).ready) {
         setIndicator("ready", "IB Connected");
         if (showPanel || !panel.hidden) showReady(status);
       } else {
-        setIndicator("offline", "IB Offline");
+        setIndicator("offline", ibGatewayPreflightView(status).indicator);
         if (showPanel) showUnavailable(status);
       }
       return status;
     } catch (_error) {
       setIndicator("offline", "IB status unavailable");
-      if (showPanel) showUnavailable({ message: "SwingLens could not check IB API status." });
+      if (showPanel) showUnavailable({
+        status: "PROBE_ERROR",
+        message: "SwingLens could not verify IB API status.",
+      });
       return null;
     } finally {
       checking = false;
@@ -88,7 +125,7 @@ function bindIbGatewayPreflight() {
 
   const poll = async () => {
     const status = await checkStatus({ showPanel: true });
-    if (!status || status.status !== "READY") {
+    if (!status || !ibGatewayPreflightView(status).ready) {
       pollTimer = window.setTimeout(poll, 2500);
     }
   };
@@ -117,8 +154,8 @@ function bindIbGatewayPreflight() {
     if (submitButton) submitButton.disabled = true;
     const status = await checkStatus({ showPanel: false });
     if (submitButton) submitButton.disabled = false;
-    if (status?.status === "READY" && status.api_connected) {
-      submitWithPolicy("REQUIRE_IB");
+    if (ibGatewayPreflightView(status).ready) {
+      showReady(status);
     } else {
       showUnavailable(status);
     }
