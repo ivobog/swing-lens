@@ -16,7 +16,7 @@ from uuid import uuid4
 
 from app.db import SessionLocal
 from app.models.tables import BackgroundWorker
-from app.observability.logging import configure_json_logging
+from app.observability.logging import configure_json_logging, log_event
 from app.observability.metrics import operational_metrics, start_metrics_http_server
 from app.observability.resource_sampler import ResourceSampler
 from app.services.background_job_service import (
@@ -24,6 +24,12 @@ from app.services.background_job_service import (
     fence_stalled_jobs,
     requeue_stalled_jobs,
 )
+from app.services.lifecycle_control import (
+    RUNTIME_FINGERPRINT_ENV,
+    TOPOLOGY_VERSION,
+    supervisor_state_path,
+)
+from app.services.lifecycle_safety import atomic_write_json
 from app.services.parent_watchdog import PARENT_PID_ENV, PARENT_STARTED_AT_ENV
 from app.services.process_identity import process_is_alive, process_started_at
 from app.services.process_memory import memory_status, process_memory_snapshot
@@ -33,6 +39,7 @@ from app.services.supervisor_registry import (
     heartbeat_supervisor,
     release_supervisor,
 )
+from app.services.supervisor_restart import RestartBudget, RestartDecision
 from app.services.worker_registry import associate_worker_launcher, retire_worker_registration
 from app.settings import ProcessRole, get_settings
 
@@ -67,9 +74,24 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    configure_json_logging("supervisor")
+    log_event(logger, "runtime.process_boot", stage="process_boot")
     args = parse_args(argv)
     settings = get_settings()
-    require_process_role(settings, ProcessRole.SUPERVISOR)
+    try:
+        require_process_role(settings, ProcessRole.SUPERVISOR)
+    except Exception as exc:
+        log_event(
+            logger,
+            "runtime.role_validation_failed",
+            level=logging.ERROR,
+            stage="role_validation",
+            result="failure",
+            reason_code="CONFIGURATION_CONFLICT",
+            error=str(exc),
+        )
+        raise
+    log_event(logger, "runtime.role_validation", stage="role_validation", result="success")
     stop = Event()
     instance_id = uuid4().hex
     process_id = os.getpid()
@@ -83,7 +105,6 @@ def main(argv: Sequence[str] | None = None) -> None:
         if value is not None:
             signal.signal(value, request_stop)
 
-    configure_json_logging("supervisor")
     operational_metrics.configure(enabled=settings.observability_metrics_enabled)
     metrics_server = None
     sampler = None
@@ -98,8 +119,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         sampler.start()
         operational_metrics.set_gauge("swinglens_supervisor_up", 1)
+        operational_metrics.set_gauge(
+            "swinglens_runtime_generation_info",
+            1,
+            mode=settings.runtime_mode.value,
+            topology=TOPOLOGY_VERSION,
+        )
     child: LaunchedWorker | None = None
     web: LaunchedWeb | None = None
+    web_restarts = _restart_budget("web", settings)
+    worker_restarts = _restart_budget("worker", settings)
     owns_supervision = False
     ownership_deadline = monotonic() + float(
         getattr(settings, "job_worker_heartbeat_timeout_seconds", 30)
@@ -116,11 +145,108 @@ def main(argv: Sequence[str] | None = None) -> None:
                     already_owned=owns_supervision,
                 )
                 if owns_supervision:
-                    web = _supervise_web_once(args=args, child=web)
-                    child = _supervise_once(
-                        worker_id=args.worker_id,
-                        queues=args.queues,
-                        child=child,
+                    if web is not None and web.process.poll() is not None:
+                        decision = web_restarts.record_failure(
+                            now=monotonic(),
+                            exit_code=web.process.returncode,
+                            startup_stage="uvicorn_ready",
+                            reason_code="WEB_CHILD_EXITED",
+                        )
+                        _record_child_failure(decision)
+                        web = None
+                        if not decision.crash_loop:
+                            stop.wait(decision.backoff_seconds)
+                    if not web_restarts.crash_loop:
+                        try:
+                            web = _supervise_web_once(args=args, child=web)
+                        except Exception:
+                            decision = web_restarts.record_failure(
+                                now=monotonic(),
+                                exit_code=None,
+                                startup_stage="process_spawn",
+                                reason_code="WEB_START_FAILED",
+                            )
+                            _record_child_failure(decision)
+                            if not decision.crash_loop:
+                                stop.wait(decision.backoff_seconds)
+
+                    registered_worker = _registered_worker(args.worker_id)
+                    registered_worker_alive = _registered_worker_process_alive(registered_worker)
+                    registration_active = (
+                        registered_worker is not None and registered_worker.stopping_at is None
+                    )
+                    if registration_active and not registered_worker_alive:
+                        decision = worker_restarts.record_failure(
+                            now=monotonic(),
+                            exit_code=(
+                                child.process.returncode
+                                if child is not None and child.process.poll() is not None
+                                else None
+                            ),
+                            startup_stage="worker_heartbeat",
+                            reason_code="DURABLE_WORKER_PROCESS_LOST",
+                        )
+                        _record_child_failure(decision)
+                        if child is not None and child.process.poll() is not None:
+                            child = None
+                        if not decision.crash_loop:
+                            stop.wait(decision.backoff_seconds)
+                    elif (
+                        child is not None
+                        and child.process.poll() is not None
+                        and not registration_active
+                    ):
+                        decision = worker_restarts.record_failure(
+                            now=monotonic(),
+                            exit_code=child.process.returncode,
+                            startup_stage="worker_registration",
+                            reason_code="DURABLE_WORKER_EXITED_BEFORE_REGISTRATION",
+                        )
+                        _record_child_failure(decision)
+                        child = None
+                        if not decision.crash_loop:
+                            stop.wait(decision.backoff_seconds)
+                    elif (
+                        child is not None
+                        and child.process.poll() is None
+                        and not registered_worker_alive
+                        and monotonic() - child.launched_at >= WORKER_REGISTRATION_TIMEOUT_SECONDS
+                    ):
+                        decision = worker_restarts.record_failure(
+                            now=monotonic(),
+                            exit_code=None,
+                            startup_stage="worker_registration",
+                            reason_code="DURABLE_WORKER_REGISTRATION_TIMEOUT",
+                        )
+                        _record_child_failure(decision)
+                        _terminate_launcher(child.process, settings.worker_shutdown_grace_seconds)
+                        child = None
+                        if not decision.crash_loop:
+                            stop.wait(decision.backoff_seconds)
+                    if not worker_restarts.crash_loop:
+                        try:
+                            child = _supervise_once(
+                                worker_id=args.worker_id,
+                                queues=args.queues,
+                                child=child,
+                            )
+                        except Exception:
+                            decision = worker_restarts.record_failure(
+                                now=monotonic(),
+                                exit_code=None,
+                                startup_stage="process_spawn",
+                                reason_code="DURABLE_WORKER_START_FAILED",
+                            )
+                            _record_child_failure(decision)
+                            if not decision.crash_loop:
+                                stop.wait(decision.backoff_seconds)
+                    _write_supervisor_state(
+                        args=args,
+                        instance_id=instance_id,
+                        web=web,
+                        worker=child,
+                        web_restarts=web_restarts,
+                        worker_restarts=worker_restarts,
                     )
                 elif monotonic() >= ownership_deadline:
                     logger.error(
@@ -136,8 +262,18 @@ def main(argv: Sequence[str] | None = None) -> None:
                         "supervisor_instance_id": instance_id,
                     },
                 )
+                _write_supervisor_state(
+                    args=args,
+                    instance_id=instance_id,
+                    web=web,
+                    worker=child,
+                    web_restarts=web_restarts,
+                    worker_restarts=worker_restarts,
+                    cycle_failed=True,
+                )
             stop.wait(settings.job_watchdog_interval_seconds)
     finally:
+        log_event(logger, "runtime.process_shutdown", stage="process_shutdown")
         operational_metrics.set_gauge("swinglens_supervisor_up", 0)
         if owns_supervision:
             _shutdown_web(web, settings.worker_shutdown_grace_seconds)
@@ -155,6 +291,86 @@ def main(argv: Sequence[str] | None = None) -> None:
             sampler.stop()
         if metrics_server is not None:
             metrics_server.shutdown()
+
+
+def _restart_budget(role: str, settings) -> RestartBudget:
+    return RestartBudget(
+        role=role,
+        budget=getattr(settings, "supervisor_restart_budget", 5),
+        window_seconds=getattr(settings, "supervisor_restart_window_seconds", 60.0),
+        initial_backoff_seconds=getattr(
+            settings, "supervisor_restart_backoff_initial_seconds", 0.5
+        ),
+        max_backoff_seconds=getattr(settings, "supervisor_restart_backoff_max_seconds", 10.0),
+    )
+
+
+def _record_child_failure(decision: RestartDecision) -> None:
+    operational_metrics.increment(
+        "swinglens_supervisor_child_restarts_total",
+        role=decision.role,
+        reason=decision.last_reason_code,
+    )
+    operational_metrics.increment(
+        "swinglens_supervisor_child_start_failures_total",
+        role=decision.role,
+        stage=decision.last_startup_stage,
+    )
+    operational_metrics.set_gauge(
+        "swinglens_supervisor_child_crash_loop",
+        1 if decision.crash_loop else 0,
+        role=decision.role,
+    )
+    log_event(
+        logger,
+        "runtime.supervisor.child_failure",
+        level=logging.ERROR if decision.crash_loop else logging.WARNING,
+        stage=decision.last_startup_stage,
+        result="failure",
+        reason_code="CRASH_LOOP" if decision.crash_loop else decision.last_reason_code,
+        **decision.as_dict(),
+    )
+
+
+def _write_supervisor_state(
+    *,
+    args: argparse.Namespace,
+    instance_id: str,
+    web: LaunchedWeb | None,
+    worker: LaunchedWorker | None,
+    web_restarts: RestartBudget,
+    worker_restarts: RestartBudget,
+    cycle_failed: bool = False,
+) -> None:
+    root = Path(args.repo_root).resolve()
+    payload = {
+        "version": 1,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "runtime_instance_id": args.runtime_instance_id,
+        "runtime_config_fingerprint": os.environ.get(RUNTIME_FINGERPRINT_ENV),
+        "topology_version": TOPOLOGY_VERSION,
+        "supervisor": {"pid": os.getpid(), "instance_id": instance_id},
+        "web": {
+            "launcher_pid": web.process.pid if web is not None else None,
+            "state": "CRASH_LOOP" if web_restarts.crash_loop else "RUNNING",
+        },
+        "worker": {
+            "launcher_pid": worker.process.pid if worker is not None else None,
+            "state": "CRASH_LOOP" if worker_restarts.crash_loop else "RUNNING",
+        },
+        "restart": {
+            "web": web_restarts.snapshot(),
+            "worker": worker_restarts.snapshot(),
+        },
+        "cycle_failed": cycle_failed,
+    }
+    try:
+        atomic_write_json(supervisor_state_path(root), payload)
+    except OSError:
+        logger.exception(
+            "runtime.supervisor.state_write_failed",
+            extra={"reason_code": "SUPERVISOR_STATE_WRITE_FAILED"},
+        )
 
 
 def _acquire_or_heartbeat_supervisor(
@@ -311,7 +527,7 @@ def _start_worker(worker_id: str, queues: str) -> subprocess.Popen:
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
-    return subprocess.Popen(
+    return _start_logged_child(
         [
             _worker_python_executable(),
             "-m",
@@ -321,7 +537,8 @@ def _start_worker(worker_id: str, queues: str) -> subprocess.Popen:
             "--queues",
             queues,
         ],
-        **kwargs,
+        kwargs=kwargs,
+        role="worker",
     )
 
 
@@ -349,7 +566,7 @@ def _start_web(args: argparse.Namespace) -> subprocess.Popen:
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
-    return subprocess.Popen(
+    return _start_logged_child(
         [
             sys.executable,
             "-m",
@@ -363,8 +580,18 @@ def _start_web(args: argparse.Namespace) -> subprocess.Popen:
             "--repo-root",
             args.repo_root,
         ],
-        **kwargs,
+        kwargs=kwargs,
+        role="web",
     )
+
+
+def _start_logged_child(
+    command: list[str], *, kwargs: dict[str, object], role: str
+) -> subprocess.Popen:
+    log_path = Path.cwd() / "logs" / f"lifecycle-{role}.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("ab", buffering=0) as output:
+        return subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT, **kwargs)
 
 
 def _shutdown_web(child: LaunchedWeb | None, grace_seconds: float) -> None:

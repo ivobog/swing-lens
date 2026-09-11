@@ -1,11 +1,15 @@
-import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine import make_url
 
 from alembic import context
-from app.database_safety import assert_alembic_connection_matches, assert_disposable_database
+from app.database_safety import (
+    DatabaseSafetyContext,
+    assert_alembic_connection_matches,
+    assert_disposable_database,
+    require_database_safety_context,
+)
 from app.db import Base
 from app.models import (
     ceri_tables,  # noqa: F401
@@ -31,9 +35,14 @@ database_url = config.attributes.get("database_url") or config.get_main_option(
     "sqlalchemy.url", None
 )
 database_url = str(database_url or settings.database_url)
+safety_context = config.attributes.get("database_safety_context")
+if safety_context is None:
+    safety_context = require_database_safety_context()
+else:
+    safety_context = DatabaseSafetyContext(str(safety_context))
 if (
-    config.attributes.get("disposable_database_identity") is None
-    and os.environ.get("SWINGLENS_TEST_DISPOSABLE_ALEMBIC") == "1"
+    safety_context is DatabaseSafetyContext.DISPOSABLE_TEST
+    and config.attributes.get("disposable_database_identity") is None
 ):
     candidate_url = make_url(database_url)
     admin_url = candidate_url.set(database="postgres")
@@ -41,6 +50,11 @@ if (
         candidate_url,
         active_database_url=admin_url,
     )
+elif (
+    safety_context is DatabaseSafetyContext.AUTHORITATIVE_LOCAL
+    and config.attributes.get("disposable_database_identity") is not None
+):
+    raise RuntimeError("AUTHORITATIVE_LOCAL cannot carry a disposable database identity")
 # ConfigParser treats percent-encoded credentials as interpolation tokens.
 # Escape only for Alembic's config layer; SQLAlchemy receives the original URL.
 config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
@@ -69,13 +83,15 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         expected_disposable = config.attributes.get("disposable_database_identity")
-        if expected_disposable is not None:
+        if safety_context is DatabaseSafetyContext.DISPOSABLE_TEST:
+            if expected_disposable is None:
+                raise RuntimeError("DISPOSABLE_TEST requires a verified disposable identity")
             assert_alembic_connection_matches(connection, expected_disposable)
             # The read-only identity queries autobegin a SQLAlchemy transaction.
             # End it before Alembic establishes its own migration transaction;
             # older concurrent-index migrations require a clean autocommit block.
             connection.rollback()
-        else:
+        elif safety_context is DatabaseSafetyContext.AUTHORITATIVE_LOCAL:
             verify_authoritative_connection(connection, settings)
             connection.rollback()
         migration_lock_acquired = False

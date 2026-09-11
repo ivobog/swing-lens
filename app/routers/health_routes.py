@@ -15,6 +15,16 @@ router = APIRouter(tags=["health"])
 DbSession = Annotated[Session, Depends(get_db)]
 
 
+def _record_readiness(scope: str, status: str) -> None:
+    for candidate in ("ok", "degraded", "failed"):
+        operational_metrics.set_gauge(
+            "swinglens_readiness_state",
+            1 if status == candidate else 0,
+            scope=scope,
+            status=candidate,
+        )
+
+
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     settings = get_settings()
@@ -31,6 +41,7 @@ def health() -> HealthResponse:
 def ready(response: Response) -> ReadinessResponse:
     settings = get_settings()
     report = ReadinessService(engine=engine, settings=settings).report()
+    _record_readiness("application", report.status)
     response.status_code = 503 if report.status == "failed" else 200
 
     return ReadinessResponse(
@@ -44,6 +55,36 @@ def ready(response: Response) -> ReadinessResponse:
         worker_heartbeat_fresh=report.checks["worker_heartbeat"].ok,
         worker_ok=report.checks["worker"].ok,
         jobs_ok=report.checks["jobs"].ok,
+        checks=report.response_checks(),
+        check_states=report.response_states(),
+    )
+
+
+@router.get("/ready/core", response_model=ReadinessResponse)
+def ready_core(response: Response) -> ReadinessResponse:
+    """Canonical lifecycle readiness; business/provider degradation is excluded."""
+
+    settings = get_settings()
+    report = ReadinessService(engine=engine, settings=settings).core_report()
+    _record_readiness("core", report.status)
+    operational_metrics.set_gauge(
+        "swinglens_database_provenance_ok", 1 if report.checks["database_provenance"].ok else 0
+    )
+    operational_metrics.set_gauge(
+        "swinglens_alembic_head_match", 1 if report.checks["migrations"].ok else 0
+    )
+    response.status_code = 503 if report.status == "failed" else 200
+    return ReadinessResponse(
+        app=settings.app_name,
+        status=report.status,
+        database_ok=report.database_ok,
+        local_dirs_ok=report.local_dirs_ok,
+        migrations_ok=report.checks["migrations"].ok,
+        supervisor_ok=report.checks["supervisor"].ok,
+        worker_registered=report.checks["worker"].ok,
+        worker_heartbeat_fresh=report.checks["worker"].ok,
+        worker_ok=report.checks["worker"].ok,
+        jobs_ok=None,
         checks=report.response_checks(),
         check_states=report.response_states(),
     )

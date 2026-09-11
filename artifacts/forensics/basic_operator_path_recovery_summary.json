@@ -1,0 +1,56 @@
+{
+  "branch": "codex/final-certification-runtime-topology-remediation",
+  "baseline_head": "afd6fe1d678b9d236d321edf5d97e4ae4b68ca41",
+  "final_head": "e13c0e6ab7cd90a90c3286770b00250ed0f20ba1",
+  "powershell_debugger_root_cause": "DEBUGGER_FROM_SCRIPT: CTRL_BREAK_EVENT was addressed to the inner interpreter PID instead of the CREATE_NEW_PROCESS_GROUP leader; no repository/profile/session breakpoint was present",
+  "stop_root_cause": "runtime process identity and Windows process-group identity were conflated",
+  "restart_root_cause": "restart composes the same defective stop path before start",
+  "ib_probe_root_cause": "BACKEND_SUCCESS_UI_MISMAP",
+  "ib_probe_backend_state": "HTTP 200 IB_API_READY; api_connected=true; api_ready=true; server_version=176; current-time smoke response=true; clean disconnect; 447 ms HTTP elapsed",
+  "ib_ui_mapping_root_cause": "frontend recognized only legacy READY and treated authoritative IB_API_READY as unavailable",
+  "ib_client_id_behavior": "operational client 21; deterministic read-only health IDs WEB=22, DURABLE_WORKER=23, SUPERVISOR=24, CLI=25; same-process probes serialized; disconnect in finally",
+  "ready_degraded_root_cause": "disk was the only degraded check; IB optional_unavailable was informational and all core checks were ok",
+  "disk_warning_percent": 13.6,
+  "disk_warning_threshold_percent": 15.0,
+  "disk_critical_threshold_percent": 5.0,
+  "disk_warning_blocking": false,
+  "manual_start_passed": true,
+  "manual_status_passed": true,
+  "manual_ib_check_passed": true,
+  "manual_restart_passed": false,
+  "manual_stop_passed": false,
+  "start_stop_cycles": {
+    "required": 5,
+    "passed": 3,
+    "failed_cycle": 4,
+    "failure": "start/status passed; stop terminated the verifier before returning, stopped all runtime processes and freed port 8000, but left lifecycle state"
+  },
+  "restart_cycles": {
+    "required": 3,
+    "passed": 0,
+    "not_run_reason": "stop-condition failure ended certification"
+  },
+  "orphan_processes": 0,
+  "duplicate_workers": 0,
+  "port_8000_free_after_stop": true,
+  "final_cleanup_state_file_present": false,
+  "unrelated_active_business_jobs": 0,
+  "readiness_retry": {
+    "attempt_limit": 3,
+    "delay_between_attempts_ms": 300,
+    "maximum_http_timeout_per_attempt_seconds": 5,
+    "semantic_failures_retried": false,
+    "database_failure_after_budget": "failed",
+    "failure_and_recovery_logged": true
+  },
+  "tests": {
+    "focused_and_regression": "121 passed, 22 warnings",
+    "ruff": "passed",
+    "sec_clone_matrix_run": false,
+    "temporal_pit_certification_run": false
+  },
+  "production_pipeline_run": false,
+  "historical_repair": false,
+  "merge_performed": false,
+  "safe_to_resume_final_canary_work": false
+}

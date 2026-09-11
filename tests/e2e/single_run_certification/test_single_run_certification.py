@@ -13,6 +13,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -31,7 +32,15 @@ from app.database_safety import assert_disposable_database
 from app.models.tables import PriceBar
 from app.services.bar_cache_service import cache_bars
 from app.services.ceri.config import load_ceri_config
+from app.services.ceri.sec.processor_lifecycle import (
+    certify_processor,
+    promote_processor,
+    register_deployed_processor,
+)
 from app.services.ib_data_fetcher import HistoricalBar
+from app.services.winner_probability.market_data_obligation_service import (
+    MarketDataObligationService,
+)
 from app.services.winner_probability.trading_session_service import next_regular_session
 from single_run_certification.evidence import (
     build_run_evidence_graph,
@@ -166,6 +175,7 @@ def certification_environment(
         pytest.fail(f"BLOCKED: Alembic migration failed; see {migration_log}")
 
     seed = seed_prerequisites(database_url)
+    _activate_disposable_sec_processor(database_url)
     port = _available_port()
     base_url = f"http://127.0.0.1:{port}"
     log_handle = server_log.open("w", encoding="utf-8")
@@ -502,8 +512,12 @@ def _run_pipeline_through_gui(
     run_id: int,
 ) -> tuple[int, str]:
     page.get_by_role("button", name="Run full pipeline").click()
+    ib_preflight = page.locator("[data-ib-preflight-panel]")
+    ib_preflight.wait_for(state="visible", timeout=30_000)
+    ib_preflight.locator("[data-ib-run-ready]").wait_for(state="visible", timeout=30_000)
+    ib_preflight.locator("[data-ib-run-ready]").click()
     confirm = page.locator("[data-confirm-panel]")
-    confirm.wait_for(state="visible", timeout=5_000)
+    confirm.wait_for(state="visible", timeout=30_000)
     confirm.locator("[data-confirm-continue]").click()
     page.wait_for_url(re.compile(rf"/runs/{run_id}/pipeline/\d+$"), timeout=30_000)
     pipeline_id = int(page.url.rsplit("/", 1)[-1])
@@ -1010,31 +1024,31 @@ def _compare_ceri_alerts(page: Page, engine, recorder: CertificationRecorder, ru
         expected=len(db_rows),
         actual=len(gui_rows),
     )
-    db_by_ticker = {str(row["ticker"]): row for row in db_rows}
-    for gui in gui_rows:
-        db = db_by_ticker.get(gui["Ticker"].strip())
-        recorder.check(
-            db is not None,
-            f"CERI alert {gui['Ticker']} belongs to canonical run",
-            area="CERI",
-            expected=True,
-            actual=db is not None,
+    expected_rows = Counter(
+        (
+            str(row["ticker"]),
+            str(row["change_type"]).replace("_", " ").title(),
+            str(row["importance"]).title(),
+            str(row["status"]),
         )
-        if db is None:
-            continue
-        for field, expected in {
-            "Ticker": str(db["ticker"]),
-            "Alert": str(db["change_type"]).replace("_", " ").title(),
-            "Importance": str(db["importance"]).title(),
-            "Status": str(db["status"]),
-        }.items():
-            recorder.check(
-                gui[field].strip() == expected,
-                f"CERI alert {db['ticker']} {field} GUI↔DB",
-                area="CERI",
-                expected=expected,
-                actual=gui[field],
-            )
+        for row in db_rows
+    )
+    actual_rows = Counter(
+        (
+            row["Ticker"].strip(),
+            row["Alert"].strip(),
+            row["Importance"].strip(),
+            row["Status"].strip(),
+        )
+        for row in gui_rows
+    )
+    recorder.check(
+        actual_rows == expected_rows,
+        "CERI visible alert identities match DB including multiple alerts per ticker",
+        area="CERI",
+        expected=sorted(expected_rows.elements()),
+        actual=sorted(actual_rows.elements()),
+    )
 
 
 def _compare_winner(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
@@ -1439,6 +1453,7 @@ def _seed_later_market_bars(engine, prediction_id: int) -> int:
                 index += 1
             summary = cache_bars(db, bars)
             inserted += summary.inserted
+        MarketDataObligationService().evaluate(db, now=datetime.now(UTC))
         db.commit()
     return inserted
 
@@ -2259,6 +2274,29 @@ def _git_commit() -> str:
         capture_output=True,
         text=True,
     ).stdout.strip()
+
+
+def _activate_disposable_sec_processor(database_url: str) -> None:
+    """Promote the deployed processor only inside this fresh disposable database."""
+
+    engine = create_engine(database_url)
+    try:
+        with Session(engine) as db:
+            release = register_deployed_processor(db, git_sha=_git_commit())
+            certify_processor(
+                db,
+                processor_signature=release.processor_signature,
+                evidence={"source": "single-run-disposable-certification"},
+                actor="single-run-certification",
+            )
+            promote_processor(
+                db,
+                processor_signature=release.processor_signature,
+                actor="single-run-certification",
+            )
+            db.commit()
+    finally:
+        engine.dispose()
 
 
 def _is_feature_flag(key: str) -> bool:

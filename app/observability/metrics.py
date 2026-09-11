@@ -104,6 +104,9 @@ BOUNDED_LABEL_LIMITS: dict[str, int] = {
     "schema_id": 32,
     "scope": 32,
     "source": 16,
+    "action": 16,
+    "role": 8,
+    "topology": 8,
     "trigger_source": 16,
     "weight": 16,
 }
@@ -233,6 +236,39 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     "swinglens_supervisor_up": _gauge("Supervisor process liveness.", unit="boolean"),
     "swinglens_supervisor_heartbeat_age_seconds": _gauge(
         "Supervisor heartbeat age.", unit="seconds"
+    ),
+    "swinglens_lifecycle_last_operation_timestamp_seconds": _gauge(
+        "Unix timestamp of the last lifecycle operation.", unit="seconds"
+    ),
+    "swinglens_lifecycle_last_operation_success": _gauge(
+        "Whether the last lifecycle operation succeeded.", unit="boolean"
+    ),
+    "swinglens_lifecycle_operation_duration_seconds": _gauge(
+        "Duration of the last lifecycle operation.", ("action", "stage"), "seconds"
+    ),
+    "swinglens_lifecycle_failures_total": _counter(
+        "Lifecycle operation failures.", ("action", "stage", "reason")
+    ),
+    "swinglens_runtime_generation_info": _gauge(
+        "Active runtime generation identity.", ("mode", "topology"), "boolean"
+    ),
+    "swinglens_supervisor_child_restarts_total": _counter(
+        "Supervisor child restarts.", ("role", "reason")
+    ),
+    "swinglens_supervisor_child_crash_loop": _gauge(
+        "Whether a supervised child exhausted its restart budget.", ("role",), "boolean"
+    ),
+    "swinglens_supervisor_child_start_failures_total": _counter(
+        "Supervised child startup failures.", ("role", "stage")
+    ),
+    "swinglens_database_provenance_ok": _gauge(
+        "Whether database provenance matches the selected safety context.", unit="boolean"
+    ),
+    "swinglens_alembic_head_match": _gauge(
+        "Whether the database schema matches repository heads.", unit="boolean"
+    ),
+    "swinglens_readiness_state": _gauge(
+        "Last evaluated readiness state by contract scope.", ("scope", "status"), "boolean"
     ),
     "swinglens_control_loop_up": _gauge(
         "Functional control-loop liveness.", ("process_role",), "boolean"

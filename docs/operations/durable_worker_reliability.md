@@ -3,16 +3,18 @@
 SwingLens treats the worker process heartbeat, a job lease heartbeat, and useful durable job
 progress as three independent signals.
 
-1. `JOB_WORKER_ENABLED=true` means the web application continuously maintains an
-   out-of-process supervisor. The supervisor continuously maintains a usable durable worker.
+1. `USE_DURABLE_PIPELINE=true` in canonical NORMAL operation means one `app.worker_supervisor`
+   root continuously maintains both `app.serve` and `app.worker`. `JOB_WORKER_ENABLED` is legacy
+   compatibility input only and is forced false in child processes.
 2. A worker heartbeat proves only that the worker process is alive.
 3. A job lease heartbeat proves only that the current execution token still owns the lease.
 4. A useful checkpoint updates `last_progress_at`, `progress_sequence`, the explicit stage,
    processed/total counts, and checkpoint identity in the same transaction.
 5. A worker execution is identified by `worker_id` plus a unique `worker_instance_id`.
    Process liveness additionally validates PID plus OS process creation time.
-6. A supervisor cycle failure is logged and retried; it does not exit the supervisor loop.
-   The web-side guardian also restarts a supervisor process that unexpectedly exits.
+6. A child failure is logged and retried with bounded exponential backoff. After the configured
+   budget inside its restart window, that role enters `CRASH_LOOP` and is no longer respawned; the
+   supervisor remains available to export state and metrics.
 7. Worker replacement fences only jobs owned by the observed worker instance. Queued jobs are
    never tied to a worker and remain durable.
 8. Execution tokens fence late writes, so a recovering job cannot have two valid owners.

@@ -239,7 +239,7 @@ class Settings(BaseSettings):
     # Compatibility input retained for one release. Runtime code must use the
     # explicit process role and the two single-purpose settings below.
     job_worker_enabled: bool = False
-    durable_worker_process_enabled: bool = False
+    durable_worker_process_enabled: bool = True
     embedded_job_worker_enabled: bool = False
     job_poll_interval_seconds: float = 2.0
     job_stale_after_seconds: int = 900
@@ -256,6 +256,10 @@ class Settings(BaseSettings):
     worker_memory_tracemalloc_enabled: bool = False
     worker_memory_top_allocations: int = Field(default=10, ge=1, le=50)
     worker_shutdown_grace_seconds: float = Field(default=15.0, ge=1.0, le=300.0)
+    supervisor_restart_budget: int = Field(default=5, ge=1, le=50)
+    supervisor_restart_window_seconds: float = Field(default=60.0, ge=1.0, le=3600.0)
+    supervisor_restart_backoff_initial_seconds: float = Field(default=0.5, ge=0.0, le=60.0)
+    supervisor_restart_backoff_max_seconds: float = Field(default=10.0, ge=0.1, le=300.0)
     queue_fairness_enabled: bool = False
     job_max_consecutive_interactive_claims: int = 4
     job_age_promotion_seconds: int = 300
@@ -358,6 +362,11 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_local_runtime_boundary(self) -> "Settings":
         if self.job_worker_enabled and not self.durable_worker_process_enabled:
+            if "durable_worker_process_enabled" in self.model_fields_set:
+                raise ValueError(
+                    "JOB_WORKER_ENABLED legacy compatibility cannot override an explicit "
+                    "DURABLE_WORKER_PROCESS_ENABLED=false"
+                )
             # One-release compatibility mapping. JOB_WORKER_ENABLED no longer
             # has a runtime reader; it maps only to the standalone deployment
             # capability and can never enable work inside WEB.
@@ -464,6 +473,24 @@ class Settings(BaseSettings):
         if self.embedded_job_worker_enabled:
             raise ValueError(
                 "EMBEDDED_JOB_WORKER_ENABLED is unsupported; use the standalone durable worker"
+            )
+        if self.use_durable_pipeline and not self.durable_worker_process_enabled:
+            context = (
+                "CERTIFICATION runtime: "
+                if self.runtime_mode is RuntimeMode.CERTIFICATION
+                else ""
+            )
+            raise ValueError(
+                f"{context}USE_DURABLE_PIPELINE=true requires "
+                "DURABLE_WORKER_PROCESS_ENABLED=true "
+                "for the canonical supervisor-root runtime"
+            )
+        if (
+            self.supervisor_restart_backoff_initial_seconds
+            > self.supervisor_restart_backoff_max_seconds
+        ):
+            raise ValueError(
+                "supervisor restart initial backoff must not exceed maximum backoff"
             )
         if self.runtime_mode is RuntimeMode.CERTIFICATION:
             if not self.use_durable_pipeline:

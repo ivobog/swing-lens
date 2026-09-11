@@ -25,10 +25,10 @@ _LIVE_SERVER_DATABASE_URL: str | None = None
 
 
 @pytest.fixture(scope="session")
-def browser() -> Iterator[Browser]:
+def browser(browser_name: str) -> Iterator[Browser]:
     """Provide pytest-playwright-compatible browser state without its optional plugin."""
     with sync_playwright() as playwright:
-        instance = playwright.chromium.launch(headless=True)
+        instance = getattr(playwright, browser_name).launch(headless=True)
         try:
             yield instance
         finally:
@@ -52,9 +52,11 @@ def _available_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+def live_server_url(
+    tmp_path_factory: pytest.TempPathFactory, browser_name: str
+) -> Iterator[str]:
     """Run a migrated SwingLens instance against a disposable PostgreSQL database."""
-    database_name = f"swinglens_pytest_browser_{uuid.uuid4().hex[:12]}"
+    database_name = f"swinglens_pytest_browser_{browser_name}_{uuid.uuid4().hex[:8]}"
     admin_url = os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL", POSTGRES_ADMIN_URL)
     try:
         admin = psycopg.connect(admin_url, autocommit=True)
@@ -70,11 +72,15 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     assert_disposable_database(database_url)
     global _LIVE_SERVER_DATABASE_URL
     _LIVE_SERVER_DATABASE_URL = database_url
-    runtime_root = tmp_path_factory.mktemp("swinglens-browser")
+    runtime_root = tmp_path_factory.mktemp(f"swinglens-browser-{browser_name}")
     env = {
         **os.environ,
         "DATABASE_URL": database_url,
+        "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
         "APP_HOST": "127.0.0.1",
+        "USE_DURABLE_PIPELINE": "false",
+        "DURABLE_WORKER_PROCESS_ENABLED": "false",
+        "EMBEDDED_JOB_WORKER_ENABLED": "false",
         "JOB_WORKER_ENABLED": "false",
         "UPLOAD_DIR": str(runtime_root / "uploads"),
         "EXPORT_DIR": str(runtime_root / "exports"),
@@ -104,7 +110,7 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     base_url = f"http://127.0.0.1:{port}"
     artifact_dir = REPO_ROOT / "output" / "playwright"
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    log_path = artifact_dir / "uvicorn-browser.log"
+    log_path = artifact_dir / f"uvicorn-browser-{browser_name}.log"
     log_handle = log_path.open("w", encoding="utf-8")
     process = subprocess.Popen(
         [
@@ -125,7 +131,7 @@ def live_server_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     )
 
     try:
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + (60 if sys.platform == "win32" else 30)
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 log_handle.flush()

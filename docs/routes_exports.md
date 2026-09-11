@@ -187,6 +187,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/ops/cleanup/preview` | `cleanup_preview` |
 | GET | `/ops/system/causality/{root_correlation_id}` | `causality_api` |
 | GET | `/ready` | `ready` |
+| GET | `/ready/core` | `ready_core` |
 | GET | `/redoc` | `redoc_html` |
 | GET | `/runs` | `runs_page` |
 | GET | `/runs/{run_id}` | `run_detail_page` |

@@ -80,6 +80,7 @@ Grafana also automatically loads this source-controlled dashboard set into the `
 4. CERI & Providers
 5. Database / SQL Flight Recorder
 6. Worker Resources
+7. SwingLens Lifecycle Control Plane
 
 The dashboards cover queue depth/age, job wait/duration/failure/retry/coalescing/fanout, pipeline and
 stage duration, CERI/provider result/latency/bytes/retries, DB pool/wait/slow/transaction/recorder
@@ -122,3 +123,8 @@ the target's `up` series and missing-worker alert make the absence explicit.
 
 Configuration lives under `monitoring/prometheus` and `monitoring/grafana/provisioning`; dashboards
 live under `monitoring/grafana/dashboards`.
+
+Lifecycle status never infers “3/3 UP” from local ports. It queries Prometheus
+`/api/v1/targets` and requires discovered, healthy `swinglens-web`, `swinglens-worker`, and
+`swinglens-supervisor` targets. Each result includes health, last scrape, and last scrape error.
+Missing/down targets degrade OBSERVABILITY without tearing down a core-ready runtime.

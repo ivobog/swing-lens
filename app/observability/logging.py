@@ -5,10 +5,19 @@ import logging
 import os
 import traceback
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from app.observability.correlation import context_fields
+from app.services.lifecycle_control import append_lifecycle_event
 from app.services.redaction import redact_sensitive, redact_text
+
+_LIFECYCLE_ENV_FIELDS = {
+    "lifecycle_operation_id": "SWINGLENS_LIFECYCLE_OPERATION_ID",
+    "runtime_instance_id": "SWINGLENS_RUNTIME_INSTANCE_ID",
+    "runtime_config_fingerprint": "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT",
+    "git_sha": "SWINGLENS_GIT_SHA",
+}
 
 _STANDARD = frozenset(logging.makeLogRecord({}).__dict__)
 _OPTIONAL_ENVELOPE_FIELDS = (
@@ -49,6 +58,10 @@ class JsonLogFormatter(logging.Formatter):
             "process_role": self.process_role,
             "process_id": os.getpid(),
             **context_fields(),
+            **{
+                field: os.environ.get(env_name)
+                for field, env_name in _LIFECYCLE_ENV_FIELDS.items()
+            },
         }
         for key in _OPTIONAL_ENVELOPE_FIELDS:
             payload.setdefault(key, None)
@@ -73,4 +86,21 @@ def configure_json_logging(process_role: str, *, level: int = logging.INFO) -> N
 def log_event(
     logger: logging.Logger, event: str, *, level: int = logging.INFO, **fields: Any
 ) -> None:
-    logger.log(level, event, extra={"event": event, **redact_sensitive(fields)})
+    safe_fields = redact_sensitive(fields)
+    logger.log(level, event, extra={"event": event, **safe_fields})
+    if event.startswith("runtime."):
+        try:
+            append_lifecycle_event(
+                Path.cwd(),
+                event=event,
+                action="runtime",
+                stage=safe_fields.get("stage"),
+                component=os.environ.get("PROCESS_ROLE", "UNKNOWN"),
+                process_role=os.environ.get("PROCESS_ROLE", "UNKNOWN"),
+                result=safe_fields.get("result"),
+                reason_code=safe_fields.get("reason_code"),
+                duration_ms=safe_fields.get("duration_ms"),
+                message=safe_fields.get("error") or safe_fields.get("message"),
+            )
+        except OSError:
+            pass

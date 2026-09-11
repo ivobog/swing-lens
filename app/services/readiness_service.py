@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+import psutil
 from sqlalchemy import case, create_engine, func, select, text
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.engine import Engine
@@ -13,11 +15,18 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
+from app.database_safety import (
+    DatabaseSafetyContext,
+    assert_disposable_database,
+    require_database_safety_context,
+)
 from app.models.tables import BackgroundJob, BackgroundSupervisor, BackgroundWorker
 from app.observability.db_monitor import get_database_monitor
 from app.observability.logging import log_event
 from app.services.alembic_heads import database_alembic_heads, repository_alembic_heads
 from app.services.background_job_service import JobStatus
+from app.services.lifecycle_safety import verify_authoritative_connection
+from app.services.process_identity import process_is_alive
 from app.services.redaction import redact_text
 from app.services.supervisor_registry import live_supervisors
 from app.services.worker_registry import has_live_worker_for_job, live_workers
@@ -135,6 +144,180 @@ class ReadinessService:
                 failed_checks=[name for name, check in checks.items() if not check.ok],
             )
         return ReadinessReport(status=status, checks=checks)
+
+    def core_report(self) -> ReadinessReport:
+        """Return only the conditions required to establish the local runtime."""
+
+        database = self._database_check()
+        if database.ok:
+            checks = {
+                "database": database,
+                "database_provenance": self._database_provenance_check(),
+                "migrations": self._migration_check(),
+                "storage": self._storage_check(),
+                "supervisor": self._core_supervisor_check(),
+                "web": self._core_web_check(),
+                "worker": self._core_worker_check(),
+                "topology": self._core_topology_check(),
+                "metrics_listeners": self._core_metrics_listener_check(),
+            }
+        else:
+            skipped = ReadinessCheck(False, "skipped: database unavailable")
+            checks = {
+                "database": database,
+                "database_provenance": skipped,
+                "migrations": skipped,
+                "storage": self._storage_check(),
+                "supervisor": skipped,
+                "web": self._core_web_check(),
+                "worker": skipped,
+                "topology": skipped,
+                "metrics_listeners": skipped,
+            }
+        status = "failed" if any(not check.ok for check in checks.values()) else "ok"
+        if status == "failed":
+            log_event(
+                logger,
+                "readiness.core_failed",
+                level=logging.WARNING,
+                failed_checks=[name for name, check in checks.items() if not check.ok],
+            )
+        return ReadinessReport(status=status, checks=checks)
+
+    def _database_provenance_check(self) -> ReadinessCheck:
+        try:
+            safety_context = require_database_safety_context()
+            if safety_context is DatabaseSafetyContext.AUTHORITATIVE_LOCAL:
+                with self.engine.connect() as connection:
+                    verify_authoritative_connection(connection, self.settings)
+            else:
+                candidate = self.engine.url
+                assert_disposable_database(
+                    candidate,
+                    active_database_url=candidate.set(database="postgres"),
+                    announce=False,
+                )
+        except Exception as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        return ReadinessCheck(True, f"verified:{safety_context.value}")
+
+    def _core_supervisor_check(self) -> ReadinessCheck:
+        if not self.settings.durable_worker_process_enabled:
+            return ReadinessCheck(True, "not required")
+        try:
+            with Session(self.engine) as session:
+                rows = [
+                    row
+                    for row in live_supervisors(
+                        session,
+                        heartbeat_timeout_seconds=self.settings.job_worker_heartbeat_timeout_seconds,
+                        now=self.now,
+                    )
+                    if row.worker_id == self.settings.job_worker_id
+                ]
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        if len(rows) != 1:
+            return ReadinessCheck(False, f"EXPECTED_ONE_SUPERVISOR:found={len(rows)}")
+        row = rows[0]
+        if not process_is_alive(row.process_id, row.process_started_at):
+            return ReadinessCheck(False, "SUPERVISOR_PROCESS_IDENTITY_INVALID")
+        return ReadinessCheck(True, f"live:{row.process_id}")
+
+    def _core_worker_check(self) -> ReadinessCheck:
+        if not self.settings.use_durable_pipeline:
+            return ReadinessCheck(True, "not required")
+        try:
+            with Session(self.engine) as session:
+                rows = [
+                    row
+                    for row in live_workers(
+                        session,
+                        heartbeat_timeout_seconds=self.settings.job_worker_heartbeat_timeout_seconds,
+                        now=self.now,
+                    )
+                    if row.worker_id == self.settings.job_worker_id
+                ]
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        if len(rows) != 1:
+            return ReadinessCheck(False, f"EXPECTED_ONE_DURABLE_WORKER:found={len(rows)}")
+        row = rows[0]
+        if not process_is_alive(row.process_id, row.process_started_at):
+            return ReadinessCheck(False, "WORKER_PROCESS_IDENTITY_INVALID")
+        return ReadinessCheck(True, f"live:{row.process_id}")
+
+    def _core_web_check(self) -> ReadinessCheck:
+        if self.settings.process_role not in {ProcessRole.WEB, ProcessRole.CLI_OR_MAINTENANCE}:
+            return ReadinessCheck(False, f"WEB_ROLE_INVALID:{self.settings.process_role.value}")
+        if self.settings.process_role is ProcessRole.CLI_OR_MAINTENANCE:
+            return ReadinessCheck(True, "direct-development")
+        current_pid = os.getpid()
+        try:
+            listeners = [
+                row
+                for row in psutil.net_connections(kind="tcp")
+                if row.status == psutil.CONN_LISTEN
+                and row.pid == current_pid
+                and row.laddr
+                and int(row.laddr.port) == self.settings.app_port
+            ]
+        except (OSError, psutil.Error) as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        if len(listeners) != 1:
+            return ReadinessCheck(False, "WEB_LISTENER_IDENTITY_INVALID")
+        return ReadinessCheck(True, f"listener:{current_pid}:{self.settings.app_port}")
+
+    def _core_topology_check(self) -> ReadinessCheck:
+        if not self.settings.durable_worker_process_enabled:
+            return ReadinessCheck(True, "direct-development")
+        try:
+            current = psutil.Process(os.getpid())
+            parent_pid = int(os.environ.get("SWINGLENS_PARENT_PID", "0"))
+            current_parent_ids = {row.pid for row in current.parents()}
+            if parent_pid <= 0 or parent_pid not in current_parent_ids:
+                return ReadinessCheck(False, "WEB_PARENT_IDENTITY_INVALID")
+            parent = psutil.Process(parent_pid)
+            if "-m app.worker_supervisor" not in " ".join(parent.cmdline()):
+                return ReadinessCheck(False, "WEB_PARENT_NOT_SUPERVISOR")
+            with Session(self.engine) as session:
+                supervisor = session.get(BackgroundSupervisor, self.settings.job_worker_id)
+                worker = session.get(BackgroundWorker, self.settings.job_worker_id)
+                if supervisor is None or worker is None:
+                    return ReadinessCheck(False, "TOPOLOGY_REGISTRATION_MISSING")
+                if supervisor.process_id != parent_pid:
+                    return ReadinessCheck(False, "SUPERVISOR_PARENT_REGISTRATION_MISMATCH")
+                worker_parents = {row.pid for row in psutil.Process(worker.process_id).parents()}
+                if supervisor.process_id not in worker_parents:
+                    return ReadinessCheck(False, "WORKER_NOT_OWNED_BY_SUPERVISOR")
+        except (OSError, psutil.Error, SQLAlchemyError, ValueError) as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        return ReadinessCheck(True, "supervisor->web+worker")
+
+    def _core_metrics_listener_check(self) -> ReadinessCheck:
+        if not self.settings.observability_metrics_enabled:
+            return ReadinessCheck(True, "disabled")
+        expected = {
+            self.settings.observability_worker_metrics_port: "app.worker",
+            self.settings.observability_supervisor_metrics_port: "app.worker_supervisor",
+        }
+        expected = {port: module for port, module in expected.items() if int(port) > 0}
+        try:
+            listening = [
+                row
+                for row in psutil.net_connections(kind="tcp")
+                if row.status == psutil.CONN_LISTEN and row.pid is not None and row.laddr
+            ]
+            for port, module in expected.items():
+                owners = [row for row in listening if int(row.laddr.port) == int(port)]
+                if len(owners) != 1:
+                    return ReadinessCheck(False, f"METRICS_LISTENER_INVALID:{port}")
+                command = " ".join(psutil.Process(int(owners[0].pid)).cmdline())
+                if f"-m {module}" not in command:
+                    return ReadinessCheck(False, f"METRICS_LISTENER_FOREIGN:{port}")
+        except (OSError, psutil.Error) as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        return ReadinessCheck(True, "verified:" + ",".join(map(str, sorted(expected))))
 
     def _database_check(self, session: Session | None = None) -> ReadinessCheck:
         probe_engine: Engine | None = None

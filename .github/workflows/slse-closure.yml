@@ -28,9 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
-          POSTGRES_DB: postgres
+          POSTGRES_DB: swinglens_ci_slse
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
         ports:
@@ -41,8 +41,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_ci_slse
       SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -79,9 +80,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
-          POSTGRES_DB: postgres
+          POSTGRES_DB: swinglens_ci_slse_browser
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
         ports:
@@ -92,8 +93,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_ci_slse_browser
       SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -127,9 +129,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
-          POSTGRES_DB: postgres
+          POSTGRES_DB: swinglens_ci_slse_performance
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
         ports:
@@ -140,9 +142,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_ci_slse_performance
       SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       RUN_SLSE_PERFORMANCE_CERTIFICATION: "1"
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

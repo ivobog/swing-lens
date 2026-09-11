@@ -62,31 +62,33 @@ can be verified against that endpoint. Routine operation is:
 ```powershell
 pwsh .\swinglens.ps1 start
 pwsh .\swinglens.ps1 status
+pwsh .\swinglens.ps1 status -Json
+pwsh .\swinglens.ps1 diagnose
 pwsh .\swinglens.ps1 restart
 pwsh .\swinglens.ps1 stop
 ```
 
-`start` makes the configured local database reachable, applies Alembic migrations, starts the web
-process with its supervisor-owned durable worker, and then attempts the optional Prometheus/Grafana
+`start` proves the configured local database, applies Alembic migrations, launches the canonical
+`app.worker_supervisor -> app.serve + app.worker` tree, and then attempts optional Prometheus/Grafana
 stack. Docker is not required for the core application. See
 [`docs/operations/lifecycle.md`](docs/operations/lifecycle.md) for behavior and safety details.
 The conservative `SWINGLENS_MANAGE_POSTGRES=false` default leaves the system-wide database service
 running on `stop`; authorized operators can opt into exact service shutdown as documented there.
 
-For source-editing sessions, the lower-level web command remains available after the local database
-has been migrated. It performs a read-only preflight and refuses to bind until the configured
-database is reachable and at repository Alembic head:
+For source-editing tests only, the lower-level web command remains available after migration. It
+must explicitly disable durable ownership and does not start a worker or supervisor:
 
 ```powershell
-$env:JOB_WORKER_ENABLED='true'
+$env:USE_DURABLE_PIPELINE='false'
+$env:DURABLE_WORKER_PROCESS_ENABLED='false'
+$env:EMBEDDED_JOB_WORKER_ENABLED='false'
+$env:JOB_WORKER_ENABLED='false'
 uv run python -m app.serve --host 127.0.0.1 --port 8000 --reload
 ```
 
-When `JOB_WORKER_ENABLED=true`, the API automatically maintains that supervisor as a child
-process and restarts it if it exits. The API process never executes pipeline or broker jobs.
-`app.worker_supervisor` fences and
-restarts a worker that exits, exceeds its memory budget, or remains alive without durable job
-progress. For source-editing sessions only, `python -m app.serve --reload` enables reload with
+In NORMAL operation the supervisor owns both children and applies bounded restart/backoff with a
+terminal `CRASH_LOOP` state. The API process never owns the supervisor and never executes pipeline
+or broker jobs. For source-editing sessions only, `python -m app.serve --reload` enables reload with
 runtime logs, outputs, artifacts, caches, and generated data excluded from file watching. Do not
 use reload while executing real pipelines.
 
@@ -105,6 +107,7 @@ http://127.0.0.1:8000/health
 Readiness check:
 
 ```text
+http://127.0.0.1:8000/ready/core  (lifecycle establishment)
 http://127.0.0.1:8000/ready
 ```
 

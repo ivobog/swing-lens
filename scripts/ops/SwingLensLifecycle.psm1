@@ -76,13 +76,102 @@ function Get-ReadinessState {
 
 function Get-ReadinessProbe {
     param([int]$WebPort)
+    $probe = $null
+    foreach ($attempt in 1..3) {
+        $probe = Invoke-HttpProbe -Uri ("http://127.0.0.1:{0}/ready/core" -f $WebPort) -TimeoutSeconds 5
+        $state = $(if ($probe.Reachable) { Resolve-ReadinessPayloadState -Payload $probe.Payload } else { 'failed' })
+        if ($state -ne 'failed') {
+            if ($attempt -gt 1) { Write-Host ("Readiness probe recovered on attempt {0}/3." -f $attempt) }
+            return $probe
+        }
+        if (-not (Test-ReadinessProbeRetryable -Probe $probe)) { return $probe }
+        if ($attempt -lt 3) {
+            Write-Warning ("Transient readiness probe failure on attempt {0}/3; retrying." -f $attempt)
+            Start-Sleep -Milliseconds 300
+        }
+        else { Write-Warning 'Transient readiness probe failure exhausted the 3-attempt budget.' }
+    }
+    return $probe
+}
+
+function Get-ApplicationReadinessProbe {
+    param([int]$WebPort)
     return Invoke-HttpProbe -Uri ("http://127.0.0.1:{0}/ready" -f $WebPort) -TimeoutSeconds 5
+}
+
+function Test-ReadinessProbeRetryable {
+    param($Probe)
+    if (-not $Probe.Reachable -or $null -eq $Probe.Payload) { return $true }
+    if ((Resolve-ReadinessPayloadState -Payload $Probe.Payload) -ne 'failed') { return $false }
+    if ($null -eq $Probe.Payload.check_states) { return $false }
+    # Database connectivity failure makes dependent checks report skipped.
+    # Retry only this sampling case; schema, worker/topology, runtime, and SEC
+    # semantic failures return immediately.
+    return ([string]$Probe.Payload.check_states.database) -eq 'failed'
 }
 
 function Get-GitCommit {
     $value = & git -C $script:RepoRoot rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the current repository commit.' }
     return ([string]$value).Trim()
+}
+
+function Set-CanonicalLifecycleEnvironment {
+    param($Config)
+    $env:SWINGLENS_DATABASE_SAFETY_CONTEXT = 'AUTHORITATIVE_LOCAL'
+    $env:SWINGLENS_GIT_SHA = Get-GitCommit
+    if (-not [bool]$Config.useDurablePipeline) {
+        throw 'CONFIGURATION_CONFLICT: canonical lifecycle requires USE_DURABLE_PIPELINE=true; use direct app.serve only for an explicitly disabled development/test runtime.'
+    }
+    $env:DURABLE_WORKER_PROCESS_ENABLED = 'true'
+    $env:EMBEDDED_JOB_WORKER_ENABLED = 'false'
+    $env:JOB_WORKER_ENABLED = 'false'
+    if (-not $env:SWINGLENS_LIFECYCLE_OVERRIDE_KEYS) {
+        $env:SWINGLENS_LIFECYCLE_OVERRIDE_KEYS = 'DURABLE_WORKER_PROCESS_ENABLED,EMBEDDED_JOB_WORKER_ENABLED,JOB_WORKER_ENABLED'
+    }
+}
+
+function Set-RuntimeGeneration {
+    $generation = Invoke-LifecycleProbe -Command 'fingerprint'
+    $env:SWINGLENS_RUNTIME_CONFIG_FINGERPRINT = [string]$generation.fingerprint
+    return $generation
+}
+
+function Resolve-LifecycleReasonCode {
+    param([string]$Message)
+    foreach ($code in @('RESTART_REQUIRED','CRASH_LOOP','DATABASE_PROVENANCE_MISMATCH','DATABASE_UNAVAILABLE','ALEMBIC_MISMATCH','FOREIGN_LISTENER','ACTIVE_LEASE_BLOCKS_STOP','CORE_READINESS_TIMEOUT','CONFIGURATION_CONFLICT','LIFECYCLE_LOCK_TIMEOUT')) {
+        if ($Message -match $code) { return $code }
+    }
+    if ($Message -match '(?i)PostgreSQL.*(match|provenance)') { return 'DATABASE_PROVENANCE_MISMATCH' }
+    if ($Message -match '(?i)Alembic|migration') { return 'ALEMBIC_MISMATCH' }
+    if ($Message -match '(?i)port.*(occup|listener)') { return 'FOREIGN_LISTENER' }
+    return 'LIFECYCLE_OPERATION_FAILED'
+}
+
+function Write-LifecycleJournal {
+    param([string]$Action, [string]$Stage, [string]$Event, [string]$Result, [string]$ReasonCode = 'NONE', [long]$DurationMs = 0, [string]$Message = '')
+    $payload = [ordered]@{
+        operation_id = $env:SWINGLENS_LIFECYCLE_OPERATION_ID
+        action = $Action
+        stage = $Stage
+        event = $Event
+        component = 'lifecycle-controller'
+        result = $Result
+        reason_code = $ReasonCode
+        duration_ms = $DurationMs
+        git_sha = $env:SWINGLENS_GIT_SHA
+        config_fingerprint = $env:SWINGLENS_RUNTIME_CONFIG_FINGERPRINT
+        runtime_mode = $env:RUNTIME_MODE
+        process_role = 'CLI_OR_MAINTENANCE'
+        pid = $PID
+        message = Protect-SwingLensText $Message
+    }
+    $null = Invoke-LifecycleProbe -Command 'journal' -Arguments @('--json', ($payload | ConvertTo-Json -Compress))
+}
+
+function New-LifecycleDiagnosticBundle {
+    $report = Invoke-LifecycleProbe -Command 'diagnose' -Arguments @('--operation-id', $env:SWINGLENS_LIFECYCLE_OPERATION_ID)
+    return [string]$report.bundle
 }
 
 function Get-WebOwner {
@@ -217,10 +306,12 @@ function Invoke-AlembicUpgrade {
 function Save-WebRuntimeState {
     param($Launch, [int]$WebPort)
     $state = [ordered]@{
-        version = 4
+        version = 5
         runtimeInstanceId = [string]$Launch.runtimeInstanceId
         repoRoot = $script:RepoRoot
         gitCommit = Get-GitCommit
+        topologyVersion = 'supervisor-root-v1'
+        runtimeConfigFingerprint = $env:SWINGLENS_RUNTIME_CONFIG_FINGERPRINT
         recordedAtUtc = [DateTime]::UtcNow.ToString('o')
         web = [ordered]@{
             pid = [int]$Launch.pid
@@ -263,6 +354,12 @@ function Start-SwingLensWeb {
         if ([string]$runtime.state.gitCommit -ne (Get-GitCommit)) {
             throw 'CONFLICT: an older SwingLens code generation is running. Use controlled restart; migrations were not run.'
         }
+        if ([string]$runtime.state.runtimeConfigFingerprint -ne [string]$env:SWINGLENS_RUNTIME_CONFIG_FINGERPRINT) {
+            throw 'RESTART_REQUIRED: active runtime generation differs from the desired configuration, database, schema, or topology.'
+        }
+        if ([string]$runtime.state.topologyVersion -ne 'supervisor-root-v1') {
+            throw 'RESTART_REQUIRED: active runtime uses a noncanonical ownership topology.'
+        }
         $readiness = Get-ReadinessState -WebPort ([int]$Config.web.port)
         if ($readiness -in @('ok', 'degraded', 'optional_unavailable')) {
             Write-Host ('Web/API: reusing strongly verified PID {0}' -f $runtime.state.web.pid)
@@ -270,9 +367,9 @@ function Start-SwingLensWeb {
         }
         throw 'Verified SwingLens runtime is failed; use restart after reviewing status.'
     }
-    $stdout = Join-Path $script:RepoRoot 'logs\lifecycle-web.out.log'
-    $stderr = Join-Path $script:RepoRoot 'logs\lifecycle-web.err.log'
-    $launch = Invoke-LifecycleProbe -Command 'launch-web' -Arguments @('--stdout', $stdout, '--stderr', $stderr)
+    $stdout = Join-Path $script:RepoRoot 'logs\lifecycle-supervisor.out.log'
+    $stderr = Join-Path $script:RepoRoot 'logs\lifecycle-supervisor.err.log'
+    $launch = Invoke-LifecycleProbe -Command 'launch-runtime' -Arguments @('--stdout', $stdout, '--stderr', $stderr)
     Save-WebRuntimeState -Launch $launch -WebPort ([int]$Config.web.port)
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     do {
@@ -316,8 +413,8 @@ function Request-WorkerQuiesce {
         if (-not $report.reachable) { throw 'Cannot prove durable worker quiescence while the database is unavailable.' }
         if ([int]$report.activeCount -gt 0) {
             $null = Invoke-LifecycleProbe -Command 'resume'
-            $summary = @($report.active | ForEach-Object { '{0}:{1}:{2}' -f $_.id, $_.job_type, $_.status }) -join ', '
-            throw ('Active durable jobs prevent a safe stop: ' + $summary)
+            $summary = @($report.active | ForEach-Object { '{0}:{1}:{2}:owner={3}:lease={4}:heartbeat_age={5}:reason={6}' -f $_.id, $_.job_type, $_.status, $_.lease_owner, $_.lease_expires_at, $_.heartbeat_age_seconds, $_.blocking_reason }) -join ', '
+            throw ('ACTIVE_LEASE_BLOCKS_STOP: active durable jobs prevent a safe stop: ' + $summary)
         }
         if ($report.acknowledged) { return }
         Start-Sleep -Milliseconds 250
@@ -333,7 +430,7 @@ function Wait-PortReleased {
         if (@(Get-PortOwners -Port $Port).Count -eq 0) { return }
         Start-Sleep -Milliseconds 250
     } while ([DateTime]::UtcNow -lt $deadline)
-    throw ("SwingLens web port {0} was not released." -f $Port)
+    throw ("SwingLens canonical listener port {0} was not released." -f $Port)
 }
 
 function Wait-ProcessExit {
@@ -377,6 +474,16 @@ function Stop-SwingLensCore {
     if (-not $signal.signaled) { throw ('CONFLICT: verified runtime was not signaled: ' + $signal.error) }
     Wait-PortReleased -Port ([int]$Config.web.port)
     Stop-RegisteredRemainders
+    $ports = @([int]$Config.web.port)
+    if ([bool]$Config.metrics.enabled) {
+        if ([int]$Config.metrics.workerPort -gt 0) { $ports += [int]$Config.metrics.workerPort }
+        if ([int]$Config.metrics.supervisorPort -gt 0) { $ports += [int]$Config.metrics.supervisorPort }
+    }
+    foreach ($port in @($ports | Select-Object -Unique)) { Wait-PortReleased -Port $port }
+    $remaining = @((Invoke-LifecycleProbe -Command 'processes').processes | Where-Object { $_.role -in @('web','worker','supervisor') })
+    if ($remaining.Count -gt 0) {
+        throw ('Stop incomplete: verified canonical role processes remain: ' + (($remaining | ForEach-Object { '{0}:{1}' -f $_.role,$_.pid }) -join ', '))
+    }
     if (Test-Path -LiteralPath $script:RuntimeStatePath) { Remove-Item -LiteralPath $script:RuntimeStatePath -Force }
 }
 
@@ -397,7 +504,10 @@ function Get-SwingLensStatusReport {
     $readiness = 'failed'
     $readinessProbe = $null
     $readinessPayload = $null
+    $applicationReadiness = 'failed'
+    $applicationPayload = $null
     $conflict = $false
+    $runtime = $null
     if ($null -ne $owner) {
         $runtime = Invoke-LifecycleProbe -Command 'runtime-state' -Arguments @('--listener-pid', [string]$owner.ProcessId)
         $runtimeValid = [bool]$runtime.valid
@@ -406,6 +516,9 @@ function Get-SwingLensStatusReport {
             $readinessProbe = Get-ReadinessProbe -WebPort ([int]$Config.web.port)
             $readinessPayload = $readinessProbe.Payload
             $readiness = $(if ($readinessProbe.Reachable) { Resolve-ReadinessPayloadState -Payload $readinessPayload } else { 'failed' })
+            $applicationProbe = Get-ApplicationReadinessProbe -WebPort ([int]$Config.web.port)
+            $applicationPayload = $applicationProbe.Payload
+            $applicationReadiness = $(if ($applicationProbe.Reachable) { Resolve-ReadinessPayloadState -Payload $applicationPayload } else { 'failed' })
         }
     }
     elseif (Test-Path -LiteralPath $script:RuntimeStatePath) {
@@ -413,14 +526,17 @@ function Get-SwingLensStatusReport {
         $conflict = -not [bool]$state.stale
     }
     $docker = Test-DockerEngine
-    $prometheus = $docker -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:9090/-/ready').StatusCode -eq 200
+    $prometheusTargets = Invoke-LifecycleProbe -Command 'prometheus-targets'
+    $targetsUp = $prometheusTargets.PSObject.Properties.Name -contains 'allUp' -and [bool]$prometheusTargets.allUp
+    $prometheus = $docker -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:9090/-/ready').StatusCode -eq 200 -and $targetsUp
     $grafana = $docker -and (Invoke-HttpProbe -Uri 'http://127.0.0.1:3000/api/health').StatusCode -eq 200
     $roleProcesses = @((Invoke-LifecycleProbe -Command 'processes').processes | Where-Object { $_.role -in @('worker','supervisor') })
+    $activeJobs = Invoke-LifecycleProbe -Command 'jobs'
     $blockingFailures = @()
     $warnings = @()
     $informational = @()
-    if ($null -ne $readinessPayload -and $null -ne $readinessPayload.check_states) {
-        foreach ($property in $readinessPayload.check_states.PSObject.Properties) {
+    if ($null -ne $applicationPayload -and $null -ne $applicationPayload.check_states) {
+        foreach ($property in $applicationPayload.check_states.PSObject.Properties) {
             switch ([string]$property.Value) {
                 'failed' { $blockingFailures += [string]$property.Name }
                 'degraded' { $warnings += [string]$property.Name }
@@ -434,35 +550,66 @@ function Get-SwingLensStatusReport {
     elseif ($null -eq $owner -and $roleProcesses.Count -gt 0) { $overall = 'FAILED' }
     elseif ($null -eq $owner) { $overall = 'STOPPED' }
     elseif (-not $database.reachable -or -not $database.schemaAtHead -or $readiness -eq 'failed') { $overall = 'FAILED' }
-    elseif ($readiness -eq 'degraded' -or -not $prometheus -or -not $grafana) { $overall = 'DEGRADED' }
+    elseif ($applicationReadiness -ne 'ok' -or -not $prometheus -or -not $grafana) { $overall = 'DEGRADED' }
     else { $overall = 'HEALTHY' }
     return [pscustomobject]@{
         Database=$database; Owner=$owner; RuntimeValid=$runtimeValid; WebReady=$webReady
         WorkerReady=$workerReady; Readiness=$readiness; ReadinessPayload=$readinessPayload
+        ApplicationReadiness=$applicationReadiness; ApplicationPayload=$applicationPayload
         BlockingFailures=@($blockingFailures); Warnings=@($warnings); Informational=@($informational)
         Docker=$docker; Prometheus=$prometheus; Grafana=$grafana; Overall=$overall
+        PrometheusTargets=$prometheusTargets; RuntimeState=$(if ($null -ne $runtime) { $runtime.state } else { $null })
+        Configuration=$Config
+        ActiveJobs=$activeJobs
     }
 }
 
 function Write-SwingLensStatus {
-    param($Config)
+    param($Config, [switch]$AsJson)
     $status = Get-SwingLensStatusReport -Config $Config
+    if ($AsJson) {
+        $machine = [ordered]@{
+            operationId = $env:SWINGLENS_LIFECYCLE_OPERATION_ID
+            overall = $status.Overall
+            core = $status.Readiness
+            application = $status.ApplicationReadiness
+            observability = $(if ($status.Prometheus -and $status.Grafana) { 'ok' } else { 'degraded' })
+            database = $status.Database
+            runtime = $status.RuntimeState
+            webReady = $status.WebReady
+            workerReady = $status.WorkerReady
+            applicationChecks = $status.ApplicationPayload
+            prometheusTargets = $status.PrometheusTargets
+            grafanaReady = $status.Grafana
+            configuration = $status.Configuration
+            activeJobs = $status.ActiveJobs
+        }
+        Write-Host ($machine | ConvertTo-Json -Depth 12)
+        return $status
+    }
     Write-Host ''
     Write-Host 'SwingLens Local Stack'
     Write-Host '----------------------------------------'
     Write-Host ('Database           {0}' -f $(if ($status.Database.reachable) { 'READY' } else { 'UNAVAILABLE' }))
     Write-Host ('Schema             {0}' -f $(if ($status.Database.schemaAtHead) { 'HEAD' } else { 'MISMATCH/UNAVAILABLE' }))
     Write-Host ('Web/API            {0}' -f $(if ($status.WebReady) { 'READY' } elseif ($status.Owner -and -not $status.RuntimeValid) { 'CONFLICT' } elseif ($status.Owner) { 'UNHEALTHY' } else { 'STOPPED' }))
-    Write-Host ('Application        {0}' -f $(if (-not $status.Owner) { 'STOPPED' } elseif ($status.BlockingFailures.Count -eq 0) { 'READY' } else { 'FAILED - ' + ($status.BlockingFailures -join ', ') }))
+    Write-Host ('Core               {0}' -f $(if (-not $status.Owner) { 'STOPPED' } else { $status.Readiness.ToUpperInvariant() }))
+    Write-Host ('Application        {0}' -f $(if (-not $status.Owner) { 'STOPPED' } elseif ($status.ApplicationReadiness -eq 'ok') { 'READY' } else { $status.ApplicationReadiness.ToUpperInvariant() + $(if ($status.BlockingFailures.Count -gt 0) { ' - ' + ($status.BlockingFailures -join ', ') } else { '' }) }))
     Write-Host ('Worker             {0}' -f $(if ($status.WorkerReady) { 'READY' } elseif (-not $status.Owner) { 'STOPPED' } else { 'UNAVAILABLE' }))
-    $diskState = $(if ($null -ne $status.ReadinessPayload) { [string]$status.ReadinessPayload.check_states.disk } else { '' })
-    $diskDetail = $(if ($null -ne $status.ReadinessPayload) { [string]$status.ReadinessPayload.checks.disk } else { '' })
+    if ($status.ActiveJobs.PSObject.Properties.Name -contains 'activeCount' -and [int]$status.ActiveJobs.activeCount -gt 0) {
+        foreach ($job in $status.ActiveJobs.active) {
+            Write-Host ('Active job         {0}:{1}:{2} lease={3} heartbeat_age={4} classification={5}' -f $job.id,$job.job_type,$job.status,$job.lease_expires_at,$job.heartbeat_age_seconds,$job.classification)
+        }
+    }
+    $diskState = $(if ($null -ne $status.ApplicationPayload) { [string]$status.ApplicationPayload.check_states.disk } else { '' })
+    $diskDetail = $(if ($null -ne $status.ApplicationPayload) { [string]$status.ApplicationPayload.checks.disk } else { '' })
     $diskPercent = $(if ($diskDetail -match '([0-9]+(?:\.[0-9]+)?)%') { $Matches[1] + '% free' } else { $diskDetail })
     Write-Host ('Disk               {0}' -f $(switch ($diskState) { 'ok' { 'READY - ' + $diskPercent } 'degraded' { 'WARNING - ' + $diskPercent } 'failed' { 'CRITICAL - ' + $diskPercent } default { 'UNAVAILABLE' } }))
-    $ibState = $(if ($null -ne $status.ReadinessPayload) { [string]$status.ReadinessPayload.check_states.ib } else { '' })
+    $ibState = $(if ($null -ne $status.ApplicationPayload) { [string]$status.ApplicationPayload.check_states.ib } else { '' })
     Write-Host ('IB API             {0}' -f $(switch ($ibState) { 'ok' { 'READY' } 'optional_unavailable' { 'ON DEMAND - verified before IB-required work' } 'degraded' { 'WARNING' } 'failed' { 'UNAVAILABLE' } default { $(if ($status.Owner) { 'UNKNOWN' } else { 'STOPPED' }) } }))
     Write-Host ('Prometheus         {0}' -f $(if ($status.Prometheus) { 'READY' } else { 'UNAVAILABLE' }))
     Write-Host ('Grafana            {0}' -f $(if ($status.Grafana) { 'READY' } else { 'UNAVAILABLE' }))
+    Write-Host ('Observability      {0}' -f $(if ($status.Prometheus -and $status.Grafana) { 'READY' } elseif ($status.Owner) { 'DEGRADED' } else { 'STOPPED' }))
     $warningNames = @($status.Warnings | ForEach-Object { (Get-Culture).TextInfo.ToTitleCase(($_ -replace '_', ' ')) })
     if ($status.Owner -and -not $status.Prometheus) { $warningNames += 'Prometheus' }
     if ($status.Owner -and -not $status.Grafana) { $warningNames += 'Grafana' }
@@ -474,14 +621,16 @@ function Write-SwingLensStatus {
 function Start-SwingLensStack {
     param($Config)
     $existing = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
+    $null = Start-AuthoritativeDatabase -Config $Config
     if ($null -ne $existing) {
+        $null = Set-RuntimeGeneration
         Start-SwingLensWeb -Config $Config
     }
     else {
-        $null = Start-AuthoritativeDatabase -Config $Config
         Invoke-AlembicUpgrade
         $verified = Invoke-LifecycleProbe -Command 'database'
         if (-not $verified.reachable -or -not $verified.schemaAtHead) { throw 'Mandatory database/Alembic gate failed.' }
+        $null = Set-RuntimeGeneration
         Start-SwingLensWeb -Config $Config
     }
     $null = Start-SwingLensObservability -Config $Config
@@ -512,16 +661,33 @@ function Stop-SwingLensStack {
 
 function Invoke-SwingLensLifecycle {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][ValidateSet('start','stop','restart','status')][string]$Action)
+    param([Parameter(Mandatory = $true)][ValidateSet('start','stop','restart','status','diagnose')][string]$Action, [switch]$AsJson)
     Push-Location $script:RepoRoot
+    $timer = [Diagnostics.Stopwatch]::StartNew()
     try {
+        $env:SWINGLENS_DATABASE_SAFETY_CONTEXT = 'AUTHORITATIVE_LOCAL'
+        $env:SWINGLENS_GIT_SHA = Get-GitCommit
+        try { Write-LifecycleJournal -Action $Action -Stage 'invocation' -Event 'operation_begin' -Result 'started' } catch { }
         $config = Get-LifecycleConfig
+        Set-CanonicalLifecycleEnvironment -Config $config
+        $config = Get-LifecycleConfig
+        try { $null = Set-RuntimeGeneration } catch { $env:SWINGLENS_RUNTIME_CONFIG_FINGERPRINT = '' }
+        if ($Action -eq 'diagnose') {
+            $bundle = New-LifecycleDiagnosticBundle
+            $timer.Stop()
+            try { Write-LifecycleJournal -Action $Action -Stage 'diagnose' -Event 'operation_complete' -Result 'success' -DurationMs $timer.ElapsedMilliseconds -Message $bundle } catch { }
+            Write-Host $bundle
+            return 0
+        }
         if ($Action -eq 'status') {
-            $status = Write-SwingLensStatus -Config $config
-            if ($status.Overall -in @('HEALTHY','DEGRADED','STOPPED')) { return 0 }
+            $status = Write-SwingLensStatus -Config $config -AsJson:$AsJson
+            $timer.Stop()
+            $result = $(if ($status.Overall -in @('HEALTHY','DEGRADED','STOPPED')) { 'success' } else { 'failure' })
+            try { Write-LifecycleJournal -Action $Action -Stage 'status' -Event 'operation_complete' -Result $result -DurationMs $timer.ElapsedMilliseconds -ReasonCode $(if ($result -eq 'success') { 'NONE' } else { [string]$status.Overall }) } catch { }
+            if ($result -eq 'success') { return 0 }
             return 1
         }
-        return Invoke-WithLifecycleLock -Action $Action -TimeoutSeconds ([int]$config.lockTimeoutSeconds) -Body {
+        $code = Invoke-WithLifecycleLock -Action $Action -TimeoutSeconds ([int]$config.lockTimeoutSeconds) -Body {
             switch ($Action) {
                 'start' { Start-SwingLensStack -Config $config }
                 'stop' { Stop-SwingLensStack -Config $config }
@@ -531,6 +697,22 @@ function Invoke-SwingLensLifecycle {
                 }
             }
         }
+        $timer.Stop()
+        try { Write-LifecycleJournal -Action $Action -Stage 'complete' -Event 'operation_complete' -Result 'success' -DurationMs $timer.ElapsedMilliseconds } catch { }
+        return $code
+    }
+    catch {
+        $timer.Stop()
+        $message = Protect-SwingLensText ([string]$_.Exception.Message)
+        $reason = Resolve-LifecycleReasonCode -Message $message
+        $bundle = ''
+        if ($Action -in @('start','restart')) {
+            try { $bundle = New-LifecycleDiagnosticBundle } catch { $bundle = '' }
+        }
+        try { Write-LifecycleJournal -Action $Action -Stage 'failed' -Event 'operation_complete' -Result 'failure' -DurationMs $timer.ElapsedMilliseconds -ReasonCode $reason -Message $message } catch { }
+        $detail = ('{0} operation_id={1} reason_code={2}' -f $message,$env:SWINGLENS_LIFECYCLE_OPERATION_ID,$reason)
+        if ($bundle) { $detail += (' diagnostic_bundle={0}' -f $bundle) }
+        throw $detail
     }
     finally { Pop-Location }
 }

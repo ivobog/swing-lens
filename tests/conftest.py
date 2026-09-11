@@ -232,7 +232,15 @@ def disposable_postgres_database_factory() -> Callable[[], AbstractContextManage
                 hide_password=False
             )
             assert_disposable_database(database_url)
-            yield database_url
+            previous_context = os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT")
+            os.environ["SWINGLENS_DATABASE_SAFETY_CONTEXT"] = "DISPOSABLE_TEST"
+            try:
+                yield database_url
+            finally:
+                if previous_context is None:
+                    os.environ.pop("SWINGLENS_DATABASE_SAFETY_CONTEXT", None)
+                else:
+                    os.environ["SWINGLENS_DATABASE_SAFETY_CONTEXT"] = previous_context
         finally:
             admin.execute(
                 sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(

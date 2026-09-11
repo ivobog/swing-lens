@@ -25,3 +25,4 @@ uvicorn.*.log
 *.sqlite3
 logs/db-monitor/
 logs/db-monitor-test/
+logs/lifecycle/
