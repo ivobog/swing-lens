@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from time import monotonic, sleep
 from uuid import uuid4
@@ -57,6 +58,14 @@ from app.settings import Settings
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_STATE = ROOT / "data" / "cache" / "swinglens-lifecycle.json"
 LIFECYCLE_CONTROLLER_VERSION = 5
+
+
+class RuntimeStateClassification(StrEnum):
+    ACTIVE_VALID = "ACTIVE_VALID"
+    ACTIVE_GENERATION_MISMATCH = "ACTIVE_GENERATION_MISMATCH"
+    DEAD_STALE = "DEAD_STALE"
+    AMBIGUOUS_CONFLICT = "AMBIGUOUS_CONFLICT"
+    MISSING = "MISSING"
 
 
 def _settings() -> Settings:
@@ -343,35 +352,158 @@ def _write_state(payload: str) -> dict[str, object]:
     return {"written": True}
 
 
+def _runtime_diagnostics(state: dict[str, object]) -> dict[str, object]:
+    return {
+        "recordedGitSha": state.get("gitCommit"),
+        "desiredGitSha": _git_commit(),
+        "recordedFingerprint": state.get("runtimeConfigFingerprint"),
+        "desiredFingerprint": os.environ.get(RUNTIME_FINGERPRINT_ENV),
+        "staleRuntimeInstanceId": state.get("runtimeInstanceId"),
+    }
+
+
+def _validate_recorded_runtime_shape(state: dict[str, object]) -> dict[str, object]:
+    web = state.get("web")
+    if not isinstance(web, dict):
+        raise LifecycleConflict("runtime web identity is missing")
+    runtime_instance_id = str(state.get("runtimeInstanceId") or web.get("runtimeInstanceId") or "")
+    if not runtime_instance_id:
+        raise LifecycleConflict("runtime instance identity is missing")
+    if int(state.get("version") or 0) >= 5:
+        required = ("gitCommit", "runtimeConfigFingerprint", "topologyVersion", "repoRoot")
+        if any(not state.get(key) for key in required):
+            raise LifecycleConflict("runtime generation state is incomplete")
+    identities = [("web", web)]
+    for name in ("supervisor", "processGroup"):
+        identity = state.get(name)
+        if identity is not None:
+            if not isinstance(identity, dict):
+                raise LifecycleConflict(f"recorded {name} identity has an invalid shape")
+            identities.append((name, identity))
+    for name, identity in identities:
+        required = ("pid", "createdAt", "role", "module", "repoRoot", "runtimeInstanceId")
+        if any(not identity.get(key) for key in required):
+            raise LifecycleConflict(f"recorded {name} identity is incomplete")
+        if int(identity.get("pid") or 0) <= 0:
+            raise LifecycleConflict(f"recorded {name} PID is invalid")
+        if str(identity.get("runtimeInstanceId")) != runtime_instance_id:
+            raise LifecycleConflict(f"recorded {name} runtime instance identity mismatch")
+        expected_module = "app.serve" if name == "web" else "app.worker_supervisor"
+        if str(identity.get("module")) != expected_module:
+            raise LifecycleConflict(f"recorded {name} module identity mismatch")
+    return web
+
+
+def _recorded_auxiliary_identities(state: dict[str, object]) -> list[tuple[str, int, str]]:
+    """Return PID-only identities recorded by the supervisor flight recorder."""
+
+    path = supervisor_state_path(ROOT)
+    if not path.is_file():
+        return []
+    value = read_runtime_state(path)
+    if value is None:
+        return []
+    runtime_instance_id = str(state.get("runtimeInstanceId") or "")
+    if str(value.get("runtime_instance_id") or "") != runtime_instance_id:
+        return []
+    identities: list[tuple[str, int, str]] = []
+    for role, module in (("web", "app.serve"), ("worker", "app.worker")):
+        record = value.get(role)
+        if not isinstance(record, dict) or record.get("launcher_pid") is None:
+            continue
+        pid = int(record.get("launcher_pid") or 0)
+        if pid <= 0:
+            raise LifecycleConflict(f"recorded {role} launcher PID is invalid")
+        identities.append((role, pid, module))
+    return identities
+
+
+def _assert_physically_quiescent(state: dict[str, object]) -> None:
+    runtime_instance_id = str(state.get("runtimeInstanceId") or "")
+    recorded_pids = {
+        int(identity["pid"])
+        for name in ("web", "supervisor", "processGroup")
+        if isinstance((identity := state.get(name)), dict)
+    }
+    for role, pid, module in _recorded_auxiliary_identities(state):
+        if pid in recorded_pids:
+            continue
+        try:
+            actual = inspect_process(pid)
+        except psutil.NoSuchProcess:
+            continue
+        if _process_matches_runtime(actual, module, runtime_instance_id):
+            raise LifecycleConflict(f"recorded {role} launcher is still alive")
+        raise LifecycleConflict(f"recorded {role} launcher PID was reused or changed identity")
+
+    role_processes = _role_processes()
+    if role_processes:
+        summary = ", ".join(f"{row.get('role')}:{row.get('pid')}" for row in role_processes)
+        raise LifecycleConflict(f"canonical SwingLens runtime processes remain: {summary}")
+
+    listener_report = _listeners_report()
+    if listener_report.get("error"):
+        raise LifecycleConflict(
+            "lifecycle listener evidence could not be inspected: " + str(listener_report["error"])
+        )
+    lifecycle_ports = {8000, 9101, 9102}
+    web = state.get("web")
+    if isinstance(web, dict) and web.get("port"):
+        lifecycle_ports.add(int(web["port"]))
+    listeners = [
+        row
+        for row in listener_report.get("listeners", [])
+        if int(row.get("port") or 0) in lifecycle_ports
+    ]
+    if listeners:
+        summary = ", ".join(
+            f"{row.get('port')}:{row.get('pid') or 'unknown'}" for row in listeners
+        )
+        raise LifecycleConflict(f"lifecycle ports remain occupied: {summary}")
+
+
 def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
+    state: dict[str, object] | None = None
     try:
         state = read_runtime_state(RUNTIME_STATE)
         if state is None:
             return {
+                "classification": RuntimeStateClassification.MISSING.value,
                 "valid": False,
                 "missing": True,
                 "stale": False,
+                "runtimeActive": False,
                 "conflict": False,
+                "staleStateReason": None,
                 "error": "runtime state is missing",
             }
-        desired_fingerprint = os.environ.get(RUNTIME_FINGERPRINT_ENV)
-        if (
-            int(state.get("version") or 0) >= 5
-            and desired_fingerprint
-            and state.get("runtimeConfigFingerprint") != desired_fingerprint
-        ):
-            raise LifecycleConflict("RESTART_REQUIRED: runtime generation fingerprint differs")
-        web = state.get("web")
-        if not isinstance(web, dict):
-            raise LifecycleConflict("runtime web identity is missing")
+        diagnostics = _runtime_diagnostics(state)
+        web = _validate_recorded_runtime_shape(state)
         try:
             actual = inspect_process(int(web.get("pid") or 0))
         except psutil.NoSuchProcess:
+            for name in ("supervisor", "processGroup"):
+                identity = state.get(name)
+                if not isinstance(identity, dict):
+                    continue
+                try:
+                    remaining = inspect_process(int(identity.get("pid") or 0))
+                except psutil.NoSuchProcess:
+                    continue
+                validate_runtime_process(identity, remaining)
+                raise LifecycleConflict(f"recorded {name} process is still alive") from None
+            _assert_physically_quiescent(state)
             return {
+                "classification": RuntimeStateClassification.DEAD_STALE.value,
                 "valid": False,
                 "stale": True,
+                "runtimeActive": False,
                 "conflict": False,
                 "state": state,
+                "staleStateReason": (
+                    "recorded runtime is absent and physical lifecycle evidence is quiescent"
+                ),
+                **diagnostics,
             }
         validate_runtime_process(web, actual, listener_pid=listener_pid)
         launcher = actual
@@ -418,17 +550,111 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
             process_group = launcher
         else:
             process_group = actual
+        desired_fingerprint = os.environ.get(RUNTIME_FINGERPRINT_ENV)
+        if (
+            int(state.get("version") or 0) >= 5
+            and desired_fingerprint
+            and state.get("runtimeConfigFingerprint") != desired_fingerprint
+        ):
+            return {
+                "classification": RuntimeStateClassification.ACTIVE_GENERATION_MISMATCH.value,
+                "valid": False,
+                "stale": False,
+                "runtimeActive": True,
+                "conflict": True,
+                "state": state,
+                "staleStateReason": None,
+                "error": "RESTART_REQUIRED: runtime generation fingerprint differs",
+                **diagnostics,
+            }
         return {
+            "classification": RuntimeStateClassification.ACTIVE_VALID.value,
             "valid": True,
             "stale": False,
+            "runtimeActive": True,
             "conflict": False,
+            "staleStateReason": None,
             "state": state,
             "actual": actual,
             "launcher": launcher,
             "processGroup": process_group,
+            **diagnostics,
         }
     except (LifecycleConflict, OSError, psutil.Error, ValueError) as exc:
-        return {"valid": False, "stale": False, "conflict": True, "error": str(exc)}
+        report = {
+            "classification": RuntimeStateClassification.AMBIGUOUS_CONFLICT.value,
+            "valid": False,
+            "stale": False,
+            "runtimeActive": False,
+            "conflict": True,
+            "staleStateReason": None,
+            "state": state,
+            "error": str(exc),
+        }
+        if state is not None:
+            report.update(_runtime_diagnostics(state))
+        return report
+
+
+def _retire_stale_runtime_state() -> dict[str, object]:
+    report = _runtime_state_report(listener_pid=None)
+    if report.get("classification") == RuntimeStateClassification.MISSING.value:
+        return {
+            "retired": False,
+            "alreadyMissing": True,
+            "conflict": False,
+            "classification": "MISSING",
+        }
+    if report.get("classification") in {
+        RuntimeStateClassification.ACTIVE_VALID.value,
+        RuntimeStateClassification.ACTIVE_GENERATION_MISMATCH.value,
+    }:
+        return {
+            "retired": False,
+            "conflict": False,
+            "classification": report.get("classification"),
+        }
+    if report.get("classification") != RuntimeStateClassification.DEAD_STALE.value:
+        return {
+            "retired": False,
+            "conflict": True,
+            "classification": report.get("classification"),
+            "error": report.get("error") or "runtime state is not safely stale",
+        }
+    state = report["state"]
+    archive_dir = ROOT / "data" / "cache" / "lifecycle-archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    operation_id = os.environ.get("SWINGLENS_LIFECYCLE_OPERATION_ID") or uuid4().hex
+    safe_operation = "".join(ch for ch in operation_id if ch.isalnum() or ch in "-_")[:64]
+    archive = archive_dir / f"stale-runtime-{safe_operation}.json"
+    if archive.exists():
+        raise LifecycleConflict("stale runtime archive already exists for this operation")
+    os.replace(RUNTIME_STATE, archive)
+    append_lifecycle_event(
+        ROOT,
+        operation_id=operation_id,
+        action=os.environ.get("SWINGLENS_LIFECYCLE_ACTION") or "lifecycle",
+        stage="runtime_state",
+        event="stale_runtime_state_retired",
+        result="success",
+        reason_code="DEAD_GENERATION_RETIRED",
+        runtime_instance_id=state.get("runtimeInstanceId"),
+        recorded_git_sha=state.get("gitCommit"),
+        recorded_fingerprint=state.get("runtimeConfigFingerprint"),
+        desired_git_sha=report.get("desiredGitSha"),
+        desired_fingerprint=report.get("desiredFingerprint"),
+        topology_version=state.get("topologyVersion"),
+        retirement_operation_id=operation_id,
+        message=f"archived stale runtime state as {archive.name}",
+    )
+    return {
+        "retired": True,
+        "conflict": False,
+        "classification": RuntimeStateClassification.DEAD_STALE.value,
+        "reasonCode": "DEAD_GENERATION_RETIRED",
+        "archive": str(archive),
+        **_runtime_diagnostics(state),
+    }
 
 
 def _quiesce_report(resume: bool = False) -> dict[str, object]:
@@ -1113,6 +1339,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     write_state.add_argument("--json", required=True)
     state = subparsers.add_parser("runtime-state")
     state.add_argument("--listener-pid", type=int)
+    subparsers.add_parser("retire-stale-state")
     stop = subparsers.add_parser("signal-break")
     stop.add_argument("--pid", type=int, required=True)
     stop.add_argument("--listener-pid", type=int)
@@ -1152,6 +1379,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         report = _diagnose(args.operation_id)
     elif args.command == "runtime-state":
         report = _runtime_state_report(args.listener_pid)
+    elif args.command == "retire-stale-state":
+        report = _retire_stale_runtime_state()
     elif args.command == "signal-break":
         report = _signal_break(args.pid, args.listener_pid)
     else:

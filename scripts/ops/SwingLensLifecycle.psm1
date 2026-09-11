@@ -187,8 +187,7 @@ function Get-ValidatedRuntime {
     if ($null -eq $owner) {
         if (Test-Path -LiteralPath $script:RuntimeStatePath -PathType Leaf) {
             $stale = Invoke-LifecycleProbe -Command 'runtime-state'
-            if ($stale.stale) { Remove-Item -LiteralPath $script:RuntimeStatePath -Force }
-            elseif ($stale.conflict) { throw ('CONFLICT: ' + $stale.error) }
+            if ($stale.conflict) { throw ('CONFLICT: ' + $stale.error) }
         }
         return $null
     }
@@ -197,6 +196,20 @@ function Get-ValidatedRuntime {
         throw ('CONFLICT: port {0} is occupied but strong SwingLens runtime identity failed: {1}' -f $WebPort, $runtime.error)
     }
     return $runtime
+}
+
+function Retire-DeadStaleRuntimeState {
+    if (-not (Test-Path -LiteralPath $script:RuntimeStatePath -PathType Leaf)) { return $false }
+    $retirement = Invoke-LifecycleProbe -Command 'retire-stale-state'
+    if ($retirement.PSObject.Properties.Name -contains 'conflict' -and [bool]$retirement.conflict) {
+        $prefix = $(if ([string]$retirement.classification -eq 'ACTIVE_GENERATION_MISMATCH') { '' } else { 'CONFLICT: ' })
+        throw ($prefix + [string]$retirement.error)
+    }
+    if ($retirement.PSObject.Properties.Name -contains 'retired' -and [bool]$retirement.retired) {
+        Write-Host ('Runtime state: retired dead generation {0} ({1})' -f $retirement.staleRuntimeInstanceId,$retirement.reasonCode)
+        return $true
+    }
+    return $false
 }
 
 function New-LifecycleMutex {
@@ -464,8 +477,7 @@ function Stop-SwingLensCore {
     if ($null -eq $owner) {
         if (Test-Path -LiteralPath $script:RuntimeStatePath) {
             $runtime = Invoke-LifecycleProbe -Command 'runtime-state'
-            if ($runtime.stale) { Remove-Item -LiteralPath $script:RuntimeStatePath -Force }
-            elseif ($runtime.conflict) { throw ('CONFLICT: ' + $runtime.error) }
+            if ($runtime.conflict) { throw ('CONFLICT: ' + $runtime.error) }
         }
         return
     }
@@ -523,7 +535,8 @@ function Get-SwingLensStatusReport {
     }
     elseif (Test-Path -LiteralPath $script:RuntimeStatePath) {
         $state = Invoke-LifecycleProbe -Command 'runtime-state'
-        $conflict = -not [bool]$state.stale
+        $runtime = $state
+        $conflict = [bool]$state.conflict
     }
     $docker = Test-DockerEngine
     $prometheusTargets = Invoke-LifecycleProbe -Command 'prometheus-targets'
@@ -559,6 +572,9 @@ function Get-SwingLensStatusReport {
         BlockingFailures=@($blockingFailures); Warnings=@($warnings); Informational=@($informational)
         Docker=$docker; Prometheus=$prometheus; Grafana=$grafana; Overall=$overall
         PrometheusTargets=$prometheusTargets; RuntimeState=$(if ($null -ne $runtime) { $runtime.state } else { $null })
+        RuntimeReport=$runtime
+        RuntimeActive=$(if ($null -ne $runtime) { [bool]$runtime.runtimeActive } else { $false })
+        StaleStatePresent=$(if ($null -ne $runtime) { [bool]$runtime.stale } else { $false })
         Configuration=$Config
         ActiveJobs=$activeJobs
     }
@@ -576,6 +592,15 @@ function Write-SwingLensStatus {
             observability = $(if ($status.Prometheus -and $status.Grafana) { 'ok' } else { 'degraded' })
             database = $status.Database
             runtime = $status.RuntimeState
+            runtimeClassification = $(if ($null -ne $status.RuntimeReport) { $status.RuntimeReport.classification } else { 'MISSING' })
+            runtimeActive = $status.RuntimeActive
+            staleStatePresent = $status.StaleStatePresent
+            recordedGitSha = $(if ($null -ne $status.RuntimeReport) { $status.RuntimeReport.recordedGitSha } else { $null })
+            desiredGitSha = $(if ($null -ne $status.RuntimeReport) { $status.RuntimeReport.desiredGitSha } else { $env:SWINGLENS_GIT_SHA })
+            recordedFingerprint = $(if ($null -ne $status.RuntimeReport) { $status.RuntimeReport.recordedFingerprint } else { $null })
+            desiredFingerprint = $(if ($null -ne $status.RuntimeReport) { $status.RuntimeReport.desiredFingerprint } else { $env:SWINGLENS_RUNTIME_CONFIG_FINGERPRINT })
+            staleRuntimeInstanceId = $(if ($null -ne $status.RuntimeReport) { $status.RuntimeReport.staleRuntimeInstanceId } else { $null })
+            staleStateReason = $(if ($null -ne $status.RuntimeReport) { $status.RuntimeReport.staleStateReason } else { $null })
             webReady = $status.WebReady
             workerReady = $status.WorkerReady
             applicationChecks = $status.ApplicationPayload
@@ -596,6 +621,9 @@ function Write-SwingLensStatus {
     Write-Host ('Core               {0}' -f $(if (-not $status.Owner) { 'STOPPED' } else { $status.Readiness.ToUpperInvariant() }))
     Write-Host ('Application        {0}' -f $(if (-not $status.Owner) { 'STOPPED' } elseif ($status.ApplicationReadiness -eq 'ok') { 'READY' } else { $status.ApplicationReadiness.ToUpperInvariant() + $(if ($status.BlockingFailures.Count -gt 0) { ' - ' + ($status.BlockingFailures -join ', ') } else { '' }) }))
     Write-Host ('Worker             {0}' -f $(if ($status.WorkerReady) { 'READY' } elseif (-not $status.Owner) { 'STOPPED' } else { 'UNAVAILABLE' }))
+    if ($status.StaleStatePresent) {
+        Write-Host ('Runtime state      STALE - {0}' -f $status.RuntimeReport.staleStateReason)
+    }
     if ($status.ActiveJobs.PSObject.Properties.Name -contains 'activeCount' -and [int]$status.ActiveJobs.activeCount -gt 0) {
         foreach ($job in $status.ActiveJobs.active) {
             Write-Host ('Active job         {0}:{1}:{2} lease={3} heartbeat_age={4} classification={5}' -f $job.id,$job.job_type,$job.status,$job.lease_expires_at,$job.heartbeat_age_seconds,$job.classification)
@@ -620,6 +648,7 @@ function Write-SwingLensStatus {
 
 function Start-SwingLensStack {
     param($Config)
+    $null = Retire-DeadStaleRuntimeState
     $existing = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
     $null = Start-AuthoritativeDatabase -Config $Config
     if ($null -ne $existing) {
@@ -641,6 +670,7 @@ function Start-SwingLensStack {
 
 function Stop-SwingLensStack {
     param($Config)
+    $null = Retire-DeadStaleRuntimeState
     $owner = Get-WebOwner -Port ([int]$Config.web.port)
     $roleProcesses = @((Invoke-LifecycleProbe -Command 'processes').processes | Where-Object { $_.role -in @('worker','supervisor') })
     if ($null -ne $owner -or $roleProcesses.Count -gt 0) {
@@ -667,6 +697,7 @@ function Invoke-SwingLensLifecycle {
     try {
         $env:SWINGLENS_DATABASE_SAFETY_CONTEXT = 'AUTHORITATIVE_LOCAL'
         $env:SWINGLENS_GIT_SHA = Get-GitCommit
+        $env:SWINGLENS_LIFECYCLE_ACTION = $Action
         try { Write-LifecycleJournal -Action $Action -Stage 'invocation' -Event 'operation_begin' -Result 'started' } catch { }
         $config = Get-LifecycleConfig
         Set-CanonicalLifecycleEnvironment -Config $config

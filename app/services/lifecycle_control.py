@@ -65,6 +65,12 @@ JOURNAL_FIELDS = frozenset(
         "service",
         "alembic_head",
         "message",
+        "recorded_git_sha",
+        "recorded_fingerprint",
+        "desired_git_sha",
+        "desired_fingerprint",
+        "topology_version",
+        "retirement_operation_id",
     }
 )
 

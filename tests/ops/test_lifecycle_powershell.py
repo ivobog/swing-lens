@@ -274,6 +274,139 @@ def test_foreign_web_listener_without_runtime_state_is_a_conflict() -> None:
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_status_reports_dead_stale_generation_as_stopped_without_mutation(tmp_path) -> None:
+    state_path = tmp_path / "swinglens-lifecycle.json"
+    state_path.write_text('{"runtimeInstanceId":"old-runtime"}', encoding="utf-8")
+    state_literal = str(state_path).replace("'", "''")
+    command = _module_command(
+        f"$script:RuntimeStatePath='{state_literal}'; "
+        "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000}}; "
+        "function Get-WebOwner { $null }; function Test-DockerEngine { $false }; "
+        "function Invoke-LifecycleProbe { param($Command,$Arguments); switch ($Command) { "
+        "'database' { [pscustomobject]@{reachable=$true;schemaAtHead=$true} } "
+        "'runtime-state' { [pscustomobject]@{classification='DEAD_STALE';valid=$false;"
+        "stale=$true;runtimeActive=$false;conflict=$false;"
+        "state=[pscustomobject]@{runtimeInstanceId='old-runtime'};"
+        "recordedGitSha='old';desiredGitSha='new';recordedFingerprint='old-fp';"
+        "desiredFingerprint='new-fp';staleRuntimeInstanceId='old-runtime';"
+        "staleStateReason='physical evidence is quiescent'} } "
+        "'prometheus-targets' { [pscustomobject]@{allUp=$false} } "
+        "'processes' { [pscustomobject]@{processes=@()} } "
+        "'jobs' { [pscustomobject]@{activeCount=0;active=@()} } } }; "
+        "$status=Get-SwingLensStatusReport -Config $cfg; "
+        "$status.Overall + ':' + $status.StaleStatePresent + ':' + "
+        f"(Test-Path -LiteralPath '{state_literal}')"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "STOPPED:True:True"
+    assert state_path.is_file()
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_start_retires_dead_stale_generation_before_launching_new_generation(tmp_path) -> None:
+    state_path = tmp_path / "swinglens-lifecycle.json"
+    state_path.write_text("{}", encoding="utf-8")
+    state_literal = str(state_path).replace("'", "''")
+    command = _module_command(
+        f"$script:RuntimeStatePath='{state_literal}'; $script:events=@(); "
+        "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000}}; "
+        "function Invoke-LifecycleProbe { param($Command,$Arguments); "
+        "if ($Command -eq 'retire-stale-state') { $script:events += 'retire'; "
+        f"Remove-Item -LiteralPath '{state_literal}'; "
+        "[pscustomobject]@{retired=$true;conflict=$false;staleRuntimeInstanceId='old';"
+        "reasonCode='DEAD_GENERATION_RETIRED'} } else { "
+        "[pscustomobject]@{reachable=$true;schemaAtHead=$true} } }; "
+        "function Get-ValidatedRuntime { $null }; "
+        "function Start-AuthoritativeDatabase { $script:events += 'database' }; "
+        "function Invoke-AlembicUpgrade { $script:events += 'migrate' }; "
+        "function Set-RuntimeGeneration { $script:events += 'fingerprint' }; "
+        "function Start-SwingLensWeb { $script:events += 'launch' }; "
+        "function Start-SwingLensObservability { $script:events += 'observability'; $true }; "
+        "function Write-SwingLensStatus { [pscustomobject]@{Overall='HEALTHY'} }; "
+        "$code=Start-SwingLensStack -Config $cfg; ($script:events -join ','); $code; "
+        f"Test-Path -LiteralPath '{state_literal}'"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert "retire,database,migrate,fingerprint,launch,observability" in result.stdout
+    assert result.stdout.strip().endswith("False")
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_stop_retires_dead_stale_generation_and_succeeds_idempotently(tmp_path) -> None:
+    state_path = tmp_path / "swinglens-lifecycle.json"
+    state_path.write_text("{}", encoding="utf-8")
+    state_literal = str(state_path).replace("'", "''")
+    command = _module_command(
+        f"$script:RuntimeStatePath='{state_literal}'; $script:events=@(); "
+        "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000};"
+        "postgres=[pscustomobject]@{managementEnabled=$false}}; "
+        "function Invoke-LifecycleProbe { param($Command,$Arguments); "
+        "if ($Command -eq 'retire-stale-state') { $script:events += 'retire'; "
+        f"Remove-Item -LiteralPath '{state_literal}'; "
+        "[pscustomobject]@{retired=$true;conflict=$false;staleRuntimeInstanceId='old';"
+        "reasonCode='DEAD_GENERATION_RETIRED'} } else { [pscustomobject]@{processes=@()} } }; "
+        "function Get-WebOwner { $null }; "
+        "function Stop-SwingLensObservability { $script:events += 'stop-observability'; $true }; "
+        "function Stop-AuthoritativeDatabase { $script:events += 'keep-database' }; "
+        "function Write-SwingLensStatus { [pscustomobject]@{Overall='STOPPED';Owner=$null} }; "
+        "$first=Stop-SwingLensStack -Config $cfg; $second=Stop-SwingLensStack -Config $cfg; "
+        "($script:events -join ','); $first; $second"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    expected = "retire,stop-observability,keep-database,stop-observability,keep-database"
+    assert expected in result.stdout
+    assert result.stdout.strip().endswith("0")
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_interrupted_restart_stale_record_self_recovers_as_clean_start(tmp_path) -> None:
+    state_path = tmp_path / "swinglens-lifecycle.json"
+    state_path.write_text('{"interruptedRestart":true}', encoding="utf-8")
+    state_literal = str(state_path).replace("'", "''")
+    command = _module_command(
+        f"$script:RuntimeStatePath='{state_literal}'; $script:events=@(); "
+        "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000}}; "
+        "function Invoke-LifecycleProbe { param($Command,$Arguments); "
+        "if ($Command -eq 'retire-stale-state') { $script:events += 'retire-interrupted'; "
+        f"Remove-Item -LiteralPath '{state_literal}'; "
+        "[pscustomobject]@{retired=$true;conflict=$false;staleRuntimeInstanceId='old';"
+        "reasonCode='DEAD_GENERATION_RETIRED'} } else { "
+        "[pscustomobject]@{reachable=$true;schemaAtHead=$true} } }; "
+        "function Get-ValidatedRuntime { $null }; function Start-AuthoritativeDatabase {}; "
+        "function Invoke-AlembicUpgrade { $script:events += 'migrate' }; "
+        "function Set-RuntimeGeneration {}; "
+        "function Start-SwingLensWeb { $script:events += 'new-runtime' }; "
+        "function Start-SwingLensObservability { $true }; "
+        "function Write-SwingLensStatus { [pscustomobject]@{Overall='HEALTHY'} }; "
+        "$null=Start-SwingLensStack -Config $cfg; $script:events -join ','"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().endswith("retire-interrupted,migrate,new-runtime")
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_restart_routes_dead_stale_retirement_through_stop_then_clean_start() -> None:
+    command = _module_command(
+        "$script:events=@(); $env:SWINGLENS_LIFECYCLE_OPERATION_ID='restart-test'; "
+        "function Get-GitCommit { 'new-sha' }; function Write-LifecycleJournal {}; "
+        "function Get-LifecycleConfig { [pscustomobject]@{lockTimeoutSeconds=1} }; "
+        "function Set-CanonicalLifecycleEnvironment {}; function Set-RuntimeGeneration {}; "
+        "function Invoke-WithLifecycleLock { param($Action,$TimeoutSeconds,$Body); & $Body }; "
+        "function Stop-SwingLensStack { $script:events += 'retire-stale-stop' }; "
+        "function Start-SwingLensStack { $script:events += 'clean-start'; 0 }; "
+        "$code=Invoke-SwingLensLifecycle -Action restart; ($script:events -join ','); $code"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert "retire-stale-stop,clean-start" in result.stdout
+    assert result.stdout.strip().endswith("0")
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
 @pytest.mark.parametrize("failed_component", ["worker", "supervisor"])
 def test_component_dying_before_final_certification_cannot_exit_start_zero(
     failed_component,
