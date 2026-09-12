@@ -37,6 +37,8 @@ from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
 from app.services.ceri.snapshot_service import CeriSnapshotService
+from app.services.market_clock_service import MarketClockService
+from app.services.us_market_calendar import previous_us_trading_day
 from app.services.winner_probability.config import load_winner_probability_config
 
 FIXTURE_VERSION = "single-run-certification-1.0.0"
@@ -342,10 +344,20 @@ def _csv_row(ticker: str, company: str, sector: str, *values: Any) -> dict[str, 
     }
 
 
+def certification_as_of_session(reference_timestamp: datetime | None = None) -> date:
+    """Select the fixture session through SwingLens's canonical exchange clock."""
+    reference = reference_timestamp or datetime.now(UTC)
+    return MarketClockService().cutoff_for(
+        reference,
+        reason="SINGLE_RUN_CERTIFICATION_FIXTURE",
+    ).latest_completed_session
+
+
 def seed_prerequisites(database_url: str) -> SeedResult:
     engine = create_engine(database_url)
     ceri_ingestion_ids: list[int] = []
     ceri_processing_ids: list[int] = []
+    as_of_session = certification_as_of_session()
     with Session(engine) as db:
         decoy = UploadRun(
             filename="decoy-run-never-mix.csv",
@@ -356,11 +368,11 @@ def seed_prerequisites(database_url: str) -> SeedResult:
         )
         db.add(decoy)
         db.flush()
-        _seed_market_cache(db)
+        _seed_market_cache(db, as_of_session=as_of_session)
         _seed_winner_history(db, decoy.id)
         db.commit()
         ceri_ingestion_ids, ceri_processing_ids, ceri_baseline_snapshot_id = (
-            _seed_ceri_manual_evidence(db)
+            _seed_ceri_manual_evidence(db, as_of_session=as_of_session)
         )
         db.commit()
         counts = {
@@ -382,7 +394,7 @@ def seed_prerequisites(database_url: str) -> SeedResult:
     return result
 
 
-def _seed_market_cache(db: Session) -> None:
+def _seed_market_cache(db: Session, *, as_of_session: date) -> None:
     for index, ticker in enumerate((*CANONICAL_TICKERS, *BENCHMARKS), start=1):
         db.add(
             IBContract(
@@ -403,7 +415,7 @@ def _seed_market_cache(db: Session) -> None:
         # remains technically insufficient after its small cache.
         count = 180 if ticker == "FOXT" else 90 if ticker == "GOLF" else 320
         for what_to_show in ("ADJUSTED_LAST", "TRADES"):
-            for bar in _ohlcv(ticker, count):
+            for bar in _ohlcv(ticker, count, as_of_session=as_of_session):
                 db.add(
                     PriceBar(
                         ticker=ticker,
@@ -424,17 +436,13 @@ def _seed_market_cache(db: Session) -> None:
                 )
 
 
-def _ohlcv(ticker: str, count: int) -> list[dict[str, Any]]:
+def _ohlcv(ticker: str, count: int, *, as_of_session: date) -> list[dict[str, Any]]:
     seed = sum(ord(char) for char in ticker)
-    end = date.today()
-    while end.weekday() >= 5:
-        end -= timedelta(days=1)
     dates: list[date] = []
-    current = end
+    current = as_of_session
     while len(dates) < count:
-        if current.weekday() < 5:
-            dates.append(current)
-        current -= timedelta(days=1)
+        dates.append(current)
+        current = previous_us_trading_day(current)
     rows: list[dict[str, Any]] = []
     for index, bar_date in enumerate(reversed(dates)):
         slope = -0.04 if ticker in {"CHAR", "RISK"} else 0.06 + (seed % 7) * 0.01
@@ -563,7 +571,11 @@ def _seed_winner_history(db: Session, decoy_run_id: int) -> None:
         )
 
 
-def _seed_ceri_manual_evidence(db: Session) -> tuple[list[int], list[int], int]:
+def _seed_ceri_manual_evidence(
+    db: Session,
+    *,
+    as_of_session: date,
+) -> tuple[list[int], list[int], int]:
     recent_guidance_at = (
         datetime.now(UTC).replace(hour=20, minute=15, second=0, microsecond=0) - timedelta(days=3)
     ).isoformat()
@@ -712,9 +724,9 @@ def _seed_ceri_manual_evidence(db: Session) -> tuple[list[int], list[int], int]:
         db,
         CeriFeatureRebuildRequest(
             ticker=None,
-            # Capture uses a UTC cutoff. Keep the feature session on that same
-            # clock so the fixture stays valid around a local-midnight rollover.
-            as_of_session=datetime.now(UTC).date(),
+            # Use the same canonical completed exchange session as the seeded
+            # market bars, including on weekends and exchange holidays.
+            as_of_session=as_of_session,
             mode="AS_KNOWN",
         ),
     )
