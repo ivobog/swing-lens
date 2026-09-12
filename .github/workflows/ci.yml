@@ -254,5 +254,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-durable-worker-recovery
-          path: test-results/windows-durable-worker-recovery.xml
+          path: test-results/
           if-no-files-found: error

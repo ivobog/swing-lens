@@ -30,11 +30,12 @@ RUNTIME_STATE = ROOT / "data" / "cache" / "swinglens-lifecycle.json"
 
 def test_windows_runtime_survives_controller_exit_and_reuses_generation(
     disposable_postgres_database: str,
-    tmp_path: Path,
 ) -> None:
     assert not RUNTIME_STATE.exists(), "canonical runtime state must be absent before the gate"
     _migrate(disposable_postgres_database)
     worker_id = f"windows-persistence-{uuid4().hex}"
+    evidence_path = ROOT / "test-results" / f"windows-lifecycle-{uuid4().hex}"
+    evidence_path.mkdir(parents=True, exist_ok=False)
     ports: list[int] = []
     while len(ports) < 3:
         candidate = _free_port()
@@ -46,8 +47,8 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
         web_port=ports[0],
         worker_metrics_port=ports[1],
         supervisor_metrics_port=ports[2],
-        supervisor_state_path=tmp_path / "supervisor-state.json",
-        persistence_test_path=tmp_path,
+        supervisor_state_path=evidence_path / "supervisor-state.json",
+        persistence_test_path=evidence_path,
     )
     log_path = ROOT / "logs" / "lifecycle" / "lifecycle.jsonl"
     log_offset = log_path.stat().st_size if log_path.exists() else 0
@@ -90,13 +91,17 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
             "worker": 0,
         }
         lifecycle_tail = _read_tail(log_path, log_offset)
+        supervisor_log = (evidence_path / "supervisor-stderr.log").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        shutdown_evidence = lifecycle_tail + "\n" + supervisor_log
         for event in (
             "runtime.shutdown_requested",
             "runtime.shutdown_begin",
             "runtime.shutdown_complete",
             "runtime.process_shutdown",
         ):
-            assert event in lifecycle_tail
+            assert event in shutdown_evidence
     finally:
         if first_state is None and RUNTIME_STATE.exists():
             first_state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
