@@ -3,17 +3,17 @@
 ## 1. Executive verdict
 
 **NOT CERTIFIED.** Stopped-generation convergence was remediated in `7d3a950d...`, the
-calendar-sensitive fixture in `65d0343...`, and the Windows command-boundary disappearance is now
-identified and remediated. Exact-SHA run `34672682068` proved cross-command survival, same-generation
-reuse, and lower-level graceful stop in Windows CI. The authorized machine persistence probe then
-proved that the original runtime survived beyond 45 seconds and that an independent second start
-reused it exactly. Its final stop exposed a narrower controller ordering race: after the new
-instance-scoped request had begun orderly shutdown, the controller invoked the obsolete console
-signal path before the supervisor finished. Commit `0267ebd...` waits for that verified supervisor
-exit and has local regression coverage, but the explicit no-retry rule prohibited a second machine
-probe or the full restart sequence. Diagnose and containment convergence returned the machine to
-canonical `STOPPED`, with zero active jobs and PostgreSQL still running. Every prior failed attempt
-below remains intact and traceable.
+calendar-sensitive fixture in `65d0343...`, and the Windows command-boundary disappearance and
+graceful-stop ordering race were remediated by the final executable tree at `0267ebd...`. Exact-SHA
+CI run `34674107533` is green. The authorized final-SHA machine probe proved cross-command survival
+after the controller boundary and exact idempotent reuse of the same supervisor, WEB, worker, and
+runtime instance. Its required first `stop`, however, failed before issuing the shutdown request
+because the durable worker did not acknowledge quiescence within the controller timeout. Per the
+explicit no-retry rule, the bounded restart certification was not run. Required diagnose evidence
+was captured, and the single permitted safe-containment stop then exercised the remediated orderly
+shutdown path successfully and returned the machine to canonical `STOPPED`, with zero active jobs,
+all lifecycle ports free, and PostgreSQL still running. Every prior failed attempt below remains
+intact and traceable.
 
 ## 2. Original baseline
 
@@ -633,3 +633,84 @@ Final containment left WEB, SUPERVISOR, and DURABLE_WORKER absent; ports 8000/91
 runtime state `MISSING`; zero active jobs; PostgreSQL 18.3 running on PID `6976`; and business data
 untouched. Only lifecycle registration, heartbeat, journal, log, diagnostic, and observability state
 was written during this task.
+
+## 27. Final-SHA certification closure attempt — 2026-09-12
+
+### Tested revision and clean baseline
+
+The executable/runtime tree tested was exactly
+`0267ebd554fefe804938fb96678238024c6a4560` (`Wait for supervisor during graceful stop`). The
+checked-out SHA was the later documentation-only commit
+`f652a8957fcb23ca8b8f159b3046836c3974c711`; its only diff from `0267ebd...` was this forensic
+report. Exact-code-SHA GitHub Actions run `34674107533` was **SUCCESS**.
+
+The closure began with a clean worktree. Structured status operation
+`7739c15b-ec01-4b80-bcc0-97e0ed5e3c53` reported `STOPPED`, runtime classification `MISSING`,
+`runtimeActive=false`, no stale state, no conflict, zero active jobs, PostgreSQL 18.3 reachable on
+PID `6976`, and current/expected Alembic head `0072_ceri_artifact_context_lineage`. Independent
+physical checks found no WEB, SUPERVISOR, or DURABLE_WORKER process and no listener on ports 8000,
+9101, or 9102. The PostgreSQL Windows service `postgresql-x64-18` was running from the configured
+PostgreSQL 18 executable and data directory.
+
+Every runtime-affecting invocation used `RUNTIME_MODE=CERTIFICATION`. The worker's recorded startup
+configuration confirmed certification isolation, including disabled automatic Winner maturation,
+Winner cohort refresh, unrelated CERI/background work, market-data prewarm/provider prefetch, cache
+refresh, stale-job recovery, and unrelated retry/continuation claims.
+
+### Fresh persistence probe
+
+| Command / operation | Result |
+|---|---|
+| first `start`, `8c54bb7f-8f67-4b7c-a888-0466e0f1fd69` | **PASS** — controller exited successfully; instance `4b789077343e492b83e0eedbdf42aa19`, supervisor PID `14904`, supervisor process-group PID `17016`, WEB PID `25508`, worker PID `16476`, fingerprint `a8f8fb32d8a0132d33498c599d63041ad7a1ddd9807332f56d99b1437807486f`; core, worker, Prometheus, and Grafana ready; only the pre-existing disk-space warning |
+| independent status after controller exit, `49040358-cc41-4b60-aad4-c3347e8b7e50` | **PASS** — invoked about 79 seconds after the first launcher returned; the same runtime instance, supervisor, WEB generation, and fingerprint remained `ACTIVE_VALID`; worker healthy; no stale state or conflict; actual Prometheus targets `swinglens-web`, `swinglens-worker`, and `swinglens-supervisor` all `up` |
+| independent second `start`, `876e993c-2603-4dfd-9054-7fac3d323d03` | **PASS** — explicitly reused strongly verified WEB PID `25508`; runtime instance `4b789077...`, supervisor PID `14904`, and WEB generation were unchanged; WEB and worker restart counters remained zero; no retirement, replacement generation, or `DEAD_STALE` transition occurred |
+| required first `stop`, `9d529c04-5f33-4c1f-ab05-98fa63a077ce` | **FAIL** — exit code 1 after 66.3 seconds: `Worker did not acknowledge durable quiesce before timeout; stop aborted and claims resumed.` No instance-scoped shutdown request or supervisor shutdown-begin event was emitted by this failed operation |
+
+The failure occurred before the newly remediated supervisor-exit ordering boundary. The immediately
+captured state still had the original canonical topology and zero active jobs. This attempt did not
+modify production code, did not retry the certification probe, and did not proceed to the bounded
+restart certification.
+
+### Required failure evidence and safe containment
+
+Required diagnose operation `729a79f3-e5cf-46fe-8e71-c694bde2aa77` succeeded and wrote
+`artifacts/diagnostics/lifecycle-20260912T105158Z-729a79f3-e5cf-46fe-8e71-c694bde2aa77`. It captured
+the original runtime instance and PIDs, all three lifecycle listeners, zero active jobs, live
+supervisor/worker registrations, restart counters of zero, PostgreSQL/schema provenance, and the
+full process tree. During diagnostic collection, direct core/application HTTP probes timed out even
+though the registered runtime remained present and Prometheus still reported all three targets
+`up`; this is preserved as observed evidence rather than reclassified.
+
+Because the failed stop had aborted before signaling shutdown and the diagnostic proved zero active
+jobs, the single permitted safe-containment `stop` was appropriate. Operation
+`14e15d49-8d8c-405f-b2a2-6623e2b0cd32` succeeded. The original supervisor accepted the
+instance-scoped request at `2026-09-12T10:54:23.736605Z`, recorded shutdown begin, stopped the WEB
+and worker, recorded `runtime.shutdown_complete` and supervisor `runtime.process_shutdown` at
+`10:54:39Z`, and the controller completed successfully only afterward. This containment operation
+therefore exercised the `0267ebd...` graceful supervisor-exit ordering successfully, but it cannot
+convert the failed required probe stop into a certification pass.
+
+Final read-only status operation `1b3310e6-025f-4ec2-856f-404384e4f738` reported `STOPPED`, runtime
+classification `MISSING`, `runtimeActive=false`, no stale state, no conflict, zero active jobs,
+PostgreSQL 18.3 reachable, and schema at head. Physical verification found WEB, SUPERVISOR, and
+DURABLE_WORKER absent and ports 8000/9101/9102 free. PostgreSQL remained running on listener PID
+`6976`.
+
+### Closure verdict
+
+The complete one-shot lifecycle certification, restart, replacement-runtime checks, post-restart
+status, and running diagnose were **not run** because the fresh probe's required first graceful stop
+failed. There are therefore no full-certification operation IDs and no old/new restart runtime
+instances to report.
+
+No business pipeline, CERI provider ingest/rebuild, Winner maturation/cohort refresh, market-data
+refresh, IB or SEC processing, broker action, historical repair, or canary was invoked. The worker
+log records certification isolation and no claimed/executed business job; structured checks before,
+during, and after the attempt reported zero active jobs. Business data was not mutated. Only normal
+lifecycle registration, heartbeat, quiesce/resume control, journal, diagnostic, and observability
+state changed.
+
+Final verdict remains **NOT CERTIFIED**. Cross-command survival and independent idempotent start
+passed, and the later safe-containment stop proved the final supervisor-exit ordering can complete;
+however, the required first probe stop itself failed at durable-worker quiesce, so the gated restart
+certification has no valid evidence.
