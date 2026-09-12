@@ -246,6 +246,29 @@ def test_observability_failure_return_does_not_block_core_restart_sequence() -> 
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_core_stop_waits_for_supervisor_exit_before_registered_cleanup() -> None:
+    command = _module_command(
+        "$script:events=@(); "
+        "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000}; "
+        "metrics=[pscustomobject]@{enabled=$false;workerPort=0;supervisorPort=0}}; "
+        "function Get-WebOwner { [pscustomobject]@{ProcessId=101} }; "
+        "function Get-ValidatedRuntime { [pscustomobject]@{state=[pscustomobject]@{"
+        "web=[pscustomobject]@{pid=101};supervisor=[pscustomobject]@{pid=202}}} }; "
+        "function Invoke-LifecycleProbe { param($Command,$Arguments); "
+        "if ($Command -eq 'signal-break') { $script:events += 'request'; "
+        "[pscustomobject]@{signaled=$true} } else { [pscustomobject]@{processes=@()} } }; "
+        "function Wait-PortReleased { param($Port); $script:events += ('port-' + $Port) }; "
+        "function Wait-ProcessExit { param($ProcessId); "
+        "$script:events += ('process-' + $ProcessId); $true }; "
+        "function Stop-RegisteredRemainders { $script:events += 'remainders' }; "
+        "Stop-SwingLensCore -Config $cfg; $script:events -join ','"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "request,port-8000,process-202,remainders,port-8000"
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
 def test_non_admin_service_start_failure_is_explicit() -> None:
     command = _module_command(
         "$cfg=[pscustomobject]@{postgres=[pscustomobject]@{managementEnabled=$true;"

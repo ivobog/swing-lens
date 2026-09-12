@@ -485,6 +485,10 @@ function Stop-SwingLensCore {
     $signal = Invoke-LifecycleProbe -Command 'signal-break' -Arguments @('--pid', [string]$runtime.state.web.pid, '--listener-pid', [string]$owner.ProcessId)
     if (-not $signal.signaled) { throw ('CONFLICT: verified runtime was not signaled: ' + $signal.error) }
     Wait-PortReleased -Port ([int]$Config.web.port)
+    $supervisorPid = [int]$runtime.state.supervisor.pid
+    if (-not (Wait-ProcessExit -ProcessId $supervisorPid)) {
+        throw ("Verified supervisor PID {0} did not exit after the graceful shutdown request; no forced PID-only kill was attempted." -f $supervisorPid)
+    }
     Stop-RegisteredRemainders
     $ports = @([int]$Config.web.port)
     if ([bool]$Config.metrics.enabled) {
