@@ -2,13 +2,15 @@
 
 ## 1. Executive verdict
 
-**NOT CERTIFIED.** The reconciled tree and its canonical CI matrix are green, but the required
-real-machine certification failed on its first `start`. A stopped version-5 runtime-state record
-from SHA `095a552e21f92523a7d8e67df2109742a0cad0a9` survived the interrupted restart. After the
-checkout fast-forwarded to `0fb435ee6eb76049ddf6d76d859775fec35768f5`, `start` and the subsequent
-safety `stop` both failed closed with `RESTART_REQUIRED: runtime generation fingerprint differs`.
-No live SwingLens process or lifecycle listener remains, but the controller reports `CONFLICT`
-rather than a canonical stopped state. No retry loop or post-failure patch was attempted.
+**NOT CERTIFIED.** The stopped-generation convergence defect described by the original report was
+remediated in `7d3a950d449581fea73fe1486449a0a52742ab24`, and exact-SHA canonical CI run
+`34639244871` is fully green. The second bounded real-machine attempt proved read-only stale-state
+classification, automatic archival/retirement, clean startup, idempotent startup, core readiness,
+canonical topology, and observability. Its required `restart` was then externally interrupted after
+the stop phase and has no terminal journal event. Per the no-retry rule, diagnose and safe stop were
+performed and the certification sequence was not resumed. The machine is now canonically stopped,
+with zero active jobs and PostgreSQL still running. The original failed attempt below remains intact
+and traceable.
 
 ## 2. Original baseline
 
@@ -39,7 +41,7 @@ Lifecycle non-convergence
 │   └── full application /ready made optional integrations block core startup
 ├── Incomplete operation correlation/diagnostics (remediated)
 │   └── restart phases and children lacked one durable operation/generation identity
-└── Stopped-generation convergence defect (OPEN; final blocker)
+└── Stopped-generation convergence defect (REMEDIATED in 7d3a950)
     ├── interrupted restart stopped the old tree but left its version-5 state record
     ├── checkout advanced from 095a552 to tree-identical merge SHA 0fb435e
     ├── desired fingerprint changed solely because the Git SHA is fingerprinted
@@ -254,14 +256,13 @@ No second live certification sequence was attempted and no live patch/retry loop
 
 ## 20. Remaining risks
 
-The certification blocker is stopped-generation convergence: an interrupted stop/restart can leave a
-strongly recorded but dead generation that cannot be retired after a Git-SHA-only fingerprint change.
-This prevents ordinary recovery on a tree-identical merge commit and prevents the lifecycle
-controller from reporting a deterministic stopped state. A future authorized remediation should
-capture this exact fixture, distinguish active mismatches from strongly verified dead/stale records,
-retire only the latter under the repository lock, and add Windows real-controller coverage. It must
-then receive exact-SHA CI and one new bounded real-machine certification. Until then the branch is
-not lifecycle-certified.
+Stopped-generation convergence is remediated and covered by deterministic Python and PowerShell
+regressions. The remaining certification gap is procedural evidence: the second bounded machine
+sequence was interrupted during its required restart and, under the explicit no-retry rule, could
+not be resumed. The branch therefore remains not lifecycle-certified even though the interrupted
+generation subsequently converged safely through `stop` and the machine reached canonical
+`STOPPED`. A future explicitly authorized bounded certification would be required to establish a
+terminal successful restart and post-restart readiness sequence.
 
 ## 21. Exact tests executed
 
@@ -289,10 +290,111 @@ locally.
 Clean after committing this report. Recovery/failure diagnostic bundles remain preserved locally and
 are excluded only through `.git/info/exclude`; they were not deleted or added to production evidence.
 
-## 23. Business-data mutation confirmation
+## 23. Original attempt business-data mutation confirmation
 
 No business pipeline, provider processing, Winner/CERI operation, broker work, enqueue, historical
 repair, canary, or evidence mutation was performed during recovery, reconciliation, CI observation,
 or final certification. The reconciled runtime never started. Read-only status/diagnose probes and
 lifecycle journal/metrics writes were the only operational observations; PostgreSQL business data
 remained untouched.
+
+## 24. Final stopped-generation convergence remediation — 2026-09-12
+
+### Defect and exact code cause
+
+The original failure was reproduced as a persisted version-5 runtime state from Git SHA `095a552`
+whose WEB, SUPERVISOR, process-group, and worker processes were dead while ports 8000, 9101, and
+9102 were free. `scripts/ops/lifecycle_probe.py::_runtime_state_report()` compared the persisted
+runtime fingerprint with the desired fingerprint before inspecting the recorded WEB PID. Because
+Git SHA remains intentionally included in the fingerprint, the tree-identical merge SHA change made
+the dead record return `RESTART_REQUIRED` before it could reach the existing stale-state path.
+
+Remediation commit `7d3a950d449581fea73fe1486449a0a52742ab24` implements the explicit state
+machine `ACTIVE_VALID`, `ACTIVE_GENERATION_MISMATCH`, `DEAD_STALE`, `AMBIGUOUS_CONFLICT`, and
+`MISSING`. Process identity, PID creation time, repository, runtime instance, ancestry/topology, and
+listener evidence are evaluated before generation mismatch semantics. A generation mismatch still
+returns `RESTART_REQUIRED` when the runtime is strongly verified alive. A record becomes
+`DEAD_STALE` only after every recorded identity available from the canonical and supervisor state
+is absent, no canonical WEB/SUPERVISOR/DURABLE_WORKER process exists under this checkout, and ports
+8000/9101/9102 are unoccupied. PID reuse, partial survival, unknown role processes, listener
+occupancy, corrupt state, and incomplete evidence remain fail-closed as `AMBIGUOUS_CONFLICT`.
+
+### Status and controlled retirement policy
+
+`status` is read-only with respect to runtime state. It now reports a safely dead record as overall
+`STOPPED`, `runtimeActive=false`, `staleStatePresent=true`, and `conflict=false`, together with safe
+recorded/desired Git SHA and fingerprint values, stale runtime instance ID, and stale reason.
+
+Only `start`, `stop`, and `restart`, while already inside the lifecycle repository mutex/file lock,
+invoke stale-state retirement. The record is revalidated against processes and listeners, moved to
+`data/cache/lifecycle-archive`, and journaled as `stale_runtime_state_retired` with reason
+`DEAD_GENERATION_RETIRED`. The event contains only the old runtime instance, old/desired Git SHA and
+fingerprint, topology version, and retirement operation ID. Active and ambiguous states are never
+retired by this path.
+
+### Regression evidence
+
+The focused local gate passed **115 tests** in 116.97 seconds, covering lifecycle config, contracts,
+convergence, observability, PowerShell controller behavior, process safety, and the new
+stopped-generation fixture. The permanent regressions include:
+
+- dead recorded WEB with same or different fingerprint -> `DEAD_STALE`;
+- strongly verified active old generation -> `RESTART_REQUIRED`;
+- reused recorded PID, surviving supervisor/worker, unknown canonical role, and occupancy of each
+  of 8000/9101/9102 -> `AMBIGUOUS_CONFLICT`;
+- dead stale `status` -> `STOPPED` without state mutation;
+- dead stale `start`/`stop`/`restart` -> controlled retirement and clean/idempotent behavior;
+- Git-SHA-only generation change -> different fingerprint, with dead convergence and active
+  protection both preserved;
+- interrupted-restart persisted-state fixture -> next start retires the record and launches cleanly.
+
+Repository-wide Ruff and `git diff --check` also passed before the remediation commit.
+
+### Exact-SHA canonical CI
+
+- Runtime remediation SHA: `7d3a950d449581fea73fe1486449a0a52742ab24`.
+- GitHub Actions run: `34639244871`.
+- Result: **SUCCESS**.
+- `Lint, Test, and Migration Gates`: passed in 14m52s, including secret scan, route inventory,
+  Alembic graph/current/drift, clean migration, populated restore, full unit/service coverage, and
+  golden scoring.
+- `Chromium and Firefox Smoke`: passed in 3m12s.
+- `Windows Durable Worker Recovery Gate`: passed in 4m48s.
+- The scheduled-only nightly performance job was correctly skipped for the push event.
+
+### Second bounded real-machine attempt
+
+The original failed attempt in sections 9, 17, and 18 is preserved. After exact-SHA CI became green,
+one new bounded attempt began at `7d3a950`:
+
+| Command / operation | Result |
+|---|---|
+| pre-retirement `status`, operation `3cc0b5d5-c50b-4425-baf7-2f48638ece03` | **PASS** — `OVERALL STOPPED`; stale state explicitly reported; no conflict or mutation |
+| first `start`, operation `2945a2a4-5637-4608-acb8-386185dd7b5a` | **PASS** — archived old instance `44718fd5...`; `DEAD_GENERATION_RETIRED`; launched new instance `0836bba8...` |
+| second `start`, operation `b04094eb-1746-479f-b360-f40bc96e718e` | **PASS** — reused strongly verified WEB PID `13880` |
+| running `status`, operation `fd51e5eb-4cb2-4c1d-8334-47b851cf5377` | **PASS** — core OK, WEB/worker ready, Prometheus/Grafana ready, only the pre-existing 13.8% disk warning |
+| `restart`, operation `3076297e-6a12-4756-8a1e-dc40c04f9a25` | **INTERRUPTED** — operation begin exists; supervisor and worker shutdown followed; no operation-complete event and no replacement start |
+| failure `diagnose`, operation `6e315e19-109a-4bc3-a95b-8b1cf1f5ab2e` | **PASS** — sanitized bundle `artifacts/diagnostics/lifecycle-20260912T002853Z-6e315e19-109a-4bc3-a95b-8b1cf1f5ab2e` |
+| required safe `stop`, operation `0a14ad4e-a8dc-414a-87f5-7cd234d867ba` | **PASS** — recognized interrupted instance `0836bba8...` as dead stale, archived/journaled it, and returned `OVERALL STOPPED` |
+| final JSON `status`, operation `3fcd02ff-0f35-427b-a11f-247f55f8066d` | **PASS** — `STOPPED`, `MISSING`, runtime inactive, no stale canonical state, zero active jobs |
+
+The successful running checkpoints proved canonical supervisor-root readiness and all three
+Prometheus SwingLens targets up through the controller's core/target gates. No direct final claim is
+made for the unexecuted post-restart status or `/health` check because the restart did not complete.
+No retry or live patch loop was performed.
+
+### Final machine state and verdict
+
+- WEB, SUPERVISOR, and DURABLE_WORKER processes: absent;
+- ports 8000, 9101, and 9102: free;
+- canonical runtime-state file: absent (`MISSING`);
+- archived stale evidence: preserved for both the original old generation and interrupted
+  remediation generation;
+- active `RUNNING`/`RECOVERING` jobs: zero;
+- PostgreSQL 18.3: running on PID `6976`, schema head `0072_ceri_artifact_context_lineage`;
+- Prometheus/Grafana: stopped by the safe-stop path;
+- business pipelines/evidence: untouched.
+
+Final verdict remains **NOT CERTIFIED** because the required restart and subsequent checks did not
+complete. The stopped-generation convergence defect itself is remediated, exact-SHA CI is green,
+and failure containment converged to canonical stopped state without manual runtime-state deletion.
