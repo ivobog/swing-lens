@@ -173,7 +173,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                     result="success",
                     reason_code="LIFECYCLE_CONTROLLER_REQUEST",
                     shutdown_method="instance_scoped_file",
-                    message=f"operation_id={request.get('operationId') or 'unknown'}",
+                    request_operation_id=request.get("operationId"),
                 )
                 stop.set()
                 break

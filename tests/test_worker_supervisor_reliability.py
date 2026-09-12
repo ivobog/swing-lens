@@ -268,3 +268,26 @@ def test_unhandled_supervisor_failure_is_durably_logged(monkeypatch) -> None:
             },
         )
     ]
+
+
+def test_shutdown_request_observability_uses_non_reserved_log_fields(
+    caplog, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "app.observability.logging.append_lifecycle_event", lambda *_args, **_kwargs: None
+    )
+    with caplog.at_level(logging.INFO):
+        worker_supervisor.log_event(
+            worker_supervisor.logger,
+            "runtime.shutdown_requested",
+            stage="shutdown_request",
+            result="success",
+            reason_code="LIFECYCLE_CONTROLLER_REQUEST",
+            shutdown_method="instance_scoped_file",
+            request_operation_id="operation-a",
+        )
+
+    record = next(
+        item for item in caplog.records if item.getMessage() == "runtime.shutdown_requested"
+    )
+    assert record.request_operation_id == "operation-a"

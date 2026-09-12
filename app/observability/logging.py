@@ -105,6 +105,7 @@ def log_event(
                 signal_name=safe_fields.get("signal_name"),
                 signal_number=safe_fields.get("signal_number"),
                 shutdown_method=safe_fields.get("shutdown_method"),
+                request_operation_id=safe_fields.get("request_operation_id"),
             )
         except OSError:
             pass

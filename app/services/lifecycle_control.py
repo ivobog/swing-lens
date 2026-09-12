@@ -68,6 +68,7 @@ JOURNAL_FIELDS = frozenset(
         "signal_name",
         "signal_number",
         "shutdown_method",
+        "request_operation_id",
         "recorded_git_sha",
         "recorded_fingerprint",
         "desired_git_sha",
