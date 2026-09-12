@@ -297,6 +297,185 @@ def test_provider_rejection_is_failed_with_truthful_run_counters(monkeypatch) ->
     assert cache_calls == []
 
 
+def test_deterministic_eodchart_162_fails_once_without_backoff(monkeypatch) -> None:
+    db = FakeDb()
+    limiter = FakeLimiter()
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=1), error_message=None
+        ),
+    )
+    error = IBHistoricalRequestError(
+        code=162,
+        provider_message="No data of type EODChart is available for the exchange 'BEST'",
+    )
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *args, **kwargs: (_ for _ in ()).throw(error),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=_fetch_plan(_plan_item("SPY", FetchAction.TOP_UP_RECENT, "10 D")),
+        ib_client_factory=FakeIB,
+        rate_limiter=limiter,
+        settings=Settings(ib_max_retries=3),
+    )
+
+    item = fetch_run.items[0]
+    assert item.attempt_count == 1
+    assert limiter.backoffs == 0
+    assert item.decision_metadata_json["provider_error_category"] == ("HISTORICAL_DATA_UNAVAILABLE")
+    assert item.decision_metadata_json["retryable"] is False
+
+
+def test_pacing_162_still_retries(monkeypatch) -> None:
+    db = FakeDb()
+    limiter = FakeLimiter()
+    attempts = {"count": 0}
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=1), error_message=None
+        ),
+    )
+
+    def fetch(*_args, **_kwargs):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise IBHistoricalRequestError(
+                code=162,
+                provider_message="Historical data request pacing violation",
+            )
+        return [_bar(date(2026, 8, 14))]
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", fetch)
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda *args, **kwargs: BarUpsertSummary(unchanged=1),
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=_fetch_plan(_plan_item("SPY", FetchAction.TOP_UP_RECENT, "10 D")),
+        ib_client_factory=FakeIB,
+        rate_limiter=limiter,
+        settings=Settings(ib_max_retries=2),
+    )
+
+    assert fetch_run.status == "COMPLETED"
+    assert attempts["count"] == 2
+    assert limiter.backoffs == 1
+
+
+def test_benchmark_systemic_failures_open_circuit_and_skip_remaining(monkeypatch) -> None:
+    db = FakeDb()
+    calls = []
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=1), error_message=None
+        ),
+    )
+
+    def unavailable(_ib, contract, *_args, **_kwargs):
+        calls.append(contract.symbol)
+        raise IBHistoricalRequestError(
+            code=162,
+            provider_message="No data of type EODChart is available for the exchange 'BEST'",
+        )
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", unavailable)
+    items = [
+        _plan_item("SPY", FetchAction.TOP_UP_RECENT, "10 D"),
+        _plan_item("QQQ", FetchAction.TOP_UP_RECENT, "10 D"),
+        _plan_item("MSFT", FetchAction.TOP_UP_RECENT, "10 D"),
+    ]
+    plan = replace(
+        _fetch_plan(items[0]),
+        requested_tickers=["MSFT"],
+        symbols_including_benchmarks=["SPY", "QQQ", "MSFT"],
+        items=items,
+        estimated_request_count=3,
+        estimated_top_ups=3,
+    )
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=plan,
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=3, ib_benchmarks="SPY,QQQ"),
+    )
+
+    assert calls == ["SPY", "QQQ"]
+    assert [item.status for item in fetch_run.items] == ["FAILED", "FAILED", "SKIPPED"]
+    assert fetch_run.status == "FAILED"
+    circuit = fetch_run.decision_counts_json["historical_circuit"]
+    assert circuit["prevented_request_count"] == 1
+    assert fetch_run.success_count == 0
+    assert fetch_run.failure_count == 2
+    assert fetch_run.skipped_count == 1
+
+
+def test_benchmark_success_prevents_false_positive_circuit(monkeypatch) -> None:
+    db = FakeDb()
+    calls = []
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, ticker, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=ticker, conId=1), error_message=None
+        ),
+    )
+
+    def mixed(_ib, contract, *_args, **_kwargs):
+        calls.append(contract.symbol)
+        if contract.symbol == "SPY":
+            raise IBHistoricalRequestError(
+                code=162,
+                provider_message="No data of type EODChart is available for the exchange 'BEST'",
+            )
+        return [_bar(date(2026, 8, 14))]
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", mixed)
+    monkeypatch.setattr(
+        executor,
+        "cache_bars",
+        lambda *args, **kwargs: BarUpsertSummary(unchanged=1),
+    )
+    items = [
+        _plan_item("SPY", FetchAction.TOP_UP_RECENT, "10 D"),
+        _plan_item("QQQ", FetchAction.TOP_UP_RECENT, "10 D"),
+        _plan_item("MSFT", FetchAction.TOP_UP_RECENT, "10 D"),
+    ]
+
+    fetch_run = execute_fetch_plan(
+        db=db,
+        plan=replace(
+            _fetch_plan(items[0]),
+            requested_tickers=["MSFT"],
+            symbols_including_benchmarks=["SPY", "QQQ", "MSFT"],
+            items=items,
+            estimated_request_count=3,
+            estimated_top_ups=3,
+        ),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1, ib_benchmarks="SPY,QQQ"),
+    )
+
+    assert calls == ["SPY", "QQQ", "MSFT"]
+    assert fetch_run.status == "PARTIAL"
+    assert "historical_circuit" not in fetch_run.decision_counts_json
+
+
 def test_controlled_recovery_stops_before_next_request_on_hard_failure(monkeypatch) -> None:
     db = FakeDb()
     monkeypatch.setattr(

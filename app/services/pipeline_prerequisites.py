@@ -48,3 +48,15 @@ class WorkerProcessorDriftError(PipelineBlockedError):
     """A worker's loaded SEC processor is incompatible with the ACTIVE release."""
 
     reason_code = "WORKER_PROCESSOR_SIGNATURE_DRIFT"
+
+
+class IBHistoricalDataUnavailableError(PipelineBlockedError):
+    """Gateway API is healthy but required historical market data is not."""
+
+    reason_code = "IB_HISTORICAL_DATA_UNAVAILABLE"
+
+
+class IBHistoricalCircuitOpenError(PipelineBlockedError):
+    """Benchmark evidence proved a systemic historical provider failure."""
+
+    reason_code = "IB_HISTORICAL_CIRCUIT_OPEN"

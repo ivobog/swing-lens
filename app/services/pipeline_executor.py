@@ -48,6 +48,10 @@ from app.services.ib_gateway_health_service import (
 from app.services.ib_gateway_health_service import (
     check_status as check_ib_gateway_status,
 )
+from app.services.ib_historical_capability import (
+    IBHistoricalCapabilityStatus,
+    check_historical_data_capability,
+)
 from app.services.market_calculation_context_service import market_context_for_pipeline
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_data_prewarm_service import (
@@ -60,6 +64,8 @@ from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_performance import PipelinePerformanceTracker
 from app.services.pipeline_prerequisites import (
     CeriBootstrapRequiredError,
+    IBHistoricalCircuitOpenError,
+    IBHistoricalDataUnavailableError,
     PipelineBlockedError,
 )
 from app.services.pipeline_service import (
@@ -224,6 +230,9 @@ class PipelineExecutionDependencies:
     capture_winner_predictions: Callable[[Session, int], Any] | None = None
     winner_probability_capture_enabled: bool | None = None
     check_ib_gateway: Callable[[], IBGatewayHealthStatus] = check_ib_gateway_status
+    check_ib_historical_capability: Callable[[], IBHistoricalCapabilityStatus] = (
+        check_historical_data_capability
+    )
 
 
 def execute_full_pipeline(
@@ -370,6 +379,21 @@ def execute_full_pipeline(
                 )
             result["ib_planned_requests"] = plan.estimated_request_count
             _apply_market_session_metadata(result, plan)
+            if plan.estimated_request_count and not cache_fallback:
+                historical_capability = dependencies.check_ib_historical_capability()
+                capability_payload = _historical_capability_payload(historical_capability)
+                result["ib_historical_capability"] = capability_payload
+                if not _is_historical_data_ready(historical_capability):
+                    result["failure_reason"] = IBHistoricalDataUnavailableError.reason_code
+                    if market_data_policy is MarketDataPolicy.REQUIRE_IB:
+                        result["market_data_mode"] = "BLOCKED"
+                        raise IBHistoricalDataUnavailableError(
+                            historical_capability.message,
+                            diagnostics=capability_payload,
+                        )
+                    cache_fallback = True
+                    result["market_data_mode"] = "CACHE_FALLBACK"
+                    result["degraded"] = True
             overlap_callback_supported = _accepts_keyword(
                 dependencies.execute_fetch_plan,
                 "on_ticker_ready",
@@ -425,6 +449,13 @@ def execute_full_pipeline(
                 _apply_fetch_performance(performance, fetch_run)
                 if fetch_run.status == "CANCELLED":
                     raise PipelineCancelled("Pipeline cancelled during market data fetch.")
+                circuit = (fetch_run.decision_counts_json or {}).get("historical_circuit")
+                if circuit:
+                    result["failure_reason"] = IBHistoricalCircuitOpenError.reason_code
+                    raise IBHistoricalCircuitOpenError(
+                        fetch_run.message or "IB historical benchmark circuit opened.",
+                        diagnostics=dict(circuit),
+                    )
             else:
                 result["ib_skipped_count"] = plan.estimated_skips
                 if cache_fallback:
@@ -1349,6 +1380,30 @@ def _apply_ib_execution_status(
     result["ib_execution_checked_at"] = status.checked_at.isoformat()
     result["ib_api_available_at_execution"] = status.api_connected
     result["ib_execution_error_code"] = status.error_code
+
+
+def _is_historical_data_ready(status: IBHistoricalCapabilityStatus | Any) -> bool:
+    ready = getattr(status, "ready", None)
+    if isinstance(ready, bool):
+        return ready
+    return str(getattr(status, "status", status)) == "IB_HISTORICAL_DATA_READY"
+
+
+def _historical_capability_payload(status: IBHistoricalCapabilityStatus | Any) -> dict[str, Any]:
+    serializer = getattr(status, "to_dict", None)
+    if callable(serializer):
+        return dict(serializer())
+    checked_at = getattr(status, "checked_at", None)
+    return {
+        "status": str(getattr(status, "status", "IB_HISTORICAL_DATA_DEGRADED")),
+        "checked_at": checked_at.isoformat() if hasattr(checked_at, "isoformat") else None,
+        "ticker": str(getattr(status, "ticker", "SPY")),
+        "feeds": list(getattr(status, "feeds", ())),
+        "server_version": getattr(status, "server_version", None),
+        "api_ready": bool(getattr(status, "api_ready", False)),
+        "result": str(getattr(status, "result", "FAILED")),
+        "message": str(getattr(status, "message", "Historical capability probe failed.")),
+    }
 
 
 def _apply_market_session_metadata(result: dict[str, Any], plan: FetchPlan) -> None:

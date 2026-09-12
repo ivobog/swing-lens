@@ -19,7 +19,11 @@ from app.services.pipeline_executor import (
     _schedule_ceri_provider_ingest,
     execute_full_pipeline,
 )
-from app.services.pipeline_prerequisites import CeriBootstrapRequiredError
+from app.services.pipeline_prerequisites import (
+    CeriBootstrapRequiredError,
+    IBHistoricalCircuitOpenError,
+    IBHistoricalDataUnavailableError,
+)
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
 from app.services.ranking_profile_service import RankingPipelineResult
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
@@ -770,6 +774,92 @@ def test_require_ib_stops_before_technicals_when_gateway_closes_after_preflight(
     assert fetch_step.status == PipelineStepStatus.FAILED
 
 
+def test_historical_capability_failure_blocks_before_fetch_executor() -> None:
+    calls: list[str] = []
+    db = PipelineExecutorFakeDb(["MSFT"])
+    dependencies = replace(
+        _dependencies(calls, plan=_plan(estimated_request_count=1)),
+        check_ib_historical_capability=lambda: SimpleNamespace(
+            status="IB_HISTORICAL_DATA_UNAVAILABLE",
+            ready=False,
+            checked_at=datetime.now(UTC),
+            ticker="SPY",
+            feeds=(
+                {
+                    "feed": "TRADES",
+                    "provider_error_code": 162,
+                    "provider_error_category": "HISTORICAL_DATA_UNAVAILABLE",
+                },
+            ),
+            server_version=176,
+            api_ready=True,
+            result="FAILED",
+            message=(
+                "IB historical market data is currently unavailable. Gateway API connectivity "
+                "is healthy, but the historical-data capability probe failed for SPY."
+            ),
+        ),
+    )
+
+    with pytest.raises(IBHistoricalDataUnavailableError):
+        execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert "build_fetch_plan" in calls
+    assert "fetch" not in calls
+    assert "technicals" not in calls
+    assert db.pipeline.status == PipelineStatus.BLOCKED
+    assert db.pipeline.result_json["blocked_reason"] == "IB_HISTORICAL_DATA_UNAVAILABLE"
+    assert db.pipeline.result_json["ib_api_available_at_execution"] is True
+
+
+def test_historical_circuit_reason_propagates_and_stops_downstream_stages() -> None:
+    calls: list[str] = []
+    db = PipelineExecutorFakeDb(["MSFT"])
+    circuit = {
+        "reason": "IB_HISTORICAL_CIRCUIT_OPEN",
+        "benchmark_evidence": [
+            {
+                "ticker": "SPY",
+                "feed": "TRADES",
+                "provider_error_category": "HISTORICAL_DATA_UNAVAILABLE",
+            },
+            {
+                "ticker": "QQQ",
+                "feed": "TRADES",
+                "provider_error_category": "HISTORICAL_DATA_UNAVAILABLE",
+            },
+        ],
+        "prevented_request_count": 100,
+    }
+    fetch_run = IBFetchRun(
+        id=11,
+        run_id=7,
+        requested_tickers=["MSFT"],
+        status="FAILED",
+        planned_request_count=102,
+        executed_request_count=2,
+        success_count=0,
+        failure_count=2,
+        skipped_count=100,
+        message="IB_HISTORICAL_CIRCUIT_OPEN",
+        decision_counts_json={"historical_circuit": circuit},
+    )
+    dependencies = _dependencies(
+        calls,
+        plan=_plan(estimated_request_count=1),
+        fetch_run=fetch_run,
+    )
+
+    with pytest.raises(IBHistoricalCircuitOpenError):
+        execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert "fetch" in calls
+    assert "technicals" not in calls
+    assert db.pipeline.status == PipelineStatus.BLOCKED
+    assert db.pipeline.result_json["blocked_reason"] == "IB_HISTORICAL_CIRCUIT_OPEN"
+    assert db.pipeline.result_json["blocked_diagnostics"]["prevented_request_count"] == 100
+
+
 def test_allow_cache_fallback_persists_degraded_metadata_and_skips_winner_capture() -> None:
     calls: list[str] = []
     db = PipelineExecutorFakeDb(["MSFT"])
@@ -1035,6 +1125,17 @@ def _dependencies(
             api_connected=True,
             error_code=None,
             message="ready",
+        ),
+        check_ib_historical_capability=lambda: SimpleNamespace(
+            status="IB_HISTORICAL_DATA_READY",
+            ready=True,
+            checked_at=datetime.now(UTC),
+            ticker="SPY",
+            feeds=(),
+            server_version=176,
+            api_ready=True,
+            result="SUCCESS",
+            message="historical ready",
         ),
     )
 

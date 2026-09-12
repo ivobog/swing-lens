@@ -25,6 +25,7 @@ from app.services.ib_fetch_plan_service import (
     _incremental_request_window,
     _plan_action,
 )
+from app.services.ib_historical_errors import SYSTEMIC_CIRCUIT_CATEGORIES
 from app.services.ib_historical_request_scope import (
     HistoricalRequestScope,
     build_historical_request_scope,
@@ -111,6 +112,7 @@ def execute_fetch_plan(
         "ib_network_ms": 0.0,
         "bar_cache_write_ms": 0.0,
     }
+    benchmark_evidence: list[dict[str, object]] = []
     for plan_item in plan.items:
         expected_by_ticker[plan_item.ticker.upper()] += 1
     execution_items = _benchmark_first_items(plan.items, settings.ib_benchmark_symbols)
@@ -155,6 +157,25 @@ def execute_fetch_plan(
                             total=total_items,
                         )
                     item_db.commit()
+                    evidence = _benchmark_observation(
+                        fetch_item,
+                        settings.ib_benchmark_symbols,
+                    )
+                    if evidence is not None:
+                        benchmark_evidence.append(evidence)
+                    if _should_open_historical_circuit(
+                        benchmark_evidence,
+                        execution_items,
+                        settings.ib_benchmark_symbols,
+                    ):
+                        _open_historical_circuit(
+                            item_db,
+                            item_run,
+                            execution_items[item_index:],
+                            benchmark_evidence,
+                        )
+                        item_db.commit()
+                        break
                     continue
                 if fetch_item is None:
                     fetch_item = _create_fetch_item(item_run, plan_item)
@@ -172,6 +193,7 @@ def execute_fetch_plan(
                         total=total_items,
                     )
                 item_db.commit()
+                circuit_opened = False
                 _execute_plan_item(
                     db=item_db,
                     ib=ib,
@@ -200,6 +222,25 @@ def execute_fetch_plan(
                         total=total_items,
                     )
                 item_db.commit()
+                evidence = _benchmark_observation(
+                    fetch_item,
+                    settings.ib_benchmark_symbols,
+                )
+                if evidence is not None:
+                    benchmark_evidence.append(evidence)
+                if _should_open_historical_circuit(
+                    benchmark_evidence,
+                    execution_items,
+                    settings.ib_benchmark_symbols,
+                ):
+                    _open_historical_circuit(
+                        item_db,
+                        item_run,
+                        execution_items[item_index:],
+                        benchmark_evidence,
+                    )
+                    item_db.commit()
+                    circuit_opened = True
             _record_ticker_completion(
                 ticker=fetch_item.ticker,
                 status=fetch_item.status,
@@ -211,6 +252,8 @@ def execute_fetch_plan(
             if memory_probe is not None:
                 memory_probe(item_db, item_index, total_items, plan_item.ticker)
             if stop_on_hard_failure and _is_hard_recovery_failure(fetch_item):
+                break
+            if circuit_opened:
                 break
             if cancel_after_item:
                 break
@@ -444,6 +487,7 @@ def _execute_plan_item(
     )
 
     for attempt in range(1, settings.ib_max_retries + 1):
+        request_duration = 0.0
         try:
             pacing_started = perf_counter()
             if isinstance(rate_limiter, IbHistoricalRateLimiter):
@@ -548,6 +592,12 @@ def _execute_plan_item(
             fetch_item.unchanged = upsert.unchanged
             fetch_item.status = "SUCCESS"
             fetch_item.completed_at = datetime.now(UTC)
+            operational_metrics.increment(
+                "swinglens_ib_historical_requests_total",
+                feed=plan_item.what_to_show,
+                result="success",
+                error_category="NONE",
+            )
             return
         except HistoricalRequestScopeViolation as exc:
             actual_start = min((bar.bar_date for bar in bars), default=None)
@@ -572,12 +622,31 @@ def _execute_plan_item(
                 boundary_status="NOT_EVALUATED",
                 provider_result=exc.classification,
                 provider_error_code=exc.code,
+                provider_error_category=exc.classification,
                 provider_error_message=exc.provider_message,
+                retryable=exc.retryable,
             )
-            if exc.classification == "PROVIDER_REJECTED" or attempt >= settings.ib_max_retries:
+            _record_historical_failure(
+                fetch_item,
+                plan_item,
+                attempt=attempt,
+                category=exc.classification,
+                code=exc.code,
+                message=exc.provider_message,
+                retryable=exc.retryable,
+                elapsed_seconds=request_duration,
+            )
+            if not exc.retryable or attempt >= settings.ib_max_retries:
                 _mark_failed(fetch_item, str(exc))
                 return
             fetch_item.error_message = _safe_message(str(exc))
+            _record_retry_scheduled(
+                plan_item,
+                fetch_item,
+                attempt=attempt,
+                category=exc.classification,
+                backoff_seconds=settings.ib_backoff_seconds * max(1, attempt),
+            )
             if isinstance(rate_limiter, IbHistoricalRateLimiter):
                 retry_ready = rate_limiter.backoff_after_error(exc, attempt, should_cancel)
             else:
@@ -595,7 +664,19 @@ def _execute_plan_item(
                 scope=scope,
                 boundary_status="NOT_EVALUATED",
                 provider_result=provider_result,
+                provider_error_category=provider_result,
                 provider_error_message=_safe_message(str(exc)),
+                retryable=attempt < settings.ib_max_retries,
+            )
+            _record_historical_failure(
+                fetch_item,
+                plan_item,
+                attempt=attempt,
+                category=provider_result,
+                code=None,
+                message=str(exc),
+                retryable=attempt < settings.ib_max_retries,
+                elapsed_seconds=request_duration,
             )
             fetch_item.error_message = _safe_message(str(exc))
             if attempt >= settings.ib_max_retries:
@@ -604,6 +685,13 @@ def _execute_plan_item(
             if should_cancel and should_cancel():
                 _mark_skipped(fetch_item, "Cancellation requested before IB retry.")
                 return
+            _record_retry_scheduled(
+                plan_item,
+                fetch_item,
+                attempt=attempt,
+                category=provider_result,
+                backoff_seconds=settings.ib_backoff_seconds * max(1, attempt),
+            )
             if isinstance(rate_limiter, IbHistoricalRateLimiter):
                 backoff_completed = rate_limiter.backoff_after_error(
                     exc,
@@ -616,6 +704,168 @@ def _execute_plan_item(
             if not backoff_completed:
                 _mark_skipped(fetch_item, "Cancellation requested during IB retry backoff.")
                 return
+
+
+def _record_historical_failure(
+    fetch_item: IBFetchItem,
+    plan_item: FetchPlanItem,
+    *,
+    attempt: int,
+    category: str,
+    code: int | None,
+    message: str,
+    retryable: bool,
+    elapsed_seconds: float,
+) -> None:
+    safe_message = _safe_message(message)
+    log_event(
+        logger,
+        "ib.historical_request.failed",
+        level=logging.WARNING,
+        ticker=plan_item.ticker,
+        feed=plan_item.what_to_show,
+        fetch_run_id=fetch_item.fetch_run_id or getattr(fetch_item.fetch_run, "id", None),
+        fetch_item_id=fetch_item.id,
+        attempt=attempt,
+        provider_error_code=code,
+        provider_error_category=category,
+        provider_error_message=safe_message,
+        retryable=retryable,
+        elapsed_ms=round(max(0.0, elapsed_seconds) * 1000, 3),
+    )
+    operational_metrics.increment(
+        "swinglens_ib_historical_requests_total",
+        feed=plan_item.what_to_show,
+        result="failed",
+        error_category=category,
+    )
+
+
+def _record_retry_scheduled(
+    plan_item: FetchPlanItem,
+    fetch_item: IBFetchItem,
+    *,
+    attempt: int,
+    category: str,
+    backoff_seconds: float,
+) -> None:
+    log_event(
+        logger,
+        "ib.historical_request.retry_scheduled",
+        ticker=plan_item.ticker,
+        feed=plan_item.what_to_show,
+        fetch_run_id=fetch_item.fetch_run_id or getattr(fetch_item.fetch_run, "id", None),
+        fetch_item_id=fetch_item.id,
+        attempt=attempt,
+        provider_error_category=category,
+        backoff_seconds=backoff_seconds,
+    )
+    operational_metrics.increment(
+        "swinglens_ib_historical_retries_total",
+        error_category=category,
+    )
+
+
+def _benchmark_observation(
+    fetch_item: IBFetchItem,
+    benchmark_symbols: tuple[str, ...],
+) -> dict[str, object] | None:
+    benchmarks = {symbol.strip().upper() for symbol in benchmark_symbols if symbol.strip()}
+    if fetch_item.ticker.upper() not in benchmarks or not fetch_item.attempt_count:
+        return None
+    metadata = fetch_item.decision_metadata_json or {}
+    return {
+        "ticker": fetch_item.ticker.upper(),
+        "feed": fetch_item.what_to_show,
+        "status": fetch_item.status,
+        "provider_error_category": metadata.get("provider_error_category"),
+        "provider_error_code": metadata.get("provider_error_code"),
+        "provider_error_message": metadata.get("provider_error_message"),
+        "observed_at": (fetch_item.completed_at or datetime.now(UTC)).isoformat(),
+    }
+
+
+def _should_open_historical_circuit(
+    evidence: list[dict[str, object]],
+    plan_items: list[FetchPlanItem],
+    benchmark_symbols: tuple[str, ...],
+) -> bool:
+    benchmarks = {symbol.strip().upper() for symbol in benchmark_symbols if symbol.strip()}
+    if len(benchmarks) < 2:
+        return False
+    required = {
+        (item.ticker.upper(), item.what_to_show)
+        for item in plan_items
+        if item.ticker.upper() in benchmarks and item.estimated_request_count > 0
+    }
+    observed = {(str(row["ticker"]), str(row["feed"])) for row in evidence}
+    if not required or not required.issubset(observed):
+        return False
+    relevant = [row for row in evidence if (str(row["ticker"]), str(row["feed"])) in required]
+    if {str(row["ticker"]) for row in relevant} != benchmarks:
+        return False
+    if any(row["status"] == "SUCCESS" for row in relevant):
+        return False
+    if any(row["status"] != "FAILED" for row in relevant):
+        return False
+    categories = {str(row["provider_error_category"]) for row in relevant}
+    return len(categories) == 1 and categories.issubset(SYSTEMIC_CIRCUIT_CATEGORIES)
+
+
+def _open_historical_circuit(
+    db: Session,
+    fetch_run: IBFetchRun,
+    remaining_items: list[FetchPlanItem],
+    evidence: list[dict[str, object]],
+) -> None:
+    reason = "IB_HISTORICAL_CIRCUIT_OPEN"
+    opened_at = datetime.now(UTC)
+    prevented = 0
+    for plan_item in remaining_items:
+        existing = _existing_fetch_item(db, fetch_run.id, plan_item)
+        if existing is not None and existing.status in {"SUCCESS", "FAILED", "SKIPPED"}:
+            continue
+        fetch_item = existing or _create_fetch_item(fetch_run, plan_item)
+        if existing is None:
+            db.add(fetch_item)
+        fetch_item.decision_metadata_json = _decision_metadata(
+            plan_item,
+            provider_result=reason,
+            provider_error_category="HISTORICAL_DATA_UNAVAILABLE",
+            retryable=False,
+        )
+        _mark_skipped(fetch_item, reason)
+        prevented += int(plan_item.estimated_request_count > 0)
+        _increment_run_totals(fetch_run, fetch_item)
+    circuit_evidence = {
+        "reason": reason,
+        "opened_at": opened_at.isoformat(),
+        "benchmark_evidence": evidence,
+        "prevented_request_count": prevented,
+    }
+    fetch_run.decision_counts_json = {
+        **(fetch_run.decision_counts_json or {}),
+        "historical_circuit": circuit_evidence,
+    }
+    fetch_run.status = "FAILED"
+    fetch_run.completed_at = opened_at
+    fetch_run.message = (
+        f"{reason}: systemic benchmark historical-data failure; "
+        f"prevented {prevented} additional provider requests."
+    )
+    log_event(
+        logger,
+        "ib.historical_circuit.opened",
+        level=logging.ERROR,
+        fetch_run_id=fetch_run.id,
+        reason=reason,
+        benchmark_evidence=evidence,
+        prevented_request_count=prevented,
+    )
+    operational_metrics.increment(
+        "swinglens_ib_historical_circuit_opens_total",
+        reason=reason,
+    )
 
 
 def _add_duration(performance: dict[str, float], name: str, started_at: float) -> None:
@@ -790,7 +1040,9 @@ def _decision_metadata(
     boundary_status: str | None = None,
     provider_result: str | None = None,
     provider_error_code: int | None = None,
+    provider_error_category: str | None = None,
     provider_error_message: str | None = None,
+    retryable: bool | None = None,
 ) -> dict[str, object]:
     effective_action = action or plan_item.action
     latest_current = _latest_date_current(plan_item.latest_bar_date, stale_after_days=0)
@@ -822,7 +1074,9 @@ def _decision_metadata(
         "boundary_status": boundary_status,
         "provider_result": provider_result,
         "provider_error_code": provider_error_code,
+        "provider_error_category": provider_error_category,
         "provider_error_message": provider_error_message,
+        "retryable": retryable,
         "decision_category": _decision_category(
             effective_action,
             latest_current=latest_current,

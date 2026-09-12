@@ -203,6 +203,93 @@ def test_fetch_daily_bars_surfaces_ib_error_callback_321() -> None:
     assert "End date not supported" in raised.value.provider_message
 
 
+def test_fetch_daily_bars_ignores_informational_2106_callback() -> None:
+    class FakeEvent:
+        def __init__(self) -> None:
+            self.handlers = []
+
+        def __iadd__(self, handler):
+            self.handlers.append(handler)
+            return self
+
+        def __isub__(self, handler):
+            self.handlers.remove(handler)
+            return self
+
+        def emit(self, *args):
+            for handler in list(self.handlers):
+                handler(*args)
+
+    class InformationalIB:
+        def __init__(self) -> None:
+            self.errorEvent = FakeEvent()
+
+        def reqHistoricalData(self, *args, **kwargs):
+            self.errorEvent.emit(
+                -1,
+                2106,
+                "HMDS data farm connection is OK:ushmds",
+                args[0],
+            )
+            return [
+                SimpleNamespace(
+                    date="20260911",
+                    open=10,
+                    high=12,
+                    low=9,
+                    close=11,
+                    volume=1000,
+                )
+            ]
+
+    bars = fetch_daily_bars(
+        InformationalIB(),
+        Contract(symbol="SPY", conId=756733),
+        "TRADES",
+        settings=Settings(),
+        duration="7 D",
+        bar_size="1 day",
+        end_datetime="20260911-23:59:59",
+    )
+
+    assert len(bars) == 1
+
+
+@pytest.mark.parametrize(
+    ("feed", "end_datetime"),
+    [("ADJUSTED_LAST", ""), ("TRADES", "20260911-23:59:59")],
+)
+def test_known_good_spy_request_shapes_are_unchanged(feed: str, end_datetime: str) -> None:
+    class CapturingIB:
+        def __init__(self) -> None:
+            self.request = None
+
+        def reqHistoricalData(self, *_args, **kwargs):
+            self.request = kwargs
+            return []
+
+    ib = CapturingIB()
+    fetch_daily_bars(
+        ib,
+        Contract(symbol="SPY", conId=756733),
+        feed,
+        settings=Settings(ib_use_rth=True),
+        duration="7 D",
+        bar_size="1 day",
+        end_datetime=end_datetime,
+    )
+
+    assert ib.request == {
+        "endDateTime": end_datetime,
+        "durationStr": "7 D",
+        "barSizeSetting": "1 day",
+        "whatToShow": feed,
+        "useRTH": True,
+        "formatDate": 1,
+        "keepUpToDate": False,
+    }
+
+
 def test_cached_contract_to_ib_rebuilds_resolved_contract() -> None:
     row = IBContract(
         ticker="MSFT",
