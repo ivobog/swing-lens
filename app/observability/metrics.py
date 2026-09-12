@@ -225,6 +225,9 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     "swinglens_worker_heartbeat_age_seconds": _gauge(
         "Worker heartbeat age.", ("worker_id",), "seconds"
     ),
+    "swinglens_worker_quiesce_ack_latency_seconds": _histogram(
+        "Latency from a durable quiesce request to the worker acknowledgement."
+    ),
     "swinglens_worker_rss_bytes": _gauge("Worker resident memory.", ("worker_id",), "bytes"),
     "swinglens_worker_private_bytes": _gauge("Worker private memory.", ("worker_id",), "bytes"),
     "swinglens_worker_memory_bytes": _gauge("Worker memory measurement.", ("worker_id",), "bytes"),

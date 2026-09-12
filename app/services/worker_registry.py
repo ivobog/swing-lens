@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.tables import BackgroundWorker
 from app.observability.db_monitor import get_database_monitor
 from app.observability.resource_sampler import process_sampler_status
+from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_queue import job_queue_class, normalize_worker_queues
 from app.services.process_identity import process_started_at
 
@@ -129,10 +130,20 @@ def heartbeat_worker(
     )
     observed_at = now or datetime.now(UTC)
     worker.heartbeat_at = observed_at
-    if worker.quiesce_requested_at is not None:
+    if worker.quiesce_requested_at is not None and worker.quiesced_at is None:
         worker.quiesced_at = observed_at
+        requested_at = worker.quiesce_requested_at
+        if requested_at.tzinfo is None:
+            requested_at = requested_at.replace(tzinfo=UTC)
+        publish_after_commit(
+            db,
+            "observe",
+            "swinglens_worker_quiesce_ack_latency_seconds",
+            max(0.0, (observed_at - requested_at).total_seconds()),
+        )
     else:
-        worker.quiesced_at = None
+        if worker.quiesce_requested_at is None:
+            worker.quiesced_at = None
     if instance_id is not None:
         worker.instance_id = instance_id
     if rss_bytes is not None:

@@ -39,9 +39,11 @@ from app.services.lifecycle_control import (
     update_lifecycle_metrics,
 )
 from app.services.lifecycle_quiesce import (
+    WorkerQuiesceIdentityConflict,
     blocking_jobs,
     request_worker_quiesce,
     resume_worker_claims,
+    worker_quiesce_identity,
 )
 from app.services.lifecycle_safety import (
     LifecycleConflict,
@@ -673,35 +675,153 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
         connect_args={"connect_timeout": settings.database_connect_timeout_seconds},
     )
     try:
+        worker_processes = [row for row in _role_processes() if row["role"] == "worker"]
         with Session(engine) as db:
             if resume:
                 resumed = resume_worker_claims(db, settings.job_worker_id)
                 db.commit()
                 return {"reachable": True, "resumed": resumed}
-            worker = request_worker_quiesce(db, settings.job_worker_id)
+            observed_worker = db.get(BackgroundWorker, settings.job_worker_id)
+            expected_identity = (
+                worker_quiesce_identity(observed_worker) if observed_worker is not None else None
+            )
+            worker = request_worker_quiesce(
+                db,
+                settings.job_worker_id,
+                expected_identity=expected_identity,
+            )
             db.commit()
-            if worker is not None:
-                db.refresh(worker)
+            fence_committed_at = datetime.now(UTC)
+            db.expire_all()
+            worker = db.get(BackgroundWorker, settings.job_worker_id)
             active = blocking_jobs(db)
             now = datetime.now(UTC)
-            process_roles = {row["role"] for row in _role_processes()}
-            # A failed startup may have WEB/SUPERVISOR alive but no worker able
-            # to acknowledge quiesce. With zero active business jobs, absence
-            # of a worker process is itself a safe, deterministic acknowledgement.
-            absent_is_safe = "worker" not in process_roles and not active
+            current_identity = worker_quiesce_identity(worker) if worker is not None else None
+            identity_unchanged = current_identity == expected_identity
+            process_identity_valid = _worker_process_matches_registration(worker, worker_processes)
+            worker_identity_valid = identity_unchanged and process_identity_valid
+            requested_at = worker.quiesce_requested_at if worker is not None else None
+            acknowledged_at = worker.quiesced_at if worker is not None else None
+            stopping_at = worker.stopping_at if worker is not None else None
+            # A missing registration is fail-closed in claim_next_job: without the
+            # row a worker cannot claim. Preserve the existing dead-worker fail-safe
+            # only when process inspection also proves that no worker exists.
+            no_registered_claimant = worker is None and not worker_processes
+            durable_row_fence = bool(
+                worker is not None
+                and identity_unchanged
+                and (requested_at is not None or stopping_at is not None)
+            )
+            claim_fence_established = durable_row_fence or no_registered_claimant
+            worker_acknowledged = bool(
+                requested_at is not None
+                and acknowledged_at is not None
+                and _as_utc(acknowledged_at) >= _as_utc(requested_at)
+            )
+            safe_to_stop = bool(claim_fence_established and not active and worker_identity_valid)
+            if active:
+                reason_code = "ACTIVE_LEASE_BLOCKS_STOP"
+            elif not worker_identity_valid:
+                reason_code = "WORKER_IDENTITY_CONFLICT"
+            elif not claim_fence_established:
+                reason_code = "CLAIM_FENCE_NOT_ESTABLISHED"
+            elif not worker_acknowledged:
+                reason_code = "QUIESCE_SAFE_WITHOUT_WORKER_ACK"
+            else:
+                reason_code = "CLAIM_FENCE_ESTABLISHED"
             return {
                 "reachable": True,
                 "workerPresent": worker is not None,
-                "requested": worker is not None and worker.quiesce_requested_at is not None,
-                "acknowledged": absent_is_safe
-                or (worker is not None and worker.quiesced_at is not None),
+                "workerProcessPresent": bool(worker_processes),
+                "workerInstanceId": worker.instance_id if worker is not None else None,
+                "workerGeneration": worker.generation if worker is not None else None,
+                "workerPid": worker.process_id if worker is not None else None,
+                "workerHeartbeatAt": _iso(worker.heartbeat_at if worker is not None else None),
+                "workerHeartbeatAgeSeconds": _age_seconds(
+                    worker.heartbeat_at if worker is not None else None, now
+                ),
+                "controlLoopHeartbeatAt": _iso(
+                    worker.control_loop_heartbeat_at if worker is not None else None
+                ),
+                "controlLoopHeartbeatAgeSeconds": _age_seconds(
+                    worker.control_loop_heartbeat_at if worker is not None else None, now
+                ),
+                "quiesceRequestedAt": _iso(requested_at),
+                "claimFenceEstablishedAt": (
+                    fence_committed_at.isoformat() if claim_fence_established else None
+                ),
+                "quiescedAt": _iso(acknowledged_at),
+                "workerAcknowledgedAt": _iso(acknowledged_at),
+                "ackLatencySeconds": (
+                    max(
+                        0.0,
+                        (_as_utc(acknowledged_at) - _as_utc(requested_at)).total_seconds(),
+                    )
+                    if worker_acknowledged
+                    else None
+                ),
+                "safeToStopAt": now.isoformat() if safe_to_stop else None,
+                "requested": requested_at is not None,
+                "claimFenceEstablished": claim_fence_established,
+                "claimFenceKind": (
+                    "DURABLE_REGISTRATION_ROW"
+                    if durable_row_fence
+                    else ("NO_REGISTERED_CLAIMANT" if no_registered_claimant else None)
+                ),
+                "workerIdentityValid": worker_identity_valid,
+                "workerAcknowledged": worker_acknowledged,
+                "acknowledged": worker_acknowledged,
                 "activeCount": len(active),
                 "active": [_blocking_job_dict(row, now, settings) for row in active],
+                "safeToStop": safe_to_stop,
+                "reasonCode": reason_code,
             }
+    except WorkerQuiesceIdentityConflict as exc:
+        return {
+            "reachable": True,
+            "claimFenceEstablished": False,
+            "workerAcknowledged": False,
+            "activeCount": None,
+            "safeToStop": False,
+            "reasonCode": "WORKER_IDENTITY_CONFLICT",
+            "error": redact_text(str(exc)),
+        }
     except Exception as exc:
         return {"reachable": False, "error": redact_text(str(exc))}
     finally:
         engine.dispose()
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def _iso(value: datetime | None) -> str | None:
+    return _as_utc(value).isoformat() if value is not None else None
+
+
+def _age_seconds(value: datetime | None, now: datetime) -> float | None:
+    return max(0.0, (_as_utc(now) - _as_utc(value)).total_seconds()) if value else None
+
+
+def _worker_process_matches_registration(
+    worker: BackgroundWorker | None, processes: list[dict[str, object]]
+) -> bool:
+    if not processes:
+        return True
+    if worker is None or len(processes) != 1:
+        return False
+    process = processes[0]
+    if worker.process_id != process.get("pid") or worker.process_started_at is None:
+        return False
+    try:
+        process_started_at = datetime.fromisoformat(str(process["createdAt"]))
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        abs((_as_utc(worker.process_started_at) - _as_utc(process_started_at)).total_seconds())
+        <= 1.0
+    )
 
 
 def _blocking_job_dict(row: BackgroundJob, now: datetime, settings: Settings) -> dict[str, object]:

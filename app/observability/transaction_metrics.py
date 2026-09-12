@@ -31,6 +31,7 @@ COMMIT_DEPENDENT_METRICS = frozenset(
         "swinglens_job_stalls_total",
         "swinglens_job_progress_total",
         "swinglens_job_duration_seconds",
+        "swinglens_worker_quiesce_ack_latency_seconds",
         "swinglens_pipelines_started_total",
         "swinglens_pipelines_coalesced_total",
         "swinglens_pipelines_cancel_requested_total",

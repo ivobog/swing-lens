@@ -139,7 +139,7 @@ function Set-RuntimeGeneration {
 
 function Resolve-LifecycleReasonCode {
     param([string]$Message)
-    foreach ($code in @('RESTART_REQUIRED','CRASH_LOOP','DATABASE_PROVENANCE_MISMATCH','DATABASE_UNAVAILABLE','ALEMBIC_MISMATCH','FOREIGN_LISTENER','ACTIVE_LEASE_BLOCKS_STOP','CORE_READINESS_TIMEOUT','CONFIGURATION_CONFLICT','LIFECYCLE_LOCK_TIMEOUT')) {
+    foreach ($code in @('RESTART_REQUIRED','CRASH_LOOP','DATABASE_PROVENANCE_MISMATCH','DATABASE_UNAVAILABLE','ALEMBIC_MISMATCH','FOREIGN_LISTENER','ACTIVE_LEASE_BLOCKS_STOP','CLAIM_FENCE_NOT_ESTABLISHED','WORKER_IDENTITY_CONFLICT','QUIESCE_SAFE_WITHOUT_WORKER_ACK','CORE_READINESS_TIMEOUT','CONFIGURATION_CONFLICT','LIFECYCLE_LOCK_TIMEOUT')) {
         if ($Message -match $code) { return $code }
     }
     if ($Message -match '(?i)PostgreSQL.*(match|provenance)') { return 'DATABASE_PROVENANCE_MISMATCH' }
@@ -149,7 +149,7 @@ function Resolve-LifecycleReasonCode {
 }
 
 function Write-LifecycleJournal {
-    param([string]$Action, [string]$Stage, [string]$Event, [string]$Result, [string]$ReasonCode = 'NONE', [long]$DurationMs = 0, [string]$Message = '')
+    param([string]$Action, [string]$Stage, [string]$Event, [string]$Result, [string]$ReasonCode = 'NONE', [long]$DurationMs = 0, [string]$Message = '', [hashtable]$Details = @{})
     $payload = [ordered]@{
         operation_id = $env:SWINGLENS_LIFECYCLE_OPERATION_ID
         action = $Action
@@ -166,6 +166,7 @@ function Write-LifecycleJournal {
         pid = $PID
         message = Protect-SwingLensText $Message
     }
+    foreach ($key in $Details.Keys) { $payload[$key] = $Details[$key] }
     $null = Invoke-LifecycleProbe -Command 'journal' -Arguments @('--json', ($payload | ConvertTo-Json -Compress))
 }
 
@@ -420,20 +421,79 @@ function Stop-SwingLensObservability {
 
 function Request-WorkerQuiesce {
     param([int]$TimeoutSeconds = 20)
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    do {
-        $report = Invoke-LifecycleProbe -Command 'quiesce'
-        if (-not $report.reachable) { throw 'Cannot prove durable worker quiescence while the database is unavailable.' }
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $report = Invoke-LifecycleProbe -Command 'quiesce'
+    $timer.Stop()
+    if (-not $report.reachable) {
+        throw 'Cannot prove durable worker quiescence while the database is unavailable.'
+    }
+    $details = @{
+        quiesce_requested_at = $report.quiesceRequestedAt
+        claim_fence_established_at = $report.claimFenceEstablishedAt
+        worker_acknowledged_at = $report.workerAcknowledgedAt
+        worker_ack_latency_seconds = $report.ackLatencySeconds
+        safe_to_stop_at = $report.safeToStopAt
+        claim_fence_established = [bool]$report.claimFenceEstablished
+        worker_acknowledged = [bool]$report.workerAcknowledged
+        active_count = $report.activeCount
+        worker_instance_id = $report.workerInstanceId
+        worker_generation = $report.workerGeneration
+        worker_pid = $report.workerPid
+    }
+    if ([int]$report.activeCount -gt 0) {
+        $null = Invoke-LifecycleProbe -Command 'resume'
+        Write-LifecycleJournal -Action $env:SWINGLENS_LIFECYCLE_ACTION -Stage 'quiesce' -Event 'claim_fence_rejected' -Result 'failure' -ReasonCode 'ACTIVE_LEASE_BLOCKS_STOP' -DurationMs $timer.ElapsedMilliseconds -Details $details
+        $summary = @($report.active | ForEach-Object { '{0}:{1}:{2}:owner={3}:lease={4}:heartbeat_age={5}:reason={6}' -f $_.id, $_.job_type, $_.status, $_.lease_owner, $_.lease_expires_at, $_.heartbeat_age_seconds, $_.blocking_reason }) -join ', '
+        throw ('ACTIVE_LEASE_BLOCKS_STOP: active durable jobs prevent a safe stop: ' + $summary)
+    }
+    if (-not [bool]$report.safeToStop) {
+        $null = Invoke-LifecycleProbe -Command 'resume'
+        $reason = $(if ($report.reasonCode) { [string]$report.reasonCode } else { 'CLAIM_FENCE_NOT_ESTABLISHED' })
+        Write-LifecycleJournal -Action $env:SWINGLENS_LIFECYCLE_ACTION -Stage 'quiesce' -Event 'claim_fence_rejected' -Result 'failure' -ReasonCode $reason -DurationMs $timer.ElapsedMilliseconds -Details $details
+        throw ($reason + ': durable worker quiescence could not be proven; stop aborted and claims resumed.')
+    }
+    # Acknowledgement is diagnostic evidence, not the shutdown safety gate. Give
+    # the healthy heartbeat path one bounded interval to report it while
+    # continuously preserving the stronger fence/identity/active-job checks.
+    $ackDeadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while (-not [bool]$report.workerAcknowledged -and [DateTime]::UtcNow -lt $ackDeadline) {
+        Start-Sleep -Milliseconds 250
+        $next = Invoke-LifecycleProbe -Command 'quiesce'
+        if (-not $next.reachable) {
+            $null = Invoke-LifecycleProbe -Command 'resume'
+            throw 'Cannot revalidate durable worker quiescence while the database is unavailable; stop aborted and claims resumed.'
+        }
+        $report = $next
         if ([int]$report.activeCount -gt 0) {
             $null = Invoke-LifecycleProbe -Command 'resume'
-            $summary = @($report.active | ForEach-Object { '{0}:{1}:{2}:owner={3}:lease={4}:heartbeat_age={5}:reason={6}' -f $_.id, $_.job_type, $_.status, $_.lease_owner, $_.lease_expires_at, $_.heartbeat_age_seconds, $_.blocking_reason }) -join ', '
-            throw ('ACTIVE_LEASE_BLOCKS_STOP: active durable jobs prevent a safe stop: ' + $summary)
+            throw 'ACTIVE_LEASE_BLOCKS_STOP: an active durable job appeared during quiescence; stop aborted and claims resumed.'
         }
-        if ($report.acknowledged) { return }
-        Start-Sleep -Milliseconds 250
-    } while ([DateTime]::UtcNow -lt $deadline)
-    $null = Invoke-LifecycleProbe -Command 'resume'
-    throw 'Worker did not acknowledge durable quiesce before timeout; stop aborted and claims resumed.'
+        if (-not [bool]$report.safeToStop) {
+            $null = Invoke-LifecycleProbe -Command 'resume'
+            $reason = $(if ($report.reasonCode) { [string]$report.reasonCode } else { 'CLAIM_FENCE_NOT_ESTABLISHED' })
+            throw ($reason + ': durable worker quiescence changed during acknowledgement observation; stop aborted and claims resumed.')
+        }
+    }
+    $details = @{
+        quiesce_requested_at = $report.quiesceRequestedAt
+        claim_fence_established_at = $report.claimFenceEstablishedAt
+        worker_acknowledged_at = $report.workerAcknowledgedAt
+        worker_ack_latency_seconds = $report.ackLatencySeconds
+        safe_to_stop_at = $report.safeToStopAt
+        claim_fence_established = [bool]$report.claimFenceEstablished
+        worker_acknowledged = [bool]$report.workerAcknowledged
+        active_count = $report.activeCount
+        worker_instance_id = $report.workerInstanceId
+        worker_generation = $report.workerGeneration
+        worker_pid = $report.workerPid
+    }
+    if (-not [bool]$report.workerAcknowledged) {
+        Write-Warning 'QUIESCE_SAFE_WITHOUT_WORKER_ACK: the committed claim fence and zero blocking jobs prove shutdown safety, but the worker acknowledgement is missing.'
+        Write-LifecycleJournal -Action $env:SWINGLENS_LIFECYCLE_ACTION -Stage 'quiesce' -Event 'worker_acknowledgement_degraded' -Result 'warning' -ReasonCode 'QUIESCE_SAFE_WITHOUT_WORKER_ACK' -DurationMs $timer.ElapsedMilliseconds -Details $details
+    }
+    Write-LifecycleJournal -Action $env:SWINGLENS_LIFECYCLE_ACTION -Stage 'quiesce' -Event 'claim_fence_established' -Result 'success' -ReasonCode ([string]$report.reasonCode) -DurationMs $timer.ElapsedMilliseconds -Details $details
+    Write-Host ('Worker quiescence: ' + ($report | ConvertTo-Json -Depth 8 -Compress))
+    return $report
 }
 
 function Wait-PortReleased {
@@ -457,6 +517,7 @@ function Wait-ProcessExit {
 }
 
 function Stop-RegisteredRemainders {
+    param([ref]$ShutdownCommitted)
     $processReport = Invoke-LifecycleProbe -Command 'processes'
     foreach ($role in @('supervisor','worker')) {
         $matching = @($processReport.processes | Where-Object { $_.role -eq $role })
@@ -464,6 +525,7 @@ function Stop-RegisteredRemainders {
         if ($matching.Count -eq 1) {
             $signal = Invoke-LifecycleProbe -Command 'signal-registered' -Arguments @('--role', $role)
             if (-not $signal.signaled) { throw ('CONFLICT: ' + $signal.error) }
+            if ($null -ne $ShutdownCommitted) { $ShutdownCommitted.Value = $true }
             if (-not (Wait-ProcessExit -ProcessId ([int]$signal.pid))) {
                 throw ("Verified {0} PID {1} did not exit; no forced PID-only kill was attempted." -f $role, $signal.pid)
             }
@@ -472,7 +534,7 @@ function Stop-RegisteredRemainders {
 }
 
 function Stop-SwingLensCore {
-    param($Config)
+    param($Config, [ref]$ShutdownCommitted)
     $owner = Get-WebOwner -Port ([int]$Config.web.port)
     if ($null -eq $owner) {
         if (Test-Path -LiteralPath $script:RuntimeStatePath) {
@@ -484,12 +546,13 @@ function Stop-SwingLensCore {
     $runtime = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
     $signal = Invoke-LifecycleProbe -Command 'signal-break' -Arguments @('--pid', [string]$runtime.state.web.pid, '--listener-pid', [string]$owner.ProcessId)
     if (-not $signal.signaled) { throw ('CONFLICT: verified runtime was not signaled: ' + $signal.error) }
+    if ($null -ne $ShutdownCommitted) { $ShutdownCommitted.Value = $true }
     Wait-PortReleased -Port ([int]$Config.web.port)
     $supervisorPid = [int]$runtime.state.supervisor.pid
     if (-not (Wait-ProcessExit -ProcessId $supervisorPid)) {
         throw ("Verified supervisor PID {0} did not exit after the graceful shutdown request; no forced PID-only kill was attempted." -f $supervisorPid)
     }
-    Stop-RegisteredRemainders
+    Stop-RegisteredRemainders -ShutdownCommitted $ShutdownCommitted
     $ports = @([int]$Config.web.port)
     if ([bool]$Config.metrics.enabled) {
         if ([int]$Config.metrics.workerPort -gt 0) { $ports += [int]$Config.metrics.workerPort }
@@ -678,12 +741,16 @@ function Stop-SwingLensStack {
     $owner = Get-WebOwner -Port ([int]$Config.web.port)
     $roleProcesses = @((Invoke-LifecycleProbe -Command 'processes').processes | Where-Object { $_.role -in @('worker','supervisor') })
     if ($null -ne $owner -or $roleProcesses.Count -gt 0) {
-        Request-WorkerQuiesce
+        $shutdownCommitted = $false
         try {
-            if ($null -ne $owner) { Stop-SwingLensCore -Config $Config }
-            else { Stop-RegisteredRemainders }
+            $null = Request-WorkerQuiesce
+            if ($null -ne $owner) { Stop-SwingLensCore -Config $Config -ShutdownCommitted ([ref]$shutdownCommitted) }
+            else { Stop-RegisteredRemainders -ShutdownCommitted ([ref]$shutdownCommitted) }
         }
-        catch { $null = Invoke-LifecycleProbe -Command 'resume'; throw }
+        catch {
+            if (-not $shutdownCommitted) { $null = Invoke-LifecycleProbe -Command 'resume' }
+            throw
+        }
     }
     elseif (Test-Path -LiteralPath $script:RuntimeStatePath) { Stop-SwingLensCore -Config $Config }
     $null = Stop-SwingLensObservability

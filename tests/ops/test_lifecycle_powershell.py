@@ -193,6 +193,56 @@ def test_database_failure_with_live_background_role_fails_stop_closed(role) -> N
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_committed_fence_with_zero_jobs_proceeds_without_worker_ack() -> None:
+    command = _module_command(
+        "$script:events=@(); $env:SWINGLENS_LIFECYCLE_ACTION='stop'; "
+        "function Write-LifecycleJournal { "
+        "param($Action,$Stage,$Event,$Result,$ReasonCode,$DurationMs,$Message,$Details); "
+        "$script:events += $Event }; "
+        "function Invoke-LifecycleProbe { param($Command); if ($Command -eq 'quiesce') { "
+        "[pscustomobject]@{reachable=$true;requested=$true;claimFenceEstablished=$true;"
+        "workerAcknowledged=$false;safeToStop=$true;activeCount=0;active=@();"
+        "workerAcknowledgedAt=$null;ackLatencySeconds=$null;workerInstanceId='instance';"
+        "workerGeneration=3;workerPid=101;"
+        "reasonCode='QUIESCE_SAFE_WITHOUT_WORKER_ACK';quiesceRequestedAt='2026-09-12T10:50:00Z';"
+        "claimFenceEstablishedAt='2026-09-12T10:50:01Z';safeToStopAt='2026-09-12T10:50:01Z'} "
+        "} elseif ($Command -eq 'resume') { $script:events += 'resume' } }; "
+        "$report=Request-WorkerQuiesce -TimeoutSeconds 0; "
+        "[bool]$report.safeToStop; $script:events -join ','"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert "QUIESCE_SAFE_WITHOUT_WORKER_ACK" in result.stdout + result.stderr
+    assert "True" in result.stdout
+    assert "worker_acknowledgement_degraded,claim_fence_established" in result.stdout
+    assert "resume" not in result.stdout
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+@pytest.mark.parametrize("committed,expected_resumes", [(False, 1), (True, 0)])
+def test_stop_resumes_claims_only_before_shutdown_commit(
+    committed: bool, expected_resumes: int
+) -> None:
+    committed_literal = "$true" if committed else "$false"
+    command = _module_command(
+        "$script:resumes=0; "
+        "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000}}; "
+        "function Retire-DeadStaleRuntimeState {}; "
+        "function Get-WebOwner { [pscustomobject]@{ProcessId=101} }; "
+        "function Request-WorkerQuiesce {}; "
+        "function Invoke-LifecycleProbe { param($Command); if ($Command -eq 'processes') { "
+        "[pscustomobject]@{processes=@()} } elseif ($Command -eq 'resume') { "
+        "$script:resumes++ } }; "
+        "function Stop-SwingLensCore { param($Config,[ref]$ShutdownCommitted); "
+        f"$ShutdownCommitted.Value={committed_literal}; throw 'synthetic stop failure' }}; "
+        "try { Stop-SwingLensStack -Config $cfg } catch {}; $script:resumes"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == str(expected_resumes)
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
 @pytest.mark.parametrize("role", ["worker", "supervisor"])
 def test_web_gone_with_live_background_role_is_failed(role, tmp_path) -> None:
     missing_state = str(tmp_path / "missing-state.json").replace("'", "''")
