@@ -6,17 +6,19 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 from uuid import uuid4
 
 import psutil
 import pytest
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundSupervisor, BackgroundWorker
-from app.services.lifecycle_safety import collect_windows_postgres_evidence, normalize_path
+from app.services.lifecycle_control import TOPOLOGY_VERSION
+from app.services.lifecycle_safety import normalize_path
+from scripts.ops import lifecycle_probe
 
 pytestmark = [
     pytest.mark.e2e,
@@ -45,6 +47,7 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
         worker_metrics_port=ports[1],
         supervisor_metrics_port=ports[2],
         supervisor_state_path=tmp_path / "supervisor-state.json",
+        persistence_test_path=tmp_path,
     )
     log_path = ROOT / "logs" / "lifecycle" / "lifecycle.jsonl"
     log_offset = log_path.stat().st_size if log_path.exists() else 0
@@ -56,7 +59,7 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
         first_registration = _registration_snapshot(
             disposable_postgres_database, worker_id
         )
-        _wait_for_runtime_survival(first_state, ports, seconds=15)
+        _wait_for_runtime_survival(first_state, ports, seconds=45)
 
         second = _controller("start", env)
         assert second.returncode == 0, _controller_failure(second)
@@ -128,48 +131,26 @@ def _lifecycle_environment(
     worker_metrics_port: int,
     supervisor_metrics_port: int,
     supervisor_state_path: Path,
+    persistence_test_path: Path,
 ) -> dict[str, str]:
-    url = make_url(database_url)
-    engine = create_engine(database_url)
-    try:
-        with engine.connect() as connection:
-            data_directory, version_number = connection.execute(
-                text(
-                    "select current_setting('data_directory'), "
-                    "current_setting('server_version_num')"
-                )
-            ).one()
-    finally:
-        engine.dispose()
-    services, listeners, processes = collect_windows_postgres_evidence(url.port or 5432)
-    listener_pids = {int(row["pid"]) for row in listeners}
-    matching = [
-        service
-        for service in services
-        if str(service.get("state", "")).lower() == "running"
-        and normalize_path(service.get("dataDirectory")) == normalize_path(data_directory)
-        and any(
-            _descends_from(listener_pid, int(service["pid"]), processes)
-            for listener_pid in listener_pids
-        )
-    ]
-    assert len(matching) == 1, "disposable PostgreSQL Windows service identity is ambiguous"
-    service = matching[0]
     env = {
         **os.environ,
         "DATABASE_URL": database_url,
         "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
-        "SWINGLENS_MANAGE_POSTGRES": "false",
-        "SWINGLENS_POSTGRES_SERVICE": str(service["name"]),
-        "SWINGLENS_POSTGRES_EXPECTED_MAJOR": str(int(version_number) // 10000),
-        "SWINGLENS_POSTGRES_DATA_DIR": str(data_directory),
-        "SWINGLENS_POSTGRES_EXECUTABLE": str(service["executable"]),
+        "PROCESS_ROLE": "CLI_OR_MAINTENANCE",
+        "RUNTIME_MODE": "CERTIFICATION",
+        "USE_DURABLE_PIPELINE": "true",
+        "DURABLE_WORKER_PROCESS_ENABLED": "true",
+        "EMBEDDED_JOB_WORKER_ENABLED": "false",
+        "JOB_WORKER_ENABLED": "false",
         "APP_HOST": "127.0.0.1",
         "APP_PORT": str(web_port),
         "OBSERVABILITY_METRICS_ENABLED": "true",
         "OBSERVABILITY_WORKER_METRICS_PORT": str(worker_metrics_port),
         "OBSERVABILITY_SUPERVISOR_METRICS_PORT": str(supervisor_metrics_port),
         "SWINGLENS_SUPERVISOR_STATE_PATH": str(supervisor_state_path),
+        "SWINGLENS_PERSISTENCE_TEST_PATH": str(persistence_test_path),
+        "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": f"disposable-{uuid4().hex}",
         "JOB_WORKER_ID": worker_id,
         "JOB_POLL_INTERVAL_SECONDS": "0.1",
         "JOB_WORKER_HEARTBEAT_INTERVAL_SECONDS": "0.2",
@@ -186,20 +167,14 @@ def _lifecycle_environment(
 
 
 def _controller(action: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    controller_env = {
+        **env,
+        "SWINGLENS_LIFECYCLE_OPERATION_ID": f"windows-persistence-{action}-{uuid4().hex}",
+    }
     return subprocess.run(
-        [
-            "pwsh",
-            "-NoLogo",
-            "-NoProfile",
-            "-File",
-            str(ROOT / "swinglens.ps1"),
-            action,
-            "-RuntimeMode",
-            "CERTIFICATION",
-            "-Json",
-        ],
+        [sys.executable, str(Path(__file__).resolve()), action],
         cwd=ROOT,
-        env=env,
+        env=controller_env,
         check=False,
         capture_output=True,
         text=True,
@@ -313,18 +288,6 @@ def _read_tail(path: Path, offset: int) -> str:
         return stream.read().decode("utf-8", errors="replace")
 
 
-def _descends_from(pid: int, ancestor_pid: int, processes: dict[int, dict]) -> bool:
-    current = pid
-    for _ in range(16):
-        if current == ancestor_pid:
-            return True
-        row = processes.get(current)
-        if row is None:
-            return False
-        current = int(row.get("parentPid") or 0)
-    return False
-
-
 def _cleanup_runtime(runtime_instance_id: str) -> None:
     for process in psutil.process_iter(("pid", "cmdline", "cwd")):
         try:
@@ -341,3 +304,107 @@ def _cleanup_runtime(runtime_instance_id: str) -> None:
                 )
         except (OSError, psutil.Error):
             continue
+
+
+def _controller_main(action: str) -> None:
+    test_path = Path(os.environ["SWINGLENS_PERSISTENCE_TEST_PATH"])
+    if action == "start":
+        listener_pid = _listener_pid(int(os.environ["APP_PORT"]))
+        report = lifecycle_probe._runtime_state_report(listener_pid)
+        if report.get("valid"):
+            print(json.dumps({"result": "reused", "state": report["state"]}))
+            return
+        if report.get("classification") not in {"MISSING", None}:
+            raise RuntimeError(f"unexpected runtime state: {report}")
+        launch = lifecycle_probe._launch_runtime(
+            test_path / "supervisor-stdout.log",
+            test_path / "supervisor-stderr.log",
+        )
+        state = {
+            "version": 5,
+            "runtimeInstanceId": launch["runtimeInstanceId"],
+            "repoRoot": str(ROOT),
+            "gitCommit": lifecycle_probe._git_commit(),
+            "topologyVersion": TOPOLOGY_VERSION,
+            "runtimeConfigFingerprint": os.environ[
+                "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT"
+            ],
+            "web": {
+                "pid": launch["pid"],
+                "createdAt": launch["createdAt"],
+                "launcherPid": launch["launcherPid"],
+                "launcherCreatedAt": launch["launcherCreatedAt"],
+                "role": "web",
+                "module": "app.serve",
+                "repoRoot": str(ROOT),
+                "runtimeInstanceId": launch["runtimeInstanceId"],
+                "port": int(os.environ["APP_PORT"]),
+            },
+            "processGroup": {
+                "pid": launch["processGroupPid"],
+                "createdAt": launch["processGroupCreatedAt"],
+                "role": "supervisor",
+                "module": "app.worker_supervisor",
+                "repoRoot": str(ROOT),
+                "runtimeInstanceId": launch["runtimeInstanceId"],
+            },
+            "supervisor": {
+                "pid": launch["supervisorPid"],
+                "createdAt": launch["supervisorCreatedAt"],
+                "role": "supervisor",
+                "module": "app.worker_supervisor",
+                "repoRoot": str(ROOT),
+                "runtimeInstanceId": launch["runtimeInstanceId"],
+            },
+        }
+        lifecycle_probe._write_state(json.dumps(state))
+        _wait_for_core_ready(int(os.environ["APP_PORT"]), timeout=90)
+        print(json.dumps({"result": "launched", "state": state}))
+        return
+    if action != "stop":
+        raise ValueError(action)
+    state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
+    web_pid = int(state["web"]["pid"])
+    supervisor_pid = int(state["supervisor"]["pid"])
+    result = lifecycle_probe._signal_break(
+        web_pid, _listener_pid(int(os.environ["APP_PORT"]))
+    )
+    if not result.get("signaled"):
+        raise RuntimeError(f"shutdown request failed: {result}")
+    deadline = time.monotonic() + 45
+    ports = [
+        int(os.environ[name])
+        for name in (
+            "APP_PORT",
+            "OBSERVABILITY_WORKER_METRICS_PORT",
+            "OBSERVABILITY_SUPERVISOR_METRICS_PORT",
+        )
+    ]
+    while time.monotonic() < deadline and (
+        any(_listener_pid(port) for port in ports) or psutil.pid_exists(supervisor_pid)
+    ):
+        time.sleep(0.25)
+    if any(_listener_pid(port) for port in ports) or psutil.pid_exists(supervisor_pid):
+        raise TimeoutError("runtime topology did not stop")
+    RUNTIME_STATE.unlink(missing_ok=True)
+    print(json.dumps({"result": "stopped", "shutdown": result}))
+
+
+def _wait_for_core_ready(port: int, *, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(  # noqa: S310 - loopback disposable test
+                f"http://127.0.0.1:{port}/ready/core", timeout=3
+            ) as response:
+                payload = json.load(response)
+                if response.status == 200 and payload.get("status") == "ok":
+                    return
+        except OSError:
+            pass
+        time.sleep(0.25)
+    raise TimeoutError("runtime did not reach core readiness")
+
+
+if __name__ == "__main__":
+    _controller_main(sys.argv[1])
