@@ -75,6 +75,24 @@ def test_start_reuses_verified_healthy_web_for_idempotency() -> None:
     assert "use restart after reviewing status" in MODULE
 
 
+def test_windows_root_launch_detaches_and_breaks_away_from_controller() -> None:
+    assert "subprocess.CREATE_NEW_PROCESS_GROUP" in PROBE
+    assert "subprocess.DETACHED_PROCESS" in PROBE
+    assert "subprocess.CREATE_BREAKAWAY_FROM_JOB" in PROBE
+    assert "INSTANCE_SCOPED_SHUTDOWN_REQUEST" in PROBE
+
+
+def test_supervisor_records_terminal_cause_boundaries() -> None:
+    for event in (
+        "runtime.signal_received",
+        "runtime.shutdown_requested",
+        "runtime.shutdown_begin",
+        "runtime.shutdown_complete",
+        "runtime.fatal_exception",
+    ):
+        assert event in SUPERVISOR
+
+
 def test_disposable_postgres_compose_is_isolated_from_authoritative_endpoint() -> None:
     compose = yaml.safe_load((ROOT / "docker-compose.postgres-test.yml").read_text())
     assert compose["name"] == "swinglens-postgres-test"

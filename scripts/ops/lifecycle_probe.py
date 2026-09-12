@@ -34,6 +34,7 @@ from app.services.lifecycle_control import (
     configuration_provenance,
     redacted_tail,
     runtime_generation,
+    shutdown_request_path,
     supervisor_state_path,
     update_lifecycle_metrics,
 )
@@ -182,7 +183,14 @@ def _provenance_report() -> dict[str, object]:
 def _launch_runtime(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
     settings = _settings()
     runtime_instance_id = uuid4().hex
-    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    creationflags = (
+        subprocess.CREATE_NEW_PROCESS_GROUP
+        | subprocess.DETACHED_PROCESS
+        | subprocess.CREATE_BREAKAWAY_FROM_JOB
+        if os.name == "nt"
+        else 0
+    )
+    shutdown_request_path(ROOT, runtime_instance_id).unlink(missing_ok=True)
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
     with (
         stdout_path.open("ab", buffering=0) as stdout,
@@ -291,9 +299,9 @@ def _launch_runtime(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
         "createdAt": identity["createdAt"],
         "launcherPid": supervisor_identity["pid"],
         "launcherCreatedAt": supervisor_identity["createdAt"],
-        # CREATE_NEW_PROCESS_GROUP applies to the exact Popen PID.  On Windows
-        # the venv launcher may then create a real-interpreter child, so this
-        # identity is deliberately distinct from supervisorPid.
+        # Windows creation flags apply to the exact Popen PID. The venv launcher
+        # may then create a real-interpreter child, so this identity is
+        # deliberately distinct from supervisorPid.
         "processGroupPid": launcher["pid"],
         "processGroupCreatedAt": launcher["createdAt"],
         "runtimeInstanceId": runtime_instance_id,
@@ -835,8 +843,29 @@ def _signal_break(process_id: int, listener_pid: int | None) -> dict[str, object
                 "error": "runtime process-group identity changed during validation",
             }
         signal_pid = int(second_group["pid"])
-        os.kill(signal_pid, signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
-        return {"signaled": True, "signalPid": signal_pid}
+        if os.name == "nt":
+            supervisor = second["state"].get("supervisor") or second_group
+            request_path = shutdown_request_path(
+                ROOT, str(second["state"]["runtimeInstanceId"])
+            )
+            atomic_write_json(
+                request_path,
+                {
+                    "version": 1,
+                    "runtimeInstanceId": second["state"]["runtimeInstanceId"],
+                    "supervisorPid": int(supervisor["pid"]),
+                    "supervisorCreatedAt": supervisor["createdAt"],
+                    "requestedAt": datetime.now(UTC).isoformat(),
+                    "operationId": os.environ.get("SWINGLENS_LIFECYCLE_OPERATION_ID"),
+                },
+            )
+            return {
+                "signaled": True,
+                "signalPid": signal_pid,
+                "method": "INSTANCE_SCOPED_SHUTDOWN_REQUEST",
+            }
+        os.kill(signal_pid, signal.SIGTERM)
+        return {"signaled": True, "signalPid": signal_pid, "method": "SIGTERM"}
     except Exception as exc:
         return {"signaled": False, "error": redact_text(str(exc))}
 
@@ -1165,6 +1194,15 @@ def _diagnose(operation_id: str) -> dict[str, object]:
         "grafana-health.json": _http_json("http://127.0.0.1:3000/api/health"),
         "docker.json": _observability_report("status"),
     }
+    runtime_state = reports["runtime-state.json"]
+    runtime_instance_id = (
+        runtime_state.get("runtimeInstanceId") if isinstance(runtime_state, dict) else None
+    )
+    reports["shutdown-request.json"] = (
+        _read_json_file(shutdown_request_path(ROOT, str(runtime_instance_id)))
+        if runtime_instance_id
+        else None
+    )
     reports["status.json"] = {
         "lifecycleControllerVersion": LIFECYCLE_CONTROLLER_VERSION,
         "operationId": operation_id,

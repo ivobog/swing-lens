@@ -15,7 +15,11 @@ from app.database_safety import (
 )
 from app.services import lifecycle_control
 from app.services.canonical_runtime_launcher import build_canonical_runtime_launch
-from app.services.lifecycle_control import append_lifecycle_event, runtime_generation
+from app.services.lifecycle_control import (
+    append_lifecycle_event,
+    runtime_generation,
+    shutdown_request_path,
+)
 from app.services.readiness_service import ReadinessCheck, ReadinessService
 from app.services.supervisor_restart import RestartBudget
 from app.settings import Settings
@@ -248,6 +252,18 @@ def test_lifecycle_journal_is_append_only_bounded_and_redacted(tmp_path) -> None
     assert json.loads(lines[0])["reason_code"] == "DATABASE_UNAVAILABLE"
 
 
+def test_shutdown_request_path_is_instance_scoped_and_path_safe(tmp_path) -> None:
+    first = shutdown_request_path(tmp_path, "runtime/../first")
+    repeated = shutdown_request_path(tmp_path, "runtime/../first")
+    second = shutdown_request_path(tmp_path, "runtime-second")
+
+    assert first == repeated
+    assert first != second
+    assert first.parent == tmp_path / "data" / "cache" / "shutdown-requests"
+    assert first.name.endswith(".json")
+    assert "runtime" not in first.name
+
+
 def test_prometheus_three_of_three_uses_targets_api(monkeypatch) -> None:
     active = [
         {
@@ -356,6 +372,7 @@ def test_diagnostic_bundle_manifest_and_secret_scan(monkeypatch, tmp_path) -> No
     assert (bundle / "SUMMARY.md").is_file()
     manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
     assert "SUMMARY.md" in manifest["files"]
+    assert "shutdown-request.json" in manifest["files"]
     combined = "\n".join(
         path.read_text(encoding="utf-8", errors="replace") for path in bundle.iterdir()
     )

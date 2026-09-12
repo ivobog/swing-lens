@@ -57,6 +57,7 @@ class JsonLogFormatter(logging.Formatter):
             "event": event,
             "process_role": self.process_role,
             "process_id": os.getpid(),
+            "parent_process_id": os.getppid(),
             **context_fields(),
             **{
                 field: os.environ.get(env_name)
@@ -101,6 +102,9 @@ def log_event(
                 reason_code=safe_fields.get("reason_code"),
                 duration_ms=safe_fields.get("duration_ms"),
                 message=safe_fields.get("error") or safe_fields.get("message"),
+                signal_name=safe_fields.get("signal_name"),
+                signal_number=safe_fields.get("signal_number"),
+                shutdown_method=safe_fields.get("shutdown_method"),
             )
         except OSError:
             pass

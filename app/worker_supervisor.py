@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import signal
@@ -27,6 +28,7 @@ from app.services.background_job_service import (
 from app.services.lifecycle_control import (
     RUNTIME_FINGERPRINT_ENV,
     TOPOLOGY_VERSION,
+    shutdown_request_path,
     supervisor_state_path,
 )
 from app.services.lifecycle_safety import atomic_write_json
@@ -97,7 +99,27 @@ def main(argv: Sequence[str] | None = None) -> None:
     process_id = os.getpid()
     process_start = process_started_at(process_id)
 
-    def request_stop(_signum, _frame) -> None:
+    def request_stop(signum, _frame) -> None:
+        signal_name = signal.Signals(signum).name
+        log_event(
+            logger,
+            "runtime.signal_received",
+            stage="shutdown_request",
+            result="success",
+            reason_code="WINDOWS_CONSOLE_SIGNAL" if os.name == "nt" else "PROCESS_SIGNAL",
+            signal_name=signal_name,
+            signal_number=int(signum),
+        )
+        log_event(
+            logger,
+            "runtime.shutdown_requested",
+            stage="shutdown_request",
+            result="success",
+            reason_code="SIGNAL_RECEIVED",
+            shutdown_method="signal",
+            signal_name=signal_name,
+            signal_number=int(signum),
+        )
         stop.set()
 
     for name in ("SIGINT", "SIGTERM", "SIGBREAK"):
@@ -134,8 +156,27 @@ def main(argv: Sequence[str] | None = None) -> None:
         getattr(settings, "job_worker_heartbeat_timeout_seconds", 30)
         + getattr(settings, "job_watchdog_interval_seconds", 5)
     )
+    request_path = shutdown_request_path(Path(args.repo_root).resolve(), args.runtime_instance_id)
     try:
         while not stop.is_set():
+            request = _read_shutdown_request(
+            request_path,
+            runtime_instance_id=args.runtime_instance_id,
+            supervisor_pid=process_id,
+            supervisor_started_at=process_start,
+            )
+            if request is not None:
+                log_event(
+                    logger,
+                    "runtime.shutdown_requested",
+                    stage="shutdown_request",
+                    result="success",
+                    reason_code="LIFECYCLE_CONTROLLER_REQUEST",
+                    shutdown_method="instance_scoped_file",
+                    message=f"operation_id={request.get('operationId') or 'unknown'}",
+                )
+                stop.set()
+                break
             try:
                 owns_supervision = _acquire_or_heartbeat_supervisor(
                     worker_id=args.worker_id,
@@ -249,9 +290,14 @@ def main(argv: Sequence[str] | None = None) -> None:
                         worker_restarts=worker_restarts,
                     )
                 elif monotonic() >= ownership_deadline:
-                    logger.error(
+                    log_event(
+                        logger,
                         "runtime.supervisor.ownership_timeout",
-                        extra={"worker_id": args.worker_id, "process_id": process_id},
+                        level=logging.ERROR,
+                        stage="supervisor_ownership",
+                        result="failure",
+                        reason_code="SUPERVISOR_OWNERSHIP_LOST",
+                        worker_id=args.worker_id,
                     )
                     return
             except Exception:
@@ -273,7 +319,13 @@ def main(argv: Sequence[str] | None = None) -> None:
                 )
             stop.wait(settings.job_watchdog_interval_seconds)
     finally:
-        log_event(logger, "runtime.process_shutdown", stage="process_shutdown")
+        log_event(
+            logger,
+            "runtime.shutdown_begin",
+            stage="shutdown_begin",
+            result="started",
+            reason_code="SHUTDOWN_REQUESTED" if stop.is_set() else "MAIN_RETURNED",
+        )
         operational_metrics.set_gauge("swinglens_supervisor_up", 0)
         if owns_supervision:
             _shutdown_web(web, settings.worker_shutdown_grace_seconds)
@@ -291,6 +343,75 @@ def main(argv: Sequence[str] | None = None) -> None:
             sampler.stop()
         if metrics_server is not None:
             metrics_server.shutdown()
+        request_path.unlink(missing_ok=True)
+        log_event(
+            logger,
+            "runtime.shutdown_complete",
+            stage="shutdown_complete",
+            result="success",
+            reason_code="NONE",
+        )
+        log_event(logger, "runtime.process_shutdown", stage="process_shutdown", result="success")
+
+
+def _read_shutdown_request(
+    path: Path,
+    *,
+    runtime_instance_id: str,
+    supervisor_pid: int,
+    supervisor_started_at: datetime,
+) -> dict[str, object] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        logger.exception(
+            "runtime.shutdown_request_invalid",
+            extra={"reason_code": "INVALID_SHUTDOWN_REQUEST", "request_path": str(path)},
+        )
+        return None
+    if not isinstance(payload, dict):
+        return None
+    try:
+        requested_start = datetime.fromisoformat(
+            str(payload.get("supervisorCreatedAt") or "").replace("Z", "+00:00")
+        )
+    except ValueError:
+        requested_start = datetime.min.replace(tzinfo=UTC)
+    identity_mismatch = (
+        payload.get("runtimeInstanceId") != runtime_instance_id
+        or int(payload.get("supervisorPid") or 0) != supervisor_pid
+        or abs((requested_start - supervisor_started_at).total_seconds()) > 0.01
+    )
+    if identity_mismatch:
+        logger.error(
+            "runtime.shutdown_request_identity_mismatch",
+            extra={
+                "reason_code": "SHUTDOWN_REQUEST_IDENTITY_MISMATCH",
+                "requested_runtime_instance_id": payload.get("runtimeInstanceId"),
+                "requested_supervisor_pid": payload.get("supervisorPid"),
+                "requested_supervisor_created_at": payload.get("supervisorCreatedAt"),
+            },
+        )
+        return None
+    return payload
+
+
+def _main_with_fatal_observability(argv: Sequence[str] | None = None) -> None:
+    try:
+        main(argv)
+    except BaseException as exc:
+        log_event(
+            logger,
+            "runtime.fatal_exception",
+            level=logging.CRITICAL,
+            stage="process_fatal",
+            result="failure",
+            reason_code="UNHANDLED_SUPERVISOR_EXCEPTION",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        raise
 
 
 def _restart_budget(role: str, settings) -> RestartBudget:
@@ -849,4 +970,4 @@ def _worker_log_context(
 
 
 if __name__ == "__main__":
-    main()
+    _main_with_fatal_observability()

@@ -65,6 +65,9 @@ JOURNAL_FIELDS = frozenset(
         "service",
         "alembic_head",
         "message",
+        "signal_name",
+        "signal_number",
+        "shutdown_method",
         "recorded_git_sha",
         "recorded_fingerprint",
         "desired_git_sha",
@@ -254,6 +257,13 @@ def reason_code(error: BaseException | str) -> str:
 def supervisor_state_path(root: Path) -> Path:
     configured = os.environ.get(SUPERVISOR_STATE_ENV)
     return Path(configured) if configured else root / "data" / "cache" / "swinglens-supervisor.json"
+
+
+def shutdown_request_path(root: Path, runtime_instance_id: str) -> Path:
+    """Return an instance-scoped controller-to-supervisor shutdown request path."""
+
+    digest = hashlib.sha256(runtime_instance_id.encode("utf-8")).hexdigest()
+    return root / "data" / "cache" / "shutdown-requests" / f"{digest}.json"
 
 
 def _dotenv_keys(path: Path) -> set[str]:

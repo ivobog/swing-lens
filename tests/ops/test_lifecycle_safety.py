@@ -206,22 +206,44 @@ def test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt(
     assert lifecycle_probe._runtime_state_report(listener_pid=None)["stale"] is True
 
 
-def test_signal_break_targets_verified_process_group_not_inner_supervisor(monkeypatch) -> None:
+def test_stop_targets_verified_runtime_boundary(tmp_path, monkeypatch) -> None:
+    created_at = datetime.now(UTC).isoformat()
     report = {
         "valid": True,
-        "state": {"web": {"pid": 303}},
+        "state": {
+            "runtimeInstanceId": "runtime-a",
+            "web": {"pid": 303},
+            "supervisor": {"pid": 202, "createdAt": created_at},
+        },
         "actual": {"pid": 303},
         "launcher": {"pid": 202},
         "processGroup": {"pid": 101},
     }
     signals = []
+    request_path = tmp_path / "shutdown.json"
     monkeypatch.setattr(lifecycle_probe, "_runtime_state_report", lambda _listener: report)
     monkeypatch.setattr(lifecycle_probe.os, "kill", lambda pid, event: signals.append((pid, event)))
+    monkeypatch.setattr(
+        lifecycle_probe, "shutdown_request_path", lambda _root, _instance: request_path
+    )
 
     result = lifecycle_probe._signal_break(303, 303)
 
-    assert result == {"signaled": True, "signalPid": 101}
-    assert signals[0][0] == 101
+    if lifecycle_probe.os.name == "nt":
+        assert result == {
+            "signaled": True,
+            "signalPid": 101,
+            "method": "INSTANCE_SCOPED_SHUTDOWN_REQUEST",
+        }
+        request = read_runtime_state(request_path)
+        assert request is not None
+        assert request["runtimeInstanceId"] == "runtime-a"
+        assert request["supervisorPid"] == 202
+        assert request["supervisorCreatedAt"] == created_at
+        assert signals == []
+    else:
+        assert result == {"signaled": True, "signalPid": 101, "method": "SIGTERM"}
+        assert signals[0][0] == 101
 
 
 def test_listener_identity_uses_socket_owner_not_intermediate_windows_launcher(
