@@ -2,17 +2,18 @@
 
 ## 1. Executive verdict
 
-**NOT CERTIFIED.** The stopped-generation convergence defect described by the original report was
-remediated in `7d3a950d449581fea73fe1486449a0a52742ab24`. The calendar-sensitive certification
-fixture was subsequently repaired in `65d034311fe1658bc3ce8021c521839d88e0cc4e`, and exact-SHA
-canonical CI run `34667043222` is fully green, including Chromium and Firefox on the Saturday that
-originally exposed the defect. The final authorized real-machine attempt passed pre-start status and
-its first start, but the first runtime disappeared without a shutdown journal event immediately
-after the start command completed. The second required start therefore retired a dead generation
-and launched a different runtime instead of proving idempotence. The sequence stopped at that
-boundary; restart was not attempted. Diagnose and recovery convergence returned the machine to
-canonical `STOPPED`, with zero active jobs and PostgreSQL still running. All previous failed attempts
-below remain intact and traceable.
+**NOT CERTIFIED.** Stopped-generation convergence was remediated in `7d3a950d...`, the
+calendar-sensitive fixture in `65d0343...`, and the Windows command-boundary disappearance is now
+identified and remediated. Exact-SHA run `34672682068` proved cross-command survival, same-generation
+reuse, and lower-level graceful stop in Windows CI. The authorized machine persistence probe then
+proved that the original runtime survived beyond 45 seconds and that an independent second start
+reused it exactly. Its final stop exposed a narrower controller ordering race: after the new
+instance-scoped request had begun orderly shutdown, the controller invoked the obsolete console
+signal path before the supervisor finished. Commit `0267ebd...` waits for that verified supervisor
+exit and has local regression coverage, but the explicit no-retry rule prohibited a second machine
+probe or the full restart sequence. Diagnose and containment convergence returned the machine to
+canonical `STOPPED`, with zero active jobs and PostgreSQL still running. Every prior failed attempt
+below remains intact and traceable.
 
 ## 2. Original baseline
 
@@ -498,3 +499,137 @@ registration, heartbeat, journal, diagnostic, and observability state were writt
 Final verdict is **NOT CERTIFIED**. Exact-SHA canonical CI and the calendar repair are green, but the
 complete required real restart sequence lacks successful idempotent-start, restart, post-restart
 status/readiness, and running diagnose evidence from one uninterrupted bounded attempt.
+
+## 26. Windows runtime-persistence forensic remediation — 2026-09-12
+
+### Preserved evidence and process timeline
+
+The failed `e7df018a8f9847d19705bd6758daf78b` generation, operation IDs
+`8b9fdf3c-8f4c-43eb-b144-55059050ac5a` and
+`3dbc51c5-3ecd-4ee3-8875-442e1f6552a7`, and both requested diagnose bundles were inspected before
+production changes. The bundles remain at
+`artifacts/diagnostics/lifecycle-20260912T023725Z-fed26961-9d83-4d73-ad0e-2b35e962a5d3` and
+`artifacts/diagnostics/lifecycle-20260912T024003Z-b8d50614-f197-434a-b88e-5b7b6f2d1b52`.
+There is no `logs/lifecycle-supervisor.log`; the configured supervisor sink is
+`logs/lifecycle-supervisor.err.log`.
+
+All timestamps below are UTC. An unavailable value is recorded as unavailable rather than inferred.
+
+| PID | Role | Created | Parent / group | First heartbeat | Last heartbeat | Last role log / state / listener | Disappearance / exit |
+|---:|---|---|---|---|---|---|---|
+| `19928` | supervisor venv launcher / process-group root | `02:32:43.981` | parent unavailable; group `19928` | n/a | n/a | launcher-specific terminal record unavailable | absent by `02:34:45.909`; exit code unavailable |
+| `16424` | supervisor interpreter | `02:32:44.009816` | parent/group root `19928` | acquisition write `02:32:47.710` | overwritten registration makes the final heartbeat unrecoverable | last supervisor log `02:32:47.751`; the per-instance final supervisor-state write was not archived | absent by `02:34:45.909`; exit code unavailable |
+| `13568` | WEB venv launcher | creation timestamp unavailable | child of supervisor; child group root `13568` | n/a | n/a | launcher-specific terminal record unavailable | absent by `02:34:45.909`; exit code unavailable |
+| `13788` | WEB interpreter / listener | `02:32:47.728924` | parent/group launcher `13568` | n/a | n/a | final WEB log and final listener-backed scrape `02:34:22.009747`; no shutdown record | absent by `02:34:45.909`; exit code unavailable |
+| `10620` | worker venv launcher | creation timestamp unavailable | child of supervisor; child group root `10620` | n/a | n/a | launcher-specific terminal record unavailable | absent by `02:34:45.909`; exit code unavailable |
+| `25484` | durable worker interpreter | `02:32:47.763036` | parent/group launcher `10620` | registration/startup `02:32:56.598` | `02:34:21.045316` recovered from the next supervisor's worker-loss evidence | final worker role log `02:32:58.217516`; final per-instance supervisor-state write unavailable | absent before the next supervisor checked at `02:35:41.706`; exit code unavailable |
+
+The first controller operation completed successfully at `02:34:21.449062`. The independent second
+start began at `02:34:31.113357`, and its locked revalidation proved the entire old topology absent
+before retiring the state at `02:34:45.909236`. The old generation has no signal, shutdown-begin,
+process-shutdown, fatal-exception, ownership-timeout, Windows Error Reporting, Application, System,
+Defender, or Code Integrity record. Security process-termination auditing was not readable without
+elevation, so no claim is made from that unavailable source.
+
+### Minimal lifetime and Windows containment evidence
+
+`scripts/qa/windows_process_lifetime_harness.py` reproduces the actual boundary without using the
+business database. It records PID, parent PID, UTC creation time, heartbeats, console membership,
+`IsProcessInJob`, and `QueryInformationJobObject` limits. Command A ran through the same Codex PTY ->
+PowerShell -> Python chain and terminated before each independent Command B inspection.
+
+| Windows creation flags | Codex PTY result |
+|---|---|
+| `CREATE_NEW_PROCESS_GROUP` (old production behavior) | child died as Command A ended; only heartbeat sequence 1 was durable |
+| `CREATE_BREAKAWAY_FROM_JOB` | child died as Command A ended |
+| `CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS` | survived 15 seconds, then disappeared at approximately 37 seconds |
+| `CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB` | survived beyond 85 seconds and stopped only after an independent stop-file request |
+
+The launcher and child both reported job membership. The inspectable job limits were `0x3000`:
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE=true`, `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK=true`, and
+`JOB_OBJECT_LIMIT_BREAKAWAY_OK=false`. The successful combined child still reported membership in a
+job, consistent with a nested or persistent outer containment boundary; no job identity was
+available, so none is invented. The same old flags survived from a non-PTY shell, explaining why
+ordinary local tests did not reproduce the failure.
+
+This experiment identifies H1 as the cause: the inherited Codex PTY execution containment tears
+down descendants when its owning command boundary closes. In this environment, that cleanup was the
+terminating actor for `e7df018a...`. H2 is eliminated for that generation by the absence of a normal
+signal and orderly shutdown event. H3 was not evidenced; cycle failures were caught, and the new
+top-level wrapper now persists any future uncaught process failure. H4 is eliminated by the absence
+of `runtime.supervisor.ownership_timeout`, the old successful acquisition, and replacement
+acquisition only after the old topology was absent. H5 has no supporting OS event and remains
+unprovable from process-termination auditing that was not enabled/readable.
+
+### Remediation and permanent regression
+
+The root runtime now launches on Windows with the experimentally proven three-flag combination. It
+remains supervisor-rooted and retains strong runtime, repository, PID-creation-time, ancestry,
+listener, Git-SHA, and fingerprint validation.
+
+Because a detached runtime cannot safely accept `CTRL_BREAK_EVENT` from an unrelated later console,
+Windows `stop` now atomically writes a runtime-instance-scoped shutdown request containing the
+strongly revalidated supervisor PID and creation time plus the requesting operation ID. The
+supervisor rejects mismatched identity, performs its existing orderly WEB/worker shutdown, removes
+the request, and records shutdown-request/begin/complete/process-shutdown events. POSIX retains
+SIGTERM. Supervisor logging now also records parent PID, signal name/number, fatal top-level
+exceptions, and ownership timeout in the durable lifecycle journal without secrets.
+
+The Windows CI lane now includes
+`tests/e2e/test_windows_lifecycle_persistence.py`. Independent controller A launches the exact
+production root, reaches READY, and exits; controller B waits 45 seconds, verifies the same runtime,
+supervisor, WEB generation, worker/supervisor registration generations, no retirement and one leaf
+per role, then reuses it; controller C requests stop and proves all three ports and roles disappear.
+The PowerShell stop-order regression additionally requires the controller to wait for the strongly
+verified supervisor PID to exit before attempting legacy registered-remainder cleanup.
+
+Local gates after the main remediation passed 146 lifecycle-focused tests and 22 warnings; later
+focused sets passed 98, 56, and, after the real-machine stop-order fix, 102 tests with one dependency
+warning. Repository-wide Ruff and `git diff --check` passed. Four earlier CI iterations remain part
+of the evidence: Windows service-fixture assumption (`34671287025`), controller `PYTHONPATH`
+(`34671643050`), shutdown-evidence sink assertion (`34671952565`), and reserved logging field
+(`34672287388`). These were test/observability defects found while the core survival/reuse/port-stop
+behavior was already passing; each was corrected rather than hidden.
+
+The main runtime remediation SHA `d41f41ce88967333f3cb073fe92c750e5e68bce6` passed exact-SHA CI
+run `34672682068`: `Lint, Test, and Migration Gates`, `Chromium and Firefox Smoke`, and `Windows
+Durable Worker Recovery Gate` all succeeded. The final stop-order remediation SHA is
+`0267ebd554fefe804938fb96678238024c6a4560`; exact-SHA CI run `34674107533` is **SUCCESS**. `Lint,
+Test, and Migration Gates` passed in 14m59s, `Chromium and Firefox Smoke` in 2m52s, and the extended
+`Windows Durable Worker Recovery Gate` in 4m59s. The scheduled nightly job was correctly skipped.
+
+### Independent-command persistence probe and stop boundary
+
+After run `34672682068` was fully green, the small probe ran in `CERTIFICATION` mode, which disabled
+automatic Winner maturation/cohort refresh and market-data prewarm. It did not enqueue or execute a
+business job.
+
+| Command / operation | Result |
+|---|---|
+| preflight `status`, `3b50235a-bf1a-40a7-98e7-f0bd52886d61` | **PASS** — `STOPPED`, runtime state `MISSING`, schema at head, PostgreSQL 18.3 reachable, zero active jobs |
+| first `start`, `fdd6df2b-e2d1-4146-8a6a-da7aeeeafabc` | **PASS** — launcher exited normally; instance `647b5b407b2742f8a05d497c01c60f8f`, supervisor PID `23672`, WEB PID `26376`, worker PID `21668`, core/worker/observability ready; only the pre-existing 14.1% disk warning |
+| independent status after more than 45 seconds, `d18ba456-8eef-4401-ac39-d8e086dedebf` | **PASS** — original runtime remained healthy |
+| independent second `start`, `09a7ada0-a617-45eb-b155-465b17463e7b` | **PASS** — explicitly reused strongly verified WEB PID `26376`; same runtime/supervisor; restart counters remained zero; no stale retirement |
+| independent `stop`, `eefccdfe-40a1-4747-af11-2f6678dce3dc` | **FAIL** — the instance-scoped request was accepted and WEB/worker shut down, but the controller raced the still-exiting supervisor through legacy `signal-registered` and received WinError 87 |
+| required failure `diagnose`, `90bf47c3-321e-419d-9f6e-7e1734678644` | **PASS** — bundle `artifacts/diagnostics/lifecycle-20260912T044600Z-90bf47c3-321e-419d-9f6e-7e1734678644` |
+| read-only failure status, `e92ea660-65de-4ff4-9ac3-85db8acce687` | **PASS** — physical topology stopped, ports free, state safely `DEAD_STALE`, zero active jobs |
+| containment convergence stop, `95192646-f0ca-413a-9dde-6d7ad17ce95d` | **PASS** — retired the safely dead state and returned canonical `STOPPED`; PostgreSQL remained running |
+
+The stop failure is causally precise. At `04:45:03.349` the supervisor durably recorded the valid
+instance-scoped request and shutdown begin. WEB port 8000 released, worker PID `21668` recorded
+process shutdown at `04:45:12.600`, and then the old remainder path called cross-console
+`os.kill(..., CTRL_BREAK_EVENT)` before supervisor PID `23672` finished. That call failed at
+`04:45:19.177`. Commit `0267ebd...` now waits for the verified supervisor to finish before checking
+remainders, eliminating the race without forced PID-only termination.
+
+Per the explicit probe-failure rule, no restart or full bounded certification sequence was run and
+the persistence probe was not retried. Therefore the result remains **NOT CERTIFIED**, even though
+cross-command survival and exact-generation idempotent reuse passed and the newly discovered stop
+ordering defect is locally remediated. Certification requires a future explicitly authorized,
+single fresh persistence probe on the final SHA followed, only if it passes, by the one-shot bounded
+restart sequence.
+
+Final containment left WEB, SUPERVISOR, and DURABLE_WORKER absent; ports 8000/9101/9102 free;
+runtime state `MISSING`; zero active jobs; PostgreSQL 18.3 running on PID `6976`; and business data
+untouched. Only lifecycle registration, heartbeat, journal, log, diagnostic, and observability state
+was written during this task.
