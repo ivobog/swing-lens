@@ -170,6 +170,9 @@ def _controller(action: str, env: dict[str, str]) -> subprocess.CompletedProcess
     controller_env = {
         **env,
         "SWINGLENS_LIFECYCLE_OPERATION_ID": f"windows-persistence-{action}-{uuid4().hex}",
+        "PYTHONPATH": os.pathsep.join(
+            value for value in (str(ROOT), env.get("PYTHONPATH")) if value
+        ),
     }
     return subprocess.run(
         [sys.executable, str(Path(__file__).resolve()), action],
