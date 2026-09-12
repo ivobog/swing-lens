@@ -12,9 +12,17 @@ from app.models.tables import (
     WinnerTargetStopOutcome,
 )
 from app.services.winner_probability.cohort_definition import CohortKey
+from app.services.winner_probability.cohort_statistics import CohortStatisticsService
 from app.services.winner_probability.config import load_winner_probability_config
+from app.services.winner_probability.evidence_manifest_service import (
+    _hash_payload,
+    _manifest_payload,
+)
 from app.services.winner_probability.evidence_service import (
+    EvidenceOutcome,
     EvidenceService,
+    RunEvidenceCandidateUniverse,
+    _freeze_generation_member,
     _replay_lineage_is_reproducible,
 )
 from app.services.winner_probability.pre11_compatibility_service import _hash
@@ -185,6 +193,66 @@ def test_global_funnel_is_reused_for_same_immutable_cutoff_contract() -> None:
 
     assert first is second
     assert db.execute_count == 1
+
+
+def test_run_scoped_candidate_universe_is_exactly_equivalent_across_cutoffs() -> None:
+    config = load_winner_probability_config()
+    definition = _definition()
+    cohort = CohortKey(level="L5", dimensions={"global": "all"}, key="L5:test")
+    early_cutoff = datetime(2026, 7, 1, tzinfo=UTC)
+    late_cutoff = datetime(2026, 8, 1, tzinfo=UTC)
+    rows = [
+        _row(1, cutoff=datetime(2026, 5, 1, tzinfo=UTC)),
+        _row(2, cutoff=datetime(2026, 7, 15, tzinfo=UTC)),
+        _row(3, cutoff=datetime(2026, 5, 2, tzinfo=UTC)),
+    ]
+    rows[2][0].episode_id = rows[0][0].episode_id
+    optimized = EvidenceService()
+    optimized._run_candidate_universe = RunEvidenceCandidateUniverse(
+        outcome_definition_id=definition.id,
+        config_hash=config.config_hash,
+        feature_schema_version=config.feature_schema.version,
+        calculation_version=config.engine.calculation_version,
+        native_rows=tuple(EvidenceOutcome(*row) for row in rows),
+        compatibility_candidates=(),
+        temporal_decisions={},
+        lineage_price_bars={},
+        lineage_price_bar_revisions={},
+        load_seconds=0.001,
+    )
+
+    for prediction_id, cutoff in ((900, early_cutoff), (901, late_cutoff)):
+        current = _prediction(prediction_id, cutoff=cutoff)
+        old_funnel = EvidenceService().diagnostic_funnel(
+            EvidenceFakeDb(rows),
+            prediction=current,
+            outcome_definition=definition,
+            cohort_key=cohort,
+            training_cutoff_at=cutoff,
+            config=config,
+        )
+        new_funnel = optimized.diagnostic_funnel(
+            EvidenceFakeDb([]),
+            prediction=current,
+            outcome_definition=definition,
+            cohort_key=cohort,
+            training_cutoff_at=cutoff,
+            config=config,
+        )
+        old_frozen = tuple(_freeze_generation_member(row) for row in old_funnel.evidence)
+        new_frozen = tuple(_freeze_generation_member(row) for row in new_funnel.evidence)
+
+        assert old_funnel.stages == new_funnel.stages
+        assert old_frozen == new_frozen
+        assert _hash_payload(_manifest_payload(old_frozen)) == _hash_payload(
+            _manifest_payload(new_frozen)
+        )
+        assert CohortStatisticsService().calculate(
+            old_frozen, config
+        ) == CohortStatisticsService().calculate(new_frozen, config)
+
+    assert optimized.run_candidate_metrics()["evidence_load_count"] == 1
+    assert optimized.run_candidate_metrics()["cache_reuse_count"] == 2
 
 
 @pytest.mark.parametrize(

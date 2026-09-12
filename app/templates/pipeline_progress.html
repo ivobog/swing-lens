@@ -135,6 +135,14 @@
       <strong data-pipeline-current-item>{{ pipeline.current_item or "None" }}</strong>
     </div>
     <div class="metric">
+      <span>Active job stage</span>
+      <strong data-pipeline-progress-stage>{{ pipeline.progress_stage or "None" }}</strong>
+    </div>
+    <div class="metric">
+      <span>Last completed item</span>
+      <strong data-pipeline-last-completed-item>{{ pipeline.last_completed_item or "None" }}</strong>
+    </div>
+    <div class="metric">
       <span>Last progress</span>
       <strong data-pipeline-last-progress>{{ pipeline.last_progress_at or "None" }}</strong>
     </div>
@@ -248,7 +256,7 @@
             <td>{{ step.step_order }}</td>
             <td>{{ step.label }}</td>
             <td data-step-status>
-              <span class="badge badge-{{ 'success' if step.status in ['COMPLETED', 'SKIPPED'] else 'warning' if step.status in ['PENDING', 'RUNNING'] else 'danger' }}">
+              <span class="badge badge-{{ 'success' if step.status in ['COMPLETED', 'SKIPPED'] else 'warning' if step.status in ['PENDING', 'RUNNING', 'INTERRUPTED'] else 'danger' }}">
                 {{ step.status|replace("_", " ")|title }}
               </span>
             </td>

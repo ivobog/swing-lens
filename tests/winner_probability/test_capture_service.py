@@ -4,10 +4,16 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
+import pytest
 from _phase3_helpers import FakeWinnerRepository, build_run_context
 
 from app.models.tables import EntryDataStatus, PredictionEligibility, WinnerProbabilityEstimate
-from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
+from app.services.background_job_service import JobLeaseLost
+from app.services.process_memory import WorkerMemoryCritical
+from app.services.winner_probability.capture_service import (
+    WinnerPredictionCaptureCancelled,
+    WinnerPredictionCaptureService,
+)
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.feature_extractor import WinnerFeatureExtractor
 
@@ -255,6 +261,82 @@ def test_future_dated_required_feature_source_fails_capture() -> None:
 
     assert result.failed == 1
     assert repository.predictions == []
+
+
+def test_capture_reports_real_ticker_progress_contract() -> None:
+    config = load_winner_probability_config()
+    repository = FakeWinnerRepository(build_run_context())
+    events: list[dict[str, object]] = []
+
+    result = _capture_service(repository).capture_run(
+        object(),
+        run_id=7,
+        config=config,
+        progress_callback=lambda _db, **progress: events.append(progress),
+    )
+
+    assert result.inserted == 1
+    assert events == [
+        {
+            "stage": "CAPTURING_WINNER_PREDICTIONS",
+            "current_item": "MSFT",
+            "last_completed_item": None,
+            "processed": 0,
+            "total": 1,
+            "checkpoint_version": "winner-capture-v1:7:start",
+        },
+        {
+            "stage": "CAPTURING_WINNER_PREDICTIONS",
+            "current_item": None,
+            "last_completed_item": "MSFT",
+            "processed": 1,
+            "total": 1,
+            "checkpoint_version": "winner-capture-v1:7:MSFT",
+        },
+    ]
+
+
+def test_job_lease_loss_is_not_converted_to_ticker_failure() -> None:
+    repository = FakeWinnerRepository(build_run_context())
+
+    def lost_lease() -> bool:
+        raise JobLeaseLost("fenced")
+
+    with pytest.raises(JobLeaseLost, match="fenced"):
+        _capture_service(repository).capture_run(
+            object(),
+            run_id=7,
+            should_cancel=lost_lease,
+        )
+
+    assert repository.predictions == []
+
+
+def test_cancellation_is_not_converted_to_ticker_failure() -> None:
+    repository = FakeWinnerRepository(build_run_context())
+
+    with pytest.raises(WinnerPredictionCaptureCancelled):
+        _capture_service(repository).capture_run(
+            object(),
+            run_id=7,
+            should_cancel=lambda: True,
+        )
+
+    assert repository.predictions == []
+
+
+def test_critical_memory_signal_is_not_converted_to_ticker_failure() -> None:
+    repository = FakeWinnerRepository(build_run_context())
+
+    def critical_memory(*_args) -> None:
+        raise WorkerMemoryCritical("budget exceeded")
+
+    with pytest.raises(WorkerMemoryCritical, match="budget exceeded"):
+        _capture_service(repository).capture_run(
+            object(),
+            run_id=7,
+            memory_probe=critical_memory,
+        )
 
 
 def _capture_service(repository: FakeWinnerRepository) -> WinnerPredictionCaptureService:

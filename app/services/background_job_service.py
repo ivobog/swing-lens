@@ -8,7 +8,7 @@ from typing import Any
 from uuid import uuid4
 from weakref import WeakKeyDictionary
 
-from sqlalchemy import MetaData, Table, case, delete, insert, select, update
+from sqlalchemy import MetaData, Table, case, delete, insert, or_, select, update
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +19,8 @@ from app.models.tables import (
     BackgroundJobEnqueueAttempt,
     BackgroundJobFanoutRoot,
     BackgroundWorker,
+    PipelineRun,
+    PipelineStep,
     WinnerProcessingRun,
 )
 from app.observability.correlation import CausalityContext, enqueue_causality, workflow_family
@@ -807,6 +809,8 @@ def record_job_progress(
         if processed is not None and total < processed:
             raise ValueError("progress total cannot be less than processed work")
         values["progress_total"] = case(
+            (BackgroundJob.progress_stage != stage, total),
+            (BackgroundJob.progress_stage.is_(None), total),
             (BackgroundJob.progress_total.is_(None), total),
             (BackgroundJob.progress_total < total, total),
             else_=BackgroundJob.progress_total,
@@ -818,7 +822,13 @@ def record_job_progress(
         .where(BackgroundJob.execution_token == execution_token)
     )
     if only_if_advanced and processed is not None:
-        statement = statement.where(BackgroundJob.progress_processed < processed)
+        statement = statement.where(
+            or_(
+                BackgroundJob.progress_stage != stage,
+                BackgroundJob.progress_stage.is_(None),
+                BackgroundJob.progress_processed < processed,
+            )
+        )
     result = db.execute(statement.values(**values))
     if result.rowcount != 1:
         if only_if_advanced:
@@ -875,6 +885,7 @@ def fence_stalled_jobs(
             "CAPTURING_CERI",
             "CAPTURING_SETUP_LIFECYCLE",
             "EVALUATING_SETUP_LIFECYCLE",
+            "CAPTURING_WINNER_PREDICTIONS",
         }:
             timeout = long_stage_timeout_seconds
         else:
@@ -922,6 +933,7 @@ def fence_stalled_jobs(
             logger.info("job.watchdog.decision %s", decision_context, extra=decision_context)
             continue
         old_token = job.execution_token
+        _interrupt_fenced_pipeline_steps(db, job, observed_at=observed_at)
         job.status = JobStatus.STALLED
         job.stall_detected_at = observed_at
         decision = "STALL_PROGRESS_SEQUENCE_FROZEN"
@@ -960,6 +972,62 @@ def fence_stalled_jobs(
         publish_after_commit(db, "increment", "swinglens_job_stalls_total", job_type=job.job_type)
     db.flush()
     return fenced
+
+
+def _interrupt_fenced_pipeline_steps(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    observed_at: datetime,
+) -> None:
+    """Make pipeline step state agree with the fenced execution owner.
+
+    Background-job attempt history remains authoritative.  The compact step
+    history retained here prevents the single current-state row from erasing
+    the abandoned attempt when automatic replay starts.
+    """
+    if job.job_type != "FULL_PIPELINE":
+        return
+    raw_pipeline_id = (job.payload_json or {}).get("pipeline_run_id")
+    try:
+        pipeline_id = int(raw_pipeline_id)
+    except (TypeError, ValueError):
+        return
+    pipeline = db.get(PipelineRun, pipeline_id)
+    if pipeline is None:
+        return
+    running_steps = list(
+        db.scalars(
+            select(PipelineStep)
+            .where(PipelineStep.pipeline_run_id == pipeline_id)
+            .where(PipelineStep.status == "RUNNING")
+        )
+    )
+    for step in running_steps:
+        payload = dict(step.result_json or {})
+        history = list(payload.get("attempt_history") or [])
+        history.append(
+            {
+                "attempt": int(step.retry_count or 0) + 1,
+                "status": "INTERRUPTED",
+                "started_at": step.started_at.isoformat() if step.started_at else None,
+                "finished_at": observed_at.isoformat(),
+                "reason": "JOB_PROGRESS_STALLED_FENCED",
+                "background_job_id": int(job.id),
+            }
+        )
+        payload["attempt_history"] = history
+        step.result_json = payload
+        step.status = "INTERRUPTED"
+        step.completed_at = observed_at
+        step.error_message = "Useful progress stopped and the execution token was fenced."
+        step.message = (
+            f"Attempt {int(step.retry_count or 0) + 1} was interrupted; automatic replay pending."
+        )
+    pipeline.status = "PENDING"
+    pipeline.current_step = job.progress_stage or pipeline.current_step
+    pipeline.completed_at = None
+    pipeline.message = "Pipeline execution was interrupted; automatic replay is pending."
 
 
 def requeue_stalled_jobs(

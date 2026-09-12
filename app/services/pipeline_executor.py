@@ -227,7 +227,7 @@ class PipelineExecutionDependencies:
     setup_lifecycle_pipeline_step_enabled: bool | None = None
     setup_capture_handoff_enabled: bool | None = None
     fetch_technical_overlap_enabled: bool | None = None
-    capture_winner_predictions: Callable[[Session, int], Any] | None = None
+    capture_winner_predictions: Callable[..., Any] | None = None
     winner_probability_capture_enabled: bool | None = None
     check_ib_gateway: Callable[[], IBGatewayHealthStatus] = check_ib_gateway_status
     check_ib_historical_capability: Callable[[], IBHistoricalCapabilityStatus] = (
@@ -713,8 +713,20 @@ def execute_full_pipeline(
                 result["winner_prediction_capture_skip_reason"] = "CACHE_FALLBACK_MARKET_DATA"
             elif _winner_probability_capture_enabled(dependencies):
                 capture = dependencies.capture_winner_predictions or _capture_winner_predictions
-                capture_result = capture(db, upload_run.id)
-                _apply_winner_capture_result(result, capture_result)
+                capture_result = _invoke_winner_capture(
+                    capture,
+                    db,
+                    upload_run.id,
+                    should_cancel=should_cancel,
+                    lease_guard=lease_guard,
+                    progress_callback=progress_callback,
+                    memory_probe=memory_probe,
+                )
+                _apply_winner_capture_result(
+                    result,
+                    capture_result,
+                    performance=performance,
+                )
             else:
                 result["winner_prediction_capture_skipped"] = 1
 
@@ -886,8 +898,20 @@ def _execute_resumed_pipeline(
         ):
             if _winner_probability_capture_enabled(dependencies):
                 capture = dependencies.capture_winner_predictions or _capture_winner_predictions
-                winner_result = capture(db, upload_run.id)
-                _apply_winner_capture_result(result, winner_result)
+                winner_result = _invoke_winner_capture(
+                    capture,
+                    db,
+                    upload_run.id,
+                    should_cancel=should_cancel,
+                    lease_guard=lease_guard,
+                    progress_callback=progress_callback,
+                    memory_probe=memory_probe,
+                )
+                _apply_winner_capture_result(
+                    result,
+                    winner_result,
+                    performance=performance,
+                )
             else:
                 result["winner_prediction_capture_skipped"] = 1
 
@@ -1029,6 +1053,7 @@ def _pipeline_step(
     performance: PipelinePerformanceTracker | None = None,
 ):
     observed_started = perf_counter()
+    attempt_started_at = _utcnow()
 
     def observe_step(status: str, reason_code: str | None = None) -> None:
         duration_seconds = max(0.0, perf_counter() - observed_started)
@@ -1055,6 +1080,12 @@ def _pipeline_step(
             duration_ms=round(duration_seconds * 1000, 3),
         )
 
+    _interrupt_superseded_running_steps(
+        db,
+        pipeline_id=pipeline.id,
+        authoritative_step=step_name,
+        observed_at=attempt_started_at,
+    )
     step = _require_step(db, pipeline.id, step_name)
     if step.status in {
         PipelineStepStatus.RUNNING,
@@ -1062,7 +1093,9 @@ def _pipeline_step(
         PipelineStepStatus.FAILED,
         PipelineStepStatus.BLOCKED,
         PipelineStepStatus.CANCELLED,
+        PipelineStepStatus.INTERRUPTED,
     }:
+        _archive_pipeline_step_attempt(step)
         step.retry_count = (step.retry_count or 0) + 1
         step.message = f"Replaying step attempt {step.retry_count + 1}."
     else:
@@ -1070,7 +1103,8 @@ def _pipeline_step(
     pipeline.current_step = step_name
     pipeline.status = _pipeline_status_for_step(step_name)
     step.status = PipelineStepStatus.RUNNING
-    step.started_at = step.started_at or _utcnow()
+    step.started_at = attempt_started_at
+    step.completed_at = None
     step.error_message = None
     if performance is not None:
         performance.start_step(step_name)
@@ -1136,6 +1170,58 @@ def _pipeline_step(
         _report_job_stage_progress(db, pipeline, step_name)
         _save_progress(db, lease_guard=lease_guard)
         observe_step(step.status)
+
+
+def _archive_pipeline_step_attempt(
+    step: PipelineStep,
+    *,
+    status: str | None = None,
+    finished_at: datetime | None = None,
+    reason: str | None = None,
+) -> None:
+    payload = dict(step.result_json or {})
+    history = list(payload.get("attempt_history") or [])
+    archived_status = status or step.status
+    archived_finished = finished_at or step.completed_at
+    record = {
+        "attempt": int(step.retry_count or 0) + 1,
+        "status": archived_status,
+        "started_at": step.started_at.isoformat() if step.started_at else None,
+        "finished_at": archived_finished.isoformat() if archived_finished else None,
+        "reason": reason,
+    }
+    if not history or any(
+        history[-1].get(key) != record.get(key)
+        for key in ("attempt", "status", "started_at", "finished_at")
+    ):
+        history.append(record)
+    payload["attempt_history"] = history
+    step.result_json = payload
+
+
+def _interrupt_superseded_running_steps(
+    db: Session,
+    *,
+    pipeline_id: int,
+    authoritative_step: str,
+    observed_at: datetime,
+) -> None:
+    """Ensure a replay exposes exactly one authoritative RUNNING step."""
+    for step in db.scalars(
+        select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_id)
+    ):
+        if step.step_name == authoritative_step or step.status != PipelineStepStatus.RUNNING:
+            continue
+        _archive_pipeline_step_attempt(
+            step,
+            status=PipelineStepStatus.INTERRUPTED,
+            finished_at=observed_at,
+            reason="SUPERSEDED_BY_PIPELINE_REPLAY",
+        )
+        step.status = PipelineStepStatus.INTERRUPTED
+        step.completed_at = observed_at
+        step.message = f"Interrupted by replay at {authoritative_step}."
+        step.error_message = None
 
 
 def _report_job_stage_progress(db: Session, pipeline: PipelineRun, stage: str) -> None:
@@ -1836,10 +1922,45 @@ def _capture_ceri_snapshot(
     return CeriRunCaptureService().capture_run(db, run_id, market_cutoff=market_cutoff)
 
 
-def _capture_winner_predictions(db: Session, run_id: int):
+def _invoke_winner_capture(
+    capture: Callable[..., Any],
+    db: Session,
+    run_id: int,
+    *,
+    should_cancel: Callable[[], bool] | None,
+    lease_guard: Callable[[], None] | None,
+    progress_callback: Callable[..., None] | None,
+    memory_probe: Callable[..., None] | None,
+) -> Any:
+    from app.services.winner_probability.capture_service import (
+        WinnerPredictionCaptureCancelled,
+    )
+
+    optional = {
+        "should_cancel": should_cancel,
+        "lease_guard": lease_guard,
+        "progress_callback": progress_callback,
+        "memory_probe": memory_probe,
+    }
+    kwargs = {
+        name: value
+        for name, value in optional.items()
+        if value is not None and _accepts_keyword(capture, name)
+    }
+    try:
+        return capture(db, run_id, **kwargs)
+    except WinnerPredictionCaptureCancelled as exc:
+        raise PipelineCancelled(str(exc)) from exc
+
+
+def _capture_winner_predictions(
+    db: Session,
+    run_id: int,
+    **kwargs: Any,
+):
     from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
 
-    return WinnerPredictionCaptureService().capture_run(db, run_id=run_id)
+    return WinnerPredictionCaptureService().capture_run(db, run_id=run_id, **kwargs)
 
 
 def _capture_setup_signals(
@@ -1921,7 +2042,12 @@ def _apply_ceri_capture_result(result: dict[str, Any], ceri_result: Any) -> None
     result["ceri_capture_skipped"] = int(values.get("skipped", 0))
 
 
-def _apply_winner_capture_result(result: dict[str, Any], capture_result: Any) -> None:
+def _apply_winner_capture_result(
+    result: dict[str, Any],
+    capture_result: Any,
+    *,
+    performance: PipelinePerformanceTracker | None = None,
+) -> None:
     values = (
         capture_result.as_dict() if hasattr(capture_result, "as_dict") else dict(capture_result)
     )
@@ -1933,6 +2059,9 @@ def _apply_winner_capture_result(result: dict[str, Any], capture_result: Any) ->
     result["winner_prediction_decision_time_estimates"] = int(
         values.get("decision_time_estimates", 0)
     )
+    if performance is not None:
+        for name, value in (values.get("performance") or {}).items():
+            performance.set_metric(name, value)
 
 
 def _apply_setup_lifecycle_capture_result(
