@@ -3,14 +3,16 @@
 ## 1. Executive verdict
 
 **NOT CERTIFIED.** The stopped-generation convergence defect described by the original report was
-remediated in `7d3a950d449581fea73fe1486449a0a52742ab24`, and exact-SHA canonical CI run
-`34639244871` is fully green. The second bounded real-machine attempt proved read-only stale-state
-classification, automatic archival/retirement, clean startup, idempotent startup, core readiness,
-canonical topology, and observability. Its required `restart` was then externally interrupted after
-the stop phase and has no terminal journal event. Per the no-retry rule, diagnose and safe stop were
-performed and the certification sequence was not resumed. The machine is now canonically stopped,
-with zero active jobs and PostgreSQL still running. The original failed attempt below remains intact
-and traceable.
+remediated in `7d3a950d449581fea73fe1486449a0a52742ab24`. The calendar-sensitive certification
+fixture was subsequently repaired in `65d034311fe1658bc3ce8021c521839d88e0cc4e`, and exact-SHA
+canonical CI run `34667043222` is fully green, including Chromium and Firefox on the Saturday that
+originally exposed the defect. The final authorized real-machine attempt passed pre-start status and
+its first start, but the first runtime disappeared without a shutdown journal event immediately
+after the start command completed. The second required start therefore retired a dead generation
+and launched a different runtime instead of proving idempotence. The sequence stopped at that
+boundary; restart was not attempted. Diagnose and recovery convergence returned the machine to
+canonical `STOPPED`, with zero active jobs and PostgreSQL still running. All previous failed attempts
+below remain intact and traceable.
 
 ## 2. Original baseline
 
@@ -398,3 +400,101 @@ No retry or live patch loop was performed.
 Final verdict remains **NOT CERTIFIED** because the required restart and subsequent checks did not
 complete. The stopped-generation convergence defect itself is remediated, exact-SHA CI is green,
 and failure containment converged to canonical stopped state without manual runtime-state deletion.
+
+## 25. Final certification closure attempt — 2026-09-12
+
+### Calendar-sensitive E2E fixture root cause and remediation
+
+CI run `34662075615` executed on Saturday 2026-09-12. The single-run fixture passed
+`datetime.now(UTC).date()` directly as `CeriFeatureRebuildRequest.as_of_session`; production
+correctly rejected that Saturday with `ValueError: as_of_session must be a valid exchange session`.
+The defect was confined to the test fixture. Production exchange-session validation was not changed.
+
+Commit `65d034311fe1658bc3ce8021c521839d88e0cc4e` adds
+`certification_as_of_session(reference_timestamp)`, which derives the latest completed valid
+session through `MarketClockService`, SwingLens's canonical exchange-calendar policy. The same
+session now anchors seeded CERI features and OHLCV rows. The deterministic IB adapter also uses
+`latest_completed_us_trading_day` and `previous_us_trading_day`; the certification path no longer
+uses `date.today()` plus weekend-only arithmetic for exchange sessions.
+
+The permanent fixture regression covers a weekday after daily-bar readiness, Saturday, Sunday, and
+the 2026 Labor Day exchange holiday. Each case asserts both the exact derived session and
+`is_us_trading_day(session)`. Focused fixture tests passed 4/4; the fixture plus the existing temporal
+integrity regressions passed 42/42. The complete `tests/e2e/single_run_certification` suite passed
+5/5 in 180.47 seconds against a guarded disposable PostgreSQL database. CI-scope Ruff
+(`app tests scripts`) and `git diff --check` passed. A full local Windows browser command completed
+45 tests successfully and had two non-calendar local failures: a 30-second database-screenshot
+timeout after the certification pipeline completed and a port-8000 readiness timeout in the Windows
+worker-recovery test. Canonical CI independently passed both affected jobs.
+
+### Exact-SHA canonical CI
+
+- Final code SHA: `65d034311fe1658bc3ce8021c521839d88e0cc4e`.
+- GitHub Actions run: `34667043222`.
+- Result: **SUCCESS**.
+- `Lint, Test, and Migration Gates`: passed in 12m19s.
+- `Chromium and Firefox Smoke`: passed in 2m50s.
+- `Windows Durable Worker Recovery Gate`: passed in 5m02s.
+- `Nightly Performance Baseline`: correctly skipped for the push event.
+
+The browser gate passed on Saturday 2026-09-12, directly proving that the original calendar failure
+does not recur on the exact repaired SHA.
+
+### Real-machine preconditions
+
+The final closure attempt began at `2026-09-12T02:30:56Z`. Structured preflight status proved:
+
+- branch `codex/final-certification-runtime-topology-remediation` at exact code SHA `65d0343`;
+- clean worktree;
+- `OVERALL STOPPED`, runtime classification `MISSING`, runtime inactive, no conflict;
+- WEB, SUPERVISOR, and DURABLE_WORKER absent;
+- ports 8000, 9101, and 9102 free;
+- zero active `RUNNING` or `RECOVERING` jobs;
+- authoritative PostgreSQL 18.3 on PID `6976`, database `swinglens`, provenance from `.env`;
+- current and expected Alembic head `0072_ceri_artifact_context_lineage`.
+
+Precondition diagnose bundle:
+`artifacts/diagnostics/lifecycle-20260912T022704Z-d25f5a8c-bf75-49bd-836a-1a00cbb6b9b4`.
+
+### Bounded sequence and precise failure boundary
+
+| Command / operation | Result |
+|---|---|
+| pre-start `status`, `08d43771-f879-453d-a8a2-c3476d6319ca` | **PASS** — canonical `STOPPED` |
+| first `start`, `8b9fdf3c-8f4c-43eb-b144-55059050ac5a` | **PASS** — operation completed; instance `e7df018a...`; core, WEB, worker, Prometheus, and Grafana ready; only 14.1% free-disk warning |
+| second `start`, `3dbc51c5-3ecd-4ee3-8875-442e1f6552a7` | **CERTIFICATION FAIL** — found instance `e7df018a...` dead, retired it as `DEAD_GENERATION_RETIRED`, and launched different instance `bd9f6b5d...`; idempotence was not proved |
+| running `status` | not run after the failure boundary |
+| `restart` | not run; no restart operation ID exists |
+| post-restart `status` / readiness | not run |
+| required failure `diagnose`, `fed26961-9d83-4d73-ad0e-2b35e962a5d3` | **PASS** — bundle `artifacts/diagnostics/lifecycle-20260912T023725Z-fed26961-9d83-4d73-ad0e-2b35e962a5d3` |
+| recovery `stop`, `980212d1-2264-4ebb-9899-7884be0ca004` | **FAIL** — `LIFECYCLE_OPERATION_FAILED`; verified runtime could not be signaled because the platform kill call returned an exception |
+| post-stop-failure `diagnose`, `b8d50614-f197-434a-b88e-5b7b6f2d1b52` | **PASS** — bundle `artifacts/diagnostics/lifecycle-20260912T024003Z-b8d50614-f197-434a-b88e-5b7b6f2d1b52` |
+| read-only `status`, `7f7078bf-7ab2-4340-8663-90469eb3372e` | **PASS** — physical `STOPPED`, zero jobs, state safely classified `DEAD_STALE` |
+| convergence `stop`, `a3441820-0cc6-4f07-84a5-aa63c9d567df` | **PASS** — retired dead instance `bd9f6b5d...` under the lifecycle lock |
+| final `status`, `c241b389-f272-4f89-8760-c6e7fbd35938` | **PASS** — `STOPPED`, `MISSING`, runtime inactive, zero active jobs |
+
+The first start has a successful terminal controller journal event at `2026-09-12T02:34:21Z`.
+The second start began ten seconds later and classified every recorded process from that runtime as
+absent by `2026-09-12T02:34:45Z`. No orderly shutdown journal event exists for instance
+`e7df018a...`; therefore the evidence establishes external or abrupt process-tree disappearance but
+does not identify the terminating actor. Per the no-retry rule, no new certification loop or live
+patch was attempted.
+
+### Final machine state, safety, and verdict
+
+- WEB, SUPERVISOR, and DURABLE_WORKER: absent;
+- ports 8000, 9101, and 9102: free;
+- runtime state: `MISSING`, `runtimeActive=false`, `staleStatePresent=false`, no conflict;
+- active `RUNNING`/`RECOVERING` jobs: zero;
+- PostgreSQL 18.3: still listening on PID `6976`, schema at head;
+- Prometheus/Grafana: stopped by recovery convergence;
+- business data mutated: **NO**.
+
+No authoritative business pipeline, CERI ingestion/rebuild, Winner maturation/cohort refresh,
+market-data fetch, IB Gateway processing, SEC processing, broker action, historical repair, canary,
+or business-evidence mutation was performed. Only disposable E2E databases and normal lifecycle
+registration, heartbeat, journal, diagnostic, and observability state were written.
+
+Final verdict is **NOT CERTIFIED**. Exact-SHA canonical CI and the calendar repair are green, but the
+complete required real restart sequence lacks successful idempotent-start, restart, post-restart
+status/readiness, and running diagnose evidence from one uninterrupted bounded attempt.
