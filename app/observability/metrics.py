@@ -77,6 +77,19 @@ CLOSED_LABEL_VALUES: dict[str, frozenset[str]] = {
             "shifted_to_next_session",
         }
     ),
+    "feed": frozenset({"TRADES", "ADJUSTED_LAST"}),
+    "error_category": frozenset(
+        {
+            "NONE",
+            "HISTORICAL_DATA_UNAVAILABLE",
+            "HISTORICAL_PACING",
+            "HISTORICAL_TRANSIENT",
+            "HISTORICAL_UNKNOWN_162",
+            "PROVIDER_REJECTED",
+            "PROVIDER_ERROR",
+            "TIMEOUT",
+        }
+    ),
 }
 
 BOUNDED_LABEL_LIMITS: dict[str, int] = {
@@ -224,6 +237,9 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     "swinglens_worker_up": _gauge("Worker process liveness.", ("worker_id",), "boolean"),
     "swinglens_worker_heartbeat_age_seconds": _gauge(
         "Worker heartbeat age.", ("worker_id",), "seconds"
+    ),
+    "swinglens_worker_quiesce_ack_latency_seconds": _histogram(
+        "Latency from a durable quiesce request to the worker acknowledgement."
     ),
     "swinglens_worker_rss_bytes": _gauge("Worker resident memory.", ("worker_id",), "bytes"),
     "swinglens_worker_private_bytes": _gauge("Worker private memory.", ("worker_id",), "bytes"),
@@ -413,6 +429,15 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     "swinglens_ib_fetch_requests_total": _counter("IB fetch request outcomes.", ("result",)),
     "swinglens_ib_fetch_duration_seconds": _histogram(
         "IB fetch request latency.", ("result",), PROVIDER_BUCKETS
+    ),
+    "swinglens_ib_historical_requests_total": _counter(
+        "IB historical request outcomes.", ("feed", "result", "error_category")
+    ),
+    "swinglens_ib_historical_retries_total": _counter(
+        "IB historical request retries.", ("error_category",)
+    ),
+    "swinglens_ib_historical_circuit_opens_total": _counter(
+        "IB historical circuit openings.", ("reason",)
     ),
     "swinglens_ib_fetch_decisions_total": _counter("IB fetch planning decisions.", ("decision",)),
     "swinglens_ib_pacing_wait_seconds": _histogram("IB pacing wait duration."),

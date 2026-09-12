@@ -15,7 +15,11 @@ from app.database_safety import (
 )
 from app.services import lifecycle_control
 from app.services.canonical_runtime_launcher import build_canonical_runtime_launch
-from app.services.lifecycle_control import append_lifecycle_event, runtime_generation
+from app.services.lifecycle_control import (
+    append_lifecycle_event,
+    runtime_generation,
+    shutdown_request_path,
+)
 from app.services.readiness_service import ReadinessCheck, ReadinessService
 from app.services.supervisor_restart import RestartBudget
 from app.settings import Settings
@@ -151,7 +155,50 @@ def test_runtime_generation_changes_for_config_database_and_alembic(monkeypatch,
     assert "grafana-secret" not in serialized
 
 
+def test_tree_identical_merge_sha_changes_runtime_fingerprint(monkeypatch, tmp_path) -> None:
+    shas = iter(
+        (
+            "095a552e21f92523a7d8e67df2109742a0cad0a9",
+            "0fb435ee6eb76049ddf6d76d859775fec35768f5",
+        )
+    )
+    monkeypatch.setattr(lifecycle_control, "_git_sha", lambda _root: next(shas))
+    monkeypatch.setattr(
+        lifecycle_control,
+        "repository_alembic_heads",
+        lambda _root: ("0072_ceri_artifact_context_lineage",),
+    )
+    provenance = {
+        "verified": True,
+        "service": "postgresql-x64-18",
+        "dataDirectory": "C:/pg18/data",
+        "listenerExecutable": "C:/pg18/bin/postgres.exe",
+    }
+    database = {"serverVersionNum": 180003}
+    old = runtime_generation(
+        _settings(), repo_root=tmp_path, database=database, provenance=provenance
+    )
+    merged = runtime_generation(
+        _settings(), repo_root=tmp_path, database=database, provenance=provenance
+    )
+    assert old["generation"] | {"git_sha": merged["generation"]["git_sha"]} == merged[
+        "generation"
+    ]
+    assert old["fingerprint"] != merged["fingerprint"]
+
+
 def test_same_git_different_runtime_fingerprint_requires_restart(monkeypatch, tmp_path) -> None:
+    created = "2026-09-11T10:00:00+00:00"
+    runtime_id = "runtime-active"
+    web = {
+        "pid": 123,
+        "createdAt": created,
+        "role": "web",
+        "module": "app.serve",
+        "repoRoot": str(tmp_path),
+        "runtimeInstanceId": runtime_id,
+        "port": 8000,
+    }
     state_path = tmp_path / "runtime.json"
     state_path.write_text(
         json.dumps(
@@ -159,15 +206,29 @@ def test_same_git_different_runtime_fingerprint_requires_restart(monkeypatch, tm
                 "version": 5,
                 "gitCommit": "a" * 40,
                 "runtimeConfigFingerprint": "old-generation",
-                "web": {},
+                "topologyVersion": "supervisor-root-v1",
+                "repoRoot": str(tmp_path),
+                "runtimeInstanceId": runtime_id,
+                "web": web,
             }
         ),
         encoding="utf-8",
     )
     monkeypatch.setattr(lifecycle_probe, "RUNTIME_STATE", state_path)
+    monkeypatch.setattr(
+        lifecycle_probe,
+        "inspect_process",
+        lambda _pid: {
+            "pid": 123,
+            "createdAt": created,
+            "cwd": str(tmp_path),
+            "commandLine": ["python", "-m", "app.serve", runtime_id],
+        },
+    )
     monkeypatch.setenv("SWINGLENS_RUNTIME_CONFIG_FINGERPRINT", "desired-generation")
     report = lifecycle_probe._runtime_state_report(listener_pid=None)
     assert report["conflict"] is True
+    assert report["classification"] == "ACTIVE_GENERATION_MISMATCH"
     assert "RESTART_REQUIRED" in report["error"]
 
 
@@ -189,6 +250,18 @@ def test_lifecycle_journal_is_append_only_bounded_and_redacted(tmp_path) -> None
     assert "api-secret" not in lines[0]
     assert "arbitrary_business_payload" not in lines[0]
     assert json.loads(lines[0])["reason_code"] == "DATABASE_UNAVAILABLE"
+
+
+def test_shutdown_request_path_is_instance_scoped_and_path_safe(tmp_path) -> None:
+    first = shutdown_request_path(tmp_path, "runtime/../first")
+    repeated = shutdown_request_path(tmp_path, "runtime/../first")
+    second = shutdown_request_path(tmp_path, "runtime-second")
+
+    assert first == repeated
+    assert first != second
+    assert first.parent == tmp_path / "data" / "cache" / "shutdown-requests"
+    assert first.name.endswith(".json")
+    assert "runtime" not in first.name
 
 
 def test_prometheus_three_of_three_uses_targets_api(monkeypatch) -> None:
@@ -299,6 +372,7 @@ def test_diagnostic_bundle_manifest_and_secret_scan(monkeypatch, tmp_path) -> No
     assert (bundle / "SUMMARY.md").is_file()
     manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
     assert "SUMMARY.md" in manifest["files"]
+    assert "shutdown-request.json" in manifest["files"]
     combined = "\n".join(
         path.read_text(encoding="utf-8", errors="replace") for path in bundle.iterdir()
     )

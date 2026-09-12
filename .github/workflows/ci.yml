@@ -242,9 +242,11 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked --extra dev
 
-      - name: Run repeated Windows worker-kill recovery gate
+      - name: Run Windows worker recovery and lifecycle persistence gates
         run: >-
-          uv run pytest -q tests/e2e/test_windows_durable_worker_recovery.py
+          uv run pytest -q
+          tests/e2e/test_windows_durable_worker_recovery.py
+          tests/e2e/test_windows_lifecycle_persistence.py
           --junitxml=test-results/windows-durable-worker-recovery.xml
 
       - name: Publish recovery evidence
@@ -252,5 +254,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-durable-worker-recovery
-          path: test-results/windows-durable-worker-recovery.xml
+          path: test-results/
           if-no-files-found: error

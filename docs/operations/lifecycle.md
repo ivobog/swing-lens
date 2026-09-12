@@ -36,6 +36,25 @@ process tree, database/schema checks, and fingerprint match. A same-Git mismatch
 Start waits on `GET /ready/core`. Prometheus and Grafana are optional: their failure leaves a
 core-ready runtime running and produces `DEGRADED`.
 
+## Persisted runtime-state classification
+
+The controller classifies physical process and listener evidence before applying generation
+fingerprint semantics:
+
+| Classification | Required interpretation | Controller behavior |
+|---|---|---|
+| `ACTIVE_VALID` | Recorded identities, topology, listeners, ancestry, and generation are valid. | Reuse the active runtime. |
+| `ACTIVE_GENERATION_MISMATCH` | The recorded runtime is strongly verified alive, but its generation differs. | Fail closed with `RESTART_REQUIRED`. |
+| `DEAD_STALE` | Every recorded identity is absent and no canonical role process or lifecycle-port listener remains. | Report stopped; `start`, `stop`, or `restart` may retire the record under the lifecycle lock. |
+| `AMBIGUOUS_CONFLICT` | Identity reuse/mismatch, a partial surviving topology, an unexpected role process/listener, or insufficient evidence prevents safe proof. | Fail closed with `CONFLICT`; never signal or retire automatically. |
+| `MISSING` | No canonical runtime-state file exists. | Report the normal stopped state. |
+
+`status` never changes the runtime-state file. Lock-holding mutating commands revalidate a
+`DEAD_STALE` record, archive it under `data/cache/lifecycle-archive`, and append a
+`stale_runtime_state_retired` / `DEAD_GENERATION_RETIRED` lifecycle event before continuing. Git SHA
+remains part of the generation fingerprint; only a physically dead, unambiguous record bypasses
+active-generation mismatch handling.
+
 ## Readiness contracts
 
 - `/health`: web-process liveness only.

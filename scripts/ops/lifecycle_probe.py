@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from time import monotonic, sleep
 from uuid import uuid4
@@ -33,13 +34,16 @@ from app.services.lifecycle_control import (
     configuration_provenance,
     redacted_tail,
     runtime_generation,
+    shutdown_request_path,
     supervisor_state_path,
     update_lifecycle_metrics,
 )
 from app.services.lifecycle_quiesce import (
+    WorkerQuiesceIdentityConflict,
     blocking_jobs,
     request_worker_quiesce,
     resume_worker_claims,
+    worker_quiesce_identity,
 )
 from app.services.lifecycle_safety import (
     LifecycleConflict,
@@ -57,6 +61,14 @@ from app.settings import Settings
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_STATE = ROOT / "data" / "cache" / "swinglens-lifecycle.json"
 LIFECYCLE_CONTROLLER_VERSION = 5
+
+
+class RuntimeStateClassification(StrEnum):
+    ACTIVE_VALID = "ACTIVE_VALID"
+    ACTIVE_GENERATION_MISMATCH = "ACTIVE_GENERATION_MISMATCH"
+    DEAD_STALE = "DEAD_STALE"
+    AMBIGUOUS_CONFLICT = "AMBIGUOUS_CONFLICT"
+    MISSING = "MISSING"
 
 
 def _settings() -> Settings:
@@ -173,7 +185,14 @@ def _provenance_report() -> dict[str, object]:
 def _launch_runtime(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
     settings = _settings()
     runtime_instance_id = uuid4().hex
-    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    creationflags = (
+        subprocess.CREATE_NEW_PROCESS_GROUP
+        | subprocess.DETACHED_PROCESS
+        | subprocess.CREATE_BREAKAWAY_FROM_JOB
+        if os.name == "nt"
+        else 0
+    )
+    shutdown_request_path(ROOT, runtime_instance_id).unlink(missing_ok=True)
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
     with (
         stdout_path.open("ab", buffering=0) as stdout,
@@ -282,9 +301,9 @@ def _launch_runtime(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
         "createdAt": identity["createdAt"],
         "launcherPid": supervisor_identity["pid"],
         "launcherCreatedAt": supervisor_identity["createdAt"],
-        # CREATE_NEW_PROCESS_GROUP applies to the exact Popen PID.  On Windows
-        # the venv launcher may then create a real-interpreter child, so this
-        # identity is deliberately distinct from supervisorPid.
+        # Windows creation flags apply to the exact Popen PID. The venv launcher
+        # may then create a real-interpreter child, so this identity is
+        # deliberately distinct from supervisorPid.
         "processGroupPid": launcher["pid"],
         "processGroupCreatedAt": launcher["createdAt"],
         "runtimeInstanceId": runtime_instance_id,
@@ -343,35 +362,158 @@ def _write_state(payload: str) -> dict[str, object]:
     return {"written": True}
 
 
+def _runtime_diagnostics(state: dict[str, object]) -> dict[str, object]:
+    return {
+        "recordedGitSha": state.get("gitCommit"),
+        "desiredGitSha": _git_commit(),
+        "recordedFingerprint": state.get("runtimeConfigFingerprint"),
+        "desiredFingerprint": os.environ.get(RUNTIME_FINGERPRINT_ENV),
+        "staleRuntimeInstanceId": state.get("runtimeInstanceId"),
+    }
+
+
+def _validate_recorded_runtime_shape(state: dict[str, object]) -> dict[str, object]:
+    web = state.get("web")
+    if not isinstance(web, dict):
+        raise LifecycleConflict("runtime web identity is missing")
+    runtime_instance_id = str(state.get("runtimeInstanceId") or web.get("runtimeInstanceId") or "")
+    if not runtime_instance_id:
+        raise LifecycleConflict("runtime instance identity is missing")
+    if int(state.get("version") or 0) >= 5:
+        required = ("gitCommit", "runtimeConfigFingerprint", "topologyVersion", "repoRoot")
+        if any(not state.get(key) for key in required):
+            raise LifecycleConflict("runtime generation state is incomplete")
+    identities = [("web", web)]
+    for name in ("supervisor", "processGroup"):
+        identity = state.get(name)
+        if identity is not None:
+            if not isinstance(identity, dict):
+                raise LifecycleConflict(f"recorded {name} identity has an invalid shape")
+            identities.append((name, identity))
+    for name, identity in identities:
+        required = ("pid", "createdAt", "role", "module", "repoRoot", "runtimeInstanceId")
+        if any(not identity.get(key) for key in required):
+            raise LifecycleConflict(f"recorded {name} identity is incomplete")
+        if int(identity.get("pid") or 0) <= 0:
+            raise LifecycleConflict(f"recorded {name} PID is invalid")
+        if str(identity.get("runtimeInstanceId")) != runtime_instance_id:
+            raise LifecycleConflict(f"recorded {name} runtime instance identity mismatch")
+        expected_module = "app.serve" if name == "web" else "app.worker_supervisor"
+        if str(identity.get("module")) != expected_module:
+            raise LifecycleConflict(f"recorded {name} module identity mismatch")
+    return web
+
+
+def _recorded_auxiliary_identities(state: dict[str, object]) -> list[tuple[str, int, str]]:
+    """Return PID-only identities recorded by the supervisor flight recorder."""
+
+    path = supervisor_state_path(ROOT)
+    if not path.is_file():
+        return []
+    value = read_runtime_state(path)
+    if value is None:
+        return []
+    runtime_instance_id = str(state.get("runtimeInstanceId") or "")
+    if str(value.get("runtime_instance_id") or "") != runtime_instance_id:
+        return []
+    identities: list[tuple[str, int, str]] = []
+    for role, module in (("web", "app.serve"), ("worker", "app.worker")):
+        record = value.get(role)
+        if not isinstance(record, dict) or record.get("launcher_pid") is None:
+            continue
+        pid = int(record.get("launcher_pid") or 0)
+        if pid <= 0:
+            raise LifecycleConflict(f"recorded {role} launcher PID is invalid")
+        identities.append((role, pid, module))
+    return identities
+
+
+def _assert_physically_quiescent(state: dict[str, object]) -> None:
+    runtime_instance_id = str(state.get("runtimeInstanceId") or "")
+    recorded_pids = {
+        int(identity["pid"])
+        for name in ("web", "supervisor", "processGroup")
+        if isinstance((identity := state.get(name)), dict)
+    }
+    for role, pid, module in _recorded_auxiliary_identities(state):
+        if pid in recorded_pids:
+            continue
+        try:
+            actual = inspect_process(pid)
+        except psutil.NoSuchProcess:
+            continue
+        if _process_matches_runtime(actual, module, runtime_instance_id):
+            raise LifecycleConflict(f"recorded {role} launcher is still alive")
+        raise LifecycleConflict(f"recorded {role} launcher PID was reused or changed identity")
+
+    role_processes = _role_processes()
+    if role_processes:
+        summary = ", ".join(f"{row.get('role')}:{row.get('pid')}" for row in role_processes)
+        raise LifecycleConflict(f"canonical SwingLens runtime processes remain: {summary}")
+
+    listener_report = _listeners_report()
+    if listener_report.get("error"):
+        raise LifecycleConflict(
+            "lifecycle listener evidence could not be inspected: " + str(listener_report["error"])
+        )
+    lifecycle_ports = {8000, 9101, 9102}
+    web = state.get("web")
+    if isinstance(web, dict) and web.get("port"):
+        lifecycle_ports.add(int(web["port"]))
+    listeners = [
+        row
+        for row in listener_report.get("listeners", [])
+        if int(row.get("port") or 0) in lifecycle_ports
+    ]
+    if listeners:
+        summary = ", ".join(
+            f"{row.get('port')}:{row.get('pid') or 'unknown'}" for row in listeners
+        )
+        raise LifecycleConflict(f"lifecycle ports remain occupied: {summary}")
+
+
 def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
+    state: dict[str, object] | None = None
     try:
         state = read_runtime_state(RUNTIME_STATE)
         if state is None:
             return {
+                "classification": RuntimeStateClassification.MISSING.value,
                 "valid": False,
                 "missing": True,
                 "stale": False,
+                "runtimeActive": False,
                 "conflict": False,
+                "staleStateReason": None,
                 "error": "runtime state is missing",
             }
-        desired_fingerprint = os.environ.get(RUNTIME_FINGERPRINT_ENV)
-        if (
-            int(state.get("version") or 0) >= 5
-            and desired_fingerprint
-            and state.get("runtimeConfigFingerprint") != desired_fingerprint
-        ):
-            raise LifecycleConflict("RESTART_REQUIRED: runtime generation fingerprint differs")
-        web = state.get("web")
-        if not isinstance(web, dict):
-            raise LifecycleConflict("runtime web identity is missing")
+        diagnostics = _runtime_diagnostics(state)
+        web = _validate_recorded_runtime_shape(state)
         try:
             actual = inspect_process(int(web.get("pid") or 0))
         except psutil.NoSuchProcess:
+            for name in ("supervisor", "processGroup"):
+                identity = state.get(name)
+                if not isinstance(identity, dict):
+                    continue
+                try:
+                    remaining = inspect_process(int(identity.get("pid") or 0))
+                except psutil.NoSuchProcess:
+                    continue
+                validate_runtime_process(identity, remaining)
+                raise LifecycleConflict(f"recorded {name} process is still alive") from None
+            _assert_physically_quiescent(state)
             return {
+                "classification": RuntimeStateClassification.DEAD_STALE.value,
                 "valid": False,
                 "stale": True,
+                "runtimeActive": False,
                 "conflict": False,
                 "state": state,
+                "staleStateReason": (
+                    "recorded runtime is absent and physical lifecycle evidence is quiescent"
+                ),
+                **diagnostics,
             }
         validate_runtime_process(web, actual, listener_pid=listener_pid)
         launcher = actual
@@ -418,17 +560,111 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
             process_group = launcher
         else:
             process_group = actual
+        desired_fingerprint = os.environ.get(RUNTIME_FINGERPRINT_ENV)
+        if (
+            int(state.get("version") or 0) >= 5
+            and desired_fingerprint
+            and state.get("runtimeConfigFingerprint") != desired_fingerprint
+        ):
+            return {
+                "classification": RuntimeStateClassification.ACTIVE_GENERATION_MISMATCH.value,
+                "valid": False,
+                "stale": False,
+                "runtimeActive": True,
+                "conflict": True,
+                "state": state,
+                "staleStateReason": None,
+                "error": "RESTART_REQUIRED: runtime generation fingerprint differs",
+                **diagnostics,
+            }
         return {
+            "classification": RuntimeStateClassification.ACTIVE_VALID.value,
             "valid": True,
             "stale": False,
+            "runtimeActive": True,
             "conflict": False,
+            "staleStateReason": None,
             "state": state,
             "actual": actual,
             "launcher": launcher,
             "processGroup": process_group,
+            **diagnostics,
         }
     except (LifecycleConflict, OSError, psutil.Error, ValueError) as exc:
-        return {"valid": False, "stale": False, "conflict": True, "error": str(exc)}
+        report = {
+            "classification": RuntimeStateClassification.AMBIGUOUS_CONFLICT.value,
+            "valid": False,
+            "stale": False,
+            "runtimeActive": False,
+            "conflict": True,
+            "staleStateReason": None,
+            "state": state,
+            "error": str(exc),
+        }
+        if state is not None:
+            report.update(_runtime_diagnostics(state))
+        return report
+
+
+def _retire_stale_runtime_state() -> dict[str, object]:
+    report = _runtime_state_report(listener_pid=None)
+    if report.get("classification") == RuntimeStateClassification.MISSING.value:
+        return {
+            "retired": False,
+            "alreadyMissing": True,
+            "conflict": False,
+            "classification": "MISSING",
+        }
+    if report.get("classification") in {
+        RuntimeStateClassification.ACTIVE_VALID.value,
+        RuntimeStateClassification.ACTIVE_GENERATION_MISMATCH.value,
+    }:
+        return {
+            "retired": False,
+            "conflict": False,
+            "classification": report.get("classification"),
+        }
+    if report.get("classification") != RuntimeStateClassification.DEAD_STALE.value:
+        return {
+            "retired": False,
+            "conflict": True,
+            "classification": report.get("classification"),
+            "error": report.get("error") or "runtime state is not safely stale",
+        }
+    state = report["state"]
+    archive_dir = ROOT / "data" / "cache" / "lifecycle-archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    operation_id = os.environ.get("SWINGLENS_LIFECYCLE_OPERATION_ID") or uuid4().hex
+    safe_operation = "".join(ch for ch in operation_id if ch.isalnum() or ch in "-_")[:64]
+    archive = archive_dir / f"stale-runtime-{safe_operation}.json"
+    if archive.exists():
+        raise LifecycleConflict("stale runtime archive already exists for this operation")
+    os.replace(RUNTIME_STATE, archive)
+    append_lifecycle_event(
+        ROOT,
+        operation_id=operation_id,
+        action=os.environ.get("SWINGLENS_LIFECYCLE_ACTION") or "lifecycle",
+        stage="runtime_state",
+        event="stale_runtime_state_retired",
+        result="success",
+        reason_code="DEAD_GENERATION_RETIRED",
+        runtime_instance_id=state.get("runtimeInstanceId"),
+        recorded_git_sha=state.get("gitCommit"),
+        recorded_fingerprint=state.get("runtimeConfigFingerprint"),
+        desired_git_sha=report.get("desiredGitSha"),
+        desired_fingerprint=report.get("desiredFingerprint"),
+        topology_version=state.get("topologyVersion"),
+        retirement_operation_id=operation_id,
+        message=f"archived stale runtime state as {archive.name}",
+    )
+    return {
+        "retired": True,
+        "conflict": False,
+        "classification": RuntimeStateClassification.DEAD_STALE.value,
+        "reasonCode": "DEAD_GENERATION_RETIRED",
+        "archive": str(archive),
+        **_runtime_diagnostics(state),
+    }
 
 
 def _quiesce_report(resume: bool = False) -> dict[str, object]:
@@ -439,35 +675,153 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
         connect_args={"connect_timeout": settings.database_connect_timeout_seconds},
     )
     try:
+        worker_processes = [row for row in _role_processes() if row["role"] == "worker"]
         with Session(engine) as db:
             if resume:
                 resumed = resume_worker_claims(db, settings.job_worker_id)
                 db.commit()
                 return {"reachable": True, "resumed": resumed}
-            worker = request_worker_quiesce(db, settings.job_worker_id)
+            observed_worker = db.get(BackgroundWorker, settings.job_worker_id)
+            expected_identity = (
+                worker_quiesce_identity(observed_worker) if observed_worker is not None else None
+            )
+            worker = request_worker_quiesce(
+                db,
+                settings.job_worker_id,
+                expected_identity=expected_identity,
+            )
             db.commit()
-            if worker is not None:
-                db.refresh(worker)
+            fence_committed_at = datetime.now(UTC)
+            db.expire_all()
+            worker = db.get(BackgroundWorker, settings.job_worker_id)
             active = blocking_jobs(db)
             now = datetime.now(UTC)
-            process_roles = {row["role"] for row in _role_processes()}
-            # A failed startup may have WEB/SUPERVISOR alive but no worker able
-            # to acknowledge quiesce. With zero active business jobs, absence
-            # of a worker process is itself a safe, deterministic acknowledgement.
-            absent_is_safe = "worker" not in process_roles and not active
+            current_identity = worker_quiesce_identity(worker) if worker is not None else None
+            identity_unchanged = current_identity == expected_identity
+            process_identity_valid = _worker_process_matches_registration(worker, worker_processes)
+            worker_identity_valid = identity_unchanged and process_identity_valid
+            requested_at = worker.quiesce_requested_at if worker is not None else None
+            acknowledged_at = worker.quiesced_at if worker is not None else None
+            stopping_at = worker.stopping_at if worker is not None else None
+            # A missing registration is fail-closed in claim_next_job: without the
+            # row a worker cannot claim. Preserve the existing dead-worker fail-safe
+            # only when process inspection also proves that no worker exists.
+            no_registered_claimant = worker is None and not worker_processes
+            durable_row_fence = bool(
+                worker is not None
+                and identity_unchanged
+                and (requested_at is not None or stopping_at is not None)
+            )
+            claim_fence_established = durable_row_fence or no_registered_claimant
+            worker_acknowledged = bool(
+                requested_at is not None
+                and acknowledged_at is not None
+                and _as_utc(acknowledged_at) >= _as_utc(requested_at)
+            )
+            safe_to_stop = bool(claim_fence_established and not active and worker_identity_valid)
+            if active:
+                reason_code = "ACTIVE_LEASE_BLOCKS_STOP"
+            elif not worker_identity_valid:
+                reason_code = "WORKER_IDENTITY_CONFLICT"
+            elif not claim_fence_established:
+                reason_code = "CLAIM_FENCE_NOT_ESTABLISHED"
+            elif not worker_acknowledged:
+                reason_code = "QUIESCE_SAFE_WITHOUT_WORKER_ACK"
+            else:
+                reason_code = "CLAIM_FENCE_ESTABLISHED"
             return {
                 "reachable": True,
                 "workerPresent": worker is not None,
-                "requested": worker is not None and worker.quiesce_requested_at is not None,
-                "acknowledged": absent_is_safe
-                or (worker is not None and worker.quiesced_at is not None),
+                "workerProcessPresent": bool(worker_processes),
+                "workerInstanceId": worker.instance_id if worker is not None else None,
+                "workerGeneration": worker.generation if worker is not None else None,
+                "workerPid": worker.process_id if worker is not None else None,
+                "workerHeartbeatAt": _iso(worker.heartbeat_at if worker is not None else None),
+                "workerHeartbeatAgeSeconds": _age_seconds(
+                    worker.heartbeat_at if worker is not None else None, now
+                ),
+                "controlLoopHeartbeatAt": _iso(
+                    worker.control_loop_heartbeat_at if worker is not None else None
+                ),
+                "controlLoopHeartbeatAgeSeconds": _age_seconds(
+                    worker.control_loop_heartbeat_at if worker is not None else None, now
+                ),
+                "quiesceRequestedAt": _iso(requested_at),
+                "claimFenceEstablishedAt": (
+                    fence_committed_at.isoformat() if claim_fence_established else None
+                ),
+                "quiescedAt": _iso(acknowledged_at),
+                "workerAcknowledgedAt": _iso(acknowledged_at),
+                "ackLatencySeconds": (
+                    max(
+                        0.0,
+                        (_as_utc(acknowledged_at) - _as_utc(requested_at)).total_seconds(),
+                    )
+                    if worker_acknowledged
+                    else None
+                ),
+                "safeToStopAt": now.isoformat() if safe_to_stop else None,
+                "requested": requested_at is not None,
+                "claimFenceEstablished": claim_fence_established,
+                "claimFenceKind": (
+                    "DURABLE_REGISTRATION_ROW"
+                    if durable_row_fence
+                    else ("NO_REGISTERED_CLAIMANT" if no_registered_claimant else None)
+                ),
+                "workerIdentityValid": worker_identity_valid,
+                "workerAcknowledged": worker_acknowledged,
+                "acknowledged": worker_acknowledged,
                 "activeCount": len(active),
                 "active": [_blocking_job_dict(row, now, settings) for row in active],
+                "safeToStop": safe_to_stop,
+                "reasonCode": reason_code,
             }
+    except WorkerQuiesceIdentityConflict as exc:
+        return {
+            "reachable": True,
+            "claimFenceEstablished": False,
+            "workerAcknowledged": False,
+            "activeCount": None,
+            "safeToStop": False,
+            "reasonCode": "WORKER_IDENTITY_CONFLICT",
+            "error": redact_text(str(exc)),
+        }
     except Exception as exc:
         return {"reachable": False, "error": redact_text(str(exc))}
     finally:
         engine.dispose()
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def _iso(value: datetime | None) -> str | None:
+    return _as_utc(value).isoformat() if value is not None else None
+
+
+def _age_seconds(value: datetime | None, now: datetime) -> float | None:
+    return max(0.0, (_as_utc(now) - _as_utc(value)).total_seconds()) if value else None
+
+
+def _worker_process_matches_registration(
+    worker: BackgroundWorker | None, processes: list[dict[str, object]]
+) -> bool:
+    if not processes:
+        return True
+    if worker is None or len(processes) != 1:
+        return False
+    process = processes[0]
+    if worker.process_id != process.get("pid") or worker.process_started_at is None:
+        return False
+    try:
+        process_started_at = datetime.fromisoformat(str(process["createdAt"]))
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        abs((_as_utc(worker.process_started_at) - _as_utc(process_started_at)).total_seconds())
+        <= 1.0
+    )
 
 
 def _blocking_job_dict(row: BackgroundJob, now: datetime, settings: Settings) -> dict[str, object]:
@@ -609,8 +963,29 @@ def _signal_break(process_id: int, listener_pid: int | None) -> dict[str, object
                 "error": "runtime process-group identity changed during validation",
             }
         signal_pid = int(second_group["pid"])
-        os.kill(signal_pid, signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
-        return {"signaled": True, "signalPid": signal_pid}
+        if os.name == "nt":
+            supervisor = second["state"].get("supervisor") or second_group
+            request_path = shutdown_request_path(
+                ROOT, str(second["state"]["runtimeInstanceId"])
+            )
+            atomic_write_json(
+                request_path,
+                {
+                    "version": 1,
+                    "runtimeInstanceId": second["state"]["runtimeInstanceId"],
+                    "supervisorPid": int(supervisor["pid"]),
+                    "supervisorCreatedAt": supervisor["createdAt"],
+                    "requestedAt": datetime.now(UTC).isoformat(),
+                    "operationId": os.environ.get("SWINGLENS_LIFECYCLE_OPERATION_ID"),
+                },
+            )
+            return {
+                "signaled": True,
+                "signalPid": signal_pid,
+                "method": "INSTANCE_SCOPED_SHUTDOWN_REQUEST",
+            }
+        os.kill(signal_pid, signal.SIGTERM)
+        return {"signaled": True, "signalPid": signal_pid, "method": "SIGTERM"}
     except Exception as exc:
         return {"signaled": False, "error": redact_text(str(exc))}
 
@@ -939,6 +1314,15 @@ def _diagnose(operation_id: str) -> dict[str, object]:
         "grafana-health.json": _http_json("http://127.0.0.1:3000/api/health"),
         "docker.json": _observability_report("status"),
     }
+    runtime_state = reports["runtime-state.json"]
+    runtime_instance_id = (
+        runtime_state.get("runtimeInstanceId") if isinstance(runtime_state, dict) else None
+    )
+    reports["shutdown-request.json"] = (
+        _read_json_file(shutdown_request_path(ROOT, str(runtime_instance_id)))
+        if runtime_instance_id
+        else None
+    )
     reports["status.json"] = {
         "lifecycleControllerVersion": LIFECYCLE_CONTROLLER_VERSION,
         "operationId": operation_id,
@@ -1113,6 +1497,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     write_state.add_argument("--json", required=True)
     state = subparsers.add_parser("runtime-state")
     state.add_argument("--listener-pid", type=int)
+    subparsers.add_parser("retire-stale-state")
     stop = subparsers.add_parser("signal-break")
     stop.add_argument("--pid", type=int, required=True)
     stop.add_argument("--listener-pid", type=int)
@@ -1152,6 +1537,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         report = _diagnose(args.operation_id)
     elif args.command == "runtime-state":
         report = _runtime_state_report(args.listener_pid)
+    elif args.command == "retire-stale-state":
+        report = _retire_stale_runtime_state()
     elif args.command == "signal-break":
         report = _signal_break(args.pid, args.listener_pid)
     else:

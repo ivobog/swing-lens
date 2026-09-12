@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -207,3 +208,86 @@ def test_pid_reuse_does_not_validate_old_process_instance(monkeypatch) -> None:
     monkeypatch.setattr(process_identity, "process_started_at", lambda _pid: new_start)
 
     assert process_identity.process_is_alive(1234, old_start) is False
+
+
+def test_shutdown_request_requires_runtime_and_supervisor_identity(tmp_path) -> None:
+    request_path = tmp_path / "request.json"
+    started_at = datetime.now(UTC)
+    payload = {
+        "runtimeInstanceId": "runtime-a",
+        "supervisorPid": 123,
+        "supervisorCreatedAt": started_at.isoformat(),
+    }
+    request_path.write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    assert worker_supervisor._read_shutdown_request(
+        request_path,
+        runtime_instance_id="runtime-a",
+        supervisor_pid=123,
+        supervisor_started_at=started_at,
+    ) == payload
+    assert (
+        worker_supervisor._read_shutdown_request(
+            request_path,
+            runtime_instance_id="runtime-b",
+            supervisor_pid=123,
+            supervisor_started_at=started_at,
+        )
+        is None
+    )
+
+
+def test_unhandled_supervisor_failure_is_durably_logged(monkeypatch) -> None:
+    events = []
+    monkeypatch.setattr(
+        worker_supervisor,
+        "main",
+        lambda _argv=None: (_ for _ in ()).throw(RuntimeError("fatal test")),
+    )
+    monkeypatch.setattr(
+        worker_supervisor,
+        "log_event",
+        lambda _logger, event, **fields: events.append((event, fields)),
+    )
+
+    with pytest.raises(RuntimeError, match="fatal test"):
+        worker_supervisor._main_with_fatal_observability()
+
+    assert events == [
+        (
+            "runtime.fatal_exception",
+            {
+                "level": logging.CRITICAL,
+                "stage": "process_fatal",
+                "result": "failure",
+                "reason_code": "UNHANDLED_SUPERVISOR_EXCEPTION",
+                "error": "RuntimeError: fatal test",
+            },
+        )
+    ]
+
+
+def test_shutdown_request_observability_uses_non_reserved_log_fields(
+    caplog, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "app.observability.logging.append_lifecycle_event", lambda *_args, **_kwargs: None
+    )
+    with caplog.at_level(logging.INFO):
+        worker_supervisor.log_event(
+            worker_supervisor.logger,
+            "runtime.shutdown_requested",
+            stage="shutdown_request",
+            result="success",
+            reason_code="LIFECYCLE_CONTROLLER_REQUEST",
+            shutdown_method="instance_scoped_file",
+            request_operation_id="operation-a",
+        )
+
+    record = next(
+        item for item in caplog.records if item.getMessage() == "runtime.shutdown_requested"
+    )
+    assert record.request_operation_id == "operation-a"

@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
+
+from app.services.us_market_calendar import (
+    latest_completed_us_trading_day,
+    previous_us_trading_day,
+)
 
 
 class DeterministicReadOnlyIB:
@@ -78,15 +83,12 @@ class DeterministicReadOnlyIB:
 
 def _bars_for_ticker(ticker: str) -> list[SimpleNamespace]:
     seed = sum(ord(char) for char in ticker)
-    end = date.today()
-    while end.weekday() >= 5:
-        end -= timedelta(days=1)
+    end = latest_completed_us_trading_day(datetime.now(UTC))
     dates: list[date] = []
     current = end
     while len(dates) < 320:
-        if current.weekday() < 5:
-            dates.append(current)
-        current -= timedelta(days=1)
+        dates.append(current)
+        current = previous_us_trading_day(current)
     dates.reverse()
     bars: list[SimpleNamespace] = []
     for index, bar_date in enumerate(dates):
