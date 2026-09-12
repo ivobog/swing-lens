@@ -2,18 +2,18 @@
 
 ## 1. Executive verdict
 
-**NOT CERTIFIED.** Stopped-generation convergence was remediated in `7d3a950d...`, the
-calendar-sensitive fixture in `65d0343...`, and the Windows command-boundary disappearance and
-graceful-stop ordering race were remediated by the final executable tree at `0267ebd...`. Exact-SHA
-CI run `34674107533` is green. The authorized final-SHA machine probe proved cross-command survival
-after the controller boundary and exact idempotent reuse of the same supervisor, WEB, worker, and
-runtime instance. Its required first `stop`, however, failed before issuing the shutdown request
-because the durable worker did not acknowledge quiescence within the controller timeout. Per the
-explicit no-retry rule, the bounded restart certification was not run. Required diagnose evidence
-was captured, and the single permitted safe-containment stop then exercised the remediated orderly
-shutdown path successfully and returned the machine to canonical `STOPPED`, with zero active jobs,
-all lifecycle ports free, and PostgreSQL still running. Every prior failed attempt below remains
-intact and traceable.
+**CERTIFIED.** The durable quiescence protocol was remediated in
+`9c6c06952a1b6127b0219e29164d3075a71105c6`, and exact-SHA CI run `34692409645` is green. Real
+PostgreSQL concurrency tests prove that the committed registration-row fence serializes job claims;
+shutdown safety now requires that fence, valid runtime/worker identity, and zero blocking jobs, while
+worker acknowledgement remains separately visible evidence. The fresh cross-command probe reused
+the same runtime and completed a safe graceful stop with acknowledgement in 2.139 seconds. The final
+bounded sequence then passed status, first start, idempotent second start, running status, restart to
+a new healthy runtime instance, post-restart status, diagnose, final safe stop, and final status. The
+machine ended canonical `STOPPED`: runtime state `MISSING`, WEB/SUPERVISOR/DURABLE_WORKER absent,
+ports 8000/9101/9102 free, zero active jobs, and PostgreSQL 18.3 still running. Certification
+isolation prevented business work; no business event was claimed or executed. Every earlier failed
+attempt remains intact and traceable below.
 
 ## 2. Original baseline
 
@@ -714,3 +714,156 @@ Final verdict remains **NOT CERTIFIED**. Cross-command survival and independent 
 passed, and the later safe-containment stop proved the final supervisor-exit ordering can complete;
 however, the required first probe stop itself failed at durable-worker quiesce, so the gated restart
 certification has no valid evidence.
+
+## 28. Durable quiescence remediation and final certification — 2026-09-12
+
+### Failed-quiescence reconstruction and root-cause classification
+
+This section supersedes only the current overall verdict. Section 27 remains the immutable record of
+the earlier failed attempt at operation `9d529c04-5f33-4c1f-ab05-98fa63a077ce`.
+
+The retained SQL monitor, worker, supervisor, lifecycle-journal, registration, and diagnostic
+evidence was reconstructed before production code changed. During the failed stop, the worker
+heartbeat transaction continued to complete approximately every five seconds with low SQL latency,
+the control-loop heartbeat continued to advance, worker PID `16476` remained alive, the canonical
+runtime and worker registration identity remained present, and every meaningful active-job
+observation was zero. No `job.worker.heartbeat_failed`, database connection error, row-lock wait,
+connection-pool wait, resource-sampler delay, or monitor stall was found for that failure interval.
+The SQL monitor redacts parameter values and the failed request was later resumed, so retained
+evidence cannot reconstruct the exact successive `quiesced_at` values or prove why the heartbeat
+writer did not leave an acknowledgement visible to the controller. The worker-acknowledgement root
+cause is therefore **UNDETERMINED**; no implementation cause is invented.
+
+The incident-level classification is **ACK_PROTOCOL_DESIGN_DEFECT**. The controller made safe
+shutdown depend on a separate heartbeat acknowledgement even though the durable claim fence was
+committed and no blocking job existed. That coupling could deny availability without adding claim
+safety. It is distinct from the still-unexplained missing acknowledgement symptom.
+
+The secondary `/health` and readiness timeouts seen during the earlier diagnostic remain
+insufficiently linked to the acknowledgement failure. Processes, registrations, and all three
+Prometheus targets remained live at that boundary, so no common cause is claimed.
+
+### Claim-fence proof and remediated protocol
+
+The existing safety mechanism was preserved: both job claiming and quiescence serialize on the same
+durable `background_worker` registration row with `SELECT ... FOR UPDATE`. Real PostgreSQL tests with
+independent transactions prove all required orderings:
+
+- claim-first: the committed `RUNNING` job is visible after quiescence and blocks stop;
+- quiesce-first: the committed marker makes the racing claim return no job;
+- committed fence plus zero `RUNNING`/`RECOVERING` jobs is a stable shutdown-safe state;
+- repeated concurrent claim loops cannot cross the committed fence;
+- an existing `RUNNING` or `RECOVERING` job always blocks shutdown;
+- wrong worker generation/identity fails closed; and
+- the existing absent/dead-worker, zero-active-job fail-safe remains explicit.
+
+The production report now separates these concepts:
+
+```text
+CLAIM_FENCE_ESTABLISHED = committed durable registration-row fence
+WORKER_ACKNOWLEDGED      = live worker independently observed and persisted quiesced_at
+
+safeToStop =
+    claimFenceEstablished
+    AND workerIdentityValid
+    AND activeCount == 0
+```
+
+`quiesced_at` was retained. The report and journal expose request, fence, acknowledgement,
+safe-to-stop timestamps, identity, heartbeat/control-loop ages, active jobs, reason code, and
+acknowledgement latency. A missing acknowledgement remains a diagnostic timeout/warning
+(`QUIESCE_SAFE_WITHOUT_WORKER_ACK`) but no longer overrides a proven safe fence. Fence failure,
+identity ambiguity, or a blocking job still fails closed. Claims are resumed only when stop aborts
+before shutdown commitment; they are never resumed after the instance-scoped shutdown request.
+No Windows creation flag, detachment behavior, supervisor-root topology, or timeout was changed.
+
+### Remediation, tests, and exact-SHA CI
+
+The focused remediation commit is `9c6c06952a1b6127b0219e29164d3075a71105c6`
+(`Harden durable worker quiescence protocol`). The focused worker/quiescence/PostgreSQL/PowerShell
+sets passed, the broader worker/lifecycle set passed **110/110**, and the full lifecycle-focused suite
+passed **127/127**. Repository-wide Ruff and `git diff --check` passed. The PostgreSQL test database
+was disposable and removed after the concurrency proof.
+
+Exact-code-SHA GitHub Actions run `34692409645` was **SUCCESS**:
+
+- `Lint, Test, and Migration Gates` — success;
+- `Chromium and Firefox Smoke` — success;
+- `Windows Durable Worker Recovery Gate` — success, including cross-command survival,
+  same-generation reuse, quiescence coverage, and graceful stop;
+- scheduled nightly work — correctly skipped.
+
+### Fresh cross-command quiescence probe
+
+The fresh probe began from operation `4fe3704f-c06d-48b4-8a96-d56841d44b2c`: `STOPPED`, runtime
+classification `MISSING`, PostgreSQL 18.3 running, schema at head, zero active jobs, and ports
+8000/9101/9102 free. Every runtime-affecting command used the `CERTIFICATION` runtime-mode override.
+
+| Command / operation | Result |
+|---|---|
+| first `start`, `8bfe0c01-593b-4ecf-8750-2b66991a6876` | **PASS** — instance `7102d856d82d494cb0a9cc90750abe57`, supervisor PID `24868`, WEB PID `8600`, worker PID `1676`; command completed successfully |
+| independent status after more than 45 seconds, `280e06db-a472-4fee-ad83-692d7db90008` | persistence evidence **PASS**, command overall **FAIL** — one independent database probe timed out, but the same payload proved the original instance `ACTIVE_VALID`, WEB/worker ready, fresh worker and control-loop heartbeats, and zero active jobs; this is retained as a risk, not rewritten as a clean status result |
+| independent second `start`, `384f9b39-c7ba-466f-94e2-162f85f18c20` | **PASS** — reused strongly verified WEB PID `8600` and the same runtime instance; no replacement runtime was launched |
+| critical `stop`, `d07d9de5-b086-46ef-9371-ff99dadb7656` | **PASS** — `claimFenceEstablished=true`, fence kind `DURABLE_REGISTRATION_ROW`, identity valid, `activeCount=0`, `safeToStop=true`, worker acknowledged in `2.138999` seconds, and graceful shutdown completed |
+
+The critical stop was invoked once and returned the machine to canonical `STOPPED`. The independent
+status timeout did not recur in the required bounded running or post-restart status operations.
+
+### Final bounded certification and recovery after controller interruption
+
+The bounded sequence began only after the fresh critical stop passed. A later Codex/platform
+interruption occurred after restart was issued. Recovery used the lifecycle journal, operation IDs,
+persisted runtime state, OS process identities, and listeners rather than terminal-session inference.
+The journal proves restart operation `0196bfeb-eba1-4ebf-a7f0-d980f58ddc54` both began and completed
+successfully; it was not rerun.
+
+| Prescribed command / operation | Durable result |
+|---|---|
+| initial `status`, `cc084469-5f80-4115-a316-4c4f12b22e15` | **PASS** — stopped baseline |
+| first `start`, `ff417e24-4408-4cc3-950c-1ccac8715f74` | **PASS** — runtime `12d0dbcaff254d54b72089daa1c00635` launched |
+| second `start`, `958116cc-8946-469c-9900-8657c3d04d8c` | **PASS** — same runtime and strongly verified WEB PID `6728` reused |
+| running `status`, `e0706a85-261b-4b22-b116-09708bc5f782` | **PASS** — `ACTIVE_VALID`, one worker, zero active jobs, all three Prometheus targets up |
+| `restart`, `0196bfeb-eba1-4ebf-a7f0-d980f58ddc54` | **PASS** — safe fence, orderly old-instance shutdown, new instance launched and ready |
+| post-restart `status`, `12ce4c38-6500-4ce3-9aa6-ea78024bcce9` | **PASS** — `ACTIVE_VALID`, exact SHA/fingerprint, core/WEB/worker ready, exactly one worker, fresh heartbeats, zero active jobs, all three Prometheus targets up |
+| running `diagnose`, `53089dda-35da-4f6a-b620-a1b23c1644cd` | **PASS** |
+| final `stop`, `3116502d-d14a-4efb-8b22-2b32294d0526` | **PASS** — safe fence, identity valid, zero active jobs, worker acknowledged in `0.965` seconds, orderly shutdown complete |
+| final `status`, `72c2779a-3071-4f68-8d02-b941d57333e9` | **PASS** — `STOPPED`, runtime classification `MISSING`, PostgreSQL/schema healthy, zero active jobs |
+
+For restart, old instance `12d0dbcaff254d54b72089daa1c00635` established its claim fence with
+no blocking job, accepted the instance-scoped request, recorded shutdown begin, completed orderly
+shutdown, and recorded supervisor process shutdown. Replacement instance
+`76ca9c45547d42f69faf7e36410fc513` then launched with process-group PID `5160`, supervisor PID
+`18808`, WEB PID `17908`, and durable-worker PID `17672`. It passed database provenance, migration,
+storage and core readiness; the post-restart status proved one canonical worker and no duplicate
+topology. Its three Prometheus targets were all `up`; Grafana was ready. The only application
+degradation was the pre-existing disk warning at 14.0% free.
+
+### Final physical state, business safety, and remaining risks
+
+Final independent OS inspection found no WEB, SUPERVISOR, or DURABLE_WORKER process, no listener on
+ports 8000, 9101, or 9102, and no `data/cache/swinglens-lifecycle.json` state file. PostgreSQL Windows
+service `postgresql-x64-18` remained running. Final structured status independently reported
+PostgreSQL 18.3 reachable at Alembic head `0072_ceri_artifact_context_lineage` and zero active jobs.
+
+Every worker startup record for this SHA had `runtime_mode=CERTIFICATION` and
+`certification_isolation_active=true`, with Winner automation, unrelated CERI work, market-data
+prewarm/provider prefetch, cache refresh, stale recovery, and unrelated retry/continuation claiming
+disabled. The worker log contains no `job.claimed`, job execution, pipeline, CERI-ingestion, Winner,
+market-data, broker, or SEC business event for this SHA and certification interval. Business data was
+not mutated; only lifecycle registration, heartbeats, quiescence, journals/logs, diagnostics, and
+observability state changed.
+
+Residual operational risks are preserved:
+
+- the earlier acknowledgement absence itself remains unexplained, although it no longer controls a
+  separately proven safe-to-stop decision;
+- one fresh-probe status database connection timed out, and the first bounded runtime had transient
+  worker registration connection timeouts/restarts before stabilizing; all prescribed bounded status,
+  restart, diagnose, and final-stop gates subsequently passed, so no reproducible remediation target
+  was established in this task;
+- the earlier transient HTTP timeout has no proven common cause with the ack incident; and
+- disk free space remains low at approximately 14.0%.
+
+With exact-SHA CI green, the fresh critical quiescence/graceful-stop probe passed, the full bounded
+sequence durably proven green, and the machine returned to the required stopped state, the current
+verdict is **CERTIFIED**.
