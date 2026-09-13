@@ -17,6 +17,7 @@ from app.models.ceri_tables import (
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.evidence_eligibility import filter_eligible_snapshots
 from app.services.redaction import redact_text
 
 
@@ -64,7 +65,7 @@ class CeriChangeRebuildService:
         change_ids: list[int] = []
         errors: list[dict[str, Any]] = []
         comparison_history: dict[int, list[CeriScoreSnapshot]] = {}
-        for snapshot in _load(db, CeriScoreSnapshot):
+        for snapshot in filter_eligible_snapshots(db, _load(db, CeriScoreSnapshot)):
             comparison_history.setdefault(snapshot.company_id, []).append(snapshot)
         grouped: dict[int, list[CeriScoreSnapshot]] = {}
         for snapshot in snapshots:
@@ -156,7 +157,7 @@ class CeriChangeRebuildService:
         )
 
     def _snapshots(self, db: Session, request: CeriChangeRebuildRequest) -> list[CeriScoreSnapshot]:
-        rows = _load(db, CeriScoreSnapshot)
+        rows = filter_eligible_snapshots(db, _load(db, CeriScoreSnapshot))
         ids = set(request.company_ids or ())
         if ids:
             rows = [row for row in rows if row.company_id in ids]

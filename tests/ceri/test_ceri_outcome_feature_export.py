@@ -14,6 +14,7 @@ def test_outcome_feature_export_is_point_in_time_safe() -> None:
     future = _snapshot(2, datetime(2026, 8, 2, 21, tzinfo=UTC))
 
     result = CeriOutcomeFeatureExportService().export_snapshots(
+        object(),
         snapshots=[eligible, future],
         cutoff_at=datetime(2026, 8, 1, 23, tzinfo=UTC),
     )

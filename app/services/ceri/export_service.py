@@ -21,6 +21,7 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.evidence_eligibility import filter_eligible_snapshots
 from app.services.ceri.export_policy import CeriExportPolicyRegistry
 from app.services.csv_export import write_csv
 
@@ -69,7 +70,10 @@ class CeriExportService:
         snapshots: list[CeriScoreSnapshot] | None = None,
     ) -> CeriExportResult:
         tickers_set = {ticker.upper() for ticker in tickers or []}
-        candidates = snapshots if snapshots is not None else _load(db, CeriScoreSnapshot)
+        candidates = filter_eligible_snapshots(
+            db,
+            snapshots if snapshots is not None else _load(db, CeriScoreSnapshot),
+        )
         if run_id is None:
             candidates = _latest_snapshot_rows(candidates)
         rows = []

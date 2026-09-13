@@ -28,6 +28,7 @@ from app.services.ceri.confidence_service import CeriConfidenceService, Confiden
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.dtos import ScoreComponent
 from app.services.ceri.enums import HistoricalViewMode
+from app.services.ceri.evidence_eligibility import eligible_snapshot_predicate
 from app.services.ceri.evidence_state_service import CeriEvidenceLedgerService
 from app.services.ceri.opportunity_score_service import (
     CeriOpportunityScoreService,
@@ -104,7 +105,10 @@ class CeriControlledReplayService:
         originals = list(
             db.scalars(
                 select(CeriScoreSnapshot)
-                .where(CeriScoreSnapshot.run_id == request.source_run_id)
+                .where(
+                    CeriScoreSnapshot.run_id == request.source_run_id,
+                    eligible_snapshot_predicate(),
+                )
                 .order_by(CeriScoreSnapshot.ticker)
             ).all()
         )

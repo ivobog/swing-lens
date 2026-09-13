@@ -18,6 +18,7 @@ from app.models.ceri_tables import (
     CeriCompanyAlias,
     CeriEarningsActual,
     CeriEstimateSnapshot,
+    CeriEvidenceDisposition,
     CeriIngestionRun,
     CeriProcessingRun,
     CeriPurgeAudit,
@@ -39,6 +40,7 @@ CERI_TABLE_NAMES = {
     "ceri_catalyst_sources",
     "ceri_revision_features",
     "ceri_score_snapshots",
+    "ceri_evidence_dispositions",
     "ceri_change_events",
     "ceri_manual_reviews",
     "ceri_processing_runs",
@@ -55,6 +57,27 @@ CERI_TABLE_NAMES = {
 def test_ceri_metadata_includes_all_phase_2_tables() -> None:
     assert CERI_TABLE_NAMES.issubset(Base.metadata.tables)
     assert {table.name for table in CERI_TABLES} == CERI_TABLE_NAMES
+
+
+def test_ceri_evidence_disposition_schema_is_append_only_ready() -> None:
+    table = CeriEvidenceDisposition.__table__
+    assert {
+        "ceri_snapshot_id",
+        "disposition",
+        "reason_code",
+        "incident_reference",
+        "actor_source",
+        "metadata_json",
+        "event_fingerprint",
+        "created_at",
+    } <= set(table.c.keys())
+    assert table.c.ceri_snapshot_id.foreign_keys
+    assert "uq_ceri_evidence_dispositions_event_fingerprint" in {
+        constraint.name for constraint in table.constraints
+    }
+    assert "ix_ceri_evidence_dispositions_snapshot_effective" in {
+        index.name for index in table.indexes
+    }
 
 
 def test_source_record_preserves_provider_lineage_and_restrictions() -> None:

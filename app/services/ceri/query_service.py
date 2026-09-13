@@ -51,6 +51,10 @@ from app.services.ceri.constants import (
     CERI_LOW_RISK_THRESHOLD,
 )
 from app.services.ceri.enums import CeriDataset, HistoricalViewMode
+from app.services.ceri.evidence_eligibility import (
+    eligible_snapshot_predicate,
+    filter_eligible_snapshots,
+)
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.freshness_service import (
     FeedFreshness,
@@ -304,7 +308,9 @@ class CeriQueryService:
         revision_features = {row.id: row for row in _load(db, CeriRevisionFeature)}
         events = {row.id: row for row in _load(db, CeriCatalystEvent)}
         guidance = {row.id: row for row in _load(db, CeriGuidanceEvent)}
-        latest_snapshot_ids = _latest_snapshot_ids_by_company(snapshots.values())
+        latest_snapshot_ids = _latest_snapshot_ids_by_company(
+            filter_eligible_snapshots(db, snapshots.values())
+        )
         items = []
         for change in change_rows:
             ticker = company_by_id.get(change.company_id, {}).get("ticker")
@@ -620,14 +626,17 @@ class CeriQueryService:
         if not _uses_fixture_collections(db):
             return self._database_alerts(db, query)
         company_by_id = _company_by_id(db)
-        snapshots = {row.id: row for row in _load(db, CeriScoreSnapshot)}
+        snapshot_rows = _load(db, CeriScoreSnapshot)
+        snapshots = {row.id: row for row in snapshot_rows}
         revisions = {row.id: row for row in _load(db, CeriCatalystEventRevision)}
         revision_features = {row.id: row for row in _load(db, CeriRevisionFeature)}
         events = {row.id: row for row in _load(db, CeriCatalystEvent)}
         guidance = {row.id: row for row in _load(db, CeriGuidanceEvent)}
         changes = {row.id: row for row in _load(db, CeriChangeEvent)}
         rules = {row.id: row for row in _load(db, CeriAlertRule)}
-        latest_snapshot_ids = _latest_snapshot_ids_by_company(snapshots.values())
+        latest_snapshot_ids = _latest_snapshot_ids_by_company(
+            filter_eligible_snapshots(db, snapshots.values())
+        )
         current_catalyst_revision_ids = {
             revision.id
             for revision in revisions.values()
@@ -1540,15 +1549,22 @@ class CeriQueryService:
     def _filtered_snapshots(
         self, db: Session, filters: CeriQueryFilters
     ) -> list[CeriScoreSnapshot]:
-        if (filters.run_id is not None or filters.ticker) and not _uses_fixture_collections(db):
+        if not _uses_fixture_collections(db):
             predicates = []
             if filters.run_id is not None:
                 predicates.append(CeriScoreSnapshot.run_id == filters.run_id)
             if filters.ticker:
                 predicates.append(CeriScoreSnapshot.ticker == _ticker(filters.ticker))
-            snapshot_rows = list(db.scalars(select(CeriScoreSnapshot).where(*predicates)).all())
+            snapshot_rows = list(
+                db.scalars(
+                    select(CeriScoreSnapshot).where(
+                        eligible_snapshot_predicate(),
+                        *predicates,
+                    )
+                ).all()
+            )
         else:
-            snapshot_rows = _load(db, CeriScoreSnapshot)
+            snapshot_rows = filter_eligible_snapshots(db, _load(db, CeriScoreSnapshot))
         self._remember_snapshots(snapshot_rows)
         snapshots = []
         catalyst_company_ids: set[int] | None = None
@@ -3070,6 +3086,7 @@ def _latest_referenced_snapshot_subquery():
             .label("snapshot_rank"),
         )
         .join(CeriScoreSnapshot, CeriScoreSnapshot.id == referenced.c.snapshot_id)
+        .where(eligible_snapshot_predicate())
         .subquery("ranked_change_snapshots")
     )
     return (
@@ -3080,20 +3097,24 @@ def _latest_referenced_snapshot_subquery():
 
 
 def _latest_snapshot_subquery():
-    ranked = select(
-        CeriScoreSnapshot.company_id,
-        CeriScoreSnapshot.id.label("snapshot_id"),
-        func.row_number()
-        .over(
-            partition_by=CeriScoreSnapshot.company_id,
-            order_by=(
-                CeriScoreSnapshot.cutoff_at.desc().nullslast(),
-                CeriScoreSnapshot.as_of_session.desc().nullslast(),
-                CeriScoreSnapshot.id.desc(),
-            ),
+    ranked = (
+        select(
+            CeriScoreSnapshot.company_id,
+            CeriScoreSnapshot.id.label("snapshot_id"),
+            func.row_number()
+            .over(
+                partition_by=CeriScoreSnapshot.company_id,
+                order_by=(
+                    CeriScoreSnapshot.cutoff_at.desc().nullslast(),
+                    CeriScoreSnapshot.as_of_session.desc().nullslast(),
+                    CeriScoreSnapshot.id.desc(),
+                ),
+            )
+            .label("snapshot_rank"),
         )
-        .label("snapshot_rank"),
-    ).subquery("ranked_all_snapshots")
+        .where(eligible_snapshot_predicate())
+        .subquery("ranked_all_snapshots")
+    )
     return (
         select(ranked.c.company_id, ranked.c.snapshot_id)
         .where(ranked.c.snapshot_rank == 1)

@@ -17,6 +17,7 @@ from app.services.ceri.change_semantics import ComparisonState
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 from app.services.ceri.enums import CeriChangeType
+from app.services.ceri.evidence_eligibility import EXCLUDED, effective_disposition_by_snapshot
 from app.services.ceri.feature_flags import ceri_flags
 
 
@@ -53,7 +54,21 @@ class CeriAlertService:
         if not self.alerts_enabled:
             return AlertRebuildResult(alerts=0, duplicates=0, skipped=len(changes))
         ticker_by_company = ticker_by_company or {}
+        referenced_snapshot_ids = {
+            int(snapshot_id)
+            for change in changes
+            for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
+            if snapshot_id is not None
+        }
+        dispositions = effective_disposition_by_snapshot(db, referenced_snapshot_ids)
         for change in changes:
+            if any(
+                snapshot_id is not None
+                and dispositions.get(int(snapshot_id)) == EXCLUDED
+                for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
+            ):
+                skipped += 1
+                continue
             if not self._eligible_change(db, change):
                 skipped += 1
                 continue

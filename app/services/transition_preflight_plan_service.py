@@ -22,6 +22,7 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.ceri.evidence_eligibility import eligible_snapshot_predicate
 from app.services.ceri.pit_eligibility import price_bar_is_eligible
 from app.services.market_calculation_context_service import (
     attach_reserved_market_context,
@@ -774,7 +775,10 @@ def _build_decision_handoff_payload(
     ceri_rows = list(
         db.scalars(
             select(CeriScoreSnapshot)
-            .where(CeriScoreSnapshot.run_id == plan.upload_run_id)
+            .where(
+                CeriScoreSnapshot.run_id == plan.upload_run_id,
+                eligible_snapshot_predicate(),
+            )
             .order_by(CeriScoreSnapshot.ticker, CeriScoreSnapshot.id)
         )
     )
@@ -862,7 +866,12 @@ def _validate_handoff_temporal_lineage(
                 failures.append(f"{ticker}:post_cutoff_bar")
 
     ceri_rows = list(
-        db.scalars(select(CeriScoreSnapshot).where(CeriScoreSnapshot.run_id == upload_run_id))
+        db.scalars(
+            select(CeriScoreSnapshot).where(
+                CeriScoreSnapshot.run_id == upload_run_id,
+                eligible_snapshot_predicate(),
+            )
+        )
     )
     ceri_source_ids: set[int] = set()
     for row in ceri_rows:

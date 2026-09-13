@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from app.models.ceri_tables import CeriScoreSnapshot
+from app.services.ceri.evidence_eligibility import filter_eligible_snapshots
 
 
 @dataclass(frozen=True)
@@ -15,12 +18,13 @@ class OutcomeFeatureExportResult:
 class CeriOutcomeFeatureExportService:
     def export_snapshots(
         self,
+        db: Session,
         *,
         snapshots: list[CeriScoreSnapshot],
         cutoff_at: datetime,
     ) -> OutcomeFeatureExportResult:
         rows = []
-        for snapshot in snapshots:
+        for snapshot in filter_eligible_snapshots(db, snapshots):
             if snapshot.cutoff_at > cutoff_at:
                 continue
             rows.append(

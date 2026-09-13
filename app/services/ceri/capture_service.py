@@ -30,6 +30,7 @@ from app.services.ceri.change_detection_service import CeriChangeDetectionServic
 from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.confidence_service import CeriConfidenceService
 from app.services.ceri.event_risk_service import CeriEventRiskService
+from app.services.ceri.evidence_eligibility import eligible_snapshot_predicate
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.freshness_service import ticker_feed_freshness_from_runs
 from app.services.ceri.guidance_normalizer import guidance_eligibility_reason
@@ -890,7 +891,10 @@ def _prior_snapshot(
 ) -> tuple[CeriScoreSnapshot | None, str]:
     snapshots = _scalars(
         db,
-        select(CeriScoreSnapshot).where(CeriScoreSnapshot.company_id == company_id),
+        select(CeriScoreSnapshot).where(
+            CeriScoreSnapshot.company_id == company_id,
+            eligible_snapshot_predicate(),
+        ),
     )
     candidates = [
         snapshot

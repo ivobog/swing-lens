@@ -1097,6 +1097,56 @@ class CeriScoreSnapshot(Base):
     )
 
 
+class CeriEvidenceDisposition(Base):
+    __tablename__ = "ceri_evidence_dispositions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ceri_snapshot_id: Mapped[int] = mapped_column(
+        ForeignKey("ceri_score_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    disposition: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(128), nullable=False)
+    incident_reference: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_source: Mapped[str] = mapped_column(Text, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
+    event_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "disposition IN ('ELIGIBLE', 'EXCLUDED')",
+            name="ck_ceri_evidence_dispositions_value",
+        ),
+        UniqueConstraint(
+            "event_fingerprint",
+            name="uq_ceri_evidence_dispositions_event_fingerprint",
+        ),
+        Index(
+            "ix_ceri_evidence_dispositions_snapshot_effective",
+            "ceri_snapshot_id",
+            created_at.desc(),
+            id.desc(),
+            postgresql_include=("disposition",),
+        ),
+        Index(
+            "ix_ceri_evidence_dispositions_incident",
+            "incident_reference",
+            "disposition",
+        ),
+    )
+
+
 class CeriChangeEvent(Base):
     __tablename__ = "ceri_change_events"
 
@@ -1327,6 +1377,7 @@ CERI_TABLES = (
     CeriPriceResponseFeature.__table__,
     CeriDerivedFeature.__table__,
     CeriScoreSnapshot.__table__,
+    CeriEvidenceDisposition.__table__,
     CeriChangeEvent.__table__,
     CeriManualReview.__table__,
     CeriAlertRule.__table__,
