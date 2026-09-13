@@ -357,6 +357,85 @@ def test_execute_full_pipeline_runs_winner_capture_when_enabled() -> None:
     assert result.winner_prediction_decision_time_estimates == 1
 
 
+def test_winner_cohort_failures_mark_step_failed_and_surface_completion_counts() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    dependencies = replace(
+        _dependencies(
+            [],
+            plan=_plan(estimated_request_count=0),
+            combined_results=[
+                CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+            ],
+            winner_capture_enabled=True,
+        ),
+        capture_winner_predictions=lambda _db, _run_id, **_kwargs: {
+            "planned": 185,
+            "attempted": 185,
+            "inserted": 0,
+            "excluded": 8,
+            "failed": 177,
+            "failure_ratio": 177 / 185,
+            "exclusion_reasons": {"insufficient_completed_bars": 8},
+            "failure_classifications": {"DetachedInstanceError": 177},
+            "representative_failures": [
+                {
+                    "ticker": "HRMY",
+                    "classification": "DetachedInstanceError",
+                    "message": "detached",
+                }
+            ],
+        },
+    )
+
+    result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    winner_step = next(
+        step for step in db.steps if step.step_name == "CAPTURING_WINNER_PREDICTIONS"
+    )
+    assert result.status == PipelineStatus.PARTIAL
+    assert winner_step.status == PipelineStepStatus.FAILED
+    assert "177 failed" in winner_step.message
+    assert "dominant failure: DetachedInstanceError" in winner_step.error_message
+    assert "Winner Evidence: 0 inserted, 8 excluded, 177 failed" in db.pipeline.message
+    assert db.pipeline.result_json["winner_prediction_failure_ratio"] == pytest.approx(177 / 185)
+    assert db.pipeline.result_json["winner_prediction_failure_classifications"] == {
+        "DetachedInstanceError": 177
+    }
+
+
+def test_winner_partial_output_is_not_silently_reported_as_completed_step() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    dependencies = replace(
+        _dependencies(
+            [],
+            plan=_plan(estimated_request_count=0),
+            combined_results=[
+                CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+            ],
+            winner_capture_enabled=True,
+        ),
+        capture_winner_predictions=lambda _db, _run_id, **_kwargs: {
+            "planned": 3,
+            "attempted": 3,
+            "inserted": 2,
+            "excluded": 0,
+            "failed": 1,
+            "failure_ratio": 1 / 3,
+            "failure_classifications": {"RuntimeError": 1},
+        },
+    )
+
+    execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    winner_step = next(
+        step for step in db.steps if step.step_name == "CAPTURING_WINNER_PREDICTIONS"
+    )
+    assert winner_step.status == PipelineStepStatus.FAILED
+    assert winner_step.message == (
+        "Winner Evidence degraded: 2 inserted, 0 duplicate, 0 excluded, 1 failed."
+    )
+
+
 def test_execute_full_pipeline_propagates_winner_control_and_progress_contract() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
     received: dict[str, object] = {}
@@ -376,6 +455,7 @@ def test_execute_full_pipeline_propagates_winner_control_and_progress_contract()
 
     def memory_probe(*_args, **_kwargs):
         return None
+
     dependencies = replace(
         _dependencies(
             [],
@@ -408,9 +488,7 @@ def test_execute_full_pipeline_propagates_winner_control_and_progress_contract()
 
 def test_replay_interrupts_stale_running_step_and_preserves_attempt_history() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
-    stale = next(
-        step for step in db.steps if step.step_name == "CAPTURING_WINNER_PREDICTIONS"
-    )
+    stale = next(step for step in db.steps if step.step_name == "CAPTURING_WINNER_PREDICTIONS")
     stale.status = PipelineStepStatus.RUNNING
     stale.started_at = datetime(2026, 9, 12, 18, 0, tzinfo=UTC)
 
@@ -429,8 +507,7 @@ def test_replay_interrupts_stale_running_step_and_preserves_attempt_history() ->
     assert stale.status == PipelineStepStatus.COMPLETED
     assert stale.completed_at is not None
     assert any(
-        attempt["status"] == "INTERRUPTED"
-        for attempt in stale.result_json["attempt_history"]
+        attempt["status"] == "INTERRUPTED" for attempt in stale.result_json["attempt_history"]
     )
     assert all(step.status != PipelineStepStatus.RUNNING for step in db.steps)
 

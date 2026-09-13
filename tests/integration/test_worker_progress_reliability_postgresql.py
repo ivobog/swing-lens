@@ -170,6 +170,95 @@ def test_six_hundred_item_fetch_keeps_session_and_memory_bounded(
     engine.dispose()
 
 
+def test_progress_totals_and_labels_reset_at_stage_boundary(
+    disposable_postgres_database: str,
+) -> None:
+    _migrate(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    with sessions() as setup:
+        setup.add(
+            BackgroundWorker(
+                worker_id="stage-reset-worker",
+                instance_id="stage-reset-instance",
+                generation=1,
+                queues_json=["interactive", "background"],
+            )
+        )
+        job = enqueue_job(setup, "FULL_PIPELINE", {"pipeline_run_id": 148})
+        setup.commit()
+        job_id = int(job.id)
+
+    with sessions() as db:
+        job = claim_next_job(db, "stage-reset-worker", lease_seconds=900)
+        assert job is not None
+        token = str(job.execution_token)
+        record_job_progress(
+            db,
+            job_id=job_id,
+            execution_token=token,
+            stage="FETCHING_MARKET_DATA",
+            current_item=None,
+            last_completed_item="SPY:TRADES",
+            processed=374,
+            total=374,
+        )
+        db.commit()
+
+        # This is the pipeline-step transition callback: the next stage total
+        # is not known yet, so every prior stage-local field must be cleared.
+        record_job_progress(
+            db,
+            job_id=job_id,
+            execution_token=token,
+            stage="CAPTURING_WINNER_PREDICTIONS",
+            current_item=None,
+        )
+        db.commit()
+        db.refresh(job)
+        assert job.progress_stage == "CAPTURING_WINNER_PREDICTIONS"
+        assert job.progress_processed == 0
+        assert job.progress_total is None
+        assert job.progress_current_item is None
+        assert job.progress_last_completed_item is None
+
+        record_job_progress(
+            db,
+            job_id=job_id,
+            execution_token=token,
+            stage="CAPTURING_WINNER_PREDICTIONS",
+            current_item="AAA",
+            processed=0,
+            total=185,
+        )
+        record_job_progress(
+            db,
+            job_id=job_id,
+            execution_token=token,
+            stage="CAPTURING_WINNER_PREDICTIONS",
+            current_item=None,
+            last_completed_item="ZZZ",
+            processed=185,
+            total=185,
+        )
+        # Same-stage stale progress cannot regress the counters.
+        record_job_progress(
+            db,
+            job_id=job_id,
+            execution_token=token,
+            stage="CAPTURING_WINNER_PREDICTIONS",
+            current_item="OLD",
+            processed=100,
+            total=185,
+        )
+        db.commit()
+        db.refresh(job)
+        assert job.progress_processed == 185
+        assert job.progress_total == 185
+        assert job.progress_last_completed_item == "ZZZ"
+    engine.dispose()
+
+
 class FakeIB:
     def __init__(self) -> None:
         self.connected = False

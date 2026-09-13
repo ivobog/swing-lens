@@ -801,18 +801,42 @@ def record_job_progress(
         "progress_current_item": current_item,
         "checkpoint_version": checkpoint_version,
     }
-    if last_completed_item is not None:
-        values["progress_last_completed_item"] = last_completed_item
+    stage_changed = or_(
+        BackgroundJob.progress_stage != stage,
+        BackgroundJob.progress_stage.is_(None),
+    )
+    values["progress_last_completed_item"] = case(
+        (stage_changed, last_completed_item),
+        else_=(
+            last_completed_item
+            if last_completed_item is not None
+            else BackgroundJob.progress_last_completed_item
+        ),
+    )
     if processed is not None:
-        values["progress_processed"] = processed
+        values["progress_processed"] = case(
+            (stage_changed, processed),
+            (BackgroundJob.progress_processed.is_(None), processed),
+            (BackgroundJob.progress_processed < processed, processed),
+            else_=BackgroundJob.progress_processed,
+        )
+    else:
+        values["progress_processed"] = case(
+            (stage_changed, 0),
+            else_=BackgroundJob.progress_processed,
+        )
     if total is not None:
         if processed is not None and total < processed:
             raise ValueError("progress total cannot be less than processed work")
         values["progress_total"] = case(
-            (BackgroundJob.progress_stage != stage, total),
-            (BackgroundJob.progress_stage.is_(None), total),
+            (stage_changed, total),
             (BackgroundJob.progress_total.is_(None), total),
             (BackgroundJob.progress_total < total, total),
+            else_=BackgroundJob.progress_total,
+        )
+    else:
+        values["progress_total"] = case(
+            (stage_changed, None),
             else_=BackgroundJob.progress_total,
         )
     statement = (

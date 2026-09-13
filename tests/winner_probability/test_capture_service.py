@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -32,6 +33,9 @@ def test_completed_run_creates_snapshot_pending_outcomes_and_decision_estimate()
     )
 
     assert result.inserted == 1
+    assert result.planned == 1
+    assert result.attempted == 1
+    assert result.failure_ratio == 0.0
     assert result.pending_outcomes == 10
     assert result.target_stop_outcomes == 2
     assert result.decision_time_estimates == 1
@@ -88,6 +92,11 @@ def test_historical_source_mutation_does_not_change_existing_snapshot_hash(caplo
     second = service.capture_run(object(), run_id=7, config=config)
 
     assert second.failed == 1
+    assert second.planned == 1
+    assert second.attempted == 1
+    assert second.failure_ratio == 1.0
+    assert second.failure_classifications == {"WinnerPredictionCaptureConflict": 1}
+    assert second.representative_failures[0]["ticker"] == "MSFT"
     assert "winner_prediction.capture_failed" in caplog.text
     assert repository.predictions[0].feature_vector_hash == original_hash
     assert repository.predictions[0].feature_json["combined_score"] == "8.5"
@@ -107,6 +116,58 @@ def test_missing_optional_regime_and_sector_context_is_captured_as_warnings() ->
     assert prediction.sector_state is None
     assert "missing_market_regime_snapshot" in prediction.warning_flags_json
     assert "missing_sector_rotation_context" in prediction.warning_flags_json
+
+
+def test_eligibility_exclusion_is_reported_separately_from_processing_failure() -> None:
+    context = build_run_context()
+    context.tickers[0].technical_score.insufficient_data = True
+    repository = FakeWinnerRepository(context)
+
+    result = _capture_service(repository).capture_run(object(), run_id=7)
+
+    assert result.excluded == 1
+    assert result.failed == 0
+    assert result.exclusion_reasons == {"insufficient_completed_bars": 1}
+    assert result.failure_classifications == {}
+
+
+def test_multiple_ticker_capture_isolates_failures_and_returns_aggregate_diagnostics() -> None:
+    contexts = [
+        SimpleNamespace(raw_row=SimpleNamespace(ticker=ticker)) for ticker in ("AAA", "BAD", "CCC")
+    ]
+
+    class Repository:
+        def load_run_context(self, _db, _run_id):
+            return SimpleNamespace(tickers=contexts)
+
+        def get_outcome_definition(self, _db, **_kwargs):
+            return None
+
+    class Service(WinnerPredictionCaptureService):
+        def _capture_ticker(self, _db, *, ticker_context, totals, **_kwargs):
+            ticker = ticker_context.raw_row.ticker
+            if ticker == "BAD":
+                raise RuntimeError("representative failure")
+            totals.inserted += 1
+
+    result = Service(
+        repository=Repository(),
+        decision_time_estimate_service=SimpleNamespace(),
+    ).capture_run(object(), run_id=158)
+
+    assert result.planned == 3
+    assert result.attempted == 3
+    assert result.inserted == 2
+    assert result.failed == 1
+    assert result.failure_ratio == pytest.approx(1 / 3)
+    assert result.failure_classifications == {"RuntimeError": 1}
+    assert result.representative_failures == (
+        {
+            "ticker": "BAD",
+            "classification": "RuntimeError",
+            "message": "representative failure",
+        },
+    )
 
 
 def test_future_next_open_entry_is_not_a_capture_exclusion() -> None:

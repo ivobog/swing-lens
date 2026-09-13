@@ -707,7 +707,7 @@ def execute_full_pipeline(
             "CAPTURING_WINNER_PREDICTIONS",
             lease_guard=lease_guard,
             performance=performance,
-        ):
+        ) as winner_step:
             if result["market_data_mode"] == "CACHE_FALLBACK":
                 result["winner_prediction_capture_skipped"] = 1
                 result["winner_prediction_capture_skip_reason"] = "CACHE_FALLBACK_MARKET_DATA"
@@ -727,6 +727,7 @@ def execute_full_pipeline(
                     capture_result,
                     performance=performance,
                 )
+                _apply_winner_step_outcome(winner_step, capture_result)
             else:
                 result["winner_prediction_capture_skipped"] = 1
 
@@ -895,7 +896,7 @@ def _execute_resumed_pipeline(
             "CAPTURING_WINNER_PREDICTIONS",
             lease_guard=lease_guard,
             performance=performance,
-        ):
+        ) as winner_step:
             if _winner_probability_capture_enabled(dependencies):
                 capture = dependencies.capture_winner_predictions or _capture_winner_predictions
                 winner_result = _invoke_winner_capture(
@@ -912,6 +913,7 @@ def _execute_resumed_pipeline(
                     winner_result,
                     performance=performance,
                 )
+                _apply_winner_step_outcome(winner_step, winner_result)
             else:
                 result["winner_prediction_capture_skipped"] = 1
 
@@ -1207,9 +1209,7 @@ def _interrupt_superseded_running_steps(
     observed_at: datetime,
 ) -> None:
     """Ensure a replay exposes exactly one authoritative RUNNING step."""
-    for step in db.scalars(
-        select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_id)
-    ):
+    for step in db.scalars(select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_id)):
         if step.step_name == authoritative_step or step.status != PipelineStepStatus.RUNNING:
             continue
         _archive_pipeline_step_attempt(
@@ -1580,15 +1580,28 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
 
 
 def _completion_message(status: str, result: dict[str, Any]) -> str:
+    winner_summary = _winner_completion_summary(result)
     if status == PipelineStatus.COMPLETED:
-        return f"Pipeline completed with {result['combined_results']} combined rows."
+        return (
+            f"Pipeline completed with {result['combined_results']} combined rows.{winner_summary}"
+        )
     if status == PipelineStatus.PARTIAL:
         return (
             f"Pipeline completed partially with {result['combined_results']} combined rows, "
             f"{result['incomplete_rows']} incomplete rows, and "
             f"{result['ib_failure_count']} IB failures."
+            f"{winner_summary}"
         )
     return "Pipeline failed before combined results were produced."
+
+
+def _winner_completion_summary(result: dict[str, Any]) -> str:
+    inserted = int(result.get("winner_prediction_inserted") or 0)
+    excluded = int(result.get("winner_prediction_excluded") or 0)
+    failed = int(result.get("winner_prediction_failed") or 0)
+    if excluded <= 0 and failed <= 0:
+        return ""
+    return f" Winner Evidence: {inserted} inserted, {excluded} excluded, {failed} failed."
 
 
 def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any]:
@@ -1655,6 +1668,12 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
         "winner_prediction_duplicate": 0,
         "winner_prediction_excluded": 0,
         "winner_prediction_failed": 0,
+        "winner_prediction_planned": 0,
+        "winner_prediction_attempted": 0,
+        "winner_prediction_failure_ratio": 0.0,
+        "winner_prediction_exclusion_reasons": {},
+        "winner_prediction_failure_classifications": {},
+        "winner_prediction_representative_failures": [],
         "winner_prediction_pending_outcomes": 0,
         "winner_prediction_decision_time_estimates": 0,
         "winner_prediction_capture_skipped": 0,
@@ -2055,6 +2074,16 @@ def _apply_winner_capture_result(
     result["winner_prediction_duplicate"] = int(values.get("duplicate", 0))
     result["winner_prediction_excluded"] = int(values.get("excluded", 0))
     result["winner_prediction_failed"] = int(values.get("failed", 0))
+    result["winner_prediction_planned"] = int(values.get("planned", 0))
+    result["winner_prediction_attempted"] = int(values.get("attempted", 0))
+    result["winner_prediction_failure_ratio"] = float(values.get("failure_ratio", 0.0))
+    result["winner_prediction_exclusion_reasons"] = dict(values.get("exclusion_reasons") or {})
+    result["winner_prediction_failure_classifications"] = dict(
+        values.get("failure_classifications") or {}
+    )
+    result["winner_prediction_representative_failures"] = list(
+        values.get("representative_failures") or ()
+    )
     result["winner_prediction_pending_outcomes"] = int(values.get("pending_outcomes", 0))
     result["winner_prediction_decision_time_estimates"] = int(
         values.get("decision_time_estimates", 0)
@@ -2062,6 +2091,31 @@ def _apply_winner_capture_result(
     if performance is not None:
         for name, value in (values.get("performance") or {}).items():
             performance.set_metric(name, value)
+
+
+def _apply_winner_step_outcome(step: PipelineStep, capture_result: Any) -> None:
+    values = (
+        capture_result.as_dict() if hasattr(capture_result, "as_dict") else dict(capture_result)
+    )
+    failed = int(values.get("failed", 0))
+    if failed <= 0:
+        return
+    inserted = int(values.get("inserted", 0))
+    duplicate = int(values.get("duplicate", 0))
+    excluded = int(values.get("excluded", 0))
+    attempted = int(values.get("attempted", 0))
+    failure_ratio = float(values.get("failure_ratio", failed / attempted if attempted else 1.0))
+    classifications = values.get("failure_classifications") or {}
+    dominant = max(classifications, key=classifications.get) if classifications else "UNCLASSIFIED"
+    step.status = PipelineStepStatus.FAILED
+    step.message = (
+        f"Winner Evidence degraded: {inserted} inserted, {duplicate} duplicate, "
+        f"{excluded} excluded, {failed} failed."
+    )
+    step.error_message = (
+        f"{failed} of {attempted or failed} Winner items failed "
+        f"({failure_ratio:.1%}); dominant failure: {dominant}."
+    )
 
 
 def _apply_setup_lifecycle_capture_result(

@@ -285,10 +285,9 @@ def _is_trustworthy(run: UploadRun, trusted_run_ids: tuple[int, ...]) -> bool:
 
 
 def _merge_counts(counts: dict[str, int], result: WinnerPredictionCaptureResult) -> None:
-    for key, value in result.as_dict().items():
-        if key == "performance":
-            continue
-        counts[key] = counts.get(key, 0) + int(value)
+    values = result.as_dict()
+    for key in counts:
+        counts[key] += int(values.get(key, 0))
 
 
 def _check(checks: tuple[RolloutReadinessCheck, ...], name: str) -> bool:

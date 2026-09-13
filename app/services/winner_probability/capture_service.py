@@ -17,6 +17,7 @@ from app.models.tables import (
 )
 from app.services.background_job_service import JobLeaseLost
 from app.services.process_memory import WorkerMemoryCritical
+from app.services.redaction import redact_sensitive
 from app.services.us_market_calendar import us_market_session
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
@@ -57,6 +58,8 @@ class WinnerPredictionCaptureCancelled(RuntimeError):
 
 @dataclass(frozen=True)
 class WinnerPredictionCaptureResult:
+    planned: int = 0
+    attempted: int = 0
     inserted: int = 0
     duplicate: int = 0
     excluded: int = 0
@@ -66,6 +69,10 @@ class WinnerPredictionCaptureResult:
     target_stop_outcomes: int = 0
     decision_time_estimates: int = 0
     insufficient_estimates: int = 0
+    failure_ratio: float = 0.0
+    exclusion_reasons: dict[str, int] = field(default_factory=dict)
+    failure_classifications: dict[str, int] = field(default_factory=dict)
+    representative_failures: tuple[dict[str, str], ...] = ()
     performance: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -117,7 +124,7 @@ class WinnerPredictionCaptureService:
         run_context = self.repository.load_run_context(db, run_id)
         ticker_contexts = list(run_context.tickers)
         total_tickers = len(ticker_contexts)
-        totals = _MutableCaptureCounts()
+        totals = _MutableCaptureCounts(planned=total_tickers)
         primary_definition = self.repository.get_outcome_definition(
             db,
             definition_id=config.primary_outcome_definition.id,
@@ -160,6 +167,7 @@ class WinnerPredictionCaptureService:
 
             for item_index, ticker_context in enumerate(ticker_contexts, start=1):
                 ticker = _ticker_name(ticker_context)
+                totals.attempted += 1
                 _assert_capture_control(should_cancel=should_cancel, lease_guard=lease_guard)
                 ticker_started = perf_counter()
                 ticker_counts = _MutableCaptureCounts()
@@ -218,8 +226,8 @@ class WinnerPredictionCaptureService:
                             item_db.commit()
                 except (JobLeaseLost, WorkerMemoryCritical, WinnerPredictionCaptureCancelled):
                     raise
-                except Exception:
-                    totals.failed += 1
+                except Exception as exc:
+                    totals.record_failure(ticker, exc)
                     logger.exception(
                         "winner_prediction.capture_failed",
                         extra={"run_id": run_id, "ticker": ticker, "item_index": item_index},
@@ -358,6 +366,7 @@ class WinnerPredictionCaptureService:
             )
         else:
             totals.excluded += 1
+            totals.record_exclusion(prediction.exclusion_reason)
 
     def _ensure_eligible_children(
         self,
@@ -487,6 +496,8 @@ class WinnerPredictionCaptureService:
 
 @dataclass
 class _MutableCaptureCounts:
+    planned: int = 0
+    attempted: int = 0
     inserted: int = 0
     duplicate: int = 0
     excluded: int = 0
@@ -496,10 +507,50 @@ class _MutableCaptureCounts:
     target_stop_outcomes: int = 0
     decision_time_estimates: int = 0
     insufficient_estimates: int = 0
+    exclusion_reasons: dict[str, int] = field(default_factory=dict)
+    failure_classifications: dict[str, int] = field(default_factory=dict)
+    representative_failures: list[dict[str, str]] = field(default_factory=list)
 
     def add(self, other: _MutableCaptureCounts) -> None:
-        for name in self.__dataclass_fields__:
+        for name in (
+            "inserted",
+            "duplicate",
+            "excluded",
+            "failed",
+            "warnings",
+            "pending_outcomes",
+            "target_stop_outcomes",
+            "decision_time_estimates",
+            "insufficient_estimates",
+        ):
             setattr(self, name, getattr(self, name) + getattr(other, name))
+        for reason, count in other.exclusion_reasons.items():
+            self.exclusion_reasons[reason] = self.exclusion_reasons.get(reason, 0) + count
+        for classification, count in other.failure_classifications.items():
+            self.failure_classifications[classification] = (
+                self.failure_classifications.get(classification, 0) + count
+            )
+        remaining = max(0, 5 - len(self.representative_failures))
+        self.representative_failures.extend(other.representative_failures[:remaining])
+
+    def record_exclusion(self, reason: str | None) -> None:
+        normalized = str(reason or "unspecified").strip() or "unspecified"
+        self.exclusion_reasons[normalized] = self.exclusion_reasons.get(normalized, 0) + 1
+
+    def record_failure(self, ticker: str, exc: Exception) -> None:
+        self.failed += 1
+        classification = type(exc).__name__
+        self.failure_classifications[classification] = (
+            self.failure_classifications.get(classification, 0) + 1
+        )
+        if len(self.representative_failures) < 5:
+            self.representative_failures.append(
+                {
+                    "ticker": ticker,
+                    "classification": classification,
+                    "message": str(redact_sensitive(str(exc))).replace("\n", " ").strip()[:300],
+                }
+            )
 
     def to_result(
         self,
@@ -507,7 +558,21 @@ class _MutableCaptureCounts:
         performance: dict[str, Any] | None = None,
     ) -> WinnerPredictionCaptureResult:
         return WinnerPredictionCaptureResult(
-            **self.__dict__,
+            planned=self.planned,
+            attempted=self.attempted,
+            inserted=self.inserted,
+            duplicate=self.duplicate,
+            excluded=self.excluded,
+            failed=self.failed,
+            warnings=self.warnings,
+            pending_outcomes=self.pending_outcomes,
+            target_stop_outcomes=self.target_stop_outcomes,
+            decision_time_estimates=self.decision_time_estimates,
+            insufficient_estimates=self.insufficient_estimates,
+            failure_ratio=(self.failed / self.attempted if self.attempted else 0.0),
+            exclusion_reasons=dict(sorted(self.exclusion_reasons.items())),
+            failure_classifications=dict(sorted(self.failure_classifications.items())),
+            representative_failures=tuple(self.representative_failures),
             performance=dict(performance or {}),
         )
 
@@ -544,9 +609,7 @@ def _record_ticker_progress(
         db,
         stage="CAPTURING_WINNER_PREDICTIONS",
         current_item=(
-            _ticker_name(ticker_contexts[item_index])
-            if item_index < len(ticker_contexts)
-            else None
+            _ticker_name(ticker_contexts[item_index]) if item_index < len(ticker_contexts) else None
         ),
         last_completed_item=ticker,
         processed=item_index,
