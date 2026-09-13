@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -93,6 +93,20 @@ def test_due_unrelated_matrix_is_deferred_while_authorized_lineage_executes(
                 max_retries=3,
                 retry_count=1,
                 run_after=now,
+            )
+        )
+        db.add(
+            BackgroundJob(
+                job_type="CERI_NORMALIZE_BATCH",
+                status=JobStatus.RUNNING,
+                priority=0,
+                payload_json={},
+                max_retries=3,
+                retry_count=0,
+                run_after=now - timedelta(hours=1),
+                lease_expires_at=now - timedelta(seconds=1),
+                worker_id="absent-worker",
+                lease_owner="absent-worker",
             )
         )
         root = BackgroundJob(

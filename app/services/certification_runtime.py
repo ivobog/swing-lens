@@ -123,7 +123,13 @@ def queue_isolation_status(
 ) -> QueueIsolationStatus:
     observed_at = now or datetime.now(UTC)
     runnable = or_(
-        BackgroundJob.status == "RUNNING",
+        and_(
+            BackgroundJob.status == "RUNNING",
+            or_(
+                BackgroundJob.lease_expires_at.is_(None),
+                BackgroundJob.lease_expires_at > observed_at,
+            ),
+        ),
         and_(
             BackgroundJob.status.in_(("QUEUED", "RECOVERING", "RETRYING")),
             BackgroundJob.run_after <= observed_at,
