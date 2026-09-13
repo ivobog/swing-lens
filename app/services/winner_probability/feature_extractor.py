@@ -235,6 +235,21 @@ class WinnerFeatureExtractor:
             },
             lineage_json={
                 "capture_phase": "phase_3",
+                "decision_handoff": {
+                    "manifest_id": getattr(
+                        run_context.decision_handoff_manifest, "id", None
+                    ),
+                    "manifest_fingerprint": getattr(
+                        run_context.decision_handoff_manifest,
+                        "manifest_fingerprint",
+                        None,
+                    ),
+                    "run_start_anchor_fingerprint": getattr(
+                        run_context.decision_handoff_manifest,
+                        "run_start_anchor_fingerprint",
+                        None,
+                    ),
+                },
                 "point_in_time_validated": True,
                 "point_in_time_validation": {
                     "source_cutoff": "VALID",

@@ -16,6 +16,7 @@ from app.models.tables import (
     SectorRotationRow,
     SectorRotationSnapshot,
     TechnicalScore,
+    TransitionDecisionHandoffManifest,
     UploadRun,
     WinnerForwardOutcome,
     WinnerOutcomeDefinition,
@@ -43,6 +44,7 @@ class RunCaptureContext:
     upload_run: UploadRun
     market_regime_snapshot: MarketRegimeSnapshot | None
     sector_rotation_snapshot: SectorRotationSnapshot | None
+    decision_handoff_manifest: TransitionDecisionHandoffManifest | None = None
     tickers: tuple[TickerCaptureContext, ...] = field(default_factory=tuple)
 
 
@@ -97,6 +99,13 @@ class WinnerProbabilityRepository:
                 )
             }
 
+        handoff_manifest = db.scalar(
+            select(TransitionDecisionHandoffManifest)
+            .where(TransitionDecisionHandoffManifest.upload_run_id == run_id)
+            .order_by(TransitionDecisionHandoffManifest.id.desc())
+            .limit(1)
+        )
+
         ticker_contexts = tuple(
             TickerCaptureContext(
                 raw_row=row,
@@ -112,6 +121,7 @@ class WinnerProbabilityRepository:
             upload_run=upload_run,
             market_regime_snapshot=market_snapshot,
             sector_rotation_snapshot=sector_snapshot,
+            decision_handoff_manifest=handoff_manifest,
             tickers=ticker_contexts,
         )
 

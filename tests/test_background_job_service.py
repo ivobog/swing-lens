@@ -4,9 +4,11 @@ import pytest
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import (
+    JobFailureKind,
     JobLeaseLost,
     JobStatus,
     claim_next_job,
+    classify_job_failure,
     default_retry_delay,
     enqueue_job,
     fence_jobs_for_worker,
@@ -23,6 +25,7 @@ from app.services.background_job_service import (
     request_job_cancel,
     requeue_stalled_jobs,
 )
+from app.services.transition_preflight_plan_service import TransitionPreflightError
 from app.services.winner_probability.job_handlers import enqueue_outcome_maturation_workflow
 
 
@@ -281,6 +284,55 @@ def test_failed_job_requeues_with_backoff_until_retries_are_exhausted() -> None:
     assert job.retry_count == 3
     assert job.completed_at is not None
     assert job.payload_json == original_payload
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "DECISION_MANIFEST_MISMATCH",
+        "DECISION_LINEAGE_MISMATCH",
+        "IMMUTABLE_EVIDENCE_MISMATCH",
+        "MALFORMED_DECISION_MANIFEST",
+    ],
+)
+def test_deterministic_provenance_failure_is_non_retryable(code: str) -> None:
+    failure = classify_job_failure(TransitionPreflightError(code, "closed by provenance gate"))
+
+    assert failure == {
+        "kind": JobFailureKind.DETERMINISTIC.value,
+        "retryable": False,
+        "code": code,
+    }
+
+
+@pytest.mark.parametrize("error", [TimeoutError("db timeout"), ConnectionError("network")])
+def test_transient_infrastructure_failure_remains_retryable(error: Exception) -> None:
+    failure = classify_job_failure(error)
+
+    assert failure["kind"] == JobFailureKind.TRANSIENT.value
+    assert failure["retryable"] is True
+
+
+def test_manifest_mismatch_fails_job_without_automatic_pipeline_replay() -> None:
+    job = _running_job(max_retries=3)
+    db = FakeDb(existing=job)
+
+    mark_job_failed_or_retry(
+        db,
+        job,
+        TransitionPreflightError("DECISION_MANIFEST_MISMATCH", "immutable evidence changed"),
+        execution_token=job.execution_token,
+    )
+
+    assert job.status == JobStatus.FAILED
+    assert job.retry_count == 1
+    assert job.run_after is None
+    assert job.completed_at is not None
+    assert job.result_json["failure_classification"] == {
+        "kind": JobFailureKind.DETERMINISTIC.value,
+        "retryable": False,
+        "code": "DECISION_MANIFEST_MISMATCH",
+    }
 
 
 def test_failed_job_error_message_is_sanitized_and_truncated() -> None:

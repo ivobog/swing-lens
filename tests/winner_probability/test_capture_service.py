@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -8,7 +9,12 @@ from zoneinfo import ZoneInfo
 import pytest
 from _phase3_helpers import FakeWinnerRepository, build_run_context
 
-from app.models.tables import EntryDataStatus, PredictionEligibility, WinnerProbabilityEstimate
+from app.models.tables import (
+    EntryDataStatus,
+    PredictionEligibility,
+    TransitionDecisionHandoffManifest,
+    WinnerProbabilityEstimate,
+)
 from app.services.background_job_service import JobLeaseLost
 from app.services.process_memory import WorkerMemoryCritical
 from app.services.winner_probability.capture_service import (
@@ -60,6 +66,37 @@ def test_completed_run_creates_snapshot_pending_outcomes_and_decision_estimate()
     assert len(repository.temporal_decisions) == 1
     assert repository.temporal_decisions[0].evidence_eligible is True
     assert repository.estimates[0].insufficient_reasons_json == ["no_eligible_cohort"]
+
+
+def test_winner_lineage_is_bound_to_decision_handoff_manifest() -> None:
+    config = load_winner_probability_config()
+    handoff = TransitionDecisionHandoffManifest(
+        id=91,
+        preflight_plan_id=81,
+        market_calculation_context_id=71,
+        upload_run_id=7,
+        pipeline_run_id=61,
+        run_start_anchor_fingerprint="anchor-fingerprint",
+        manifest_json={"binding": {"run_start_anchor_fingerprint": "anchor-fingerprint"}},
+        manifest_fingerprint="handoff-fingerprint",
+    )
+    context = replace(build_run_context(), decision_handoff_manifest=handoff)
+    repository = FakeWinnerRepository(context)
+
+    result = _capture_service(repository).capture_run(
+        object(),
+        run_id=7,
+        config=config,
+        captured_at=datetime(2026, 7, 31, 21, 30, tzinfo=UTC),
+        decision_at=datetime(2026, 7, 31, 21, 30, tzinfo=UTC),
+    )
+
+    assert result.inserted == 1
+    assert repository.predictions[0].lineage_json["decision_handoff"] == {
+        "manifest_id": 91,
+        "manifest_fingerprint": "handoff-fingerprint",
+        "run_start_anchor_fingerprint": "anchor-fingerprint",
+    }
 
 
 def test_repeated_capture_returns_duplicate_without_new_children() -> None:

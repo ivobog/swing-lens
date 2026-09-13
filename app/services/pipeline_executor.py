@@ -69,6 +69,7 @@ from app.services.pipeline_prerequisites import (
     PipelineBlockedError,
 )
 from app.services.pipeline_service import (
+    DECISION_HANDOFF_PIPELINE_STEP,
     MarketDataPolicy,
     PipelineStatus,
     PipelineStepStatus,
@@ -218,6 +219,7 @@ class PipelineExecutionDependencies:
     build_sector_rotation_snapshot: Callable[[Session, int], SectorRotationSnapshotDto] = (
         build_sector_rotation_snapshot_for_run
     )
+    freeze_decision_handoff: Callable[..., Any] | None = None
     capture_ceri_snapshot: Callable[[Session, int], Any] | None = None
     ceri_run_capture_enabled: bool | None = None
     ceri_provider_ingest_enabled: bool | None = None
@@ -661,6 +663,34 @@ def execute_full_pipeline(
                 capture = dependencies.capture_ceri_snapshot or _capture_ceri_snapshot
                 ceri_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)
                 _apply_ceri_capture_result(result, ceri_result)
+
+        if _pipeline_has_step(db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP):
+            _raise_if_cancelled(should_cancel)
+            with _pipeline_step(
+                db,
+                pipeline,
+                DECISION_HANDOFF_PIPELINE_STEP,
+                lease_guard=lease_guard,
+                performance=performance,
+            ):
+                freeze_handoff = dependencies.freeze_decision_handoff
+                if freeze_handoff is None:
+                    from app.services.transition_preflight_plan_service import (
+                        freeze_transition_decision_handoff_manifest,
+                    )
+
+                    freeze_handoff = freeze_transition_decision_handoff_manifest
+                handoff = freeze_handoff(
+                    db,
+                    upload_run_id=upload_run.id,
+                    market_cutoff=market_cutoff,
+                )
+                if handoff is None:
+                    raise RuntimeError("decision handoff stage has no consumed preflight plan")
+                result["run_start_manifest_id"] = handoff.preflight_plan_id
+                result["run_start_manifest_hash"] = handoff.run_start_anchor_fingerprint
+                result["decision_handoff_manifest_id"] = handoff.id
+                result["decision_handoff_manifest_hash"] = handoff.manifest_fingerprint
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
@@ -1418,6 +1448,15 @@ def _raise_if_cancelled(should_cancel: Callable[[], bool]) -> None:
         raise PipelineCancelled("Pipeline cancellation requested.")
 
 
+def _pipeline_has_step(db: Session, pipeline_run_id: int, step_name: str) -> bool:
+    return any(
+        row.step_name == step_name
+        for row in db.scalars(
+            select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_run_id)
+        )
+    )
+
+
 def _pipeline_status_for_step(step_name: str) -> str:
     if step_name in {
         PipelineStatus.SCORING_FUNDAMENTALS,
@@ -1427,6 +1466,7 @@ def _pipeline_status_for_step(step_name: str) -> str:
         PipelineStatus.COMBINING_RESULTS,
         PipelineStatus.RANKING_PROFILES,
         PipelineStatus.SECTOR_ROTATION_SNAPSHOT,
+        PipelineStatus.FREEZING_DECISION_HANDOFF_MANIFEST,
         PipelineStatus.CERI_PROVIDER_INGEST,
         PipelineStatus.CERI_CAPTURE_SNAPSHOT,
         PipelineStatus.CAPTURING_SETUP_SIGNALS,

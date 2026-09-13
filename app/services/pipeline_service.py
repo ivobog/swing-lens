@@ -25,6 +25,7 @@ from app.settings import RuntimeMode, get_settings
 FULL_PIPELINE_JOB_TYPE = "FULL_PIPELINE"
 PIPELINE_JOB_PRIORITY = 100
 PIPELINE_JOB_MAX_RETRIES = 3
+DECISION_HANDOFF_PIPELINE_STEP = "FREEZING_DECISION_HANDOFF_MANIFEST"
 
 PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH = (
     "VALIDATING_RUN",
@@ -61,6 +62,7 @@ class PipelineStatus:
     COMBINING_RESULTS = "COMBINING_RESULTS"
     RANKING_PROFILES = "RANKING_PROFILES"
     SECTOR_ROTATION_SNAPSHOT = "SECTOR_ROTATION_SNAPSHOT"
+    FREEZING_DECISION_HANDOFF_MANIFEST = DECISION_HANDOFF_PIPELINE_STEP
     CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
     CERI_CAPTURE_SNAPSHOT = "CERI_CAPTURE_SNAPSHOT"
     CAPTURING_SETUP_SIGNALS = "CAPTURING_SETUP_SIGNALS"
@@ -186,6 +188,20 @@ def start_pipeline(
         ceri_provider_ingest_enabled=ceri_provider_ingest_enabled,
         setup_lifecycle_pipeline_step_enabled=setup_lifecycle_pipeline_step_enabled,
     )
+    if verified_transition_preflight is not None:
+        handoff_index = next(
+            (
+                index
+                for index, step_name in enumerate(step_names)
+                if step_name in {*SLSE_PIPELINE_STEPS, "CAPTURING_WINNER_PREDICTIONS"}
+            ),
+            len(step_names),
+        )
+        step_names = (
+            *step_names[:handoff_index],
+            DECISION_HANDOFF_PIPELINE_STEP,
+            *step_names[handoff_index:],
+        )
     authoritative = _authoritative_pipeline_for_run(db, upload_run_id)
     if authoritative is not None:
         if verified_transition_preflight is not None:

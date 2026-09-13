@@ -1785,7 +1785,7 @@ class MarketCalculationContext(Base):
 
 
 class TransitionPreflightPlan(Base):
-    """Durable, immutable evidence contract consumed by one pipeline enqueue."""
+    """Durable run-start anchor consumed by one pipeline enqueue."""
 
     __tablename__ = "transition_preflight_plans"
 
@@ -1821,6 +1821,8 @@ class TransitionPreflightPlan(Base):
     )
     evidence_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
     technical_reconstruction_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    run_start_anchor_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    run_start_anchor_fingerprint: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -1836,6 +1838,42 @@ class TransitionPreflightPlan(Base):
         ),
         Index("idx_transition_preflight_plans_upload_status", "upload_run_id", "status"),
         Index("idx_transition_preflight_plans_expiry", "status", "expires_at"),
+    )
+
+
+class TransitionDecisionHandoffManifest(Base):
+    """Immutable post-upstream decision contract bound to a run-start anchor."""
+
+    __tablename__ = "transition_decision_handoff_manifests"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    preflight_plan_id: Mapped[int] = mapped_column(
+        ForeignKey("transition_preflight_plans.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    market_calculation_context_id: Mapped[int] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="RESTRICT"), nullable=False
+    )
+    upload_run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    pipeline_run_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT"), nullable=False, unique=True
+    )
+    run_start_anchor_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    manifest_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    manifest_fingerprint: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_transition_decision_handoff_run_context",
+            "upload_run_id",
+            "market_calculation_context_id",
+        ),
     )
 
 

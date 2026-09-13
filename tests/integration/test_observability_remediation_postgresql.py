@@ -55,7 +55,7 @@ def remediated_postgres(disposable_postgres_database_factory) -> Iterator:
                 assert str(database_name).startswith("swinglens_pytest_")
                 assert connection.execute(
                     text("select version_num from alembic_version")
-                ).scalar() == ("0072_ceri_artifact_context_lineage")
+                ).scalar() == ("0073_decision_manifest_lifecycle")
             yield engine
         finally:
             engine.dispose()
@@ -360,7 +360,7 @@ def test_migration_0066_downgrade_and_reupgrade_are_consistent(
             command.upgrade(config, "head")
             with engine.connect() as connection:
                 assert connection.scalar(text("select version_num from alembic_version")) == (
-                    "0072_ceri_artifact_context_lineage"
+                    "0073_decision_manifest_lifecycle"
                 )
                 assert (
                     connection.scalar(

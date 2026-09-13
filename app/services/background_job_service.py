@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from threading import RLock
 from typing import Any
 from uuid import uuid4
@@ -43,6 +44,21 @@ _schema_capability_cache: WeakKeyDictionary[object, tuple[frozenset[str], bool, 
 
 class JobLeaseLost(RuntimeError):
     pass
+
+
+class JobFailureKind(StrEnum):
+    TRANSIENT = "TRANSIENT"
+    DETERMINISTIC = "DETERMINISTIC"
+
+
+NON_RETRYABLE_PROVENANCE_CODES = frozenset(
+    {
+        "DECISION_MANIFEST_MISMATCH",
+        "DECISION_LINEAGE_MISMATCH",
+        "IMMUTABLE_EVIDENCE_MISMATCH",
+        "MALFORMED_DECISION_MANIFEST",
+    }
+)
 
 
 class JobStatus:
@@ -1257,6 +1273,16 @@ def mark_job_failed_or_retry(
     expected_token = _expected_execution_token(job, execution_token)
     now = _utcnow()
     retry_count = job.retry_count + 1
+    failure = classify_job_failure(error)
+    retryable = failure["retryable"]
+    metadata = _with_attempt_finished(
+        job.operational_metadata_json,
+        finished_at=now,
+        status=(
+            "RETRYING" if retryable and retry_count <= job.max_retries else JobStatus.FAILED
+        ),
+    )
+    metadata["failure_classification"] = failure
     values: dict[str, Any] = {
         "retry_count": retry_count,
         "error_message": _safe_error(error),
@@ -1267,18 +1293,18 @@ def mark_job_failed_or_retry(
         "worker_instance_id": None,
         "lease_owner": None,
         "execution_token": None,
-        "operational_metadata_json": _with_attempt_finished(
-            job.operational_metadata_json,
-            finished_at=now,
-            status="RETRYING" if retry_count <= job.max_retries else JobStatus.FAILED,
-        ),
+        "operational_metadata_json": metadata,
     }
-    if retry_count <= job.max_retries:
+    if retryable and retry_count <= job.max_retries:
         values["status"] = JobStatus.QUEUED
         values["run_after"] = now + (retry_delay or default_retry_delay)(retry_count)
     else:
         values["status"] = JobStatus.FAILED
         values["completed_at"] = now
+        values["result_json"] = {
+            **(job.result_json or {}),
+            "failure_classification": failure,
+        }
 
     _apply_running_job_update(db, job, expected_token, values)
     metric_name = (
@@ -1296,6 +1322,34 @@ def mark_job_failed_or_retry(
     if values["status"] == JobStatus.FAILED:
         _observe_job_duration(job, now, JobStatus.FAILED, db)
         _observe_fanout_size(db, job)
+
+
+def classify_job_failure(error: str | Exception) -> dict[str, Any]:
+    """Classify deterministic provenance failures without disabling retries globally."""
+
+    code = getattr(error, "code", None)
+    if code is None:
+        message = str(error).strip()
+        prefix = message.split(":", 1)[0].strip()
+        code = prefix if prefix in NON_RETRYABLE_PROVENANCE_CODES else None
+    if code in NON_RETRYABLE_PROVENANCE_CODES:
+        return {
+            "kind": JobFailureKind.DETERMINISTIC.value,
+            "retryable": False,
+            "code": str(code),
+        }
+    transient = isinstance(error, (TimeoutError, ConnectionError)) or error.__class__.__name__ in {
+        "OperationalError",
+        "InterfaceError",
+        "DisconnectionError",
+        "ConnectionError",
+        "TimeoutError",
+    }
+    return {
+        "kind": JobFailureKind.TRANSIENT.value if transient else "UNCLASSIFIED_RETRYABLE",
+        "retryable": True,
+        "code": str(code) if code is not None else error.__class__.__name__,
+    }
 
 
 def mark_job_deferred(
