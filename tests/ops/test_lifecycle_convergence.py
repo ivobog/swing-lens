@@ -117,6 +117,13 @@ def test_canonical_launcher_builds_one_supervisor_root_with_role_safe_children(t
     assert launch.environment["SWINGLENS_RUNTIME_INSTANCE_ID"] == "runtime-test"
     assert launch.environment["SWINGLENS_GIT_SHA"] == "a" * 40
 
+    child_settings = Settings(_env_file=None, **{
+        "SWINGLENS_RUNTIME_INSTANCE_ID": launch.environment[
+            "SWINGLENS_RUNTIME_INSTANCE_ID"
+        ]
+    })
+    assert child_settings.runtime_instance_id == "runtime-test"
+
 
 def test_runtime_generation_changes_for_config_database_and_alembic(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(lifecycle_control, "_git_sha", lambda _root: "a" * 40)

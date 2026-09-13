@@ -41,6 +41,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     app_name: str = "SwingLens"
@@ -51,6 +52,12 @@ class Settings(BaseSettings):
     use_durable_pipeline: bool = True
     runtime_mode: RuntimeMode = RuntimeMode.NORMAL
     process_role: ProcessRole = ProcessRole.CLI_OR_MAINTENANCE
+    # The canonical lifecycle creates a fresh value for every runtime start and
+    # propagates it to supervised children.  In CERTIFICATION mode it is also
+    # the authorization epoch used by the durable claim fence.
+    runtime_instance_id: str | None = Field(
+        default=None, validation_alias="SWINGLENS_RUNTIME_INSTANCE_ID"
+    )
 
     database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens"
     database_connect_timeout_seconds: int = Field(default=3, ge=1, le=30)

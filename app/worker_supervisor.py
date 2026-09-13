@@ -94,6 +94,37 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         raise
     log_event(logger, "runtime.role_validation", stage="role_validation", result="success")
+    if settings.runtime_mode.value == "CERTIFICATION":
+        from app.services.certification_runtime import (
+            CertificationRuntimeViolation,
+            certification_claimable_job_ids,
+            require_certification_session_id,
+        )
+
+        certification_session_id = require_certification_session_id(settings)
+        if certification_session_id != args.runtime_instance_id:
+            raise CertificationRuntimeViolation(
+                "CERTIFICATION_SESSION_MISMATCH",
+                "the process environment and canonical runtime command identify different sessions",
+            )
+        preflight_db = SessionLocal()
+        try:
+            visible_jobs = certification_claimable_job_ids(
+                preflight_db,
+                certification_session_id=certification_session_id,
+            )
+            preflight_db.rollback()
+        finally:
+            preflight_db.close()
+        log_event(
+            logger,
+            "runtime.certification_claim_scope_established",
+            stage="certification_claim_scope",
+            result="success",
+            certification_session_id=certification_session_id,
+            claimable_job_count=len(visible_jobs),
+            claimable_job_ids=list(visible_jobs),
+        )
     stop = Event()
     instance_id = uuid4().hex
     process_id = os.getpid()

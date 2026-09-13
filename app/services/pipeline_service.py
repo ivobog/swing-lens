@@ -281,14 +281,14 @@ def start_pipeline(
         )
     db.flush()
 
-    certification_authorization = (
-        {
-            "certification_authorized": True,
-            "transition_preflight_plan_id": transition_preflight_plan_id,
-        }
-        if certification_mode
-        else {}
-    )
+    if certification_mode:
+        from app.services.certification_runtime import certification_root_payload
+
+        certification_authorization = certification_root_payload(
+            plan_id=int(transition_preflight_plan_id), settings=settings
+        )
+    else:
+        certification_authorization = {}
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,

@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.observability.correlation import CausalityContext
-from app.services.background_worker import run_worker_once
+from app.services.background_job_service import claim_next_job
+from app.services.background_worker import run_worker, run_worker_once
 from app.services.ceri.sec.processor_capability import (
     SEC_CAPABILITY_JOB_TYPES,
     SecProcessorCapability,
@@ -15,6 +16,7 @@ from app.services.ceri.sec.processor_capability import (
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.certification_runtime import (
     CERTIFICATION_DISABLED_AUTOMATIC_WORKFLOWS,
+    CERTIFICATION_SESSION_KEY,
     CertificationRuntimeViolation,
     effective_runtime_configuration,
     require_enqueue_authorized,
@@ -32,6 +34,7 @@ def certification_settings(**overrides) -> Settings:
         "winner_probability_auto_maturation_enabled": False,
         "winner_probability_auto_cohort_refresh_enabled": False,
         "market_data_prewarm_enabled": False,
+        "runtime_instance_id": "cert-session-current",
     }
     values.update(overrides)
     return Settings(**values)
@@ -43,6 +46,7 @@ def test_certification_profile_exposes_effective_isolation() -> None:
     assert summary["runtime_mode"] == "CERTIFICATION"
     assert summary["certification_isolation_active"] is True
     assert summary["authorized_root_job_type"] == "FULL_PIPELINE"
+    assert summary["certification_session_id"] == "cert-session-current"
     assert summary["effective_disabled_automatic_workflows"] == list(
         CERTIFICATION_DISABLED_AUTOMATIC_WORKFLOWS
     )
@@ -73,6 +77,7 @@ def test_certification_enqueue_allowlist_accepts_only_explicit_root_or_lineage()
         payload={
             "certification_authorized": True,
             "transition_preflight_plan_id": 3,
+            CERTIFICATION_SESSION_KEY: "cert-session-current",
         },
         causality=context,
         settings=settings,
@@ -87,13 +92,55 @@ def test_certification_enqueue_allowlist_accepts_only_explicit_root_or_lineage()
             settings=settings,
         )
 
-    require_enqueue_authorized(
+    child_payload = require_enqueue_authorized(
         SimpleNamespace(scalar=lambda _query: 99),
         job_type="CERI_PROVIDER_INGEST",
         payload={},
-        causality=context,
+        causality=CausalityContext(
+            "root-1", "cause-1", parent_job_id=99, triggered_by_job_id=99
+        ),
         settings=settings,
     )
+    assert child_payload == {
+        "certification_authorized": True,
+        CERTIFICATION_SESSION_KEY: "cert-session-current",
+    }
+
+
+def test_missing_certification_session_fails_before_worker_registration() -> None:
+    settings = certification_settings(runtime_instance_id=None)
+
+    with pytest.raises(CertificationRuntimeViolation, match="CERTIFICATION_SESSION_REQUIRED"):
+        run_worker(
+            settings=settings,
+            session_factory=lambda: pytest.fail("worker must fail before opening a DB session"),
+            handlers={},
+            stop_after_one=True,
+        )
+
+
+def test_previous_session_root_payload_fails_closed() -> None:
+    with pytest.raises(CertificationRuntimeViolation, match="not part of"):
+        require_enqueue_authorized(
+            SimpleNamespace(),
+            job_type="FULL_PIPELINE",
+            payload={
+                "certification_authorized": True,
+                "transition_preflight_plan_id": 3,
+                CERTIFICATION_SESSION_KEY: "prior-session",
+            },
+            causality=CausalityContext("root-1", "cause-1"),
+            settings=certification_settings(),
+        )
+
+
+def test_atomic_claim_without_session_fails_before_touching_database() -> None:
+    with pytest.raises(CertificationRuntimeViolation, match="CERTIFICATION_SESSION_REQUIRED"):
+        claim_next_job(
+            SimpleNamespace(),
+            "certification-worker",
+            certification_only=True,
+        )
 
 
 def test_ten_certification_worker_cycles_never_schedule_or_claim_unrelated_work(
@@ -132,6 +179,7 @@ def test_ten_certification_worker_cycles_never_schedule_or_claim_unrelated_work(
             handlers={},
             schedule_winner_probability=True,
             certification_mode=True,
+            certification_session_id="cert-session-current",
         )
         assert ran is False
 
@@ -173,6 +221,7 @@ def test_blocked_sec_capability_excludes_sec_jobs_without_stopping_worker(
             session_factory=lambda: db,
             handlers={},
             certification_mode=True,
+            certification_session_id="cert-session-current",
             sec_capability_required=True,
         )
         is False

@@ -92,6 +92,12 @@ def run_worker(
     stop_event: Event | None = None,
 ) -> None:
     settings = settings or get_settings()
+    certification_session_id = None
+    if settings.runtime_mode is RuntimeMode.CERTIFICATION:
+        from app.services.certification_runtime import require_certification_session_id
+
+        # Validate before worker registration or any heartbeat/control-plane write.
+        certification_session_id = require_certification_session_id(settings)
     worker_id = (worker_id or settings.job_worker_id).strip()
     queue_names = normalize_worker_queues(queues)
     handlers = handlers or default_job_handlers()
@@ -195,6 +201,7 @@ def run_worker(
                 handlers=handlers,
                 schedule_winner_probability=(settings.winner_probability_auto_maturation_enabled),
                 certification_mode=settings.runtime_mode is RuntimeMode.CERTIFICATION,
+                certification_session_id=certification_session_id,
                 sec_capability_required=(
                     settings.ceri_enabled or settings.ceri_provider_ingest_enabled
                 ),
@@ -395,8 +402,15 @@ def run_worker_once(
     handlers: Mapping[str, JobHandler] | None = None,
     schedule_winner_probability: bool = False,
     certification_mode: bool = False,
+    certification_session_id: str | None = None,
     sec_capability_required: bool = False,
 ) -> bool:
+    if certification_mode:
+        from app.services.certification_runtime import require_certification_session_id
+
+        certification_session_id = require_certification_session_id(
+            session_id=certification_session_id
+        )
     handlers = handlers or default_job_handlers()
     db = session_factory()
     try:
@@ -467,6 +481,7 @@ def run_worker_once(
             queues=queue_names,
             claim_groups=claim_groups,
             certification_only=certification_mode,
+            certification_session_id=certification_session_id,
             excluded_job_types=excluded_job_types,
         )
         if job is None:

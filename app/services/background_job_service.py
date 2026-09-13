@@ -110,7 +110,7 @@ def enqueue_job(
     )
     from app.services.certification_runtime import require_enqueue_authorized
 
-    require_enqueue_authorized(
+    payload = require_enqueue_authorized(
         db,
         job_type=job_type,
         payload=payload,
@@ -707,8 +707,15 @@ def claim_next_job(
     queues: Iterable[str] | None = None,
     claim_groups: Iterable[QueueClaimGroup] | None = None,
     certification_only: bool = False,
+    certification_session_id: str | None = None,
     excluded_job_types: Iterable[str] = (),
 ) -> BackgroundJob | None:
+    if certification_only:
+        from app.services.certification_runtime import require_certification_session_id
+
+        certification_session_id = require_certification_session_id(
+            session_id=certification_session_id
+        )
     # Serialize claims against the lifecycle quiesce fence on the durable
     # registration row. Whichever transaction wins this lock determines a
     # total order: a completed claim is visible to the shutdown re-check, or
@@ -737,6 +744,7 @@ def claim_next_job(
             db,
             group,
             certification_only=certification_only,
+            certification_session_id=certification_session_id,
             excluded_job_types=excluded_job_types,
         )
         if job_id is not None:
@@ -1148,6 +1156,7 @@ def _claim_ready_job_id(
     group: QueueClaimGroup,
     *,
     certification_only: bool = False,
+    certification_session_id: str | None = None,
     excluded_job_types: Iterable[str] = (),
 ) -> int | None:
     query = select(BackgroundJob.id).where(
@@ -1155,9 +1164,17 @@ def _claim_ready_job_id(
     )
     query = query.where(BackgroundJob.run_after <= _utcnow())
     if certification_only:
-        from app.services.certification_runtime import apply_certification_claim_scope
+        from app.services.certification_runtime import (
+            apply_certification_claim_scope,
+            require_certification_session_id,
+        )
 
-        query = apply_certification_claim_scope(query)
+        query = apply_certification_claim_scope(
+            query,
+            certification_session_id=require_certification_session_id(
+                session_id=certification_session_id
+            ),
+        )
     excluded = tuple(sorted({str(value) for value in excluded_job_types if str(value)}))
     if excluded:
         query = query.where(BackgroundJob.job_type.not_in(excluded))
