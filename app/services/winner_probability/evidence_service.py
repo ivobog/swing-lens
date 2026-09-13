@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.models.tables import (
     OutcomeStatus,
@@ -37,6 +39,8 @@ from app.services.winner_probability.temporal_eligibility import (
 )
 from app.services.winner_probability.trading_session_service import latest_completed_session
 from app.services.winner_probability.training_eligibility import TrainingEligibilityPolicy
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -126,10 +130,122 @@ class GenerationEvidenceUniverse:
         return {stage.predicate: stage.after_count for stage in self.stages}
 
 
+@dataclass
+class RunEvidenceCandidateUniverse:
+    """Run-scoped, point-in-time candidate superset.
+
+    Candidate loading is frozen before the first current-run prediction is
+    committed.  Every prediction still applies the original predicates using
+    its exact cutoff; no cutoff is rounded or shared.
+    """
+
+    outcome_definition_id: int
+    config_hash: str
+    feature_schema_version: str
+    calculation_version: str
+    native_rows: tuple[EvidenceOutcome, ...]
+    compatibility_candidates: tuple[tuple[Any, Any, Any, Any], ...]
+    temporal_decisions: dict[int, Any]
+    lineage_price_bars: dict[int, PriceBar]
+    lineage_price_bar_revisions: dict[int, PriceBarRevision]
+    load_seconds: float
+    native_base_queries: int = 1
+    compatibility_base_queries: int = 1
+    reuse_count: int = 0
+    evaluation_count: int = 0
+    filtered_evidence_rows: int = 0
+    python_filter_seconds: float = 0.0
+
+    def metrics(self) -> dict[str, int | float]:
+        return {
+            "native_candidate_rows": len(self.native_rows),
+            "compatibility_candidate_rows": len(self.compatibility_candidates),
+            "native_base_queries": self.native_base_queries,
+            "compatibility_base_queries": self.compatibility_base_queries,
+            "evidence_load_count": 1,
+            "cache_reuse_count": self.reuse_count,
+            "evidence_evaluation_count": self.evaluation_count,
+            "filtered_evidence_rows": self.filtered_evidence_rows,
+            "evidence_load_ms": round(self.load_seconds * 1000, 3),
+            "python_filter_ms": round(self.python_filter_seconds * 1000, 3),
+        }
+
+
 class EvidenceService:
     def __init__(self, policy: TrainingEligibilityPolicy | None = None) -> None:
         self.policy = policy or TrainingEligibilityPolicy()
         self._global_funnel_cache: dict[tuple[object, ...], EvidenceDiagnosticFunnel] = {}
+        self._run_candidate_universe: RunEvidenceCandidateUniverse | None = None
+
+    def prepare_run_candidate_universe(
+        self,
+        db: Session,
+        *,
+        outcome_definition: WinnerOutcomeDefinition,
+        config: WinnerProbabilityConfig,
+        lease_guard: Callable[[], None] | None = None,
+    ) -> RunEvidenceCandidateUniverse | None:
+        """Load the heavyweight evidence superset once for a capture run."""
+        if not isinstance(db, Session):
+            return None
+        started = perf_counter()
+        native_rows = tuple(
+            EvidenceOutcome(row[0], row[1], row[2])
+            for row in db.execute(
+                _native_candidate_statement(
+                    outcome_definition=outcome_definition,
+                    config=config,
+                )
+            )
+        )
+        if lease_guard is not None:
+            lease_guard()
+        compatibility_candidates = self._load_compatibility_replay_candidates(
+            db,
+            outcome_definition=outcome_definition,
+        )
+        replay_lineage_candidates = _compatibility_lineage_candidates(
+            compatibility_candidates
+        )
+        all_rows = native_rows + replay_lineage_candidates
+        temporal_decisions = _temporal_decisions(db, all_rows)
+        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(
+            db, all_rows
+        )
+        _detach_candidate_universe_rows(
+            db,
+            native_rows=native_rows,
+            compatibility_candidates=compatibility_candidates,
+            temporal_decisions=temporal_decisions,
+            lineage_price_bars=lineage_price_bars,
+            lineage_price_bar_revisions=lineage_price_bar_revisions,
+        )
+        if lease_guard is not None:
+            lease_guard()
+        universe = RunEvidenceCandidateUniverse(
+            outcome_definition_id=int(outcome_definition.id),
+            config_hash=config.config_hash,
+            feature_schema_version=config.feature_schema.version,
+            calculation_version=config.engine.calculation_version,
+            native_rows=native_rows,
+            compatibility_candidates=compatibility_candidates,
+            temporal_decisions=temporal_decisions,
+            lineage_price_bars=lineage_price_bars,
+            lineage_price_bar_revisions=lineage_price_bar_revisions,
+            load_seconds=max(0.0, perf_counter() - started),
+        )
+        self._run_candidate_universe = universe
+        self._global_funnel_cache.clear()
+        logger.info("winner.evidence_run_universe_prepared", extra=universe.metrics())
+        return universe
+
+    def run_candidate_metrics(self) -> dict[str, int | float]:
+        universe = self._run_candidate_universe
+        return universe.metrics() if universe is not None else {}
+
+    def clear_run_candidate_universe(self) -> None:
+        self._run_candidate_universe = None
+        self._global_funnel_cache.clear()
 
     def load_evidence(
         self,
@@ -386,8 +502,10 @@ class EvidenceService:
         training_cutoff_at: datetime,
         config: WinnerProbabilityConfig,
     ) -> EvidenceDiagnosticFunnel:
+        evaluation_started = perf_counter()
+        universe = self._compatible_run_universe(outcome_definition, config)
         cache_key = None
-        if cohort_key.dimensions == {"global": "all"}:
+        if universe is None and cohort_key.dimensions == {"global": "all"}:
             temporal_watermark = (
                 db.scalar(select(func.max(WinnerTemporalValidityDecision.id)))
                 if hasattr(db, "get_bind")
@@ -407,34 +525,31 @@ class EvidenceService:
             cached = self._global_funnel_cache.get(cache_key)
             if cached is not None:
                 return cached
-        native_rows = tuple(
-            EvidenceOutcome(row[0], row[1], row[2])
-            for row in db.execute(
-                select(WinnerPredictionSnapshot, WinnerForwardOutcome, WinnerTargetStopOutcome)
-                .join(
-                    WinnerForwardOutcome,
-                    WinnerForwardOutcome.prediction_id == WinnerPredictionSnapshot.id,
-                )
-                .join(
-                    WinnerTargetStopOutcome,
-                    WinnerTargetStopOutcome.forward_outcome_id == WinnerForwardOutcome.id,
-                )
-                .order_by(
-                    WinnerPredictionSnapshot.prediction_as_of_date,
-                    WinnerPredictionSnapshot.id,
-                    WinnerForwardOutcome.revision,
-                    WinnerTargetStopOutcome.revision,
-                )
+        if universe is None:
+            native_rows = tuple(
+                EvidenceOutcome(row[0], row[1], row[2])
+                for row in db.execute(_native_candidate_statement())
             )
-        )
-        replay_rows = self._load_compatibility_replays(
-            db,
-            training_cutoff_at=training_cutoff_at,
-            outcome_definition=outcome_definition,
-        )
+            replay_rows = self._load_compatibility_replays(
+                db,
+                training_cutoff_at=training_cutoff_at,
+                outcome_definition=outcome_definition,
+            )
+        else:
+            universe.reuse_count += 1
+            native_rows = universe.native_rows
+            replay_rows = _select_latest_compatibility_replays(
+                list(universe.compatibility_candidates), training_cutoff_at
+            )
         rows = native_rows + replay_rows
-        temporal_decisions = _temporal_decisions(db, rows)
-        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(db, rows)
+        temporal_decisions = (
+            universe.temporal_decisions if universe is not None else _temporal_decisions(db, rows)
+        )
+        lineage_price_bars, lineage_price_bar_revisions = (
+            (universe.lineage_price_bars, universe.lineage_price_bar_revisions)
+            if universe is not None
+            else _load_replay_lineage_rows(db, rows)
+        )
         completed_session = latest_completed_session(training_cutoff_at)
         rolling_start = _subtract_years(
             training_cutoff_at.date(), config.cohort.rolling_window_years
@@ -603,9 +718,42 @@ class EvidenceService:
         rows = _attach_temporal_decision_ids(rows, temporal_decisions)
         stages.append(EvidenceFunnelStage("one_representative_per_episode", before, len(rows)))
         result = EvidenceDiagnosticFunnel(tuple(stages), rows)
+        if universe is not None:
+            universe.evaluation_count += 1
+            universe.filtered_evidence_rows += len(rows)
+            universe.python_filter_seconds += max(0.0, perf_counter() - evaluation_started)
+            logger.info(
+                "winner.evidence_prediction_evaluated",
+                extra={
+                    "prediction_id": int(prediction.id),
+                    "ticker": prediction.ticker,
+                    "training_cutoff_at": training_cutoff_at.isoformat(),
+                    "candidate_rows": len(native_rows) + len(replay_rows),
+                    "filtered_evidence_rows": len(rows),
+                    "elapsed_seconds": round(perf_counter() - evaluation_started, 6),
+                    "cache_reuse_count": universe.reuse_count,
+                },
+            )
         if cache_key is not None:
             self._global_funnel_cache[cache_key] = result
         return result
+
+    def _compatible_run_universe(
+        self,
+        outcome_definition: WinnerOutcomeDefinition,
+        config: WinnerProbabilityConfig,
+    ) -> RunEvidenceCandidateUniverse | None:
+        universe = self._run_candidate_universe
+        if universe is None:
+            return None
+        if (
+            universe.outcome_definition_id != int(outcome_definition.id)
+            or universe.config_hash != config.config_hash
+            or universe.feature_schema_version != config.feature_schema.version
+            or universe.calculation_version != config.engine.calculation_version
+        ):
+            return None
+        return universe
 
     @staticmethod
     def _load_compatibility_replays(
@@ -619,42 +767,166 @@ class EvidenceService:
             # query contract.  Production always supplies a SQLAlchemy Session.
             return ()
         raw = list(
-            db.execute(
-                select(
-                    WinnerPredictionSnapshot,
-                    WinnerForwardOutcome,
-                    WinnerTrainingOutcomeReplay,
-                    WinnerTrainingEligibilityDecision,
-                )
-                .join(
-                    WinnerTrainingEligibilityDecision,
-                    WinnerTrainingEligibilityDecision.prediction_id == WinnerPredictionSnapshot.id,
-                )
-                .outerjoin(
-                    WinnerTrainingOutcomeReplay,
-                    WinnerTrainingOutcomeReplay.eligibility_decision_id
-                    == WinnerTrainingEligibilityDecision.id,
-                )
-                .outerjoin(
-                    WinnerForwardOutcome,
-                    WinnerForwardOutcome.id
-                    == WinnerTrainingOutcomeReplay.source_forward_outcome_id,
-                )
-                .where(WinnerTrainingEligibilityDecision.training_family == TRAINING_FAMILY)
-                .where(
-                    WinnerTrainingEligibilityDecision.target_outcome_definition_id
-                    == outcome_definition.id
-                )
-                .where(WinnerTrainingEligibilityDecision.classified_at < training_cutoff_at)
-                .order_by(
-                    WinnerPredictionSnapshot.prediction_as_of_date,
-                    WinnerPredictionSnapshot.id,
-                    WinnerTrainingEligibilityDecision.revision.desc(),
-                    WinnerTrainingOutcomeReplay.revision.desc(),
-                )
+            EvidenceService._load_compatibility_replay_candidates(
+                db,
+                outcome_definition=outcome_definition,
+                classified_before=training_cutoff_at,
             )
         )
         return _select_latest_compatibility_replays(raw, training_cutoff_at)
+
+    @staticmethod
+    def _load_compatibility_replay_candidates(
+        db: Session,
+        *,
+        outcome_definition: WinnerOutcomeDefinition,
+        classified_before: datetime | None = None,
+    ) -> tuple[tuple[Any, Any, Any, Any], ...]:
+        statement = (
+            select(
+                WinnerPredictionSnapshot,
+                WinnerForwardOutcome,
+                WinnerTrainingOutcomeReplay,
+                WinnerTrainingEligibilityDecision,
+            )
+            .join(
+                WinnerTrainingEligibilityDecision,
+                WinnerTrainingEligibilityDecision.prediction_id == WinnerPredictionSnapshot.id,
+            )
+            .outerjoin(
+                WinnerTrainingOutcomeReplay,
+                WinnerTrainingOutcomeReplay.eligibility_decision_id
+                == WinnerTrainingEligibilityDecision.id,
+            )
+            .outerjoin(
+                WinnerForwardOutcome,
+                WinnerForwardOutcome.id == WinnerTrainingOutcomeReplay.source_forward_outcome_id,
+            )
+            .where(WinnerTrainingEligibilityDecision.training_family == TRAINING_FAMILY)
+            .where(
+                WinnerTrainingEligibilityDecision.target_outcome_definition_id
+                == outcome_definition.id
+            )
+        )
+        if classified_before is not None:
+            statement = statement.where(
+                WinnerTrainingEligibilityDecision.classified_at < classified_before
+            )
+        statement = statement.order_by(
+            WinnerPredictionSnapshot.prediction_as_of_date,
+            WinnerPredictionSnapshot.id,
+            WinnerTrainingEligibilityDecision.revision.desc(),
+            WinnerTrainingOutcomeReplay.revision.desc(),
+        )
+        return tuple(db.execute(statement))
+
+
+def _native_candidate_statement(
+    *,
+    outcome_definition: WinnerOutcomeDefinition | None = None,
+    config: WinnerProbabilityConfig | None = None,
+):
+    statement = (
+        select(WinnerPredictionSnapshot, WinnerForwardOutcome, WinnerTargetStopOutcome)
+        .join(
+            WinnerForwardOutcome,
+            WinnerForwardOutcome.prediction_id == WinnerPredictionSnapshot.id,
+        )
+        .join(
+            WinnerTargetStopOutcome,
+            WinnerTargetStopOutcome.forward_outcome_id == WinnerForwardOutcome.id,
+        )
+    )
+    if outcome_definition is not None and config is not None:
+        # These predicates are invariant across every exact decision cutoff.
+        # Revision visibility, maturation timestamps, temporal ledgers, rolling
+        # windows, lineage and episode selection deliberately remain in the
+        # per-prediction evaluator below.
+        statement = (
+            statement.where(
+                WinnerTargetStopOutcome.outcome_definition_id == outcome_definition.id
+            )
+            .where(WinnerForwardOutcome.entry_model == outcome_definition.entry_model)
+            .where(
+                WinnerForwardOutcome.horizon_sessions
+                == outcome_definition.horizon_sessions
+            )
+            .where(WinnerTargetStopOutcome.entry_model == outcome_definition.entry_model)
+            .where(
+                WinnerTargetStopOutcome.horizon_sessions
+                == outcome_definition.horizon_sessions
+            )
+            .where(WinnerTargetStopOutcome.target_pct == outcome_definition.target_pct)
+            .where(WinnerTargetStopOutcome.stop_pct == outcome_definition.stop_pct)
+            .where(WinnerTargetStopOutcome.primary_winner.is_not(None))
+            .where(WinnerForwardOutcome.status == OutcomeStatus.MATURED)
+            .where(WinnerTargetStopOutcome.status == OutcomeStatus.MATURED)
+            .where(
+                WinnerPredictionSnapshot.eligibility_status == PredictionEligibility.ELIGIBLE
+            )
+            .where(WinnerPredictionSnapshot.reconstruction_method.is_(None))
+            .where(
+                WinnerPredictionSnapshot.feature_schema_version
+                == config.feature_schema.version
+            )
+            .where(
+                WinnerPredictionSnapshot.calculation_version
+                == config.engine.calculation_version
+            )
+            .where(WinnerPredictionSnapshot.config_hash == config.config_hash)
+        )
+    return statement.order_by(
+        WinnerPredictionSnapshot.prediction_as_of_date,
+        WinnerPredictionSnapshot.id,
+        WinnerForwardOutcome.revision,
+        WinnerTargetStopOutcome.revision,
+    )
+
+
+def _compatibility_lineage_candidates(
+    raw: tuple[tuple[Any, Any, Any, Any], ...],
+) -> tuple[EvidenceOutcome, ...]:
+    return tuple(
+        EvidenceOutcome(
+            prediction=prediction,
+            forward_outcome=forward,
+            target_stop_outcome=replay,
+            eligibility_decision_id=decision.id,
+            outcome_replay_id=replay.id,
+            evidence_origin=EVIDENCE_ORIGIN_PRE11,
+        )
+        for prediction, forward, replay, decision in raw
+        if replay is not None and forward is not None
+    )
+
+
+def _detach_candidate_universe_rows(
+    db: Session,
+    *,
+    native_rows: tuple[EvidenceOutcome, ...],
+    compatibility_candidates: tuple[tuple[Any, Any, Any, Any], ...],
+    temporal_decisions: dict[int, Any],
+    lineage_price_bars: dict[int, PriceBar],
+    lineage_price_bar_revisions: dict[int, PriceBarRevision],
+) -> None:
+    """Keep the frozen universe usable across coordinator heartbeat commits."""
+    candidates: list[Any] = []
+    for row in native_rows:
+        candidates.extend(
+            (row.prediction, row.forward_outcome, row.target_stop_outcome)
+        )
+    for row in compatibility_candidates:
+        candidates.extend(row)
+    candidates.extend(temporal_decisions.values())
+    candidates.extend(lineage_price_bars.values())
+    candidates.extend(lineage_price_bar_revisions.values())
+    seen: set[int] = set()
+    for candidate in candidates:
+        if candidate is None or id(candidate) in seen:
+            continue
+        seen.add(id(candidate))
+        if object_session(candidate) is db:
+            db.expunge(candidate)
 
 
 def _visible_at_cutoff(superseded_at: datetime | None, cutoff: datetime) -> bool:
@@ -668,6 +940,9 @@ def _select_latest_compatibility_replays(
     selected: list[EvidenceOutcome] = []
     seen_predictions: set[int] = set()
     for prediction, forward, replay, decision in raw:
+        classified_at = getattr(decision, "classified_at", None)
+        if classified_at is not None and classified_at >= training_cutoff_at:
+            continue
         if prediction.id in seen_predictions:
             continue
         seen_predictions.add(prediction.id)

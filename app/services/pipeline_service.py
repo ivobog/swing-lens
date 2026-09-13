@@ -80,6 +80,7 @@ class PipelineStepStatus:
     FAILED = "FAILED"
     BLOCKED = "BLOCKED"
     CANCELLED = "CANCELLED"
+    INTERRUPTED = "INTERRUPTED"
     SKIPPED = "SKIPPED"
 
 

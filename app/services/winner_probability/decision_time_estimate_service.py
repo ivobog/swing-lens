@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -39,6 +41,28 @@ class DecisionTimeEstimateService:
     ) -> None:
         self.repository = repository or WinnerProbabilityRepository()
         self.probability_estimator = probability_estimator or ProbabilityEstimator()
+
+    def prepare_capture_run(
+        self,
+        db: Session,
+        *,
+        outcome_definition: WinnerOutcomeDefinition,
+        config: WinnerProbabilityConfig,
+        lease_guard: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
+        """Freeze the broad evidence candidate universe once for a capture run."""
+        return self.probability_estimator.evidence_service.prepare_run_candidate_universe(
+            db,
+            outcome_definition=outcome_definition,
+            config=config,
+            lease_guard=lease_guard,
+        )
+
+    def capture_run_evidence_metrics(self) -> dict[str, Any]:
+        return self.probability_estimator.evidence_service.run_candidate_metrics()
+
+    def clear_capture_run(self) -> None:
+        self.probability_estimator.evidence_service.clear_run_candidate_universe()
 
     def create_decision_time_estimate(
         self,

@@ -727,6 +727,12 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-items-processed]", data.processed_item_count || 0);
   setText(root, "[data-pipeline-items-total]", data.total_item_count || 0);
   setText(root, "[data-pipeline-current-item]", data.current_item || "None");
+  setText(root, "[data-pipeline-progress-stage]", data.progress_stage || "None");
+  setText(
+    root,
+    "[data-pipeline-last-completed-item]",
+    data.last_completed_item || "None",
+  );
   setText(root, "[data-pipeline-last-progress]", data.last_progress_at || "None");
   setText(root, "[data-pipeline-worker-heartbeat]", data.worker_heartbeat_at || "None");
   setText(root, "[data-pipeline-lease-renewed]", data.lease_renewed_at || "None");

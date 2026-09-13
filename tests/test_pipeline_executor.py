@@ -357,6 +357,84 @@ def test_execute_full_pipeline_runs_winner_capture_when_enabled() -> None:
     assert result.winner_prediction_decision_time_estimates == 1
 
 
+def test_execute_full_pipeline_propagates_winner_control_and_progress_contract() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    received: dict[str, object] = {}
+
+    def winner_capture(_db, _run_id, **kwargs):
+        received.update(kwargs)
+        return {"inserted": 1}
+
+    def should_cancel():
+        return False
+
+    def lease_guard():
+        return None
+
+    def progress_callback(*_args, **_kwargs):
+        return None
+
+    def memory_probe(*_args, **_kwargs):
+        return None
+    dependencies = replace(
+        _dependencies(
+            [],
+            plan=_plan(estimated_request_count=0),
+            combined_results=[
+                CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+            ],
+            winner_capture_enabled=True,
+        ),
+        capture_winner_predictions=winner_capture,
+    )
+
+    execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        should_cancel=should_cancel,
+        lease_guard=lease_guard,
+        progress_callback=progress_callback,
+        memory_probe=memory_probe,
+    )
+
+    assert received == {
+        "should_cancel": should_cancel,
+        "lease_guard": lease_guard,
+        "progress_callback": progress_callback,
+        "memory_probe": memory_probe,
+    }
+
+
+def test_replay_interrupts_stale_running_step_and_preserves_attempt_history() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    stale = next(
+        step for step in db.steps if step.step_name == "CAPTURING_WINNER_PREDICTIONS"
+    )
+    stale.status = PipelineStepStatus.RUNNING
+    stale.started_at = datetime(2026, 9, 12, 18, 0, tzinfo=UTC)
+
+    execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=_dependencies(
+            [],
+            plan=_plan(estimated_request_count=0),
+            combined_results=[
+                CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+            ],
+        ),
+    )
+
+    assert stale.status == PipelineStepStatus.COMPLETED
+    assert stale.completed_at is not None
+    assert any(
+        attempt["status"] == "INTERRUPTED"
+        for attempt in stale.result_json["attempt_history"]
+    )
+    assert all(step.status != PipelineStepStatus.RUNNING for step in db.steps)
+
+
 def test_execute_full_pipeline_marks_ranking_skipped_without_profiles() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
     dependencies = _dependencies(

@@ -602,6 +602,76 @@ def test_fresh_worker_and_lease_heartbeats_do_not_mask_frozen_progress_sequence(
     assert "sequence 145 remained frozen" in job.error_message
 
 
+def test_winner_stage_can_run_over_300_seconds_while_useful_progress_advances() -> None:
+    started = datetime.now(UTC)
+    job = _running_job()
+    job.progress_stage = "CAPTURING_WINNER_PREDICTIONS"
+    job.progress_sequence = 37
+    job.last_progress_at = started
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 36,
+            "unchanged_since": (started - timedelta(minutes=6)).isoformat(),
+        }
+    }
+    db = FakeDb(stale_jobs=[job])
+
+    after_six_minutes = started + timedelta(minutes=6)
+    job.heartbeat_at = after_six_minutes
+    assert fence_stalled_jobs(
+        db,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=300,
+        long_stage_timeout_seconds=1800,
+        now=after_six_minutes,
+        worker_id="worker-a",
+        worker_heartbeat_at=after_six_minutes,
+    ) == []
+
+    job.progress_sequence = 38
+    job.last_progress_at = after_six_minutes
+    after_twelve_minutes = started + timedelta(minutes=12)
+    job.heartbeat_at = after_twelve_minutes
+    assert fence_stalled_jobs(
+        db,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=300,
+        long_stage_timeout_seconds=1800,
+        now=after_twelve_minutes,
+        worker_id="worker-a",
+        worker_heartbeat_at=after_twelve_minutes,
+    ) == []
+    assert job.status == JobStatus.RUNNING
+
+
+def test_truly_frozen_winner_stage_is_fenced_despite_live_heartbeats() -> None:
+    now = datetime.now(UTC)
+    job = _running_job()
+    job.progress_stage = "CAPTURING_WINNER_PREDICTIONS"
+    job.progress_sequence = 37
+    job.heartbeat_at = now
+    job.last_progress_at = now - timedelta(minutes=31)
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 37,
+            "unchanged_since": (now - timedelta(minutes=31)).isoformat(),
+        }
+    }
+    db = FakeDb(stale_jobs=[job])
+
+    assert fence_stalled_jobs(
+        db,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=300,
+        long_stage_timeout_seconds=1800,
+        now=now,
+        worker_id="worker-a",
+        worker_heartbeat_at=now,
+    ) == [job.id]
+    assert job.status == JobStatus.STALLED
+    assert "sequence 37 remained frozen for 1800s" in job.error_message
+
+
 def test_worker_recycle_preserves_more_than_one_hundred_queued_jobs() -> None:
     queued = [
         BackgroundJob(id=index, job_type="FULL_PIPELINE", status=JobStatus.QUEUED)

@@ -392,6 +392,11 @@ def test_pipeline_progress_template_renders_steps(monkeypatch) -> None:
         "error_message": None,
         "job_status": "RUNNING",
         "job_cancel_requested": False,
+        "progress_stage": "CAPTURING_WINNER_PREDICTIONS",
+        "current_item": "NVDA",
+        "last_completed_item": "MSFT",
+        "processed_item_count": 37,
+        "total_item_count": 132,
         "completed_steps": 1,
         "total_steps": 2,
         "percentage": 50.0,
@@ -431,6 +436,9 @@ def test_pipeline_progress_template_renders_steps(monkeypatch) -> None:
     assert 'data-status-url="/runs/7/pipeline/99/status"' in html
     assert "Fetching Market Data" in html
     assert "Cancel pipeline" in html
+    assert "CAPTURING_WINNER_PREDICTIONS" in html
+    assert "37" in html and "132" in html
+    assert "NVDA" in html and "MSFT" in html
 
 
 def test_pipeline_progress_template_exposes_blocked_sec_diagnostics(monkeypatch) -> None:

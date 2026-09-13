@@ -2,17 +2,21 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from time import perf_counter
+from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.tables import (
     PredictionEligibility,
     WinnerPredictionSnapshot,
     WinnerTemporalValidityDecision,
 )
+from app.services.background_job_service import JobLeaseLost
+from app.services.process_memory import WorkerMemoryCritical
 from app.services.us_market_calendar import us_market_session
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
@@ -62,8 +66,9 @@ class WinnerPredictionCaptureResult:
     target_stop_outcomes: int = 0
     decision_time_estimates: int = 0
     insufficient_estimates: int = 0
+    performance: dict[str, Any] = field(default_factory=dict)
 
-    def as_dict(self) -> dict[str, int]:
+    def as_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()
 
 
@@ -104,99 +109,255 @@ class WinnerPredictionCaptureService:
         source_quality_flags: tuple[str, ...] = (),
         production_training_allowed: bool | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        lease_guard: Callable[[], None] | None = None,
+        progress_callback: Callable[..., None] | None = None,
+        memory_probe: Callable[[Session, int, int, str], None] | None = None,
     ) -> WinnerPredictionCaptureResult:
         config = config or load_winner_probability_config()
-        requested_capture_at = captured_at
-        requested_decision_at = decision_at
         run_context = self.repository.load_run_context(db, run_id)
-
+        ticker_contexts = list(run_context.tickers)
+        total_tickers = len(ticker_contexts)
         totals = _MutableCaptureCounts()
-        for ticker_context in run_context.tickers:
-            if should_cancel is not None and should_cancel():
-                raise WinnerPredictionCaptureCancelled("winner prediction capture was cancelled")
-            try:
-                # Freeze the point-in-time feature boundary before pure extraction.
-                # The authoritative decision is stamped only after that immutable
-                # feature vector exists, then executable timing is rebound to it.
-                feature_as_of_at = requested_decision_at or datetime.now(UTC)
-                features = self.feature_extractor.extract(
-                    run_context,
-                    ticker_context,
-                    config,
-                    decision_at=feature_as_of_at,
-                )
-                ticker_decision_at = requested_decision_at or datetime.now(UTC)
-                features = self.feature_extractor.finalize_decision_timing(
-                    features,
-                    decision_at=ticker_decision_at,
-                )
-                totals.warnings += len(features.warnings)
-                existing = self.repository.get_active_prediction(
-                    db,
-                    run_id=run_id,
-                    ticker=features.ticker,
-                    prediction_as_of_date=features.prediction_as_of_date,
-                    feature_schema_version=config.feature_schema.version,
-                )
-                if existing is not None:
-                    if existing.feature_vector_hash != features.feature_vector_hash:
-                        raise WinnerPredictionCaptureConflict(
-                            f"{features.ticker}: active prediction hash conflict"
-                        )
-                    totals.duplicate += 1
-                    temporal_decision = self.repository.get_current_temporal_decision(
-                        db, existing.id
-                    )
-                    if (
-                        existing.eligibility_status == PredictionEligibility.ELIGIBLE
-                        and prediction_temporally_eligible(existing, temporal_decision)
-                    ):
-                        self._ensure_eligible_children(db, existing, config, totals)
-                    continue
+        primary_definition = self.repository.get_outcome_definition(
+            db,
+            definition_id=config.primary_outcome_definition.id,
+            calculation_version=config.engine.calculation_version,
+        )
+        prepare_run = getattr(self.decision_time_estimate_service, "prepare_capture_run", None)
+        metrics_reader = getattr(
+            self.decision_time_estimate_service,
+            "capture_run_evidence_metrics",
+            None,
+        )
+        clear_run = getattr(self.decision_time_estimate_service, "clear_capture_run", None)
+        item_session_factory = (
+            sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+            if isinstance(db, Session)
+            else None
+        )
+        capture_started = perf_counter()
 
-                prediction = self._build_prediction_snapshot(
-                    run_id=run_id,
-                    ticker_context=ticker_context,
-                    features=features,
+        if progress_callback is not None:
+            progress_callback(
+                db,
+                stage="CAPTURING_WINNER_PREDICTIONS",
+                current_item=_ticker_name(ticker_contexts[0]) if ticker_contexts else None,
+                last_completed_item=None,
+                processed=0,
+                total=total_tickers,
+                checkpoint_version=f"winner-capture-v1:{run_id}:start",
+            )
+            _commit_if_supported(db)
+
+        try:
+            if primary_definition is not None and callable(prepare_run):
+                prepare_run(
+                    db,
+                    outcome_definition=primary_definition,
                     config=config,
-                    reconstruction_method=reconstruction_method,
-                    source_quality_flags=source_quality_flags,
-                    production_training_allowed=production_training_allowed,
-                    decision_at=ticker_decision_at,
-                    captured_at=requested_capture_at or datetime.now(UTC),
+                    lease_guard=lease_guard,
                 )
-                assignment = self.episode_service.assign_episode(db, features, config)
-                prediction.episode_id = assignment.episode.id
-                prediction.lineage_json = {
-                    **prediction.lineage_json,
-                    "dependent_episode": assignment.is_dependent,
-                }
-                self.training_eligibility_policy.persist_capture_decision(
-                    prediction,
-                    explicit_legacy_override=production_training_allowed,
-                )
-                temporal_decision = _initial_temporal_decision(
-                    prediction,
-                    semantic_input_time_valid=reconstruction_method is None,
-                )
-                self.repository.add(db, prediction)
-                temporal_decision.prediction_id = prediction.id
-                self.repository.add(db, temporal_decision)
-                if prediction.eligibility_status == PredictionEligibility.ELIGIBLE:
-                    totals.inserted += 1
-                    self._ensure_eligible_children(db, prediction, config, totals)
+
+            for item_index, ticker_context in enumerate(ticker_contexts, start=1):
+                ticker = _ticker_name(ticker_context)
+                _assert_capture_control(should_cancel=should_cancel, lease_guard=lease_guard)
+                ticker_started = perf_counter()
+                ticker_counts = _MutableCaptureCounts()
+                try:
+                    if item_session_factory is None:
+                        self._capture_ticker(
+                            db,
+                            run_id=run_id,
+                            run_context=run_context,
+                            ticker_context=ticker_context,
+                            config=config,
+                            primary_definition=primary_definition,
+                            captured_at=captured_at,
+                            decision_at=decision_at,
+                            reconstruction_method=reconstruction_method,
+                            source_quality_flags=source_quality_flags,
+                            production_training_allowed=production_training_allowed,
+                            totals=ticker_counts,
+                        )
+                        if memory_probe is not None:
+                            memory_probe(db, item_index, total_tickers, ticker)
+                        _record_ticker_progress(
+                            progress_callback,
+                            db,
+                            run_id=run_id,
+                            ticker_contexts=ticker_contexts,
+                            item_index=item_index,
+                            ticker=ticker,
+                        )
+                    else:
+                        with item_session_factory() as item_db:
+                            self._capture_ticker(
+                                item_db,
+                                run_id=run_id,
+                                run_context=run_context,
+                                ticker_context=ticker_context,
+                                config=config,
+                                primary_definition=primary_definition,
+                                captured_at=captured_at,
+                                decision_at=decision_at,
+                                reconstruction_method=reconstruction_method,
+                                source_quality_flags=source_quality_flags,
+                                production_training_allowed=production_training_allowed,
+                                totals=ticker_counts,
+                            )
+                            if memory_probe is not None:
+                                memory_probe(item_db, item_index, total_tickers, ticker)
+                            _record_ticker_progress(
+                                progress_callback,
+                                item_db,
+                                run_id=run_id,
+                                ticker_contexts=ticker_contexts,
+                                item_index=item_index,
+                                ticker=ticker,
+                            )
+                            item_db.commit()
+                except (JobLeaseLost, WorkerMemoryCritical, WinnerPredictionCaptureCancelled):
+                    raise
+                except Exception:
+                    totals.failed += 1
+                    logger.exception(
+                        "winner_prediction.capture_failed",
+                        extra={"run_id": run_id, "ticker": ticker, "item_index": item_index},
+                    )
+                    if item_session_factory is not None:
+                        with item_session_factory() as progress_db:
+                            _record_ticker_progress(
+                                progress_callback,
+                                progress_db,
+                                run_id=run_id,
+                                ticker_contexts=ticker_contexts,
+                                item_index=item_index,
+                                ticker=ticker,
+                            )
+                            progress_db.commit()
                 else:
-                    totals.excluded += 1
-            except Exception:
-                totals.failed += 1
-                logger.exception(
-                    "winner_prediction.capture_failed",
-                    extra={
-                        "run_id": run_id,
-                        "ticker": getattr(ticker_context.raw_row, "ticker", None),
-                    },
+                    totals.add(ticker_counts)
+                    logger.info(
+                        "winner_prediction.ticker_checkpoint",
+                        extra={
+                            "run_id": run_id,
+                            "ticker": ticker,
+                            "processed": item_index,
+                            "total": total_tickers,
+                            "elapsed_seconds": round(perf_counter() - ticker_started, 6),
+                        },
+                    )
+
+            evidence_metrics = metrics_reader() if callable(metrics_reader) else {}
+            return totals.to_result(
+                performance={
+                    "winner_capture_elapsed_seconds": round(
+                        perf_counter() - capture_started,
+                        6,
+                    ),
+                    "winner_capture_tickers_total": total_tickers,
+                    **dict(evidence_metrics or {}),
+                }
+            )
+        finally:
+            if callable(clear_run):
+                clear_run()
+
+    def _capture_ticker(
+        self,
+        db: Session,
+        *,
+        run_id: int,
+        run_context: Any,
+        ticker_context: TickerCaptureContext,
+        config: WinnerProbabilityConfig,
+        primary_definition: Any,
+        captured_at: datetime | None,
+        decision_at: datetime | None,
+        reconstruction_method: str | None,
+        source_quality_flags: tuple[str, ...],
+        production_training_allowed: bool | None,
+        totals: _MutableCaptureCounts,
+    ) -> None:
+        feature_as_of_at = decision_at or datetime.now(UTC)
+        features = self.feature_extractor.extract(
+            run_context,
+            ticker_context,
+            config,
+            decision_at=feature_as_of_at,
+        )
+        ticker_decision_at = decision_at or datetime.now(UTC)
+        features = self.feature_extractor.finalize_decision_timing(
+            features,
+            decision_at=ticker_decision_at,
+        )
+        totals.warnings += len(features.warnings)
+        existing = self.repository.get_active_prediction(
+            db,
+            run_id=run_id,
+            ticker=features.ticker,
+            prediction_as_of_date=features.prediction_as_of_date,
+            feature_schema_version=config.feature_schema.version,
+        )
+        if existing is not None:
+            if existing.feature_vector_hash != features.feature_vector_hash:
+                raise WinnerPredictionCaptureConflict(
+                    f"{features.ticker}: active prediction hash conflict"
                 )
-        return totals.to_result()
+            totals.duplicate += 1
+            temporal_decision = self.repository.get_current_temporal_decision(db, existing.id)
+            if (
+                existing.eligibility_status == PredictionEligibility.ELIGIBLE
+                and prediction_temporally_eligible(existing, temporal_decision)
+            ):
+                self._ensure_eligible_children(
+                    db,
+                    existing,
+                    config,
+                    totals,
+                    primary_definition=primary_definition,
+                )
+            return
+
+        prediction = self._build_prediction_snapshot(
+            run_id=run_id,
+            ticker_context=ticker_context,
+            features=features,
+            config=config,
+            reconstruction_method=reconstruction_method,
+            source_quality_flags=source_quality_flags,
+            production_training_allowed=production_training_allowed,
+            decision_at=ticker_decision_at,
+            captured_at=captured_at or datetime.now(UTC),
+        )
+        assignment = self.episode_service.assign_episode(db, features, config)
+        prediction.episode_id = assignment.episode.id
+        prediction.lineage_json = {
+            **prediction.lineage_json,
+            "dependent_episode": assignment.is_dependent,
+        }
+        self.training_eligibility_policy.persist_capture_decision(
+            prediction,
+            explicit_legacy_override=production_training_allowed,
+        )
+        temporal_decision = _initial_temporal_decision(
+            prediction,
+            semantic_input_time_valid=reconstruction_method is None,
+        )
+        self.repository.add(db, prediction)
+        temporal_decision.prediction_id = prediction.id
+        self.repository.add(db, temporal_decision)
+        if prediction.eligibility_status == PredictionEligibility.ELIGIBLE:
+            totals.inserted += 1
+            self._ensure_eligible_children(
+                db,
+                prediction,
+                config,
+                totals,
+                primary_definition=primary_definition,
+            )
+        else:
+            totals.excluded += 1
 
     def _ensure_eligible_children(
         self,
@@ -204,6 +365,8 @@ class WinnerPredictionCaptureService:
         prediction: WinnerPredictionSnapshot,
         config: WinnerProbabilityConfig,
         totals: _MutableCaptureCounts,
+        *,
+        primary_definition: Any | None = None,
     ) -> None:
         pending_result = self.pending_outcome_service.materialize_pending_outcomes(
             db,
@@ -212,11 +375,12 @@ class WinnerPredictionCaptureService:
         )
         totals.pending_outcomes += pending_result.forward_outcome_count
         totals.target_stop_outcomes += pending_result.target_stop_outcome_count
-        primary_definition = self.repository.get_outcome_definition(
-            db,
-            definition_id=config.primary_outcome_definition.id,
-            calculation_version=config.engine.calculation_version,
-        )
+        if primary_definition is None:
+            primary_definition = self.repository.get_outcome_definition(
+                db,
+                definition_id=config.primary_outcome_definition.id,
+                calculation_version=config.engine.calculation_version,
+            )
         if primary_definition is None:
             return
         estimate_result = self.decision_time_estimate_service.create_decision_time_estimate(
@@ -333,8 +497,68 @@ class _MutableCaptureCounts:
     decision_time_estimates: int = 0
     insufficient_estimates: int = 0
 
-    def to_result(self) -> WinnerPredictionCaptureResult:
-        return WinnerPredictionCaptureResult(**self.__dict__)
+    def add(self, other: _MutableCaptureCounts) -> None:
+        for name in self.__dataclass_fields__:
+            setattr(self, name, getattr(self, name) + getattr(other, name))
+
+    def to_result(
+        self,
+        *,
+        performance: dict[str, Any] | None = None,
+    ) -> WinnerPredictionCaptureResult:
+        return WinnerPredictionCaptureResult(
+            **self.__dict__,
+            performance=dict(performance or {}),
+        )
+
+
+def _ticker_name(ticker_context: TickerCaptureContext) -> str:
+    return str(getattr(ticker_context.raw_row, "ticker", "") or "").strip().upper()
+
+
+def _assert_capture_control(
+    *,
+    should_cancel: Callable[[], bool] | None,
+    lease_guard: Callable[[], None] | None,
+) -> None:
+    if should_cancel is not None:
+        if should_cancel():
+            raise WinnerPredictionCaptureCancelled("winner prediction capture was cancelled")
+        return
+    if lease_guard is not None:
+        lease_guard()
+
+
+def _record_ticker_progress(
+    progress_callback: Callable[..., None] | None,
+    db: Session,
+    *,
+    run_id: int,
+    ticker_contexts: list[TickerCaptureContext],
+    item_index: int,
+    ticker: str,
+) -> None:
+    if progress_callback is None:
+        return
+    progress_callback(
+        db,
+        stage="CAPTURING_WINNER_PREDICTIONS",
+        current_item=(
+            _ticker_name(ticker_contexts[item_index])
+            if item_index < len(ticker_contexts)
+            else None
+        ),
+        last_completed_item=ticker,
+        processed=item_index,
+        total=len(ticker_contexts),
+        checkpoint_version=f"winner-capture-v1:{run_id}:{ticker}",
+    )
+
+
+def _commit_if_supported(db: Any) -> None:
+    commit = getattr(db, "commit", None)
+    if callable(commit):
+        commit()
 
 
 def _first_present(*values):
