@@ -4,7 +4,7 @@
 
 {% block content %}
 {% set is_terminal = pipeline.status in terminal_statuses %}
-{% set pipeline_result = pipeline.result|default({}) %}
+{% set pipeline_result = pipeline.result|default({}, true) %}
 <section
   class="panel"
   data-pipeline-progress
@@ -63,25 +63,25 @@
       Automatic recovery is in progress from the last durable checkpoint.
     {% endif %}
   </div>
-  {% set blocked = pipeline_result.get('blocked_diagnostics', {}) %}
-  {% set sec_repair = pipeline_result.get('sec_repair', {}) %}
-  {% set readiness = blocked.get('readiness', {}) %}
-  {% set processor = blocked.get('processor', {}) %}
+  {% set blocked = pipeline_result.get('blocked_diagnostics') or {} %}
+  {% set sec_repair = pipeline_result.get('sec_repair') or {} %}
+  {% set readiness = blocked.get('readiness') or {} %}
+  {% set processor = blocked.get('processor') or {} %}
     <div class="alert section-gap" role="alert" data-pipeline-blocked {% if pipeline.status != 'BLOCKED' %}hidden{% endif %}>
       <strong>Pipeline blocked before execution</strong><br>
-      Reason: <span data-pipeline-blocked-reason>{{ pipeline_result.get('blocked_reason', 'Prerequisite required')|replace('_', ' ')|title }}</span><br>
-      Processor: <span data-pipeline-blocked-processor>{{ readiness.get('processor_signature', processor.get('deployed_signature', 'Unknown')) }}</span><br>
-      Universe: <span data-pipeline-blocked-universe>{{ readiness.get('requested_tickers', 0) }}</span> tickers<br>
-      Ready: <span data-pipeline-blocked-ready>{{ readiness.get('ready_tickers', 0) }}</span><br>
-      Not ready: <span data-pipeline-blocked-missing>{{ readiness.get('blocking_tickers', [])|length }}</span><br>
+      Reason: <span data-pipeline-blocked-reason>{{ (pipeline_result.get('blocked_reason') or 'Prerequisite required')|replace('_', ' ')|title }}</span><br>
+      Processor: <span data-pipeline-blocked-processor>{{ readiness.get('processor_signature') or processor.get('deployed_signature') or 'Unknown' }}</span><br>
+      Universe: <span data-pipeline-blocked-universe>{{ readiness.get('requested_tickers') or 0 }}</span> tickers<br>
+      Ready: <span data-pipeline-blocked-ready>{{ readiness.get('ready_tickers') or 0 }}</span><br>
+      Not ready: <span data-pipeline-blocked-missing>{{ (readiness.get('blocking_tickers') or [])|length }}</span><br>
       Automatic preparation finished, but SwingLens could not safely resolve every prerequisite.
     </div>
     <div class="alert section-gap" role="status" data-pipeline-repair {% if pipeline.status != 'PREPARING' %}hidden{% endif %}>
-      <strong data-pipeline-repair-stage>{{ sec_repair.get('repair_stage', 'Preparing run')|replace('_', ' ')|title }}</strong><br>
-      SEC preparation: <span data-pipeline-repair-ready>{{ sec_repair.get('ready_tickers', 0) }}</span> /
-      <span data-pipeline-repair-total>{{ sec_repair.get('total_tickers', 0) }}</span> ready<br>
-      Automatically repaired: <span data-pipeline-repair-completed>{{ sec_repair.get('repaired_tickers', 0) }}</span><br>
-      Unresolved: <span data-pipeline-repair-unresolved>{{ sec_repair.get('unresolved_tickers', [])|length }}</span>
+      <strong data-pipeline-repair-stage>{{ (sec_repair.get('repair_stage') or 'Preparing run')|replace('_', ' ')|title }}</strong><br>
+      SEC preparation: <span data-pipeline-repair-ready>{{ sec_repair.get('ready_tickers') or 0 }}</span> /
+      <span data-pipeline-repair-total>{{ sec_repair.get('total_tickers') or 0 }}</span> ready<br>
+      Automatically repaired: <span data-pipeline-repair-completed>{{ sec_repair.get('repaired_tickers') or 0 }}</span><br>
+      Unresolved: <span data-pipeline-repair-unresolved>{{ (sec_repair.get('unresolved_tickers') or [])|length }}</span>
     </div>
   {% if duplicate_action %}
     <div class="alert section-gap" role="status" aria-live="polite">
@@ -168,7 +168,7 @@
     </div>
     <div class="metric">
       <span>Ranking status</span>
-      <strong data-pipeline-ranking-status>{{ pipeline_result.get("ranking_status", "Pending") }}</strong>
+      <strong data-pipeline-ranking-status>{{ pipeline_result.get("ranking_status") or "Pending" }}</strong>
     </div>
     <div class="metric">
       <span>Ranking profiles</span>
@@ -180,7 +180,7 @@
     </div>
     <div class="metric">
       <span>Market data policy</span>
-      <strong data-pipeline-market-policy>{{ pipeline_result.get("market_data_policy", "REQUIRE_IB") }}</strong>
+      <strong data-pipeline-market-policy>{{ pipeline_result.get("market_data_policy") or "REQUIRE_IB" }}</strong>
     </div>
     <div class="metric">
       <span>Market data mode</span>
@@ -188,7 +188,7 @@
     </div>
     <div class="metric">
       <span>IB available at execution</span>
-      <strong data-pipeline-ib-available>{{ pipeline_result.get("ib_api_available_at_execution", "Pending") }}</strong>
+      <strong data-pipeline-ib-available>{{ pipeline_result.get("ib_api_available_at_execution") if pipeline_result.get("ib_api_available_at_execution") is not none else "Pending" }}</strong>
     </div>
     <div class="metric">
       <span>Fresh fetches</span>
