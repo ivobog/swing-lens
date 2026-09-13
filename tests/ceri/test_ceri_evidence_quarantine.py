@@ -12,6 +12,7 @@ from app.services.ceri.evidence_eligibility import (
     EvidenceDispositionRequest,
     effective_disposition_by_snapshot,
     eligible_snapshot_predicate,
+    eligible_snapshot_select,
     filter_eligible_snapshots,
 )
 from app.services.ceri.export_service import CeriExportService
@@ -169,6 +170,18 @@ def test_sql_eligibility_is_a_single_correlated_lookup() -> None:
     assert "ceri_evidence_dispositions" in sql
     assert "ORDER BY ceri_evidence_dispositions.created_at DESC" in sql
     assert "LIMIT 1" in sql
+
+
+def test_canonical_selector_uses_one_set_based_effective_disposition_join() -> None:
+    sql = str(
+        eligible_snapshot_select(name="effective_test_dispositions").compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    assert "LEFT OUTER JOIN" in sql
+    assert "DISTINCT ON" in sql
+    assert sql.count("FROM ceri_evidence_dispositions") == 1
 
 
 def _snapshot(

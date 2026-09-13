@@ -27,7 +27,7 @@ from app.models.tables import (
     WinnerProbabilityEstimate,
 )
 from app.observability.transaction_metrics import publish_after_commit
-from app.services.ceri.evidence_eligibility import eligible_snapshot_predicate
+from app.services.ceri.evidence_eligibility import eligible_snapshot_select
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 
 ZERO = Decimal("0")
@@ -253,11 +253,10 @@ def match_episode_to_research(
             )
         ranking = db.scalar(ranking_query.order_by(RankingResult.created_at.desc()))
     ceri = db.scalar(
-        select(CeriScoreSnapshot)
+        eligible_snapshot_select(name="effective_journal_dispositions")
         .where(CeriScoreSnapshot.run_id == run.id)
         .where(func.upper(CeriScoreSnapshot.ticker) == episode.ticker.upper())
         .where(CeriScoreSnapshot.cutoff_at <= cutoff)
-        .where(eligible_snapshot_predicate())
         .order_by(CeriScoreSnapshot.cutoff_at.desc())
     )
     decision_reference = setup.close_price if setup else None

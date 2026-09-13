@@ -29,7 +29,7 @@ from app.models.tables import (
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
-from app.services.ceri.evidence_eligibility import eligible_snapshot_predicate
+from app.services.ceri.evidence_eligibility import eligible_snapshot_select
 from app.services.chart_data_service import build_ticker_chart_payload
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import summarize_run_column_mapping
@@ -1380,10 +1380,9 @@ def _setup_lifecycle_context(db: Session, run_id: int) -> dict[str, object]:
 def _ceri_context(db: Session, run_id: int) -> dict[str, object]:
     snapshots = list(
         db.scalars(
-            select(CeriScoreSnapshot)
+            eligible_snapshot_select(name="effective_run_detail_dispositions")
             .where(
                 CeriScoreSnapshot.run_id == run_id,
-                eligible_snapshot_predicate(),
             )
             .order_by(CeriScoreSnapshot.ticker.asc())
         )

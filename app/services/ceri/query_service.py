@@ -52,7 +52,8 @@ from app.services.ceri.constants import (
 )
 from app.services.ceri.enums import CeriDataset, HistoricalViewMode
 from app.services.ceri.evidence_eligibility import (
-    eligible_snapshot_predicate,
+    apply_snapshot_eligibility,
+    eligible_snapshot_select,
     filter_eligible_snapshots,
 )
 from app.services.ceri.feature_flags import ceri_flags
@@ -1557,9 +1558,8 @@ class CeriQueryService:
                 predicates.append(CeriScoreSnapshot.ticker == _ticker(filters.ticker))
             snapshot_rows = list(
                 db.scalars(
-                    select(CeriScoreSnapshot).where(
-                        eligible_snapshot_predicate(),
-                        *predicates,
+                    eligible_snapshot_select(name="filtered_ceri_dispositions").where(
+                        *predicates
                     )
                 ).all()
             )
@@ -3070,7 +3070,7 @@ def _referenced_snapshot_ids_subquery():
 
 def _latest_referenced_snapshot_subquery():
     referenced = _referenced_snapshot_ids_subquery()
-    ranked = (
+    ranked = apply_snapshot_eligibility(
         select(
             referenced.c.company_id,
             referenced.c.snapshot_id,
@@ -3085,10 +3085,9 @@ def _latest_referenced_snapshot_subquery():
             )
             .label("snapshot_rank"),
         )
-        .join(CeriScoreSnapshot, CeriScoreSnapshot.id == referenced.c.snapshot_id)
-        .where(eligible_snapshot_predicate())
-        .subquery("ranked_change_snapshots")
-    )
+        .join(CeriScoreSnapshot, CeriScoreSnapshot.id == referenced.c.snapshot_id),
+        name="effective_change_dispositions",
+    ).subquery("ranked_change_snapshots")
     return (
         select(ranked.c.company_id, ranked.c.snapshot_id)
         .where(ranked.c.snapshot_rank == 1)
@@ -3097,7 +3096,7 @@ def _latest_referenced_snapshot_subquery():
 
 
 def _latest_snapshot_subquery():
-    ranked = (
+    ranked = apply_snapshot_eligibility(
         select(
             CeriScoreSnapshot.company_id,
             CeriScoreSnapshot.id.label("snapshot_id"),
@@ -3111,10 +3110,9 @@ def _latest_snapshot_subquery():
                 ),
             )
             .label("snapshot_rank"),
-        )
-        .where(eligible_snapshot_predicate())
-        .subquery("ranked_all_snapshots")
-    )
+        ),
+        name="effective_latest_dispositions",
+    ).subquery("ranked_all_snapshots")
     return (
         select(ranked.c.company_id, ranked.c.snapshot_id)
         .where(ranked.c.snapshot_rank == 1)

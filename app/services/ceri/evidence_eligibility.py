@@ -66,6 +66,49 @@ def eligible_snapshot_predicate(snapshot: Any = CeriScoreSnapshot) -> Any:
     return func.coalesce(effective, ELIGIBLE) == ELIGIBLE
 
 
+def effective_disposition_subquery(name: str | None = None) -> Any:
+    return (
+        select(
+            CeriEvidenceDisposition.ceri_snapshot_id,
+            CeriEvidenceDisposition.disposition,
+        )
+        .distinct(CeriEvidenceDisposition.ceri_snapshot_id)
+        .order_by(
+            CeriEvidenceDisposition.ceri_snapshot_id,
+            CeriEvidenceDisposition.created_at.desc(),
+            CeriEvidenceDisposition.id.desc(),
+        )
+        .subquery(name)
+    )
+
+
+def apply_snapshot_eligibility(
+    statement: Any,
+    *,
+    snapshot: Any = CeriScoreSnapshot,
+    name: str | None = None,
+) -> Any:
+    """Apply the canonical set-based eligibility join to a snapshot statement."""
+
+    effective = effective_disposition_subquery(name)
+    return statement.outerjoin(
+        effective,
+        effective.c.ceri_snapshot_id == snapshot.id,
+    ).where(func.coalesce(effective.c.disposition, ELIGIBLE) == ELIGIBLE)
+
+
+def eligible_snapshot_select(
+    *entities: Any,
+    snapshot: Any = CeriScoreSnapshot,
+    name: str | None = None,
+) -> Any:
+    return apply_snapshot_eligibility(
+        select(*(entities or (snapshot,))),
+        snapshot=snapshot,
+        name=name,
+    )
+
+
 def effective_disposition_by_snapshot(
     db: Session,
     snapshot_ids: Iterable[int] | None = None,
