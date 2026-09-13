@@ -172,8 +172,7 @@ def test_due_unrelated_matrix_is_deferred_while_authorized_lineage_executes(
             queues=("interactive", "broker", "background"),
             certification_only=True,
         )
-        assert claimed_child is not None
-        assert claimed_child.job_type == "CERI_CAPTURE_RUN"
+        assert claimed_child is None
         db.rollback()
 
         remaining = list(
@@ -181,6 +180,75 @@ def test_due_unrelated_matrix_is_deferred_while_authorized_lineage_executes(
         )
         assert len(remaining) == len(due_types) + 1
         assert {job.status for job in remaining} == {JobStatus.QUEUED, "RETRYING"}
+    engine.dispose()
+
+
+def test_terminal_certification_root_cannot_reauthorize_historical_descendants(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    now = datetime.now(UTC)
+    with Session(engine, expire_on_commit=False) as db:
+        worker = register_worker(
+            db,
+            worker_id="certification-worker",
+            queues=("interactive", "broker", "background"),
+            heartbeat_timeout_seconds=30,
+            now=now,
+            instance_id="certification-instance",
+        )
+        root = BackgroundJob(
+            job_type="FULL_PIPELINE",
+            status=JobStatus.CANCELLED,
+            priority=0,
+            payload_json={
+                "certification_authorized": True,
+                "transition_preflight_plan_id": 4,
+            },
+            max_retries=3,
+            retry_count=1,
+            run_after=now - timedelta(hours=1),
+            root_correlation_id="historical-certification-root",
+        )
+        db.add(root)
+        db.flush()
+        root.root_job_id = root.id
+        child = BackgroundJob(
+            job_type="CERI_CHANGE_DETECTION",
+            status=JobStatus.QUEUED,
+            priority=0,
+            payload_json={},
+            max_retries=3,
+            retry_count=0,
+            run_after=now - timedelta(minutes=1),
+            root_job_id=root.id,
+            parent_job_id=root.id,
+            root_correlation_id=root.root_correlation_id,
+        )
+        db.add(child)
+        db.commit()
+
+        claimed = claim_next_job(
+            db,
+            worker.worker_id,
+            worker_instance_id="certification-instance",
+            queues=("interactive", "broker", "background"),
+            certification_only=True,
+        )
+        assert claimed is None
+
+        strict_isolation = queue_isolation_status(db, now=now)
+        assert strict_isolation.isolated is False
+        assert strict_isolation.unrelated_runnable_jobs == 1
+
+        pre_enqueue_isolation = queue_isolation_status(
+            db,
+            now=now,
+            ignore_inactive_authorized_lineage=True,
+        )
+        assert pre_enqueue_isolation.isolated is True
+        assert pre_enqueue_isolation.unrelated_runnable_jobs == 0
     engine.dispose()
 
 

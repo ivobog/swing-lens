@@ -14,6 +14,12 @@ from app.settings import RuntimeMode, Settings, get_settings
 CERTIFICATION_AUTHORIZATION_KEY = "certification_authorized"
 CERTIFICATION_PLAN_KEY = "transition_preflight_plan_id"
 CERTIFICATION_ROOT_JOB_TYPE = "FULL_PIPELINE"
+CERTIFICATION_ACTIVE_ROOT_STATUSES = (
+    "QUEUED",
+    "RECOVERING",
+    "RETRYING",
+    "RUNNING",
+)
 
 # These are control-plane writes rather than business workflows. They remain
 # available so the web process and one durable worker can prove liveness.
@@ -97,17 +103,25 @@ def require_enqueue_authorized(
 
 
 def certification_claim_filter() -> Any:
-    """SQL predicate that permits only an authorized root and its descendants."""
+    """Permit an authorized root and descendants only while that root is active.
+
+    A certification authorization is a lease on one live root workflow, not a
+    permanent capability attached to its correlation id.  Keeping terminal roots
+    in this subquery would let a later certification worker replay queued
+    descendants from a historical completed, failed, or cancelled run.
+    """
     authorized_roots = select(BackgroundJob.root_correlation_id).where(
         BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
         _payload_authorized_expression(),
         BackgroundJob.root_correlation_id.is_not(None),
+        BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
     )
     return func.coalesce(
         or_(
             and_(
                 BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
                 _payload_authorized_expression(),
+                BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
             ),
             BackgroundJob.root_correlation_id.in_(authorized_roots),
         ),
@@ -120,6 +134,7 @@ def queue_isolation_status(
     *,
     now: datetime | None = None,
     allow_authorized_lineage: bool = False,
+    ignore_inactive_authorized_lineage: bool = False,
 ) -> QueueIsolationStatus:
     observed_at = now or datetime.now(UTC)
     runnable = or_(
@@ -138,6 +153,8 @@ def queue_isolation_status(
     query = select(func.count(BackgroundJob.id)).where(runnable)
     if allow_authorized_lineage:
         query = query.where(~certification_claim_filter())
+    if ignore_inactive_authorized_lineage:
+        query = query.where(~_inactive_authorized_descendant_expression())
     count = int(db.scalar(query) or 0)
     return QueueIsolationStatus(
         isolated=count == 0,
@@ -185,6 +202,7 @@ def _authorized_root_exists(db: Session, root_correlation_id: str) -> bool:
                 BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
                 BackgroundJob.root_correlation_id == root_correlation_id,
                 _payload_authorized_expression(),
+                BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
             )
             .limit(1)
         )
@@ -193,3 +211,19 @@ def _authorized_root_exists(db: Session, root_correlation_id: str) -> bool:
 
 def _payload_authorized_expression() -> Any:
     return BackgroundJob.payload_json[CERTIFICATION_AUTHORIZATION_KEY].as_boolean().is_(True)
+
+
+def _inactive_authorized_descendant_expression() -> Any:
+    inactive_roots = select(BackgroundJob.root_correlation_id).where(
+        BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
+        _payload_authorized_expression(),
+        BackgroundJob.root_correlation_id.is_not(None),
+        ~BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
+    )
+    return func.coalesce(
+        and_(
+            BackgroundJob.job_type != CERTIFICATION_ROOT_JOB_TYPE,
+            BackgroundJob.root_correlation_id.in_(inactive_roots),
+        ),
+        False,
+    )

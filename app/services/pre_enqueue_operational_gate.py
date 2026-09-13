@@ -169,6 +169,7 @@ def validate_pre_enqueue_operational_gate(
         db,
         now=observed_at,
         allow_authorized_lineage=False,
+        ignore_inactive_authorized_lineage=True,
     )
     if not queue_status.isolated:
         _reject(
