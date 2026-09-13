@@ -10,7 +10,9 @@ from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine, func, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm.exc import DetachedInstanceError
 
 from app.models.tables import (
     BackgroundJob,
@@ -36,7 +38,14 @@ from app.services.background_job_service import (
     requeue_stalled_jobs,
 )
 from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
+from app.services.winner_probability.cohort_definition import CohortKey
+from app.services.winner_probability.cohort_statistics import CohortStatisticsService
 from app.services.winner_probability.config import load_winner_probability_config
+from app.services.winner_probability.evidence_service import (
+    EvidenceService,
+    FrozenORMRow,
+    _freeze_generation_member,
+)
 
 
 def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicates(
@@ -49,9 +58,7 @@ def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicate
     now = datetime.now(UTC)
     with sessions() as setup:
         recovered_run = UploadRun(filename="recovered.csv", status="COMPLETED", row_count=5)
-        uninterrupted_run = UploadRun(
-            filename="uninterrupted.csv", status="COMPLETED", row_count=5
-        )
+        uninterrupted_run = UploadRun(filename="uninterrupted.csv", status="COMPLETED", row_count=5)
         definition = _outcome_definition()
         setup.add_all([recovered_run, uninterrupted_run, definition])
         setup.flush()
@@ -158,9 +165,7 @@ def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicate
     with sessions() as interrupted:
         assert _artifact_counts(interrupted, recovered_run_id) == (2, 2, 2, 2, 2, 2, 2)
         step = interrupted.scalar(
-            select(PipelineStep).where(
-                PipelineStep.step_name == "CAPTURING_WINNER_PREDICTIONS"
-            )
+            select(PipelineStep).where(PipelineStep.step_name == "CAPTURING_WINNER_PREDICTIONS")
         )
         assert step.status == "INTERRUPTED"
         assert step.result_json["attempt_history"][-1]["status"] == "INTERRUPTED"
@@ -221,6 +226,141 @@ def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicate
     engine.dispose()
 
 
+def test_run_evidence_cache_survives_expire_on_commit_heartbeat_and_closed_session(
+    disposable_postgres_database: str,
+) -> None:
+    """Regression for Run 158's expired-then-expunged evidence objects."""
+    _migrate(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    sessions = sessionmaker(bind=engine, expire_on_commit=True)
+    config = load_winner_probability_config()
+    cutoff = datetime(2026, 7, 1, 20, 0, tzinfo=UTC)
+
+    with sessions() as setup:
+        run = UploadRun(filename="evidence-cache.csv", status="COMPLETED", row_count=3)
+        definition = _outcome_definition()
+        setup.add_all([run, definition])
+        setup.flush()
+        run_id = int(run.id)
+        definition_id = int(definition.id)
+        visible = _matured_evidence(
+            setup,
+            run_id=run_id,
+            definition_id=definition_id,
+            ticker="AAA",
+            prediction_date=date(2026, 5, 1),
+            source_cutoff=cutoff - timedelta(days=30),
+            won=True,
+        )
+        superseded = _matured_evidence(
+            setup,
+            run_id=run_id,
+            definition_id=definition_id,
+            ticker="BBB",
+            prediction_date=date(2026, 5, 2),
+            source_cutoff=cutoff - timedelta(days=29),
+            won=False,
+            forward_superseded_at=cutoff - timedelta(seconds=1),
+        )
+        later = _matured_evidence(
+            setup,
+            run_id=run_id,
+            definition_id=definition_id,
+            ticker="CCC",
+            prediction_date=date(2026, 5, 3),
+            source_cutoff=cutoff - timedelta(days=28),
+            won=False,
+            close_return_pct=None,
+        )
+        setup.commit()
+        expected_ids = [int(visible.id), int(later.id)]
+        superseded_id = int(superseded.id)
+
+    with sessions() as legacy:
+        expired_then_detached = legacy.scalar(
+            select(WinnerForwardOutcome).order_by(WinnerForwardOutcome.id).limit(1)
+        )
+        legacy.commit()
+        legacy.expunge(expired_then_detached)
+        with pytest.raises(DetachedInstanceError):
+            _ = expired_then_detached.superseded_at
+
+    service = EvidenceService()
+    heartbeat_commits = 0
+    with sessions() as loading:
+        definition = loading.get(WinnerOutcomeDefinition, definition_id)
+
+        def heartbeat_commit() -> None:
+            nonlocal heartbeat_commits
+            heartbeat_commits += 1
+            loading.commit()
+
+        universe = service.prepare_run_candidate_universe(
+            loading,
+            outcome_definition=definition,
+            config=config,
+            lease_guard=heartbeat_commit,
+        )
+        assert universe is not None
+        assert heartbeat_commits == 2
+        assert all(isinstance(row.prediction, FrozenORMRow) for row in universe.native_rows)
+        assert all(isinstance(row.forward_outcome, FrozenORMRow) for row in universe.native_rows)
+        assert all(
+            isinstance(row.target_stop_outcome, FrozenORMRow) for row in universe.native_rows
+        )
+        for frozen, model in (
+            (universe.native_rows[0].prediction, WinnerPredictionSnapshot),
+            (universe.native_rows[0].forward_outcome, WinnerForwardOutcome),
+            (universe.native_rows[0].target_stop_outcome, WinnerTargetStopOutcome),
+        ):
+            assert set(frozen.column_values) == {
+                attribute.key for attribute in sa_inspect(model).column_attrs
+            }
+
+    # The original Session is closed. Evaluation must be purely DTO-backed.
+    with sessions() as evaluation:
+        definition = evaluation.get(WinnerOutcomeDefinition, definition_id)
+        current = WinnerPredictionSnapshot(
+            id=999999,
+            run_id=run_id,
+            ticker="CURRENT",
+            prediction_as_of_date=date(2026, 6, 30),
+            source_data_cutoff_at=cutoff,
+            decision_at=cutoff,
+            captured_at=cutoff,
+            planned_entry_session=date(2026, 7, 2),
+            entry_schedule_status="RESOLVED",
+            entry_data_status="NOT_DUE",
+            eligibility_status="ELIGIBLE",
+            feature_schema_version=config.feature_schema.version,
+            feature_vector_hash="current-hash",
+            config_hash=config.config_hash,
+            calculation_version=config.engine.calculation_version,
+            feature_json={},
+            source_ids_json={},
+            warning_flags_json=[],
+            lineage_json={"point_in_time_validated": True},
+        )
+        funnel = service.diagnostic_funnel(
+            evaluation,
+            prediction=current,
+            outcome_definition=definition,
+            cohort_key=CohortKey(level="L5", dimensions={"global": "all"}, key="L5:all"),
+            training_cutoff_at=cutoff,
+            config=config,
+        )
+
+    assert [int(row.prediction.id) for row in funnel.evidence] == expected_ids
+    assert superseded_id not in {int(row.prediction.id) for row in funnel.evidence}
+    frozen = tuple(_freeze_generation_member(row) for row in funnel.evidence)
+    stats = CohortStatisticsService().calculate(frozen, config)
+    assert stats.sample_n == 2
+    assert stats.wins == Decimal("1")
+    assert stats.raw_rate == Decimal("0.500000")
+    assert frozen[1].forward_outcome.close_return_pct is None
+    engine.dispose()
+
+
 class _SyntheticRepository:
     def __init__(self, run_id: int, definition_id: int, tickers: list[str]) -> None:
         self.run_id = run_id
@@ -231,8 +371,7 @@ class _SyntheticRepository:
         assert run_id == self.run_id
         return SimpleNamespace(
             tickers=[
-                SimpleNamespace(raw_row=SimpleNamespace(ticker=ticker))
-                for ticker in self.tickers
+                SimpleNamespace(raw_row=SimpleNamespace(ticker=ticker)) for ticker in self.tickers
             ]
         )
 
@@ -378,6 +517,112 @@ class _SyntheticWinnerCaptureService(WinnerPredictionCaptureService):
         totals.decision_time_estimates += 1
 
 
+def _matured_evidence(
+    db: Session,
+    *,
+    run_id: int,
+    definition_id: int,
+    ticker: str,
+    prediction_date: date,
+    source_cutoff: datetime,
+    won: bool,
+    forward_superseded_at: datetime | None = None,
+    close_return_pct: Decimal | None = Decimal("0.05"),
+) -> WinnerPredictionSnapshot:
+    config = load_winner_probability_config()
+    entry_session = prediction_date + timedelta(days=1)
+    due_session = prediction_date + timedelta(days=8)
+    matured_at = source_cutoff + timedelta(days=10)
+    prediction = WinnerPredictionSnapshot(
+        run_id=run_id,
+        ticker=ticker,
+        prediction_as_of_date=prediction_date,
+        source_data_cutoff_at=source_cutoff,
+        decision_at=source_cutoff,
+        captured_at=source_cutoff,
+        planned_entry_session=entry_session,
+        entry_schedule_status="RESOLVED",
+        entry_data_status="AVAILABLE",
+        eligibility_status="ELIGIBLE",
+        feature_schema_version=config.feature_schema.version,
+        feature_vector_hash=hashlib.sha256(ticker.encode()).hexdigest(),
+        config_hash=config.config_hash,
+        calculation_version=config.engine.calculation_version,
+        feature_json={},
+        source_ids_json={},
+        warning_flags_json=[],
+        lineage_json={
+            "point_in_time_validated": True,
+            "capture_training_candidate": True,
+            "evidence_training_eligible": True,
+            "training_rejection_reasons": [],
+        },
+    )
+    db.add(prediction)
+    db.flush()
+    decision = WinnerTemporalValidityDecision(
+        prediction_id=prediction.id,
+        validation_sequence=1,
+        status="VALID",
+        entry_timing_valid=True,
+        source_cutoff_valid=True,
+        semantic_input_time_valid=True,
+        evidence_eligible=True,
+        reason_codes_json=[],
+        validation_version="evidence-cache-regression-v1",
+        decision_at=source_cutoff,
+        entry_session=entry_session,
+        entry_open_at=source_cutoff + timedelta(days=1),
+        evaluated_at=source_cutoff,
+        evaluated_by="TEST",
+        metadata_json={},
+    )
+    forward = WinnerForwardOutcome(
+        prediction_id=prediction.id,
+        entry_model="NEXT_OPEN",
+        horizon_sessions=5,
+        entry_session=entry_session,
+        due_session=due_session,
+        status="MATURED",
+        revision=1,
+        is_current_revision=forward_superseded_at is None,
+        close_return_pct=close_return_pct,
+        mfe_pct=None,
+        mae_pct=None,
+        source_bar_lineage_hash=f"bars-{ticker}",
+        source_revision_cutoff_at=matured_at,
+        matured_at=matured_at,
+        superseded_at=forward_superseded_at,
+        metadata_json={},
+    )
+    db.add_all([decision, forward])
+    db.flush()
+    target = WinnerTargetStopOutcome(
+        prediction_id=prediction.id,
+        outcome_definition_id=definition_id,
+        forward_outcome_id=forward.id,
+        entry_model="NEXT_OPEN",
+        horizon_sessions=5,
+        status="MATURED",
+        revision=1,
+        is_current_revision=True,
+        target_pct=Decimal("2.5"),
+        stop_pct=Decimal("2.0"),
+        target_hit=won,
+        stop_hit=not won,
+        first_event="TARGET" if won else "STOP",
+        primary_winner=won,
+        optimistic_winner=won,
+        conservative_winner=won,
+        source_bar_lineage_hash=f"bars-{ticker}",
+        evaluated_at=matured_at,
+        metadata_json={},
+    )
+    db.add(target)
+    db.flush()
+    return prediction
+
+
 def _outcome_definition() -> WinnerOutcomeDefinition:
     config = load_winner_probability_config()
     raw = config.primary_outcome_definition
@@ -405,39 +650,39 @@ def _artifact_counts(db: Session, run_id: int) -> tuple[int, ...]:
     )
     return (
         db.scalar(
-            select(func.count()).select_from(WinnerPredictionSnapshot).where(
-                WinnerPredictionSnapshot.run_id == run_id
-            )
+            select(func.count())
+            .select_from(WinnerPredictionSnapshot)
+            .where(WinnerPredictionSnapshot.run_id == run_id)
         ),
         db.scalar(
-            select(func.count()).select_from(WinnerTemporalValidityDecision).where(
-                WinnerTemporalValidityDecision.prediction_id.in_(prediction_ids)
-            )
+            select(func.count())
+            .select_from(WinnerTemporalValidityDecision)
+            .where(WinnerTemporalValidityDecision.prediction_id.in_(prediction_ids))
         ),
         db.scalar(
-            select(func.count()).select_from(WinnerForwardOutcome).where(
-                WinnerForwardOutcome.prediction_id.in_(prediction_ids)
-            )
+            select(func.count())
+            .select_from(WinnerForwardOutcome)
+            .where(WinnerForwardOutcome.prediction_id.in_(prediction_ids))
         ),
         db.scalar(
-            select(func.count()).select_from(WinnerTargetStopOutcome).where(
-                WinnerTargetStopOutcome.prediction_id.in_(prediction_ids)
-            )
+            select(func.count())
+            .select_from(WinnerTargetStopOutcome)
+            .where(WinnerTargetStopOutcome.prediction_id.in_(prediction_ids))
         ),
         db.scalar(
-            select(func.count()).select_from(WinnerProbabilityEstimate).where(
-                WinnerProbabilityEstimate.prediction_id.in_(prediction_ids)
-            )
+            select(func.count())
+            .select_from(WinnerProbabilityEstimate)
+            .where(WinnerProbabilityEstimate.prediction_id.in_(prediction_ids))
         ),
         db.scalar(
-            select(func.count()).select_from(WinnerEvidenceManifest).where(
-                WinnerEvidenceManifest.id.in_(manifest_ids)
-            )
+            select(func.count())
+            .select_from(WinnerEvidenceManifest)
+            .where(WinnerEvidenceManifest.id.in_(manifest_ids))
         ),
         db.scalar(
-            select(func.count()).select_from(WinnerEvidenceManifestMember).where(
-                WinnerEvidenceManifestMember.manifest_id.in_(manifest_ids)
-            )
+            select(func.count())
+            .select_from(WinnerEvidenceManifestMember)
+            .where(WinnerEvidenceManifestMember.manifest_id.in_(manifest_ids))
         ),
     )
 

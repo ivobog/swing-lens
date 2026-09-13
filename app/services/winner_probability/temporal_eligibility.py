@@ -73,7 +73,8 @@ def prediction_temporally_eligible(
         # gate; persisted production rows never take this branch.
         return lineage.get("point_in_time_validated") is True
     semantic_status = (lineage.get("point_in_time_validation") or {}).get("semantic_input_time")
-    if not sa_inspect(prediction).transient and (
+    persisted_snapshot = bool(getattr(prediction, "is_persisted_snapshot", False))
+    if (persisted_snapshot or not sa_inspect(prediction).transient) and (
         prediction.decision_at is None or semantic_status != "VALID"
     ):
         # Persisted pre-migration rows cannot inherit a stronger meaning from

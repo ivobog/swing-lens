@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from time import perf_counter
+from types import MappingProxyType
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, object_session
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.orm import Session
 
 from app.models.tables import (
     OutcomeStatus,
@@ -45,9 +48,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class EvidenceOutcome:
-    prediction: WinnerPredictionSnapshot
-    forward_outcome: WinnerForwardOutcome
-    target_stop_outcome: WinnerTargetStopOutcome | WinnerTrainingOutcomeReplay
+    prediction: WinnerPredictionSnapshot | FrozenORMRow
+    forward_outcome: WinnerForwardOutcome | FrozenORMRow
+    target_stop_outcome: WinnerTargetStopOutcome | WinnerTrainingOutcomeReplay | FrozenORMRow
     inclusion_weight: Decimal = Decimal("1")
     eligibility_decision_id: int | None = None
     temporal_validity_decision_id: int | None = None
@@ -57,6 +60,26 @@ class EvidenceOutcome:
     @property
     def won(self) -> bool:
         return bool(self.target_stop_outcome.primary_winner)
+
+
+@dataclass(frozen=True, slots=True)
+class FrozenORMRow:
+    """Fully materialized ORM column values safe beyond a Session lifecycle.
+
+    The cache intentionally captures mapped columns only. Evidence evaluation
+    never depends on ORM relationships, and missing attributes retain normal
+    ``getattr(..., default)`` behavior.
+    """
+
+    model_name: str
+    column_values: Mapping[str, Any]
+    is_persisted_snapshot: bool = True
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self.column_values[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
 
 
 @dataclass(frozen=True)
@@ -144,10 +167,10 @@ class RunEvidenceCandidateUniverse:
     feature_schema_version: str
     calculation_version: str
     native_rows: tuple[EvidenceOutcome, ...]
-    compatibility_candidates: tuple[tuple[Any, Any, Any, Any], ...]
-    temporal_decisions: dict[int, Any]
-    lineage_price_bars: dict[int, PriceBar]
-    lineage_price_bar_revisions: dict[int, PriceBarRevision]
+    compatibility_candidates: tuple[tuple[FrozenORMRow | None, ...], ...]
+    temporal_decisions: dict[int, FrozenORMRow]
+    lineage_price_bars: dict[int, FrozenORMRow]
+    lineage_price_bar_revisions: dict[int, FrozenORMRow]
     load_seconds: float
     native_base_queries: int = 1
     compatibility_base_queries: int = 1
@@ -190,7 +213,7 @@ class EvidenceService:
             return None
         started = perf_counter()
         native_rows = tuple(
-            EvidenceOutcome(row[0], row[1], row[2])
+            _freeze_evidence_outcome(EvidenceOutcome(row[0], row[1], row[2]))
             for row in db.execute(
                 _native_candidate_statement(
                     outcome_definition=outcome_definition,
@@ -200,26 +223,26 @@ class EvidenceService:
         )
         if lease_guard is not None:
             lease_guard()
-        compatibility_candidates = self._load_compatibility_replay_candidates(
-            db,
-            outcome_definition=outcome_definition,
+        compatibility_candidates = tuple(
+            tuple(_freeze_orm_row(item) if item is not None else None for item in row)
+            for row in self._load_compatibility_replay_candidates(
+                db,
+                outcome_definition=outcome_definition,
+            )
         )
-        replay_lineage_candidates = _compatibility_lineage_candidates(
-            compatibility_candidates
-        )
+        replay_lineage_candidates = _compatibility_lineage_candidates(compatibility_candidates)
         all_rows = native_rows + replay_lineage_candidates
-        temporal_decisions = _temporal_decisions(db, all_rows)
-        lineage_price_bars, lineage_price_bar_revisions = _load_replay_lineage_rows(
-            db, all_rows
-        )
-        _detach_candidate_universe_rows(
-            db,
-            native_rows=native_rows,
-            compatibility_candidates=compatibility_candidates,
-            temporal_decisions=temporal_decisions,
-            lineage_price_bars=lineage_price_bars,
-            lineage_price_bar_revisions=lineage_price_bar_revisions,
-        )
+        temporal_decisions = {
+            prediction_id: _freeze_orm_row(decision)
+            for prediction_id, decision in _temporal_decisions(db, all_rows).items()
+        }
+        loaded_price_bars, loaded_price_bar_revisions = _load_replay_lineage_rows(db, all_rows)
+        lineage_price_bars = {
+            row_id: _freeze_orm_row(row) for row_id, row in loaded_price_bars.items()
+        }
+        lineage_price_bar_revisions = {
+            row_id: _freeze_orm_row(row) for row_id, row in loaded_price_bar_revisions.items()
+        }
         if lease_guard is not None:
             lease_guard()
         universe = RunEvidenceCandidateUniverse(
@@ -843,35 +866,21 @@ def _native_candidate_statement(
         # windows, lineage and episode selection deliberately remain in the
         # per-prediction evaluator below.
         statement = (
-            statement.where(
-                WinnerTargetStopOutcome.outcome_definition_id == outcome_definition.id
-            )
+            statement.where(WinnerTargetStopOutcome.outcome_definition_id == outcome_definition.id)
             .where(WinnerForwardOutcome.entry_model == outcome_definition.entry_model)
-            .where(
-                WinnerForwardOutcome.horizon_sessions
-                == outcome_definition.horizon_sessions
-            )
+            .where(WinnerForwardOutcome.horizon_sessions == outcome_definition.horizon_sessions)
             .where(WinnerTargetStopOutcome.entry_model == outcome_definition.entry_model)
-            .where(
-                WinnerTargetStopOutcome.horizon_sessions
-                == outcome_definition.horizon_sessions
-            )
+            .where(WinnerTargetStopOutcome.horizon_sessions == outcome_definition.horizon_sessions)
             .where(WinnerTargetStopOutcome.target_pct == outcome_definition.target_pct)
             .where(WinnerTargetStopOutcome.stop_pct == outcome_definition.stop_pct)
             .where(WinnerTargetStopOutcome.primary_winner.is_not(None))
             .where(WinnerForwardOutcome.status == OutcomeStatus.MATURED)
             .where(WinnerTargetStopOutcome.status == OutcomeStatus.MATURED)
-            .where(
-                WinnerPredictionSnapshot.eligibility_status == PredictionEligibility.ELIGIBLE
-            )
+            .where(WinnerPredictionSnapshot.eligibility_status == PredictionEligibility.ELIGIBLE)
             .where(WinnerPredictionSnapshot.reconstruction_method.is_(None))
+            .where(WinnerPredictionSnapshot.feature_schema_version == config.feature_schema.version)
             .where(
-                WinnerPredictionSnapshot.feature_schema_version
-                == config.feature_schema.version
-            )
-            .where(
-                WinnerPredictionSnapshot.calculation_version
-                == config.engine.calculation_version
+                WinnerPredictionSnapshot.calculation_version == config.engine.calculation_version
             )
             .where(WinnerPredictionSnapshot.config_hash == config.config_hash)
         )
@@ -900,33 +909,29 @@ def _compatibility_lineage_candidates(
     )
 
 
-def _detach_candidate_universe_rows(
-    db: Session,
-    *,
-    native_rows: tuple[EvidenceOutcome, ...],
-    compatibility_candidates: tuple[tuple[Any, Any, Any, Any], ...],
-    temporal_decisions: dict[int, Any],
-    lineage_price_bars: dict[int, PriceBar],
-    lineage_price_bar_revisions: dict[int, PriceBarRevision],
-) -> None:
-    """Keep the frozen universe usable across coordinator heartbeat commits."""
-    candidates: list[Any] = []
-    for row in native_rows:
-        candidates.extend(
-            (row.prediction, row.forward_outcome, row.target_stop_outcome)
-        )
-    for row in compatibility_candidates:
-        candidates.extend(row)
-    candidates.extend(temporal_decisions.values())
-    candidates.extend(lineage_price_bars.values())
-    candidates.extend(lineage_price_bar_revisions.values())
-    seen: set[int] = set()
-    for candidate in candidates:
-        if candidate is None or id(candidate) in seen:
-            continue
-        seen.add(id(candidate))
-        if object_session(candidate) is db:
-            db.expunge(candidate)
+def _freeze_evidence_outcome(row: EvidenceOutcome) -> EvidenceOutcome:
+    return replace(
+        row,
+        prediction=_freeze_orm_row(row.prediction),
+        forward_outcome=_freeze_orm_row(row.forward_outcome),
+        target_stop_outcome=_freeze_orm_row(row.target_stop_outcome),
+    )
+
+
+def _freeze_orm_row(row: Any) -> FrozenORMRow:
+    """Copy every mapped column while the ORM instance is still session-bound."""
+    if isinstance(row, FrozenORMRow):
+        return row
+    mapper = sa_inspect(type(row))
+    return FrozenORMRow(
+        model_name=type(row).__name__,
+        column_values=MappingProxyType(
+            {
+                attribute.key: deepcopy(getattr(row, attribute.key))
+                for attribute in mapper.column_attrs
+            }
+        ),
+    )
 
 
 def _visible_at_cutoff(superseded_at: datetime | None, cutoff: datetime) -> bool:

@@ -21,7 +21,9 @@ from app.services.winner_probability.evidence_manifest_service import (
 from app.services.winner_probability.evidence_service import (
     EvidenceOutcome,
     EvidenceService,
+    FrozenORMRow,
     RunEvidenceCandidateUniverse,
+    _freeze_evidence_outcome,
     _freeze_generation_member,
     _replay_lineage_is_reproducible,
 )
@@ -213,7 +215,7 @@ def test_run_scoped_candidate_universe_is_exactly_equivalent_across_cutoffs() ->
         config_hash=config.config_hash,
         feature_schema_version=config.feature_schema.version,
         calculation_version=config.engine.calculation_version,
-        native_rows=tuple(EvidenceOutcome(*row) for row in rows),
+        native_rows=tuple(_freeze_evidence_outcome(EvidenceOutcome(*row)) for row in rows),
         compatibility_candidates=(),
         temporal_decisions={},
         lineage_price_bars={},
@@ -253,6 +255,23 @@ def test_run_scoped_candidate_universe_is_exactly_equivalent_across_cutoffs() ->
 
     assert optimized.run_candidate_metrics()["evidence_load_count"] == 1
     assert optimized.run_candidate_metrics()["cache_reuse_count"] == 2
+    assert all(
+        isinstance(row.prediction, FrozenORMRow)
+        for row in optimized._run_candidate_universe.native_rows
+    )
+
+
+def test_materialized_evidence_snapshot_is_detached_from_source_mutation() -> None:
+    row = _row(1, cutoff=datetime(2026, 5, 1, tzinfo=UTC))
+    frozen = _freeze_evidence_outcome(EvidenceOutcome(*row))
+
+    row[0].ticker = "MUTATED"
+    row[0].lineage_json["point_in_time_validated"] = False
+
+    assert frozen.prediction.ticker == "T1"
+    assert frozen.prediction.lineage_json["point_in_time_validated"] is True
+    with pytest.raises(TypeError):
+        frozen.prediction.column_values["ticker"] = "ILLEGAL"
 
 
 @pytest.mark.parametrize(
