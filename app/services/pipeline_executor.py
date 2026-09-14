@@ -108,13 +108,19 @@ def _call_market_sensitive(
     db: Session,
     run_id: int,
     market_cutoff: MarketCalculationCutoff,
+    *,
+    pipeline_run_id: int | None = None,
 ) -> Any:
     """Pass the frozen cutoff without breaking narrow test doubles."""
     parameters = signature(function).parameters
-    if "market_cutoff" in parameters or any(
-        item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
-    ):
-        return function(db, run_id, market_cutoff=market_cutoff)
+    accepts_kwargs = any(item.kind is Parameter.VAR_KEYWORD for item in parameters.values())
+    kwargs: dict[str, Any] = {}
+    if "market_cutoff" in parameters or accepts_kwargs:
+        kwargs["market_cutoff"] = market_cutoff
+    if pipeline_run_id is not None and ("pipeline_run_id" in parameters or accepts_kwargs):
+        kwargs["pipeline_run_id"] = pipeline_run_id
+    if kwargs:
+        return function(db, run_id, **kwargs)
     return function(db, run_id)
 
 
@@ -325,7 +331,13 @@ def execute_full_pipeline(
         with _pipeline_step(
             db, pipeline, "SCORING_FUNDAMENTALS", lease_guard=lease_guard, performance=performance
         ):
-            fundamental_scores = dependencies.recalculate_fundamentals(db, upload_run.id)
+            fundamental_scores = _call_market_sensitive(
+                dependencies.recalculate_fundamentals,
+                db,
+                upload_run.id,
+                market_cutoff,
+                pipeline_run_id=pipeline.id,
+            )
             result["fundamental_scores"] = len(fundamental_scores)
 
         _raise_if_cancelled(should_cancel)
@@ -417,6 +429,7 @@ def execute_full_pipeline(
                     required_market_tickers=benchmark_tickers,
                     wait_for_market_events=bool(plan.estimated_request_count),
                     market_cutoff=market_cutoff,
+                    pipeline_run_id=pipeline.id,
                 )
             elif _fetch_technical_overlap_enabled(dependencies):
                 performance.add_fallback("technical_overlap_callback_unsupported")
@@ -488,7 +501,11 @@ def execute_full_pipeline(
                     )
             else:
                 technical_scores = _call_market_sensitive(
-                    dependencies.score_technicals, db, upload_run.id, market_cutoff
+                    dependencies.score_technicals,
+                    db,
+                    upload_run.id,
+                    market_cutoff,
+                    pipeline_run_id=pipeline.id,
                 )
             if result["market_data_mode"] == "CACHE_FALLBACK":
                 _mark_technical_scores_degraded(technical_scores, result)
@@ -577,7 +594,13 @@ def execute_full_pipeline(
         with _pipeline_step(
             db, pipeline, "COMBINING_RESULTS", lease_guard=lease_guard, performance=performance
         ):
-            combined_results = dependencies.refresh_combined(db, upload_run.id)
+            combined_results = _call_market_sensitive(
+                dependencies.refresh_combined,
+                db,
+                upload_run.id,
+                market_cutoff,
+                pipeline_run_id=pipeline.id,
+            )
             result["combined_results"] = len(combined_results)
             result["incomplete_rows"] = sum(not row.is_complete for row in combined_results)
             result["warning_rows"] = sum(row.has_warning for row in combined_results)
@@ -590,7 +613,13 @@ def execute_full_pipeline(
             lease_guard=lease_guard,
             performance=performance,
         ) as ranking_step:
-            ranking = dependencies.refresh_rankings(db, upload_run.id)
+            ranking = _call_market_sensitive(
+                dependencies.refresh_rankings,
+                db,
+                upload_run.id,
+                market_cutoff,
+                pipeline_run_id=pipeline.id,
+            )
             result["ranking_profiles"] = ranking.profile_count
             result["ranking_results"] = ranking.result_count
             result["ranking_status"] = ranking.status

@@ -15,6 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import RawCompanyRow, TechnicalScore
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.combined_ranking_identity import (
+    build_technical_score_identity,
+    embed_calculation_identity,
+)
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.leadership_v5 import rank_leadership_v5
 from app.services.market_calculation_context_service import (
@@ -109,6 +113,7 @@ def score_run_technicals(
     benchmark_ticker: str = "SPY",
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
+    pipeline_run_id: int | None = None,
 ) -> list[TechnicalScore]:
     input_started = perf_counter()
     market_cutoff = (
@@ -205,6 +210,7 @@ def score_run_technicals(
         v5_context=v5_context,
         settings=settings,
         market_cutoff=market_cutoff,
+        pipeline_run_id=pipeline_run_id,
     )
     _record_technical_duration("finalize", finalize_started, run_id=run_id)
     return scores
@@ -304,6 +310,7 @@ def finalize_technical_scores(
     v5_context: TechnicalV5RunContext | None = None,
     settings: Settings | None = None,
     market_cutoff: MarketCalculationCutoff | None = None,
+    pipeline_run_id: int | None = None,
     persist: bool = True,
 ) -> list[TechnicalScore]:
     v4_params = v4_params or load_technical_scoring_v4_config()
@@ -409,6 +416,27 @@ def finalize_technical_scores(
             persisted.input_as_of_session = market_cutoff.latest_completed_session
             persisted.calendar_version = market_cutoff.calendar_version
         scores.append(persisted)
+    if pipeline_run_id is not None:
+        if market_cutoff is None:
+            raise ValueError("Technical identity production requires an explicit market_cutoff")
+        effective_config = _technical_identity_config(
+            pine_params=pine_params,
+            v4_params=v4_params,
+            v5_params=v5_params,
+            settings=settings,
+        )
+        for score in scores:
+            identity = build_technical_score_identity(
+                score,
+                market_cutoff=market_cutoff,
+                pipeline_run_id=pipeline_run_id,
+                effective_config=effective_config,
+            )
+            score.debug_json = embed_calculation_identity(
+                score.debug_json,
+                identity,
+                policy="TECHNICAL_SCORE_PRODUCER",
+            )
     if persist and symbols:
         db.execute(
             delete(TechnicalScore).where(
@@ -456,10 +484,12 @@ class TechnicalScoringOverlapCoordinator:
         required_market_tickers: list[str] | tuple[str, ...] | None = None,
         wait_for_market_events: bool = False,
         market_cutoff: MarketCalculationCutoff | None = None,
+        pipeline_run_id: int | None = None,
     ) -> None:
         input_started = perf_counter()
         self.db = db
         self.run_id = run_id
+        self.pipeline_run_id = pipeline_run_id
         self.symbols = _normalize_tickers(tickers)
         self.settings = settings or get_settings()
         self.should_cancel = should_cancel or (lambda: False)
@@ -580,6 +610,7 @@ class TechnicalScoringOverlapCoordinator:
                 v5_params=self.v5_params,
                 settings=self.settings,
                 market_cutoff=self.market_cutoff,
+                pipeline_run_id=self.pipeline_run_id,
             )
             _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
             return scores
@@ -789,6 +820,7 @@ class TechnicalScoringOverlapCoordinator:
             v5_params=self.v5_params,
             settings=self.settings,
             market_cutoff=self.market_cutoff,
+            pipeline_run_id=self.pipeline_run_id,
         )
         _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
         return scores
@@ -1887,6 +1919,29 @@ def _to_decimal(value: float | None) -> Decimal | None:
     if value is None:
         return None
     return Decimal(str(round(float(value), 4)))
+
+
+def _technical_identity_config(
+    *,
+    pine_params: dict[str, Any],
+    v4_params: dict[str, Any],
+    v5_params: dict[str, Any],
+    settings: Settings,
+) -> dict[str, Any]:
+    """Return only semantic configuration that can change the persisted score."""
+
+    return {
+        "pine": pine_params,
+        "v4": v4_params,
+        "v5": v5_params,
+        "v5_enabled": bool(getattr(settings, "technical_v5_enabled", False)),
+        "v5_shadow_compare_enabled": bool(
+            getattr(settings, "technical_v5_shadow_compare_enabled", True)
+        ),
+        "v5_persist_shadow_results": bool(
+            getattr(settings, "technical_v5_persist_shadow_results", True)
+        ),
+    }
 
 
 def _optional_float(value: Any) -> float | None:

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -17,7 +18,23 @@ from app.models.tables import (
     TechnicalScore,
     WinnerPredictionSnapshot,
 )
+from app.services.calculation_identity import (
+    PIPELINE_CONTEXT_COMPATIBILITY,
+    CalculationIdentity,
+    CalculationIdentityCompatibilityValidator,
+)
 from app.services.cockpit_sorting import cockpit_sort_key
+from app.services.combined_ranking_identity import (
+    COMBINED_INPUT_COMPATIBILITY,
+    build_combined_result_identity,
+    calculation_identity_from_debug,
+    cohort_identity_fingerprint,
+    embed_calculation_identity,
+    fundamental_score_identity,
+    require_fundamental_raw_source,
+    require_source_inputs,
+    technical_score_identity,
+)
 from app.services.confidence_service import build_combined_warning_flags
 from app.services.earnings_date_parser import MISSING_EARNINGS_DATE_VALUES
 from app.services.earnings_risk_service import (
@@ -25,6 +42,12 @@ from app.services.earnings_risk_service import (
     calculate_earnings_risk,
     current_local_date,
 )
+from app.services.market_calculation_context_service import (
+    calculation_identity_from_market_context,
+)
+from app.services.market_clock_service import MarketCalculationCutoff
+
+logger = logging.getLogger(__name__)
 
 DANGER_CLASSIFICATIONS = {
     "Distribution risk",
@@ -89,24 +112,108 @@ class CombinedDecision:
     debug_evidence: dict[str, Any]
 
 
-def refresh_combined_results(db: Session, run_id: int) -> list[CombinedResult]:
+def refresh_combined_results(
+    db: Session,
+    run_id: int,
+    *,
+    market_cutoff: MarketCalculationCutoff | None = None,
+    pipeline_run_id: int | None = None,
+) -> list[CombinedResult]:
     rows = _rows_for_run(db, run_id)
-    fundamentals = {
-        score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)
-    }
-    technicals = {
-        score.ticker.upper(): score for score in _technicals_for_run(db, run_id)
-    }
+    fundamentals = {score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)}
+    technicals = {score.ticker.upper(): score for score in _technicals_for_run(db, run_id)}
 
-    decisions = [
-        combine_row_decision(
+    config = _load_scoring_config()
+    validated: list[
+        tuple[
+            RawCompanyRow,
+            FundamentalScore,
+            TechnicalScore,
+            CalculationIdentity,
+            CalculationIdentity,
+        ]
+    ] = []
+    for row in _unique_rows(rows):
+        ticker = row.ticker.upper()
+        fundamental = fundamentals.get(ticker)
+        technical = technicals.get(ticker)
+        if fundamental is None or technical is None:
+            raise ValueError(
+                "CALCULATION_IDENTITY_REJECTED: consumer=CombinedResult "
+                f"producer=FundamentalScore+TechnicalScore ticker={ticker} "
+                "result=INSUFFICIENT_IDENTITY details=required source artifact is absent"
+            )
+        fundamental_identity = fundamental_score_identity(fundamental)
+        technical_identity = technical_score_identity(technical)
+        require_fundamental_raw_source(
+            fundamental_identity,
             row,
-            fundamentals.get(row.ticker.upper()),
-            technicals.get(row.ticker.upper()),
+            consumer="CombinedResult",
         )
-        for row in _unique_rows(rows)
+        compatibility = require_source_inputs(
+            fundamental_identity,
+            technical_identity,
+            policy=COMBINED_INPUT_COMPATIBILITY,
+            consumer="CombinedResult",
+            left_producer="FundamentalScore",
+            right_producer="TechnicalScore",
+        )
+        _validate_explicit_pipeline_context(
+            source_identity=technical_identity,
+            run_id=run_id,
+            ticker=ticker,
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline_run_id,
+        )
+        logger.debug(
+            "combined input calculation identity compatible",
+            extra={
+                "calculation_identity_policy": compatibility.policy,
+                "calculation_identity_result": compatibility.status.value,
+                "calculation_identity_left_fingerprint": compatibility.left_fingerprint,
+                "calculation_identity_right_fingerprint": compatibility.right_fingerprint,
+            },
+        )
+        validated.append((row, fundamental, technical, fundamental_identity, technical_identity))
+
+    _require_single_combined_context(validated)
+
+    cohort_fingerprint = cohort_identity_fingerprint(
+        identity
+        for _, _, _, fundamental_identity, technical_identity in validated
+        for identity in (fundamental_identity, technical_identity)
+    )
+    decisions_with_identity: list[tuple[CombinedDecision, CalculationIdentity]] = []
+    for row, fundamental, technical, fundamental_identity, technical_identity in validated:
+        decision = combine_row_decision(
+            row,
+            fundamental,
+            technical,
+            config=config,
+            today=technical_identity.temporal.as_of_session.value,
+        )
+        output_identity = build_combined_result_identity(
+            fundamental_identity=fundamental_identity,
+            technical_identity=technical_identity,
+            fundamental_score=fundamental,
+            technical_score=technical,
+            config=config,
+            calculation_version=COMBINED_DECISION_CALCULATION_VERSION,
+            cohort_fingerprint=cohort_fingerprint,
+        )
+        decisions_with_identity.append((decision, output_identity))
+    decisions_with_identity.sort(key=lambda item: cockpit_sort_key(item[0]))
+
+    results = [
+        _to_model(
+            run_id=run_id,
+            final_rank=index,
+            decision=decision,
+            calculation_identity=identity,
+        )
+        for index, (decision, identity) in enumerate(decisions_with_identity, start=1)
     ]
-    decisions = sorted(decisions, key=cockpit_sort_key)
+    _assert_combined_replacement_safe(db, run_id=run_id, desired=results)
 
     db.execute(
         update(WinnerPredictionSnapshot)
@@ -115,10 +222,6 @@ def refresh_combined_results(db: Session, run_id: int) -> list[CombinedResult]:
         .values(combined_result_id=None)
     )
     db.execute(delete(CombinedResult).where(CombinedResult.run_id == run_id))
-    results = [
-        _to_model(run_id=run_id, final_rank=index, decision=decision)
-        for index, decision in enumerate(decisions, start=1)
-    ]
     db.add_all(results)
     db.flush()
     return results
@@ -136,9 +239,7 @@ def combine_row_decision(
     penalties = config["penalties"]
     labels = config["labels"]
 
-    fundamental_score = _float_or_none(
-        fundamental.fundamental_score if fundamental else None
-    )
+    fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     dual_score = _float_or_none(technical.dual_score if technical else None)
     technical_classification = technical.classification if technical else None
     fundamental_label = fundamental.fundamental_label if fundamental else None
@@ -215,9 +316,8 @@ def combine_row_decision(
         technical_classification=technical_classification,
         fundamental_label=fundamental_label,
     )
-    if (
-        earnings_risk.decision_blocked
-        and config.get("earnings_risk_gate", {}).get("block_new_entries", True)
+    if earnings_risk.decision_blocked and config.get("earnings_risk_gate", {}).get(
+        "block_new_entries", True
     ):
         decision = "Blocked by earnings gate"
 
@@ -356,7 +456,15 @@ def _to_model(
     run_id: int,
     final_rank: int,
     decision: CombinedDecision,
+    calculation_identity: CalculationIdentity | None = None,
 ) -> CombinedResult:
+    debug_json = decision.debug_evidence
+    if calculation_identity is not None:
+        debug_json = embed_calculation_identity(
+            debug_json,
+            calculation_identity,
+            policy=COMBINED_INPUT_COMPATIBILITY.name,
+        )
     return CombinedResult(
         run_id=run_id,
         ticker=decision.ticker,
@@ -383,8 +491,102 @@ def _to_model(
         sort_bucket=decision.sort_bucket,
         calculation_version=COMBINED_DECISION_CALCULATION_VERSION,
         config_hash=decision.debug_evidence["config_hash"],
-        debug_json=decision.debug_evidence,
+        debug_json=debug_json,
     )
+
+
+def _assert_combined_replacement_safe(
+    db: Session,
+    *,
+    run_id: int,
+    desired: list[CombinedResult],
+) -> None:
+    existing = {row.ticker.upper(): row for row in _combined_for_run(db, run_id)}
+    for candidate in desired:
+        current = existing.get(candidate.ticker.upper())
+        if current is None:
+            continue
+        current_identity = calculation_identity_from_debug(current.debug_json)
+        if current_identity is None:
+            # A legacy row is explicitly replaced by a newly inserted identity-aware row.
+            continue
+        desired_identity = calculation_identity_from_debug(candidate.debug_json)
+        if (
+            desired_identity is None
+            or current_identity.fingerprint() != desired_identity.fingerprint()
+        ):
+            raise ValueError(
+                "CALCULATION_IDENTITY_PERSISTENCE_CONFLICT: consumer=CombinedResult "
+                f"ticker={candidate.ticker} existing={current_identity.fingerprint()} "
+                f"desired={desired_identity.fingerprint() if desired_identity else 'UNKNOWN'}"
+            )
+
+
+def _combined_for_run(db: Session, run_id: int) -> list[CombinedResult]:
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return []
+    return list(scalars(select(CombinedResult).where(CombinedResult.run_id == run_id)))
+
+
+def _validate_explicit_pipeline_context(
+    *,
+    source_identity: CalculationIdentity,
+    run_id: int,
+    ticker: str,
+    market_cutoff: MarketCalculationCutoff | None,
+    pipeline_run_id: int | None,
+) -> None:
+    if market_cutoff is None and pipeline_run_id is None:
+        return
+    if market_cutoff is None or pipeline_run_id is None:
+        raise ValueError(
+            "Combined identity validation requires market_cutoff and pipeline_run_id together"
+        )
+    expected = calculation_identity_from_market_context(
+        market_cutoff,
+        run_id=run_id,
+        pipeline_id=pipeline_run_id,
+        ticker=ticker,
+    )
+    compatibility = CalculationIdentityCompatibilityValidator.compare(
+        expected,
+        source_identity,
+        policy=PIPELINE_CONTEXT_COMPATIBILITY,
+    )
+    if not compatibility.accepted:
+        raise ValueError(
+            "CALCULATION_IDENTITY_REJECTED: consumer=CombinedResult "
+            f"producer=PipelineContext {compatibility.diagnostic()}"
+        )
+
+
+def _require_single_combined_context(
+    validated: list[
+        tuple[
+            RawCompanyRow,
+            FundamentalScore,
+            TechnicalScore,
+            CalculationIdentity,
+            CalculationIdentity,
+        ]
+    ],
+) -> None:
+    if not validated:
+        return
+    expected = validated[0][4]
+    for row, _, _, _, actual in validated[1:]:
+        compatibility = CalculationIdentityCompatibilityValidator.compare(
+            expected,
+            actual,
+            policy=PIPELINE_CONTEXT_COMPATIBILITY,
+        )
+        if not compatibility.accepted:
+            raise ValueError(
+                "CALCULATION_IDENTITY_REJECTED: consumer=CombinedResult "
+                f"producer=TechnicalScore ticker={row.ticker.upper()} "
+                f"{compatibility.diagnostic()}"
+            )
 
 
 def _unique_rows(rows: list[RawCompanyRow]) -> list[RawCompanyRow]:
@@ -409,9 +611,7 @@ def _rows_for_run(db: Session, run_id: int) -> list[RawCompanyRow]:
 
 
 def _fundamentals_for_run(db: Session, run_id: int) -> list[FundamentalScore]:
-    return list(
-        db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id))
-    )
+    return list(db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id)))
 
 
 def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -11,6 +11,12 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services import ranking_profile_service
+from app.services.combined_ranking_identity import (
+    build_fundamental_score_identity,
+    build_technical_score_identity,
+    embed_calculation_identity,
+)
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.ranking_profile_service import (
     execute_ranking_pipeline_step,
     refresh_all_ranking_profiles,
@@ -38,9 +44,7 @@ def test_refresh_all_ranking_profiles_persists_enabled_profiles(monkeypatch) -> 
         "defensive_quality",
     }
     for profile_name in {result.ranking_profile for result in results}:
-        profile_results = [
-            result for result in results if result.ranking_profile == profile_name
-        ]
+        profile_results = [result for result in results if result.ranking_profile == profile_name]
         assert [result.profile_rank for result in profile_results] == [1, 2]
         assert {result.ticker for result in profile_results} == {"MOMO", "QUAL"}
 
@@ -118,10 +122,7 @@ def test_ranking_pipeline_step_fails_when_profiles_produce_zero_results(monkeypa
 def test_run105_shaped_ranking_step_reports_186_by_configured_profiles(monkeypatch) -> None:
     profiles = [object() for _ in range(5)]
     rows = [_row(1000 + index, f"T{index:03}", index + 1) for index in range(186)]
-    persisted = [
-        object()
-        for _ in range(len(rows) * len(profiles))
-    ]
+    persisted = [object() for _ in range(len(rows) * len(profiles))]
     monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: profiles)
     monkeypatch.setattr(ranking_profile_service, "_raw_rows_for_run", lambda *_: rows)
     monkeypatch.setattr(
@@ -198,16 +199,20 @@ class FakeDb:
 
 
 def _patch_run_inputs(monkeypatch) -> None:
-    monkeypatch.setattr(ranking_profile_service, "_raw_rows_for_run", lambda _db, _run_id: _rows())
+    rows = _rows()
+    fundamentals = _fundamentals()
+    technicals = _technicals()
+    _attach_identities(rows, fundamentals, technicals)
+    monkeypatch.setattr(ranking_profile_service, "_raw_rows_for_run", lambda _db, _run_id: rows)
     monkeypatch.setattr(
         ranking_profile_service,
         "_fundamentals_for_run",
-        lambda _db, _run_id: _fundamentals(),
+        lambda _db, _run_id: fundamentals,
     )
     monkeypatch.setattr(
         ranking_profile_service,
         "_technicals_for_run",
-        lambda _db, _run_id: _technicals(),
+        lambda _db, _run_id: technicals,
     )
     monkeypatch.setattr(ranking_profile_service, "_load_scoring_config", lambda: _config())
     monkeypatch.setattr(
@@ -271,10 +276,13 @@ def _row(row_id: int, ticker: str, row_number: int) -> RawCompanyRow:
 
 def _fundamental(ticker: str, score: float) -> FundamentalScore:
     return FundamentalScore(
+        id=201 if ticker == "MOMO" else 202,
         run_id=7,
         ticker=ticker,
         fundamental_score=Decimal(str(score)),
         fundamental_label="High-quality quant",
+        scoring_model_version="fundamentals_v2.1",
+        debug_json={"config_hash": "a" * 64, "model_version": "fundamentals_v2.1"},
     )
 
 
@@ -290,6 +298,7 @@ def _technical(
     vcp: float,
 ) -> TechnicalScore:
     return TechnicalScore(
+        id=301 if ticker == "MOMO" else 302,
         run_id=7,
         ticker=ticker,
         trend_score=Decimal(str(trend)),
@@ -302,12 +311,53 @@ def _technical(
         classification="Prime clean pullback",
         pullback_health="Healthy",
         technical_confidence="normal",
+        technical_engine_version="4.0.0",
         vcp_score=Decimal(str(vcp)),
         box_tightness_score=Decimal("8.0"),
         breakout_quality_score=Decimal(str(breakout)),
         climax_risk_score=Decimal("1.4"),
         debug_json={"derived": {"rs_new_high": ticker == "MOMO"}},
     )
+
+
+def _attach_identities(
+    rows: list[RawCompanyRow],
+    fundamentals: list[FundamentalScore],
+    technicals: list[TechnicalScore],
+) -> None:
+    cutoff = MarketCalculationCutoff(
+        cutoff_at=datetime(2026, 7, 7, 20, tzinfo=UTC),
+        exchange_timezone="America/New_York",
+        latest_completed_session=TODAY,
+        daily_bar_ready_at=datetime(2026, 7, 7, 20, tzinfo=UTC),
+        calendar_version="XNYS-2026a",
+        bar_readiness_version="daily-close-v1",
+        cutoff_reason="TEST",
+        context_id=17,
+    )
+    rows_by_ticker: dict[str, RawCompanyRow] = {}
+    for row in rows:
+        rows_by_ticker.setdefault(row.ticker, row)
+    for score in fundamentals:
+        identity = build_fundamental_score_identity(
+            score,
+            raw_row=rows_by_ticker[score.ticker],
+            market_cutoff=cutoff,
+            pipeline_run_id=11,
+        )
+        score.debug_json = embed_calculation_identity(score.debug_json, identity, policy="TEST")
+    for score in technicals:
+        score.calculation_context_id = cutoff.context_id
+        score.calculation_cutoff_at = cutoff.cutoff_at
+        score.input_as_of_session = cutoff.latest_completed_session
+        score.calendar_version = cutoff.calendar_version
+        identity = build_technical_score_identity(
+            score,
+            market_cutoff=cutoff,
+            pipeline_run_id=11,
+            effective_config={"test": "technical"},
+        )
+        score.debug_json = embed_calculation_identity(score.debug_json, identity, policy="TEST")
 
 
 def _config() -> dict:
