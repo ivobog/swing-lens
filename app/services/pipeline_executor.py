@@ -949,6 +949,8 @@ def _execute_resumed_pipeline(
                     capture_result=(
                         capture_result if _setup_capture_handoff_enabled(dependencies) else None
                     ),
+                    market_cutoff=dependencies.market_cutoff,
+                    pipeline_run_id=pipeline.id,
                 )
                 _apply_setup_lifecycle_evaluation_result(result, evaluation_result)
 

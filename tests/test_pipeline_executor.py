@@ -293,6 +293,55 @@ def test_resume_from_ceri_does_not_reexecute_completed_expensive_stages() -> Non
     )
 
 
+def test_resume_from_ceri_propagates_frozen_context_to_setup_evaluation() -> None:
+    db = PipelineExecutorFakeDb(
+        tickers=["MSFT"],
+        ceri_provider_ingest_enabled=True,
+        setup_lifecycle_enabled=True,
+    )
+    ceri_index = next(
+        index for index, step in enumerate(db.steps) if step.step_name == "CERI_PROVIDER_INGEST"
+    )
+    for step in db.steps[:ceri_index]:
+        step.status = PipelineStepStatus.COMPLETED
+    db.steps[ceri_index].status = PipelineStepStatus.BLOCKED
+    db.pipeline.status = PipelineStatus.BLOCKED
+    db.pipeline.result_json.update(
+        {
+            "fundamental_scores": 1,
+            "technical_scores": 1,
+            "combined_results": 1,
+            "ranking_results": 5,
+            "ranking_profiles": 5,
+            "ranking_status": "COMPLETED",
+            "market_data_mode": "IB_GATEWAY",
+        }
+    )
+    calls: list[str] = []
+    dependencies = replace(
+        _dependencies(
+            calls,
+            setup_lifecycle_enabled=True,
+            setup_capture_result={"snapshots_captured": 1},
+            setup_evaluation_result={"canonical_snapshots": 1},
+        ),
+        ceri_provider_ingest_enabled=True,
+        schedule_ceri_provider_ingest=lambda *_args: calls.append("ceri_schedule") or 1,
+        validate_pipeline_preflight=lambda *_args: {"complete": True},
+        validate_resume_checkpoint=lambda *_args: {"validated": True},
+    )
+
+    result = execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        resume_from_step="CERI_PROVIDER_INGEST",
+    )
+
+    assert result.status == PipelineStatus.COMPLETED
+    assert calls == ["ceri_schedule", "setup_capture", "setup_evaluate"]
+
+
 def test_resume_preflight_schedules_repair_without_ceri_enqueue() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_provider_ingest_enabled=True)
     ceri_index = next(
