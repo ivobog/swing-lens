@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from types import SimpleNamespace
 
+import pytest
+
 from app.models.tables import SetupLifecycleEpisode
 from app.services.setup_lifecycle.dtos import EpisodeApplyResult
 from app.services.setup_lifecycle.maintenance_service import (
@@ -74,6 +76,16 @@ def test_repair_ticker_is_scoped_and_reports_counts() -> None:
     assert result.repaired == 1
     assert result.alerts_created == 1
     assert episode_service.repaired_snapshot_ids == [10]
+
+
+def test_historical_repair_without_as_of_date_fails_closed() -> None:
+    service = SetupLifecycleMaintenanceService(
+        episode_service=FakeEpisodeService(),
+        alert_service=FakeAlertService(),
+    )
+
+    with pytest.raises(ValueError, match="requires as_of_date"):
+        service.repair_ticker(FakeMaintenanceDb(), ticker="MSFT")
 
 
 def test_alert_rebuild_deduplicates_through_alert_service() -> None:

@@ -779,6 +779,7 @@ class SetupLifecycleRepository:
         ticker: str,
         timeframe: str,
         setup_family: str,
+        as_of_date: date,
         lock: bool = True,
     ) -> SetupLifecycleEpisode | None:
         statement = (
@@ -787,12 +788,40 @@ class SetupLifecycleRepository:
             .where(SetupLifecycleEpisode.timeframe == timeframe)
             .where(SetupLifecycleEpisode.setup_family == setup_family)
             .where(SetupLifecycleEpisode.status == "ACTIVE")
-            .order_by(SetupLifecycleEpisode.id.desc())
+            .where(SetupLifecycleEpisode.opened_on <= as_of_date)
+            .where(SetupLifecycleEpisode.current_as_of_date <= as_of_date)
+            .where(SetupLifecycleEpisode.last_observed_on <= as_of_date)
+            .order_by(
+                SetupLifecycleEpisode.current_as_of_date.desc(),
+                SetupLifecycleEpisode.opened_on.desc(),
+                SetupLifecycleEpisode.id.desc(),
+            )
             .limit(1)
         )
         if lock:
             statement = statement.with_for_update()
-        return db.scalar(statement)
+        eligible = db.scalar(statement)
+        if eligible is not None:
+            return eligible
+        future = db.scalar(
+            select(SetupLifecycleEpisode.id)
+            .where(SetupLifecycleEpisode.ticker == self.normalize_ticker(ticker))
+            .where(SetupLifecycleEpisode.timeframe == timeframe)
+            .where(SetupLifecycleEpisode.setup_family == setup_family)
+            .where(SetupLifecycleEpisode.status == "ACTIVE")
+            .where(
+                (SetupLifecycleEpisode.opened_on > as_of_date)
+                | (SetupLifecycleEpisode.current_as_of_date > as_of_date)
+                | (SetupLifecycleEpisode.last_observed_on > as_of_date)
+            )
+            .order_by(SetupLifecycleEpisode.id.desc())
+            .limit(1)
+        )
+        if future is not None:
+            raise ValueError(
+                "historical lifecycle state is unavailable because a newer active episode exists"
+            )
+        return None
 
     def latest_closed_episode(
         self,
@@ -801,6 +830,7 @@ class SetupLifecycleRepository:
         ticker: str,
         timeframe: str,
         setup_family: str,
+        as_of_date: date,
     ) -> SetupLifecycleEpisode | None:
         return db.scalar(
             select(SetupLifecycleEpisode)
@@ -808,6 +838,7 @@ class SetupLifecycleRepository:
             .where(SetupLifecycleEpisode.timeframe == timeframe)
             .where(SetupLifecycleEpisode.setup_family == setup_family)
             .where(SetupLifecycleEpisode.status == "CLOSED")
+            .where(SetupLifecycleEpisode.closed_on <= as_of_date)
             .order_by(
                 SetupLifecycleEpisode.closed_on.desc().nullslast(),
                 SetupLifecycleEpisode.id.desc(),
@@ -998,6 +1029,7 @@ class SetupLifecycleRepository:
         ticker: str,
         timeframe: str,
         since_date: date,
+        through_date: date,
         semantic_key: str | None = None,
     ) -> list[SignalAlertEvent]:
         statement = (
@@ -1006,6 +1038,7 @@ class SetupLifecycleRepository:
             .where(SignalAlertEvent.ticker == self.normalize_ticker(ticker))
             .where(SignalAlertEvent.timeframe == timeframe)
             .where(SignalAlertEvent.effective_date >= since_date)
+            .where(SignalAlertEvent.effective_date <= through_date)
             .order_by(SignalAlertEvent.effective_date.desc(), SignalAlertEvent.id.desc())
         )
         rows = list(db.scalars(statement))

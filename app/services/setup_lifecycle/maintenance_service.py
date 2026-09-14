@@ -111,6 +111,8 @@ class SetupLifecycleMaintenanceService:
         setup_family: str | None = None,
         evaluation_run_id: int | None = None,
     ) -> SetupLifecycleMaintenanceResult:
+        if as_of_date is None:
+            raise ValueError("historical lifecycle repair requires as_of_date")
         repaired = 0
         alerts_created = 0
         alerts_suppressed = 0

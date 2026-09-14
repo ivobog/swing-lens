@@ -44,7 +44,6 @@ from app.services.ceri.point_in_time_query import CeriPointInTimeQuery
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.revision_feature_service import CeriRevisionFeatureService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
-from app.services.market_calculation_context_service import standalone_market_context
 from app.services.market_clock_service import (
     CALENDAR_VERSION,
     MarketClockService,
@@ -222,9 +221,9 @@ class CeriFeatureRebuildService:
             cutoff = explicit_session
             cutoff_at = schedule.close_at + timedelta(minutes=15)
         else:
-            current = standalone_market_context(reason="STANDALONE_CERI_FEATURE_REBUILD")
-            cutoff = current.latest_completed_session
-            cutoff_at = current.cutoff_at
+            raise ValueError(
+                "historical CERI feature rebuild requires cutoff_at or as_of_session"
+            )
         try:
             mode = HistoricalViewMode(request.mode)
         except ValueError:

@@ -13,11 +13,14 @@ from app.models.ceri_tables import (
     CeriCompany,
     CeriGuidanceEvent,
     CeriScoreSnapshot,
+    CeriSourceRecord,
 )
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.evidence_eligibility import filter_eligible_snapshots
+from app.services.ceri.pit_eligibility import source_record_is_eligible
+from app.services.market_clock_service import MarketClockService, SessionTimestampPolicy
 from app.services.redaction import redact_text
 
 
@@ -29,6 +32,8 @@ class CeriChangeRebuildRequest:
     from_session: date | None = None
     to_session: date | None = None
     changed_since: datetime | None = None
+    as_of_session: date | None = None
+    cutoff_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +64,7 @@ class CeriChangeRebuildService:
         self.detector = detector or CeriChangeDetectionService(config=self.config)
 
     def rebuild(self, db: Session, request: CeriChangeRebuildRequest) -> CeriChangeRebuildResult:
+        target_session, cutoff_at = _required_boundary(request)
         snapshots = self._snapshots(db, request)
         scoped_company_ids = self._scoped_company_ids(db, request, snapshots)
         changes = duplicates = failed = 0
@@ -100,14 +106,15 @@ class CeriChangeRebuildService:
                         "error": redact_text(str(exc)).replace("\n", " ")[:500],
                     }
                 )
-        revisions = self._current_revisions(db, request, scoped_company_ids)
-        for revision in revisions:
+        revisions = self._eligible_revisions(
+            db,
+            request,
+            scoped_company_ids,
+            target_session=target_session,
+            cutoff_at=cutoff_at,
+        )
+        for revision, prior in revisions:
             try:
-                prior = (
-                    _get(db, CeriCatalystEventRevision, revision.prior_revision_id)
-                    if revision.prior_revision_id
-                    else None
-                )
                 result = self.detector.detect_catalyst_revision(
                     db,
                     revision=revision,
@@ -125,7 +132,13 @@ class CeriChangeRebuildService:
                         "error": redact_text(str(exc)).replace("\n", " ")[:500],
                     }
                 )
-        for company_id, guidance_rows in self._guidance(db, request, scoped_company_ids).items():
+        for company_id, guidance_rows in self._guidance(
+            db,
+            request,
+            scoped_company_ids,
+            target_session=target_session,
+            cutoff_at=cutoff_at,
+        ).items():
             prior_action = None
             for guidance in guidance_rows:
                 try:
@@ -171,6 +184,12 @@ class CeriChangeRebuildService:
             rows = [row for row in rows if row.as_of_session <= request.to_session]
         if request.changed_since:
             rows = [row for row in rows if row.created_at >= request.changed_since]
+        target_session, cutoff_at = _required_boundary(request)
+        rows = [
+            row
+            for row in rows
+            if row.as_of_session <= target_session and _aware(row.cutoff_at) <= cutoff_at
+        ]
         return rows
 
     def _scoped_company_ids(
@@ -191,14 +210,18 @@ class CeriChangeRebuildService:
             return {snapshot.company_id for snapshot in snapshots}
         return None
 
-    def _current_revisions(
+    def _eligible_revisions(
         self,
         db: Session,
         request: CeriChangeRebuildRequest,
         scoped_company_ids: set[int] | None,
-    ) -> list[CeriCatalystEventRevision]:
-        revisions = [row for row in _load(db, CeriCatalystEventRevision) if row.is_current]
+        *,
+        target_session: date,
+        cutoff_at: datetime,
+    ) -> list[tuple[CeriCatalystEventRevision, CeriCatalystEventRevision | None]]:
+        revisions = _load(db, CeriCatalystEventRevision)
         events = {event.id: event for event in _load(db, CeriCatalystEvent)}
+        sources = {row.id: row for row in _load(db, CeriSourceRecord) if row.id is not None}
         revisions = [
             row
             for row in revisions
@@ -207,6 +230,11 @@ class CeriChangeRebuildService:
                 scoped_company_ids is None
                 or events[row.catalyst_event_id].company_id in scoped_company_ids
             )
+            and row.effective_session is not None
+            and row.effective_session <= target_session
+            and (row.announced_at is None or _aware(row.announced_at) <= cutoff_at)
+            and row.source_record_id in sources
+            and source_record_is_eligible(sources[row.source_record_id], cutoff_at)
         ]
         if request.from_session:
             revisions = [
@@ -226,18 +254,39 @@ class CeriChangeRebuildService:
                 for row in revisions
                 if row.created_at is not None and row.created_at >= request.changed_since
             ]
-        revisions.sort(key=lambda row: (_revision_date(row) or date.min, row.id or 0))
-        return revisions
+        by_event: dict[int, list[CeriCatalystEventRevision]] = {}
+        for row in revisions:
+            by_event.setdefault(row.catalyst_event_id, []).append(row)
+        selected: list[tuple[CeriCatalystEventRevision, CeriCatalystEventRevision | None]] = []
+        for rows in by_event.values():
+            rows.sort(key=lambda row: (row.revision_number, row.id or 0))
+            selected.append((rows[-1], rows[-2] if len(rows) > 1 else None))
+        selected.sort(key=lambda pair: (_revision_date(pair[0]) or date.min, pair[0].id or 0))
+        return selected
 
     def _guidance(
         self,
         db: Session,
         request: CeriChangeRebuildRequest,
         scoped_company_ids: set[int] | None,
+        *,
+        target_session: date,
+        cutoff_at: datetime,
     ) -> dict[int, list[CeriGuidanceEvent]]:
         rows = _load(db, CeriGuidanceEvent)
+        sources = {row.id: row for row in _load(db, CeriSourceRecord) if row.id is not None}
         if scoped_company_ids is not None:
             rows = [row for row in rows if row.company_id in scoped_company_ids]
+        rows = [
+            row
+            for row in rows
+            if _guidance_session(row) is not None
+            and _guidance_session(row) <= target_session
+            and (row.effective_at is None or _aware(row.effective_at) <= cutoff_at)
+            and (row.accepted_at is None or _aware(row.accepted_at) <= cutoff_at)
+            and row.source_record_id in sources
+            and source_record_is_eligible(sources[row.source_record_id], cutoff_at)
+        ]
         if request.from_session:
             rows = [
                 row
@@ -292,3 +341,36 @@ def _revision_date(revision: CeriCatalystEventRevision) -> date | None:
     if revision.announced_at is not None:
         return revision.announced_at.date()
     return None
+
+
+def _guidance_session(guidance: CeriGuidanceEvent) -> date | None:
+    return guidance.effective_session
+
+
+def _required_boundary(request: CeriChangeRebuildRequest) -> tuple[date, datetime]:
+    target_session = request.as_of_session or request.to_session
+    if target_session is None or request.cutoff_at is None:
+        raise ValueError(
+            "historical CERI change rebuild requires as_of_session/to_session and cutoff_at"
+        )
+    if request.cutoff_at.tzinfo is None or request.cutoff_at.utcoffset() is None:
+        raise ValueError("cutoff_at must be timezone-aware")
+    if (
+        request.as_of_session is not None
+        and request.to_session is not None
+        and request.as_of_session != request.to_session
+    ):
+        raise ValueError("as_of_session and to_session must identify the same upper boundary")
+    latest_completed = MarketClockService().canonical_session_for_timestamp(
+        request.cutoff_at,
+        policy=SessionTimestampPolicy.LATEST_COMPLETED_DAILY_SESSION,
+    )
+    if target_session > latest_completed:
+        raise ValueError("CERI change target session is later than cutoff_at permits")
+    return target_session, request.cutoff_at
+
+
+def _aware(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("historical CERI evidence timestamps must be timezone-aware")
+    return value

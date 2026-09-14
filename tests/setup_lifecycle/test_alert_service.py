@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -268,6 +268,77 @@ def test_cooldown_suppresses_repeated_score_acceleration() -> None:
     assert repeated.suppressed == 1
 
 
+def test_future_alert_does_not_suppress_older_replayed_alert() -> None:
+    repository = FakeAlertRepository.with_seeded_rules()
+    service = SetupLifecycleAlertService(repository=repository)
+
+    future = service.evaluate_signal_change_events(
+        object(),
+        [
+            _signal_change(
+                event_id=801,
+                signal_key="technical_score",
+                source_event_key="future-score",
+                effective_date=date(2026, 8, 10),
+                normalized_delta=Decimal("1"),
+            )
+        ],
+    )
+    historical = service.evaluate_signal_change_events(
+        object(),
+        [
+            _signal_change(
+                event_id=802,
+                signal_key="technical_score",
+                source_event_key="historical-score",
+                effective_date=date(2026, 8, 3),
+                normalized_delta=Decimal("1"),
+            )
+        ],
+    )
+
+    assert future.created == 1
+    assert historical.created == 1
+    assert {row.effective_date for row in repository.alerts} == {
+        date(2026, 8, 3),
+        date(2026, 8, 10),
+    }
+
+
+def test_alert_cooldown_uses_business_effective_date_not_created_at() -> None:
+    repository = FakeAlertRepository.with_seeded_rules()
+    service = SetupLifecycleAlertService(repository=repository)
+    service.evaluate_signal_change_events(
+        object(),
+        [
+            _signal_change(
+                event_id=811,
+                signal_key="technical_score",
+                source_event_key="business-first",
+                effective_date=date(2026, 8, 3),
+                normalized_delta=Decimal("1"),
+            )
+        ],
+    )
+    repository.alerts[0].created_at = datetime(2026, 9, 1, tzinfo=UTC)
+
+    later_business_event = service.evaluate_signal_change_events(
+        object(),
+        [
+            _signal_change(
+                event_id=812,
+                signal_key="technical_score",
+                source_event_key="business-second",
+                effective_date=date(2026, 8, 4),
+                normalized_delta=Decimal("1"),
+            )
+        ],
+    )
+
+    assert later_business_event.created == 0
+    assert later_business_event.suppressed == 1
+
+
 def test_score_acceleration_requires_window_amount_crossing_and_real_confidence() -> None:
     repository = FakeAlertRepository.with_seeded_rules()
     service = SetupLifecycleAlertService(repository=repository)
@@ -455,6 +526,7 @@ class FakeAlertRepository:
         ticker,
         timeframe,
         since_date,
+        through_date,
         semantic_key=None,
     ):
         rows = [
@@ -464,6 +536,7 @@ class FakeAlertRepository:
             and alert.ticker == self.normalize_ticker(ticker)
             and alert.timeframe == timeframe
             and alert.effective_date >= since_date
+            and alert.effective_date <= through_date
         ]
         if semantic_key is not None:
             rows = [

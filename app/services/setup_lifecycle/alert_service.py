@@ -354,6 +354,7 @@ class SetupLifecycleAlertService:
             ticker=ticker,
             timeframe=timeframe,
             since_date=since,
+            through_date=effective_date,
             semantic_key=semantic_key,
         )
         return any(

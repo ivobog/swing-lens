@@ -156,6 +156,106 @@ def persist_live_snapshot(
     return row, True
 
 
+def project_historical_metric_rows_as_of(
+    db: Session,
+    rows: list[IBHistoricalMetricBar] | tuple[IBHistoricalMetricBar, ...],
+    *,
+    as_of: datetime,
+) -> list[IBHistoricalMetricBar]:
+    """Project mutable IB metric rows to the values SwingLens knew at ``as_of``.
+
+    ``IBHistoricalMetricBar`` is a current projection.  The first revision after
+    the boundary carries the last values that were eligible at the boundary.  If
+    that proof is missing, the row is excluded instead of exposing current data.
+    """
+
+    materialized = list(rows)
+    revised_ids = [
+        int(row.id)
+        for row in materialized
+        if row.id is not None
+        and _aware(row.revised_at) is not None
+        and _aware(row.revised_at) > as_of
+    ]
+    revisions = (
+        list(
+            db.scalars(
+                select(IBHistoricalMetricRevision)
+                .where(IBHistoricalMetricRevision.metric_bar_id.in_(revised_ids))
+                .order_by(
+                    IBHistoricalMetricRevision.metric_bar_id,
+                    IBHistoricalMetricRevision.revision_number,
+                    IBHistoricalMetricRevision.id,
+                )
+            )
+        )
+        if revised_ids
+        else []
+    )
+    by_bar: dict[int, list[IBHistoricalMetricRevision]] = {}
+    for revision in revisions:
+        by_bar.setdefault(int(revision.metric_bar_id), []).append(revision)
+
+    projected: list[IBHistoricalMetricBar] = []
+    for row in materialized:
+        first_seen = _aware(row.first_seen_at)
+        if first_seen is None or first_seen > as_of:
+            continue
+        revised_at = _aware(row.revised_at)
+        if revised_at is None or revised_at <= as_of:
+            projected.append(row)
+            continue
+        history = by_bar.get(int(row.id or 0), [])
+        first_after = next(
+            (
+                item
+                for item in history
+                if _aware(item.observed_at) and _aware(item.observed_at) > as_of
+            ),
+            None,
+        )
+        if first_after is None:
+            continue
+        prior_revisions = [
+            item
+            for item in history
+            if _aware(item.observed_at) is not None and _aware(item.observed_at) <= as_of
+        ]
+        values = dict(first_after.previous_values_json or {})
+        projected.append(
+            IBHistoricalMetricBar(
+                id=row.id,
+                intelligence_run_id=row.intelligence_run_id,
+                ticker=row.ticker,
+                ib_conid=row.ib_conid,
+                session_date=row.session_date,
+                effective_session=row.effective_session,
+                timeframe=row.timeframe,
+                metric_type=row.metric_type,
+                open_value=_decimal(values.get("open_value")),
+                high_value=_decimal(values.get("high_value")),
+                low_value=_decimal(values.get("low_value")),
+                close_value=_decimal(values.get("close_value")),
+                source=row.source,
+                source_semantic_type=row.source_semantic_type,
+                requested_range=row.requested_range,
+                availability_status=str(
+                    values.get("availability_status") or row.availability_status
+                ),
+                capability_reason=row.capability_reason,
+                data_hash=first_after.previous_data_hash,
+                revision_count=max(0, int(first_after.revision_number) - 1),
+                first_seen_at=row.first_seen_at,
+                last_seen_at=row.last_seen_at,
+                revised_at=(
+                    prior_revisions[-1].observed_at if prior_revisions else None
+                ),
+                warning_flags_json=list(values.get("warning_flags") or []),
+            )
+        )
+    return projected
+
+
 def persist_feature(
     db: Session,
     *,
@@ -250,3 +350,9 @@ def _bar_values(row: IBHistoricalMetricBar) -> dict[str, Any]:
         "availability_status": row.availability_status,
         "warning_flags": row.warning_flags_json,
     }
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    if value is None or value.tzinfo is None or value.utcoffset() is None:
+        return None
+    return value

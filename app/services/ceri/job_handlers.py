@@ -459,6 +459,8 @@ def execute_change_detection_job(
                 from_session=_optional_date(payload.get("from_session")),
                 to_session=_optional_date(payload.get("to_session")),
                 changed_since=_optional_datetime(payload.get("changed_since")),
+                as_of_session=_optional_date(payload.get("as_of_session")),
+                cutoff_at=_optional_datetime(payload.get("cutoff_at")),
             ),
         )
     raw_change_ids = getattr(result, "change_ids", None)

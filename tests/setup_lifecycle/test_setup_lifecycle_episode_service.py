@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+import pytest
+
 from app.models.tables import SetupLifecycleEpisode, SetupLifecycleEvent, SetupSignalSnapshot
 from app.services.setup_lifecycle.enums import LifecycleState, SetupFamily
 from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeService
@@ -261,6 +263,65 @@ def test_rearm_cooldown_blocks_duplicate_episode_until_fresh_ready_evidence() ->
     assert fresh.opened is True
 
 
+def test_older_repair_cannot_mutate_newer_active_episode() -> None:
+    repository = FakeEpisodeRepository()
+    active = _episode(
+        episode_id=1,
+        state=LifecycleState.READY,
+        phase="PIVOT_READY",
+        state_age_sessions=2,
+        last_observed_on=date(2026, 8, 7),
+    )
+    active.current_as_of_date = date(2026, 8, 7)
+    before = (active.current_snapshot_id, active.current_as_of_date, active.last_observed_on)
+    repository.active[("MSFT", "1d", SetupFamily.BREAKOUT.value)] = active
+
+    with pytest.raises(ValueError, match="historical lifecycle state is unavailable"):
+        SetupLifecycleEpisodeService(repository=repository).apply_snapshot(
+            object(),
+            _snapshot(
+                999,
+                setup_score=Decimal("7.8"),
+                classification="Breakout Base",
+                distance_to_pivot_pct=Decimal("1.0"),
+                data_as_of_date=date(2026, 8, 3),
+            ),
+        )
+
+    assert (
+        active.current_snapshot_id,
+        active.current_as_of_date,
+        active.last_observed_on,
+    ) == before
+
+
+def test_same_session_active_state_is_eligible_without_moving_business_time() -> None:
+    repository = FakeEpisodeRepository()
+    active = _episode(
+        episode_id=2,
+        state=LifecycleState.READY,
+        phase="PIVOT_READY",
+        state_age_sessions=1,
+        last_observed_on=date(2026, 8, 3),
+    )
+    active.current_as_of_date = date(2026, 8, 3)
+    repository.active[("MSFT", "1d", SetupFamily.BREAKOUT.value)] = active
+
+    result = SetupLifecycleEpisodeService(repository=repository).apply_snapshot(
+        object(),
+        _snapshot(
+            1000,
+            setup_score=Decimal("7.8"),
+            classification="Breakout Base",
+            distance_to_pivot_pct=Decimal("1.0"),
+            data_as_of_date=date(2026, 8, 3),
+        ),
+    )
+
+    assert result.episode is active
+    assert active.current_as_of_date == date(2026, 8, 3)
+
+
 class FakeEpisodeRepository:
     normalize_ticker = staticmethod(SetupLifecycleRepository.normalize_ticker)
     stable_key = staticmethod(SetupLifecycleRepository.stable_key)
@@ -272,19 +333,29 @@ class FakeEpisodeRepository:
         self.next_episode_id = 100
         self.next_event_id = 1000
 
-    def active_episode_for_update(self, _db, *, ticker, timeframe, setup_family, lock=True):
+    def active_episode_for_update(
+        self, _db, *, ticker, timeframe, setup_family, as_of_date, lock=True
+    ):
         episode = self.active.get((self.normalize_ticker(ticker), timeframe, setup_family))
         if episode is not None and episode.status == "ACTIVE":
+            if (
+                episode.opened_on > as_of_date
+                or episode.current_as_of_date > as_of_date
+                or episode.last_observed_on > as_of_date
+            ):
+                raise ValueError("historical lifecycle state is unavailable")
             return episode
         return None
 
-    def latest_closed_episode(self, _db, *, ticker, timeframe, setup_family):
+    def latest_closed_episode(self, _db, *, ticker, timeframe, setup_family, as_of_date):
         matches = [
             episode
             for episode in self.closed
             if episode.ticker == self.normalize_ticker(ticker)
             and episode.timeframe == timeframe
             and episode.setup_family == setup_family
+            and episode.closed_on is not None
+            and episode.closed_on <= as_of_date
         ]
         return matches[-1] if matches else None
 

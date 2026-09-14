@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -316,6 +316,7 @@ def test_latest_historical_entitlement_status_overrides_existing_iv_rows():
             "AAPL",
             HistoricalMetricType.OPTION_IMPLIED_VOLATILITY,
             has_rows=True,
+            cutoff_at=datetime(2026, 8, 1, tzinfo=UTC),
         )
         == AvailabilityStatus.SUBSCRIPTION_REQUIRED
     )

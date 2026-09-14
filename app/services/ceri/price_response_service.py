@@ -62,7 +62,53 @@ class CeriPriceResponseService:
         benchmark_bars: list[PriceBar] | None = None,
         feature_as_of_session: date | None = None,
         cutoff_at: datetime | None = None,
+        operation_mode: str | None = None,
     ) -> PriceResponseResult:
+        if operation_mode is None:
+            if feature_as_of_session is not None and cutoff_at is not None:
+                operation_mode = "HISTORICAL"
+            else:
+                raise ValueError(
+                    "CERI price response requires explicit CURRENT mode or historical anchors"
+                )
+        operation_mode = operation_mode.upper()
+        if operation_mode not in {"CURRENT", "HISTORICAL"}:
+            raise ValueError("operation_mode must be CURRENT or HISTORICAL")
+        historical = operation_mode == "HISTORICAL"
+        if historical and (feature_as_of_session is None or cutoff_at is None):
+            raise ValueError(
+                "historical CERI price response requires feature_as_of_session and cutoff_at"
+            )
+        if not historical and (feature_as_of_session is not None or cutoff_at is not None):
+            raise ValueError("CURRENT CERI price response cannot claim historical anchors")
+        if cutoff_at is not None and (
+            cutoff_at.tzinfo is None or cutoff_at.utcoffset() is None
+        ):
+            raise ValueError("cutoff_at must be timezone-aware")
+        if historical:
+            latest_completed = MarketClockService().canonical_session_for_timestamp(
+                cutoff_at,
+                policy=SessionTimestampPolicy.LATEST_COMPLETED_DAILY_SESSION,
+            )
+            if feature_as_of_session > latest_completed:
+                raise ValueError(
+                    "feature_as_of_session is later than cutoff_at permits"
+                )
+        if historical:
+            if stock_bars is not None:
+                _assert_historical_price_bars(
+                    stock_bars,
+                    ticker=ticker,
+                    max_session=feature_as_of_session,
+                    cutoff_at=cutoff_at,
+                )
+            if benchmark_bars is not None:
+                _assert_historical_price_bars(
+                    benchmark_bars,
+                    ticker=self.config.price_response.benchmark,
+                    max_session=feature_as_of_session,
+                    cutoff_at=cutoff_at,
+                )
         reaction = self.reaction_session(event_effective_at, event_effective_session)
         if event_effective_at is not None and reaction is not None:
             effective = MarketClockService().canonical_session_for_timestamp(
@@ -499,6 +545,26 @@ def _return(end: Decimal | float | None, start: Decimal | float | None) -> float
     if end is None or start in (None, 0):
         return None
     return float((Decimal(str(end)) - Decimal(str(start))) / abs(Decimal(str(start))))
+
+
+def _assert_historical_price_bars(
+    rows: list[PriceBar],
+    *,
+    ticker: str,
+    max_session: date,
+    cutoff_at: datetime,
+) -> None:
+    """Reject prepared arrays that cannot prove the requested PIT boundary."""
+
+    for row in rows:
+        if row.ticker.upper() != ticker.upper() or not price_bar_is_eligible(
+            row,
+            latest_completed_session=max_session,
+            cutoff_at=cutoff_at,
+        ):
+            raise ValueError(
+                "prepared historical PriceBars are not eligible for the requested boundary"
+            )
 
 
 def _nth_session(days: list[date], start: date, offset: int) -> date | None:

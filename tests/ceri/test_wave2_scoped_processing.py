@@ -13,6 +13,7 @@ from app.models.ceri_tables import (
     CeriGuidanceEvent,
     CeriProcessingRun,
     CeriScoreSnapshot,
+    CeriSourceRecord,
 )
 from app.models.tables import BackgroundJob
 from app.services.ceri import backfill_service as backfill_module
@@ -134,12 +135,17 @@ def test_standalone_change_rebuild_honors_company_scope() -> None:
             CeriCatalystEvent: events,
             CeriCatalystEventRevision: revisions,
             CeriGuidanceEvent: guidance,
+            CeriSourceRecord: [_source(1), _source(2)],
         }
     )
 
     result = CeriChangeRebuildService(detector=detector).rebuild(
         db,
-        CeriChangeRebuildRequest(company_ids=(1,)),
+        CeriChangeRebuildRequest(
+            company_ids=(1,),
+            as_of_session=date(2026, 8, 7),
+            cutoff_at=datetime(2026, 8, 7, 21, tzinfo=UTC),
+        ),
     )
 
     assert result.changes == 3
@@ -158,7 +164,11 @@ def test_run_scoped_change_rebuild_uses_prior_snapshot_outside_scope() -> None:
 
     CeriChangeRebuildService(detector=detector).rebuild(
         db,
-        CeriChangeRebuildRequest(run_id=11),
+        CeriChangeRebuildRequest(
+            run_id=11,
+            as_of_session=date(2026, 8, 2),
+            cutoff_at=datetime(2026, 8, 3, 21, tzinfo=UTC),
+        ),
     )
 
     assert detector.score_comparisons == [(current.id, prior.id)]
@@ -490,11 +500,26 @@ def _revision(revision_id: int, event_id: int) -> CeriCatalystEventRevision:
     return CeriCatalystEventRevision(
         id=revision_id,
         catalyst_event_id=event_id,
+        source_record_id=1 if event_id == 10 else 2,
         revision_number=1,
         is_current=True,
         status="ANNOUNCED",
         direction="POSITIVE",
         effective_session=date(2026, 8, 2),
+    )
+
+
+def _source(source_id: int) -> CeriSourceRecord:
+    known_at = datetime(2026, 8, 2, 12, tzinfo=UTC)
+    return CeriSourceRecord(
+        id=source_id,
+        provider="test",
+        dataset="test",
+        provider_record_id=str(source_id),
+        retrieved_at=known_at,
+        ingested_at=known_at,
+        content_hash=f"source-{source_id}",
+        idempotency_key=f"source-key-{source_id}",
     )
 
 

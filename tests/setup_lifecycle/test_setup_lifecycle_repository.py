@@ -177,6 +177,30 @@ def test_repository_applies_evaluation_counts_to_explicit_columns() -> None:
     assert evaluation_run.counts_json["read"] == 10
 
 
+def test_active_episode_query_is_upper_bounded_and_same_session_order_is_deterministic() -> None:
+    db = RecordingScalarDb()
+
+    assert (
+        SetupLifecycleRepository().active_episode_for_update(
+            db,
+            ticker="MSFT",
+            timeframe="1d",
+            setup_family="BREAKOUT",
+            as_of_date=date(2026, 8, 3),
+            lock=False,
+        )
+        is None
+    )
+
+    eligible_sql = str(db.statements[0])
+    assert "current_as_of_date <=" in eligible_sql
+    assert "last_observed_on <=" in eligible_sql
+    assert "opened_on <=" in eligible_sql
+    assert "current_as_of_date DESC" in eligible_sql
+    assert "opened_on DESC" in eligible_sql
+    assert "id DESC" in eligible_sql
+
+
 def test_purge_preview_is_stable_for_the_same_scope_and_counts() -> None:
     repository = CountingRepository()
     scope = PurgeScope(before_date=date(2026, 8, 1), ticker="msft", evaluation_run_id=11)
@@ -221,3 +245,12 @@ class CountingRepository(SetupLifecycleRepository):
     def _count(db: Any, statement: Select[tuple[Any]]) -> int:
         entity = statement.column_descriptions[0]["entity"]
         return CountingRepository.COUNTS_BY_ENTITY[entity]
+
+
+class RecordingScalarDb:
+    def __init__(self) -> None:
+        self.statements = []
+
+    def scalar(self, statement):
+        self.statements.append(statement)
+        return None

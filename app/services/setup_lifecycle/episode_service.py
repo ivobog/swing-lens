@@ -80,6 +80,7 @@ class SetupLifecycleEpisodeService:
             ticker=snapshot.ticker,
             timeframe=snapshot.timeframe,
             setup_family=first_pass.setup_family.value,
+            as_of_date=snapshot.data_as_of_date,
         )
         decision = first_pass
         if active is not None:
@@ -137,6 +138,7 @@ class SetupLifecycleEpisodeService:
             ticker=ticker,
             timeframe=timeframe,
             setup_family=setup_family.value,
+            as_of_date=observed_on,
         )
         if episode is None:
             return EpisodeApplyResult(episode_id=None)
@@ -464,6 +466,7 @@ class SetupLifecycleEpisodeService:
             ticker=snapshot.ticker,
             timeframe=snapshot.timeframe,
             setup_family=decision.setup_family.value,
+            as_of_date=snapshot.data_as_of_date,
         )
         if closed is None or closed.closed_on is None:
             return None
