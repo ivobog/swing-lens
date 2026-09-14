@@ -20,13 +20,31 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.contextual_calculation_identity import (
+    SETUP_COMBINED_COMPATIBILITY,
+    SETUP_RANKING_METADATA_COMPATIBILITY,
+    SETUP_REGIME_COMPATIBILITY,
+    SETUP_SECTOR_COMPATIBILITY,
+    SETUP_TECHNICAL_COMPATIBILITY,
+    artifact_identity,
+    consumer_context_identity,
+    contextual_compatibility,
+    expected_regime_identity,
+    expected_sector_identity,
+    pipeline_id_for_cutoff,
+)
 from app.services.market_calculation_context_service import (
     market_context_for_upload_run,
     standalone_market_context,
 )
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
+from app.services.market_regime_policy import load_market_regime_command_center_config
 from app.services.operational_metrics import operational_metrics
 from app.services.price_bar_repository import project_price_bar_rows_as_of
+from app.services.sector_rotation_config import (
+    load_sector_rotation_config,
+    sector_rotation_config_hash,
+)
 from app.settings import get_settings
 
 DAILY_PRICE_TIMEFRAMES = ("1 day", "1d")
@@ -130,6 +148,21 @@ class SetupLifecycleSourceLoader:
                 .where(TechnicalScore.ticker.in_(tickers))
             )
         )
+        pipeline_id = (
+            pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
+            if isinstance(db, Session)
+            else None
+        )
+        if isinstance(db, Session):
+            technical_scores = tuple(
+                _compatible_ticker_artifacts(
+                    technical_scores,
+                    run_id=run_id,
+                    pipeline_id=pipeline_id,
+                    market_cutoff=market_cutoff,
+                    policy=SETUP_TECHNICAL_COMPATIBILITY,
+                )
+            )
         context_cutoff = source_cutoff
         context_started_at = perf_counter()
         ticker_cutoffs = {
@@ -144,11 +177,6 @@ class SetupLifecycleSourceLoader:
             MarketRegimeSnapshot,
             latest_cutoff,
             cutoff_at=market_cutoff.cutoff_at if isinstance(db, Session) else None,
-        ).where(
-            or_(
-                MarketRegimeSnapshot.run_id == run_id,
-                MarketRegimeSnapshot.run_id.is_(None),
-            )
         )
         sector_statement = _latest_context_statement(
             SectorRotationSnapshot,
@@ -172,16 +200,69 @@ class SetupLifecycleSourceLoader:
             )
         market_candidates = tuple(db.scalars(market_statement))
         sector_candidates = tuple(db.scalars(sector_statement))
+        regime_expected = (
+            expected_regime_identity(
+                market_cutoff=market_cutoff,
+                config=load_market_regime_command_center_config(),
+            )
+            if isinstance(db, Session)
+            else None
+        )
+        sector_config = load_sector_rotation_config() if isinstance(db, Session) else None
+        sector_expected = (
+            expected_sector_identity(
+                context=consumer_context_identity(
+                    market_cutoff=market_cutoff,
+                    run_id=run_id,
+                    pipeline_id=pipeline_id,
+                ),
+                config_hash=sector_rotation_config_hash(sector_config),
+                calculation_version="sector-rotation-1.0.0",
+                mode=(
+                    "combined"
+                    if bool(sector_config.get("etf_score", {}).get("enabled", False))
+                    else "universe_only"
+                ),
+            )
+            if sector_config is not None
+            else None
+        )
         market_by_ticker = {
-            ticker: _select_context_candidate(market_candidates, cutoff, run_id)
+            ticker: _select_compatible_context_candidate(
+                market_candidates,
+                cutoff,
+                run_id,
+                expected=regime_expected,
+                policy=SETUP_REGIME_COMPATIBILITY,
+                allow_cross_run=True,
+            )
             for ticker, cutoff in ticker_cutoffs.items()
         }
         sector_by_ticker = {
-            ticker: _select_context_candidate(sector_candidates, cutoff, run_id)
+            ticker: _select_compatible_context_candidate(
+                sector_candidates,
+                cutoff,
+                run_id,
+                expected=sector_expected,
+                policy=SETUP_SECTOR_COMPATIBILITY,
+            )
             for ticker, cutoff in ticker_cutoffs.items()
         }
-        market_snapshot = _select_context_candidate(market_candidates, latest_cutoff, run_id)
-        sector_snapshot = _select_context_candidate(sector_candidates, latest_cutoff, run_id)
+        market_snapshot = _select_compatible_context_candidate(
+            market_candidates,
+            latest_cutoff,
+            run_id,
+            expected=regime_expected,
+            policy=SETUP_REGIME_COMPATIBILITY,
+            allow_cross_run=True,
+        )
+        sector_snapshot = _select_compatible_context_candidate(
+            sector_candidates,
+            latest_cutoff,
+            run_id,
+            expected=sector_expected,
+            policy=SETUP_SECTOR_COMPATIBILITY,
+        )
         sector_snapshot_ids = tuple(
             snapshot.id for snapshot in sector_candidates if snapshot.id is not None
         )
@@ -197,6 +278,39 @@ class SetupLifecycleSourceLoader:
             else ()
         )
 
+        combined_results = tuple(
+            db.scalars(
+                select(CombinedResult)
+                .where(CombinedResult.run_id == run_id)
+                .where(CombinedResult.ticker.in_(tickers))
+            )
+        )
+        ranking_results = tuple(
+            db.scalars(
+                select(RankingResult)
+                .where(RankingResult.run_id == run_id)
+                .where(RankingResult.ticker.in_(tickers))
+            )
+        )
+        if isinstance(db, Session):
+            combined_results = tuple(
+                _compatible_ticker_artifacts(
+                    combined_results,
+                    run_id=run_id,
+                    pipeline_id=pipeline_id,
+                    market_cutoff=market_cutoff,
+                    policy=SETUP_COMBINED_COMPATIBILITY,
+                )
+            )
+            ranking_results = tuple(
+                _compatible_ticker_artifacts(
+                    ranking_results,
+                    run_id=run_id,
+                    pipeline_id=pipeline_id,
+                    market_cutoff=market_cutoff,
+                    policy=SETUP_RANKING_METADATA_COMPATIBILITY,
+                )
+            )
         context = build_run_source_context(
             upload_run=upload_run,
             raw_rows=raw_rows,
@@ -208,20 +322,8 @@ class SetupLifecycleSourceLoader:
                 )
             ),
             technical_scores=technical_scores,
-            combined_results=tuple(
-                db.scalars(
-                    select(CombinedResult)
-                    .where(CombinedResult.run_id == run_id)
-                    .where(CombinedResult.ticker.in_(tickers))
-                )
-            ),
-            ranking_results=tuple(
-                db.scalars(
-                    select(RankingResult)
-                    .where(RankingResult.run_id == run_id)
-                    .where(RankingResult.ticker.in_(tickers))
-                )
-            ),
+            combined_results=combined_results,
+            ranking_results=ranking_results,
             market_regime_snapshot=market_snapshot,
             sector_rotation_snapshot=sector_snapshot,
             market_regime_snapshots_by_ticker=market_by_ticker,
@@ -637,6 +739,60 @@ def _select_context_candidate(rows, cutoff: date, run_id: int):
             row.id or 0,
         ),
     )
+
+
+def _select_compatible_context_candidate(
+    rows,
+    cutoff: date,
+    run_id: int,
+    *,
+    expected,
+    policy,
+    allow_cross_run: bool = False,
+):
+    eligible = [row for row in rows if row.as_of_date <= cutoff]
+    eligible.sort(
+        key=lambda row: (
+            row.as_of_date,
+            row.run_id == run_id,
+            row.created_at.timestamp() if row.created_at is not None else 0,
+            row.id or 0,
+        ),
+        reverse=True,
+    )
+    if expected is None:
+        return _select_context_candidate(rows, cutoff, run_id)
+    for row in eligible:
+        if not allow_cross_run and row.run_id not in {run_id, None}:
+            continue
+        if contextual_compatibility(
+            expected, artifact_identity(row), policy=policy
+        ).accepted:
+            return row
+    return None
+
+
+def _compatible_ticker_artifacts(
+    rows,
+    *,
+    run_id: int,
+    pipeline_id: int | None,
+    market_cutoff: MarketCalculationCutoff,
+    policy,
+):
+    accepted = []
+    for row in rows:
+        expected = consumer_context_identity(
+            market_cutoff=market_cutoff,
+            run_id=run_id,
+            pipeline_id=pipeline_id,
+            ticker=row.ticker,
+        )
+        if contextual_compatibility(
+            expected, artifact_identity(row), policy=policy
+        ).accepted:
+            accepted.append(row)
+    return accepted
 
 
 def _latest_price_bar_history_statement(

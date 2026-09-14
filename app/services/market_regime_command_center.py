@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime, time
 from inspect import Parameter, signature
 from pathlib import Path
@@ -9,6 +9,12 @@ from typing import Any
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from app.services.contextual_calculation_identity import (
+    REGIME_CONTEXT_COMPATIBILITY,
+    build_regime_identity,
+    embed_identity,
+    pipeline_id_for_cutoff,
+)
 from app.services.market_calculation_context_service import standalone_market_context
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.services.market_participation_service import MarketParticipationService
@@ -145,6 +151,36 @@ class MarketRegimeCommandCenterService:
                     item.symbol: item.debug for item in [primary, risk_proxy] if item is not None
                 },
             },
+        )
+
+        regime_identity = build_regime_identity(
+            market_cutoff=market_cutoff,
+            config=config,
+            run_id=run_id,
+            pipeline_id=(
+                pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
+                if run_id is not None
+                else None
+            ),
+            source_payload={
+                "input_symbols": input_symbols,
+                "market_inputs": dto.debug.get("market_inputs"),
+                "source_latest_sessions": dto.debug["temporal_lineage"].get(
+                    "source_latest_sessions"
+                ),
+                "universe_participation": (
+                    asdict(participation) if participation is not None else None
+                ),
+                "sector_leadership": [asdict(row) for row in sector_leadership],
+            },
+        )
+        dto = replace(
+            dto,
+            debug=embed_identity(
+                dto.debug,
+                regime_identity,
+                policy=REGIME_CONTEXT_COMPATIBILITY.name,
+            ),
         )
 
         self.repository.upsert_snapshot(db, self._snapshot_write(dto, input_symbols), run_id)

@@ -133,6 +133,28 @@ class MarketRegimeRepository:
             .limit(1)
         )
 
+    def contextual_candidates_as_of_or_before(
+        self,
+        db: Session,
+        as_of_date: date,
+        *,
+        run_id: int | None = None,
+    ) -> list[MarketRegimeSnapshot]:
+        statement = (
+            select(MarketRegimeSnapshot)
+            .where(MarketRegimeSnapshot.as_of_date <= as_of_date)
+            .where(MarketRegimeSnapshot.is_current_revision.is_(True))
+        )
+        return list(
+            db.scalars(
+                statement.order_by(
+                    MarketRegimeSnapshot.as_of_date.desc(),
+                    MarketRegimeSnapshot.created_at.desc(),
+                    MarketRegimeSnapshot.id.desc(),
+                )
+            )
+        )
+
     def history(self, db: Session, limit: int = 30) -> list[MarketRegimeSnapshot]:
         safe_limit = max(1, min(int(limit), 500))
         return list(

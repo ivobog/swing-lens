@@ -200,6 +200,27 @@ class SectorRotationRepository:
             ).limit(1)
         )
 
+    def previous_snapshot_candidates(
+        self,
+        db: Session,
+        *,
+        as_of_date: date,
+        mode: str,
+    ) -> list[SectorRotationSnapshot]:
+        return list(
+            db.scalars(
+                select(SectorRotationSnapshot)
+                .where(SectorRotationSnapshot.as_of_date < as_of_date)
+                .where(SectorRotationSnapshot.mode == mode)
+                .where(SectorRotationSnapshot.is_current_revision.is_(True))
+                .order_by(
+                    SectorRotationSnapshot.as_of_date.desc(),
+                    SectorRotationSnapshot.created_at.desc(),
+                    SectorRotationSnapshot.id.desc(),
+                )
+            )
+        )
+
     def get_snapshot_rows(
         self,
         db: Session,

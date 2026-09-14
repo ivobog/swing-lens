@@ -14,6 +14,15 @@ from app.models.tables import (
     RawCompanyRow,
     TechnicalScore,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.contextual_calculation_identity import (
+    SECTOR_RANKING_COMPATIBILITY,
+    artifact_identity,
+    consumer_context_identity,
+    contextual_compatibility,
+    pipeline_id_for_cutoff,
+)
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_participation_service import (
     CLEAN_PULLBACK_CLASSIFICATIONS,
     _is_vcp,
@@ -33,12 +42,14 @@ class SectorUniverseService:
         run_id: int,
         config: dict[str, Any],
         default_profile: str | None = None,
+        market_cutoff: MarketCalculationCutoff | None = None,
     ) -> list[SectorUniverseMetrics]:
         return build_universe_sector_metrics(
             db=db,
             run_id=run_id,
             config=config,
             default_profile=default_profile,
+            market_cutoff=market_cutoff,
         )
 
 
@@ -47,13 +58,33 @@ def build_universe_sector_metrics(
     run_id: int,
     config: dict[str, Any],
     default_profile: str | None = None,
+    market_cutoff: MarketCalculationCutoff | None = None,
 ) -> list[SectorUniverseMetrics]:
     default_profile = default_profile or config["defaults"]["default_ranking_profile"]
     raw_rows = _unique_rows(_raw_rows_for_run(db, run_id))
-    fundamentals = _by_ticker(_fundamentals_for_run(db, run_id))
-    technicals = _by_ticker(_technicals_for_run(db, run_id))
-    combined_results = _by_ticker(_combined_results_for_run(db, run_id))
+    fundamentals_list = _fundamentals_for_run(db, run_id)
+    technicals_list = _technicals_for_run(db, run_id)
+    combined_list = _combined_results_for_run(db, run_id)
     ranking_results = _ranking_results_for_run(db, run_id)
+    if market_cutoff is not None and isinstance(db, Session):
+        pipeline_id = pipeline_id_for_cutoff(
+            db, run_id=run_id, market_cutoff=market_cutoff
+        )
+        fundamentals_list = _compatible_run_artifacts(
+            fundamentals_list, run_id, pipeline_id, market_cutoff
+        )
+        technicals_list = _compatible_run_artifacts(
+            technicals_list, run_id, pipeline_id, market_cutoff
+        )
+        combined_list = _compatible_run_artifacts(
+            combined_list, run_id, pipeline_id, market_cutoff
+        )
+        ranking_results = _coherent_compatible_rankings(
+            ranking_results, run_id, pipeline_id, market_cutoff
+        )
+    fundamentals = _by_ticker(fundamentals_list)
+    technicals = _by_ticker(technicals_list)
+    combined_results = _by_ticker(combined_list)
     rankings_by_ticker = _rankings_by_ticker(ranking_results)
 
     records = _ticker_records(
@@ -706,3 +737,48 @@ def _float_or_none(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _compatible_run_artifacts(
+    rows: list[Any],
+    run_id: int,
+    pipeline_id: int | None,
+    market_cutoff: MarketCalculationCutoff,
+) -> list[Any]:
+    compatible: list[Any] = []
+    for row in rows:
+        expected = consumer_context_identity(
+            market_cutoff=market_cutoff,
+            run_id=run_id,
+            pipeline_id=pipeline_id,
+            ticker=row.ticker,
+        )
+        result = contextual_compatibility(
+            expected,
+            artifact_identity(row),
+            policy=SECTOR_RANKING_COMPATIBILITY,
+        )
+        if result.accepted:
+            compatible.append(row)
+    return compatible
+
+
+def _coherent_compatible_rankings(
+    rows: list[RankingResult],
+    run_id: int,
+    pipeline_id: int | None,
+    market_cutoff: MarketCalculationCutoff,
+) -> list[RankingResult]:
+    compatible = _compatible_run_artifacts(rows, run_id, pipeline_id, market_cutoff)
+    signatures: dict[str, set[str]] = {}
+    for row in compatible:
+        identity = artifact_identity(row)
+        signature = CanonicalEvidenceSerializer.dumps(
+            {
+                "configuration": identity.configuration.effective_configuration.value.as_dict(),
+                "calculation_version": identity.algorithm.calculation_version.value.as_dict(),
+            }
+        )
+        signatures.setdefault(row.ranking_profile, set()).add(signature)
+    incoherent = {profile for profile, values in signatures.items() if len(values) != 1}
+    return [row for row in compatible if row.ranking_profile not in incoherent]

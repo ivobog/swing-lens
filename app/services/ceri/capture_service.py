@@ -22,6 +22,7 @@ from app.models.ceri_tables import (
 )
 from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import RawCompanyRow
+from app.services.calculation_identity import CalculationIdentity
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.artifact_lineage import CeriArtifactOwnership
@@ -42,6 +43,19 @@ from app.services.ceri.pit_eligibility import (
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
+from app.services.combined_ranking_identity import calculation_identity_from_debug
+from app.services.contextual_calculation_identity import (
+    CERI_CONTEXT_COMPATIBILITY,
+    CERI_IBMI_COMPATIBILITY,
+    build_contextual_result_identity,
+    build_ibmi_feature_identity,
+    consumer_context_identity,
+    contextual_compatibility,
+    expected_ibmi_identity,
+    ibmi_contextual_compatibility,
+    identity_metadata,
+    pipeline_id_for_cutoff,
+)
 from app.services.ib_market_intelligence.calculations import options_event_premium_score
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 from app.services.market_calculation_context_service import standalone_market_context
@@ -79,12 +93,14 @@ class CeriRunCaptureResult:
 class _VolatilityRiskFeature:
     id: int
     components: dict[str, Any]
+    source_identity: CalculationIdentity
 
 
 @dataclass(frozen=True)
 class _ShortPressureContextFeature:
     id: int
     classification: str
+    source_identity: CalculationIdentity
 
 
 class CeriRunCaptureService:
@@ -155,11 +171,17 @@ class CeriRunCaptureService:
             ]
             for company_id, features in features_by_company.items()
         }
+        pipeline_id = pipeline_id_for_cutoff(
+            db, run_id=run_id, market_cutoff=market_cutoff
+        )
+        ibmi_config = load_ib_market_intelligence_config()
         existing_snapshot_company_ids = _existing_snapshot_company_ids(
             db,
             run_id,
             company_ids,
             self.snapshot_service.config,
+            market_cutoff,
+            pipeline_id,
         )
         counts = {
             "score_snapshots": 0,
@@ -267,11 +289,23 @@ class CeriRunCaptureService:
                     conflict_penalty=min(3.0, float(company_conflicted)),
                     as_of_session=as_of_session,
                 )
-                volatility_feature = _point_in_time_volatility_feature(db, row.ticker, cutoff_at)
-                short_pressure_feature = _point_in_time_short_pressure_feature(
-                    db, row.ticker, cutoff_at
+                volatility_feature = _point_in_time_volatility_feature(
+                    db,
+                    row.ticker,
+                    cutoff_at,
+                    as_of_session=as_of_session,
+                    market_cutoff=market_cutoff,
+                    ibmi_config=ibmi_config,
                 )
-                volatility_config = load_ib_market_intelligence_config().section("volatility")
+                short_pressure_feature = _point_in_time_short_pressure_feature(
+                    db,
+                    row.ticker,
+                    cutoff_at,
+                    as_of_session=as_of_session,
+                    market_cutoff=market_cutoff,
+                    ibmi_config=ibmi_config,
+                )
+                volatility_config = ibmi_config.section("volatility")
                 volatility_risk = (
                     options_event_premium_score(
                         volatility_feature,
@@ -361,6 +395,45 @@ class CeriRunCaptureService:
                         )
                     ),
                 }
+                ceri_base_identity = consumer_context_identity(
+                    market_cutoff=market_cutoff,
+                    run_id=run_id,
+                    pipeline_id=pipeline_id,
+                    ticker=row.ticker,
+                    company_id=company.id,
+                )
+                ibmi_sources = []
+                if volatility_feature is not None:
+                    ibmi_sources.append(
+                        (
+                            "IBMI-volatility",
+                            volatility_feature,
+                            volatility_feature.source_identity,
+                        )
+                    )
+                if short_pressure_feature is not None:
+                    ibmi_sources.append(
+                        (
+                            "IBMI-short-pressure",
+                            short_pressure_feature,
+                            short_pressure_feature.source_identity,
+                        )
+                    )
+                ceri_identity = build_contextual_result_identity(
+                    base=ceri_base_identity,
+                    namespace="ceri-context",
+                    config_hash=self.snapshot_service.config.config_hash,
+                    calculation_version=self.snapshot_service.config.engine.calculation_version,
+                    engine_version=self.snapshot_service.config.engine.calculation_version,
+                    source_artifacts=ibmi_sources,
+                    source_payload=evidence_lineage,
+                    company_id=company.id,
+                )
+                evidence_lineage.update(
+                    identity_metadata(
+                        ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name
+                    )
+                )
                 source_ids = sorted(
                     set(
                         _source_ids(features)
@@ -869,19 +942,47 @@ def _existing_snapshot_company_ids(
     run_id: int,
     company_ids: set[int],
     config,
+    market_cutoff: MarketCalculationCutoff | None = None,
+    pipeline_id: int | None = None,
 ) -> set[int]:
     if not company_ids:
         return set()
-    return set(
-        _scalars(
-            db,
-            select(CeriScoreSnapshot.company_id)
-            .where(CeriScoreSnapshot.run_id == run_id)
-            .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
-            .where(CeriScoreSnapshot.config_hash == config.config_hash)
-            .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
-        )
+    rows = _scalars(
+        db,
+        select(CeriScoreSnapshot)
+        .where(CeriScoreSnapshot.run_id == run_id)
+        .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
+        .where(CeriScoreSnapshot.config_hash == config.config_hash)
+        .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
     )
+    if market_cutoff is None:
+        return {getattr(row, "company_id", row) for row in rows}
+    compatible: set[int] = set()
+    for row in rows:
+        identity = calculation_identity_from_debug(row.evidence_lineage_json)
+        if identity is None:
+            raise ValueError(
+                "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
+                "producer=legacy CeriScoreSnapshot reason=LEGACY_UNKNOWN"
+            )
+        expected = consumer_context_identity(
+            market_cutoff=market_cutoff,
+            run_id=run_id,
+            pipeline_id=pipeline_id,
+            ticker=row.ticker,
+            company_id=row.company_id,
+        )
+        result = contextual_compatibility(
+            expected, identity, policy=CERI_CONTEXT_COMPATIBILITY
+        )
+        if not result.accepted:
+            raise ValueError(
+                "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
+                f"producer=CeriScoreSnapshot policy={result.policy} "
+                f"result={result.status.value} details={'; '.join(result.diagnostics)}"
+            )
+        compatible.add(row.company_id)
+    return compatible
 
 
 def _prior_snapshot(
@@ -920,6 +1021,10 @@ def _point_in_time_volatility_feature(
     db: Session,
     ticker: str,
     cutoff_at: datetime,
+    *,
+    as_of_session=None,
+    market_cutoff: MarketCalculationCutoff | None = None,
+    ibmi_config=None,
 ) -> _VolatilityRiskFeature | None:
     settings = get_settings()
     if not (
@@ -927,7 +1032,7 @@ def _point_in_time_volatility_feature(
         and getattr(settings, "ib_volatility_intelligence_enabled", False)
     ):
         return None
-    row = _maybe_scalar(
+    rows = _scalars(
         db,
         select(IBIntelligenceFeature)
         .where(IBIntelligenceFeature.ticker == ticker.upper())
@@ -944,15 +1049,51 @@ def _point_in_time_volatility_feature(
             IBIntelligenceFeature.calculated_at.desc(),
         ),
     )
-    if row is None or row.coverage_status != "AVAILABLE":
-        return None
-    return _VolatilityRiskFeature(id=row.id, components=dict(row.components_json or {}))
+    ibmi_config = ibmi_config or load_ib_market_intelligence_config()
+    session = as_of_session or MarketClockService().cutoff_for(
+        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
+    ).latest_completed_session
+    market_cutoff = market_cutoff or MarketClockService().cutoff_for(
+        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
+    )
+    base = consumer_context_identity(
+        market_cutoff=market_cutoff,
+        run_id=None,
+        pipeline_id=None,
+        ticker=ticker,
+        globally_reusable=True,
+    )
+    expected = expected_ibmi_identity(
+        context=base,
+        ticker=ticker,
+        config_hash=ibmi_config.config_hash,
+        calculation_version=ibmi_config.calculation_version,
+        source_version=ibmi_config.source_version,
+        module="volatility",
+    )
+    for row in rows:
+        if row.coverage_status != "AVAILABLE" or row.as_of_session != session:
+            continue
+        identity = build_ibmi_feature_identity(row)
+        if ibmi_contextual_compatibility(
+            expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
+        ).accepted:
+            return _VolatilityRiskFeature(
+                id=row.id,
+                components=dict(row.components_json or {}),
+                source_identity=identity,
+            )
+    return None
 
 
 def _point_in_time_short_pressure_feature(
     db: Session,
     ticker: str,
     cutoff_at: datetime,
+    *,
+    as_of_session=None,
+    market_cutoff: MarketCalculationCutoff | None = None,
+    ibmi_config=None,
 ) -> _ShortPressureContextFeature | None:
     settings = get_settings()
     if not (
@@ -960,7 +1101,7 @@ def _point_in_time_short_pressure_feature(
         and getattr(settings, "ib_short_pressure_enabled", False)
     ):
         return None
-    row = _maybe_scalar(
+    rows = _scalars(
         db,
         select(IBIntelligenceFeature)
         .where(IBIntelligenceFeature.ticker == ticker.upper())
@@ -977,12 +1118,41 @@ def _point_in_time_short_pressure_feature(
             IBIntelligenceFeature.calculated_at.desc(),
         ),
     )
-    if row is None or row.coverage_status != "AVAILABLE":
-        return None
-    return _ShortPressureContextFeature(
-        id=row.id,
-        classification=row.classification,
+    ibmi_config = ibmi_config or load_ib_market_intelligence_config()
+    session = as_of_session or MarketClockService().cutoff_for(
+        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
+    ).latest_completed_session
+    market_cutoff = market_cutoff or MarketClockService().cutoff_for(
+        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
     )
+    base = consumer_context_identity(
+        market_cutoff=market_cutoff,
+        run_id=None,
+        pipeline_id=None,
+        ticker=ticker,
+        globally_reusable=True,
+    )
+    expected = expected_ibmi_identity(
+        context=base,
+        ticker=ticker,
+        config_hash=ibmi_config.config_hash,
+        calculation_version=ibmi_config.calculation_version,
+        source_version=ibmi_config.source_version,
+        module="short_pressure",
+    )
+    for row in rows:
+        if row.coverage_status != "AVAILABLE" or row.as_of_session != session:
+            continue
+        identity = build_ibmi_feature_identity(row)
+        if ibmi_contextual_compatibility(
+            expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
+        ).accepted:
+            return _ShortPressureContextFeature(
+                id=row.id,
+                classification=row.classification,
+                source_identity=identity,
+            )
+    return None
 
 
 def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:

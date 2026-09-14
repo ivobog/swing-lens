@@ -8,6 +8,14 @@ from typing import Any
 
 from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.combined_ranking_identity import calculation_identity_from_debug
+from app.services.contextual_calculation_identity import (
+    SETUP_TECHNICAL_COMPATIBILITY,
+    artifact_identity,
+    build_contextual_result_identity,
+    embed_identity,
+    identity_metadata,
+)
 from app.services.market_clock_service import MarketClockService
 from app.services.setup_lifecycle.change_detector import velocity_by_window
 from app.services.setup_lifecycle.config import (
@@ -191,6 +199,41 @@ class SetupLifecycleSnapshotBuilder:
                     latest_bar.bar_date.isoformat() if latest_bar is not None else None
                 ),
             }
+        technical_identity = (
+            calculation_identity_from_debug(context.technical_score.debug_json)
+            if context.technical_score is not None
+            else None
+        )
+        setup_identity = None
+        if technical_identity is not None:
+            sources = [("TechnicalScore", context.technical_score, technical_identity)]
+            for kind, artifact in (
+                ("CombinedResult", context.combined_result),
+                *[("RankingResult", ranking) for ranking in context.ranking_results],
+                ("MarketRegimeSnapshot", context.market_regime_snapshot),
+                ("SectorRotationSnapshot", context.sector_rotation_snapshot),
+            ):
+                if artifact is not None:
+                    sources.append((kind, artifact, artifact_identity(artifact)))
+            setup_identity = build_contextual_result_identity(
+                base=technical_identity,
+                namespace="setup-lifecycle",
+                config_hash=self.config.config_hash,
+                calculation_version=self.config.engine.version,
+                engine_version=self.config.engine.version,
+                source_artifacts=sources,
+                source_payload={
+                    "source_ids": source_ids,
+                    "data_as_of_date": as_of_date,
+                    "latest_bar": _bar_lineage(latest_bar),
+                    "trigger_reference": trigger_reference.as_dict(),
+                },
+            )
+            source_lineage.update(
+                identity_metadata(
+                    setup_identity, policy=SETUP_TECHNICAL_COMPATIBILITY.name
+                )
+            )
         source_data_hash = SetupLifecycleRepository.stable_hash(
             {
                 "ticker": ticker,
@@ -232,10 +275,21 @@ class SetupLifecycleSnapshotBuilder:
             source_lineage=source_lineage,
             diagnostic_high_cross=self._diagnostic_high_cross(context, promoted),
             canonical_decision={"canonical": False, "reason": "pending_phase_4_canonicalization"},
-            debug={
-                "builder": "phase_3_snapshot_builder",
-                "trigger_reference": trigger_reference.as_dict(),
-            },
+            debug=(
+                embed_identity(
+                    {
+                        "builder": "phase_3_snapshot_builder",
+                        "trigger_reference": trigger_reference.as_dict(),
+                    },
+                    setup_identity,
+                    policy=SETUP_TECHNICAL_COMPATIBILITY.name,
+                )
+                if setup_identity is not None
+                else {
+                    "builder": "phase_3_snapshot_builder",
+                    "trigger_reference": trigger_reference.as_dict(),
+                }
+            ),
         )
         return BuiltSnapshot(
             dto=dto,
@@ -408,12 +462,10 @@ class SetupLifecycleSnapshotBuilder:
             "sector_rank": getattr(sector_row, "current_rank", None),
             "market_regime": _first_value(
                 getattr(market, "regime", None),
-                getattr(technical, "market_regime", None),
             ),
             "market_gate": getattr(market, "gate_ok", None),
             "earnings_risk": _first_value(
                 getattr(combined, "earnings_risk_level", None),
-                _raw_value(context.raw_row, "earnings_risk_level"),
             ),
             "liquidity": _liquidity_risk_flag(getattr(fundamental, "liquidity_risk_score", None)),
             "close_price": promoted.get("close_price"),

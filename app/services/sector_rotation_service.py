@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import date
 from typing import Any
 
@@ -9,13 +9,28 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import (
     MarketRegimeSnapshot,
+    RankingResult,
     RawCompanyRow,
     SectorRotationRow,
     TechnicalScore,
     UploadRun,
 )
+from app.services.contextual_calculation_identity import (
+    SECTOR_PRIOR_COMPATIBILITY,
+    SECTOR_RANKING_COMPATIBILITY,
+    SECTOR_REGIME_COMPATIBILITY,
+    artifact_identity,
+    build_contextual_result_identity,
+    consumer_context_identity,
+    contextual_compatibility,
+    embed_identity,
+    expected_regime_identity,
+    expected_sector_identity,
+    pipeline_id_for_cutoff,
+)
 from app.services.market_calculation_context_service import standalone_market_context
 from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.market_regime_policy import load_market_regime_command_center_config
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.sector_etf_rotation_service import SectorEtfRotationService
 from app.services.sector_rotation_config import (
@@ -116,6 +131,7 @@ def build_sector_rotation_snapshot(
         db,
         run_id,
         as_of_date,
+        market_cutoff,
     )
     universe_rows = (
         universe_service.build(
@@ -123,6 +139,7 @@ def build_sector_rotation_snapshot(
             run_id=run_id,
             config=config,
             default_profile=default_profile,
+            market_cutoff=market_cutoff,
         )
         if run_id is not None
         else []
@@ -131,12 +148,14 @@ def build_sector_rotation_snapshot(
         db=db, universe_rows=universe_rows, config=config, market_cutoff=market_cutoff
     )
     etf_by_slug = {row.sector_slug: row for row in etf_rows}
-    previous_snapshot = repository.get_previous_snapshot(
+    previous_snapshot = _compatible_previous_snapshot(
+        repository,
         db,
         as_of_date=as_of_date,
         mode=mode,
         config_hash=config_hash,
         run_id=run_id,
+        market_cutoff=market_cutoff,
     )
     previous_rows = _previous_rows_by_sector(repository, db, previous_snapshot)
 
@@ -191,6 +210,87 @@ def build_sector_rotation_snapshot(
             },
         },
     )
+
+    if isinstance(db, Session):
+        pipeline_id = (
+            pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
+            if run_id is not None
+            else None
+        )
+        base = consumer_context_identity(
+            market_cutoff=market_cutoff,
+            run_id=run_id,
+            pipeline_id=pipeline_id,
+        )
+        source_artifacts: list[tuple[str, Any, Any]] = []
+        if run_id is not None:
+            for ranking in db.scalars(
+                select(RankingResult).where(
+                    RankingResult.run_id == run_id,
+                    RankingResult.ranking_profile == default_profile,
+                )
+            ):
+                identity = artifact_identity(ranking)
+                expected = consumer_context_identity(
+                    market_cutoff=market_cutoff,
+                    run_id=run_id,
+                    pipeline_id=pipeline_id,
+                    ticker=ranking.ticker,
+                )
+                if contextual_compatibility(
+                    expected, identity, policy=SECTOR_RANKING_COMPATIBILITY
+                ).accepted:
+                    source_artifacts.append(("RankingResult", ranking, identity))
+        if market_snapshot is not None:
+            source_artifacts.append(
+                ("MarketRegimeSnapshot", market_snapshot, artifact_identity(market_snapshot))
+            )
+        if previous_snapshot is not None:
+            source_artifacts.append(
+                (
+                    "PriorSectorRotationSnapshot",
+                    previous_snapshot,
+                    artifact_identity(previous_snapshot),
+                )
+            )
+        identity = build_contextual_result_identity(
+            base=base,
+            namespace="sector-rotation",
+            config_hash=config_hash,
+            calculation_version=CALCULATION_VERSION,
+            engine_version=CALCULATION_VERSION,
+            source_artifacts=source_artifacts,
+            source_payload={
+                "mode": mode,
+                "default_ranking_profile": default_profile,
+                "universe_rows": [asdict(row) for row in universe_rows],
+                "etf_rows": [asdict(row) for row in etf_rows],
+            },
+        )
+        identity = replace(
+            identity,
+            configuration=expected_sector_identity(
+                context=base,
+                config_hash=config_hash,
+                calculation_version=CALCULATION_VERSION,
+                mode=mode,
+            ).configuration,
+            algorithm=replace(
+                identity.algorithm,
+                components=expected_sector_identity(
+                    context=base,
+                    config_hash=config_hash,
+                    calculation_version=CALCULATION_VERSION,
+                    mode=mode,
+                ).algorithm.components,
+            ),
+        )
+        dto = replace(
+            dto,
+            debug=embed_identity(
+                dto.debug, identity, policy=SECTOR_RANKING_COMPATIBILITY.name
+            ),
+        )
 
     if persist:
         repository.save_snapshot(db, _to_snapshot_write(dto, config))
@@ -397,7 +497,26 @@ def _latest_market_snapshot(
     db: Session,
     run_id: int | None,
     as_of_date: date,
+    market_cutoff: MarketCalculationCutoff,
 ) -> MarketRegimeSnapshot | None:
+    if isinstance(db, Session) and hasattr(
+        market_repository, "contextual_candidates_as_of_or_before"
+    ):
+        expected = expected_regime_identity(
+            market_cutoff=market_cutoff,
+            config=load_market_regime_command_center_config(),
+        )
+        candidates = market_repository.contextual_candidates_as_of_or_before(
+            db, as_of_date, run_id=run_id
+        )
+        for snapshot in candidates:
+            if contextual_compatibility(
+                expected,
+                artifact_identity(snapshot),
+                policy=SECTOR_REGIME_COMPATIBILITY,
+            ).accepted:
+                return snapshot
+        return None
     if run_id is not None:
         snapshot = market_repository.latest_for_run_as_of_or_before(
             db,
@@ -407,6 +526,63 @@ def _latest_market_snapshot(
         if snapshot is not None:
             return snapshot
     return market_repository.latest_global_as_of_or_before(db, as_of_date)
+
+
+def _compatible_previous_snapshot(
+    repository: SectorRotationRepository,
+    db: Any,
+    *,
+    as_of_date: date,
+    mode: str,
+    config_hash: str,
+    run_id: int | None,
+    market_cutoff: MarketCalculationCutoff,
+):
+    if not isinstance(db, Session) or not hasattr(repository, "previous_snapshot_candidates"):
+        return repository.get_previous_snapshot(
+            db,
+            as_of_date=as_of_date,
+            mode=mode,
+            config_hash=config_hash,
+            run_id=run_id,
+        )
+    pipeline_id = (
+        pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
+        if run_id is not None
+        else None
+    )
+    current_context = consumer_context_identity(
+        market_cutoff=market_cutoff,
+        run_id=run_id,
+        pipeline_id=pipeline_id,
+    )
+    expected = expected_sector_identity(
+        context=current_context,
+        config_hash=config_hash,
+        calculation_version=CALCULATION_VERSION,
+        mode=mode,
+    )
+    return _select_compatible_previous_snapshot(
+        repository.previous_snapshot_candidates(db, as_of_date=as_of_date, mode=mode),
+        expected=expected,
+        current_session=market_cutoff.latest_completed_session,
+    )
+
+
+def _select_compatible_previous_snapshot(candidates, *, expected, current_session):
+    for snapshot in candidates:
+        identity = artifact_identity(snapshot)
+        result = contextual_compatibility(
+            expected, identity, policy=SECTOR_PRIOR_COMPATIBILITY
+        )
+        session = identity.temporal.as_of_session
+        if (
+            result.accepted
+            and session.state.name == "KNOWN"
+            and session.value < current_session
+        ):
+            return snapshot
+    return None
 
 
 def _resolve_as_of_date(db: Session, run_id: int | None) -> date:
