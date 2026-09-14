@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime
 
 from sqlalchemy import select
@@ -7,8 +8,31 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import MarketCalculationContext, PipelineRun
 from app.observability.transaction_metrics import publish_after_commit
+from app.services.calculation_identity import (
+    PIPELINE_CONTEXT_COMPATIBILITY,
+    AlgorithmIdentity,
+    CalculationContextIdentity,
+    CalculationIdentity,
+    CalculationIdentityCompatibilityValidator,
+    CalculationOwnership,
+    CalculationSubject,
+    CalendarIdentity,
+    ConfigurationIdentity,
+    DigestIdentity,
+    GenerationIdentity,
+    IdentityDimension,
+    TemporalIdentity,
+    VersionIdentity,
+)
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
-from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
+from app.services.market_clock_service import (
+    EXCHANGE_TIMEZONE,
+    MarketCalculationCutoff,
+    MarketClockService,
+)
+
+logger = logging.getLogger(__name__)
+_DERIVE_CONTEXT_FINGERPRINT = object()
 
 
 class PipelineCalculationContextError(ValueError):
@@ -293,14 +317,49 @@ def validate_pipeline_job_market_context(
         calculation_context_id=int(context_id),
         upload_run_id=pipeline.upload_run_id,
         pipeline_run_id=pipeline_run_id,
-        expected_cutoff_at=datetime.fromisoformat(str(cutoff_text)),
-        expected_latest_completed_session=date.fromisoformat(str(session_text)),
-        expected_calendar_version=str(calendar_version),
     )
-    if authoritative.bar_readiness_version != str(bar_readiness_version):
-        raise PipelineCalculationContextError(
-            f"Payload bar_readiness_version does not match context {context_id}."
+    try:
+        supplied = MarketCalculationCutoff(
+            cutoff_at=datetime.fromisoformat(str(cutoff_text)),
+            exchange_timezone=EXCHANGE_TIMEZONE,
+            latest_completed_session=date.fromisoformat(str(session_text)),
+            daily_bar_ready_at=None,
+            calendar_version=str(calendar_version),
+            bar_readiness_version=str(bar_readiness_version),
+            cutoff_reason="FULL_PIPELINE_JOB_PAYLOAD",
+            context_id=int(context_id),
         )
+    except (TypeError, ValueError) as exc:
+        raise PipelineCalculationContextError(
+            f"FULL_PIPELINE job payload has an invalid market context: {exc}"
+        ) from exc
+    expected_identity = calculation_identity_from_market_context(
+        authoritative,
+        run_id=int(pipeline.upload_run_id),
+        pipeline_id=int(pipeline_run_id),
+    )
+    actual_identity = calculation_identity_from_market_context(
+        supplied,
+        run_id=int(pipeline.upload_run_id),
+        pipeline_id=int(pipeline_run_id),
+        context_fingerprint=None,
+    )
+    compatibility = CalculationIdentityCompatibilityValidator.compare(
+        expected_identity,
+        actual_identity,
+        policy=PIPELINE_CONTEXT_COMPATIBILITY,
+    )
+    logger.info(
+        "pipeline calculation identity compatibility",
+        extra={
+            "calculation_identity_fingerprint": compatibility.actual_fingerprint,
+            "calculation_identity_expected_fingerprint": compatibility.expected_fingerprint,
+            "calculation_identity_policy": compatibility.policy,
+            "calculation_identity_result": compatibility.status.value,
+        },
+    )
+    if not compatibility.accepted:
+        raise PipelineCalculationContextError(compatibility.diagnostic())
     return authoritative
 
 
@@ -348,4 +407,97 @@ def market_calculation_context_fingerprint(value: MarketCalculationCutoff) -> st
             "bar_readiness_version": value.bar_readiness_version,
             "cutoff_reason": value.cutoff_reason,
         }
+    )
+
+
+def calculation_identity_from_market_context(
+    value: MarketCalculationCutoff,
+    *,
+    run_id: int,
+    pipeline_id: int,
+    ticker: str | None = None,
+    company_id: int | None = None,
+    context_fingerprint: str | None | object = _DERIVE_CONTEXT_FINGERPRINT,
+) -> CalculationIdentity:
+    """Build a semantic identity from an explicit frozen market context.
+
+    This adapter never consults current time or a latest context. Dimensions not
+    established by MarketCalculationContext are marked NOT_APPLICABLE rather than
+    fabricated. Passing ``context_fingerprint=None`` represents a payload that only
+    carries the context ID and repeated temporal fields.
+    """
+
+    not_applicable = IdentityDimension.not_applicable()
+    fingerprint = (
+        market_calculation_context_fingerprint(value)
+        if context_fingerprint is _DERIVE_CONTEXT_FINGERPRINT
+        else context_fingerprint
+    )
+    return CalculationIdentity(
+        ownership=CalculationOwnership(
+            run_id=IdentityDimension.known(run_id),
+            pipeline_id=IdentityDimension.known(pipeline_id),
+        ),
+        subject=CalculationSubject(
+            ticker=(
+                IdentityDimension.known(ticker.upper())
+                if ticker is not None
+                else not_applicable
+            ),
+            company_id=(
+                IdentityDimension.known(company_id)
+                if company_id is not None
+                else not_applicable
+            ),
+        ),
+        calculation_context=CalculationContextIdentity(
+            market_calculation_context_id=(
+                IdentityDimension.known(value.context_id)
+                if value.context_id is not None
+                else IdentityDimension.unknown()
+            ),
+            context_fingerprint=(
+                IdentityDimension.known(
+                    DigestIdentity(
+                        algorithm="sha256",
+                        digest=str(fingerprint),
+                        proof_boundary="complete persisted MarketCalculationContext semantics",
+                    )
+                )
+                if fingerprint is not None
+                else IdentityDimension.unknown()
+            ),
+        ),
+        temporal=TemporalIdentity(
+            as_of_session=IdentityDimension.known(value.latest_completed_session),
+            calculation_cutoff=IdentityDimension.known(value.cutoff_at),
+            calendar=IdentityDimension.known(
+                CalendarIdentity(
+                    calendar_id="SWINGLENS_US_EQUITIES",
+                    calendar_version=value.calendar_version,
+                    exchange_timezone=value.exchange_timezone,
+                    bar_readiness_version=IdentityDimension.known(
+                        VersionIdentity(
+                            namespace="market-bar-readiness",
+                            version=value.bar_readiness_version,
+                        )
+                    ),
+                )
+            ),
+        ),
+        configuration=ConfigurationIdentity(not_applicable),
+        algorithm=AlgorithmIdentity(
+            not_applicable,
+            not_applicable,
+            not_applicable,
+            not_applicable,
+            not_applicable,
+        ),
+        source_lineage=not_applicable,
+        generation=GenerationIdentity(
+            not_applicable,
+            not_applicable,
+            not_applicable,
+            not_applicable,
+        ),
     )
