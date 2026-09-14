@@ -47,6 +47,7 @@ from app.services.ceri.sec.processor_lifecycle import (
     register_deployed_processor,
 )
 from app.services.cleanup_service import execute_durable_evidence_retention
+from app.services.domain_write_fence import fence_domain_commits
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_prerequisites import PipelineBlockedError
 from app.services.process_identity import process_started_at
@@ -518,7 +519,13 @@ def run_worker_once(
                 db.commit()
 
             heartbeat()
-            result = execute_job(db, job, handlers, heartbeat=heartbeat)
+            result = execute_job(
+                db,
+                job,
+                handlers,
+                heartbeat=heartbeat,
+                execution_token=execution_token,
+            )
             if job.status == JobStatus.PARTIAL:
                 mark_job_partial(db, job, result, execution_token=execution_token)
             else:
@@ -579,6 +586,7 @@ def execute_job(
     job: BackgroundJob,
     handlers: Mapping[str, JobHandler] | None = None,
     heartbeat: Callable[[], None] | None = None,
+    execution_token: str | None = None,
 ) -> dict[str, Any] | None:
     handler = (handlers or {}).get(job.job_type)
     if handler is None:
@@ -607,7 +615,10 @@ def execute_job(
                 job_status_getter=lambda: str(job.status) if job.status is not None else None,
             ),
         ):
-            with job_phase("job_handler"):
+            with job_phase("job_handler"), fence_domain_commits(
+                job_id=job.id,
+                execution_token=execution_token,
+            ):
                 return handler(db, job)
     finally:
         if heartbeat is not None and hasattr(job, "_heartbeat"):

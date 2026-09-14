@@ -28,6 +28,7 @@ from app.services.cleanup_service import execute_durable_evidence_retention
 from app.services.persistence_redaction import redact_session_persistence_boundaries
 from app.services.readiness_service import ReadinessService
 from app.services.winner_probability import scheduler
+from app.settings import RuntimeMode
 
 
 @pytest.fixture(autouse=True)
@@ -399,6 +400,7 @@ def test_metrics_off_worker_and_supervisor_start_no_prometheus_components(
 
     settings = SimpleNamespace(
         job_worker_id="logical-worker",
+        runtime_mode=RuntimeMode.NORMAL,
         observability_metrics_enabled=False,
         observability_metrics_host="127.0.0.1",
         observability_worker_metrics_port=9101,

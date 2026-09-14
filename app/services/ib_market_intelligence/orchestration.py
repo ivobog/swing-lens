@@ -1123,8 +1123,10 @@ def execute_feature_rebuild(db: Session, job: BackgroundJob) -> dict[str, Any]:
     tickers = _tickers(job.payload_json)
     run = _start_run(db, job, module, config)
     inserted = 0
+    completed_tickers: list[str] = []
     market_cutoff = standalone_market_context(reason="IBMI_FEATURE_REBUILD")
     for ticker in tickers:
+        _job_guard(db, job)
         _, was_inserted = _rebuild_ticker_feature(
             db,
             ticker,
@@ -1136,6 +1138,24 @@ def execute_feature_rebuild(db: Session, job: BackgroundJob) -> dict[str, Any]:
             operation_mode="CURRENT",
         )
         inserted += int(was_inserted)
+        completed_tickers.append(ticker)
+        _checkpoint(
+            db,
+            job,
+            run,
+            {
+                "version": 2,
+                "module": module.value,
+                "ticker_index": len(completed_tickers),
+                "ticker": ticker,
+                "phase": "ticker_complete",
+                "completed_tickers": completed_tickers,
+                "counts": {"inserted": inserted},
+            },
+        )
+        # The active durable-job context locks and validates the exact
+        # execution token before this bounded domain/checkpoint commit.
+        db.commit()
     _finish_run(db, run, RunStatus.COMPLETED, {"inserted": inserted})
     db.commit()
     return {"intelligence_run_id": run.id, "inserted": inserted}
