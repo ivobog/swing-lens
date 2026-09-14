@@ -776,6 +776,10 @@ def execute_full_pipeline(
                     capture,
                     db,
                     upload_run.id,
+                    market_cutoff=market_cutoff,
+                    decision_handoff_manifest_id=result.get(
+                        "decision_handoff_manifest_id"
+                    ),
                     should_cancel=should_cancel,
                     lease_guard=lease_guard,
                     progress_callback=progress_callback,
@@ -962,6 +966,10 @@ def _execute_resumed_pipeline(
                     capture,
                     db,
                     upload_run.id,
+                    market_cutoff=dependencies.market_cutoff,
+                    decision_handoff_manifest_id=result.get(
+                        "decision_handoff_manifest_id"
+                    ),
                     should_cancel=should_cancel,
                     lease_guard=lease_guard,
                     progress_callback=progress_callback,
@@ -2015,6 +2023,8 @@ def _invoke_winner_capture(
     db: Session,
     run_id: int,
     *,
+    market_cutoff: MarketCalculationCutoff | None,
+    decision_handoff_manifest_id: int | None,
     should_cancel: Callable[[], bool] | None,
     lease_guard: Callable[[], None] | None,
     progress_callback: Callable[..., None] | None,
@@ -2025,6 +2035,8 @@ def _invoke_winner_capture(
     )
 
     optional = {
+        "market_cutoff": market_cutoff,
+        "decision_handoff_manifest_id": decision_handoff_manifest_id,
         "should_cancel": should_cancel,
         "lease_guard": lease_guard,
         "progress_callback": progress_callback,

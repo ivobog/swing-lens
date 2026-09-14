@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from inspect import Parameter, signature
 from time import perf_counter
 from typing import Any
 
@@ -16,9 +17,20 @@ from app.models.tables import (
     WinnerTemporalValidityDecision,
 )
 from app.services.background_job_service import JobLeaseLost
+from app.services.combined_ranking_identity import calculation_identity_from_debug
+from app.services.contextual_calculation_identity import embed_identity
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.process_memory import WorkerMemoryCritical
 from app.services.redaction import redact_sensitive
 from app.services.us_market_calendar import us_market_session
+from app.services.winner_probability.calculation_identity import (
+    WINNER_HANDOFF_COMPATIBILITY,
+    WinnerCalculationIdentityError,
+    WinnerSourceAcquisition,
+    acquire_winner_sources,
+    build_winner_prediction_identity,
+    validate_winner_handoff,
+)
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
     load_winner_probability_config,
@@ -112,6 +124,8 @@ class WinnerPredictionCaptureService:
         config: WinnerProbabilityConfig | None = None,
         captured_at: datetime | None = None,
         decision_at: datetime | None = None,
+        market_cutoff: MarketCalculationCutoff | None = None,
+        decision_handoff_manifest_id: int | None = None,
         reconstruction_method: str | None = None,
         source_quality_flags: tuple[str, ...] = (),
         production_training_allowed: bool | None = None,
@@ -121,7 +135,47 @@ class WinnerPredictionCaptureService:
         memory_probe: Callable[[Session, int, int, str], None] | None = None,
     ) -> WinnerPredictionCaptureResult:
         config = config or load_winner_probability_config()
-        run_context = self.repository.load_run_context(db, run_id)
+        identity_enforced = isinstance(db, Session)
+        if identity_enforced and market_cutoff is None:
+            raise WinnerCalculationIdentityError(
+                "Winner capture requires an explicit frozen MarketCalculationContext"
+            )
+        if reconstruction_method is not None and market_cutoff is None:
+            raise WinnerCalculationIdentityError(
+                "historical Winner capture requires an explicit original decision identity"
+            )
+        if market_cutoff is not None:
+            if decision_at is not None and decision_at != market_cutoff.cutoff_at:
+                raise WinnerCalculationIdentityError(
+                    "Winner decision_at does not match the frozen market cutoff"
+                )
+            decision_at = market_cutoff.cutoff_at
+        if identity_enforced:
+            loader = self.repository.load_run_context
+            parameters = signature(loader).parameters
+            accepts_kwargs = any(
+                item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
+            )
+            kwargs = {
+                "market_cutoff": market_cutoff,
+                "decision_handoff_manifest_id": decision_handoff_manifest_id,
+            }
+            run_context = loader(
+                db,
+                run_id,
+                **{
+                    name: value
+                    for name, value in kwargs.items()
+                    if accepts_kwargs or name in parameters
+                },
+            )
+            validate_winner_handoff(
+                run_context.decision_handoff_manifest,
+                run_id=run_id,
+                market_cutoff=market_cutoff,
+            )
+        else:
+            run_context = self.repository.load_run_context(db, run_id)
         ticker_contexts = list(run_context.tickers)
         total_tickers = len(ticker_contexts)
         totals = _MutableCaptureCounts(planned=total_tickers)
@@ -172,6 +226,17 @@ class WinnerPredictionCaptureService:
                 ticker_started = perf_counter()
                 ticker_counts = _MutableCaptureCounts()
                 try:
+                    acquisition = (
+                        acquire_winner_sources(
+                            run_context,
+                            ticker_context,
+                            run_id=run_id,
+                            market_cutoff=market_cutoff,
+                            winner_config=config,
+                        )
+                        if identity_enforced
+                        else None
+                    )
                     if item_session_factory is None:
                         self._capture_ticker(
                             db,
@@ -185,6 +250,7 @@ class WinnerPredictionCaptureService:
                             reconstruction_method=reconstruction_method,
                             source_quality_flags=source_quality_flags,
                             production_training_allowed=production_training_allowed,
+                            acquisition=acquisition,
                             totals=ticker_counts,
                         )
                         if memory_probe is not None:
@@ -211,6 +277,7 @@ class WinnerPredictionCaptureService:
                                 reconstruction_method=reconstruction_method,
                                 source_quality_flags=source_quality_flags,
                                 production_training_allowed=production_training_allowed,
+                                acquisition=acquisition,
                                 totals=ticker_counts,
                             )
                             if memory_probe is not None:
@@ -285,8 +352,12 @@ class WinnerPredictionCaptureService:
         reconstruction_method: str | None,
         source_quality_flags: tuple[str, ...],
         production_training_allowed: bool | None,
+        acquisition: WinnerSourceAcquisition | None,
         totals: _MutableCaptureCounts,
     ) -> None:
+        if acquisition is not None:
+            run_context = acquisition.run_context
+            ticker_context = acquisition.ticker_context
         feature_as_of_at = decision_at or datetime.now(UTC)
         features = self.feature_extractor.extract(
             run_context,
@@ -299,6 +370,15 @@ class WinnerPredictionCaptureService:
             features,
             decision_at=ticker_decision_at,
         )
+        winner_identity = (
+            build_winner_prediction_identity(
+                acquisition,
+                config=config,
+                feature_vector_hash=features.feature_vector_hash,
+            )
+            if acquisition is not None
+            else None
+        )
         totals.warnings += len(features.warnings)
         existing = self.repository.get_active_prediction(
             db,
@@ -308,6 +388,16 @@ class WinnerPredictionCaptureService:
             feature_schema_version=config.feature_schema.version,
         )
         if existing is not None:
+            if winner_identity is not None:
+                existing_identity = calculation_identity_from_debug(existing.lineage_json)
+                if existing_identity is None:
+                    raise WinnerPredictionCaptureConflict(
+                        f"{features.ticker}: legacy prediction identity cannot be upgraded"
+                    )
+                if existing_identity.fingerprint() != winner_identity.fingerprint():
+                    raise WinnerPredictionCaptureConflict(
+                        f"{features.ticker}: active prediction identity conflict"
+                    )
             if existing.feature_vector_hash != features.feature_vector_hash:
                 raise WinnerPredictionCaptureConflict(
                     f"{features.ticker}: active prediction hash conflict"
@@ -337,6 +427,7 @@ class WinnerPredictionCaptureService:
             production_training_allowed=production_training_allowed,
             decision_at=ticker_decision_at,
             captured_at=captured_at or datetime.now(UTC),
+            winner_identity=winner_identity,
         )
         assignment = self.episode_service.assign_episode(db, features, config)
         prediction.episode_id = assignment.episode.id
@@ -415,6 +506,7 @@ class WinnerPredictionCaptureService:
         production_training_allowed: bool | None,
         decision_at: datetime,
         captured_at: datetime,
+        winner_identity: Any | None,
     ) -> WinnerPredictionSnapshot:
         raw_row = ticker_context.raw_row
         technical = ticker_context.technical_score
@@ -422,7 +514,7 @@ class WinnerPredictionCaptureService:
         fundamental = ticker_context.fundamental_score
         ranking = ticker_context.ranking_results[0] if ticker_context.ranking_results else None
         source_ids = features.source_ids_json
-        return WinnerPredictionSnapshot(
+        prediction = WinnerPredictionSnapshot(
             run_id=run_id,
             raw_row_id=source_ids.get("raw_row_id"),
             combined_result_id=source_ids.get("combined_result_id"),
@@ -492,6 +584,13 @@ class WinnerPredictionCaptureService:
             reconstruction_method=reconstruction_method,
             retention_class="permanent",
         )
+        if winner_identity is not None:
+            prediction.lineage_json = embed_identity(
+                prediction.lineage_json,
+                winner_identity,
+                policy=WINNER_HANDOFF_COMPATIBILITY.name,
+            )
+        return prediction
 
 
 @dataclass

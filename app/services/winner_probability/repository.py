@@ -26,6 +26,7 @@ from app.models.tables import (
     WinnerTargetStopOutcome,
     WinnerTemporalValidityDecision,
 )
+from app.services.market_clock_service import MarketCalculationCutoff
 
 
 @dataclass(frozen=True)
@@ -45,11 +46,25 @@ class RunCaptureContext:
     market_regime_snapshot: MarketRegimeSnapshot | None
     sector_rotation_snapshot: SectorRotationSnapshot | None
     decision_handoff_manifest: TransitionDecisionHandoffManifest | None = None
+    market_regime_candidates: tuple[MarketRegimeSnapshot, ...] = field(default_factory=tuple)
+    sector_rotation_candidates: tuple[SectorRotationSnapshot, ...] = field(
+        default_factory=tuple
+    )
+    sector_rows_by_snapshot: dict[int, dict[str, SectorRotationRow]] = field(
+        default_factory=dict
+    )
     tickers: tuple[TickerCaptureContext, ...] = field(default_factory=tuple)
 
 
 class WinnerProbabilityRepository:
-    def load_run_context(self, db: Session, run_id: int) -> RunCaptureContext:
+    def load_run_context(
+        self,
+        db: Session,
+        run_id: int,
+        *,
+        market_cutoff: MarketCalculationCutoff | None = None,
+        decision_handoff_manifest_id: int | None = None,
+    ) -> RunCaptureContext:
         upload_run = db.get(UploadRun, run_id)
         if upload_run is None:
             raise ValueError(f"Upload run {run_id} was not found.")
@@ -73,37 +88,70 @@ class WinnerProbabilityRepository:
         rankings = _rankings_by_ticker(
             db.scalars(select(RankingResult).where(RankingResult.run_id == run_id))
         )
-        market_snapshot = db.scalar(
-            select(MarketRegimeSnapshot)
-            .where(MarketRegimeSnapshot.run_id == run_id)
-            .order_by(MarketRegimeSnapshot.as_of_date.desc(), MarketRegimeSnapshot.id.desc())
-            .limit(1)
+        market_statement = select(MarketRegimeSnapshot).where(
+            MarketRegimeSnapshot.is_current_revision.is_(True)
         )
-        sector_snapshot = db.scalar(
-            select(SectorRotationSnapshot)
-            .where(SectorRotationSnapshot.run_id == run_id)
-            .order_by(
+        sector_statement = select(SectorRotationSnapshot).where(
+            SectorRotationSnapshot.is_current_revision.is_(True)
+        )
+        if market_cutoff is not None:
+            market_statement = market_statement.where(
+                MarketRegimeSnapshot.as_of_date
+                == market_cutoff.latest_completed_session
+            )
+            sector_statement = sector_statement.where(
+                SectorRotationSnapshot.as_of_date
+                == market_cutoff.latest_completed_session
+            )
+        market_candidates = tuple(
+            db.scalars(
+                market_statement.order_by(
+                    MarketRegimeSnapshot.as_of_date.desc(),
+                    MarketRegimeSnapshot.created_at.desc(),
+                    MarketRegimeSnapshot.id.desc(),
+                )
+            )
+        )
+        sector_candidates = tuple(
+            db.scalars(
+                sector_statement.order_by(
                 SectorRotationSnapshot.as_of_date.desc(),
+                SectorRotationSnapshot.created_at.desc(),
                 SectorRotationSnapshot.id.desc(),
             )
-            .limit(1)
+            )
         )
-        sector_rows = {}
-        if sector_snapshot is not None:
-            sector_rows = {
-                row.sector: row
-                for row in db.scalars(
-                    select(SectorRotationRow).where(
-                        SectorRotationRow.snapshot_id == sector_snapshot.id
-                    )
+        market_snapshot = market_candidates[0] if market_candidates else None
+        sector_snapshot = sector_candidates[0] if sector_candidates else None
+        sector_rows_by_snapshot: dict[int, dict[str, SectorRotationRow]] = defaultdict(dict)
+        snapshot_ids = [row.id for row in sector_candidates if row.id is not None]
+        if snapshot_ids:
+            for row in db.scalars(
+                select(SectorRotationRow).where(
+                    SectorRotationRow.snapshot_id.in_(snapshot_ids)
                 )
-            }
+            ):
+                sector_rows_by_snapshot[row.snapshot_id][row.sector] = row
+        sector_rows = sector_rows_by_snapshot.get(
+            getattr(sector_snapshot, "id", None), {}
+        )
 
+        handoff_statement = select(TransitionDecisionHandoffManifest).where(
+            TransitionDecisionHandoffManifest.upload_run_id == run_id
+        )
+        if market_cutoff is not None:
+            handoff_statement = handoff_statement.where(
+                TransitionDecisionHandoffManifest.market_calculation_context_id
+                == market_cutoff.context_id
+            )
+        if decision_handoff_manifest_id is not None:
+            handoff_statement = handoff_statement.where(
+                TransitionDecisionHandoffManifest.id == decision_handoff_manifest_id
+            )
         handoff_manifest = db.scalar(
-            select(TransitionDecisionHandoffManifest)
-            .where(TransitionDecisionHandoffManifest.upload_run_id == run_id)
-            .order_by(TransitionDecisionHandoffManifest.id.desc())
-            .limit(1)
+            handoff_statement.order_by(
+                TransitionDecisionHandoffManifest.id.desc()
+            ).limit(1)
         )
 
         ticker_contexts = tuple(
@@ -122,6 +170,9 @@ class WinnerProbabilityRepository:
             market_regime_snapshot=market_snapshot,
             sector_rotation_snapshot=sector_snapshot,
             decision_handoff_manifest=handoff_manifest,
+            market_regime_candidates=market_candidates,
+            sector_rotation_candidates=sector_candidates,
+            sector_rows_by_snapshot=dict(sector_rows_by_snapshot),
             tickers=ticker_contexts,
         )
 

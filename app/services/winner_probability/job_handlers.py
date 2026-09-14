@@ -4,7 +4,7 @@ import logging
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -29,6 +29,7 @@ from app.services.background_job_service import (
     record_coalesced_enqueue_attempt,
 )
 from app.services.background_worker import CancelRequested, JobDeferred
+from app.services.market_calculation_context_service import resolve_pipeline_market_context
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 from app.services.winner_probability.backfill import (
     BackfillRequest,
@@ -334,7 +335,8 @@ def execute_prediction_capture_job(
     *,
     capture_service: WinnerPredictionCaptureService | None = None,
 ) -> dict[str, Any]:
-    run_id = _required_int(job.payload_json or {}, "run_id")
+    payload = job.payload_json or {}
+    run_id = _required_int(payload, "run_id")
     config = load_winner_probability_config()
     processing_run = _start_processing_run(
         db,
@@ -346,11 +348,40 @@ def execute_prediction_capture_job(
     capture_service = capture_service or WinnerPredictionCaptureService()
     started_at = processing_run.started_at or _utcnow()
 
+    market_cutoff = None
+    handoff_id = None
+    if isinstance(db, Session):
+        pipeline_id = _required_int(payload, "pipeline_run_id")
+        handoff_id = _required_int(payload, "decision_handoff_manifest_id")
+        context_id = _required_int(payload, "market_calculation_context_id")
+        cutoff_at = _parse_required_datetime(payload, "market_cutoff_at")
+        as_of_session = _parse_required_date(payload, "input_as_of_session")
+        calendar_version = str(payload.get("market_calendar_version") or "")
+        if not calendar_version:
+            raise ValueError(
+                f"{WINNER_PREDICTION_CAPTURE} job payload is missing market_calendar_version."
+            )
+        market_cutoff = resolve_pipeline_market_context(
+            db,
+            calculation_context_id=context_id,
+            upload_run_id=run_id,
+            pipeline_run_id=pipeline_id,
+            expected_cutoff_at=cutoff_at,
+            expected_latest_completed_session=as_of_session,
+            expected_calendar_version=calendar_version,
+        )
+        if market_cutoff.bar_readiness_version != payload.get("bar_readiness_version"):
+            raise ValueError(
+                f"{WINNER_PREDICTION_CAPTURE} job bar-readiness identity mismatch."
+            )
+
     try:
         result = capture_service.capture_run(
             db,
             run_id=run_id,
             config=config,
+            market_cutoff=market_cutoff,
+            decision_handoff_manifest_id=handoff_id,
             should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
         )
     except WinnerPredictionCaptureCancelled as exc:
@@ -988,6 +1019,7 @@ def execute_historical_backfill_job(
     limit = _optional_int(payload, "limit") or 100
     reconstruction_method = str(payload.get("reconstruction_method") or "HISTORICAL_AS_OF_REPLAY")
     allow_reconstructed_training = bool(payload.get("allow_reconstructed_training") or False)
+    decision_contexts = _decision_contexts(payload.get("decision_contexts"))
     config = load_winner_probability_config()
     processing_run = _start_processing_run(
         db,
@@ -1008,6 +1040,7 @@ def execute_historical_backfill_job(
                 reconstruction_method=reconstruction_method,
                 limit=limit,
                 allow_reconstructed_training=allow_reconstructed_training,
+                decision_contexts=decision_contexts,
             ),
             config=config,
             should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
@@ -1254,6 +1287,25 @@ def _parse_optional_datetime(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
+def _parse_required_datetime(payload: dict[str, Any], key: str) -> datetime:
+    value = _parse_optional_datetime(payload.get(key))
+    if value is None:
+        raise ValueError(f"{WINNER_PREDICTION_CAPTURE} job payload is missing {key}.")
+    return value
+
+
+def _parse_required_date(payload: dict[str, Any], key: str) -> date:
+    value = payload.get(key)
+    if value is None:
+        raise ValueError(f"{WINNER_PREDICTION_CAPTURE} job payload is missing {key}.")
+    try:
+        return value if isinstance(value, date) else date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise ValueError(
+            f"{WINNER_PREDICTION_CAPTURE} job payload has invalid {key}."
+        ) from exc
+
+
 def _int_list(
     payload: dict[str, Any],
     key: str,
@@ -1268,6 +1320,23 @@ def _int_list(
     if not isinstance(value, list | tuple):
         raise ValueError(f"{WINNER_HISTORICAL_BACKFILL} job payload has invalid {key}.")
     return [_coerce_int(item, key) for item in value]
+
+
+def _decision_contexts(value: Any) -> dict[int, dict[str, Any]]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(
+            f"{WINNER_HISTORICAL_BACKFILL} job payload has invalid decision_contexts."
+        )
+    contexts: dict[int, dict[str, Any]] = {}
+    for run_id, payload in value.items():
+        if not isinstance(payload, dict):
+            raise ValueError(
+                f"{WINNER_HISTORICAL_BACKFILL} decision context for {run_id} is invalid."
+            )
+        contexts[_coerce_int(run_id, "decision_contexts")] = dict(payload)
+    return contexts
 
 
 def _coerce_int(value: Any, key: str) -> int:

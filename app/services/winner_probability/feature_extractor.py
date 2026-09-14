@@ -298,12 +298,10 @@ def _canonical_feature_json(
         "setup_family": _normalize(_setup_family(combined, ranking, technical)),
         "trigger_state": _normalize(getattr(technical, "action_bias", None)),
         "ranking_profile": _normalize(getattr(ranking, "ranking_profile", None)),
-        "fundamental_score": _normalize(
-            _first_present(
-                getattr(fundamental, "fundamental_score", None),
-                getattr(combined, "fundamental_score", None),
-            )
-        ),
+        # A combined result may retain a copied fundamental value even when the
+        # independently validated FundamentalScore source was rejected.  Do not
+        # resurrect that value: optional-source omission must remain explicit.
+        "fundamental_score": _normalize(getattr(fundamental, "fundamental_score", None)),
         "technical_score": _normalize(getattr(technical, "dual_score", None)),
         "combined_score": _normalize(getattr(combined, "final_score", None)),
         "dual_score_band": _score_band(getattr(technical, "dual_score", None)),

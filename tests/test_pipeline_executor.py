@@ -438,6 +438,22 @@ def test_winner_partial_output_is_not_silently_reported_as_completed_step() -> N
 
 def test_execute_full_pipeline_propagates_winner_control_and_progress_contract() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    winner_step_index = next(
+        index
+        for index, step in enumerate(db.steps)
+        if step.step_name == "CAPTURING_WINNER_PREDICTIONS"
+    )
+    db.steps.insert(
+        winner_step_index,
+        PipelineStep(
+            id=99,
+            pipeline_run_id=3,
+            step_name="FREEZING_DECISION_HANDOFF_MANIFEST",
+            step_order=winner_step_index + 1,
+            status=PipelineStepStatus.PENDING,
+            retry_count=0,
+        ),
+    )
     received: dict[str, object] = {}
 
     def winner_capture(_db, _run_id, **kwargs):
@@ -466,6 +482,12 @@ def test_execute_full_pipeline_propagates_winner_control_and_progress_contract()
             winner_capture_enabled=True,
         ),
         capture_winner_predictions=winner_capture,
+        freeze_decision_handoff=lambda *_args, **_kwargs: SimpleNamespace(
+            id=91,
+            preflight_plan_id=81,
+            run_start_anchor_fingerprint="anchor",
+            manifest_fingerprint="handoff",
+        ),
     )
 
     execute_full_pipeline(
@@ -478,12 +500,15 @@ def test_execute_full_pipeline_propagates_winner_control_and_progress_contract()
         memory_probe=memory_probe,
     )
 
-    assert received == {
-        "should_cancel": should_cancel,
-        "lease_guard": lease_guard,
-        "progress_callback": progress_callback,
-        "memory_probe": memory_probe,
-    }
+    assert received["should_cancel"] is should_cancel
+    assert received["lease_guard"] is lease_guard
+    assert received["progress_callback"] is progress_callback
+    assert received["memory_probe"] is memory_probe
+    assert (
+        received["market_cutoff"].cutoff_reason
+        == "PIPELINE_TEST_SESSION_COMPATIBILITY"
+    )
+    assert received["decision_handoff_manifest_id"] == 91
 
 
 def test_replay_interrupts_stale_running_step_and_preserves_attempt_history() -> None:

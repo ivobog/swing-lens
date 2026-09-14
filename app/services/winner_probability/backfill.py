@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import UploadRun
+from app.services.market_calculation_context_service import resolve_pipeline_market_context
 from app.services.winner_probability.capture_service import (
     WinnerPredictionCaptureCancelled,
     WinnerPredictionCaptureResult,
@@ -47,6 +49,7 @@ class BackfillRequest:
     reconstruction_method: str = DEFAULT_RECONSTRUCTION_METHOD
     limit: int = 100
     allow_reconstructed_training: bool = False
+    decision_contexts: dict[int, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -58,6 +61,7 @@ class BackfillPlanItem:
     reconstruction_method: str
     source_quality_flags: tuple[str, ...]
     production_training_allowed: bool
+    decision_context: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -175,7 +179,17 @@ class WinnerProbabilityBackfillService:
             if run is None:
                 items.append(_skipped_item(run_id, request, "run_not_found"))
                 continue
-            items.append(_plan_run(run, request))
+            decision_context = request.decision_contexts.get(run_id)
+            if isinstance(db, Session) and not decision_context:
+                items.append(
+                    _skipped_item(
+                        run_id,
+                        request,
+                        "missing_original_decision_identity",
+                    )
+                )
+                continue
+            items.append(_plan_run(run, request, decision_context=decision_context))
         return BackfillPlan(items=tuple(items))
 
     def execute_backfill(
@@ -207,11 +221,19 @@ class WinnerProbabilityBackfillService:
             if should_cancel is not None and should_cancel():
                 raise WinnerBackfillCancelled("winner probability backfill was cancelled")
             try:
+                capture_identity: dict[str, Any] = {}
+                if isinstance(db, Session):
+                    capture_identity = _resolve_historical_capture_identity(db, item)
                 result = capture_service.capture_run(
                     db,
                     run_id=item.run_id,
                     config=config,
                     captured_at=item.source_cutoff_at,
+                    decision_at=capture_identity.get("decision_at"),
+                    market_cutoff=capture_identity.get("market_cutoff"),
+                    decision_handoff_manifest_id=capture_identity.get(
+                        "decision_handoff_manifest_id"
+                    ),
                     reconstruction_method=item.reconstruction_method,
                     source_quality_flags=item.source_quality_flags,
                     production_training_allowed=item.production_training_allowed,
@@ -239,7 +261,12 @@ def _load_runs(db: Session, run_ids: tuple[int, ...], limit: int) -> tuple[Uploa
     return tuple(all_method() if callable(all_method) else rows)
 
 
-def _plan_run(run: UploadRun, request: BackfillRequest) -> BackfillPlanItem:
+def _plan_run(
+    run: UploadRun,
+    request: BackfillRequest,
+    *,
+    decision_context: dict[str, Any] | None = None,
+) -> BackfillPlanItem:
     flags = ["reconstructed_history", "exclude_from_production_training"]
     if run.status != "COMPLETED":
         return _skipped_item(run.id, request, "run_not_completed")
@@ -258,6 +285,7 @@ def _plan_run(run: UploadRun, request: BackfillRequest) -> BackfillPlanItem:
         reconstruction_method=request.reconstruction_method,
         source_quality_flags=tuple(flags),
         production_training_allowed=request.allow_reconstructed_training,
+        decision_context=decision_context,
     )
 
 
@@ -274,7 +302,59 @@ def _skipped_item(
         reconstruction_method=request.reconstruction_method,
         source_quality_flags=("reconstructed_history", reason),
         production_training_allowed=False,
+        decision_context=None,
     )
+
+
+def _resolve_historical_capture_identity(
+    db: Session, item: BackfillPlanItem
+) -> dict[str, Any]:
+    payload = item.decision_context
+    if not isinstance(payload, dict):
+        raise ValueError("historical Winner capture is missing original decision identity")
+    required = (
+        "pipeline_run_id",
+        "decision_handoff_manifest_id",
+        "market_calculation_context_id",
+        "market_cutoff_at",
+        "input_as_of_session",
+        "market_calendar_version",
+        "bar_readiness_version",
+    )
+    missing = [name for name in required if payload.get(name) is None]
+    if missing:
+        raise ValueError(
+            "historical Winner decision identity is incomplete: " + ",".join(missing)
+        )
+    cutoff_at = _aware_datetime(payload["market_cutoff_at"])
+    session = _date(payload["input_as_of_session"])
+    cutoff = resolve_pipeline_market_context(
+        db,
+        calculation_context_id=int(payload["market_calculation_context_id"]),
+        upload_run_id=item.run_id,
+        pipeline_run_id=int(payload["pipeline_run_id"]),
+        expected_cutoff_at=cutoff_at,
+        expected_latest_completed_session=session,
+        expected_calendar_version=str(payload["market_calendar_version"]),
+    )
+    if cutoff.bar_readiness_version != payload["bar_readiness_version"]:
+        raise ValueError("historical Winner bar-readiness identity mismatch")
+    return {
+        "decision_at": cutoff.cutoff_at,
+        "market_cutoff": cutoff,
+        "decision_handoff_manifest_id": int(payload["decision_handoff_manifest_id"]),
+    }
+
+
+def _aware_datetime(value: Any) -> datetime:
+    parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    if parsed.tzinfo is None:
+        raise ValueError("historical Winner decision timestamp must be timezone-aware")
+    return parsed
+
+
+def _date(value: Any) -> date:
+    return value if isinstance(value, date) else date.fromisoformat(str(value))
 
 
 def _is_trustworthy(run: UploadRun, trusted_run_ids: tuple[int, ...]) -> bool:

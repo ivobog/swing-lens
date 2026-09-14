@@ -10,7 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models.tables import UploadRun
+from app.models.tables import (
+    MarketCalculationContext,
+    TransitionDecisionHandoffManifest,
+    UploadRun,
+)
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
 from app.services.background_job_service import enqueue_job
@@ -541,16 +545,54 @@ def queue_winner_prediction_capture(
     request: Request,
     run_id: int,
     db: DbSession,
+    decision_handoff_manifest_id: int | None = None,
 ) -> dict:
     _require_local_admin(request)
     _require_run(db, run_id)
+    payload = {"run_id": run_id}
+    if isinstance(db, Session):
+        statement = select(TransitionDecisionHandoffManifest).where(
+            TransitionDecisionHandoffManifest.upload_run_id == run_id
+        )
+        if decision_handoff_manifest_id is not None:
+            statement = statement.where(
+                TransitionDecisionHandoffManifest.id == decision_handoff_manifest_id
+            )
+        handoffs = list(db.scalars(statement))
+        if len(handoffs) != 1:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Winner capture requires exactly one explicit Decision Handoff; "
+                    "supply decision_handoff_manifest_id when the run has multiple manifests"
+                ),
+            )
+        handoff = handoffs[0]
+        context = db.get(
+            MarketCalculationContext, handoff.market_calculation_context_id
+        )
+        if context is None:
+            raise HTTPException(status_code=409, detail="Winner market context was not found")
+        payload = {
+            "run_id": run_id,
+            "pipeline_run_id": handoff.pipeline_run_id,
+            "decision_handoff_manifest_id": handoff.id,
+            "market_calculation_context_id": context.id,
+            "market_cutoff_at": context.cutoff_at.isoformat(),
+            "input_as_of_session": context.latest_completed_session.isoformat(),
+            "market_calendar_version": context.calendar_version,
+            "bar_readiness_version": context.bar_readiness_version,
+        }
     try:
         job = enqueue_job(
             db,
             job_type=WINNER_PREDICTION_CAPTURE,
-            payload={"run_id": run_id},
+            payload=payload,
             related_run_id=run_id,
-            request_key=f"winner:prediction-capture:run:{run_id}",
+            request_key=(
+                f"winner:prediction-capture:run:{run_id}:"
+                f"handoff:{payload.get('decision_handoff_manifest_id', 'test')}"
+            ),
         )
         db.commit()
     except Exception:
