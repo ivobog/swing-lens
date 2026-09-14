@@ -19,6 +19,11 @@ from app.models.tables import (
     WinnerEstimatePublicationRequest,
     WinnerProbabilityEstimate,
 )
+from app.services.winner_probability.cohort_generation_service import (
+    CohortGenerationService,
+    GenerationPublicationConflict,
+    GenerationPublicationStatus,
+)
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 from app.services.winner_probability.temporal_manifest_canonicalization import (
     canonical_manifest_bytes,
@@ -109,6 +114,9 @@ def serving_id_snapshot(db: Session) -> dict[str, Any]:
 
 class WinnerEstimatePublicationService:
     """Apply a reviewed clean-generation transition in the caller's transaction."""
+
+    def __init__(self, generation_service: CohortGenerationService | None = None) -> None:
+        self.generation_service = generation_service or CohortGenerationService()
 
     def publish(
         self,
@@ -214,14 +222,6 @@ class WinnerEstimatePublicationService:
             raise PublicationInvariantViolation("served original estimate set drifted")
 
         at = published_at or datetime.now(UTC)
-        previous.status = "SUPERSEDED"
-        previous.completed_at = at
-        generation.status = "PUBLISHED"
-        generation.published_at = at
-        generation.completed_at = at
-        db.flush()
-        _call_hook(stage_hook, "generation_switch")
-
         for original in originals.values():
             original.lifecycle_status = EstimateLifecycleStatus.SUPERSEDED
             original.superseded_at = at
@@ -231,12 +231,20 @@ class WinnerEstimatePublicationService:
         db.flush()
         _call_hook(stage_hook, "estimate_switch")
 
-        if old_state.id != new_state.id:
-            old_state.published_generation_id = None
-            old_state.published_watermark_hash = None
-        new_state.published_generation_id = generation.id
-        new_state.published_watermark_hash = generation.watermark_hash
-        db.flush()
+        try:
+            publication = self.generation_service.publish_reviewed_supersession(
+                db,
+                generation=generation,
+                previous=previous,
+                published_at=at,
+            )
+        except GenerationPublicationConflict as exc:
+            raise PublicationInvariantViolation(str(exc)) from exc
+        if publication.status != GenerationPublicationStatus.PUBLISHED:
+            raise PublicationInvariantViolation(
+                f"reviewed generation publication was rejected: {publication.status}"
+            )
+        _call_hook(stage_hook, "generation_switch")
         _call_hook(stage_hook, "pointer_switch")
 
         serving_after = serving_id_snapshot(db)

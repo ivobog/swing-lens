@@ -43,6 +43,7 @@ from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
     CohortGenerationStatus,
     EvidenceWatermarkService,
+    GenerationPublicationStatus,
     contract_for,
 )
 from app.services.winner_probability.cohort_materialization_service import (
@@ -150,6 +151,7 @@ class WinnerCohortRefreshResult:
     manifest_members_inserted: int = 0
     continuation_required: bool = False
     desired_watermark_advanced: bool = False
+    publication_status: str | None = None
     no_op: bool = False
 
     def as_dict(self) -> dict[str, Any]:
@@ -219,6 +221,7 @@ class WinnerCohortRefreshService:
                     generation_key=published.generation_key,
                     completed_groups=published.completed_group_count,
                     planned_groups=int(published.planned_group_count or 0),
+                    publication_status=GenerationPublicationStatus.ALREADY_ACTIVE,
                     no_op=True,
                 )
         generation = self.generation_service.capture_or_resume(
@@ -249,6 +252,7 @@ class WinnerCohortRefreshService:
             manifest_members_inserted=materialized.manifest_members_inserted,
             continuation_required=materialized.continuation_required,
             desired_watermark_advanced=materialized.desired_watermark_advanced,
+            publication_status=materialized.publication_status,
             no_op=materialized.no_op,
         )
 

@@ -55,7 +55,7 @@ from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
     CohortGenerationStatus,
     EvidenceWatermarkService,
-    GenerationInvariantViolation,
+    GenerationPublicationStatus,
     contract_for,
 )
 from app.services.winner_probability.cohort_materialization_service import (
@@ -1052,8 +1052,10 @@ def test_partial_generation_cannot_publish_and_recovery_closes_attempt(
         generation.status = CohortGenerationStatus.READY
         generation.planned_group_count = 2
         generation.completed_group_count = 1
-        with pytest.raises(GenerationInvariantViolation, match="partially"):
-            CohortGenerationService().publish(db, generation=generation, lease_guard=lambda: None)
+        publication = CohortGenerationService().publish(
+            db, generation=generation, lease_guard=lambda: None
+        )
+        assert publication.status == GenerationPublicationStatus.REJECTED_INCOMPLETE
 
         job = BackgroundJob(
             job_type="WINNER_COHORT_REFRESH",
@@ -1161,12 +1163,13 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             max_groups=100,
             max_wall_seconds=60,
         )
-        assert completed.status == CohortGenerationStatus.PUBLISHED
+        assert completed.status == CohortGenerationStatus.READY
+        assert completed.publication_status == GenerationPublicationStatus.REJECTED_STALE
         assert completed.desired_watermark_advanced
         assert completed.completed_groups == completed.planned_groups == 6
         state = db.get(WinnerCohortRefreshState, generation.refresh_state_id)
-        assert state.published_generation_id == generation_id
-        assert state.published_watermark_hash != state.desired_watermark_hash
+        assert state.published_generation_id is None
+        assert state.published_watermark_hash is None
         assert db.scalar(select(func.count(WinnerProbabilityEstimate.id))) == 0
 
         replacement = generation_service.capture_or_resume(
@@ -1191,7 +1194,7 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
         assert caught_up.status == CohortGenerationStatus.PUBLISHED
         assert not caught_up.continuation_required
         old = db.get(WinnerCohortGeneration, generation_id)
-        assert old.status == CohortGenerationStatus.SUPERSEDED
+        assert old.status == CohortGenerationStatus.READY
         state = db.get(WinnerCohortRefreshState, old.refresh_state_id)
         assert state.published_generation_id == replacement_id
         assert state.published_watermark_hash == state.desired_watermark_hash

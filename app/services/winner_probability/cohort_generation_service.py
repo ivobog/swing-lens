@@ -36,6 +36,15 @@ from app.services.winner_probability.temporal_eligibility import (
 
 COHORT_ALGORITHM_VERSION = "cohort-v2.2"
 ELIGIBILITY_POLICY_VERSION = "training-eligibility-v2-temporal"
+_PUBLICATION_CONTRACT_FIELDS = (
+    "outcome_definition_id",
+    "feature_schema_version",
+    "calculation_version",
+    "config_hash",
+    "eligibility_policy_version",
+    "compatibility_policy_version",
+    "cohort_algorithm_version",
+)
 
 
 class CohortGenerationStatus:
@@ -73,7 +82,15 @@ class GenerationPublicationConflict(RuntimeError):
     pass
 
 
-@dataclass(frozen=True, order=True)
+class GenerationPublicationStatus:
+    PUBLISHED = "PUBLISHED"
+    ALREADY_ACTIVE = "ALREADY_ACTIVE"
+    REJECTED_STALE = "REJECTED_STALE"
+    REJECTED_INCOMPATIBLE = "REJECTED_INCOMPATIBLE"
+    REJECTED_INCOMPLETE = "REJECTED_INCOMPLETE"
+
+
+@dataclass(frozen=True)
 class EvidenceWatermark:
     forward_revision_id: int = 0
     target_stop_revision_id: int = 0
@@ -115,6 +132,21 @@ class TemporalGenerationAudit:
     @property
     def clean(self) -> bool:
         return not self.invalid_prediction_ids
+
+
+@dataclass(frozen=True)
+class GenerationPublicationResult:
+    status: str
+    candidate_generation_id: int
+    active_generation_id: int | None
+    desired_watermark_advanced: bool = False
+
+    @property
+    def successful(self) -> bool:
+        return self.status in {
+            GenerationPublicationStatus.PUBLISHED,
+            GenerationPublicationStatus.ALREADY_ACTIVE,
+        }
 
 
 def contract_for(
@@ -165,10 +197,13 @@ class EvidenceWatermarkService:
         state = self._locked_state(db, contract=contract, observed_at=observed_at)
         watermark = self.current_material_watermark(db, outcome_definition_id=outcome_definition.id)
         current = watermark_from_state(state)
-        if watermark == current:
+        ordering = _compare_watermarks(watermark, current)
+        if ordering == 0:
             return WatermarkAdvanceResult(state=state, watermark=watermark, advanced=False)
-        if watermark < current:
-            raise GenerationInvariantViolation("material evidence watermark regressed")
+        if ordering != 1:
+            raise GenerationInvariantViolation(
+                "material evidence watermark regressed or became incomparable"
+            )
         state.desired_forward_revision_id = watermark.forward_revision_id
         state.desired_target_stop_revision_id = watermark.target_stop_revision_id
         state.desired_eligibility_decision_id = watermark.eligibility_decision_id
@@ -377,15 +412,9 @@ class CohortGenerationService:
         generation: WinnerCohortGeneration,
         lease_guard,
         published_at: datetime | None = None,
-    ) -> bool:
+    ) -> GenerationPublicationResult:
         published_at = published_at or datetime.now(UTC)
-        if generation.status != CohortGenerationStatus.READY:
-            raise GenerationInvariantViolation("only READY cohort generations may publish")
-        if generation.planned_group_count is None or (
-            generation.completed_group_count != generation.planned_group_count
-        ):
-            raise GenerationInvariantViolation("cohort generation is only partially materialized")
-        self._assert_temporally_clean(db, generation)
+        generation_id = int(generation.id)
         lease_guard()
         state = db.scalar(
             select(WinnerCohortRefreshState)
@@ -394,13 +423,236 @@ class CohortGenerationService:
         )
         if state is None:
             raise GenerationInvariantViolation("cohort refresh state disappeared")
-        if state.published_generation_id == generation.id:
-            return state.desired_watermark_hash != generation.watermark_hash
-        previous = self.published_for_state(db, state)
+        locked_generation = db.scalar(
+            select(WinnerCohortGeneration)
+            .where(WinnerCohortGeneration.id == generation_id)
+            .with_for_update()
+        )
+        if locked_generation is None:
+            raise GenerationInvariantViolation("cohort generation disappeared")
+
+        previous = self._locked_published_for_state(db, state)
+        complete = self._is_complete(locked_generation)
+        if state.published_generation_id == generation_id:
+            try:
+                active_watermark = self._generation_watermark(locked_generation)
+            except GenerationPublicationConflict as exc:
+                raise GenerationInvariantViolation(
+                    "active cohort generation watermark is inconsistent"
+                ) from exc
+            if (
+                previous is None
+                or previous.status != CohortGenerationStatus.PUBLISHED
+                or state.published_watermark_hash != locked_generation.watermark_hash
+                or not complete
+                or not self._generation_matches_state(locked_generation, state)
+                or locked_generation.watermark_hash
+                != canonical_watermark_hash(active_watermark)
+                or locked_generation.generation_key
+                != canonical_generation_key(
+                    self._contract_from_generation(locked_generation), active_watermark
+                )
+            ):
+                raise GenerationInvariantViolation("active cohort generation is inconsistent")
+            lease_guard()
+            return GenerationPublicationResult(
+                status=GenerationPublicationStatus.ALREADY_ACTIVE,
+                candidate_generation_id=generation_id,
+                active_generation_id=generation_id,
+                desired_watermark_advanced=(
+                    state.desired_watermark_hash != locked_generation.watermark_hash
+                ),
+            )
+
+        if not self._generation_matches_state(locked_generation, state):
+            return self._rejected_result(
+                GenerationPublicationStatus.REJECTED_INCOMPATIBLE,
+                locked_generation,
+                previous,
+            )
+
+        try:
+            candidate_watermark = self._generation_watermark(locked_generation)
+        except GenerationPublicationConflict:
+            return self._rejected_result(
+                GenerationPublicationStatus.REJECTED_INCOMPATIBLE,
+                locked_generation,
+                previous,
+            )
+        desired_watermark = watermark_from_state(state)
+        if (
+            locked_generation.watermark_hash != canonical_watermark_hash(candidate_watermark)
+            or locked_generation.generation_key
+            != canonical_generation_key(
+                self._contract_from_generation(locked_generation), candidate_watermark
+            )
+        ):
+            return self._rejected_result(
+                GenerationPublicationStatus.REJECTED_INCOMPATIBLE,
+                locked_generation,
+                previous,
+            )
+        if state.desired_watermark_hash != canonical_watermark_hash(desired_watermark):
+            raise GenerationInvariantViolation("desired evidence watermark hash is inconsistent")
+        desired_order = _compare_watermarks(candidate_watermark, desired_watermark)
+        if desired_order == -1:
+            return self._rejected_result(
+                GenerationPublicationStatus.REJECTED_STALE,
+                locked_generation,
+                previous,
+                desired_watermark_advanced=True,
+            )
+        if desired_order is None or desired_order == 1:
+            return self._rejected_result(
+                GenerationPublicationStatus.REJECTED_INCOMPATIBLE,
+                locked_generation,
+                previous,
+            )
+
+        if previous is not None:
+            if not self._generations_compatible(previous, locked_generation):
+                return self._rejected_result(
+                    GenerationPublicationStatus.REJECTED_INCOMPATIBLE,
+                    locked_generation,
+                    previous,
+                )
+            active_order = _compare_watermarks(
+                candidate_watermark,
+                self._generation_watermark(previous),
+            )
+            if active_order in {-1, 0}:
+                return self._rejected_result(
+                    GenerationPublicationStatus.REJECTED_STALE,
+                    locked_generation,
+                    previous,
+                )
+            if active_order is None:
+                return self._rejected_result(
+                    GenerationPublicationStatus.REJECTED_INCOMPATIBLE,
+                    locked_generation,
+                    previous,
+                )
+
+        if not complete:
+            return self._rejected_result(
+                GenerationPublicationStatus.REJECTED_INCOMPLETE,
+                locked_generation,
+                previous,
+            )
+        if locked_generation.status != CohortGenerationStatus.READY:
+            raise GenerationInvariantViolation("only READY cohort generations may publish")
+        self._assert_temporally_clean(db, locked_generation)
+        lease_guard()
+        self._activate_locked(
+            db,
+            state=state,
+            generation=locked_generation,
+            previous=previous,
+            published_at=published_at,
+        )
+        lease_guard()
+        return GenerationPublicationResult(
+            status=GenerationPublicationStatus.PUBLISHED,
+            candidate_generation_id=generation_id,
+            active_generation_id=generation_id,
+        )
+
+    def publish_reviewed_supersession(
+        self,
+        db: Session,
+        *,
+        generation: WinnerCohortGeneration,
+        previous: WinnerCohortGeneration,
+        published_at: datetime,
+    ) -> GenerationPublicationResult:
+        """Apply an explicitly reviewed cross-contract supersession.
+
+        This mode preserves the existing operator-reviewed estimate transition. It
+        deliberately does not infer ordering between incompatible contracts, but it
+        still serializes and compare-and-swaps the exact active pointer.
+        """
+
+        state_ids = sorted({int(generation.refresh_state_id), int(previous.refresh_state_id)})
+        states = {
+            int(row.id): row
+            for row in db.scalars(
+                select(WinnerCohortRefreshState)
+                .where(WinnerCohortRefreshState.id.in_(state_ids))
+                .order_by(WinnerCohortRefreshState.id)
+                .with_for_update()
+            )
+        }
+        old_state = states.get(int(previous.refresh_state_id))
+        new_state = states.get(int(generation.refresh_state_id))
+        if old_state is None or new_state is None:
+            raise GenerationInvariantViolation("cohort refresh state disappeared")
+
+        generation_ids = sorted({int(generation.id), int(previous.id)})
+        generations = {
+            int(row.id): row
+            for row in db.scalars(
+                select(WinnerCohortGeneration)
+                .where(WinnerCohortGeneration.id.in_(generation_ids))
+                .order_by(WinnerCohortGeneration.id)
+                .with_for_update()
+            )
+        }
+        locked_generation = generations.get(int(generation.id))
+        locked_previous = generations.get(int(previous.id))
+        if locked_generation is None or locked_previous is None:
+            raise GenerationInvariantViolation("reviewed cohort generation disappeared")
+
+        if old_state.published_generation_id == locked_generation.id:
+            if locked_generation.status != CohortGenerationStatus.PUBLISHED:
+                raise GenerationInvariantViolation("active reviewed generation is inconsistent")
+            return GenerationPublicationResult(
+                status=GenerationPublicationStatus.ALREADY_ACTIVE,
+                candidate_generation_id=int(locked_generation.id),
+                active_generation_id=int(locked_generation.id),
+            )
+        if old_state.published_generation_id != locked_previous.id:
+            raise GenerationPublicationConflict("current published-generation pointer drifted")
+        if new_state.id != old_state.id and new_state.published_generation_id is not None:
+            raise GenerationPublicationConflict("target refresh state already has a publication")
+        if not self._is_complete(locked_generation):
+            return self._rejected_result(
+                GenerationPublicationStatus.REJECTED_INCOMPLETE,
+                locked_generation,
+                locked_previous,
+            )
+        if locked_generation.status != CohortGenerationStatus.READY:
+            raise GenerationInvariantViolation("only READY cohort generations may publish")
+        if locked_previous.status != CohortGenerationStatus.PUBLISHED:
+            raise GenerationPublicationConflict("reviewed previous generation is not active")
+
+        if old_state.id != new_state.id:
+            old_state.published_generation_id = None
+            old_state.published_watermark_hash = None
+        self._activate_locked(
+            db,
+            state=new_state,
+            generation=locked_generation,
+            previous=locked_previous,
+            published_at=published_at,
+        )
+        return GenerationPublicationResult(
+            status=GenerationPublicationStatus.PUBLISHED,
+            candidate_generation_id=int(locked_generation.id),
+            active_generation_id=int(locked_generation.id),
+        )
+
+    @staticmethod
+    def _activate_locked(
+        db: Session,
+        *,
+        state: WinnerCohortRefreshState,
+        generation: WinnerCohortGeneration,
+        previous: WinnerCohortGeneration | None,
+        published_at: datetime,
+    ) -> None:
         if previous is not None:
             validate_generation_transition(previous.status, CohortGenerationStatus.SUPERSEDED)
             previous.status = CohortGenerationStatus.SUPERSEDED
-            previous.completed_at = published_at
         validate_generation_transition(generation.status, CohortGenerationStatus.PUBLISHED)
         generation.status = CohortGenerationStatus.PUBLISHED
         generation.published_at = published_at
@@ -408,10 +660,93 @@ class CohortGenerationService:
         state.published_generation_id = generation.id
         state.published_watermark_hash = generation.watermark_hash
         db.flush()
-        # Fence and durably commit the publication pointer and lifecycle switch
-        # in the same transaction before the handler can report success.
-        lease_guard()
-        return state.desired_watermark_hash != generation.watermark_hash
+
+    @staticmethod
+    def _locked_published_for_state(
+        db: Session,
+        state: WinnerCohortRefreshState,
+    ) -> WinnerCohortGeneration | None:
+        if state.published_generation_id is None:
+            return None
+        generation = db.scalar(
+            select(WinnerCohortGeneration)
+            .where(WinnerCohortGeneration.id == state.published_generation_id)
+            .with_for_update()
+        )
+        if generation is None or generation.status != CohortGenerationStatus.PUBLISHED:
+            raise GenerationInvariantViolation("published generation pointer is invalid")
+        return generation
+
+    @staticmethod
+    def _is_complete(generation: WinnerCohortGeneration) -> bool:
+        return bool(
+            generation.planned_group_count is not None
+            and generation.completed_group_count == generation.planned_group_count
+            and int(generation.failed_group_count or 0) == 0
+            and generation.evidence_row_count is not None
+            and generation.root_manifest_hash
+        )
+
+    @staticmethod
+    def _generation_matches_state(
+        generation: WinnerCohortGeneration,
+        state: WinnerCohortRefreshState,
+    ) -> bool:
+        return all(
+            getattr(generation, field) == getattr(state, field)
+            for field in _PUBLICATION_CONTRACT_FIELDS
+        )
+
+    @staticmethod
+    def _generations_compatible(
+        left: WinnerCohortGeneration,
+        right: WinnerCohortGeneration,
+    ) -> bool:
+        return all(
+            getattr(left, field) == getattr(right, field)
+            for field in _PUBLICATION_CONTRACT_FIELDS
+        )
+
+    @staticmethod
+    def _contract_from_generation(
+        generation: WinnerCohortGeneration,
+    ) -> WinnerCohortContract:
+        return WinnerCohortContract(
+            **{
+                field: getattr(generation, field)
+                for field in _PUBLICATION_CONTRACT_FIELDS
+            }
+        )
+
+    @staticmethod
+    def _generation_watermark(generation: WinnerCohortGeneration) -> EvidenceWatermark:
+        payload = dict(generation.watermark_json or {})
+        if set(payload) - set(EvidenceWatermark.__dataclass_fields__):
+            raise GenerationPublicationConflict("generation watermark schema is incompatible")
+        try:
+            return EvidenceWatermark(
+                **{
+                    field: int(payload.get(field, 0) or 0)
+                    for field in EvidenceWatermark.__dataclass_fields__
+                }
+            )
+        except (TypeError, ValueError) as exc:
+            raise GenerationPublicationConflict("generation watermark is invalid") from exc
+
+    @staticmethod
+    def _rejected_result(
+        status: str,
+        generation: WinnerCohortGeneration,
+        previous: WinnerCohortGeneration | None,
+        *,
+        desired_watermark_advanced: bool = False,
+    ) -> GenerationPublicationResult:
+        return GenerationPublicationResult(
+            status=status,
+            candidate_generation_id=int(generation.id),
+            active_generation_id=int(previous.id) if previous is not None else None,
+            desired_watermark_advanced=desired_watermark_advanced,
+        )
 
     @staticmethod
     def _assert_temporally_clean(
@@ -487,6 +822,30 @@ def watermark_from_state(state: WinnerCohortRefreshState) -> EvidenceWatermark:
             getattr(state, "desired_temporal_validity_decision_id", 0) or 0
         ),
     )
+
+
+def _compare_watermarks(left: EvidenceWatermark, right: EvidenceWatermark) -> int | None:
+    """Compare evidence newness component-wise, never by process time or row ID.
+
+    Returns -1 when ``left`` is strictly older, 0 when equal, 1 when strictly
+    newer, and ``None`` when the watermarks diverge and cannot be ordered.
+    """
+
+    left_values = tuple(left.as_dict().values())
+    right_values = tuple(right.as_dict().values())
+    if left_values == right_values:
+        return 0
+    if all(
+        left_value <= right_value
+        for left_value, right_value in zip(left_values, right_values, strict=True)
+    ):
+        return -1
+    if all(
+        left_value >= right_value
+        for left_value, right_value in zip(left_values, right_values, strict=True)
+    ):
+        return 1
+    return None
 
 
 def _contract_statement(contract: WinnerCohortContract):

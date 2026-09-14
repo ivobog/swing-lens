@@ -24,6 +24,7 @@ from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
     CohortGenerationStatus,
     GenerationInvariantViolation,
+    GenerationPublicationStatus,
     validate_generation_transition,
 )
 from app.services.winner_probability.cohort_statistics import CohortStatisticsService
@@ -51,9 +52,10 @@ class CohortMaterializationResult:
     manifest_members_inserted: int
     continuation_required: bool
     desired_watermark_advanced: bool = False
+    publication_status: str | None = None
     no_op: bool = False
 
-    def as_dict(self) -> dict[str, int | str | bool]:
+    def as_dict(self) -> dict[str, int | str | bool | None]:
         return self.__dict__.copy()
 
 
@@ -87,7 +89,11 @@ class CohortMaterializationService:
         publish_when_ready: bool = True,
     ) -> CohortMaterializationResult:
         if generation.status == CohortGenerationStatus.PUBLISHED:
-            return self._result(generation, no_op=True)
+            return self._result(
+                generation,
+                publication_status=GenerationPublicationStatus.ALREADY_ACTIVE,
+                no_op=True,
+            )
         if generation.status != CohortGenerationStatus.BUILDING:
             raise GenerationInvariantViolation(
                 f"generation {generation.id} is not buildable: {generation.status}"
@@ -345,7 +351,7 @@ class CohortMaterializationService:
             self._cancel(db, generation, lease_guard)
         if not publish_when_ready:
             return self._result(generation)
-        desired_advanced = self.generation_service.publish(
+        publication = self.generation_service.publish(
             db,
             generation=generation,
             lease_guard=lease_guard,
@@ -354,8 +360,9 @@ class CohortMaterializationService:
             generation,
             groups_in_slice=groups_in_slice,
             manifest_members_inserted=manifest_members_inserted,
-            continuation_required=desired_advanced,
-            desired_watermark_advanced=desired_advanced,
+            continuation_required=publication.desired_watermark_advanced,
+            desired_watermark_advanced=publication.desired_watermark_advanced,
+            publication_status=publication.status,
         )
 
     def _load_frozen_evidence(
@@ -475,6 +482,7 @@ class CohortMaterializationService:
         manifest_members_inserted=0,
         continuation_required=False,
         desired_watermark_advanced=False,
+        publication_status=None,
         no_op=False,
     ) -> CohortMaterializationResult:
         return CohortMaterializationResult(
@@ -488,6 +496,7 @@ class CohortMaterializationService:
             manifest_members_inserted=manifest_members_inserted,
             continuation_required=continuation_required,
             desired_watermark_advanced=desired_watermark_advanced,
+            publication_status=publication_status,
             no_op=no_op,
         )
 
