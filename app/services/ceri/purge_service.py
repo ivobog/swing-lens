@@ -148,6 +148,19 @@ class CeriPurgeService:
             raise CeriPurgeError(
                 "Provider-license purge preview no longer matches the eligible evidence set."
             )
+        certified_evidence_ids = manifest["certified_decision_evidence_ids"]
+        if certified_evidence_ids:
+            _record_blocked(
+                db,
+                request,
+                "immutable_decision_evidence_referenced",
+                job_id,
+                processing_run_id,
+            )
+            raise CeriPurgeError(
+                "Provider-license purge is forbidden while source records are referenced "
+                f"by immutable CERI decision evidence ids={certified_evidence_ids}."
+            )
         lifecycle = _apply_purge_lifecycle(
             manifest,
             preview_manifest_hash=request.preview_manifest_hash,
@@ -203,6 +216,9 @@ class CeriPurgeService:
             if source.provider == provider and _source_matches_scope(source, license_scope)
         ]
         source_ids = {source.id for source in sources if source.id is not None}
+        from app.services.ceri.decision_evidence import referenced_ceri_evidence_ids
+
+        certified_decision_evidence_ids = referenced_ceri_evidence_ids(db, source_ids)
         estimates = _rows_with_source_ids(db, CeriEstimateSnapshot, source_ids)
         earnings = _rows_with_source_ids(db, CeriEarningsActual, source_ids)
         guidance = _rows_with_source_ids(db, CeriGuidanceEvent, source_ids)
@@ -272,6 +288,10 @@ class CeriPurgeService:
             "requires_rebuild": bool(
                 revision_features or score_snapshots or change_events or alert_events
             ),
+            "immutable_decision_evidence_ids": certified_decision_evidence_ids,
+            "purge_blocked_by_immutable_decision_evidence": bool(
+                certified_decision_evidence_ids
+            ),
         }
         return {
             "source_ids": source_ids,
@@ -287,6 +307,7 @@ class CeriPurgeService:
             "score_snapshots": score_snapshots,
             "change_events": change_events,
             "alert_events": alert_events,
+            "certified_decision_evidence_ids": certified_decision_evidence_ids,
             "affected_counts": affected_counts,
             "invalidated_derivatives": invalidated_derivatives,
         }
@@ -401,6 +422,9 @@ def _manifest_hash_input(
                 "alert_events",
             )
         },
+        "certified_decision_evidence_ids": manifest[
+            "certified_decision_evidence_ids"
+        ],
     }
 
 

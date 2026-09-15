@@ -330,6 +330,7 @@ class CeriRunCaptureService:
                 guidance_rows = _guidance_for_company(db, company.id, as_of_session, cutoff_at)
                 catalyst_lineage = _catalyst_lineage(db, company.id, as_of_session, cutoff_at)
                 evidence_lineage = {
+                    "historical_view_mode": "AS_KNOWN",
                     "temporal_lineage": {
                         "calculation_context_id": market_cutoff.context_id,
                         "calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(

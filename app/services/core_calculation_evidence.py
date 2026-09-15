@@ -24,6 +24,7 @@ class CoreEvidenceKind(StrEnum):
     RANKING = "RANKING"
     REGIME = "REGIME"
     SECTOR = "SECTOR"
+    CERI = "CERI"
 
 
 class EvidenceUnavailableError(LookupError):
@@ -54,7 +55,10 @@ def persist_core_evidence(
     They are never promoted into the evidence ledger.
     """
 
-    identity = calculation_identity_from_debug(getattr(current_row, "debug_json", None))
+    identity_payload = getattr(current_row, "debug_json", None)
+    if identity_payload is None:
+        identity_payload = getattr(current_row, "evidence_lineage_json", None)
+    identity = calculation_identity_from_debug(identity_payload)
     if identity is None:
         return None
 

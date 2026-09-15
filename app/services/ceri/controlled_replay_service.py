@@ -44,6 +44,16 @@ from app.services.ceri.snapshot_service import (
     derive_posture,
     score_evidence_hash,
 )
+from app.services.combined_ranking_identity import (
+    CALCULATION_IDENTITY_FINGERPRINT_KEY,
+    CALCULATION_IDENTITY_KEY,
+    CALCULATION_IDENTITY_POLICY_KEY,
+    calculation_identity_from_debug,
+)
+from app.services.contextual_calculation_identity import (
+    build_contextual_result_identity,
+    identity_metadata,
+)
 
 REPLAY_PROCESSOR_SIGNATURE = "ceri-controlled-replay-v1"
 REPLAY_SCHEMA_VERSION = "ceri-controlled-replay-schema-v1"
@@ -273,8 +283,7 @@ class CeriControlledReplayService:
                 snapshot_service=snapshot_service,
                 replay_config=replay_config,
             )
-            db.add(replay_snapshot)
-            db.flush()
+            snapshot_service.persist_snapshot(db, replay_snapshot)
             replay_snapshots.append(replay_snapshot)
 
             original_by_identity = _features_by_identity(
@@ -517,6 +526,11 @@ def _build_replay_snapshot(
     snapshot_service: CeriSnapshotService,
     replay_config: CeriConfig,
 ) -> CeriScoreSnapshot:
+    original_identity = calculation_identity_from_debug(original.evidence_lineage_json)
+    if original_identity is None:
+        raise ControlledReplayCertificationError(
+            f"source snapshot {original.id} has no Calculation Identity"
+        )
     components = []
     for component in opportunity.components:
         payload = asdict(component)
@@ -579,6 +593,27 @@ def _build_replay_snapshot(
         opportunity_selected_ids=selected_opportunity_ids,
         risk_selected_ids=list(risk_ledger.get("selected_event_ids") or []),
     )
+    replay_identity_payload = {
+        key: value
+        for key, value in lineage.items()
+        if key
+        not in {
+            CALCULATION_IDENTITY_KEY,
+            CALCULATION_IDENTITY_FINGERPRINT_KEY,
+            CALCULATION_IDENTITY_POLICY_KEY,
+        }
+    }
+    replay_identity = build_contextual_result_identity(
+        base=original_identity,
+        namespace="ceri-context",
+        config_hash=replay_config.config_hash,
+        calculation_version=replay_config.engine.calculation_version,
+        engine_version=replay_config.engine.calculation_version,
+        source_artifacts=[],
+        source_payload=replay_identity_payload,
+        company_id=original.company_id,
+    )
+    lineage.update(identity_metadata(replay_identity, policy="CERI_CONTROLLED_REPLAY"))
     opportunity_ledger = {
         "rated": opportunity.rated,
         "score": opportunity.score,

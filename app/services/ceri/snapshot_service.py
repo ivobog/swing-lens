@@ -174,8 +174,15 @@ class CeriSnapshotService:
         return snapshot
 
     def persist_snapshot(self, db: Session, snapshot: CeriScoreSnapshot) -> CeriScoreSnapshot:
-        db.add(snapshot)
-        db.flush()
+        from app.services.ceri.decision_evidence import persist_ceri_decision_evidence
+
+        # The compatibility row and immutable envelope are one atomic write.  A
+        # failed seal must not leave an identity-aware snapshot eligible for a
+        # later outer commit.
+        with db.begin_nested():
+            db.add(snapshot)
+            db.flush()
+            persist_ceri_decision_evidence(db, snapshot=snapshot, config=self.config)
         return snapshot
 
     def reproduce_snapshot(self, snapshot: CeriScoreSnapshot) -> SnapshotReproductionResult:

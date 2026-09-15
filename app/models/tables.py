@@ -400,7 +400,7 @@ class CoreCalculationEvidence(Base):
     __table_args__ = (
         CheckConstraint(
             "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
-            "'REGIME', 'SECTOR')",
+            "'REGIME', 'SECTOR', 'CERI')",
             name="ck_core_calculation_evidence_kind",
         ),
         UniqueConstraint("evidence_key", name="uq_core_calculation_evidence_key"),
@@ -462,7 +462,7 @@ class CoreCalculationCurrentProjection(Base):
     __table_args__ = (
         CheckConstraint(
             "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
-            "'REGIME', 'SECTOR')",
+            "'REGIME', 'SECTOR', 'CERI')",
             name="ck_core_current_projection_kind",
         ),
         Index(
@@ -483,6 +483,15 @@ class CoreCalculationCurrentProjection(Base):
             unique=True,
             postgresql_where=text("run_id IS NOT NULL AND ticker IS NULL"),
             sqlite_where=text("run_id IS NOT NULL AND ticker IS NULL"),
+        ),
+        Index(
+            "uq_core_current_projection_global_ticker_scope",
+            "artifact_kind",
+            "ticker",
+            "ranking_profile_key",
+            unique=True,
+            postgresql_where=text("run_id IS NULL AND ticker IS NOT NULL"),
+            sqlite_where=text("run_id IS NULL AND ticker IS NOT NULL"),
         ),
         Index(
             "uq_core_current_projection_global_scope",

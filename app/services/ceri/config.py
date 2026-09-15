@@ -306,6 +306,14 @@ def ceri_config_hash(config: CeriConfig | CatalystTaxonomyConfig | dict[str, Any
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def ceri_config_payload(
+    config: CeriConfig | CatalystTaxonomyConfig | dict[str, Any],
+) -> dict[str, Any]:
+    """Return the fully resolved payload whose digest is the CERI config hash."""
+
+    return _normalized_data(config)
+
+
 def _parse_engine(raw: dict[str, Any]) -> EngineConfig:
     timezone = _required_text(raw, "engine.timezone")
     if timezone != CERI_DAILY_CUTOFF_TIMEZONE:

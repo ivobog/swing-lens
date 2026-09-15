@@ -1025,6 +1025,9 @@ class CeriScoreSnapshot(Base):
     __tablename__ = "ceri_score_snapshots"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     controlled_replay_id: Mapped[int | None] = mapped_column(
         ForeignKey("ceri_controlled_replays.id", ondelete="RESTRICT")
     )
@@ -1094,6 +1097,7 @@ class CeriScoreSnapshot(Base):
             name="uq_ceri_score_snapshots_controlled_replay_company",
         ),
         Index("ix_ceri_score_snapshots_controlled_replay", "controlled_replay_id"),
+        Index("ix_ceri_score_snapshots_evidence", "evidence_id"),
     )
 
 
