@@ -219,7 +219,7 @@ def test_combined_identity_fingerprint_is_stable_and_materially_sensitive(monkey
     )
 
 
-def test_identity_incompatible_combined_replacement_is_rejected(monkeypatch) -> None:
+def test_new_combined_identity_may_advance_current_projection(monkeypatch) -> None:
     row, fundamental, technical, _ = _identity_aware_sources()
     _patch_combined(monkeypatch, row, fundamental, technical)
     existing = combined_decision.refresh_combined_results(FakeDb(), RUN_ID)[0]
@@ -232,10 +232,11 @@ def test_identity_incompatible_combined_replacement_is_rejected(monkeypatch) -> 
         )
     )
     _patch_combined(monkeypatch, changed_row, changed_fundamental, changed_technical)
-    monkeypatch.setattr(combined_decision, "_combined_for_run", lambda *_: [existing])
-
-    with pytest.raises(ValueError, match="CALCULATION_IDENTITY_PERSISTENCE_CONFLICT"):
-        combined_decision.refresh_combined_results(FakeDb(), RUN_ID)
+    replacement = combined_decision.refresh_combined_results(FakeDb(), RUN_ID)[0]
+    assert (
+        replacement.debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY]
+        != existing.debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY]
+    )
 
 
 def test_ranking_compatible_inputs_and_profile_config_produce_distinct_identity(
@@ -319,18 +320,20 @@ def test_temporally_safe_but_config_wrong_ibmi_is_omitted(monkeypatch) -> None:
     assert result.debug_json["inputs"]["ibkr_liquidity_classification"] is None
 
 
-def test_identity_incompatible_ranking_upsert_is_rejected(monkeypatch) -> None:
+def test_new_ranking_identity_may_advance_current_projection(monkeypatch) -> None:
     row, fundamental, technical, _ = _identity_aware_sources()
     profile = get_ranking_profile("quality_momentum")
     _patch_ranking(monkeypatch, row, fundamental, technical, profiles=[profile])
     db = FakeDb()
     first = ranking_profile_service.refresh_all_ranking_profiles(db, RUN_ID)
     assert len(first) == 1
+    original_fingerprint = first[0].debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY]
 
     changed = replace(profile, description="materially changed profile identity")
     monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: [changed])
-    with pytest.raises(ValueError, match="CALCULATION_IDENTITY_PERSISTENCE_CONFLICT"):
-        ranking_profile_service.refresh_all_ranking_profiles(db, RUN_ID)
+    second = ranking_profile_service.refresh_all_ranking_profiles(db, RUN_ID)
+    assert second[0] is first[0]
+    assert second[0].debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY] != original_fingerprint
 
 
 def test_legacy_ranking_row_is_explicitly_replaced_not_upgraded(monkeypatch) -> None:
@@ -471,7 +474,6 @@ def _patch_combined(monkeypatch, row, fundamental, technical) -> None:
     monkeypatch.setattr(combined_decision, "_rows_for_run", lambda *_: [row])
     monkeypatch.setattr(combined_decision, "_fundamentals_for_run", lambda *_: [fundamental])
     monkeypatch.setattr(combined_decision, "_technicals_for_run", lambda *_: [technical])
-    monkeypatch.setattr(combined_decision, "_combined_for_run", lambda *_: [])
     monkeypatch.setattr(combined_decision, "_load_scoring_config", _scoring_config)
 
 

@@ -597,6 +597,16 @@ class SetupLifecycleSnapshotBuilder:
             "ranking_result_id": getattr(context.ranking_results[0], "id", None)
             if context.ranking_results
             else None,
+            "fundamental_evidence_id": getattr(
+                context.fundamental_score, "evidence_id", None
+            ),
+            "technical_evidence_id": getattr(context.technical_score, "evidence_id", None),
+            "combined_evidence_id": getattr(context.combined_result, "evidence_id", None),
+            "ranking_evidence_id": getattr(
+                context.ranking_results[0], "evidence_id", None
+            )
+            if context.ranking_results
+            else None,
             "market_regime_snapshot_id": getattr(context.market_regime_snapshot, "id", None),
             "sector_rotation_snapshot_id": getattr(context.sector_rotation_snapshot, "id", None),
         }

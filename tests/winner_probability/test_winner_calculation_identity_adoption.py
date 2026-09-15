@@ -60,6 +60,10 @@ def test_canonical_capture_validates_sources_then_freezes_identity() -> None:
         "technical_score_id": 31,
         "combined_result_id": 41,
         "ranking_result_id": 51,
+        "fundamental_evidence_id": 121,
+        "technical_evidence_id": 131,
+        "combined_evidence_id": 141,
+        "ranking_evidence_id": 151,
         "market_regime_snapshot_id": 61,
         "sector_rotation_snapshot_id": 71,
         "sector_rotation_row_id": 81,
@@ -297,13 +301,14 @@ def _identity_context(
         pipeline_id=999,
         ticker="MSFT",
     )
-    for name, artifact in (
-        ("fundamental", ticker_context.fundamental_score),
-        ("technical", ticker_context.technical_score),
-        ("combined", ticker_context.combined_result),
-        ("ranking", ticker_context.ranking_results[0]),
+    for name, artifact, evidence_id in (
+        ("fundamental", ticker_context.fundamental_score, 121),
+        ("technical", ticker_context.technical_score, 131),
+        ("combined", ticker_context.combined_result, 141),
+        ("ranking", ticker_context.ranking_results[0], 151),
     ):
         artifact.debug_json = _debug(_producer(wrong if wrong_source == name else base, name))
+        artifact.evidence_id = evidence_id
 
     regime_config = load_market_regime_command_center_config()
     market = context.market_regime_snapshot

@@ -36,6 +36,7 @@ from app.services.combined_ranking_identity import (
     technical_score_identity,
     validate_ibmi_liquidity_for_ranking,
 )
+from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
 from app.services.ib_market_intelligence.config import (
     load_ib_market_intelligence_config,
 )
@@ -186,7 +187,7 @@ def refresh_all_ranking_profiles(
             models.append(_to_ranking_model(run_id, decision, identity))
         desired.extend(models)
 
-    return _persist_rankings(db, run_id=run_id, desired=desired)
+    return _persist_rankings(db, run_id=run_id, desired=desired, source_rows=validated)
 
 
 def refresh_ranking_profile(
@@ -255,7 +256,7 @@ def refresh_ranking_profile(
             ),
         )
         models.append(_to_ranking_model(run_id, decision, identity))
-    return _persist_rankings(db, run_id=run_id, desired=models)
+    return _persist_rankings(db, run_id=run_id, desired=models, source_rows=validated)
 
 
 def _persist_rankings(
@@ -263,6 +264,7 @@ def _persist_rankings(
     *,
     run_id: int,
     desired: list[RankingResult],
+    source_rows: dict[str, _ValidatedRankingSources] | None = None,
 ) -> list[RankingResult]:
     existing = {
         (row.ranking_profile, row.ticker.upper()): row for row in _existing_rankings(db, run_id)
@@ -289,6 +291,22 @@ def _persist_rankings(
     if added:
         db.add_all(added)
     db.flush()
+    if isinstance(db, Session):
+        for result in persisted:
+            item = (source_rows or {}).get(result.ticker.upper())
+            if item is None:
+                raise ValueError(
+                    f"EVIDENCE_UNAVAILABLE: Ranking source rows missing for {result.ticker}"
+                )
+            persist_core_evidence(
+                db,
+                kind=CoreEvidenceKind.RANKING,
+                current_row=result,
+                sources={
+                    "fundamental": item.fundamental,
+                    "technical": item.technical,
+                },
+            )
     return persisted
 
 
@@ -307,16 +325,8 @@ def _preflight_ranking_persistence(
         current = existing.get((candidate.ranking_profile, candidate.ticker.upper()))
         if current is None:
             continue
-        current_identity = calculation_identity_from_debug(current.debug_json)
-        if current_identity is None:
+        if calculation_identity_from_debug(current.debug_json) is None:
             continue
-        if current_identity.fingerprint() != candidate_identity.fingerprint():
-            raise ValueError(
-                "CALCULATION_IDENTITY_PERSISTENCE_CONFLICT: consumer=RankingResult "
-                f"profile={candidate.ranking_profile} ticker={candidate.ticker} "
-                f"existing={current_identity.fingerprint()} "
-                f"desired={candidate_identity.fingerprint()}"
-            )
 
 
 def _replace_legacy_ranking(
@@ -348,7 +358,15 @@ def _existing_rankings(db: Session, run_id: int) -> list[RankingResult]:
 
 
 def _copy_ranking_values(target: RankingResult, source: RankingResult) -> None:
-    immutable = {"id", "run_id", "ranking_profile", "ticker", "created_at", "updated_at"}
+    immutable = {
+        "id",
+        "run_id",
+        "ranking_profile",
+        "ticker",
+        "evidence_id",
+        "created_at",
+        "updated_at",
+    }
     for column in RankingResult.__table__.columns:
         if column.name not in immutable:
             setattr(target, column.name, getattr(source, column.name))

@@ -7,6 +7,7 @@ from app.services.combined_ranking_identity import (
     build_fundamental_score_identity,
     embed_calculation_identity,
 )
+from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
 from app.services.fundamental_ranker_v2 import score_rows_v2
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.upload_service import _fundamental_score_from_v2
@@ -58,6 +59,11 @@ def recalculate_run_fundamentals(
     db.execute(delete(FundamentalScore).where(FundamentalScore.run_id == run_id))
     db.add_all(scores)
     db.flush()
+    if isinstance(db, Session):
+        for score in scores:
+            persist_core_evidence(
+                db, kind=CoreEvidenceKind.FUNDAMENTAL, current_row=score
+            )
     return scores
 
 

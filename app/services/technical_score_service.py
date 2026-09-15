@@ -19,6 +19,7 @@ from app.services.combined_ranking_identity import (
     build_technical_score_identity,
     embed_calculation_identity,
 )
+from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.leadership_v5 import rank_leadership_v5
 from app.services.market_calculation_context_service import (
@@ -447,6 +448,11 @@ def finalize_technical_scores(
     if persist:
         db.add_all(scores)
         db.flush()
+        if isinstance(db, Session):
+            for score in scores:
+                persist_core_evidence(
+                    db, kind=CoreEvidenceKind.TECHNICAL, current_row=score
+                )
     return scores
 
 

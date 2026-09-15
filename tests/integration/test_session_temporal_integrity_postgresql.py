@@ -31,7 +31,7 @@ def test_market_calculation_context_migration_on_disposable_postgresql(
     with engine.connect() as connection:
         assert tuple(
             connection.execute(text("SELECT version_num FROM alembic_version")).scalars()
-        ) == ("0074_ceri_evidence_quarantine",)
+        ) == ("0075_core_immutable_evidence",)
 
     context_columns = {
         item["name"]: item for item in schema.get_columns("market_calculation_contexts")

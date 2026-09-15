@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     func,
     text,
 )
@@ -371,6 +372,120 @@ class TechnicalFeatureArtifact(Base):
     )
 
 
+class CoreCalculationEvidence(Base):
+    """Append-only Phase-2 evidence for one exact core calculation output."""
+
+    __tablename__ = "core_calculation_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    artifact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    ranking_profile: Mapped[str | None] = mapped_column(Text)
+    calculation_identity_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_identity_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    source_evidence_ids_json: Mapped[dict[str, int]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING')",
+            name="ck_core_calculation_evidence_kind",
+        ),
+        UniqueConstraint("evidence_key", name="uq_core_calculation_evidence_key"),
+        Index(
+            "idx_core_evidence_identity",
+            "artifact_kind",
+            "calculation_identity_fingerprint",
+        ),
+        Index("idx_core_evidence_scope", "artifact_kind", "run_id", "ticker"),
+    )
+
+
+class CoreCalculationEvidenceSource(Base):
+    """Immutable graph edge pinning Combined/Ranking evidence to upstream evidence."""
+
+    __tablename__ = "core_calculation_evidence_sources"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "evidence_id", "source_role", name="uq_core_evidence_source_role"
+        ),
+        CheckConstraint(
+            "evidence_id <> source_evidence_id", name="ck_core_evidence_source_not_self"
+        ),
+        Index("idx_core_evidence_source_upstream", "source_evidence_id"),
+    )
+
+
+class CoreCalculationCurrentProjection(Base):
+    """Mutable pointer to preferred evidence; never itself historical evidence."""
+
+    __tablename__ = "core_calculation_current_projections"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    artifact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    ranking_profile_key: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING')",
+            name="ck_core_current_projection_kind",
+        ),
+        UniqueConstraint(
+            "artifact_kind",
+            "run_id",
+            "ticker",
+            "ranking_profile_key",
+            name="uq_core_current_projection_scope",
+        ),
+        Index("idx_core_current_projection_evidence", "evidence_id"),
+    )
+
+
+def _reject_core_evidence_mutation(_mapper: Any, _connection: Any, target: Any) -> None:
+    raise ValueError(
+        f"IMMUTABLE_EVIDENCE_MUTATION_REJECTED: {target.__class__.__name__} "
+        f"id={getattr(target, 'id', None)}"
+    )
+
+
+for _immutable_model in (CoreCalculationEvidence, CoreCalculationEvidenceSource):
+    event.listen(_immutable_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_immutable_model, "before_delete", _reject_core_evidence_mutation)
+
+
 class FundamentalScore(Base):
     __tablename__ = "fundamental_scores"
 
@@ -380,6 +495,9 @@ class FundamentalScore(Base):
         nullable=False,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     growth_score: Mapped[Decimal | None] = mapped_column(Numeric)
     profitability_score: Mapped[Decimal | None] = mapped_column(Numeric)
     fcf_score: Mapped[Decimal | None] = mapped_column(Numeric)
@@ -430,6 +548,9 @@ class TechnicalScore(Base):
         nullable=False,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     calculation_context_id: Mapped[int | None] = mapped_column(
         ForeignKey("market_calculation_contexts.id", ondelete="SET NULL"), nullable=True
     )
@@ -520,6 +641,9 @@ class CombinedResult(Base):
         nullable=False,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     company_name: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(Text)
     final_rank: Mapped[int | None]
@@ -605,6 +729,9 @@ class RankingResult(Base):
         nullable=True,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     company_name: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(Text)
     ranking_profile: Mapped[str] = mapped_column(Text, nullable=False)

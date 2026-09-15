@@ -27,7 +27,6 @@ from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.combined_ranking_identity import (
     COMBINED_INPUT_COMPATIBILITY,
     build_combined_result_identity,
-    calculation_identity_from_debug,
     cohort_identity_fingerprint,
     embed_calculation_identity,
     fundamental_score_identity,
@@ -36,6 +35,7 @@ from app.services.combined_ranking_identity import (
     technical_score_identity,
 )
 from app.services.confidence_service import build_combined_warning_flags
+from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
 from app.services.earnings_date_parser import MISSING_EARNINGS_DATE_VALUES
 from app.services.earnings_risk_service import (
     EarningsRiskResult,
@@ -213,8 +213,6 @@ def refresh_combined_results(
         )
         for index, (decision, identity) in enumerate(decisions_with_identity, start=1)
     ]
-    _assert_combined_replacement_safe(db, run_id=run_id, desired=results)
-
     db.execute(
         update(WinnerPredictionSnapshot)
         .where(WinnerPredictionSnapshot.run_id == run_id)
@@ -224,6 +222,17 @@ def refresh_combined_results(
     db.execute(delete(CombinedResult).where(CombinedResult.run_id == run_id))
     db.add_all(results)
     db.flush()
+    if isinstance(db, Session):
+        for result in results:
+            persist_core_evidence(
+                db,
+                kind=CoreEvidenceKind.COMBINED,
+                current_row=result,
+                sources={
+                    "fundamental": fundamentals[result.ticker.upper()],
+                    "technical": technicals[result.ticker.upper()],
+                },
+            )
     return results
 
 
@@ -493,40 +502,6 @@ def _to_model(
         config_hash=decision.debug_evidence["config_hash"],
         debug_json=debug_json,
     )
-
-
-def _assert_combined_replacement_safe(
-    db: Session,
-    *,
-    run_id: int,
-    desired: list[CombinedResult],
-) -> None:
-    existing = {row.ticker.upper(): row for row in _combined_for_run(db, run_id)}
-    for candidate in desired:
-        current = existing.get(candidate.ticker.upper())
-        if current is None:
-            continue
-        current_identity = calculation_identity_from_debug(current.debug_json)
-        if current_identity is None:
-            # A legacy row is explicitly replaced by a newly inserted identity-aware row.
-            continue
-        desired_identity = calculation_identity_from_debug(candidate.debug_json)
-        if (
-            desired_identity is None
-            or current_identity.fingerprint() != desired_identity.fingerprint()
-        ):
-            raise ValueError(
-                "CALCULATION_IDENTITY_PERSISTENCE_CONFLICT: consumer=CombinedResult "
-                f"ticker={candidate.ticker} existing={current_identity.fingerprint()} "
-                f"desired={desired_identity.fingerprint() if desired_identity else 'UNKNOWN'}"
-            )
-
-
-def _combined_for_run(db: Session, run_id: int) -> list[CombinedResult]:
-    scalars = getattr(db, "scalars", None)
-    if not callable(scalars):
-        return []
-    return list(scalars(select(CombinedResult).where(CombinedResult.run_id == run_id)))
 
 
 def _validate_explicit_pipeline_context(
