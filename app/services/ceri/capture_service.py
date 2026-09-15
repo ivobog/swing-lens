@@ -56,8 +56,12 @@ from app.services.contextual_calculation_identity import (
     identity_metadata,
     pipeline_id_for_cutoff,
 )
+from app.services.core_calculation_evidence import EvidenceUnavailableError
 from app.services.ib_market_intelligence.calculations import options_event_premium_score
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+from app.services.ib_market_intelligence.decision_evidence import (
+    get_certified_ibmi_evidence,
+)
 from app.services.market_calculation_context_service import standalone_market_context
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.settings import get_settings
@@ -1078,7 +1082,7 @@ def _point_in_time_volatility_feature(
         identity = build_ibmi_feature_identity(row)
         if ibmi_contextual_compatibility(
             expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
-        ).accepted:
+        ).accepted and _ibmi_feature_is_certified(db, row):
             if row.coverage_status != "AVAILABLE":
                 return None
             return _VolatilityRiskFeature(
@@ -1149,7 +1153,7 @@ def _point_in_time_short_pressure_feature(
         identity = build_ibmi_feature_identity(row)
         if ibmi_contextual_compatibility(
             expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
-        ).accepted:
+        ).accepted and _ibmi_feature_is_certified(db, row):
             if row.coverage_status != "AVAILABLE":
                 return None
             return _ShortPressureContextFeature(
@@ -1158,6 +1162,16 @@ def _point_in_time_short_pressure_feature(
                 source_identity=identity,
             )
     return None
+
+
+def _ibmi_feature_is_certified(db: Session, row: IBIntelligenceFeature) -> bool:
+    if not isinstance(db, Session):
+        return True
+    try:
+        get_certified_ibmi_evidence(db, row)
+    except EvidenceUnavailableError:
+        return False
+    return True
 
 
 def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:

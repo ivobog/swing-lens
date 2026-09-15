@@ -295,6 +295,12 @@ def operations(db: Session) -> dict[str, Any]:
 def _feature_dict(row: IBIntelligenceFeature) -> dict[str, Any]:
     return {
         "id": row.id,
+        "evidence_id": row.evidence_id,
+        "evidence_state": (
+            "CERTIFIED_IMMUTABLE"
+            if row.evidence_id is not None
+            else "LEGACY_CURRENT/LEGACY_UNKNOWN"
+        ),
         "ticker": row.ticker,
         "module": row.module,
         "as_of_session": row.as_of_session,

@@ -400,7 +400,7 @@ class CoreCalculationEvidence(Base):
     __table_args__ = (
         CheckConstraint(
             "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
-            "'REGIME', 'SECTOR', 'CERI')",
+            "'REGIME', 'SECTOR', 'CERI', 'IBMI')",
             name="ck_core_calculation_evidence_kind",
         ),
         UniqueConstraint("evidence_key", name="uq_core_calculation_evidence_key"),
@@ -462,7 +462,7 @@ class CoreCalculationCurrentProjection(Base):
     __table_args__ = (
         CheckConstraint(
             "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
-            "'REGIME', 'SECTOR', 'CERI')",
+            "'REGIME', 'SECTOR', 'CERI', 'IBMI')",
             name="ck_core_current_projection_kind",
         ),
         Index(

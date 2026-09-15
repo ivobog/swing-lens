@@ -85,7 +85,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
         assert outcome == "REVISED" and row.revision_count == 1
         db.commit()
         revisions = db.scalars(select(IBHistoricalMetricRevision)).all()
-        assert len(revisions) == 1
+        assert [item.revision_number for item in revisions] == [0, 1]
 
         report = (
             "AccountId,TradeID,TradeDate,TradeTime,Symbol,Buy/Sell,Quantity,"

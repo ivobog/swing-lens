@@ -82,6 +82,21 @@ def persist_historical_metric_bar(
         )
         db.add(row)
         db.flush()
+        # Revision zero is the immutable address of the initial provider state.
+        # Later corrections continue to use the existing transition rows (1..N),
+        # whose ``new_*`` fields identify each subsequent state.
+        db.add(
+            IBHistoricalMetricRevision(
+                metric_bar_id=row.id,
+                revision_number=0,
+                previous_data_hash=digest,
+                new_data_hash=digest,
+                previous_values_json=values,
+                new_values_json=values,
+                observed_at=observed_at,
+            )
+        )
+        db.flush()
         return row, "INSERTED"
     existing.last_seen_at = observed_at
     existing.intelligence_run_id = intelligence_run_id or existing.intelligence_run_id
@@ -267,12 +282,29 @@ def persist_feature(
     intelligence_run_id: int | None = None,
     calculated_at: datetime | None = None,
     calculation_cutoff_at: datetime | None = None,
+    constituents: Any | None = None,
 ) -> tuple[IBIntelligenceFeature, bool]:
+    constituent_manifest = None
+    constituent_issues: tuple[str, ...] = ()
+    source_evidence_hashes = sorted(set(feature.evidence_hashes))
+    if constituents is not None:
+        from app.services.ib_market_intelligence.decision_evidence import (
+            build_ibmi_constituent_manifest,
+            constituent_fingerprint,
+        )
+
+        constituent_manifest, constituent_issues = build_ibmi_constituent_manifest(
+            db, constituents
+        )
+        if not constituent_issues:
+            source_evidence_hashes = sorted(
+                {*source_evidence_hashes, constituent_fingerprint(constituent_manifest)}
+            )
     input_signature = evidence_hash(
         {
             "module": feature.module,
             "components": feature.components,
-            "evidence_hashes": feature.evidence_hashes,
+            "evidence_hashes": source_evidence_hashes,
             "classification": feature.classification,
             "score": feature.score,
             "confidence": str(feature.confidence),
@@ -291,9 +323,8 @@ def persist_feature(
         .where(IBIntelligenceFeature.config_hash == config.config_hash)
         .where(IBIntelligenceFeature.input_signature == input_signature)
     )
-    if existing is not None:
-        return existing, False
-    row = IBIntelligenceFeature(
+    inserted = existing is None
+    row = existing or IBIntelligenceFeature(
         intelligence_run_id=intelligence_run_id,
         ticker=ticker.upper(),
         ib_conid=ib_conid,
@@ -315,26 +346,38 @@ def persist_feature(
         components_json=feature.components,
         reasons_json=list(feature.reasons),
         warnings_json=list(feature.warnings),
-        source_evidence_hashes_json=list(feature.evidence_hashes),
+        source_evidence_hashes_json=source_evidence_hashes,
         source_version=config.source_version,
         calculation_version=config.calculation_version,
         config_hash=config.config_hash,
         input_signature=input_signature,
     )
-    db.add(row)
-    db.flush()
-    if str(feature.freshness_status) == "STALE":
+    if inserted:
+        db.add(row)
+        db.flush()
+    if constituents is not None and not constituent_issues and row.evidence_id is None:
+        from app.services.ib_market_intelligence.decision_evidence import (
+            persist_ibmi_feature_evidence,
+        )
+
+        persist_ibmi_feature_evidence(
+            db,
+            feature=row,
+            config=config,
+            constituent_manifest=constituent_manifest or {},
+        )
+    if inserted and str(feature.freshness_status) == "STALE":
         publish_after_commit(
             db, "increment", "swinglens_ibmi_stale_features_total", module=feature.module
         )
-    if str(feature.coverage_status) in {"FAILED", "UNAVAILABLE"}:
+    if inserted and str(feature.coverage_status) in {"FAILED", "UNAVAILABLE"}:
         publish_after_commit(
             db,
             "increment",
             "swinglens_ibmi_calculation_unavailable_total",
             module=feature.module,
         )
-    return row, True
+    return row, inserted
 
 
 def _decimal(value: Any) -> Decimal | None:

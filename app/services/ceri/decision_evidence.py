@@ -33,6 +33,9 @@ from app.services.core_calculation_evidence import (
     EvidenceUnavailableError,
     persist_core_evidence,
 )
+from app.services.ib_market_intelligence.decision_evidence import (
+    get_certified_ibmi_evidence,
+)
 from app.services.price_bar_repository import project_price_bar_rows_as_of
 
 CERI_DECISION_EVIDENCE_SCHEMA_VERSION = "ceri-decision-evidence-v1"
@@ -69,10 +72,15 @@ def persist_ceri_decision_evidence(
                 "EVIDENCE_UNAVAILABLE: CERI Calculation Identity/config mismatch"
             )
 
+    source_manifest = build_ceri_source_manifest(db, snapshot)
+    ibmi_sources = {
+        f"ibmi_{feature.module.lower()}": feature
+        for feature in _ibmi_features(db, snapshot)
+    }
     payload = {
         "schema_version": CERI_DECISION_EVIDENCE_SCHEMA_VERSION,
         "decision_output": _row_payload(snapshot, excluded={"id", "evidence_id"}),
-        "source_manifest": build_ceri_source_manifest(db, snapshot),
+        "source_manifest": source_manifest,
         "effective_rule_payload": {
             "schema_version": CERI_DECISION_RULE_VERSION,
             "declared_config_hash": config.config_hash,
@@ -92,6 +100,7 @@ def persist_ceri_decision_evidence(
         db,
         kind=CoreEvidenceKind.CERI,
         current_row=snapshot,
+        sources=ibmi_sources,
         payload=payload,
         scope_profile=(
             f"controlled-replay:{snapshot.controlled_replay_id}"
@@ -231,24 +240,24 @@ def build_ceri_source_manifest(
                 min(later, key=lambda row: (row.observed_at, row.revision_number, row.id))
             )
 
-    ibmi_features = _required_rows(
-        db,
-        IBIntelligenceFeature,
-        {
-            *_ints(lineage.get("ib_volatility_feature_ids")),
-            *_ints(lineage.get("ib_short_pressure_feature_ids")),
-        },
-        "IBMI features",
-    )
+    ibmi_features = _ibmi_features(db, snapshot)
     ibmi_payload = []
     for feature in ibmi_features:
         identity = build_ibmi_feature_identity(feature)
+        evidence = get_certified_ibmi_evidence(db, feature)
         ibmi_payload.append(
             {
-                "row": _row_payload(feature),
+                "feature_id": int(feature.id),
+                "module": feature.module,
+                "immutable_evidence_id": int(evidence.id),
+                "immutable_evidence_key": evidence.evidence_key,
+                "immutable_payload_fingerprint": evidence.payload_fingerprint,
+                "constituent_fingerprint": evidence.payload_json.get(
+                    "constituent_fingerprint"
+                ),
                 "calculation_identity": identity.canonical_payload(),
                 "calculation_identity_fingerprint": str(identity.fingerprint()),
-                "phase2_constituent_certification": "DEFERRED_T11B3",
+                "phase2_constituent_certification": "CERTIFIED_T11B3",
             }
         )
 
@@ -297,6 +306,19 @@ def build_ceri_source_manifest(
             "price_bar_projection_boundaries": _payloads(projection_boundaries),
             "ibmi_features": ibmi_payload,
         }
+    )
+
+
+def _ibmi_features(db: Session, snapshot: CeriScoreSnapshot) -> list[IBIntelligenceFeature]:
+    lineage = dict(snapshot.evidence_lineage_json or {})
+    return _required_rows(
+        db,
+        IBIntelligenceFeature,
+        {
+            *_ints(lineage.get("ib_volatility_feature_ids")),
+            *_ints(lineage.get("ib_short_pressure_feature_ids")),
+        },
+        "IBMI features",
     )
 
 

@@ -25,6 +25,7 @@ class CoreEvidenceKind(StrEnum):
     REGIME = "REGIME"
     SECTOR = "SECTOR"
     CERI = "CERI"
+    IBMI = "IBMI"
 
 
 class EvidenceUnavailableError(LookupError):
@@ -48,6 +49,7 @@ def persist_core_evidence(
     payload: dict[str, Any] | None = None,
     scope_ticker: str | None | object = _SCOPE_UNSET,
     scope_profile: str | None | object = _SCOPE_UNSET,
+    calculation_identity: CalculationIdentity | None = None,
 ) -> CoreCalculationEvidence | None:
     """Persist/reuse immutable evidence and advance its independent current pointer.
 
@@ -55,10 +57,12 @@ def persist_core_evidence(
     They are never promoted into the evidence ledger.
     """
 
-    identity_payload = getattr(current_row, "debug_json", None)
-    if identity_payload is None:
-        identity_payload = getattr(current_row, "evidence_lineage_json", None)
-    identity = calculation_identity_from_debug(identity_payload)
+    identity = calculation_identity
+    if identity is None:
+        identity_payload = getattr(current_row, "debug_json", None)
+        if identity_payload is None:
+            identity_payload = getattr(current_row, "evidence_lineage_json", None)
+        identity = calculation_identity_from_debug(identity_payload)
     if identity is None:
         return None
 

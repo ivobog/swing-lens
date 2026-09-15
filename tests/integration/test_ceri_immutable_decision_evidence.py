@@ -57,6 +57,7 @@ from app.services.ceri.purge_service import (
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.contextual_calculation_identity import (
     build_contextual_result_identity,
+    build_ibmi_feature_identity,
     consumer_context_identity,
     identity_metadata,
 )
@@ -65,6 +66,7 @@ from app.services.core_calculation_evidence import (
     EvidenceUnavailableError,
     get_current_evidence,
     get_evidence_for_identity,
+    persist_core_evidence,
 )
 from app.services.market_clock_service import MarketCalculationCutoff
 
@@ -425,7 +427,7 @@ def test_phase1_identity_is_retained_in_ceri_evidence(evidence_db: Session) -> N
     assert sealed.calculation_identity_fingerprint == str(identity.fingerprint())
 
 
-def test_ibmi_reference_retains_existing_phase1_identity(evidence_db: Session) -> None:
+def test_legacy_ibmi_reference_cannot_certify_ceri_evidence(evidence_db: Session) -> None:
     cutoff = _cutoff(8)
     ibmi = IBIntelligenceFeature(
         id=701,
@@ -477,6 +479,23 @@ def test_ibmi_reference_retains_existing_phase1_identity(evidence_db: Session) -
     snapshot = _snapshot(run_id=8, lineage=lineage, config=config)
     snapshot.cutoff_at = cutoff.cutoff_at
     snapshot.as_of_session = cutoff.latest_completed_session
+    with pytest.raises(EvidenceUnavailableError, match="LEGACY_CURRENT/LEGACY_UNKNOWN"):
+        CeriSnapshotService(config=config).persist_snapshot(evidence_db, snapshot)
+
+    ibmi_evidence = persist_core_evidence(
+        evidence_db,
+        kind=CoreEvidenceKind.IBMI,
+        current_row=ibmi,
+        payload={
+            "schema_version": "ibmi-feature-evidence-v1",
+            "constituent_fingerprint": "c" * 64,
+            "constituent_manifest": {"historical_metric_states": []},
+        },
+        scope_ticker="ACME",
+        scope_profile="VOLATILITY",
+        calculation_identity=build_ibmi_feature_identity(ibmi),
+    )
+    assert ibmi_evidence is not None
     CeriSnapshotService(config=config).persist_snapshot(evidence_db, snapshot)
     sealed = get_evidence_for_identity(
         evidence_db,
@@ -485,9 +504,9 @@ def test_ibmi_reference_retains_existing_phase1_identity(evidence_db: Session) -
         ticker="ACME",
     )
     reference = sealed.payload_json["source_manifest"]["ibmi_features"][0]
-    assert reference["row"]["id"] == 701
-    assert len(reference["calculation_identity_fingerprint"]) == 64
-    assert reference["phase2_constituent_certification"] == "DEFERRED_T11B3"
+    assert reference["immutable_evidence_id"] == ibmi_evidence.id
+    assert reference["phase2_constituent_certification"] == "CERTIFIED_T11B3"
+    assert sealed.source_evidence_ids_json == {"ibmi_volatility": ibmi_evidence.id}
 
 
 def _source(

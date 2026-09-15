@@ -194,6 +194,9 @@ class IBIntelligenceFeature(Base):
     __tablename__ = "ib_intelligence_features"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     intelligence_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("ib_intelligence_runs.id", ondelete="SET NULL")
     )
@@ -229,6 +232,7 @@ class IBIntelligenceFeature(Base):
             name="uq_ib_intelligence_feature_version",
         ),
         Index("ix_ib_intelligence_feature_latest", "ticker", "module", "as_of_session"),
+        Index("ix_ib_intelligence_feature_evidence", "evidence_id"),
     )
 
 

@@ -36,9 +36,16 @@ from app.services.combined_ranking_identity import (
     technical_score_identity,
     validate_ibmi_liquidity_for_ranking,
 )
-from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    EvidenceUnavailableError,
+    persist_core_evidence,
+)
 from app.services.ib_market_intelligence.config import (
     load_ib_market_intelligence_config,
+)
+from app.services.ib_market_intelligence.decision_evidence import (
+    get_certified_ibmi_evidence,
 )
 from app.services.market_calculation_context_service import (
     calculation_identity_from_market_context,
@@ -143,11 +150,13 @@ def refresh_all_ranking_profiles(
     evaluation_date = _validated_evaluation_date(validated, today=today)
     liquidity_features = _load_liquidity_features(db, calculation_cutoff)
     safe_liquidity, liquidity_identities = _identity_safe_liquidity(
+        db,
         liquidity_features,
         validated=validated,
     )
 
     desired: list[RankingResult] = []
+    ranking_ibmi_sources: dict[tuple[str, str], IBIntelligenceFeature] = {}
     for profile in profiles:
         profile_liquidity = safe_liquidity if profile.tradeability_overlay.enabled else {}
         decisions = rank_profile(
@@ -171,6 +180,8 @@ def refresh_all_ranking_profiles(
         for decision in decisions:
             item = validated[decision.ticker]
             liquidity = profile_liquidity.get(decision.ticker)
+            if liquidity is not None:
+                ranking_ibmi_sources[(profile.name, decision.ticker.upper())] = liquidity
             liquidity_identity = liquidity_identities.get(decision.ticker)
             identity = build_ranking_result_identity(
                 fundamental_identity=item.fundamental_identity,
@@ -187,7 +198,13 @@ def refresh_all_ranking_profiles(
             models.append(_to_ranking_model(run_id, decision, identity))
         desired.extend(models)
 
-    return _persist_rankings(db, run_id=run_id, desired=desired, source_rows=validated)
+    return _persist_rankings(
+        db,
+        run_id=run_id,
+        desired=desired,
+        source_rows=validated,
+        ibmi_sources=ranking_ibmi_sources,
+    )
 
 
 def refresh_ranking_profile(
@@ -215,6 +232,7 @@ def refresh_ranking_profile(
     evaluation_date = _validated_evaluation_date(validated, today=today)
     liquidity_features = _load_liquidity_features(db, calculation_cutoff)
     safe_liquidity, liquidity_identities = _identity_safe_liquidity(
+        db,
         liquidity_features,
         validated=validated,
     )
@@ -256,7 +274,16 @@ def refresh_ranking_profile(
             ),
         )
         models.append(_to_ranking_model(run_id, decision, identity))
-    return _persist_rankings(db, run_id=run_id, desired=models, source_rows=validated)
+    return _persist_rankings(
+        db,
+        run_id=run_id,
+        desired=models,
+        source_rows=validated,
+        ibmi_sources={
+            (profile.name, ticker.upper()): feature
+            for ticker, feature in profile_liquidity.items()
+        },
+    )
 
 
 def _persist_rankings(
@@ -265,6 +292,7 @@ def _persist_rankings(
     run_id: int,
     desired: list[RankingResult],
     source_rows: dict[str, _ValidatedRankingSources] | None = None,
+    ibmi_sources: dict[tuple[str, str], IBIntelligenceFeature] | None = None,
 ) -> list[RankingResult]:
     existing = {
         (row.ranking_profile, row.ticker.upper()): row for row in _existing_rankings(db, run_id)
@@ -298,14 +326,20 @@ def _persist_rankings(
                 raise ValueError(
                     f"EVIDENCE_UNAVAILABLE: Ranking source rows missing for {result.ticker}"
                 )
+            evidence_sources: dict[str, Any] = {
+                "fundamental": item.fundamental,
+                "technical": item.technical,
+            }
+            ibmi = (ibmi_sources or {}).get(
+                (result.ranking_profile, result.ticker.upper())
+            )
+            if ibmi is not None:
+                evidence_sources["ibmi_liquidity"] = ibmi
             persist_core_evidence(
                 db,
                 kind=CoreEvidenceKind.RANKING,
                 current_row=result,
-                sources={
-                    "fundamental": item.fundamental,
-                    "technical": item.technical,
-                },
+                sources=evidence_sources,
             )
     return persisted
 
@@ -625,6 +659,7 @@ def _validated_evaluation_date(
 
 
 def _identity_safe_liquidity(
+    db: Session,
     features: dict[str, IBIntelligenceFeature],
     *,
     validated: dict[str, _ValidatedRankingSources],
@@ -636,6 +671,15 @@ def _identity_safe_liquidity(
         source = validated.get(ticker)
         if source is None:
             continue
+        if isinstance(db, Session):
+            try:
+                get_certified_ibmi_evidence(db, feature)
+            except EvidenceUnavailableError:
+                logger.debug(
+                    "ranking optional IBMI liquidity omitted because immutable evidence is absent",
+                    extra={"ticker": ticker, "ibmi_feature_id": feature.id},
+                )
+                continue
         identity = build_ibmi_liquidity_identity(feature)
         result = validate_ibmi_liquidity_for_ranking(
             feature_identity=identity,
