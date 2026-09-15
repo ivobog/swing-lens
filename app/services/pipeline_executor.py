@@ -24,12 +24,14 @@ from app.models.tables import (
     RawCompanyRow,
     SectorRotationSnapshot,
     TechnicalScore,
+    TransitionDecisionHandoffManifest,
     UploadRun,
 )
 from app.observability.logging import log_event
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import JobLeaseLost, enqueue_job
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.constants import (
     CERI_PIPELINE_CAPTURE_STEP,
     CERI_PIPELINE_PROVIDER_INGEST_STEP,
@@ -38,6 +40,12 @@ from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.job_handlers import CERI_PROVIDER_INGEST
 from app.services.ceri.sec.pipeline_preflight import validate_sec_pipeline_preflight
 from app.services.combined_decision import refresh_combined_results
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    EvidenceUnavailableError,
+    calculation_evidence_payload,
+    get_certified_evidence_for_row,
+)
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, build_fetch_plan
@@ -1097,6 +1105,11 @@ def _validate_resume_checkpoint(
     }
     if any(count <= 0 for count in context_counts.values()):
         raise ValueError(f"Resume checkpoint is missing required market context: {context_counts}.")
+    certified_evidence = _validate_resume_evidence(
+        db,
+        pipeline=pipeline,
+        upload_run_id=upload_run_id,
+    )
     return {
         "resume_from_step": resume_from_step,
         "expected_tickers": expected,
@@ -1104,8 +1117,208 @@ def _validate_resume_checkpoint(
         "ranking_rows": ranking_rows,
         "technical_error_count": _technical_error_count(technical_scores),
         **context_counts,
+        **certified_evidence,
         "validated": True,
     }
+
+
+def _validate_resume_evidence(
+    db: Session,
+    *,
+    pipeline: PipelineRun,
+    upload_run_id: int,
+) -> dict[str, Any]:
+    """Prove resume inputs still match the frozen handoff and immutable evidence."""
+
+    handoff = db.scalar(
+        select(TransitionDecisionHandoffManifest).where(
+            TransitionDecisionHandoffManifest.pipeline_run_id == pipeline.id
+        )
+    )
+    if handoff is None:
+        raise ValueError(
+            "LEGACY_EVIDENCE_UNAVAILABLE: resume has no frozen decision handoff manifest"
+        )
+    manifest = dict(handoff.manifest_json or {})
+    if CanonicalEvidenceSerializer.fingerprint(manifest) != handoff.manifest_fingerprint:
+        raise ValueError(
+            "HISTORICAL_EVIDENCE_UNAVAILABLE: resume handoff manifest fingerprint mismatch"
+        )
+    binding = dict(manifest.get("run") or {})
+    market_context = dict(manifest.get("market_context") or {})
+    if (
+        binding.get("upload_run_id") != upload_run_id
+        or binding.get("pipeline_run_id") != pipeline.id
+        or market_context.get("id") != handoff.market_calculation_context_id
+    ):
+        raise ValueError(
+            "HISTORICAL_EVIDENCE_UNAVAILABLE: resume handoff ownership mismatch"
+        )
+
+    raw_rows = list(
+        db.scalars(
+            select(RawCompanyRow)
+            .where(RawCompanyRow.run_id == upload_run_id)
+            .order_by(RawCompanyRow.row_number)
+        )
+    )
+    fundamentals = _resume_rows_by_ticker(db, FundamentalScore, upload_run_id)
+    technicals = _resume_rows_by_ticker(db, TechnicalScore, upload_run_id)
+    combined = _resume_rows_by_ticker(db, CombinedResult, upload_run_id)
+    rankings = _resume_rankings_by_ticker(db, upload_run_id)
+    artifact_lineage = dict(manifest.get("artifact_lineage") or {})
+    certified_ids: set[int] = set()
+    for raw in raw_rows:
+        ticker = raw.ticker.strip().upper()
+        expected = artifact_lineage.get(ticker)
+        if not isinstance(expected, dict):
+            raise ValueError(
+                f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume handoff missing ticker {ticker}"
+            )
+        _require_manifest_artifact(raw, expected.get("raw_row"), label=f"{ticker}:raw")
+        for label, kind, row in (
+            ("fundamental_score", CoreEvidenceKind.FUNDAMENTAL, fundamentals.get(ticker)),
+            ("technical_score", CoreEvidenceKind.TECHNICAL, technicals.get(ticker)),
+            ("combined_result", CoreEvidenceKind.COMBINED, combined.get(ticker)),
+        ):
+            _require_manifest_artifact(row, expected.get(label), label=f"{ticker}:{label}")
+            certified_ids.add(_require_unchanged_core_evidence(db, kind=kind, row=row))
+        expected_rankings = list(expected.get("ranking_results") or [])
+        actual_rankings = rankings.get(ticker, [])
+        if len(expected_rankings) != len(actual_rankings):
+            raise ValueError(
+                f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume ranking set changed for {ticker}"
+            )
+        for expected_ranking, ranking in zip(expected_rankings, actual_rankings, strict=True):
+            _require_manifest_artifact(
+                ranking, expected_ranking, label=f"{ticker}:ranking:{ranking.ranking_profile}"
+            )
+            certified_ids.add(
+                _require_unchanged_core_evidence(
+                    db, kind=CoreEvidenceKind.RANKING, row=ranking
+                )
+            )
+        for label, kind, model in (
+            ("market_regime_snapshot", CoreEvidenceKind.REGIME, MarketRegimeSnapshot),
+            ("sector_rotation_snapshot", CoreEvidenceKind.SECTOR, SectorRotationSnapshot),
+        ):
+            certified_ids.add(
+                _require_frozen_context_evidence(
+                    db,
+                    kind=kind,
+                    model=model,
+                    expected=expected.get(label),
+                    label=f"{ticker}:{label}",
+                )
+            )
+    return {
+        "historical_read_mode": "CERTIFIED_EVIDENCE",
+        "certified_evidence_count": len(certified_ids),
+        "decision_handoff_manifest_id": handoff.id,
+        "decision_handoff_manifest_fingerprint": handoff.manifest_fingerprint,
+    }
+
+
+def _resume_rows_by_ticker(db: Session, model: type, run_id: int) -> dict[str, Any]:
+    rows = db.scalars(select(model).where(model.run_id == run_id)).all()
+    return {row.ticker.strip().upper(): row for row in rows}
+
+
+def _resume_rankings_by_ticker(db: Session, run_id: int) -> dict[str, list[RankingResult]]:
+    rows = db.scalars(
+        select(RankingResult)
+        .where(RankingResult.run_id == run_id)
+        .order_by(RankingResult.ticker, RankingResult.ranking_profile, RankingResult.id)
+    ).all()
+    grouped: dict[str, list[RankingResult]] = {}
+    for row in rows:
+        grouped.setdefault(row.ticker.strip().upper(), []).append(row)
+    return grouped
+
+
+def _require_manifest_artifact(row: Any, expected: Any, *, label: str) -> None:
+    if row is None or not isinstance(expected, dict):
+        raise ValueError(f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume artifact missing {label}")
+    actual = {
+        "id": getattr(row, "id", None),
+        "semantic_hash": CanonicalEvidenceSerializer.fingerprint(
+            {
+                column.name: getattr(row, column.name, None)
+                for column in row.__table__.columns
+                if column.name not in {"created_at", "updated_at", "last_seen_at", "calculated_at"}
+            }
+        ),
+    }
+    if actual != expected:
+        raise ValueError(
+            f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume artifact changed {label}"
+        )
+
+
+def _require_certified_pointer(db: Session, *, kind: CoreEvidenceKind, row: Any) -> int:
+    try:
+        return int(get_certified_evidence_for_row(db, kind=kind, current_row=row).id)
+    except EvidenceUnavailableError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def _require_frozen_context_evidence(
+    db: Session,
+    *,
+    kind: CoreEvidenceKind,
+    model: type,
+    expected: Any,
+    label: str,
+) -> int:
+    """Resolve the manifest-addressed context row, never a newer current revision."""
+
+    if not isinstance(expected, dict) or not isinstance(expected.get("id"), int):
+        raise ValueError(f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume artifact missing {label}")
+    row = db.get(model, int(expected["id"]))
+    if row is None:
+        raise ValueError(f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume artifact missing {label}")
+    try:
+        _require_manifest_artifact(row, expected, label=label)
+    except ValueError:
+        # Advancing a context revision only changes these selection fields on the
+        # frozen row.  Prove that exact mutation before accepting its immutable
+        # evidence pointer; any decision-field mutation still fails closed.
+        payload = {
+            column.name: getattr(row, column.name, None)
+            for column in row.__table__.columns
+            if column.name not in {"created_at", "updated_at", "last_seen_at", "calculated_at"}
+        }
+        payload.update(
+            {
+                "is_current_revision": True,
+                "superseded_by_snapshot_id": None,
+                "superseded_at": None,
+            }
+        )
+        if CanonicalEvidenceSerializer.fingerprint(payload) != expected.get("semantic_hash"):
+            raise
+    return _require_certified_pointer(db, kind=kind, row=row)
+
+
+def _require_unchanged_core_evidence(
+    db: Session,
+    *,
+    kind: CoreEvidenceKind,
+    row: Any,
+) -> int:
+    try:
+        evidence = get_certified_evidence_for_row(db, kind=kind, current_row=row)
+    except EvidenceUnavailableError as exc:
+        raise ValueError(str(exc)) from exc
+    if (
+        CanonicalEvidenceSerializer.fingerprint(calculation_evidence_payload(row))
+        != evidence.payload_fingerprint
+    ):
+        raise ValueError(
+            "HISTORICAL_EVIDENCE_UNAVAILABLE: resume compatibility row changed after evidence "
+            f"kind={kind.value} row={getattr(row, 'id', None)}"
+        )
+    return int(evidence.id)
 
 
 def _run_ticker_count(db: Session, model: type, run_id: int) -> int:

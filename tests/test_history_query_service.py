@@ -46,6 +46,7 @@ def test_paged_decisions_maps_sql_rows_to_decision_dtos() -> None:
         total=1,
         rows=[
             SimpleNamespace(
+                evidence_id=91,
                 run_id=7,
                 uploaded_at=datetime(2026, 7, 1),
                 rank=1,
@@ -100,12 +101,10 @@ def test_decisions_statement_applies_server_side_filters() -> None:
     )
     sql = str(statement)
 
-    assert "combined_results.combined_decision" in sql
-    assert "lower(combined_results.ticker)" in sql
-    assert "combined_results.sector" in sql
-    assert "combined_results.final_score" in sql
-    assert "combined_results.has_warning" in sql
-    assert "combined_results.is_complete" in sql
+    assert "core_calculation_evidence.artifact_kind" in sql
+    assert "lower(core_calculation_evidence.ticker)" in sql
+    assert "core_calculation_evidence.payload_json" in sql
+    assert "combined_results" not in sql
 
 
 class FakeExecuteResult:

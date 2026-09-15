@@ -18,6 +18,8 @@ from app.models.tables import (
 )
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
+from app.services.core_calculation_evidence import EvidenceUnavailableError
+from app.services.historical_read_service import ReadMode, evidence_view
 from app.services.redaction import redact_text
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.sector_rotation_export_service import (
@@ -84,6 +86,15 @@ def api_sector_rotation_snapshot(snapshot_id: int, db: DbSession) -> dict:
     snapshot = _snapshot_or_404(db, snapshot_id)
     repo = SectorRotationRepository()
     return snapshot_to_payload(snapshot, repo.get_snapshot_rows(db, snapshot.id))
+
+
+@router.get("/api/sector-rotation/evidence/{evidence_id}")
+def api_sector_rotation_evidence(evidence_id: int, db: DbSession) -> dict:
+    try:
+        evidence = SectorRotationRepository().evidence(db, evidence_id)
+    except EvidenceUnavailableError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return evidence_view(evidence, mode=ReadMode.EVIDENCE)
 
 
 @router.post("/api/runs/{run_id}/sector-rotation/recalculate")

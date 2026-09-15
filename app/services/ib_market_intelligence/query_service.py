@@ -19,6 +19,8 @@ from app.models.ib_market_intelligence_tables import (
     IBTradeEpisode,
     IBTradeResearchLink,
 )
+from app.services.historical_read_service import ReadMode, evidence_view
+from app.services.ib_market_intelligence.decision_evidence import get_ibmi_evidence
 from app.services.ib_market_intelligence.journal import journal_analytics
 from app.services.ib_market_intelligence.scanner_identity import (
     canonical_scanner_identity,
@@ -69,6 +71,7 @@ def overview(db: Session) -> dict[str, Any]:
 
 
 def latest_features(db: Session, *, ticker: str | None = None) -> list[dict[str, Any]]:
+    """Return the live/current feature projection, never historical reconstruction."""
     statement = select(IBIntelligenceFeature).order_by(
         IBIntelligenceFeature.as_of_session.desc(), IBIntelligenceFeature.calculated_at.desc()
     )
@@ -84,6 +87,12 @@ def latest_features(db: Session, *, ticker: str | None = None) -> list[dict[str,
         seen.add(key)
         result.append(_feature_dict(row))
     return sorted(result, key=lambda item: (item["ticker"], item["module"]))
+
+
+def feature_evidence(db: Session, *, evidence_id: int) -> dict[str, Any]:
+    """Return one exact immutable IBMI constituent envelope."""
+
+    return evidence_view(get_ibmi_evidence(db, evidence_id), mode=ReadMode.EVIDENCE)
 
 
 def scanner_runs(db: Session, *, limit: int = 50) -> dict[str, Any]:
@@ -294,6 +303,7 @@ def operations(db: Session) -> dict[str, Any]:
 
 def _feature_dict(row: IBIntelligenceFeature) -> dict[str, Any]:
     return {
+        "read_mode": "CURRENT_PROJECTION",
         "id": row.id,
         "evidence_id": row.evidence_id,
         "evidence_state": (

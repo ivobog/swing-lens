@@ -18,6 +18,7 @@ from app.services.combined_ranking_identity import calculation_identity_from_deb
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
+    get_evidence_by_id,
     persist_core_evidence,
 )
 
@@ -226,6 +227,7 @@ class SectorRotationRepository:
         db: Session,
         run_id: int,
     ) -> SectorRotationSnapshot | None:
+        """Return the explicit current compatibility projection for a run."""
         return db.scalar(
             select(SectorRotationSnapshot)
             .where(SectorRotationSnapshot.run_id == run_id)
@@ -354,6 +356,7 @@ class SectorRotationRepository:
         limit: int = 30,
         run_id: int | None = None,
     ) -> list[SectorRotationSnapshot]:
+        """Return recent compatibility projections for current dashboard browsing."""
         safe_limit = max(1, min(int(limit), 500))
         statement = select(SectorRotationSnapshot)
         if run_id is not None:
@@ -366,6 +369,13 @@ class SectorRotationRepository:
                     SectorRotationSnapshot.id.desc(),
                 ).limit(safe_limit)
             )
+        )
+
+    def evidence(self, db: Session, evidence_id: int):
+        """Return exact immutable Sector evidence without projection fallback."""
+
+        return get_evidence_by_id(
+            db, evidence_id=evidence_id, kind=CoreEvidenceKind.SECTOR
         )
 
     def _matching_snapshot(

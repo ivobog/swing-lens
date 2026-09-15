@@ -215,6 +215,56 @@ def get_evidence_for_identity(
     return rows[0]
 
 
+def get_evidence_by_id(
+    db: Session,
+    *,
+    evidence_id: int,
+    kind: CoreEvidenceKind | None = None,
+) -> CoreCalculationEvidence:
+    """Resolve one immutable envelope by ID; never consult a current projection."""
+
+    evidence = db.get(CoreCalculationEvidence, int(evidence_id))
+    if evidence is None or (kind is not None and evidence.artifact_kind != kind.value):
+        expected = kind.value if kind is not None else "ANY"
+        raise EvidenceUnavailableError(
+            "EVIDENCE_UNAVAILABLE: no immutable evidence "
+            f"id={evidence_id} kind={expected}"
+        )
+    return evidence
+
+
+def get_certified_evidence_for_row(
+    db: Session,
+    *,
+    kind: CoreEvidenceKind,
+    current_row: Any,
+) -> CoreCalculationEvidence:
+    """Follow a compatibility row's evidence pointer or reject it as legacy."""
+
+    evidence_id = getattr(current_row, "evidence_id", None)
+    if evidence_id is None:
+        row_id = getattr(current_row, "id", None)
+        raise EvidenceUnavailableError(
+            "LEGACY_EVIDENCE_UNAVAILABLE: "
+            f"{kind.value} compatibility row id={row_id} has no certified evidence"
+        )
+    evidence = get_evidence_by_id(db, evidence_id=int(evidence_id), kind=kind)
+    run_id = getattr(current_row, "run_id", None)
+    ticker = _normalized_ticker(getattr(current_row, "ticker", None))
+    profile = getattr(current_row, "ranking_profile", None)
+    if evidence.run_id != run_id or evidence.ticker != ticker:
+        raise EvidenceUnavailableError(
+            "EVIDENCE_UNAVAILABLE: compatibility row/evidence scope mismatch "
+            f"kind={kind.value} row={getattr(current_row, 'id', None)}"
+        )
+    if profile is not None and evidence.ranking_profile != str(profile):
+        raise EvidenceUnavailableError(
+            "EVIDENCE_UNAVAILABLE: compatibility row/evidence profile mismatch "
+            f"kind={kind.value} row={getattr(current_row, 'id', None)}"
+        )
+    return evidence
+
+
 def calculation_evidence_payload(
     row: Any, *, excluded_columns: set[str] | frozenset[str] = frozenset()
 ) -> dict[str, Any]:

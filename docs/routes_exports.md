@@ -88,6 +88,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/api/ceri/ticker/{ticker}/history` | `ceri_ticker_history` |
 | POST | `/api/ib-gateway/launch` | `launch_ib_gateway` |
 | GET | `/api/ib-gateway/status` | `ib_gateway_status` |
+| GET | `/api/ib-intelligence/evidence/{evidence_id}` | `intelligence_feature_evidence` |
 | POST | `/api/ib-intelligence/flex/import` | `queue_flex` |
 | POST | `/api/ib-intelligence/histogram/fetch` | `queue_histogram` |
 | GET | `/api/ib-intelligence/histogram/{ticker}` | `histogram_api` |
@@ -105,6 +106,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | POST | `/api/market-data/prewarm` | `queue_market_data_prewarm` |
 | GET | `/api/market-data/prewarm/{job_id}` | `market_data_prewarm_status` |
 | POST | `/api/market-data/prewarm/{job_id}/cancel` | `cancel_market_data_prewarm` |
+| GET | `/api/market-regime/evidence/{evidence_id}` | `market_regime_evidence_api` |
 | GET | `/api/market-regime/history` | `market_regime_history_api` |
 | GET | `/api/market-regime/latest` | `latest_market_regime_api` |
 | GET | `/api/market-regime/run/{run_id}` | `run_market_regime_api` |
@@ -113,6 +115,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | POST | `/api/runs/{run_id}/sector-rotation/recalculate` | `recalculate_run_sector_rotation_api` |
 | GET | `/api/runs/{run_id}/sector-rotation/{sector_slug}` | `api_sector_rotation_drilldown` |
 | GET | `/api/runs/{run_id}/tickers/{ticker}/chart-data` | `ticker_chart_data` |
+| GET | `/api/sector-rotation/evidence/{evidence_id}` | `api_sector_rotation_evidence` |
 | GET | `/api/sector-rotation/snapshots` | `api_sector_rotation_snapshots` |
 | GET | `/api/sector-rotation/snapshots/{snapshot_id}` | `api_sector_rotation_snapshot` |
 | GET | `/api/setup-lifecycle/alerts` | `setup_lifecycle_alerts` |
@@ -131,6 +134,10 @@ CI checks that the generated blocks below match runtime route introspection.
 | POST | `/api/setup-lifecycle/evaluate-run` | `evaluate_setup_lifecycle_run` |
 | POST | `/api/setup-lifecycle/evaluations` | `queue_setup_lifecycle_evaluation` |
 | GET | `/api/setup-lifecycle/evaluations/{evaluation_id}` | `setup_lifecycle_evaluation` |
+| GET | `/api/setup-lifecycle/evidence/alerts/{evidence_id}` | `alert_decision_evidence` |
+| GET | `/api/setup-lifecycle/evidence/evaluations/{evidence_id}` | `lifecycle_evaluation_evidence` |
+| GET | `/api/setup-lifecycle/evidence/setups/{evidence_id}` | `setup_evidence` |
+| GET | `/api/setup-lifecycle/evidence/transitions/{evidence_id}` | `lifecycle_transition_evidence` |
 | GET | `/api/setup-lifecycle/filter-options` | `setup_lifecycle_filter_options` |
 | GET | `/api/setup-lifecycle/operations` | `setup_lifecycle_operations` |
 | GET | `/api/setup-lifecycle/operations/export.json` | `export_setup_lifecycle_operations_json` |

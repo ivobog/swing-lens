@@ -11,6 +11,8 @@ from app.db import get_db
 from app.models.tables import MarketRegimeSnapshot, UploadRun
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
+from app.services.core_calculation_evidence import EvidenceUnavailableError
+from app.services.historical_read_service import ReadMode, evidence_view
 from app.services.market_regime_command_center import MarketRegimeCommandCenterService
 from app.services.market_regime_export_service import (
     export_snapshot_csv,
@@ -111,6 +113,15 @@ def latest_market_regime_api(db: DbSession) -> dict:
 @router.get("/api/market-regime/history")
 def market_regime_history_api(db: DbSession, limit: int = 30) -> list[dict]:
     return history_to_payload(MarketRegimeRepository().history(db, limit=limit))
+
+
+@router.get("/api/market-regime/evidence/{evidence_id}")
+def market_regime_evidence_api(evidence_id: int, db: DbSession) -> dict:
+    try:
+        evidence = MarketRegimeRepository().evidence(db, evidence_id)
+    except EvidenceUnavailableError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return evidence_view(evidence, mode=ReadMode.EVIDENCE)
 
 
 @router.get("/api/market-regime/run/{run_id}")

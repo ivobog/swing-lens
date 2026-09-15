@@ -5,10 +5,11 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, column, func, select
+from sqlalchemy import Boolean, Integer, Numeric, Select, cast, column, func, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import CombinedResult, UploadRun
+from app.models.tables import CombinedResult, CoreCalculationEvidence, UploadRun
+from app.services.core_calculation_evidence import CoreEvidenceKind
 from app.services.pagination import Page, paginate_query
 
 
@@ -48,10 +49,14 @@ class RunListSummary:
     strong_count: int
     top_complete_ticker: str | None
     top_complete_score: Decimal | None
+    read_mode: str = "CURRENT_PROJECTION"
 
 
 @dataclass(frozen=True)
 class HistoricalDecision:
+    evidence_id: int
+    evidence_status: str
+    read_mode: str
     run_id: int
     uploaded_at: datetime | None
     rank: int | None
@@ -177,22 +182,33 @@ def _runs_statement(filters: RunFilters) -> Select:
 
 
 def _decisions_statement(filters: DecisionFilters) -> Select:
+    payload = CoreCalculationEvidence.payload_json
+    rank = cast(payload["final_rank"].as_string(), Integer)
+    final_score = cast(payload["final_score"].as_string(), Numeric(18, 8))
+    decision = payload["combined_decision"].as_string()
+    company_name = payload["company_name"].as_string()
+    sector = payload["sector"].as_string()
+    position_size_hint = payload["position_size_hint"].as_string()
+    has_warning = cast(payload["has_warning"].as_string(), Boolean)
+    is_complete = cast(payload["is_complete"].as_string(), Boolean)
     statement = (
         select(
-            CombinedResult.run_id,
+            CoreCalculationEvidence.id.label("evidence_id"),
+            CoreCalculationEvidence.run_id,
             UploadRun.uploaded_at,
-            CombinedResult.final_rank.label("rank"),
-            CombinedResult.ticker,
-            CombinedResult.company_name,
-            CombinedResult.sector,
-            CombinedResult.final_score,
-            CombinedResult.combined_decision,
-            CombinedResult.position_size_hint,
-            CombinedResult.has_warning,
-            CombinedResult.is_complete,
+            rank.label("rank"),
+            CoreCalculationEvidence.ticker,
+            company_name.label("company_name"),
+            sector.label("sector"),
+            final_score.label("final_score"),
+            decision.label("combined_decision"),
+            position_size_hint.label("position_size_hint"),
+            has_warning.label("has_warning"),
+            is_complete.label("is_complete"),
         )
-        .join(UploadRun, CombinedResult.run_id == UploadRun.id)
-        .order_by(UploadRun.uploaded_at.desc(), CombinedResult.final_rank.asc().nullslast())
+        .join(UploadRun, CoreCalculationEvidence.run_id == UploadRun.id)
+        .where(CoreCalculationEvidence.artifact_kind == CoreEvidenceKind.COMBINED.value)
+        .order_by(UploadRun.uploaded_at.desc(), rank.asc().nullslast())
     )
 
     if filters.from_date:
@@ -200,17 +216,19 @@ def _decisions_statement(filters: DecisionFilters) -> Select:
     if filters.to_date:
         statement = statement.where(UploadRun.uploaded_at < _day_after(filters.to_date))
     if filters.decision:
-        statement = statement.where(CombinedResult.combined_decision == filters.decision)
+        statement = statement.where(decision == filters.decision)
     if filters.ticker:
-        statement = statement.where(CombinedResult.ticker.ilike(f"%{filters.ticker}%"))
+        statement = statement.where(
+            CoreCalculationEvidence.ticker.ilike(f"%{filters.ticker}%")
+        )
     if filters.sector:
-        statement = statement.where(CombinedResult.sector == filters.sector)
+        statement = statement.where(sector == filters.sector)
     if filters.min_score is not None:
-        statement = statement.where(CombinedResult.final_score >= filters.min_score)
+        statement = statement.where(final_score >= filters.min_score)
     if filters.has_warning is not None:
-        statement = statement.where(CombinedResult.has_warning.is_(filters.has_warning))
+        statement = statement.where(has_warning.is_(filters.has_warning))
     if filters.incomplete_only:
-        statement = statement.where(CombinedResult.is_complete.is_(False))
+        statement = statement.where(is_complete.is_(False))
 
     return statement
 
@@ -259,6 +277,9 @@ def _run_summary_from_row(row: Any) -> RunListSummary:
 
 def _decision_from_row(row: Any) -> HistoricalDecision:
     return HistoricalDecision(
+        evidence_id=row.evidence_id,
+        evidence_status="CERTIFIED_IMMUTABLE",
+        read_mode="EVIDENCE",
         run_id=row.run_id,
         uploaded_at=row.uploaded_at,
         rank=row.rank,

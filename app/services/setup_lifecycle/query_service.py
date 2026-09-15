@@ -17,12 +17,16 @@ from sqlalchemy.orm import Session, aliased, load_only
 
 from app.models.tables import (
     BackgroundJob,
+    CoreCalculationEvidence,
     SetupLifecycleEpisode,
     SetupLifecycleEvaluationRun,
     SetupLifecycleEvent,
+    SetupLifecycleTransitionEvidence,
     SetupSignalSnapshot,
+    SignalAlertDecisionEvidence,
     SignalAlertEvent,
     SignalAlertRule,
+    SignalAlertRuleEvidence,
     SignalChangeEvent,
 )
 from app.services.background_job_service import JobStatus
@@ -134,6 +138,10 @@ class SetupLifecycleQueryService:
             lifecycle_statement = lifecycle_statement.where(
                 SetupLifecycleEvent.is_current_version.is_(True)
             )
+        else:
+            lifecycle_statement = lifecycle_statement.where(
+                SetupLifecycleEvent.transition_evidence_id.is_not(None)
+            )
         lifecycle_statement = _apply_event_filters(lifecycle_statement, query.filters)
         signal_statement = select(SignalChangeEvent).join(
             SetupSignalSnapshot,
@@ -141,6 +149,8 @@ class SetupLifecycleQueryService:
         )
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
             signal_statement = signal_statement.where(current_canonical_snapshot_predicate())
+        else:
+            signal_statement = signal_statement.where(SetupSignalSnapshot.evidence_id.is_not(None))
         signal_statement = _apply_signal_change_filters(signal_statement, query.filters)
 
         cursor_metadata = _decode_change_cursor(query.cursor, query=query)
@@ -210,6 +220,11 @@ class SetupLifecycleQueryService:
                 lifecycle_total=lifecycle_total,
                 signal_total=signal_total,
             )
+        payload["read_mode"] = (
+            "CURRENT_PROJECTION"
+            if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET
+            else "CERTIFIED_EVIDENCE"
+        )
         return payload
 
     def _no_material_changes(self, db: Session, query: SetupLifecycleListQuery) -> dict[str, Any]:
@@ -243,6 +258,8 @@ class SetupLifecycleQueryService:
         )
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
             statement = statement.where(current_canonical_snapshot_predicate())
+        else:
+            statement = statement.where(SetupSignalSnapshot.evidence_id.is_not(None))
         statement = _apply_snapshot_filters(statement, query.filters)
         # Both summary values share the same (potentially large) anti-join over
         # snapshot history.  Compute them in one aggregate scan instead of
@@ -264,9 +281,9 @@ class SetupLifecycleQueryService:
                 .limit(query.limit)
             )
         )
-        context = _prime_no_material_payload_context(db, rows)
+        context = _prime_no_material_payload_context(db, rows, view_scope=query.view_scope)
         items = [no_material_change_payload(db, row, context=context) for row in rows]
-        return _page(
+        payload = _page(
             items=items,
             total=total,
             query=query,
@@ -285,6 +302,12 @@ class SetupLifecycleQueryService:
                 "low_confidence_share": round(low_confidence / total, 6) if total else 0.0,
             },
         )
+        payload["read_mode"] = (
+            "CURRENT_PROJECTION"
+            if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET
+            else "CERTIFIED_EVIDENCE"
+        )
+        return payload
 
     def alerts(self, db: Session, query: SetupLifecycleListQuery) -> dict[str, Any]:
         query = _validate_query(query)
@@ -425,6 +448,7 @@ class SetupLifecycleQueryService:
             db, {row.id for row in snapshots}
         )
         return {
+            "read_mode": "CURRENT_PROJECTION_WITH_EVIDENCE_LINKS",
             "ticker": normalized,
             "timeframe": timeframe,
             "snapshots": [
@@ -479,6 +503,7 @@ class SetupLifecycleQueryService:
             db, {row.id for row in snapshots}
         )
         return {
+            "read_mode": "CURRENT_PROJECTION_WITH_EVIDENCE_LINKS",
             "episode": episode_payload(episode),
             "snapshots": [
                 snapshot_payload(row, is_current_canonical=row.id in current_selection_ids)
@@ -749,6 +774,11 @@ class _MarketChangePayloadContext:
     lifecycle_by_snapshot: dict[int, SetupLifecycleEvent]
     episodes: dict[int, SetupLifecycleEpisode]
     current_selection_snapshot_ids: set[int] = field(default_factory=set)
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET
+    transition_evidence: dict[int, SetupLifecycleTransitionEvidence] = field(
+        default_factory=dict
+    )
+    setup_evidence: dict[int, CoreCalculationEvidence] = field(default_factory=dict)
 
 
 def _prime_market_change_payload_context(
@@ -781,6 +811,10 @@ def _prime_market_change_payload_context(
             related_statement = related_statement.where(
                 SetupLifecycleEvent.is_current_version.is_(True)
             )
+        else:
+            related_statement = related_statement.where(
+                SetupLifecycleEvent.transition_evidence_id.is_not(None)
+            )
         related = db.scalars(related_statement).all()
         for row in related:
             if row.snapshot_id:
@@ -802,7 +836,7 @@ def _prime_market_change_payload_context(
     missing_previous = [
         row for row in current_snapshots.values() if row.id not in previous_by_current
     ]
-    if missing_previous:
+    if missing_previous and view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
         current_alias = aliased(SetupSignalSnapshot)
         previous_lateral = (
             select(SetupSignalSnapshot)
@@ -831,10 +865,38 @@ def _prime_market_change_payload_context(
         previous_by_current.update({current_id: previous for current_id, previous in previous_rows})
 
     episode_ids = (
-        {row.episode_id for row in lifecycle_events if row.episode_id}
-        | {row.episode_id for row in signal_changes if row.episode_id}
-        | {row.episode_id for row in lifecycle_by_snapshot.values() if row.episode_id}
+        {
+            row.episode_id
+            for row in (*lifecycle_events, *signal_changes, *lifecycle_by_snapshot.values())
+            if row.episode_id
+        }
+        if view_scope == SetupLifecycleViewScope.CURRENT_MARKET
+        else set()
     )
+    transition_ids = {
+        row.transition_evidence_id
+        for row in lifecycle_by_snapshot.values()
+        if row.transition_evidence_id
+    }
+    setup_ids = {
+        row.evidence_id for row in current_snapshots.values() if row.evidence_id is not None
+    }
+    transition_evidence = _rows_by_id(
+        db, SetupLifecycleTransitionEvidence, transition_ids
+    )
+    setup_evidence = _rows_by_id(db, CoreCalculationEvidence, setup_ids)
+    if view_scope == SetupLifecycleViewScope.HISTORICAL_RUN:
+        missing_transition = transition_ids - set(transition_evidence)
+        missing_setup = setup_ids - set(setup_evidence)
+        wrong_setup = {
+            row.id for row in setup_evidence.values() if row.artifact_kind != "SETUP"
+        }
+        if missing_transition or missing_setup or wrong_setup:
+            raise SetupLifecycleQueryError(
+                "HISTORICAL_EVIDENCE_UNAVAILABLE",
+                "historical change evidence is missing or incompatible",
+                status_code=409,
+            )
     return _MarketChangePayloadContext(
         current_snapshots=current_snapshots,
         explicit_previous_snapshots=explicit_previous,
@@ -843,7 +905,12 @@ def _prime_market_change_payload_context(
         episodes=_rows_by_id(db, SetupLifecycleEpisode, episode_ids),
         current_selection_snapshot_ids=SetupLifecycleRepository().current_selection_snapshot_ids(
             db, current_ids
-        ),
+        )
+        if view_scope == SetupLifecycleViewScope.CURRENT_MARKET
+        else set(),
+        view_scope=view_scope,
+        transition_evidence=transition_evidence,
+        setup_evidence=setup_evidence,
     )
 
 
@@ -959,7 +1026,7 @@ def market_change_payload(
         blockers = list((episode.metadata_json or {}).get("blockers") or ())
     source_type = "LIFECYCLE_EVENT" if lifecycle_event is not None else "SIGNAL_CHANGE_EVENT"
     signal_key = signal_change_event.signal_key if signal_change_event is not None else None
-    return {
+    payload = {
         "id": event.id,
         "source_type": source_type,
         "lifecycle_event_id": lifecycle_event.id if lifecycle_event is not None else None,
@@ -1083,11 +1150,73 @@ def market_change_payload(
             else None
         ),
     }
+    if context is None or context.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
+        payload["read_mode"] = "CURRENT_PROJECTION"
+        return payload
+    transition = (
+        context.transition_evidence.get(lifecycle_event.transition_evidence_id or 0)
+        if lifecycle_event is not None
+        else None
+    )
+    setup = context.setup_evidence.get(getattr(current, "evidence_id", 0) or 0)
+    sealed = transition or setup
+    if sealed is None:
+        raise SetupLifecycleQueryError(
+            "HISTORICAL_EVIDENCE_UNAVAILABLE",
+            f"historical change {event.id} has no certified evidence",
+            status_code=409,
+        )
+    sealed_payload = dict(sealed.payload_json or {})
+    for key, value in sealed_payload.items():
+        if key in payload:
+            payload[key] = value
+    for key in (
+        "ticker",
+        "timeframe",
+        "setup_family",
+        "from_state",
+        "to_state",
+        "from_phase",
+        "to_phase",
+        "event_type",
+        "actionability_after",
+        "config_hash",
+    ):
+        if key in sealed_payload:
+            payload[key] = sealed_payload[key]
+    if "effective_session" in sealed_payload:
+        payload["effective_date"] = sealed_payload["effective_session"]
+        payload["data_as_of_date"] = sealed_payload["effective_session"]
+    if "from_state" in sealed_payload:
+        payload["previous_state"] = sealed_payload["from_state"]
+    if "to_state" in sealed_payload:
+        payload["current_state"] = sealed_payload["to_state"]
+    if "to_phase" in sealed_payload:
+        payload["phase"] = sealed_payload["to_phase"]
+    if "reasons" in sealed_payload:
+        payload["reason_codes"] = list(sealed_payload["reasons"] or [])
+        payload["latest_reason"] = (
+            payload["reason_codes"][0] if payload["reason_codes"] else None
+        )
+    payload.update(
+        {
+            "read_mode": "CERTIFIED_EVIDENCE",
+            "evidence_id": sealed.id,
+            "evidence_status": "CERTIFIED_IMMUTABLE",
+            "historical_evidence": sealed_payload,
+            "record_status": "HISTORICAL_EVIDENCE",
+            "is_canonical": None,
+            "superseded_by_snapshot_id": None,
+        }
+    )
+    return payload
 
 
 @dataclass(frozen=True)
 class _AlertPayloadContext:
     rules: dict[int, SignalAlertRule]
+    decisions: dict[int, SignalAlertDecisionEvidence]
+    rule_evidence: dict[int, SignalAlertRuleEvidence]
     lifecycle_events: dict[int, SetupLifecycleEvent]
     signal_changes: dict[int, SignalChangeEvent]
     snapshots: dict[int, SetupSignalSnapshot]
@@ -1098,9 +1227,12 @@ def _prime_alert_payload_context(
     db: Session, alerts: list[SignalAlertEvent]
 ) -> _AlertPayloadContext:
     rule_ids = {row.alert_rule_id for row in alerts}
+    decision_ids = {row.decision_evidence_id for row in alerts if row.decision_evidence_id}
     lifecycle_ids = {row.lifecycle_event_id for row in alerts if row.lifecycle_event_id}
     change_ids = {row.signal_change_event_id for row in alerts if row.signal_change_event_id}
     rules = _rows_by_id(db, SignalAlertRule, rule_ids)
+    decisions = _rows_by_id(db, SignalAlertDecisionEvidence, decision_ids)
+    rule_evidence_ids = {row.rule_evidence_id for row in decisions.values()}
     lifecycle_events = _rows_by_id(db, SetupLifecycleEvent, lifecycle_ids)
     signal_changes = _rows_by_id(db, SignalChangeEvent, change_ids)
     snapshot_ids = {row.snapshot_id for row in lifecycle_events.values() if row.snapshot_id} | {
@@ -1108,6 +1240,8 @@ def _prime_alert_payload_context(
     }
     return _AlertPayloadContext(
         rules=rules,
+        decisions=decisions,
+        rule_evidence=_rows_by_id(db, SignalAlertRuleEvidence, rule_evidence_ids),
         lifecycle_events=lifecycle_events,
         signal_changes=signal_changes,
         snapshots=_snapshot_rows_by_id(db, snapshot_ids),
@@ -1192,6 +1326,10 @@ def alert_payload(
             source_snapshot is not None
             and source_snapshot.id in context.current_selection_snapshot_ids
         )
+        decision_evidence = context.decisions.get(alert.decision_evidence_id or 0)
+        rule_evidence = context.rule_evidence.get(
+            getattr(decision_evidence, "rule_evidence_id", 0)
+        )
     else:
         rule = getattr(alert, "alert_rule", None)
         if db is not None and (rule is None or getattr(rule, "id", None) is None):
@@ -1220,7 +1358,20 @@ def alert_payload(
                 db, {source_snapshot.id}
             )
         )
+        decision_evidence = (
+            db.get(SignalAlertDecisionEvidence, alert.decision_evidence_id)
+            if db is not None and alert.decision_evidence_id
+            else None
+        )
+        rule_evidence = (
+            db.get(SignalAlertRuleEvidence, decision_evidence.rule_evidence_id)
+            if db is not None and decision_evidence is not None
+            else None
+        )
     evidence = dict(alert.evidence_json or {})
+    immutable_decision = dict(getattr(decision_evidence, "payload_json", None) or {})
+    immutable_decision_payload = dict(immutable_decision.get("decision_payload") or {})
+    immutable_rule = dict(getattr(rule_evidence, "payload_json", None) or {})
     source_type = _alert_source_type(rule, lifecycle, change, evidence)
     episode_id = getattr(lifecycle, "episode_id", None) or getattr(change, "episode_id", None)
     blockers = list(evidence.get("blockers") or ())
@@ -1244,10 +1395,12 @@ def alert_payload(
         "effective_date": _date_or_none(alert.effective_date),
         "event_key": alert.event_key,
         "source_event_key": alert.source_event_key,
-        "alert_type": getattr(rule, "rule_id", None) or evidence.get("rule_id"),
+        "alert_type": immutable_rule.get("rule_id")
+        or getattr(rule, "rule_id", None)
+        or evidence.get("rule_id"),
         "review_status": alert.status,
         "status": alert.status,
-        "severity": alert.severity,
+        "severity": immutable_rule.get("severity") or alert.severity,
         "source_type": source_type,
         "episode_id": episode_id,
         "lifecycle_state": getattr(lifecycle, "to_state", None)
@@ -1255,11 +1408,13 @@ def alert_payload(
         "actionability": getattr(lifecycle, "actionability_after", None)
         or getattr(source_snapshot, "actionability_candidate", None)
         or evidence.get("actionability_after"),
-        "confidence": _int_or_none(confidence),
+        "confidence": _int_or_none(
+            immutable_decision_payload.get("source_confidence", confidence)
+        ),
         "confidence_label": getattr(lifecycle, "confidence_label", None)
         or getattr(source_snapshot, "confidence_label", None)
         or evidence.get("confidence_label"),
-        "blockers": blockers,
+        "blockers": list(immutable_decision_payload.get("blockers") or blockers),
         "snapshot_id": getattr(lifecycle, "snapshot_id", None)
         or getattr(change, "current_snapshot_id", None),
         "previous_snapshot_id": getattr(change, "previous_snapshot_id", None),
@@ -1287,8 +1442,19 @@ def alert_payload(
         or getattr(change, "config_hash", None)
         or getattr(source_snapshot, "config_hash", None),
         "source_data_hash": getattr(source_snapshot, "source_data_hash", None),
-        "reason_codes": list(alert.reason_codes_json or []),
+        "reason_codes": list(
+            getattr(decision_evidence, "reasons_json", None)
+            or alert.reason_codes_json
+            or []
+        ),
         "evidence": evidence,
+        "historical_decision": immutable_decision if decision_evidence is not None else None,
+        "historical_rule": immutable_rule if rule_evidence is not None else None,
+        "read_mode": (
+            "CURRENT_NOTIFICATION_WITH_CERTIFIED_DECISION"
+            if decision_evidence is not None
+            else "LEGACY_CURRENT"
+        ),
         "source_url": (
             f"/setup-lifecycle/episodes/{episode_id}"
             if episode_id
@@ -1306,13 +1472,32 @@ def alert_payload(
 class _NoMaterialPayloadContext:
     previous_by_current: dict[int, SetupSignalSnapshot]
     episode_by_ticker: dict[tuple[str, str], SetupLifecycleEpisode]
+    setup_evidence: dict[int, CoreCalculationEvidence] = field(default_factory=dict)
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET
 
 
 def _prime_no_material_payload_context(
-    db: Session, snapshots: list[SetupSignalSnapshot]
+    db: Session,
+    snapshots: list[SetupSignalSnapshot],
+    *,
+    view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET,
 ) -> _NoMaterialPayloadContext:
     if not snapshots:
-        return _NoMaterialPayloadContext({}, {})
+        return _NoMaterialPayloadContext({}, {}, view_scope=view_scope)
+    if view_scope == SetupLifecycleViewScope.HISTORICAL_RUN:
+        evidence_ids = {row.evidence_id for row in snapshots if row.evidence_id is not None}
+        evidence = _rows_by_id(db, CoreCalculationEvidence, evidence_ids)
+        if evidence_ids - set(evidence) or any(
+            row.artifact_kind != "SETUP" for row in evidence.values()
+        ):
+            raise SetupLifecycleQueryError(
+                "HISTORICAL_EVIDENCE_UNAVAILABLE",
+                "historical Setup evidence is missing or incompatible",
+                status_code=409,
+            )
+        return _NoMaterialPayloadContext(
+            {}, {}, setup_evidence=evidence, view_scope=view_scope
+        )
     current_alias = aliased(SetupSignalSnapshot)
     previous_lateral = (
         select(SetupSignalSnapshot)
@@ -1354,6 +1539,7 @@ def _prime_no_material_payload_context(
     return _NoMaterialPayloadContext(
         {current_id: previous for current_id, previous in previous_rows},
         episode_by_ticker,
+        view_scope=view_scope,
     )
 
 
@@ -1402,7 +1588,7 @@ def no_material_change_payload(
     technical_velocities = _snapshot_velocity_map(snapshot, "technical_score")
     setup_velocities = _snapshot_velocity_map(snapshot, "setup_score")
     trigger_reference = dict((snapshot.debug_json or {}).get("trigger_reference") or {})
-    return {
+    payload = {
         "id": snapshot.id,
         "source_type": "SNAPSHOT_OBSERVATION",
         "lifecycle_event_id": None,
@@ -1492,6 +1678,31 @@ def no_material_change_payload(
         "evidence": {"snapshot_id": snapshot.id},
         "source_url": f"/setup-lifecycle/ticker/{snapshot.ticker}",
     }
+    if context is None or context.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
+        payload["read_mode"] = "CURRENT_PROJECTION"
+        return payload
+    sealed = context.setup_evidence.get(snapshot.evidence_id or 0)
+    if sealed is None:
+        raise SetupLifecycleQueryError(
+            "HISTORICAL_EVIDENCE_UNAVAILABLE",
+            f"historical Setup snapshot {snapshot.id} has no certified evidence",
+            status_code=409,
+        )
+    sealed_payload = dict(sealed.payload_json or {})
+    for key, value in sealed_payload.items():
+        if key in payload:
+            payload[key] = value
+    payload.update(
+        {
+            "read_mode": "CERTIFIED_EVIDENCE",
+            "evidence_id": sealed.id,
+            "evidence_status": "CERTIFIED_IMMUTABLE",
+            "historical_evidence": sealed_payload,
+            "record_status": "HISTORICAL_EVIDENCE",
+            "is_canonical": None,
+        }
+    )
+    return payload
 
 
 def evaluation_run_payload(run: SetupLifecycleEvaluationRun) -> dict[str, Any]:

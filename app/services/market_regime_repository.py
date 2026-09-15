@@ -10,7 +10,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import MarketRegimeSnapshot
-from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    get_evidence_by_id,
+    persist_core_evidence,
+)
 
 
 @dataclass(frozen=True)
@@ -97,6 +101,7 @@ class MarketRegimeRepository:
         )
 
     def latest(self, db: Session) -> MarketRegimeSnapshot | None:
+        """Return the explicit current compatibility projection."""
         return db.scalar(
             select(MarketRegimeSnapshot)
             .where(MarketRegimeSnapshot.is_current_revision.is_(True))
@@ -181,6 +186,7 @@ class MarketRegimeRepository:
         )
 
     def history(self, db: Session, limit: int = 30) -> list[MarketRegimeSnapshot]:
+        """Return recent compatibility projections for current dashboard browsing."""
         safe_limit = max(1, min(int(limit), 500))
         return list(
             db.scalars(
@@ -192,6 +198,13 @@ class MarketRegimeRepository:
                 )
                 .limit(safe_limit)
             )
+        )
+
+    def evidence(self, db: Session, evidence_id: int):
+        """Return exact immutable Regime evidence without projection fallback."""
+
+        return get_evidence_by_id(
+            db, evidence_id=evidence_id, kind=CoreEvidenceKind.REGIME
         )
 
     def delete_for_run(self, db: Session, run_id: int) -> None:
