@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
 
@@ -28,10 +29,12 @@ def test_market_calculation_context_migration_on_disposable_postgresql(
     _upgrade(disposable_postgres_database)
     schema = inspect(engine)
     assert "market_calculation_contexts" in schema.get_table_names()
+    config = Config(str(REPO_ROOT / "alembic.ini"))
+    expected_heads = tuple(ScriptDirectory.from_config(config).get_heads())
     with engine.connect() as connection:
         assert tuple(
             connection.execute(text("SELECT version_num FROM alembic_version")).scalars()
-        ) == ("0075_core_immutable_evidence",)
+        ) == expected_heads
 
     context_columns = {
         item["name"]: item for item in schema.get_columns("market_calculation_contexts")

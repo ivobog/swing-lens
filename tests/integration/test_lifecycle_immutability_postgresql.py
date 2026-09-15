@@ -309,7 +309,10 @@ def _insert_snapshot(
 
 def _row_hash(connection, snapshot_id: int) -> str:
     row = connection.execute(
-        text("SELECT to_jsonb(t) FROM setup_signal_snapshots t WHERE id=:id"),
+        text(
+            "SELECT to_jsonb(t) - 'evidence_id' "
+            "FROM setup_signal_snapshots t WHERE id=:id"
+        ),
         {"id": snapshot_id},
     ).scalar_one()
     return hashlib.sha256(json.dumps(row, default=str, sort_keys=True).encode()).hexdigest()

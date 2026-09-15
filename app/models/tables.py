@@ -567,6 +567,7 @@ class FundamentalScore(Base):
     __table_args__ = (
         UniqueConstraint("run_id", "ticker", name="uq_fundamental_scores_run_ticker"),
         Index("idx_fundamental_scores_run_id", "run_id"),
+        Index("idx_fundamental_scores_evidence", "evidence_id"),
     )
 
 
@@ -655,6 +656,7 @@ class TechnicalScore(Base):
     __table_args__ = (
         UniqueConstraint("run_id", "ticker", name="uq_technical_scores_run_ticker"),
         Index("idx_technical_scores_run_id", "run_id"),
+        Index("idx_technical_scores_evidence", "evidence_id"),
         Index(
             "idx_technical_scores_temporal_lineage",
             "input_as_of_session",
@@ -744,6 +746,7 @@ class CombinedResult(Base):
         Index("idx_combined_results_score", "final_score"),
         Index("idx_combined_results_warning", "has_warning"),
         Index("idx_combined_results_complete", "is_complete"),
+        Index("idx_combined_results_evidence", "evidence_id"),
     )
 
 
@@ -872,6 +875,7 @@ class RankingResult(Base):
             "profile_score",
         ),
         Index("idx_ranking_results_earnings_risk", "earnings_risk_level"),
+        Index("idx_ranking_results_evidence", "evidence_id"),
     )
 
 
@@ -1146,7 +1150,7 @@ class SectorRotationSnapshot(Base):
         Index("idx_sector_rotation_snapshot_run_date", "run_id", "as_of_date"),
         Index("idx_sector_rotation_snapshot_date", "as_of_date"),
         Index("idx_sector_rotation_snapshot_evidence_hash", "evidence_hash"),
-        Index("idx_sector_rotation_snapshot_evidence", "evidence_id"),
+        Index("idx_sector_rotation_snapshots_evidence", "evidence_id"),
         Index(
             "idx_sector_rotation_snapshots_temporal_lineage",
             "input_as_of_session",

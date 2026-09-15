@@ -27,6 +27,28 @@ _PREVIOUS_EVIDENCE_KINDS = (
     "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
     "'REGIME', 'SECTOR', 'CERI')"
 )
+_REMOVE_IBMI_EVIDENCE = sa.text(
+    """
+    WITH RECURSIVE doomed(id) AS (
+        SELECT id FROM core_calculation_evidence WHERE artifact_kind = 'IBMI'
+        UNION
+        SELECT edge.evidence_id
+        FROM core_calculation_evidence_sources AS edge
+        JOIN doomed ON edge.source_evidence_id = doomed.id
+    ),
+    deleted_projections AS (
+        DELETE FROM core_calculation_current_projections
+        WHERE evidence_id IN (SELECT id FROM doomed)
+    ),
+    deleted_edges AS (
+        DELETE FROM core_calculation_evidence_sources
+        WHERE evidence_id IN (SELECT id FROM doomed)
+           OR source_evidence_id IN (SELECT id FROM doomed)
+    )
+    DELETE FROM core_calculation_evidence
+    WHERE id IN (SELECT id FROM doomed)
+    """
+)
 
 
 def upgrade() -> None:
@@ -65,6 +87,7 @@ def downgrade() -> None:
         type_="foreignkey",
     )
     op.drop_column("ib_intelligence_features", "evidence_id")
+    op.execute(_REMOVE_IBMI_EVIDENCE)
 
     for table_name, constraint_name in (
         ("core_calculation_current_projections", "ck_core_current_projection_kind"),
