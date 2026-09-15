@@ -66,6 +66,8 @@ def test_canonical_capture_validates_sources_then_freezes_identity() -> None:
         "ranking_evidence_id": 151,
         "market_regime_snapshot_id": 61,
         "sector_rotation_snapshot_id": 71,
+        "regime_evidence_id": 161,
+        "sector_evidence_id": 171,
         "sector_rotation_row_id": 81,
     }
     assert len(prediction.feature_vector_hash) == 64
@@ -312,6 +314,7 @@ def _identity_context(
 
     regime_config = load_market_regime_command_center_config()
     market = context.market_regime_snapshot
+    market.evidence_id = 161
     market.run_id = 99
     market.calculation_cutoff_at = cutoff.cutoff_at
     market.input_as_of_session = cutoff.latest_completed_session
@@ -355,6 +358,7 @@ def _identity_context(
         markets.insert(0, bad)
 
     sector = context.sector_rotation_snapshot
+    sector.evidence_id = 171
     sector.calculation_cutoff_at = cutoff.cutoff_at
     sector.input_as_of_session = cutoff.latest_completed_session
     sector.calendar_version = cutoff.calendar_version

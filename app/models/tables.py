@@ -379,10 +379,10 @@ class CoreCalculationEvidence(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     artifact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    run_id: Mapped[int] = mapped_column(
-        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=True
     )
-    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    ticker: Mapped[str | None] = mapped_column(Text, nullable=True)
     ranking_profile: Mapped[str | None] = mapped_column(Text)
     calculation_identity_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
     calculation_identity_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
@@ -399,7 +399,8 @@ class CoreCalculationEvidence(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING')",
+            "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
+            "'REGIME', 'SECTOR')",
             name="ck_core_calculation_evidence_kind",
         ),
         UniqueConstraint("evidence_key", name="uq_core_calculation_evidence_key"),
@@ -421,7 +422,7 @@ class CoreCalculationEvidenceSource(Base):
     evidence_id: Mapped[int] = mapped_column(
         ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
     )
-    source_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_role: Mapped[str] = mapped_column(String(128), nullable=False)
     source_evidence_id: Mapped[int] = mapped_column(
         ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
     )
@@ -444,10 +445,10 @@ class CoreCalculationCurrentProjection(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     artifact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    run_id: Mapped[int] = mapped_column(
-        ForeignKey("upload_runs.id", ondelete="CASCADE"), nullable=False
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="CASCADE"), nullable=True
     )
-    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    ticker: Mapped[str | None] = mapped_column(Text, nullable=True)
     ranking_profile_key: Mapped[str] = mapped_column(
         Text, nullable=False, default="", server_default=""
     )
@@ -460,15 +461,36 @@ class CoreCalculationCurrentProjection(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING')",
+            "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
+            "'REGIME', 'SECTOR')",
             name="ck_core_current_projection_kind",
         ),
-        UniqueConstraint(
+        Index(
+            "uq_core_current_projection_ticker_scope",
             "artifact_kind",
             "run_id",
             "ticker",
             "ranking_profile_key",
-            name="uq_core_current_projection_scope",
+            unique=True,
+            postgresql_where=text("run_id IS NOT NULL AND ticker IS NOT NULL"),
+            sqlite_where=text("run_id IS NOT NULL AND ticker IS NOT NULL"),
+        ),
+        Index(
+            "uq_core_current_projection_context_run_scope",
+            "artifact_kind",
+            "run_id",
+            "ranking_profile_key",
+            unique=True,
+            postgresql_where=text("run_id IS NOT NULL AND ticker IS NULL"),
+            sqlite_where=text("run_id IS NOT NULL AND ticker IS NULL"),
+        ),
+        Index(
+            "uq_core_current_projection_global_scope",
+            "artifact_kind",
+            "ranking_profile_key",
+            unique=True,
+            postgresql_where=text("run_id IS NULL AND ticker IS NULL"),
+            sqlite_where=text("run_id IS NULL AND ticker IS NULL"),
         ),
         Index("idx_core_current_projection_evidence", "evidence_id"),
     )
@@ -852,6 +874,9 @@ class MarketRegimeSnapshot(Base):
         ForeignKey("upload_runs.id", ondelete="SET NULL"),
         nullable=True,
     )
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
     calculation_context_id: Mapped[int | None] = mapped_column(
         ForeignKey("market_calculation_contexts.id", ondelete="SET NULL"), nullable=True
@@ -997,6 +1022,7 @@ class MarketRegimeSnapshot(Base):
         Index("idx_market_regime_snapshots_regime", "regime"),
         Index("idx_market_regime_snapshots_risk_state", "risk_state"),
         Index("idx_market_regime_snapshots_evidence_hash", "evidence_hash"),
+        Index("idx_market_regime_snapshots_evidence", "evidence_id"),
         Index(
             "idx_market_regime_snapshots_temporal_lineage",
             "input_as_of_session",
@@ -1017,6 +1043,9 @@ class SectorRotationSnapshot(Base):
     run_id: Mapped[int | None] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="CASCADE"),
         nullable=True,
+    )
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
     )
     market_regime_snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("market_regime_snapshots.id", ondelete="SET NULL"),
@@ -1108,6 +1137,7 @@ class SectorRotationSnapshot(Base):
         Index("idx_sector_rotation_snapshot_run_date", "run_id", "as_of_date"),
         Index("idx_sector_rotation_snapshot_date", "as_of_date"),
         Index("idx_sector_rotation_snapshot_evidence_hash", "evidence_hash"),
+        Index("idx_sector_rotation_snapshot_evidence", "evidence_id"),
         Index(
             "idx_sector_rotation_snapshots_temporal_lineage",
             "input_as_of_session",

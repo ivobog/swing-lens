@@ -39,7 +39,7 @@ _MISSING = object()
 
 def test_snapshot_builder_normalizes_promoted_fields_signals_and_source_ids() -> None:
     builder = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config())
-    context = _ticker_context()
+    context = _ticker_context(market_regime_snapshot=_market_snapshot())
 
     built = builder.build(context)
 
@@ -59,6 +59,8 @@ def test_snapshot_builder_normalizes_promoted_fields_signals_and_source_ids() ->
     assert built.dto.source_ids["raw_row_id"] == 101
     assert built.dto.source_ids["technical_score_id"] == 301
     assert built.dto.source_ids["sector_rotation_snapshot_id"] == 701
+    assert built.dto.source_ids["regime_evidence_id"] == 1601
+    assert built.dto.source_ids["sector_evidence_id"] == 1701
     assert built.dto.source_lineage["latest_bar"]["data_hash"] == "MSFT-2026-08-01-101"
     assert built.dto.source_lineage["source_run_successful"] is True
     assert built.dto.source_lineage["lineage_integrity"] is True
@@ -590,6 +592,7 @@ def _ranking(ticker: str) -> RankingResult:
 def _market_snapshot() -> MarketRegimeSnapshot:
     return MarketRegimeSnapshot(
         id=601,
+        evidence_id=1601,
         run_id=7,
         as_of_date=date(2026, 8, 1),
         calculation_version="v1",
@@ -603,6 +606,7 @@ def _market_snapshot() -> MarketRegimeSnapshot:
 def _sector_snapshot() -> SectorRotationSnapshot:
     return SectorRotationSnapshot(
         id=701,
+        evidence_id=1701,
         run_id=7,
         as_of_date=date(2026, 8, 1),
         calculation_version="v1",

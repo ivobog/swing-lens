@@ -609,6 +609,12 @@ class SetupLifecycleSnapshotBuilder:
             else None,
             "market_regime_snapshot_id": getattr(context.market_regime_snapshot, "id", None),
             "sector_rotation_snapshot_id": getattr(context.sector_rotation_snapshot, "id", None),
+            "regime_evidence_id": getattr(
+                context.market_regime_snapshot, "evidence_id", None
+            ),
+            "sector_evidence_id": getattr(
+                context.sector_rotation_snapshot, "evidence_id", None
+            ),
         }
 
     def _source_lineage(

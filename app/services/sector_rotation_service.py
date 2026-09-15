@@ -48,7 +48,10 @@ from app.services.sector_rotation_repository import (
     SectorRotationRowWrite,
     SectorRotationSnapshotWrite,
 )
-from app.services.sector_universe_service import SectorUniverseService
+from app.services.sector_universe_service import (
+    SectorUniverseService,
+    _coherent_compatible_rankings,
+)
 from app.services.us_market_calendar import latest_completed_us_trading_day
 
 CALCULATION_VERSION = "sector-rotation-1.0.0"
@@ -223,24 +226,21 @@ def build_sector_rotation_snapshot(
             pipeline_id=pipeline_id,
         )
         source_artifacts: list[tuple[str, Any, Any]] = []
+        ranking_sources: list[RankingResult] = []
         if run_id is not None:
-            for ranking in db.scalars(
-                select(RankingResult).where(
-                    RankingResult.run_id == run_id,
-                    RankingResult.ranking_profile == default_profile,
-                )
-            ):
+            ranking_sources = _coherent_compatible_rankings(
+                list(
+                    db.scalars(
+                        select(RankingResult).where(RankingResult.run_id == run_id)
+                    )
+                ),
+                run_id,
+                pipeline_id,
+                market_cutoff,
+            )
+            for ranking in ranking_sources:
                 identity = artifact_identity(ranking)
-                expected = consumer_context_identity(
-                    market_cutoff=market_cutoff,
-                    run_id=run_id,
-                    pipeline_id=pipeline_id,
-                    ticker=ranking.ticker,
-                )
-                if contextual_compatibility(
-                    expected, identity, policy=SECTOR_RANKING_COMPATIBILITY
-                ).accepted:
-                    source_artifacts.append(("RankingResult", ranking, identity))
+                source_artifacts.append(("RankingResult", ranking, identity))
         if market_snapshot is not None:
             source_artifacts.append(
                 ("MarketRegimeSnapshot", market_snapshot, artifact_identity(market_snapshot))
@@ -293,7 +293,29 @@ def build_sector_rotation_snapshot(
         )
 
     if persist:
-        repository.save_snapshot(db, _to_snapshot_write(dto, config))
+        snapshot_write = _to_snapshot_write(dto, config)
+        if isinstance(db, Session):
+            evidence_sources = {
+                f"ranking:{index:06d}": ranking
+                for index, ranking in enumerate(
+                    sorted(
+                        ranking_sources,
+                        key=lambda row: (row.ranking_profile, row.ticker, row.id or 0),
+                    ),
+                    start=1,
+                )
+            }
+            if market_snapshot is not None:
+                evidence_sources["regime"] = market_snapshot
+            if previous_snapshot is not None:
+                evidence_sources["prior_sector"] = previous_snapshot
+            repository.save_snapshot(
+                db,
+                snapshot_write,
+                evidence_sources=evidence_sources,
+            )
+        else:
+            repository.save_snapshot(db, snapshot_write)
     return dto
 
 
@@ -514,7 +536,7 @@ def _latest_market_snapshot(
                 expected,
                 artifact_identity(snapshot),
                 policy=SECTOR_REGIME_COMPATIBILITY,
-            ).accepted:
+            ).accepted and getattr(snapshot, "evidence_id", None) is not None:
                 return snapshot
         return None
     if run_id is not None:
@@ -580,6 +602,7 @@ def _select_compatible_previous_snapshot(candidates, *, expected, current_sessio
             result.accepted
             and session.state.name == "KNOWN"
             and session.value < current_session
+            and getattr(snapshot, "evidence_id", None) is not None
         ):
             return snapshot
     return None

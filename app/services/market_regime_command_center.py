@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.contextual_calculation_identity import (
     REGIME_CONTEXT_COMPATIBILITY,
     build_regime_identity,
@@ -217,7 +218,11 @@ class MarketRegimeCommandCenterService:
                     stale=True,
                     warnings=[f"missing_{symbol.lower()}_market_data"],
                 ),
-                debug={"missing": True},
+                debug={
+                    "missing": True,
+                    "price_frame_evidence": _frame_evidence(price),
+                    "trades_frame_evidence": _frame_evidence(trades),
+                },
             )
 
         feature_result = calculate_technical_features(price, trades, ticker=symbol)
@@ -236,6 +241,8 @@ class MarketRegimeCommandCenterService:
             ),
             debug={
                 "missing": False,
+                "price_frame_evidence": _frame_evidence(price),
+                "trades_frame_evidence": _frame_evidence(trades),
                 "feature_debug": feature_result.debug,
                 "missing_data": feature_result.missing_data,
                 "insufficient_data": feature_result.insufficient_data,
@@ -375,6 +382,23 @@ def _frame_as_of_date(frame: pd.DataFrame) -> date | None:
         return None
     value = pd.to_datetime(frame["date"].iloc[-1])
     return value.date()
+
+
+def _frame_evidence(frame: pd.DataFrame | None) -> dict[str, Any] | None:
+    if frame is None:
+        return None
+    canonical_frame = frame.to_json(
+        orient="split",
+        date_format="iso",
+        date_unit="us",
+        double_precision=15,
+    )
+    return {
+        "row_count": int(len(frame.index)),
+        "columns": [str(column) for column in frame.columns],
+        "fingerprint": CanonicalEvidenceSerializer.fingerprint(canonical_frame),
+        "proof": "complete bounded benchmark frame consumed by Market Regime",
+    }
 
 
 def _load_bounded_market_frames(

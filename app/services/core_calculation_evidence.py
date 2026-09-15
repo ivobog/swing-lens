@@ -22,6 +22,8 @@ class CoreEvidenceKind(StrEnum):
     TECHNICAL = "TECHNICAL"
     COMBINED = "COMBINED"
     RANKING = "RANKING"
+    REGIME = "REGIME"
+    SECTOR = "SECTOR"
 
 
 class EvidenceUnavailableError(LookupError):
@@ -33,6 +35,7 @@ class EvidenceAmbiguousError(LookupError):
 
 
 _PAYLOAD_EXCLUDED_COLUMNS = {"id", "evidence_id", "created_at", "updated_at"}
+_SCOPE_UNSET = object()
 
 
 def persist_core_evidence(
@@ -41,6 +44,9 @@ def persist_core_evidence(
     kind: CoreEvidenceKind,
     current_row: Any,
     sources: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
+    scope_ticker: str | None | object = _SCOPE_UNSET,
+    scope_profile: str | None | object = _SCOPE_UNSET,
 ) -> CoreCalculationEvidence | None:
     """Persist/reuse immutable evidence and advance its independent current pointer.
 
@@ -63,7 +69,9 @@ def persist_core_evidence(
             )
         source_ids[role] = int(evidence_id)
 
-    payload = _row_payload(current_row)
+    payload = CanonicalEvidenceSerializer.canonicalize(
+        payload if payload is not None else calculation_evidence_payload(current_row)
+    )
     payload_fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)
     identity_fingerprint = str(identity.fingerprint())
     key_payload = {
@@ -79,11 +87,22 @@ def persist_core_evidence(
         )
     )
     if evidence is None:
+        run_id = getattr(current_row, "run_id", None)
+        ticker = (
+            getattr(current_row, "ticker", None)
+            if scope_ticker is _SCOPE_UNSET
+            else scope_ticker
+        )
+        profile = (
+            getattr(current_row, "ranking_profile", None)
+            if scope_profile is _SCOPE_UNSET
+            else scope_profile
+        )
         evidence = CoreCalculationEvidence(
             artifact_kind=kind.value,
-            run_id=int(current_row.run_id),
-            ticker=str(current_row.ticker).strip().upper(),
-            ranking_profile=getattr(current_row, "ranking_profile", None),
+            run_id=int(run_id) if run_id is not None else None,
+            ticker=_normalized_ticker(ticker),
+            ranking_profile=str(profile) if profile is not None else None,
             calculation_identity_fingerprint=identity_fingerprint,
             calculation_identity_json=identity.canonical_payload(),
             payload_fingerprint=payload_fingerprint,
@@ -114,8 +133,8 @@ def get_current_evidence(
     db: Session,
     *,
     kind: CoreEvidenceKind,
-    run_id: int,
-    ticker: str,
+    run_id: int | None,
+    ticker: str | None,
     ranking_profile: str | None = None,
 ) -> CoreCalculationEvidence:
     profile_key = ranking_profile or ""
@@ -128,14 +147,15 @@ def get_current_evidence(
         .where(
             CoreCalculationCurrentProjection.artifact_kind == kind.value,
             CoreCalculationCurrentProjection.run_id == run_id,
-            CoreCalculationCurrentProjection.ticker == ticker.strip().upper(),
+            CoreCalculationCurrentProjection.ticker == _normalized_ticker(ticker),
             CoreCalculationCurrentProjection.ranking_profile_key == profile_key,
         )
     )
     if evidence is None:
         raise EvidenceUnavailableError(
             f"EVIDENCE_UNAVAILABLE: no current {kind.value} evidence for "
-            f"run={run_id} ticker={ticker.strip().upper()} profile={profile_key or '-'}"
+            f"run={run_id} ticker={_normalized_ticker(ticker) or '-'} "
+            f"profile={profile_key or '-'}"
         )
     return evidence
 
@@ -186,11 +206,14 @@ def get_evidence_for_identity(
     return rows[0]
 
 
-def _row_payload(row: Any) -> dict[str, Any]:
+def calculation_evidence_payload(
+    row: Any, *, excluded_columns: set[str] | frozenset[str] = frozenset()
+) -> dict[str, Any]:
+    excluded = _PAYLOAD_EXCLUDED_COLUMNS | set(excluded_columns)
     values = {
         attribute.key: getattr(row, attribute.key)
         for attribute in inspect(row).mapper.column_attrs
-        if attribute.key not in _PAYLOAD_EXCLUDED_COLUMNS
+        if attribute.key not in excluded
     }
     return CanonicalEvidenceSerializer.canonicalize(values)
 
@@ -228,3 +251,10 @@ def _advance_current_projection(
         projection.updated_at = datetime.now(UTC)
     db.flush()
     return projection
+
+
+def _normalized_ticker(value: Any) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip().upper()
+    return cleaned or None

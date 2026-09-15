@@ -235,6 +235,8 @@ class WinnerFeatureExtractor:
                 "ranking_evidence_id": getattr(ranking, "evidence_id", None),
                 "market_regime_snapshot_id": getattr(market, "id", None),
                 "sector_rotation_snapshot_id": getattr(sector_snapshot, "id", None),
+                "regime_evidence_id": getattr(market, "evidence_id", None),
+                "sector_evidence_id": getattr(sector_snapshot, "evidence_id", None),
                 "sector_rotation_row_id": getattr(sector_row, "id", None),
             },
             lineage_json={

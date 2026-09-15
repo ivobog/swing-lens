@@ -338,7 +338,13 @@ def test_sector_prior_selector_skips_newer_incompatible_snapshot() -> None:
     )
     incompatible_identity = _sector_identity(incompatible_expected, prior_context)
     newer = _context_row(2, date(2026, 9, 10), incompatible_identity, run_id=99)
-    older = _context_row(1, date(2026, 9, 9), compatible_identity, run_id=None)
+    older = _context_row(
+        1,
+        date(2026, 9, 9),
+        compatible_identity,
+        run_id=None,
+        evidence_id=101,
+    )
 
     selected = _select_compatible_previous_snapshot(
         (newer, older), expected=expected, current_session=date(2026, 9, 11)
@@ -622,9 +628,10 @@ def _bar():
     )
 
 
-def _context_row(row_id, as_of_date, identity, *, run_id=None):
+def _context_row(row_id, as_of_date, identity, *, run_id=None, evidence_id=None):
     return SimpleNamespace(
         id=row_id,
+        evidence_id=evidence_id,
         run_id=run_id,
         as_of_date=as_of_date,
         created_at=datetime(2026, 9, as_of_date.day, 21, tzinfo=UTC),
