@@ -6,13 +6,21 @@ from decimal import Decimal
 from typing import Any
 
 from app.models.tables import (
+    SetupLifecycleEpisode,
+    SetupLifecycleEvaluationEvidence,
     SetupLifecycleEvent,
+    SetupLifecycleTransitionEvidence,
     SetupSignalSnapshot,
+    SignalAlertDecisionEvidence,
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
 )
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.decision_evidence import (
+    persist_alert_decision_evidence,
+    prior_generated_alert_decision,
+)
 from app.services.setup_lifecycle.dtos import AlertEvaluationResult
 from app.services.setup_lifecycle.enums import Actionability, AlertStatus
 from app.services.setup_lifecycle.episode_service import EpisodeEvaluationResult
@@ -286,20 +294,66 @@ class SetupLifecycleAlertService:
         signal_change_event_id: int | None = None,
         episode_id: int | None = None,
     ) -> AlertServiceResult:
+        (
+            setup_evidence_id,
+            lifecycle_evaluation_evidence_id,
+            lifecycle_transition_evidence_id,
+        ) = self._source_evidence_ids(
+            db,
+            lifecycle_event_id=lifecycle_event_id,
+            signal_change_event_id=signal_change_event_id,
+            episode_id=episode_id,
+        )
+        decision_kwargs = {
+            "rule": rule,
+            "ticker": ticker,
+            "timeframe": timeframe,
+            "effective_session": effective_date,
+            "source_event_key": source_event_key,
+            "semantic_key": semantic_key,
+            "payload": {
+                **evidence,
+                "source_confidence": source_confidence,
+                "evaluation_run_id": evaluation_run_id,
+            },
+            "setup_evidence_id": setup_evidence_id,
+            "lifecycle_evaluation_evidence_id": lifecycle_evaluation_evidence_id,
+            "lifecycle_transition_evidence_id": lifecycle_transition_evidence_id,
+        }
+        certified_source = any(
+            value is not None
+            for value in (
+                setup_evidence_id,
+                lifecycle_evaluation_evidence_id,
+                lifecycle_transition_evidence_id,
+            )
+        )
         if _reconstructed_source(evidence):
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="INELIGIBLE",
+                    reasons=("RECONSTRUCTED_SUPPRESSED",),
+                )
             return AlertServiceResult(suppressed=1, warning_codes=("RECONSTRUCTED_SUPPRESSED",))
         if not _market_restrictions_match(rule, evidence):
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="INELIGIBLE",
+                    reasons=("MARKET_RESTRICTION",),
+                )
             return AlertServiceResult(suppressed=1, warning_codes=("MARKET_RESTRICTION",))
         if not rule.enabled or source_confidence < rule.minimum_confidence:
-            return AlertServiceResult(suppressed=1)
-        if self._cooldown_active(
-            db,
-            rule=rule,
-            ticker=ticker,
-            timeframe=timeframe,
-            effective_date=effective_date,
-            semantic_key=semantic_key,
-        ):
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="INELIGIBLE",
+                    reasons=("RULE_DISABLED" if not rule.enabled else "MINIMUM_CONFIDENCE",),
+                )
             return AlertServiceResult(suppressed=1)
 
         event_key = self.repository.alert_event_key(
@@ -310,11 +364,70 @@ class SetupLifecycleAlertService:
             effective_date=effective_date,
             evaluation_run_id=evaluation_run_id,
         )
+        existing_loader = getattr(self.repository, "alert_event_by_key", None)
+        existing = (
+            existing_loader(db, event_key, through_date=effective_date)
+            if existing_loader is not None
+            else None
+        )
+        if existing is not None:
+            if existing.decision_evidence_id is not None:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="SUPPRESSED_DEDUP",
+                    reasons=("DUPLICATE_EVENT_KEY",),
+                    dedup_predecessor_evidence_id=existing.decision_evidence_id,
+                )
+                return AlertServiceResult(suppressed=1, event_ids=(existing.id,))
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="INELIGIBLE",
+                    reasons=("LEGACY_DEDUP_PREDECESSOR_UNKNOWN",),
+                )
+            return AlertServiceResult(
+                suppressed=1,
+                event_ids=(existing.id,),
+                warning_codes=("LEGACY_DEDUP_PREDECESSOR_UNKNOWN",),
+            )
+
+        cooldown_predecessor = self._cooldown_predecessor(
+            db,
+            rule=rule,
+            ticker=ticker,
+            timeframe=timeframe,
+            effective_date=effective_date,
+            semantic_key=semantic_key,
+            certified=certified_source,
+        )
+        if cooldown_predecessor is not None:
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="SUPPRESSED_COOLDOWN",
+                    reasons=("COOLDOWN_ACTIVE",),
+                    cooldown_predecessor_evidence_id=cooldown_predecessor.id,
+                )
+            return AlertServiceResult(suppressed=1)
+        decision_evidence = (
+            persist_alert_decision_evidence(
+                db,
+                **decision_kwargs,
+                decision="GENERATED",
+                reasons=reason_codes,
+            )
+            if certified_source
+            else None
+        )
         alert = SignalAlertEvent(
             alert_rule_id=rule.id,
             lifecycle_event_id=lifecycle_event_id,
             signal_change_event_id=signal_change_event_id,
             evaluation_run_id=evaluation_run_id,
+            decision_evidence_id=(decision_evidence.id if decision_evidence is not None else None),
             ticker=self.repository.normalize_ticker(ticker),
             timeframe=timeframe,
             effective_date=effective_date,
@@ -344,7 +457,7 @@ class SetupLifecycleAlertService:
     def rules_for_evaluation(self, db) -> tuple[SignalAlertRule, ...]:
         return self._rules(db)
 
-    def _cooldown_active(
+    def _cooldown_predecessor(
         self,
         db,
         *,
@@ -353,23 +466,87 @@ class SetupLifecycleAlertService:
         timeframe: str,
         effective_date: date,
         semantic_key: str,
-    ) -> bool:
+        certified: bool,
+    ) -> SignalAlertDecisionEvidence | None:
         if rule.cooldown_sessions <= 0:
-            return False
-        since = effective_date - timedelta(days=rule.cooldown_sessions * 4 + 7)
-        recent = self.repository.recent_alert_events(
-            db,
-            alert_rule_id=rule.id,
-            ticker=ticker,
-            timeframe=timeframe,
-            since_date=since,
-            through_date=effective_date,
-            semantic_key=semantic_key,
+            return None
+        if certified:
+            predecessor = prior_generated_alert_decision(
+                db,
+                rule_id=rule.rule_id,
+                ticker=ticker,
+                timeframe=timeframe,
+                semantic_key=semantic_key,
+                effective_session=effective_date,
+            )
+        else:
+            since = effective_date - timedelta(days=rule.cooldown_sessions * 4 + 7)
+            recent = self.repository.recent_alert_events(
+                db,
+                alert_rule_id=rule.id,
+                ticker=ticker,
+                timeframe=timeframe,
+                since_date=since,
+                through_date=effective_date,
+                semantic_key=semantic_key,
+            )
+            predecessor = next(
+                (
+                    row
+                    for row in recent
+                    if _trading_sessions_between(row.effective_date, effective_date)
+                    <= rule.cooldown_sessions
+                ),
+                None,
+            )
+        if predecessor is None:
+            return None
+        if not certified:
+            return predecessor
+        return (
+            predecessor
+            if _trading_sessions_between(predecessor.effective_session, effective_date)
+            <= rule.cooldown_sessions
+            else None
         )
-        return any(
-            _trading_sessions_between(row.effective_date, effective_date) <= rule.cooldown_sessions
-            for row in recent
-        )
+
+    @staticmethod
+    def _source_evidence_ids(
+        db,
+        *,
+        lifecycle_event_id: int | None,
+        signal_change_event_id: int | None,
+        episode_id: int | None,
+    ) -> tuple[int | None, int | None, int | None]:
+        setup_id = None
+        evaluation_id = None
+        transition_id = None
+        if not hasattr(db, "get"):
+            return None, None, None
+        if lifecycle_event_id is not None:
+            event = db.get(SetupLifecycleEvent, lifecycle_event_id)
+            transition_id = getattr(event, "transition_evidence_id", None) if event else None
+            if transition_id is not None:
+                transition = db.get(SetupLifecycleTransitionEvidence, transition_id)
+                if transition is not None:
+                    setup_id = transition.setup_evidence_id
+                    evaluation_id = transition.evaluation_evidence_id
+        if signal_change_event_id is not None:
+            change = db.get(SignalChangeEvent, signal_change_event_id)
+            snapshot_id = getattr(change, "current_snapshot_id", None) if change else None
+            snapshot = db.get(SetupSignalSnapshot, snapshot_id) if snapshot_id is not None else None
+            setup_id = setup_id or (getattr(snapshot, "evidence_id", None) if snapshot else None)
+        if episode_id is not None and evaluation_id is None:
+            episode = db.get(SetupLifecycleEpisode, episode_id)
+            evaluation_id = (
+                getattr(episode, "latest_evaluation_evidence_id", None) if episode else None
+            )
+            if evaluation_id is not None:
+                evaluation = db.get(SetupLifecycleEvaluationEvidence, evaluation_id)
+                setup_id = setup_id or (
+                    getattr(evaluation, "setup_evidence_id", None) if evaluation else None
+                )
+        return setup_id, evaluation_id, transition_id
 
 
 def _lifecycle_rule_matches(rule: SignalAlertRule, event: SetupLifecycleEvent) -> bool:

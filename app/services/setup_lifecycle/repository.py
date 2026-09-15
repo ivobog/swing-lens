@@ -1390,6 +1390,16 @@ class SetupLifecycleRepository:
             return existing
         return self.add(db, event)
 
+    def alert_event_by_key(
+        self, db: Session, event_key: str, *, through_date: date
+    ) -> SignalAlertEvent | None:
+        return db.scalar(
+            select(SignalAlertEvent)
+            .where(SignalAlertEvent.event_key == event_key)
+            .where(SignalAlertEvent.effective_date <= through_date)
+            .limit(1)
+        )
+
     def recent_alert_events(
         self,
         db: Session,

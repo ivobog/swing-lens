@@ -5,9 +5,19 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from app.models.tables import SetupLifecycleEpisode, SetupLifecycleEvent, SetupSignalSnapshot
+from app.models.tables import (
+    SetupLifecycleEpisode,
+    SetupLifecycleEvaluationEvidence,
+    SetupLifecycleEvent,
+    SetupSignalSnapshot,
+)
 from app.services.setup_lifecycle.actionability_policy import SetupLifecycleActionabilityPolicy
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.decision_evidence import (
+    persist_lifecycle_evaluation_evidence,
+    persist_lifecycle_transition_evidence,
+    persist_observation_gap_evaluation_evidence,
+)
 from app.services.setup_lifecycle.dtos import (
     ActionabilityDecision,
     EpisodeApplyResult,
@@ -34,6 +44,7 @@ class EpisodeEvaluationResult:
     decision: LifecycleDecision
     actionability: ActionabilityDecision
     lifecycle_event: SetupLifecycleEvent | None = None
+    lifecycle_evaluation_evidence: SetupLifecycleEvaluationEvidence | None = None
     actionability_before: str | None = None
     opened: bool = False
     updated: bool = False
@@ -108,6 +119,20 @@ class SetupLifecycleEpisodeService:
             )
         actionability = self.actionability_policy.evaluate(decision, normalized)
         self._apply_snapshot_denormalization(snapshot, decision, actionability)
+        evaluation_evidence = persist_lifecycle_evaluation_evidence(
+            db,
+            snapshot=snapshot,
+            episode=active,
+            decision=decision,
+            actionability=actionability,
+            evaluation_run_id=evaluation_run_id,
+            transition_eligible=(
+                _opens_episode(decision)
+                if active is None
+                else active.current_state != decision.proposed_state.value
+                or active.current_phase != decision.phase_code
+            ),
+        )
 
         if active is None:
             return self._maybe_open_episode(
@@ -116,6 +141,7 @@ class SetupLifecycleEpisodeService:
                 decision,
                 actionability,
                 evaluation_run_id=evaluation_run_id,
+                evaluation_evidence=evaluation_evidence,
                 preloaded_episodes=preloaded_episodes,
                 refresh_primary=refresh_primary,
             )
@@ -132,6 +158,7 @@ class SetupLifecycleEpisodeService:
             decision,
             actionability,
             evaluation_run_id=evaluation_run_id,
+            evaluation_evidence=evaluation_evidence,
             completed_observation_sessions=effective_observation_sessions,
             refresh_primary=refresh_primary,
         )
@@ -166,6 +193,16 @@ class SetupLifecycleEpisodeService:
         )
         episode.current_as_of_date = observed_on
         threshold = self.config.families.policies[setup_family].observation_gap_sessions
+        evaluation_evidence = persist_observation_gap_evaluation_evidence(
+            db,
+            episode=episode,
+            observed_on=observed_on,
+            missing_observation_sessions=episode.missing_observation_sessions,
+            threshold=threshold,
+            evaluation_run_id=evaluation_run_id,
+        )
+        if evaluation_evidence is not None:
+            episode.latest_evaluation_evidence_id = evaluation_evidence.id
         if episode.missing_observation_sessions <= threshold:
             return EpisodeApplyResult(episode_id=episode.id, updated=True)
 
@@ -186,6 +223,7 @@ class SetupLifecycleEpisodeService:
             },
             event_type="STATE_TRANSITION",
             immediate_transition=False,
+            evaluation_evidence=evaluation_evidence,
         )
         self._close_episode(
             episode,
@@ -231,6 +269,7 @@ class SetupLifecycleEpisodeService:
         actionability: ActionabilityDecision,
         *,
         evaluation_run_id: int | None,
+        evaluation_evidence: SetupLifecycleEvaluationEvidence | None,
         preloaded_episodes: tuple[SetupLifecycleEpisode, ...] | None,
         refresh_primary: bool,
     ) -> EpisodeEvaluationResult:
@@ -239,6 +278,7 @@ class SetupLifecycleEpisodeService:
                 episode=None,
                 decision=decision,
                 actionability=actionability,
+                lifecycle_evaluation_evidence=evaluation_evidence,
                 warning_codes=("NOT_TRACKABLE_FOR_EPISODE",),
             )
 
@@ -253,6 +293,7 @@ class SetupLifecycleEpisodeService:
                 episode=None,
                 decision=decision,
                 actionability=actionability,
+                lifecycle_evaluation_evidence=evaluation_evidence,
                 warning_codes=(cooldown_warning,),
             )
 
@@ -278,6 +319,9 @@ class SetupLifecycleEpisodeService:
             engine_version=snapshot.engine_version,
             config_version=snapshot.config_version,
             config_hash=snapshot.config_hash,
+            latest_evaluation_evidence_id=(
+                evaluation_evidence.id if evaluation_evidence is not None else None
+            ),
             metadata_json=_episode_metadata(snapshot, decision, actionability),
         )
         episode = self.repository.add(db, episode)
@@ -295,6 +339,7 @@ class SetupLifecycleEpisodeService:
             evidence=_decision_evidence(decision, actionability),
             event_type="EPISODE_OPENED",
             immediate_transition=decision.immediate_transition,
+            evaluation_evidence=evaluation_evidence,
             new_episode=True,
         )
         if refresh_primary:
@@ -304,6 +349,7 @@ class SetupLifecycleEpisodeService:
             decision=decision,
             actionability=actionability,
             lifecycle_event=event,
+            lifecycle_evaluation_evidence=evaluation_evidence,
             actionability_before=None,
             opened=True,
             updated=True,
@@ -318,6 +364,7 @@ class SetupLifecycleEpisodeService:
         actionability: ActionabilityDecision,
         *,
         evaluation_run_id: int | None,
+        evaluation_evidence: SetupLifecycleEvaluationEvidence | None,
         completed_observation_sessions: int,
         refresh_primary: bool,
     ) -> EpisodeEvaluationResult:
@@ -348,6 +395,8 @@ class SetupLifecycleEpisodeService:
                 episode.state_age_sessions = 0
         else:
             episode.state_age_sessions += completed_observation_sessions
+        if evaluation_evidence is not None:
+            episode.latest_evaluation_evidence_id = evaluation_evidence.id
 
         event = None
         closed = False
@@ -372,6 +421,7 @@ class SetupLifecycleEpisodeService:
                 from_phase=previous_phase,
                 actionability_before=previous_actionability,
                 state_age_before=state_age_before,
+                evaluation_evidence=evaluation_evidence,
             )
         if decision.proposed_state in {LifecycleState.FAILED, LifecycleState.EXPIRED}:
             self._close_episode(
@@ -392,6 +442,7 @@ class SetupLifecycleEpisodeService:
             decision=decision,
             actionability=actionability,
             lifecycle_event=event,
+            lifecycle_evaluation_evidence=evaluation_evidence,
             actionability_before=previous_actionability,
             updated=True,
             closed=closed,
@@ -418,6 +469,7 @@ class SetupLifecycleEpisodeService:
         from_phase: str | None = None,
         actionability_before: str | None = None,
         state_age_before: int | None = None,
+        evaluation_evidence: SetupLifecycleEvaluationEvidence | None = None,
     ) -> SetupLifecycleEvent:
         effective_date = (
             snapshot.data_as_of_date if snapshot is not None else episode.current_as_of_date
@@ -475,6 +527,16 @@ class SetupLifecycleEpisodeService:
         else:
             event = self.repository.add_lifecycle_event(db, event)
             self.repository.supersede_prior_current_events(db, event)
+        transition_evidence = persist_lifecycle_transition_evidence(
+            db,
+            event=event,
+            evaluation=evaluation_evidence,
+            prior_transition_evidence_id=episode.latest_transition_evidence_id,
+        )
+        if transition_evidence is not None:
+            event.transition_evidence_id = transition_evidence.id
+            episode.latest_transition_evidence_id = transition_evidence.id
+            db.flush()
         return event
 
     def _close_episode(

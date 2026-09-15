@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import select
@@ -13,6 +14,9 @@ from app.models.tables import (
     SignalAlertEvent,
 )
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.decision_evidence import (
+    persist_lifecycle_evaluation_evidence,
+)
 from app.services.setup_lifecycle.enums import EvaluationStatus
 from app.services.setup_lifecycle.episode_service import normalized_snapshot_from_row
 from app.services.setup_lifecycle.lifecycle_engine import evaluate_lifecycle
@@ -45,17 +49,6 @@ class SetupLifecycleReplayService:
 
     def replay(self, db, request: SetupLifecycleReplayRequest) -> dict[str, Any]:
         snapshots = self._snapshots(db, request)
-        proposed = [
-            {
-                "snapshot_id": snapshot.id,
-                "ticker": snapshot.ticker,
-                "data_as_of_date": snapshot.data_as_of_date.isoformat(),
-                "decision": _decision_payload(
-                    evaluate_lifecycle(normalized_snapshot_from_row(snapshot))
-                ),
-            }
-            for snapshot in snapshots
-        ]
         evaluation_run = None
         if request.persist:
             evaluation_run = self.repository.create_evaluation_run(
@@ -75,6 +68,36 @@ class SetupLifecycleReplayService:
                 dry_run=False,
                 requester=request.requester,
             )
+        proposed = []
+        for snapshot in snapshots:
+            decision = evaluate_lifecycle(normalized_snapshot_from_row(snapshot))
+            retrospective = None
+            if evaluation_run is not None:
+                retrospective = persist_lifecycle_evaluation_evidence(
+                    db,
+                    snapshot=snapshot,
+                    episode=None,
+                    decision=decision,
+                    actionability=SimpleNamespace(
+                        actionability=decision.actionability_candidate,
+                        blockers=(),
+                    ),
+                    evaluation_run_id=evaluation_run.id,
+                    transition_eligible=False,
+                )
+            proposed.append(
+                {
+                    "snapshot_id": snapshot.id,
+                    "ticker": snapshot.ticker,
+                    "data_as_of_date": snapshot.data_as_of_date.isoformat(),
+                    "decision": _decision_payload(decision),
+                    "retrospective_evidence_id": (
+                        retrospective.id if retrospective is not None else None
+                    ),
+                }
+            )
+        if request.persist:
+            assert evaluation_run is not None
             self.repository.complete_evaluation_run(
                 db,
                 evaluation_run,

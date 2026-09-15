@@ -26,6 +26,7 @@ class CoreEvidenceKind(StrEnum):
     SECTOR = "SECTOR"
     CERI = "CERI"
     IBMI = "IBMI"
+    SETUP = "SETUP"
 
 
 class EvidenceUnavailableError(LookupError):

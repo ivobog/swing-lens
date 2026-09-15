@@ -581,6 +581,10 @@ def lifecycle_event_payload(event: SetupLifecycleEvent) -> dict[str, Any]:
         "episode_id": event.episode_id,
         "evaluation_run_id": event.evaluation_run_id,
         "snapshot_id": event.snapshot_id,
+        "transition_evidence_id": event.transition_evidence_id,
+        "evidence_status": (
+            "CERTIFIED" if event.transition_evidence_id is not None else "LEGACY_UNKNOWN"
+        ),
         "ticker": event.ticker,
         "timeframe": event.timeframe,
         "setup_family": event.setup_family,
@@ -635,6 +639,13 @@ def episode_payload(episode: SetupLifecycleEpisode) -> dict[str, Any]:
         "closing_snapshot_id": episode.closing_snapshot_id,
         "opening_evaluation_id": episode.opening_evaluation_id,
         "closing_evaluation_id": episode.closing_evaluation_id,
+        "latest_evaluation_evidence_id": episode.latest_evaluation_evidence_id,
+        "latest_transition_evidence_id": episode.latest_transition_evidence_id,
+        "evidence_status": (
+            "CERTIFIED"
+            if episode.latest_evaluation_evidence_id is not None
+            else "LEGACY_CURRENT"
+        ),
         "engine_version": episode.engine_version,
         "config_version": episode.config_version,
         "config_hash": episode.config_hash,
@@ -659,6 +670,8 @@ def snapshot_payload(
         "ranking_result_id": snapshot.ranking_result_id,
         "market_regime_snapshot_id": snapshot.market_regime_snapshot_id,
         "sector_rotation_snapshot_id": snapshot.sector_rotation_snapshot_id,
+        "evidence_id": snapshot.evidence_id,
+        "evidence_status": "CERTIFIED" if snapshot.evidence_id is not None else "LEGACY_UNKNOWN",
         "ticker": snapshot.ticker,
         "company_name": snapshot.company_name,
         "sector": snapshot.sector,
@@ -1222,6 +1235,10 @@ def alert_payload(
         "lifecycle_event_id": alert.lifecycle_event_id,
         "signal_change_event_id": alert.signal_change_event_id,
         "evaluation_run_id": alert.evaluation_run_id,
+        "decision_evidence_id": alert.decision_evidence_id,
+        "evidence_status": (
+            "CERTIFIED" if alert.decision_evidence_id is not None else "LEGACY_CURRENT"
+        ),
         "ticker": alert.ticker,
         "timeframe": alert.timeframe,
         "effective_date": _date_or_none(alert.effective_date),

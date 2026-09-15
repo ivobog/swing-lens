@@ -19,6 +19,7 @@ from app.services.setup_lifecycle.change_detector import (
     SignalChangeDetectionResult,
 )
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
 from app.services.setup_lifecycle.enums import EvaluationStatus
 from app.services.setup_lifecycle.episode_service import (
     SetupLifecycleEpisodeService,
@@ -177,6 +178,10 @@ class SetupLifecycleEvaluationService:
                 evaluation_run_id=evaluation_run.id,
                 snapshot_ids=handoff_snapshot_ids,
             )
+            for snapshot in self.repository.get_snapshots_by_ids(
+                db, canonical.selected_snapshot_ids
+            ):
+                persist_setup_evidence(db, snapshot)
             self._checkpoint(db, evaluation_run.id, "change_detection", should_cancel)
             changes = self.change_detector.detect_and_persist(
                 db,

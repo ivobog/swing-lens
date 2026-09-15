@@ -16,6 +16,10 @@ from app.services.contextual_calculation_identity import (
     identity_metadata,
 )
 from app.services.market_clock_service import MarketClockService
+from app.services.price_bar_evidence import (
+    price_bar_immutable_evidence_manifest,
+    price_bar_immutable_evidence_set_hash,
+)
 from app.services.setup_lifecycle.change_detector import velocity_by_window
 from app.services.setup_lifecycle.config import (
     SetupLifecycleConfig,
@@ -207,6 +211,7 @@ class SetupLifecycleSnapshotBuilder:
         if technical_identity is not None:
             sources = [("TechnicalScore", context.technical_score, technical_identity)]
             for kind, artifact in (
+                ("FundamentalScore", context.fundamental_score),
                 ("CombinedResult", context.combined_result),
                 *[("RankingResult", ranking) for ranking in context.ranking_results],
                 ("MarketRegimeSnapshot", context.market_regime_snapshot),
@@ -639,6 +644,16 @@ class SetupLifecycleSnapshotBuilder:
             "ticker": context.ticker,
             "data_as_of_date": as_of_date.isoformat(),
             "latest_bar": _bar_lineage(latest_bar),
+            "pit_price_evidence": {
+                "series_fingerprint": price_bar_immutable_evidence_set_hash(context.price_bars),
+                "bars": [
+                    price_bar_immutable_evidence_manifest(row)
+                    for row in sorted(
+                        context.price_bars,
+                        key=lambda item: (item.bar_date, item.id or 0),
+                    )
+                ],
+            },
             "trigger_reference": trigger_reference.as_dict(),
             "ranking_profiles": [row.ranking_profile for row in context.ranking_results],
             "market_regime_as_of": _date_or_none(

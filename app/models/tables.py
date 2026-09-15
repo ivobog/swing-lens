@@ -400,7 +400,7 @@ class CoreCalculationEvidence(Base):
     __table_args__ = (
         CheckConstraint(
             "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
-            "'REGIME', 'SECTOR', 'CERI', 'IBMI')",
+            "'REGIME', 'SECTOR', 'CERI', 'IBMI', 'SETUP')",
             name="ck_core_calculation_evidence_kind",
         ),
         UniqueConstraint("evidence_key", name="uq_core_calculation_evidence_key"),
@@ -462,7 +462,7 @@ class CoreCalculationCurrentProjection(Base):
     __table_args__ = (
         CheckConstraint(
             "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
-            "'REGIME', 'SECTOR', 'CERI', 'IBMI')",
+            "'REGIME', 'SECTOR', 'CERI', 'IBMI', 'SETUP')",
             name="ck_core_current_projection_kind",
         ),
         Index(
@@ -3779,6 +3779,9 @@ class SetupSignalSnapshot(Base):
     sector_rotation_snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("sector_rotation_snapshots.id", ondelete="SET NULL")
     )
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT")
+    )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     company_name: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(Text)
@@ -3891,6 +3894,7 @@ class SetupSignalSnapshot(Base):
         Index("idx_setup_signal_snapshots_quality", "data_quality_label"),
         Index("idx_setup_signal_snapshots_source_hash", "source_data_hash"),
         Index("idx_setup_signal_snapshots_eval_run", "evaluation_run_id"),
+        Index("idx_setup_signal_snapshots_evidence", "evidence_id"),
         Index(
             "idx_setup_signal_snapshots_temporal_lineage",
             "input_as_of_session",
@@ -4033,7 +4037,120 @@ class SetupSignalSnapshotSelectionEvent(Base):
     )
 
 
+class SetupLifecycleEvaluationEvidence(Base):
+    """Immutable evidence for every certified lifecycle evaluation, including no-ops."""
+
+    __tablename__ = "setup_lifecycle_evaluation_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    setup_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    prior_evaluation_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_evidence.id", ondelete="RESTRICT")
+    )
+    prior_transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
+    )
+    evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    setup_family: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision_session: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calendar_version: Mapped[str | None] = mapped_column(String(64))
+    calculation_identity_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    execution_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    previous_state: Mapped[str | None] = mapped_column(String(32))
+    output_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    output_phase: Mapped[str] = mapped_column(String(64), nullable=False)
+    transition_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    engine_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    counters_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    reasons_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    warnings_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("evidence_key", name="uq_setup_lifecycle_evaluation_evidence_key"),
+        Index(
+            "idx_setup_lifecycle_evaluation_evidence_chain",
+            "ticker",
+            "timeframe",
+            "setup_family",
+            "decision_session",
+        ),
+        Index("idx_setup_lifecycle_evaluation_setup", "setup_evidence_id"),
+    )
+
+
+class SetupLifecycleTransitionEvidence(Base):
+    """Immutable predecessor-linked evidence for a lifecycle state/phase transition."""
+
+    __tablename__ = "setup_lifecycle_transition_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evaluation_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_evidence.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    setup_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    prior_transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    setup_family: Mapped[str] = mapped_column(String(32), nullable=False)
+    effective_session: Mapped[date] = mapped_column(Date, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    from_state: Mapped[str | None] = mapped_column(String(32))
+    to_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    from_phase: Mapped[str | None] = mapped_column(String(64))
+    to_phase: Mapped[str] = mapped_column(String(64), nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    reasons_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("evaluation_evidence_id", name="uq_setup_transition_evaluation"),
+        UniqueConstraint("evidence_key", name="uq_setup_transition_evidence_key"),
+        Index(
+            "idx_setup_lifecycle_transition_chain",
+            "ticker",
+            "timeframe",
+            "setup_family",
+            "effective_session",
+        ),
+    )
+
+
 class SetupLifecycleEpisode(Base):
+    """Mutable current lifecycle projection; historical meaning lives in evidence rows."""
+
     __tablename__ = "setup_lifecycle_episodes"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -4072,6 +4189,12 @@ class SetupLifecycleEpisode(Base):
     closing_evaluation_id: Mapped[int | None] = mapped_column(
         ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
     )
+    latest_evaluation_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_evidence.id", ondelete="RESTRICT")
+    )
+    latest_transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
+    )
     terminal_state: Mapped[str | None] = mapped_column(String(32))
     terminal_reason_code: Mapped[str | None] = mapped_column(Text)
     is_primary: Mapped[bool] = mapped_column(
@@ -4100,6 +4223,11 @@ class SetupLifecycleEpisode(Base):
         Index("idx_setup_lifecycle_episodes_family_state", "setup_family", "current_state"),
         Index("idx_setup_lifecycle_episodes_current_snapshot", "current_snapshot_id"),
         Index(
+            "idx_setup_lifecycle_episode_latest_evidence",
+            "latest_evaluation_evidence_id",
+            "latest_transition_evidence_id",
+        ),
+        Index(
             "uq_setup_lifecycle_episodes_active_family",
             "ticker",
             "timeframe",
@@ -4122,6 +4250,9 @@ class SetupLifecycleEvent(Base):
     )
     snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -4183,6 +4314,7 @@ class SetupLifecycleEvent(Base):
         Index("idx_setup_lifecycle_events_ticker_date", "ticker", "effective_date"),
         Index("idx_setup_lifecycle_events_type", "event_type"),
         Index("idx_setup_lifecycle_events_current", "is_current_version"),
+        Index("idx_setup_lifecycle_events_transition_evidence", "transition_evidence_id"),
         Index(
             "idx_setup_lifecycle_events_dashboard_order",
             "effective_date",
@@ -4327,7 +4459,92 @@ class SignalAlertRule(Base):
     )
 
 
+class SignalAlertRuleEvidence(Base):
+    """Immutable snapshot of the effective, decision-relevant alert rule."""
+
+    __tablename__ = "signal_alert_rule_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False)
+    rule_row_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_alert_rules.id", ondelete="SET NULL")
+    )
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("evidence_key", name="uq_signal_alert_rule_evidence_key"),
+        Index("idx_signal_alert_rule_evidence_rule", "rule_id", "id"),
+    )
+
+
+class SignalAlertDecisionEvidence(Base):
+    """Immutable generated/suppressed alert decision, separate from notification state."""
+
+    __tablename__ = "signal_alert_decision_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    rule_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("signal_alert_rule_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    setup_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT")
+    )
+    lifecycle_evaluation_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_evidence.id", ondelete="RESTRICT")
+    )
+    lifecycle_transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
+    )
+    cooldown_predecessor_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_alert_decision_evidence.id", ondelete="RESTRICT")
+    )
+    dedup_predecessor_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_alert_decision_evidence.id", ondelete="RESTRICT")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    effective_session: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calendar_version: Mapped[str | None] = mapped_column(String(64))
+    source_event_key: Mapped[str] = mapped_column(Text, nullable=False)
+    semantic_key: Mapped[str] = mapped_column(Text, nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    reasons_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('GENERATED', 'SUPPRESSED_COOLDOWN', 'SUPPRESSED_DEDUP', "
+            "'INELIGIBLE')",
+            name="ck_signal_alert_decision_evidence_decision",
+        ),
+        UniqueConstraint("evidence_key", name="uq_signal_alert_decision_evidence_key"),
+        Index(
+            "idx_signal_alert_decision_temporal",
+            "ticker",
+            "timeframe",
+            "effective_session",
+        ),
+        Index("idx_signal_alert_decision_semantic", "semantic_key", "effective_session"),
+    )
+
+
 class SignalAlertEvent(Base):
+    """Mutable notification state pointing to an immutable alert decision."""
+
     __tablename__ = "signal_alert_events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -4342,6 +4559,9 @@ class SignalAlertEvent(Base):
     )
     evaluation_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    decision_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_alert_decision_evidence.id", ondelete="RESTRICT")
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -4368,10 +4588,23 @@ class SignalAlertEvent(Base):
 
     __table_args__ = (
         UniqueConstraint("event_key", name="uq_signal_alert_events_event_key"),
+        UniqueConstraint(
+            "decision_evidence_id", name="uq_signal_alert_events_decision_evidence"
+        ),
         Index("idx_signal_alert_events_status_severity", "status", "severity"),
         Index("idx_signal_alert_events_ticker_date", "ticker", "effective_date"),
         Index("idx_signal_alert_events_rule", "alert_rule_id"),
     )
+
+
+for _immutable_setup_model in (
+    SetupLifecycleEvaluationEvidence,
+    SetupLifecycleTransitionEvidence,
+    SignalAlertRuleEvidence,
+    SignalAlertDecisionEvidence,
+):
+    event.listen(_immutable_setup_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_immutable_setup_model, "before_delete", _reject_core_evidence_mutation)
 
 
 class SetupLifecycleAdministrativeAuditEvent(Base):
