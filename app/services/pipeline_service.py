@@ -188,7 +188,9 @@ def start_pipeline(
         ceri_provider_ingest_enabled=ceri_provider_ingest_enabled,
         setup_lifecycle_pipeline_step_enabled=setup_lifecycle_pipeline_step_enabled,
     )
-    if verified_transition_preflight is not None:
+    if verified_transition_preflight is not None or bool(
+        getattr(settings, "winner_probability_capture_in_pipeline", False)
+    ):
         handoff_index = next(
             (
                 index

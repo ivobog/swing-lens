@@ -331,7 +331,7 @@ def test_active_external_job_survives_uvicorn_restart(
             assert probe is not None
             probe.payload_json = {"release": True}
             db.commit()
-        worker_process.wait(timeout=15)
+        worker_process.wait(timeout=60 if sys.platform == "win32" else 15)
         completed = _wait_for_job_status(engine, probe_id, "COMPLETED")
         assert completed.result_json == {"probe": "completed"}
         with Session(engine) as db:
@@ -360,7 +360,7 @@ def _wait_for_worker(engine, worker_id: str) -> BackgroundWorker:
 
 
 def _wait_for_job_status(engine, job_id: int, status: str) -> BackgroundJob:
-    deadline = time.monotonic() + 15
+    deadline = time.monotonic() + (120 if sys.platform == "win32" else 15)
     while time.monotonic() < deadline:
         with Session(engine) as db:
             job = db.get(BackgroundJob, job_id)
@@ -372,7 +372,7 @@ def _wait_for_job_status(engine, job_id: int, status: str) -> BackgroundJob:
 
 
 def _wait_for_new_heartbeat(engine, worker_id: str, previous: datetime) -> None:
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + (60 if sys.platform == "win32" else 10)
     while time.monotonic() < deadline:
         with Session(engine) as db:
             worker = db.get(BackgroundWorker, worker_id)

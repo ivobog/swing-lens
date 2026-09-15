@@ -91,6 +91,7 @@ class SetupLifecycleCanonicalizer:
         audit_ids: list[int] = []
         affected_ids = set(affected_snapshot_ids or (snapshot.id for snapshot in snapshots))
 
+        prepared: list[tuple[SetupSignalSnapshot, dict[str, Any]]] = []
         for group in _groups(snapshots).values():
             selected = select_canonical_snapshot(group)
             selected_ids.append(selected.id)
@@ -100,13 +101,30 @@ class SetupLifecycleCanonicalizer:
                 "precedence": list(self.config.canonicalization.precedence),
                 "score": _json_value(list(_canonical_sort_key(selected))),
             }
-            advance = self.repository.advance_canonical_selection(
+            prepared.append((selected, decision))
+        batch_advance = getattr(self.repository, "advance_canonical_selections", None)
+        advances = (
+            batch_advance(
                 db,
-                selected,
+                prepared,
                 reason="phase_4_canonical_precedence",
-                decision=decision,
                 evaluation_run_id=evaluation_run_id,
             )
+            if batch_advance is not None
+            else [
+                self.repository.advance_canonical_selection(
+                    db,
+                    selected,
+                    reason="phase_4_canonical_precedence",
+                    decision=decision,
+                    evaluation_run_id=evaluation_run_id,
+                )
+                for selected, decision in prepared
+            ]
+        )
+        pending_events: list[SetupLifecycleEvent] = []
+        canonical_decisions: list[tuple[SetupSignalSnapshot, str, dict[str, Any]]] = []
+        for (selected, decision), advance in zip(prepared, advances, strict=True):
             previous = advance.previous_snapshot
             decision["changed"] = advance.changed
             decision["previous_snapshot_id"] = previous.id if previous is not None else None
@@ -121,15 +139,34 @@ class SetupLifecycleCanonicalizer:
                     previous,
                     evaluation_run_id=evaluation_run_id,
                 )
-                audit_event = self.repository.add_lifecycle_event(db, event)
-                audit_ids.append(audit_event.id)
+                pending_events.append(event)
             else:
                 unchanged_ids.append(selected.id)
             if selected.id in affected_ids:
+                canonical_decisions.append((selected, "phase_4_canonical_precedence", decision))
+
+        batch_add_events = getattr(self.repository, "add_lifecycle_events", None)
+        if batch_add_events is not None:
+            audit_ids.extend(
+                event.id for event in batch_add_events(db, pending_events) if event.id is not None
+            )
+        else:
+            audit_ids.extend(
+                event.id
+                for event in (
+                    self.repository.add_lifecycle_event(db, pending) for pending in pending_events
+                )
+                if event.id is not None
+            )
+        batch_record = getattr(self.repository, "record_snapshot_canonical_decisions", None)
+        if batch_record is not None:
+            batch_record(db, canonical_decisions)
+        else:
+            for selected, reason, decision in canonical_decisions:
                 self.repository.record_snapshot_canonical_decision(
                     db,
                     selected,
-                    reason="phase_4_canonical_precedence",
+                    reason=reason,
                     decision=decision,
                 )
 

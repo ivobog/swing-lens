@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
+    PipelineRun,
     PriceBar,
     RawCompanyRow,
     SetupLifecycleEvent,
@@ -29,6 +30,17 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.combined_ranking_identity import (
+    build_fundamental_score_identity,
+    build_technical_score_identity,
+    embed_calculation_identity,
+)
+from app.services.contextual_calculation_identity import (
+    build_contextual_result_identity,
+    consumer_context_identity,
+    embed_identity,
+)
+from app.services.market_calculation_context_service import create_pipeline_market_context
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.query_service import (
     SetupLifecycleFilters,
@@ -198,7 +210,11 @@ def test_slse_phase_12_performance_certification(
         with Session(engine) as db:
             legacy_deep = service.changes(
                 db,
-                SetupLifecycleListQuery(filters=SetupLifecycleFilters(), limit=50, cursor="60000"),
+                SetupLifecycleListQuery(
+                    filters=SetupLifecycleFilters(),
+                    limit=50,
+                    cursor="40000",
+                ),
             )
         deep_cursor = legacy_deep["next_cursor"]
         assert deep_cursor and deep_cursor.startswith("k1.")
@@ -329,6 +345,20 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
     )
     db.add(run)
     db.flush()
+    pipeline = PipelineRun(
+        upload_run_id=run.id,
+        status="COMPLETED",
+        current_step="EVALUATING_SETUP_LIFECYCLES",
+        started_at=processed_at,
+        completed_at=processed_at,
+    )
+    db.add(pipeline)
+    db.flush()
+    market_cutoff = create_pipeline_market_context(
+        db,
+        pipeline,
+        cutoff_at=processed_at,
+    )
     tickers = [f"P{size:04d}{index:04d}" for index in range(size)]
     db.execute(
         insert(RawCompanyRow),
@@ -353,6 +383,8 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
                 "ticker": ticker,
                 "fundamental_score": Decimal("8.0"),
                 "liquidity_risk_score": Decimal("8.0"),
+                "scoring_model_version": "fundamentals_v2.0",
+                "debug_json": {"config_hash": "f" * 64},
             }
             for ticker in tickers
         ],
@@ -363,6 +395,10 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
             {
                 "run_id": run.id,
                 "ticker": ticker,
+                "calculation_context_id": market_cutoff.context_id,
+                "calculation_cutoff_at": market_cutoff.cutoff_at,
+                "input_as_of_session": market_cutoff.latest_completed_session,
+                "calendar_version": market_cutoff.calendar_version,
                 "dual_score": Decimal("7.5"),
                 "trend_score": Decimal("7.5"),
                 "momentum_score": Decimal("7.0"),
@@ -372,6 +408,7 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
                 "leadership_score": Decimal("8.0"),
                 "classification": "Breakout Base",
                 "technical_confidence": "HIGH",
+                "technical_engine_version": "slse-performance-technical-v1",
                 "data_quality_score": Decimal("9.0"),
                 "warning_flags_json": [],
                 "feature_flags_json": [],
@@ -399,10 +436,78 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
                 "is_complete": True,
                 "has_fundamental": True,
                 "has_technical": True,
+                "calculation_version": "slse-performance-combined-v1",
+                "config_hash": "c" * 64,
+                "debug_json": {},
             }
             for ticker in tickers
         ],
     )
+    raw_by_ticker = {
+        row.ticker: row
+        for row in db.scalars(select(RawCompanyRow).where(RawCompanyRow.run_id == run.id))
+    }
+    fundamental_by_ticker = {
+        row.ticker: row
+        for row in db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run.id))
+    }
+    technical_by_ticker = {
+        row.ticker: row
+        for row in db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run.id))
+    }
+    combined_by_ticker = {
+        row.ticker: row
+        for row in db.scalars(select(CombinedResult).where(CombinedResult.run_id == run.id))
+    }
+    for ticker in tickers:
+        raw = raw_by_ticker[ticker]
+        fundamental = fundamental_by_ticker[ticker]
+        technical = technical_by_ticker[ticker]
+        combined = combined_by_ticker[ticker]
+        fundamental_identity = build_fundamental_score_identity(
+            fundamental,
+            raw_row=raw,
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline.id,
+        )
+        technical_identity = build_technical_score_identity(
+            technical,
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline.id,
+            effective_config={"fixture": "slse-performance-v1"},
+        )
+        fundamental.debug_json = embed_calculation_identity(
+            fundamental.debug_json,
+            fundamental_identity,
+            policy="SLSE_PERFORMANCE_FIXTURE",
+        )
+        technical.debug_json = embed_calculation_identity(
+            technical.debug_json,
+            technical_identity,
+            policy="SLSE_PERFORMANCE_FIXTURE",
+        )
+        combined_identity = build_contextual_result_identity(
+            base=consumer_context_identity(
+                market_cutoff=market_cutoff,
+                run_id=run.id,
+                pipeline_id=pipeline.id,
+                ticker=ticker,
+            ),
+            namespace="slse-performance-combined",
+            config_hash=combined.config_hash,
+            calculation_version=combined.calculation_version,
+            engine_version=combined.calculation_version,
+            source_artifacts=(
+                ("FundamentalScore", fundamental, fundamental_identity),
+                ("TechnicalScore", technical, technical_identity),
+            ),
+            source_payload={"fixture": "slse-performance-v1"},
+        )
+        combined.debug_json = embed_identity(
+            combined.debug_json,
+            combined_identity,
+            policy="SLSE_PERFORMANCE_FIXTURE",
+        )
     db.execute(
         insert(PriceBar),
         [
@@ -418,6 +523,9 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
                 "source": "SLSE_PERFORMANCE",
                 "what_to_show": "TRADES",
                 "data_hash": f"slse-perf:{ticker}:{as_of.isoformat()}",
+                "created_at": processed_at,
+                "first_seen_at": processed_at,
+                "last_seen_at": processed_at,
             }
             for ticker in tickers
         ],

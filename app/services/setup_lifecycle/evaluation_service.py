@@ -364,15 +364,39 @@ class SetupLifecycleEvaluationService:
             for key, rows in prior_rows.items()
         }
 
+        episode_loader = getattr(self.repository, "lifecycle_episodes_for_keys", None)
+        apply_parameters = signature(self.episode_service.apply_snapshot).parameters
+        use_preloaded_episodes = (
+            episode_loader is not None and "preloaded_episodes" in apply_parameters
+        )
+        episode_keys = {(snapshot.ticker, snapshot.timeframe) for snapshot in snapshots}
+        episodes_by_key = episode_loader(db, episode_keys) if use_preloaded_episodes else {}
+        alert_parameters = signature(self.alert_service.evaluate_episode_result).parameters
+        preload_alert_rules = "rules" in alert_parameters
+        alert_rules = self.alert_service.rules_for_evaluation(db) if preload_alert_rules else None
+
         for snapshot in snapshots:
             key = (snapshot.ticker, snapshot.timeframe)
             history = history_by_key.setdefault(key, [])
+            episode_kwargs = (
+                {
+                    "preloaded_episodes": tuple(episodes_by_key.get(key, ())),
+                    "refresh_primary": False,
+                }
+                if use_preloaded_episodes
+                else {}
+            )
             result = self.episode_service.apply_snapshot(
                 db,
                 snapshot,
                 evaluation_run_id=evaluation_run_id,
                 prior_snapshots=tuple(history[-window:]),
+                **episode_kwargs,
             )
+            if use_preloaded_episodes and result.episode is not None:
+                cached = episodes_by_key.setdefault(key, [])
+                if result.episode not in cached:
+                    cached.append(result.episode)
             history.append(normalized_snapshot_from_row(snapshot))
             if result.lifecycle_event is not None and not result.opened:
                 transitions += 1
@@ -380,8 +404,11 @@ class SetupLifecycleEvaluationService:
                 db,
                 result,
                 evaluation_run_id=evaluation_run_id,
+                **({"rules": alert_rules} if preload_alert_rules else {}),
             )
             alert_created += alerts.created
+        if use_preloaded_episodes:
+            self.episode_service.refresh_primary_statuses(db, keys=episode_keys)
         return transitions, alert_created
 
 

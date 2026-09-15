@@ -8,7 +8,6 @@ from typing import Any
 
 from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
-from app.services.combined_ranking_identity import calculation_identity_from_debug
 from app.services.contextual_calculation_identity import (
     SETUP_TECHNICAL_COMPATIBILITY,
     artifact_identity,
@@ -200,7 +199,7 @@ class SetupLifecycleSnapshotBuilder:
                 ),
             }
         technical_identity = (
-            calculation_identity_from_debug(context.technical_score.debug_json)
+            artifact_identity(context.technical_score)
             if context.technical_score is not None
             else None
         )
@@ -230,9 +229,7 @@ class SetupLifecycleSnapshotBuilder:
                 },
             )
             source_lineage.update(
-                identity_metadata(
-                    setup_identity, policy=SETUP_TECHNICAL_COMPATIBILITY.name
-                )
+                identity_metadata(setup_identity, policy=SETUP_TECHNICAL_COMPATIBILITY.name)
             )
         source_data_hash = SetupLifecycleRepository.stable_hash(
             {
@@ -863,10 +860,34 @@ class SetupLifecycleSnapshotCaptureService:
                 requester=requester,
             )
 
-        for ticker_context, built in built_rows:
+        prepared_rows = [
+            (ticker_context, built, replace(built.dto, evaluation_run_id=evaluation_run.id))
+            for ticker_context, built in built_rows
+        ]
+        batch_upsert = getattr(self.repository, "upsert_snapshots", None)
+        if batch_upsert is not None:
             try:
-                dto = replace(built.dto, evaluation_run_id=evaluation_run.id)
-                snapshot = self.repository.upsert_snapshot(db, dto)
+                persisted = batch_upsert(db, [dto for _context, _built, dto in prepared_rows])
+            except Exception:
+                if evaluation_run is not None:
+                    self.repository.complete_evaluation_run(
+                        db,
+                        evaluation_run,
+                        status=EvaluationStatus.FAILED.value,
+                        current_phase="snapshot_persist_failed",
+                        counts={"read": len(run_context.tickers), "failed": 1},
+                    )
+                raise
+        else:
+            persisted = []
+
+        for index, (ticker_context, built, dto) in enumerate(prepared_rows):
+            try:
+                snapshot = (
+                    persisted[index]
+                    if batch_upsert is not None
+                    else self.repository.upsert_snapshot(db, dto)
+                )
                 snapshot_ids.append(snapshot.id)
                 if built.warnings:
                     warnings_by_ticker[ticker_context.ticker] = built.warnings

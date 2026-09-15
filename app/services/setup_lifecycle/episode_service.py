@@ -65,6 +65,8 @@ class SetupLifecycleEpisodeService:
         evaluation_run_id: int | None = None,
         completed_observation_sessions: int = 1,
         prior_snapshots: tuple[NormalizedSnapshot, ...] = (),
+        preloaded_episodes: tuple[SetupLifecycleEpisode, ...] | None = None,
+        refresh_primary: bool = True,
     ) -> EpisodeEvaluationResult:
         normalized = normalized_snapshot_from_row(snapshot)
         first_pass = self.lifecycle_engine.evaluate(
@@ -75,12 +77,20 @@ class SetupLifecycleEpisodeService:
                 missing_observation_sessions=0,
             )
         )
-        active = self.repository.active_episode_for_update(
-            db,
-            ticker=snapshot.ticker,
-            timeframe=snapshot.timeframe,
-            setup_family=first_pass.setup_family.value,
-            as_of_date=snapshot.data_as_of_date,
+        active = (
+            _active_episode_from_preloaded(
+                preloaded_episodes,
+                setup_family=first_pass.setup_family.value,
+                as_of_date=snapshot.data_as_of_date,
+            )
+            if preloaded_episodes is not None
+            else self.repository.active_episode_for_update(
+                db,
+                ticker=snapshot.ticker,
+                timeframe=snapshot.timeframe,
+                setup_family=first_pass.setup_family.value,
+                as_of_date=snapshot.data_as_of_date,
+            )
         )
         decision = first_pass
         if active is not None:
@@ -106,6 +116,8 @@ class SetupLifecycleEpisodeService:
                 decision,
                 actionability,
                 evaluation_run_id=evaluation_run_id,
+                preloaded_episodes=preloaded_episodes,
+                refresh_primary=refresh_primary,
             )
 
         effective_observation_sessions = (
@@ -121,6 +133,7 @@ class SetupLifecycleEpisodeService:
             actionability,
             evaluation_run_id=evaluation_run_id,
             completed_observation_sessions=effective_observation_sessions,
+            refresh_primary=refresh_primary,
         )
 
     def apply_observation_gap(
@@ -199,6 +212,17 @@ class SetupLifecycleEpisodeService:
             episode.is_primary = index == 0
             episode.primary_rank = index + 1
 
+    def refresh_primary_statuses(self, db, *, keys: set[tuple[str, str]]) -> None:
+        loader = getattr(self.repository, "active_episodes_for_keys", None)
+        if loader is None:
+            for ticker, timeframe in sorted(keys):
+                self.refresh_primary_status(db, ticker=ticker, timeframe=timeframe)
+            return
+        for episodes in loader(db, keys).values():
+            for index, episode in enumerate(select_primary_episodes(episodes, config=self.config)):
+                episode.is_primary = index == 0
+                episode.primary_rank = index + 1
+
     def _maybe_open_episode(
         self,
         db,
@@ -207,6 +231,8 @@ class SetupLifecycleEpisodeService:
         actionability: ActionabilityDecision,
         *,
         evaluation_run_id: int | None,
+        preloaded_episodes: tuple[SetupLifecycleEpisode, ...] | None,
+        refresh_primary: bool,
     ) -> EpisodeEvaluationResult:
         if not _opens_episode(decision):
             return EpisodeEvaluationResult(
@@ -216,7 +242,12 @@ class SetupLifecycleEpisodeService:
                 warning_codes=("NOT_TRACKABLE_FOR_EPISODE",),
             )
 
-        cooldown_warning = self._cooldown_warning(db, snapshot, decision)
+        cooldown_warning = self._cooldown_warning(
+            db,
+            snapshot,
+            decision,
+            preloaded_episodes=preloaded_episodes,
+        )
         if cooldown_warning is not None:
             return EpisodeEvaluationResult(
                 episode=None,
@@ -264,8 +295,10 @@ class SetupLifecycleEpisodeService:
             evidence=_decision_evidence(decision, actionability),
             event_type="EPISODE_OPENED",
             immediate_transition=decision.immediate_transition,
+            new_episode=True,
         )
-        self.refresh_primary_status(db, ticker=snapshot.ticker, timeframe=snapshot.timeframe)
+        if refresh_primary:
+            self.refresh_primary_status(db, ticker=snapshot.ticker, timeframe=snapshot.timeframe)
         return EpisodeEvaluationResult(
             episode=episode,
             decision=decision,
@@ -286,6 +319,7 @@ class SetupLifecycleEpisodeService:
         *,
         evaluation_run_id: int | None,
         completed_observation_sessions: int,
+        refresh_primary: bool,
     ) -> EpisodeEvaluationResult:
         changed = (
             episode.current_state != decision.proposed_state.value
@@ -351,7 +385,8 @@ class SetupLifecycleEpisodeService:
             )
             closed = True
 
-        self.refresh_primary_status(db, ticker=snapshot.ticker, timeframe=snapshot.timeframe)
+        if refresh_primary:
+            self.refresh_primary_status(db, ticker=snapshot.ticker, timeframe=snapshot.timeframe)
         return EpisodeEvaluationResult(
             episode=episode,
             decision=decision,
@@ -378,6 +413,7 @@ class SetupLifecycleEpisodeService:
         evidence: dict[str, Any],
         event_type: str,
         immediate_transition: bool,
+        new_episode: bool = False,
         from_state: LifecycleState | None = None,
         from_phase: str | None = None,
         actionability_before: str | None = None,
@@ -429,8 +465,16 @@ class SetupLifecycleEpisodeService:
             evidence_json=dict(evidence),
             warning_flags_json=list(snapshot.warning_flags_json or []) if snapshot else [],
         )
-        event = self.repository.add_lifecycle_event(db, event)
-        self.repository.supersede_prior_current_events(db, event)
+        if new_episode:
+            add_new = getattr(self.repository, "add_new_lifecycle_event", None)
+            event = (
+                add_new(db, event)
+                if add_new is not None
+                else self.repository.add_lifecycle_event(db, event)
+            )
+        else:
+            event = self.repository.add_lifecycle_event(db, event)
+            self.repository.supersede_prior_current_events(db, event)
         return event
 
     def _close_episode(
@@ -460,13 +504,23 @@ class SetupLifecycleEpisodeService:
         db,
         snapshot: SetupSignalSnapshot,
         decision: LifecycleDecision,
+        *,
+        preloaded_episodes: tuple[SetupLifecycleEpisode, ...] | None = None,
     ) -> str | None:
-        closed = self.repository.latest_closed_episode(
-            db,
-            ticker=snapshot.ticker,
-            timeframe=snapshot.timeframe,
-            setup_family=decision.setup_family.value,
-            as_of_date=snapshot.data_as_of_date,
+        closed = (
+            _latest_closed_episode_from_preloaded(
+                preloaded_episodes,
+                setup_family=decision.setup_family.value,
+                as_of_date=snapshot.data_as_of_date,
+            )
+            if preloaded_episodes is not None
+            else self.repository.latest_closed_episode(
+                db,
+                ticker=snapshot.ticker,
+                timeframe=snapshot.timeframe,
+                setup_family=decision.setup_family.value,
+                as_of_date=snapshot.data_as_of_date,
+            )
         )
         if closed is None or closed.closed_on is None:
             return None
@@ -495,6 +549,57 @@ class SetupLifecycleEpisodeService:
         snapshot.actionability_candidate = actionability.actionability.value
         snapshot.confidence_score = decision.confidence_score
         snapshot.confidence_label = decision.confidence_label.value
+
+
+def _active_episode_from_preloaded(
+    episodes: tuple[SetupLifecycleEpisode, ...],
+    *,
+    setup_family: str,
+    as_of_date: date,
+) -> SetupLifecycleEpisode | None:
+    family = [
+        episode
+        for episode in episodes
+        if episode.status == "ACTIVE" and episode.setup_family == setup_family
+    ]
+    eligible = [
+        episode
+        for episode in family
+        if episode.opened_on <= as_of_date
+        and episode.current_as_of_date <= as_of_date
+        and episode.last_observed_on <= as_of_date
+    ]
+    if eligible:
+        return max(
+            eligible,
+            key=lambda episode: (
+                episode.current_as_of_date,
+                episode.opened_on,
+                episode.id or 0,
+            ),
+        )
+    if family:
+        raise ValueError(
+            "historical lifecycle state is unavailable because a newer active episode exists"
+        )
+    return None
+
+
+def _latest_closed_episode_from_preloaded(
+    episodes: tuple[SetupLifecycleEpisode, ...],
+    *,
+    setup_family: str,
+    as_of_date: date,
+) -> SetupLifecycleEpisode | None:
+    eligible = [
+        episode
+        for episode in episodes
+        if episode.status == "CLOSED"
+        and episode.setup_family == setup_family
+        and episode.closed_on is not None
+        and episode.closed_on <= as_of_date
+    ]
+    return max(eligible, key=lambda episode: (episode.closed_on, episode.id or 0), default=None)
 
 
 def normalized_snapshot_from_row(snapshot: SetupSignalSnapshot) -> NormalizedSnapshot:

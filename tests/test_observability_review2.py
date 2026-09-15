@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-import asyncio
 import time
 import tracemalloc
 from contextlib import contextmanager
@@ -11,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from alembic.config import Config
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.database_safety import (
@@ -93,12 +93,8 @@ def test_cardinality_is_bounded_for_100k_dynamic_values_per_dimension() -> None:
     tracemalloc.start()
     started = time.perf_counter()
     for index in range(100_000):
-        operational_metrics.set_gauge(
-            "swinglens_worker_up", 1, worker_id=f"instance-{index}"
-        )
-        operational_metrics.increment(
-            "swinglens_job_progress_total", stage=f"stage-{index}"
-        )
+        operational_metrics.set_gauge("swinglens_worker_up", 1, worker_id=f"instance-{index}")
+        operational_metrics.increment("swinglens_job_progress_total", stage=f"stage-{index}")
         operational_metrics.increment(
             "swinglens_technical_artifact_cache_total",
             result="invalid",
@@ -194,9 +190,10 @@ def test_winner_all_same_session_statuses_are_idle_without_audit(status, monkeyp
         lambda *args, **kwargs: enqueues.append((args, kwargs)),
     )
     for _ in range(2_000):
-        assert scheduler.schedule_primary_h5_maturation(
-            db, now=datetime(2026, 9, 7, 12, tzinfo=UTC)
-        ) is existing
+        assert (
+            scheduler.schedule_primary_h5_maturation(db, now=datetime(2026, 9, 7, 12, tzinfo=UTC))
+            is existing
+        )
     assert roots == []
     assert enqueues == []
 
@@ -257,13 +254,14 @@ def test_collector_exception_then_success_recovers_health() -> None:
 
     resource_sampler._component_attempt("web", "system_metrics_collector")
     resource_sampler._component_failure("web", "system_metrics_collector")
-    assert resource_sampler.collector_component_status(
-        "web", "system_metrics_collector"
-    )["consecutive_failures"] == 1
-    resource_sampler._component_success("web", "system_metrics_collector")
-    recovered = resource_sampler.collector_component_status(
-        "web", "system_metrics_collector"
+    assert (
+        resource_sampler.collector_component_status("web", "system_metrics_collector")[
+            "consecutive_failures"
+        ]
+        == 1
     )
+    resource_sampler._component_success("web", "system_metrics_collector")
+    recovered = resource_sampler.collector_component_status("web", "system_metrics_collector")
     assert recovered["consecutive_failures"] == 0
     assert recovered["last_success"] is not None
 
@@ -311,11 +309,8 @@ def test_metrics_off_web_lifespan_starts_no_prometheus_collectors(
     monkeypatch.setattr(app_main, "SystemMetricsCollector", ForbiddenCollector)
     app = app_main.create_app(settings)
 
-    async def enter() -> None:
-        async with app_main.lifespan(app):
-            assert not operational_metrics.enabled
-
-    asyncio.run(enter())
+    with TestClient(app):
+        assert not operational_metrics.enabled
     assert starts == ["database_health"]
     assert (
         ReadinessService(engine=SimpleNamespace(), settings=settings)
@@ -385,8 +380,7 @@ def test_metrics_off_is_empty_and_durable_cleanup_is_independent(monkeypatch) ->
     calls: list[int] = []
     monkeypatch.setattr(
         "app.services.cleanup_service.prune_enqueue_attempt_evidence",
-        lambda _db, *, retention_days: calls.append(retention_days)
-        or {"attempts": 3, "roots": 2},
+        lambda _db, *, retention_days: calls.append(retention_days) or {"attempts": 3, "roots": 2},
     )
     settings = SimpleNamespace(observability_enqueue_attempt_retention_days=30)
     assert execute_durable_evidence_retention(object(), settings) == {"attempts": 3, "roots": 2}

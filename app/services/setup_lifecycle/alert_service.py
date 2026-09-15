@@ -73,6 +73,7 @@ class SetupLifecycleAlertService:
         result: EpisodeEvaluationResult,
         *,
         evaluation_run_id: int | None = None,
+        rules: tuple[SignalAlertRule, ...] | None = None,
     ) -> AlertServiceResult:
         created = 0
         suppressed = 0
@@ -80,7 +81,7 @@ class SetupLifecycleAlertService:
         warning_codes: list[str] = []
 
         if result.lifecycle_event is not None:
-            lifecycle = self.evaluate_lifecycle_event(db, result.lifecycle_event)
+            lifecycle = self.evaluate_lifecycle_event(db, result.lifecycle_event, rules=rules)
             created += lifecycle.created
             suppressed += lifecycle.suppressed
             event_ids.extend(lifecycle.event_ids)
@@ -91,6 +92,7 @@ class SetupLifecycleAlertService:
                 db,
                 result,
                 evaluation_run_id=evaluation_run_id,
+                rules=rules,
             )
             created += gate.created
             suppressed += gate.suppressed
@@ -108,6 +110,8 @@ class SetupLifecycleAlertService:
         self,
         db,
         event: SetupLifecycleEvent,
+        *,
+        rules: tuple[SignalAlertRule, ...] | None = None,
     ) -> AlertServiceResult:
         created = 0
         suppressed = 0
@@ -119,7 +123,7 @@ class SetupLifecycleAlertService:
             else None
         )
         market_regime = _event_market_regime(event, snapshot)
-        for rule in self._rules(db):
+        for rule in rules if rules is not None else self._rules(db):
             if not _lifecycle_rule_matches(rule, event):
                 continue
             outcome = self._persist_alert(
@@ -223,11 +227,13 @@ class SetupLifecycleAlertService:
         result: EpisodeEvaluationResult,
         *,
         evaluation_run_id: int | None,
+        rules: tuple[SignalAlertRule, ...] | None = None,
     ) -> AlertServiceResult:
         episode = result.episode
         if episode is None:
             return AlertServiceResult()
-        rule = next((item for item in self._rules(db) if item.rule_id == "GATE_BLOCKED"), None)
+        available_rules = rules if rules is not None else self._rules(db)
+        rule = next((item for item in available_rules if item.rule_id == "GATE_BLOCKED"), None)
         if rule is None:
             return AlertServiceResult()
         effective_date = episode.current_as_of_date
@@ -335,6 +341,9 @@ class SetupLifecycleAlertService:
     def _rules(self, db) -> tuple[SignalAlertRule, ...]:
         return tuple(self.repository.alert_rules(db, enabled_only=True))
 
+    def rules_for_evaluation(self, db) -> tuple[SignalAlertRule, ...]:
+        return self._rules(db)
+
     def _cooldown_active(
         self,
         db,
@@ -358,8 +367,7 @@ class SetupLifecycleAlertService:
             semantic_key=semantic_key,
         )
         return any(
-            _trading_sessions_between(row.effective_date, effective_date)
-            <= rule.cooldown_sessions
+            _trading_sessions_between(row.effective_date, effective_date) <= rule.cooldown_sessions
             for row in recent
         )
 

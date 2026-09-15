@@ -78,9 +78,7 @@ REGIME_CONTEXT_COMPATIBILITY = _profile(
     ("algorithm.calculation_version", False),
     ("algorithm.engine_version", False),
 )
-SECTOR_RANKING_COMPATIBILITY = _profile(
-    "SECTOR_RANKING_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS
-)
+SECTOR_RANKING_COMPATIBILITY = _profile("SECTOR_RANKING_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS)
 SECTOR_REGIME_COMPATIBILITY = CalculationIdentityCompatibilityProfile(
     "SECTOR_REGIME_COMPATIBILITY", REGIME_CONTEXT_COMPATIBILITY.rules
 )
@@ -92,12 +90,8 @@ SECTOR_PRIOR_COMPATIBILITY = _profile(
     ("algorithm.engine_version", False),
     ("algorithm.components", False),
 )
-SETUP_TECHNICAL_COMPATIBILITY = _profile(
-    "SETUP_TECHNICAL_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS
-)
-SETUP_COMBINED_COMPATIBILITY = _profile(
-    "SETUP_COMBINED_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS
-)
+SETUP_TECHNICAL_COMPATIBILITY = _profile("SETUP_TECHNICAL_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS)
+SETUP_COMBINED_COMPATIBILITY = _profile("SETUP_COMBINED_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS)
 SETUP_RANKING_METADATA_COMPATIBILITY = _profile(
     "SETUP_RANKING_METADATA_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS
 )
@@ -133,9 +127,7 @@ CERI_IBMI_COMPATIBILITY = _profile(
 IBMI_CONTEXT_COMPATIBILITY = CalculationIdentityCompatibilityProfile(
     "IBMI_CONTEXT_COMPATIBILITY", CERI_IBMI_COMPATIBILITY.rules
 )
-CERI_CONTEXT_COMPATIBILITY = _profile(
-    "CERI_CONTEXT_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS
-)
+CERI_CONTEXT_COMPATIBILITY = _profile("CERI_CONTEXT_COMPATIBILITY", *_RUN_CONTEXT_DIMENSIONS)
 
 
 def pipeline_id_for_cutoff(
@@ -207,9 +199,7 @@ def consumer_context_identity(
                     market_cutoff.calendar_version,
                     market_cutoff.exchange_timezone,
                     IdentityDimension.known(
-                        VersionIdentity(
-                            "market-bar-readiness", market_cutoff.bar_readiness_version
-                        )
+                        VersionIdentity("market-bar-readiness", market_cutoff.bar_readiness_version)
                     ),
                 )
             ),
@@ -222,8 +212,17 @@ def consumer_context_identity(
 
 
 def artifact_identity(artifact: Any) -> CalculationIdentity:
-    identity = calculation_identity_from_debug(getattr(artifact, "debug_json", None))
+    debug_json = getattr(artifact, "debug_json", None)
+    persisted_fingerprint = (debug_json or {}).get(CALCULATION_IDENTITY_FINGERPRINT_KEY)
+    cached = getattr(artifact, "_calculation_identity_cache", None)
+    if cached is not None and cached[0] == persisted_fingerprint:
+        return cached[1]
+    identity = calculation_identity_from_debug(debug_json)
     if identity is not None:
+        try:
+            artifact._calculation_identity_cache = (persisted_fingerprint, identity)
+        except (AttributeError, TypeError):
+            pass
         return identity
     run_id = getattr(artifact, "run_id", None)
     ticker = getattr(artifact, "ticker", None)
@@ -236,9 +235,13 @@ def contextual_compatibility(
     *,
     policy: CalculationIdentityCompatibilityProfile,
     require_source_lineage: bool = True,
+    include_fingerprints: bool = True,
 ) -> CalculationIdentityAdoptionResult:
     comparison = CalculationIdentityCompatibilityValidator.compare(
-        expected, actual, policy=policy
+        expected,
+        actual,
+        policy=policy,
+        include_fingerprints=include_fingerprints,
     )
     diagnostics = [
         (
@@ -261,9 +264,7 @@ def contextual_compatibility(
             if value.state in {IdentityState.UNKNOWN, IdentityState.LEGACY_UNKNOWN}
             else "NOT_APPLICABLE_NOT_PERMITTED"
         )
-        diagnostics.append(
-            f"dimension={dimension} actual={value.state.value} reason={reason}"
-        )
+        diagnostics.append(f"dimension={dimension} actual={value.state.value} reason={reason}")
     insufficient = comparison.status is CalculationIdentityCompatibilityStatus.INSUFFICIENT_IDENTITY
     insufficient = insufficient or any(
         "UNKNOWN_IS_NOT_COMPATIBILITY_EVIDENCE" in item for item in diagnostics
@@ -327,9 +328,7 @@ def expected_ibmi_identity(
     na = IdentityDimension.not_applicable()
     calendar = context.temporal.calendar
     if calendar.state is IdentityState.KNOWN:
-        calendar = IdentityDimension.known(
-            replace(calendar.value, bar_readiness_version=na)
-        )
+        calendar = IdentityDimension.known(replace(calendar.value, bar_readiness_version=na))
     return replace(
         context,
         ownership=CalculationOwnership(na, na),
@@ -378,9 +377,7 @@ def build_ibmi_feature_identity(feature: Any) -> CalculationIdentity:
     module = str(getattr(feature, "module", "feature")).lower()
     return CalculationIdentity(
         ownership=CalculationOwnership(na, na),
-        subject=CalculationSubject(
-            IdentityDimension.known(str(feature.ticker).upper()), na
-        ),
+        subject=CalculationSubject(IdentityDimension.known(str(feature.ticker).upper()), na),
         calculation_context=CalculationContextIdentity(na, na),
         temporal=TemporalIdentity(
             IdentityDimension.known(feature.as_of_session),

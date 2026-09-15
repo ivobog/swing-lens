@@ -4,6 +4,7 @@ import os
 
 import pytest
 
+from app.services.lifecycle_control import sanitized_database_endpoint
 from app.settings import Settings
 from scripts.ops import lifecycle_probe
 
@@ -34,7 +35,7 @@ def test_lifecycle_config_uses_exact_pydantic_dotenv_semantics(
     report = lifecycle_probe._config_report()
     assert "postgres:postgres" not in str(report).lower()
     provenance = report["provenance"]["DATABASE_URL"]
-    assert provenance["value"].startswith("postgresql+psycopg://127.0.0.1:5432/")
+    assert provenance["value"] == sanitized_database_endpoint(truth.database_url)
     assert "postgres:postgres" not in provenance["value"].lower()
     if "DATABASE_URL" in os.environ:
         assert provenance["source"] == "process environment"

@@ -244,8 +244,18 @@ class SetupLifecycleQueryService:
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
             statement = statement.where(current_canonical_snapshot_predicate())
         statement = _apply_snapshot_filters(statement, query.filters)
-        total = _count(db, statement)
-        low_confidence = _count(db, statement.where(SetupSignalSnapshot.confidence_score < 70))
+        # Both summary values share the same (potentially large) anti-join over
+        # snapshot history.  Compute them in one aggregate scan instead of
+        # executing the expensive predicate twice.
+        total, low_confidence = db.execute(
+            statement.with_only_columns(
+                func.count(),
+                func.count().filter(SetupSignalSnapshot.confidence_score < 70),
+                maintain_column_froms=True,
+            ).order_by(None)
+        ).one()
+        total = int(total or 0)
+        low_confidence = int(low_confidence or 0)
         rows = list(
             db.scalars(
                 _sort_no_material_snapshots(statement, query)

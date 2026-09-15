@@ -9,6 +9,7 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer
 
 CALCULATION_IDENTITY_SCHEMA_VERSION = "calculation-identity-v1"
 
+
 class IdentityState(StrEnum):
     """Evidence state for one identity dimension.
 
@@ -126,9 +127,7 @@ class SourceArtifactReference:
             "artifact_type": self.artifact_type,
             "artifact_id": self.artifact_id,
             "revision_id": _dimension_payload(self.revision_id),
-            "fingerprint": _dimension_payload(
-                self.fingerprint, lambda value: value.as_dict()
-            ),
+            "fingerprint": _dimension_payload(self.fingerprint, lambda value: value.as_dict()),
         }
 
 
@@ -227,9 +226,7 @@ class CalculationIdentityValidation:
 
     def require_valid(self) -> None:
         if self.issues:
-            rendered = "; ".join(
-                f"{issue.dimension}: {issue.message}" for issue in self.issues
-            )
+            rendered = "; ".join(f"{issue.dimension}: {issue.message}" for issue in self.issues)
             raise CalculationIdentityValidationError(rendered)
 
 
@@ -293,9 +290,7 @@ class CalculationIdentity:
                 },
                 "temporal": {
                     "as_of_session": _dimension_payload(self.temporal.as_of_session),
-                    "calculation_cutoff": _dimension_payload(
-                        self.temporal.calculation_cutoff
-                    ),
+                    "calculation_cutoff": _dimension_payload(self.temporal.calculation_cutoff),
                     "calendar": _dimension_payload(
                         self.temporal.calendar, lambda value: value.as_dict()
                     ),
@@ -338,9 +333,7 @@ class CalculationIdentity:
                         self.generation.generation_watermark,
                         lambda value: value.as_dict(),
                     ),
-                    "generation_cutoff": _dimension_payload(
-                        self.generation.generation_cutoff
-                    ),
+                    "generation_cutoff": _dimension_payload(self.generation.generation_cutoff),
                 },
             }
         )
@@ -349,9 +342,13 @@ class CalculationIdentity:
         return CanonicalEvidenceSerializer.dumps(self.canonical_payload())
 
     def fingerprint(self) -> CalculationIdentityFingerprint:
-        return CalculationIdentityFingerprint(
-            CanonicalEvidenceSerializer.fingerprint(self.canonical_payload())
-        )
+        cached = getattr(self, "_fingerprint_cache", None)
+        if cached is None:
+            cached = CalculationIdentityFingerprint(
+                CanonicalEvidenceSerializer.fingerprint(self.canonical_payload())
+            )
+            object.__setattr__(self, "_fingerprint_cache", cached)
+        return cached
 
     @classmethod
     def from_canonical_payload(cls, payload: dict[str, Any]) -> CalculationIdentity:
@@ -399,20 +396,14 @@ class CalculationIdentity:
                         algorithm["calculation_version"], _parse_version
                     ),
                     model_version=_parse_dimension(algorithm["model_version"], _parse_version),
-                    schema_version=_parse_dimension(
-                        algorithm["schema_version"], _parse_version
-                    ),
-                    engine_version=_parse_dimension(
-                        algorithm["engine_version"], _parse_version
-                    ),
+                    schema_version=_parse_dimension(algorithm["schema_version"], _parse_version),
+                    engine_version=_parse_dimension(algorithm["engine_version"], _parse_version),
                     components=_parse_dimension(
                         algorithm["components"],
                         lambda values: tuple(_parse_version(value) for value in values),
                     ),
                 ),
-                source_lineage=_parse_dimension(
-                    payload["source_lineage"], _parse_source_lineage
-                ),
+                source_lineage=_parse_dimension(payload["source_lineage"], _parse_source_lineage),
                 generation=GenerationIdentity(
                     generation_id=_parse_dimension(generation["generation_id"], _parse_text),
                     generation_key=_parse_dimension(generation["generation_key"], _parse_text),
@@ -493,9 +484,7 @@ class CalculationIdentityValidator:
             or isinstance(identity.temporal.as_of_session.value, datetime)
         ):
             issues.append(
-                IdentityValidationIssue(
-                    "temporal.as_of_session", "known value must be a date"
-                )
+                IdentityValidationIssue("temporal.as_of_session", "known value must be a date")
             )
         cls._calendar(identity.temporal.calendar, "temporal.calendar", issues)
         cls._configuration(identity.configuration.effective_configuration, issues)
@@ -552,8 +541,7 @@ class CalculationIdentityValidator:
                     )
                 )
         if (
-            identity.calculation_context.market_calculation_context_id.state
-            is IdentityState.KNOWN
+            identity.calculation_context.market_calculation_context_id.state is IdentityState.KNOWN
             and any(
                 dimension.state is not IdentityState.KNOWN
                 for dimension in (
@@ -913,6 +901,7 @@ class CalculationIdentityCompatibilityValidator:
         actual: CalculationIdentity,
         *,
         policy: CalculationIdentityCompatibilityProfile,
+        include_fingerprints: bool = True,
     ) -> CalculationIdentityCompatibility:
         if not isinstance(expected, CalculationIdentity) or not isinstance(
             actual, CalculationIdentity
@@ -938,8 +927,8 @@ class CalculationIdentityCompatibilityValidator:
                 None,
             )
 
-        expected_fingerprint = str(expected.fingerprint())
-        actual_fingerprint = str(actual.fingerprint())
+        expected_fingerprint = str(expected.fingerprint()) if include_fingerprints else None
+        actual_fingerprint = str(actual.fingerprint()) if include_fingerprints else None
         incompatible: list[CalculationIdentityMismatch] = []
         insufficient: list[CalculationIdentityMismatch] = []
         for rule in policy.rules:
@@ -1015,7 +1004,7 @@ class CalculationIdentityCompatibilityValidator:
         elif insufficient:
             status = CalculationIdentityCompatibilityStatus.INSUFFICIENT_IDENTITY
             mismatches = tuple(insufficient)
-        elif expected_fingerprint == actual_fingerprint:
+        elif include_fingerprints and expected_fingerprint == actual_fingerprint:
             status = CalculationIdentityCompatibilityStatus.EXACT_MATCH
             mismatches = ()
         else:
@@ -1133,9 +1122,7 @@ def _parse_calendar(payload: dict[str, Any]) -> CalendarIdentity:
         calendar_id=_parse_text(payload["calendar_id"]),
         calendar_version=_parse_text(payload["calendar_version"]),
         exchange_timezone=_parse_text(payload["exchange_timezone"]),
-        bar_readiness_version=_parse_dimension(
-            payload["bar_readiness_version"], _parse_version
-        ),
+        bar_readiness_version=_parse_dimension(payload["bar_readiness_version"], _parse_version),
     )
 
 
@@ -1160,9 +1147,7 @@ def _parse_source_reference(payload: dict[str, Any]) -> SourceArtifactReference:
 def _parse_source_lineage(payload: dict[str, Any]) -> SourceLineageIdentity:
     return SourceLineageIdentity(
         references=tuple(_parse_source_reference(value) for value in payload["references"]),
-        aggregate_fingerprint=_parse_dimension(
-            payload["aggregate_fingerprint"], _parse_digest
-        ),
+        aggregate_fingerprint=_parse_dimension(payload["aggregate_fingerprint"], _parse_digest),
         proof_boundary=_parse_text(payload["proof_boundary"]),
     )
 

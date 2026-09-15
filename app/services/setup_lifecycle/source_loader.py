@@ -165,9 +165,12 @@ class SetupLifecycleSourceLoader:
             )
         context_cutoff = source_cutoff
         context_started_at = perf_counter()
+        latest_bars_by_ticker = _latest_bars_by_ticker(price_bars)
         ticker_cutoffs = {
             normalize_ticker(row.ticker): (
-                _ticker_context_cutoff_date(row, technical_scores, price_bars) or context_cutoff
+                latest_bars_by_ticker.get(normalize_ticker(row.ticker)).bar_date
+                if normalize_ticker(row.ticker) in latest_bars_by_ticker
+                else context_cutoff
             )
             for row in raw_rows
             if row.ticker and row.ticker.strip()
@@ -766,7 +769,10 @@ def _select_compatible_context_candidate(
         if not allow_cross_run and row.run_id not in {run_id, None}:
             continue
         if contextual_compatibility(
-            expected, artifact_identity(row), policy=policy
+            expected,
+            artifact_identity(row),
+            policy=policy,
+            include_fingerprints=False,
         ).accepted:
             return row
     return None
@@ -789,7 +795,10 @@ def _compatible_ticker_artifacts(
             ticker=row.ticker,
         )
         if contextual_compatibility(
-            expected, artifact_identity(row), policy=policy
+            expected,
+            artifact_identity(row),
+            policy=policy,
+            include_fingerprints=False,
         ).accepted:
             accepted.append(row)
     return accepted

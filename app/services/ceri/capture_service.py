@@ -1072,12 +1072,14 @@ def _point_in_time_volatility_feature(
         module="volatility",
     )
     for row in rows:
-        if row.coverage_status != "AVAILABLE" or row.as_of_session != session:
+        if row.as_of_session != session:
             continue
         identity = build_ibmi_feature_identity(row)
         if ibmi_contextual_compatibility(
             expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
         ).accepted:
+            if row.coverage_status != "AVAILABLE":
+                return None
             return _VolatilityRiskFeature(
                 id=row.id,
                 components=dict(row.components_json or {}),
@@ -1141,12 +1143,14 @@ def _point_in_time_short_pressure_feature(
         module="short_pressure",
     )
     for row in rows:
-        if row.coverage_status != "AVAILABLE" or row.as_of_session != session:
+        if row.as_of_session != session:
             continue
         identity = build_ibmi_feature_identity(row)
         if ibmi_contextual_compatibility(
             expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
         ).accepted:
+            if row.coverage_status != "AVAILABLE":
+                return None
             return _ShortPressureContextFeature(
                 id=row.id,
                 classification=row.classification,

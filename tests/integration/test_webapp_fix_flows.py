@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import BytesIO
 from types import SimpleNamespace
@@ -20,6 +20,11 @@ from app.models.tables import (
 )
 from app.services.bar_cache_service import BarUpsertSummary
 from app.services.combined_decision import refresh_combined_results
+from app.services.combined_ranking_identity import (
+    build_fundamental_score_identity,
+    build_technical_score_identity,
+    embed_calculation_identity,
+)
 from app.services.export_service import export_run_csv
 from app.services.fundamental_ranker_v2 import FundamentalScoreV2Result
 from app.services.ib_data_fetcher import HistoricalBar
@@ -31,6 +36,7 @@ from app.services.ib_fetch_plan_service import (
     FetchPlanItem,
     build_fetch_plan,
 )
+from app.services.market_clock_service import MarketClockService
 from app.services.ohlcv_coverage_service import OhlcvCoverageItem, OhlcvCoverageSummary
 from app.settings import Settings
 
@@ -131,7 +137,17 @@ def test_upload_fetch_plan_execution_cockpit_and_export_flow(tmp_path, monkeypat
         fundamentals=upload_db.fundamental_scores,
         technicals=[_technical("MSFT")],
     )
-    combined = refresh_combined_results(cockpit_db, run.id)
+    market_cutoff, pipeline_run_id = _attach_combined_input_identities(
+        cockpit_db.raw_rows[0],
+        cockpit_db.fundamentals[0],
+        cockpit_db.technicals[0],
+    )
+    combined = refresh_combined_results(
+        cockpit_db,
+        run.id,
+        market_cutoff=market_cutoff,
+        pipeline_run_id=pipeline_run_id,
+    )
 
     assert cockpit_db.deleted_combined_results
     assert len(combined) == 1
@@ -180,7 +196,17 @@ def test_v4_technical_workflow_refreshes_cockpit_and_exports_fields() -> None:
         fundamentals=[fundamental],
         technicals=[technical],
     )
-    combined = refresh_combined_results(cockpit_db, run.id)
+    market_cutoff, pipeline_run_id = _attach_combined_input_identities(
+        raw,
+        fundamental,
+        technical,
+    )
+    combined = refresh_combined_results(
+        cockpit_db,
+        run.id,
+        market_cutoff=market_cutoff,
+        pipeline_run_id=pipeline_run_id,
+    )
 
     assert combined[0].ticker == "NVDA"
     assert combined[0].technical_classification == "Climax reversal risk"
@@ -298,6 +324,58 @@ def _fake_score_rows_v2(rows) -> list[FundamentalScoreV2Result]:
         for row in rows
         if row.ticker
     ]
+
+
+def _attach_combined_input_identities(
+    raw: RawCompanyRow,
+    fundamental: FundamentalScore,
+    technical: TechnicalScore,
+):
+    raw.id = raw.id or 101
+    fundamental.id = fundamental.id or 201
+    technical.id = technical.id or 301
+    pipeline_run_id = 401
+    market_cutoff = (
+        MarketClockService()
+        .cutoff_for(
+            datetime(2026, 9, 4, 21, 0, tzinfo=UTC),
+            reason="WEBAPP_FIX_FLOW_TEST",
+        )
+        .with_context_id(501)
+    )
+    fundamental.scoring_model_version = "fundamentals_v2.0"
+    fundamental.debug_json = {
+        **(fundamental.debug_json or {}),
+        "config_hash": "f" * 64,
+    }
+    technical.calculation_context_id = market_cutoff.context_id
+    technical.calculation_cutoff_at = market_cutoff.cutoff_at
+    technical.input_as_of_session = market_cutoff.latest_completed_session
+    technical.calendar_version = market_cutoff.calendar_version
+    technical.technical_engine_version = technical.technical_engine_version or "4.0.0"
+    fundamental_identity = build_fundamental_score_identity(
+        fundamental,
+        raw_row=raw,
+        market_cutoff=market_cutoff,
+        pipeline_run_id=pipeline_run_id,
+    )
+    technical_identity = build_technical_score_identity(
+        technical,
+        market_cutoff=market_cutoff,
+        pipeline_run_id=pipeline_run_id,
+        effective_config={"fixture": "webapp-fix-flow-v1"},
+    )
+    fundamental.debug_json = embed_calculation_identity(
+        fundamental.debug_json,
+        fundamental_identity,
+        policy="WEBAPP_FIX_FLOW_TEST",
+    )
+    technical.debug_json = embed_calculation_identity(
+        technical.debug_json,
+        technical_identity,
+        policy="WEBAPP_FIX_FLOW_TEST",
+    )
+    return market_cutoff, pipeline_run_id
 
 
 def _technical(ticker: str) -> TechnicalScore:

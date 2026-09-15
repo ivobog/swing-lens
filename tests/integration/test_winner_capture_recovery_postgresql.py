@@ -14,6 +14,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.exc import DetachedInstanceError
 
+import app.services.winner_probability.capture_service as winner_capture_service
 from app.models.tables import (
     BackgroundJob,
     BackgroundWorker,
@@ -37,6 +38,7 @@ from app.services.background_job_service import (
     record_job_progress,
     requeue_stalled_jobs,
 )
+from app.services.market_clock_service import MarketClockService
 from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
 from app.services.winner_probability.cohort_definition import CohortKey
 from app.services.winner_probability.cohort_statistics import CohortStatisticsService
@@ -50,12 +52,27 @@ from app.services.winner_probability.evidence_service import (
 
 def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicates(
     disposable_postgres_database: str,
+    monkeypatch,
 ) -> None:
     _migrate(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     sessions = sessionmaker(bind=engine, expire_on_commit=False)
     tickers = ["AAA", "BBB", "CCC", "DDD", "EEE"]
     now = datetime.now(UTC)
+    market_cutoff = MarketClockService().cutoff_for(
+        now,
+        reason="WINNER_CAPTURE_TRANSACTION_RECOVERY_TEST",
+    )
+    monkeypatch.setattr(
+        winner_capture_service,
+        "validate_winner_handoff",
+        lambda *_args, **_kwargs: (None, 1),
+    )
+    monkeypatch.setattr(
+        winner_capture_service,
+        "acquire_winner_sources",
+        lambda *_args, **_kwargs: None,
+    )
     with sessions() as setup:
         recovered_run = UploadRun(filename="recovered.csv", status="COMPLETED", row_count=5)
         uninterrupted_run = UploadRun(filename="uninterrupted.csv", status="COMPLETED", row_count=5)
@@ -158,6 +175,7 @@ def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicate
             service.capture_run(
                 owner,
                 run_id=recovered_run_id,
+                market_cutoff=market_cutoff,
                 progress_callback=first_attempt_progress,
             )
         owner.rollback()
@@ -196,6 +214,7 @@ def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicate
         ).capture_run(
             replacement,
             run_id=recovered_run_id,
+            market_cutoff=market_cutoff,
             progress_callback=lambda progress_db, **progress: record_job_progress(
                 progress_db,
                 job_id=job_id,
@@ -209,7 +228,11 @@ def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicate
     with sessions() as uninterrupted:
         complete = _SyntheticWinnerCaptureService(
             _SyntheticRepository(uninterrupted_run_id, definition_id, tickers)
-        ).capture_run(uninterrupted, run_id=uninterrupted_run_id)
+        ).capture_run(
+            uninterrupted,
+            run_id=uninterrupted_run_id,
+            market_cutoff=market_cutoff,
+        )
         assert complete.inserted == 5
 
     with sessions() as verify:
@@ -370,6 +393,7 @@ class _SyntheticRepository:
     def load_run_context(self, _db: Session, run_id: int):
         assert run_id == self.run_id
         return SimpleNamespace(
+            decision_handoff_manifest=None,
             tickers=[
                 SimpleNamespace(raw_row=SimpleNamespace(ticker=ticker)) for ticker in self.tickers
             ]

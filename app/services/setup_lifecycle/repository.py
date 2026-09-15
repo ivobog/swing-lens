@@ -258,6 +258,115 @@ class SetupLifecycleRepository:
         db.flush()
         return snapshot
 
+    def upsert_snapshots(
+        self,
+        db: Session,
+        dtos: list[SetupSignalSnapshotWrite] | tuple[SetupSignalSnapshotWrite, ...],
+    ) -> list[SetupSignalSnapshot]:
+        """Idempotently persist one capture batch without a lookup/savepoint per ticker."""
+        if not dtos:
+            return []
+
+        run_ids = {dto.run_id for dto in dtos if dto.run_id is not None}
+        includes_standalone = any(dto.run_id is None for dto in dtos)
+        run_predicates = []
+        if run_ids:
+            run_predicates.append(SetupSignalSnapshot.run_id.in_(run_ids))
+        if includes_standalone:
+            run_predicates.append(SetupSignalSnapshot.run_id.is_(None))
+        existing = list(
+            db.scalars(
+                select(SetupSignalSnapshot).where(
+                    or_(*run_predicates),
+                    SetupSignalSnapshot.ticker.in_(
+                        {self.normalize_ticker(dto.ticker) for dto in dtos}
+                    ),
+                    SetupSignalSnapshot.timeframe.in_({dto.timeframe for dto in dtos}),
+                    SetupSignalSnapshot.data_as_of_date.in_({dto.data_as_of_date for dto in dtos}),
+                    SetupSignalSnapshot.engine_version.in_({dto.engine_version for dto in dtos}),
+                    SetupSignalSnapshot.config_hash.in_({dto.config_hash for dto in dtos}),
+                )
+            )
+        )
+        by_identity = {
+            self.snapshot_identity_key(
+                run_id=row.run_id,
+                ticker=row.ticker,
+                timeframe=row.timeframe,
+                data_as_of_date=row.data_as_of_date,
+                engine_version=row.engine_version,
+                config_hash=row.config_hash,
+                source_data_hash=row.source_data_hash,
+            ): row
+            for row in existing
+        }
+        pending: list[
+            tuple[
+                tuple[int | None, str, str, str, str, str, str],
+                SetupSignalSnapshotWrite,
+                SetupSignalSnapshot,
+            ]
+        ] = []
+        for dto in dtos:
+            key = self.snapshot_identity_key(
+                run_id=dto.run_id,
+                ticker=dto.ticker,
+                timeframe=dto.timeframe,
+                data_as_of_date=dto.data_as_of_date,
+                engine_version=dto.engine_version,
+                config_hash=dto.config_hash,
+                source_data_hash=dto.source_data_hash,
+            )
+            if key in by_identity:
+                continue
+            candidate = self._snapshot_from_write(dto)
+            by_identity[key] = candidate
+            pending.append((key, dto, candidate))
+
+        if pending:
+            try:
+                with db.begin_nested():
+                    db.add_all([candidate for _key, _dto, candidate in pending])
+                    db.flush()
+            except IntegrityError:
+                # A concurrent capture may win one identity after the prefetch.
+                # Fall back to the single-row conflict-safe path only then.
+                for key, dto, _candidate in pending:
+                    by_identity[key] = self.upsert_snapshot(db, dto)
+
+        return [
+            by_identity[
+                self.snapshot_identity_key(
+                    run_id=dto.run_id,
+                    ticker=dto.ticker,
+                    timeframe=dto.timeframe,
+                    data_as_of_date=dto.data_as_of_date,
+                    engine_version=dto.engine_version,
+                    config_hash=dto.config_hash,
+                    source_data_hash=dto.source_data_hash,
+                )
+            ]
+            for dto in dtos
+        ]
+
+    def _snapshot_from_write(self, dto: SetupSignalSnapshotWrite) -> SetupSignalSnapshot:
+        snapshot = SetupSignalSnapshot(
+            run_id=dto.run_id,
+            ticker=self.normalize_ticker(dto.ticker),
+            timeframe=dto.timeframe,
+            data_as_of_date=dto.data_as_of_date,
+            calculated_at=dto.calculated_at,
+            origin_type=dto.origin_type,
+            engine_version=dto.engine_version,
+            config_version=dto.config_version,
+            config_hash=dto.config_hash,
+            source_data_hash=dto.source_data_hash,
+            schema_version=dto.schema_version,
+            data_quality_label=dto.data_quality_label,
+        )
+        self._apply_snapshot_fields(snapshot, dto)
+        return snapshot
+
     def find_snapshot_by_identity(
         self,
         db: Session,
@@ -310,10 +419,13 @@ class SetupLifecycleRepository:
                 for snapshot in snapshots
             }
         )
-        for key in keys:
+        if keys:
             db.execute(
-                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-                {"key": key},
+                text(
+                    "SELECT pg_advisory_xact_lock(hashtextextended(key, 0)) "
+                    "FROM unnest(CAST(:keys AS text[])) AS key"
+                ),
+                {"keys": keys},
             )
 
     def advance_canonical_selection(
@@ -417,6 +529,168 @@ class SetupLifecycleRepository:
         db.add(audit_event)
         db.flush()
         return CanonicalSelectionAdvance(selection, previous, True, audit_event)
+
+    def advance_canonical_selections(
+        self,
+        db: Session,
+        items: list[tuple[SetupSignalSnapshot, dict[str, Any]]],
+        *,
+        reason: str,
+        evaluation_run_id: int | None = None,
+    ) -> list[CanonicalSelectionAdvance]:
+        """Advance an advisory-lock-protected canonicalization batch."""
+        if not items:
+            return []
+        keys = {
+            (snapshot.ticker, snapshot.timeframe, snapshot.data_as_of_date)
+            for snapshot, _decision in items
+        }
+        selections = list(
+            db.scalars(
+                select(SetupSignalSnapshotCurrentSelection)
+                .where(
+                    tuple_(
+                        SetupSignalSnapshotCurrentSelection.ticker,
+                        SetupSignalSnapshotCurrentSelection.timeframe,
+                        SetupSignalSnapshotCurrentSelection.data_as_of_date,
+                    ).in_(keys)
+                )
+                .with_for_update()
+            )
+        )
+        selection_by_key = {
+            (row.ticker, row.timeframe, row.data_as_of_date): row for row in selections
+        }
+        previous_ids = {
+            row.selected_snapshot_id for row in selections if row.selected_snapshot_id is not None
+        }
+        previous_by_id = (
+            {
+                row.id: row
+                for row in db.scalars(
+                    select(SetupSignalSnapshot).where(SetupSignalSnapshot.id.in_(previous_ids))
+                )
+            }
+            if previous_ids
+            else {}
+        )
+        ticker_timeframes = {(ticker, timeframe) for ticker, timeframe, _date in keys}
+        canonical_dates: dict[tuple[str, str], list[date]] = {}
+        for row in db.scalars(
+            select(SetupSignalSnapshot)
+            .join(
+                SetupSignalSnapshotCurrentSelection,
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == SetupSignalSnapshot.id,
+            )
+            .where(
+                tuple_(SetupSignalSnapshot.ticker, SetupSignalSnapshot.timeframe).in_(
+                    ticker_timeframes
+                )
+            )
+        ):
+            canonical_dates.setdefault((row.ticker, row.timeframe), []).append(row.data_as_of_date)
+
+        advances: list[CanonicalSelectionAdvance] = []
+        pending_audits: list[SetupSignalSnapshotSelectionEvent] = []
+        for snapshot, decision in items:
+            key = (snapshot.ticker, snapshot.timeframe, snapshot.data_as_of_date)
+            selection = selection_by_key.get(key)
+            previous = (
+                previous_by_id.get(selection.selected_snapshot_id)
+                if selection is not None
+                else None
+            )
+            if selection is not None and selection.selected_snapshot_id == snapshot.id:
+                advances.append(CanonicalSelectionAdvance(selection, previous, False, None))
+                continue
+
+            if selection is None:
+                other_dates = [
+                    value
+                    for value in canonical_dates.get((snapshot.ticker, snapshot.timeframe), [])
+                    if value != snapshot.data_as_of_date
+                ]
+                latest_other_session = max(other_dates, default=None)
+                event_semantics = (
+                    "NEW_SESSION_CANONICAL_INITIALIZATION"
+                    if latest_other_session is not None
+                    and snapshot.data_as_of_date > latest_other_session
+                    else "NEW_KEY_INITIALIZATION"
+                )
+            else:
+                event_semantics = "SAME_SESSION_REPLACEMENT"
+            decision["selection_event_type"] = event_semantics
+            now = _utcnow()
+            if selection is None:
+                selection = SetupSignalSnapshotCurrentSelection(
+                    ticker=snapshot.ticker,
+                    timeframe=snapshot.timeframe,
+                    data_as_of_date=snapshot.data_as_of_date,
+                    selected_snapshot_id=snapshot.id,
+                    selected_run_id=snapshot.run_id,
+                    selected_evaluation_run_id=evaluation_run_id,
+                    revision=1,
+                    selection_reason=reason,
+                    selection_decision_json=dict(decision),
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(selection)
+                selection_by_key[key] = selection
+            else:
+                selection.selected_snapshot_id = snapshot.id
+                selection.selected_run_id = snapshot.run_id
+                selection.selected_evaluation_run_id = evaluation_run_id
+                selection.revision += 1
+                selection.selection_reason = reason
+                selection.selection_decision_json = dict(decision)
+                selection.updated_at = now
+            event_key = self.stable_key(
+                "canonical_selection",
+                snapshot.ticker,
+                snapshot.timeframe,
+                snapshot.data_as_of_date.isoformat(),
+                str(selection.revision),
+                str(previous.id if previous is not None else ""),
+                str(snapshot.id),
+            )
+            audit = SetupSignalSnapshotSelectionEvent(
+                ticker=snapshot.ticker,
+                timeframe=snapshot.timeframe,
+                data_as_of_date=snapshot.data_as_of_date,
+                selection_revision=selection.revision,
+                previous_snapshot_id=previous.id if previous is not None else None,
+                selected_snapshot_id=snapshot.id,
+                run_id=snapshot.run_id,
+                evaluation_run_id=evaluation_run_id,
+                reason=event_semantics,
+                decision_json=dict(decision),
+                event_key=event_key,
+                occurred_at=now,
+            )
+            db.add(audit)
+            pending_audits.append(audit)
+            advances.append(CanonicalSelectionAdvance(selection, previous, True, audit))
+        if pending_audits or selections:
+            db.flush()
+        return advances
+
+    def record_snapshot_canonical_decisions(
+        self,
+        db: Session,
+        items: list[tuple[SetupSignalSnapshot, str, dict[str, Any]]],
+    ) -> None:
+        changed = False
+        for snapshot, reason, decision in items:
+            if snapshot.is_canonical:
+                continue
+            snapshot.is_canonical = True
+            snapshot.canonical_reason = reason
+            snapshot.canonical_decision_json = dict(decision)
+            snapshot.canonicalized_at = _utcnow()
+            changed = True
+        if changed:
+            db.flush()
 
     def record_snapshot_canonical_decision(
         self,
@@ -863,6 +1137,62 @@ class SetupLifecycleRepository:
             )
         )
 
+    def lifecycle_episodes_for_keys(
+        self,
+        db: Session,
+        keys: set[tuple[str, str]],
+    ) -> dict[tuple[str, str], list[SetupLifecycleEpisode]]:
+        if not keys:
+            return {}
+        normalized = {(self.normalize_ticker(ticker), timeframe) for ticker, timeframe in keys}
+        rows = list(
+            db.scalars(
+                select(SetupLifecycleEpisode)
+                .where(
+                    tuple_(SetupLifecycleEpisode.ticker, SetupLifecycleEpisode.timeframe).in_(
+                        normalized
+                    )
+                )
+                .where(SetupLifecycleEpisode.status.in_(("ACTIVE", "CLOSED")))
+                .order_by(
+                    SetupLifecycleEpisode.ticker,
+                    SetupLifecycleEpisode.timeframe,
+                    SetupLifecycleEpisode.opened_on,
+                    SetupLifecycleEpisode.id,
+                )
+                .with_for_update()
+            )
+        )
+        grouped = {key: [] for key in normalized}
+        for row in rows:
+            grouped[(row.ticker, row.timeframe)].append(row)
+        return grouped
+
+    def active_episodes_for_keys(
+        self,
+        db: Session,
+        keys: set[tuple[str, str]],
+    ) -> dict[tuple[str, str], list[SetupLifecycleEpisode]]:
+        if not keys:
+            return {}
+        normalized = {(self.normalize_ticker(ticker), timeframe) for ticker, timeframe in keys}
+        rows = list(
+            db.scalars(
+                select(SetupLifecycleEpisode)
+                .where(
+                    tuple_(SetupLifecycleEpisode.ticker, SetupLifecycleEpisode.timeframe).in_(
+                        normalized
+                    )
+                )
+                .where(SetupLifecycleEpisode.status == "ACTIVE")
+                .order_by(SetupLifecycleEpisode.id)
+            )
+        )
+        grouped = {key: [] for key in normalized}
+        for row in rows:
+            grouped[(row.ticker, row.timeframe)].append(row)
+        return grouped
+
     def supersede_prior_current_events(
         self,
         db: Session,
@@ -914,6 +1244,45 @@ class SetupLifecycleRepository:
         if existing is not None:
             return existing
         return self.add(db, event)
+
+    def add_new_lifecycle_event(
+        self,
+        db: Session,
+        event: SetupLifecycleEvent,
+    ) -> SetupLifecycleEvent:
+        """Persist an event for a just-created episode, which cannot have duplicates."""
+        return self.add(db, event)
+
+    def add_lifecycle_events(
+        self,
+        db: Session,
+        events: list[SetupLifecycleEvent],
+    ) -> list[SetupLifecycleEvent]:
+        if not events:
+            return []
+        source_keys = {event.source_event_key for event in events}
+        existing = list(
+            db.scalars(
+                select(SetupLifecycleEvent).where(
+                    SetupLifecycleEvent.source_event_key.in_(source_keys)
+                )
+            )
+        )
+        by_key = {(row.evaluation_run_id, row.source_event_key): row for row in existing}
+        pending: list[SetupLifecycleEvent] = []
+        result: list[SetupLifecycleEvent] = []
+        for event in events:
+            key = (event.evaluation_run_id, event.source_event_key)
+            persisted = by_key.get(key)
+            if persisted is None:
+                persisted = event
+                by_key[key] = persisted
+                pending.append(persisted)
+                db.add(persisted)
+            result.append(persisted)
+        if pending:
+            db.flush()
+        return result
 
     def get_lifecycle_event(
         self,

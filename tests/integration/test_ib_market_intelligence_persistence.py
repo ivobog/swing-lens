@@ -152,7 +152,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
             freshness_status=AvailabilityStatus.AVAILABLE,
             coverage_status=AvailabilityStatus.AVAILABLE,
             components={"iv_hv_ratio": 2.0},
-            evidence_hashes=("iv-raw", "hv-raw"),
+            evidence_hashes=("a" * 64, "b" * 64),
         )
         unavailable = FeatureResult(
             **{
@@ -197,13 +197,19 @@ def test_metric_revision_and_flex_import_are_idempotent(
         )
         assert (
             ceri_capture_service._point_in_time_volatility_feature(
-                db, "XYZ", datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
+                db,
+                "XYZ",
+                datetime(2026, 8, 9, 12, 0, tzinfo=UTC),
+                ibmi_config=config,
             ).id
             == first_feature.id
         )
         assert (
             ceri_capture_service._point_in_time_volatility_feature(
-                db, "XYZ", datetime(2026, 8, 9, 12, 2, tzinfo=UTC)
+                db,
+                "XYZ",
+                datetime(2026, 8, 9, 12, 2, tzinfo=UTC),
+                ibmi_config=config,
             )
             is None
         )
@@ -215,7 +221,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
             freshness_status=AvailabilityStatus.AVAILABLE,
             coverage_status=AvailabilityStatus.AVAILABLE,
             components={"fee_rate": 15.0},
-            evidence_hashes=("fee-local",),
+            evidence_hashes=("c" * 64,),
         )
         short_row, inserted = persist_feature(
             db,
@@ -229,7 +235,10 @@ def test_metric_revision_and_flex_import_are_idempotent(
         assert inserted is True
         db.commit()
         ceri_short = ceri_capture_service._point_in_time_short_pressure_feature(
-            db, "XYZ", datetime(2026, 8, 9, 12, 2, tzinfo=UTC)
+            db,
+            "XYZ",
+            datetime(2026, 8, 9, 12, 2, tzinfo=UTC),
+            ibmi_config=config,
         )
         assert ceri_short is not None
         assert ceri_short.id == short_row.id

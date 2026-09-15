@@ -57,17 +57,13 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
         first = _controller("start", env)
         assert first.returncode == 0, _controller_failure(first)
         first_state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
-        first_registration = _registration_snapshot(
-            disposable_postgres_database, worker_id
-        )
+        first_registration = _registration_snapshot(disposable_postgres_database, worker_id)
         _wait_for_runtime_survival(first_state, ports, seconds=45)
 
         second = _controller("start", env)
         assert second.returncode == 0, _controller_failure(second)
         second_state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
-        second_registration = _registration_snapshot(
-            disposable_postgres_database, worker_id
-        )
+        second_registration = _registration_snapshot(disposable_postgres_database, worker_id)
 
         assert second_state["runtimeInstanceId"] == first_state["runtimeInstanceId"]
         assert second_state["supervisor"] == first_state["supervisor"]
@@ -159,7 +155,9 @@ def _lifecycle_environment(
         "JOB_WORKER_ID": worker_id,
         "JOB_POLL_INTERVAL_SECONDS": "0.1",
         "JOB_WORKER_HEARTBEAT_INTERVAL_SECONDS": "0.2",
-        "JOB_WORKER_HEARTBEAT_TIMEOUT_SECONDS": "5",
+        # This gate certifies controller/runtime persistence, not stale-worker
+        # recovery. Leave headroom for Windows scheduling under full-suite load.
+        "JOB_WORKER_HEARTBEAT_TIMEOUT_SECONDS": "30",
         "JOB_WATCHDOG_INTERVAL_SECONDS": "1",
         "CERI_PROVIDER_INGEST_ENABLED": "false",
         "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": "false",
@@ -253,8 +251,7 @@ def _runtime_role_counts(runtime_instance_id: str, worker_id: str) -> dict[str, 
     return {
         role: sum(
             not any(
-                other_pid != pid and _process_descends_from(other_pid, pid)
-                for other_pid in pids
+                other_pid != pid and _process_descends_from(other_pid, pid) for other_pid in pids
             )
             for pid in pids
         )
@@ -273,10 +270,7 @@ def _listener_pid(port: int) -> int | None:
     matches = {
         row.pid
         for row in psutil.net_connections(kind="tcp")
-        if row.status == psutil.CONN_LISTEN
-        and row.laddr
-        and row.laddr.port == port
-        and row.pid
+        if row.status == psutil.CONN_LISTEN and row.laddr and row.laddr.port == port and row.pid
     }
     assert len(matches) <= 1
     return int(next(iter(matches))) if matches else None
@@ -300,10 +294,9 @@ def _cleanup_runtime(runtime_instance_id: str) -> None:
     for process in psutil.process_iter(("pid", "cmdline", "cwd")):
         try:
             command = " ".join(process.info.get("cmdline") or [])
-            if (
-                runtime_instance_id in command
-                and normalize_path(process.info.get("cwd")) == normalize_path(ROOT)
-            ):
+            if runtime_instance_id in command and normalize_path(
+                process.info.get("cwd")
+            ) == normalize_path(ROOT):
                 subprocess.run(
                     ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                     check=False,
@@ -334,9 +327,7 @@ def _controller_main(action: str) -> None:
             "repoRoot": str(ROOT),
             "gitCommit": lifecycle_probe._git_commit(),
             "topologyVersion": TOPOLOGY_VERSION,
-            "runtimeConfigFingerprint": os.environ[
-                "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT"
-            ],
+            "runtimeConfigFingerprint": os.environ["SWINGLENS_RUNTIME_CONFIG_FINGERPRINT"],
             "web": {
                 "pid": launch["pid"],
                 "createdAt": launch["createdAt"],
@@ -374,9 +365,7 @@ def _controller_main(action: str) -> None:
     state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
     web_pid = int(state["web"]["pid"])
     supervisor_pid = int(state["supervisor"]["pid"])
-    result = lifecycle_probe._signal_break(
-        web_pid, _listener_pid(int(os.environ["APP_PORT"]))
-    )
+    result = lifecycle_probe._signal_break(web_pid, _listener_pid(int(os.environ["APP_PORT"])))
     if not result.get("signaled"):
         raise RuntimeError(f"shutdown request failed: {result}")
     deadline = time.monotonic() + 45

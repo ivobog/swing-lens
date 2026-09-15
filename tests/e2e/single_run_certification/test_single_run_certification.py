@@ -63,7 +63,7 @@ from single_run_certification.reporting import (
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
-ALEMBIC_HEAD = "0030_fix_ceri_estimate_snapshot_identity"
+ALEMBIC_HEAD = "0074_ceri_evidence_quarantine"
 TERMINAL_PIPELINE_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}
 
 

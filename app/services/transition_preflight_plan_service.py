@@ -430,7 +430,11 @@ def freeze_transition_decision_handoff_manifest(
         .with_for_update()
     )
     if plan is None:
-        return None
+        plan = _create_pipeline_decision_handoff_plan(
+            db,
+            upload_run_id=upload_run_id,
+            market_cutoff=market_cutoff,
+        )
     if not plan.run_start_anchor_json or not plan.run_start_anchor_fingerprint:
         raise _rejection(
             plan,
@@ -535,6 +539,147 @@ def freeze_transition_decision_handoff_manifest(
     db.add(manifest)
     db.flush()
     return manifest
+
+
+def _create_pipeline_decision_handoff_plan(
+    db: Session,
+    *,
+    upload_run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+) -> TransitionPreflightPlan:
+    """Anchor a fresh pipeline's post-upstream decision set before consumers run.
+
+    A transition preflight supplied by an operator remains the stronger run-start
+    contract. Fresh full pipelines cannot prove a HIGH lifecycle transition before
+    their upstream calculations exist, so they freeze the exact calculated source
+    set at the existing handoff boundary instead of running Winner without a gate.
+    """
+
+    if market_cutoff.context_id is None:
+        raise TransitionPreflightError(
+            "CONTEXT_MISMATCH",
+            "pipeline decision handoff requires a persisted market context",
+        )
+    context = db.get(MarketCalculationContext, market_cutoff.context_id)
+    if context is None or context.upload_run_id != upload_run_id or context.pipeline_run_id is None:
+        raise TransitionPreflightError(
+            "CONTEXT_MISMATCH",
+            "pipeline decision handoff context is missing or not pipeline-owned",
+        )
+
+    from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+    from app.services.setup_lifecycle.snapshot_builder import (
+        SetupLifecycleSnapshotBuilder,
+        build_run_context_snapshots,
+    )
+    from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
+
+    repository = SetupLifecycleRepository()
+    run_context = SetupLifecycleSourceLoader().load_run_context(
+        db,
+        upload_run_id,
+        market_cutoff=market_cutoff,
+    )
+    built_rows = build_run_context_snapshots(
+        db,
+        run_context,
+        builder=SetupLifecycleSnapshotBuilder(),
+        repository=repository,
+    )
+    decision_manifests = reconstruct_transition_decision_manifests(
+        db,
+        market_cutoff=market_cutoff,
+        built_rows=built_rows,
+        repository=repository,
+    )
+    if not decision_manifests:
+        raise TransitionPreflightError(
+            "DECISION_LINEAGE_MISMATCH",
+            "pipeline decision handoff has no source-backed ticker manifests",
+        )
+    _validate_handoff_temporal_lineage(
+        db,
+        upload_run_id=upload_run_id,
+        market_cutoff=market_cutoff,
+        built_rows=built_rows,
+    )
+    anchor = build_run_start_anchor_manifest(
+        db,
+        upload_run_id=upload_run_id,
+        market_cutoff=market_cutoff,
+        decision_manifests=decision_manifests,
+    )
+    anchor_fingerprint = CanonicalEvidenceSerializer.fingerprint(anchor)
+    tickers = sorted(decision_manifests)
+    candidate_payloads = {
+        ticker: dict(wrapper.get("decision_manifest") or {}).get("candidate") or {}
+        for ticker, wrapper in decision_manifests.items()
+    }
+    confidence = next(
+        (
+            value
+            for value in ("HIGH", "MEDIUM", "LOW")
+            if any(
+                str(candidate.get("confidence") or "").upper() == value
+                for candidate in candidate_payloads.values()
+            )
+        ),
+        "LOW",
+    )
+    now = _utcnow()
+    plan = TransitionPreflightPlan(
+        market_calculation_context_id=market_cutoff.context_id,
+        upload_run_id=upload_run_id,
+        pipeline_run_id=context.pipeline_run_id,
+        status=TransitionPreflightPlanStatus.CONSUMED.value,
+        idempotency_key=(
+            f"pipeline-decision-handoff:{context.pipeline_run_id}:{market_cutoff.context_id}"
+        ),
+        candidate_classification=confidence,
+        tickers_json=tickers,
+        selection_keys_json=sorted(
+            str(candidate.get("selection_key"))
+            for candidate in candidate_payloads.values()
+            if candidate.get("selection_key") is not None
+        ),
+        expected_pointers_json={
+            ticker: (dict(wrapper.get("decision_manifest") or {}).get("expected_pointer") or {})
+            for ticker, wrapper in decision_manifests.items()
+        },
+        predicted_snapshot_identities_json={
+            ticker: {
+                "selection_key": candidate_payloads[ticker].get("selection_key"),
+                "decision_manifest_fingerprint": wrapper.get("decision_manifest_fingerprint"),
+            }
+            for ticker, wrapper in decision_manifests.items()
+        },
+        candidate_results_json=[
+            {
+                "ticker": ticker,
+                **wrapper,
+            }
+            for ticker, wrapper in sorted(decision_manifests.items())
+        ],
+        evidence_fingerprint=CanonicalEvidenceSerializer.fingerprint(decision_manifests),
+        technical_reconstruction_fingerprint=CanonicalEvidenceSerializer.fingerprint(
+            {
+                ticker: (
+                    dict(wrapper.get("decision_manifest") or {})
+                    .get("source_ids", {})
+                    .get("technical_score_id")
+                )
+                for ticker, wrapper in decision_manifests.items()
+            }
+        ),
+        run_start_anchor_json=anchor,
+        run_start_anchor_fingerprint=anchor_fingerprint,
+        created_at=now,
+        expires_at=now + DEFAULT_PREFLIGHT_TTL,
+        consumed_at=now,
+    )
+    db.add(plan)
+    db.flush()
+    return plan
 
 
 def reconstruct_transition_decision_manifests(

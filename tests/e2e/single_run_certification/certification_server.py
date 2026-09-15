@@ -116,6 +116,9 @@ def _install_deterministic_fetch_dependency() -> None:
     )
     from app.services.ib_fetch_executor import execute_fetch_plan as real_execute_fetch_plan
     from app.services.ib_gateway_health_service import check_status as real_check_status
+    from app.services.ib_historical_capability import (
+        check_historical_data_capability as real_check_historical_data_capability,
+    )
     from app.services.market_calculation_context_service import (
         validate_pipeline_job_market_context,
     )
@@ -133,6 +136,9 @@ def _install_deterministic_fetch_dependency() -> None:
 
     def deterministic_check_status():
         return real_check_status(ib_factory=DeterministicReadOnlyIB)
+
+    def deterministic_check_historical_capability():
+        return real_check_historical_data_capability(ib_factory=DeterministicReadOnlyIB)
 
     def execute_full_pipeline_job(db, job):
         pipeline_run_id = job.payload_json.get("pipeline_run_id")
@@ -156,8 +162,7 @@ def _install_deterministic_fetch_dependency() -> None:
         )
         if feature_result.failed:
             raise RuntimeError(
-                "disposable certification CERI feature preparation failed: "
-                f"{feature_result.errors}"
+                f"disposable certification CERI feature preparation failed: {feature_result.errors}"
             )
 
         def lease_guard() -> None:
@@ -178,6 +183,7 @@ def _install_deterministic_fetch_dependency() -> None:
                 dependencies=PipelineExecutionDependencies(
                     execute_fetch_plan=deterministic_execute_fetch_plan,
                     check_ib_gateway=deterministic_check_status,
+                    check_ib_historical_capability=(deterministic_check_historical_capability),
                 ),
             )
         except PipelineCancelled as exc:

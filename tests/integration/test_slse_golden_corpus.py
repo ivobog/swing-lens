@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -14,6 +14,7 @@ from app.models.tables import (
     CombinedResult,
     FundamentalScore,
     MarketRegimeSnapshot,
+    PipelineRun,
     PriceBar,
     RawCompanyRow,
     SectorRotationRow,
@@ -28,6 +29,24 @@ from app.models.tables import (
     SignalChangeEvent,
     TechnicalScore,
     UploadRun,
+)
+from app.services.combined_ranking_identity import (
+    build_fundamental_score_identity,
+    build_technical_score_identity,
+    embed_calculation_identity,
+)
+from app.services.contextual_calculation_identity import (
+    build_contextual_result_identity,
+    build_regime_identity,
+    consumer_context_identity,
+    embed_identity,
+    expected_sector_identity,
+)
+from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.market_regime_policy import load_market_regime_command_center_config
+from app.services.sector_rotation_config import (
+    load_sector_rotation_config,
+    sector_rotation_config_hash,
 )
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.export_service import export_alerts_csv, export_changes_csv
@@ -1000,6 +1019,20 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
     )
     db.add(run)
     db.flush()
+    pipeline = PipelineRun(
+        upload_run_id=run.id,
+        status="COMPLETED",
+        current_step="EVALUATING_SETUP_LIFECYCLES",
+        started_at=processed_at,
+        completed_at=processed_at,
+    )
+    db.add(pipeline)
+    db.flush()
+    market_cutoff = create_pipeline_market_context(
+        db,
+        pipeline,
+        cutoff_at=processed_at,
+    )
     raw = RawCompanyRow(
         run_id=run.id,
         row_number=1,
@@ -1015,14 +1048,30 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
         },
     )
     db.add(raw)
-    db.add(
-        FundamentalScore(
-            run_id=run.id,
-            ticker=ticker,
-            fundamental_score=Decimal("8.5"),
-            liquidity_risk_score=Decimal(str(spec.liquidity_score)),
-        )
+    db.flush()
+    fundamental = FundamentalScore(
+        run_id=run.id,
+        ticker=ticker,
+        fundamental_score=Decimal("8.5"),
+        liquidity_risk_score=Decimal(str(spec.liquidity_score)),
+        scoring_model_version="fundamentals_v2.0",
+        debug_json={"config_hash": "f" * 64},
     )
+    db.add(fundamental)
+    db.flush()
+    fundamental_identity = build_fundamental_score_identity(
+        fundamental,
+        raw_row=raw,
+        market_cutoff=market_cutoff,
+        pipeline_run_id=pipeline.id,
+    )
+    fundamental.debug_json = embed_calculation_identity(
+        fundamental.debug_json,
+        fundamental_identity,
+        policy="SLSE_GOLDEN_SOURCE_FIXTURE",
+    )
+    technical = None
+    technical_identity = None
     if spec.technical_score is not None or spec.classification is not None:
         derived = {
             "atr": 2.0,
@@ -1037,66 +1086,121 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
             "fresh_breakout": False,
             **spec.derived,
         }
-        db.add(
-            TechnicalScore(
-                run_id=run.id,
-                ticker=ticker,
-                dual_score=(
-                    Decimal(str(spec.technical_score)) if spec.technical_score is not None else None
-                ),
-                trend_score=Decimal(str(spec.trend_score)),
-                momentum_score=Decimal("7.0"),
-                setup_score=(
-                    Decimal(str(spec.setup_score)) if spec.setup_score is not None else None
-                ),
-                risk_score=Decimal("2.0"),
-                relative_strength_score=Decimal(str(spec.relative_strength)),
-                leadership_score=Decimal(str(spec.leadership_score)),
-                classification=spec.classification,
-                stage="GOLDEN",
-                technical_confidence="HIGH",
-                data_quality_score=Decimal("9.0"),
-                vcp_score=Decimal("7.8") if spec.classification == "VCP" else None,
-                box_tightness_score=Decimal("7.5") if spec.contraction else None,
-                atr_percentile_252=Decimal("25"),
-                volume_percentile_252=Decimal(str(spec.volume_percentile)),
-                range_percentile_252=Decimal(str(spec.range_percentile)),
-                extension_percentile_252=Decimal("30"),
-                feature_flags_json=[],
-                warning_flags_json=[],
-                v4_debug_json={
-                    "contraction": {"range_contraction": spec.contraction},
-                    "box": {"box_failure": spec.box_failure},
-                },
-                debug_json={"derived": derived},
-                created_at=processed_at,
-            )
-        )
-    db.add(
-        CombinedResult(
+        technical = TechnicalScore(
             run_id=run.id,
             ticker=ticker,
-            company_name=f"Golden {ticker}",
-            sector="Technology",
-            final_score=Decimal("90"),
-            fundamental_score=Decimal("8.5"),
-            technical_classification=spec.classification,
+            calculation_context_id=market_cutoff.context_id,
+            calculation_cutoff_at=market_cutoff.cutoff_at,
+            input_as_of_session=market_cutoff.latest_completed_session,
+            calendar_version=market_cutoff.calendar_version,
             dual_score=(
                 Decimal(str(spec.technical_score)) if spec.technical_score is not None else None
             ),
-            combined_decision="WATCH",
-            earnings_risk_level=spec.earnings_risk,
-            is_complete=True,
-            has_fundamental=True,
-            has_technical=spec.technical_score is not None,
+            trend_score=Decimal(str(spec.trend_score)),
+            momentum_score=Decimal("7.0"),
+            setup_score=(Decimal(str(spec.setup_score)) if spec.setup_score is not None else None),
+            risk_score=Decimal("2.0"),
+            relative_strength_score=Decimal(str(spec.relative_strength)),
+            leadership_score=Decimal(str(spec.leadership_score)),
+            classification=spec.classification,
+            stage="GOLDEN",
+            technical_confidence="HIGH",
+            technical_engine_version="slse-golden-technical-v1",
+            data_quality_score=Decimal("9.0"),
+            vcp_score=Decimal("7.8") if spec.classification == "VCP" else None,
+            box_tightness_score=Decimal("7.5") if spec.contraction else None,
+            atr_percentile_252=Decimal("25"),
+            volume_percentile_252=Decimal(str(spec.volume_percentile)),
+            range_percentile_252=Decimal(str(spec.range_percentile)),
+            extension_percentile_252=Decimal("30"),
+            feature_flags_json=[],
+            warning_flags_json=[],
+            v4_debug_json={
+                "contraction": {"range_contraction": spec.contraction},
+                "box": {"box_failure": spec.box_failure},
+            },
+            debug_json={"derived": derived},
+            created_at=processed_at,
         )
+        db.add(technical)
+        db.flush()
+        technical_identity = build_technical_score_identity(
+            technical,
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline.id,
+            effective_config={"fixture_version": GOLDEN_FIXTURE_VERSION},
+        )
+        technical.debug_json = embed_calculation_identity(
+            technical.debug_json,
+            technical_identity,
+            policy="SLSE_GOLDEN_SOURCE_FIXTURE",
+        )
+    combined = CombinedResult(
+        run_id=run.id,
+        ticker=ticker,
+        company_name=f"Golden {ticker}",
+        sector="Technology",
+        final_score=Decimal("90"),
+        fundamental_score=Decimal("8.5"),
+        technical_classification=spec.classification,
+        dual_score=(
+            Decimal(str(spec.technical_score)) if spec.technical_score is not None else None
+        ),
+        combined_decision="WATCH",
+        earnings_risk_level=spec.earnings_risk,
+        is_complete=True,
+        has_fundamental=True,
+        has_technical=spec.technical_score is not None,
+        calculation_version="slse-golden-combined-v1",
+        config_hash="c" * 64,
+        debug_json={},
+    )
+    db.add(combined)
+    db.flush()
+    combined_base = consumer_context_identity(
+        market_cutoff=market_cutoff,
+        run_id=run.id,
+        pipeline_id=pipeline.id,
+        ticker=ticker,
+    )
+    combined_identity = build_contextual_result_identity(
+        base=combined_base,
+        namespace="slse-golden-combined",
+        config_hash=combined.config_hash,
+        calculation_version=combined.calculation_version,
+        engine_version=combined.calculation_version,
+        source_artifacts=tuple(
+            item
+            for item in (
+                ("FundamentalScore", fundamental, fundamental_identity),
+                ("TechnicalScore", technical, technical_identity),
+            )
+            if item[1] is not None and item[2] is not None
+        ),
+        source_payload={"fixture_version": GOLDEN_FIXTURE_VERSION},
+    )
+    combined.debug_json = embed_identity(
+        combined.debug_json,
+        combined_identity,
+        policy="SLSE_GOLDEN_SOURCE_FIXTURE",
     )
     if spec.include_optional_context:
+        regime_config = load_market_regime_command_center_config()
+        regime_identity = build_regime_identity(
+            market_cutoff=market_cutoff,
+            config=regime_config,
+            run_id=run.id,
+            pipeline_id=pipeline.id,
+            source_payload={"fixture_version": GOLDEN_FIXTURE_VERSION},
+        )
         market = MarketRegimeSnapshot(
             run_id=run.id,
             as_of_date=spec.as_of,
-            calculation_version=GOLDEN_FIXTURE_VERSION,
-            config_version=GOLDEN_FIXTURE_VERSION,
+            calculation_context_id=market_cutoff.context_id,
+            input_as_of_session=market_cutoff.latest_completed_session,
+            calendar_version=market_cutoff.calendar_version,
+            calculation_version=regime_config.calculation_version,
+            config_version=regime_config.config_version,
             regime=spec.market_regime,
             risk_state="NORMAL" if spec.market_gate else "RISK_OFF",
             score=80.0 if spec.market_gate else 20.0,
@@ -1105,22 +1209,66 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
             confidence="HIGH",
             action_summary="Golden fixture",
             evidence_hash=f"market-{run.id}",
-            calculation_cutoff_at=processed_at,
+            calculation_cutoff_at=market_cutoff.cutoff_at,
+            debug_json=embed_identity(
+                {},
+                regime_identity,
+                policy="SLSE_GOLDEN_SOURCE_FIXTURE",
+            ),
         )
         db.add(market)
         db.flush()
+        sector_config = load_sector_rotation_config()
+        sector_config_hash = sector_rotation_config_hash(sector_config)
+        sector_version = "sector-rotation-1.0.0"
+        sector_mode = (
+            "combined"
+            if bool(sector_config.get("etf_score", {}).get("enabled", False))
+            else "universe_only"
+        )
+        sector_context = consumer_context_identity(
+            market_cutoff=market_cutoff,
+            run_id=run.id,
+            pipeline_id=pipeline.id,
+        )
+        sector_with_lineage = build_contextual_result_identity(
+            base=sector_context,
+            namespace="sector-rotation",
+            config_hash=sector_config_hash,
+            calculation_version=sector_version,
+            engine_version=sector_version,
+            source_artifacts=(("MarketRegimeSnapshot", market, regime_identity),),
+            source_payload={"fixture_version": GOLDEN_FIXTURE_VERSION},
+        )
+        sector_identity = replace(
+            expected_sector_identity(
+                context=sector_with_lineage,
+                config_hash=sector_config_hash,
+                calculation_version=sector_version,
+                mode=sector_mode,
+            ),
+            source_lineage=sector_with_lineage.source_lineage,
+        )
         sector = SectorRotationSnapshot(
             run_id=run.id,
             market_regime_snapshot_id=market.id,
             as_of_date=spec.as_of,
-            calculation_version=GOLDEN_FIXTURE_VERSION,
-            config_version=GOLDEN_FIXTURE_VERSION,
-            config_hash=f"sector-{run.id}",
-            mode="LIVE",
+            calculation_context_id=market_cutoff.context_id,
+            input_as_of_session=market_cutoff.latest_completed_session,
+            calendar_version=market_cutoff.calendar_version,
+            calculation_version=sector_version,
+            config_version=str(sector_config.get("version")),
+            config_hash=sector_config_hash,
+            mode=sector_mode,
             sector_count=1,
             ticker_count=1,
             evidence_hash=f"sector-evidence-{run.id}",
-            calculation_cutoff_at=processed_at,
+            calculation_cutoff_at=market_cutoff.cutoff_at,
+            debug_json=embed_identity(
+                {},
+                sector_identity,
+                policy="SLSE_GOLDEN_SOURCE_FIXTURE",
+            ),
         )
         db.add(sector)
         db.flush()

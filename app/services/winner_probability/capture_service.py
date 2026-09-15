@@ -60,6 +60,10 @@ from app.services.winner_probability.training_eligibility import TrainingEligibi
 logger = logging.getLogger(__name__)
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
 class WinnerPredictionCaptureConflict(ValueError):
     pass
 
@@ -145,17 +149,14 @@ class WinnerPredictionCaptureService:
                 "historical Winner capture requires an explicit original decision identity"
             )
         if market_cutoff is not None:
-            if decision_at is not None and decision_at != market_cutoff.cutoff_at:
+            if decision_at is not None and _as_utc(decision_at) < market_cutoff.cutoff_at:
                 raise WinnerCalculationIdentityError(
-                    "Winner decision_at does not match the frozen market cutoff"
+                    "Winner decision_at precedes the frozen market cutoff"
                 )
-            decision_at = market_cutoff.cutoff_at
         if identity_enforced:
             loader = self.repository.load_run_context
             parameters = signature(loader).parameters
-            accepts_kwargs = any(
-                item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
-            )
+            accepts_kwargs = any(item.kind is Parameter.VAR_KEYWORD for item in parameters.values())
             kwargs = {
                 "market_cutoff": market_cutoff,
                 "decision_handoff_manifest_id": decision_handoff_manifest_id,
@@ -174,6 +175,11 @@ class WinnerPredictionCaptureService:
                 run_id=run_id,
                 market_cutoff=market_cutoff,
             )
+            if decision_at is None:
+                decision_at = (
+                    getattr(run_context.decision_handoff_manifest, "created_at", None)
+                    or market_cutoff.cutoff_at
+                )
         else:
             run_context = self.repository.load_run_context(db, run_id)
         ticker_contexts = list(run_context.tickers)

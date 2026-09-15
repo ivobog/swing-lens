@@ -97,25 +97,44 @@ class SetupLifecycleChangeDetector:
         changes: list[DetectedSignalChange] = []
         skipped = 0
 
-        for current in current_snapshots:
-            previous = self.repository.previous_canonical_snapshot(
+        history_loader = getattr(self.repository, "canonical_snapshot_histories_before", None)
+        histories = (
+            history_loader(
                 db,
-                ticker=current.ticker,
-                timeframe=current.timeframe,
-                before_date=current.data_as_of_date,
+                cutoffs={
+                    (current.ticker, current.timeframe): current.data_as_of_date
+                    for current in current_snapshots
+                },
+                limit=10,
             )
-            if previous is None:
-                skipped += 1
-                continue
-            history = tuple(
-                self.repository.canonical_snapshot_history(
+            if history_loader is not None
+            else None
+        )
+
+        for current in current_snapshots:
+            if histories is None:
+                previous = self.repository.previous_canonical_snapshot(
                     db,
                     ticker=current.ticker,
                     timeframe=current.timeframe,
                     before_date=current.data_as_of_date,
-                    limit=10,
                 )
-            )
+                history = tuple(
+                    self.repository.canonical_snapshot_history(
+                        db,
+                        ticker=current.ticker,
+                        timeframe=current.timeframe,
+                        before_date=current.data_as_of_date,
+                        limit=10,
+                    )
+                )
+            else:
+                ascending = histories.get((current.ticker, current.timeframe), [])
+                previous = ascending[-1] if ascending else None
+                history = tuple(reversed(ascending))
+            if previous is None:
+                skipped += 1
+                continue
             for change in self.detect_changes(
                 previous=previous,
                 current=current,
