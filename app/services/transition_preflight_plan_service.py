@@ -979,6 +979,29 @@ def _validate_handoff_temporal_lineage(
                 "technical_score_id": getattr(technical, "id", None),
             }
             observed_sources = dict((combined.debug_json or {}).get("source_ids") or {})
+            if any(key.endswith("_evidence_id") for key in observed_sources):
+                from app.services.core_calculation_evidence import (
+                    CoreEvidenceKind,
+                    get_certified_evidence_for_row,
+                )
+
+                # Certified Combined proof pins immutable source evidence; score
+                # projection IDs can change on an exact retry. Verify both the
+                # retained graph and the supplied upstream evidence pointers.
+                evidence = get_certified_evidence_for_row(
+                    db, kind=CoreEvidenceKind.COMBINED, current_row=combined
+                )
+                expected_pins = {
+                    role: source.evidence_id
+                    for role, source in (("fundamental", fundamental), ("technical", technical))
+                    if source is not None and source.evidence_id is not None
+                }
+                expected_sources = {
+                    "raw_row_id": raw.id,
+                    **{role + "_evidence_id": address for role, address in expected_pins.items()},
+                }
+                if evidence is None or evidence.source_evidence_ids_json != expected_pins:
+                    failures.append(f"{ticker}:combined_evidence_sources")
             if observed_sources != expected_sources:
                 failures.append(f"{ticker}:combined_sources")
         for ranking in context.ranking_results:

@@ -697,7 +697,23 @@ def execute_full_pipeline(
             result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get("weakest_sector")
             result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
 
-        if _ceri_provider_ingest_enabled(dependencies):
+        provider_ingest_enabled = _ceri_provider_ingest_enabled(dependencies)
+        if provider_ingest_enabled and _pipeline_has_step(
+            db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP
+        ):
+            _raise_if_cancelled(should_cancel)
+            _freeze_pipeline_handoff(
+                db,
+                pipeline,
+                upload_run.id,
+                market_cutoff,
+                dependencies,
+                result,
+                lease_guard=lease_guard,
+                performance=performance,
+            )
+
+        if provider_ingest_enabled:
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
                 db,
@@ -725,33 +741,20 @@ def execute_full_pipeline(
                 ceri_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)
                 _apply_ceri_capture_result(result, ceri_result)
 
-        if _pipeline_has_step(db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP):
+        if not provider_ingest_enabled and _pipeline_has_step(
+            db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP
+        ):
             _raise_if_cancelled(should_cancel)
-            with _pipeline_step(
+            _freeze_pipeline_handoff(
                 db,
                 pipeline,
-                DECISION_HANDOFF_PIPELINE_STEP,
+                upload_run.id,
+                market_cutoff,
+                dependencies,
+                result,
                 lease_guard=lease_guard,
                 performance=performance,
-            ):
-                freeze_handoff = dependencies.freeze_decision_handoff
-                if freeze_handoff is None:
-                    from app.services.transition_preflight_plan_service import (
-                        freeze_transition_decision_handoff_manifest,
-                    )
-
-                    freeze_handoff = freeze_transition_decision_handoff_manifest
-                handoff = freeze_handoff(
-                    db,
-                    upload_run_id=upload_run.id,
-                    market_cutoff=market_cutoff,
-                )
-                if handoff is None:
-                    raise RuntimeError("decision handoff stage has no consumed preflight plan")
-                result["run_start_manifest_id"] = handoff.preflight_plan_id
-                result["run_start_manifest_hash"] = handoff.run_start_anchor_fingerprint
-                result["decision_handoff_manifest_id"] = handoff.id
-                result["decision_handoff_manifest_hash"] = handoff.manifest_fingerprint
+            )
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
@@ -881,6 +884,41 @@ def execute_full_pipeline(
         _record_performance_metrics(db, PipelineStatus.FAILED, result["performance"])
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         raise
+
+
+def _freeze_pipeline_handoff(
+    db,
+    pipeline,
+    upload_run_id,
+    market_cutoff,
+    dependencies,
+    result,
+    *,
+    lease_guard,
+    performance,
+):
+    """Freeze native evidence before provider scheduling can interrupt resume."""
+    with _pipeline_step(
+        db,
+        pipeline,
+        DECISION_HANDOFF_PIPELINE_STEP,
+        lease_guard=lease_guard,
+        performance=performance,
+    ):
+        freeze_handoff = dependencies.freeze_decision_handoff
+        if freeze_handoff is None:
+            from app.services.transition_preflight_plan_service import (
+                freeze_transition_decision_handoff_manifest,
+            )
+
+            freeze_handoff = freeze_transition_decision_handoff_manifest
+        handoff = freeze_handoff(db, upload_run_id=upload_run_id, market_cutoff=market_cutoff)
+        if handoff is None:
+            raise RuntimeError("decision handoff stage has no consumed preflight plan")
+        result["run_start_manifest_id"] = handoff.preflight_plan_id
+        result["run_start_manifest_hash"] = handoff.run_start_anchor_fingerprint
+        result["decision_handoff_manifest_id"] = handoff.id
+        result["decision_handoff_manifest_hash"] = handoff.manifest_fingerprint
 
 
 def _execute_resumed_pipeline(
@@ -1324,15 +1362,71 @@ def _require_unchanged_core_evidence(
         evidence = get_certified_evidence_for_row(db, kind=kind, current_row=row)
     except EvidenceUnavailableError as exc:
         raise ValueError(str(exc)) from exc
-    if (
-        CanonicalEvidenceSerializer.fingerprint(calculation_evidence_payload(row))
-        != evidence.payload_fingerprint
-    ):
+    # Readiness/configuration-at-creation belong to immutable evidence, not to
+    # mutable compatibility columns. Reattach the retained metadata without
+    # recalculating either policy; every business column still must match.
+    projection = calculation_evidence_payload(row)
+    from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+    from app.services.producer_readiness import READINESS_PAYLOAD_KEY
+
+    config = evidence.payload_json.get(CONFIGURATION_PAYLOAD_KEY)
+    if config is not None:
+        from app.services.core_calculation_evidence import normalize_configuration_business_payload
+
+        _validate_projection_source_pins(db, kind=kind, projection=projection, evidence=evidence)
+        normalize_configuration_business_payload(
+            projection,
+            namespace=config["semantic"]["namespace"],
+            source_ids=evidence.source_evidence_ids_json,
+        )
+    for key in (READINESS_PAYLOAD_KEY, CONFIGURATION_PAYLOAD_KEY):
+        if key in evidence.payload_json:
+            projection[key] = evidence.payload_json[key]
+    if CanonicalEvidenceSerializer.fingerprint(projection) != evidence.payload_fingerprint:
         raise ValueError(
             "HISTORICAL_EVIDENCE_UNAVAILABLE: resume compatibility row changed after evidence "
             f"kind={kind.value} row={getattr(row, 'id', None)}"
         )
     return int(evidence.id)
+
+
+def _validate_projection_source_pins(db, *, kind, projection, evidence):
+    """Projection address normalization must never conceal a source change."""
+    debug = projection.get("debug_json") or {}
+    pins = evidence.source_evidence_ids_json
+    if kind is CoreEvidenceKind.COMBINED:
+        observed = debug.get("source_ids") or {}
+        retained = (evidence.payload_json.get("debug_json") or {}).get("source_ids") or {}
+        valid = observed.get("raw_row_id") == retained.get("raw_row_id")
+        if any(key.endswith("_evidence_id") for key in observed):
+            valid = valid and observed == retained
+        else:
+            valid = valid and set(observed) == {
+                "raw_row_id",
+                "fundamental_score_id",
+                "technical_score_id",
+            }
+            for role, model in (("fundamental", FundamentalScore), ("technical", TechnicalScore)):
+                source = db.get(model, observed.get(role + "_score_id"))
+                valid = valid and source is not None and source.evidence_id == pins.get(role)
+        if not valid:
+            raise ValueError("HISTORICAL_EVIDENCE_UNAVAILABLE: resume source evidence changed")
+    permissions = debug.get("contextual_consumer_eligibility") or {}
+    for role, permission in permissions.items():
+        if role not in pins or not isinstance(permission, dict):
+            continue
+        if "source_evidence_id" in permission:
+            valid = permission["source_evidence_id"] == pins[role]
+        elif "source_feature_id" in permission:
+            from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
+
+            source_model = FundamentalScore if role == "fundamental" else IBIntelligenceFeature
+            source = db.get(source_model, permission["source_feature_id"])
+            valid = source is not None and source.evidence_id == pins[role]
+        else:
+            valid = False
+        if not valid:
+            raise ValueError("HISTORICAL_EVIDENCE_UNAVAILABLE: resume contextual source changed")
 
 
 def _run_ticker_count(db: Session, model: type, run_id: int) -> int:

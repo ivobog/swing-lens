@@ -572,7 +572,10 @@ def delivered_native(kind):
     if kind == "fundamental":
         from app.services.fundamental_ranker_v2 import parse_fundamentals_v2_config
 
-        return parse_fundamentals_v2_config(delivered_configuration("core.fundamental").values)
+        values = delivered_configuration("core.fundamental").values
+        return parse_fundamentals_v2_config(
+            {key: value for key, value in values.items() if key != "column_aliases"}
+        )
     if kind == "scoring":
         return delivered_configuration("execution.scoring").values["native"]
     if kind == "ranking":

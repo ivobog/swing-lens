@@ -195,7 +195,12 @@ def start_pipeline(
             (
                 index
                 for index, step_name in enumerate(step_names)
-                if step_name in {*SLSE_PIPELINE_STEPS, "CAPTURING_WINNER_PREDICTIONS"}
+                if step_name
+                in {
+                    CERI_PIPELINE_PROVIDER_INGEST_STEP,
+                    *SLSE_PIPELINE_STEPS,
+                    "CAPTURING_WINNER_PREDICTIONS",
+                }
             ),
             len(step_names),
         )

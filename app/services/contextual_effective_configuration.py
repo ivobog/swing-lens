@@ -741,6 +741,7 @@ IBMI_DEFAULTS = {
 def resolve_ibmi_configuration(config=None, module="liquidity"):
     from app.services.configuration_delivery import current_delivery, delivered_configuration
 
+    module = str(module).lower()
     if current_delivery() is not None:
         return ContextualEffectiveConfiguration(
             delivered_configuration("contextual.ibmi" + "." + module).snapshot
@@ -749,7 +750,6 @@ def resolve_ibmi_configuration(config=None, module="liquidity"):
     from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 
     config = config if config is not None else load_ib_market_intelligence_config()
-    module = str(module).lower()
     if module not in IBMI_DEFAULTS:
         raise ValueError("unsupported IBMI configuration module")
     cached = getattr(config, "_effective_configurations", {}).get(module)

@@ -38,7 +38,7 @@ def map_csv_rows(
     rows: list[dict[str, Any]],
     aliases: dict[str, list[str]] | None = None,
 ) -> list[MappedCsvRow]:
-    aliases = aliases or load_alias_map()
+    aliases = load_alias_map() if aliases is None else aliases
     fieldnames = {field for row in rows for field in row.keys()}
     column_by_canonical = {
         canonical_name: find_column(fieldnames, canonical_aliases)

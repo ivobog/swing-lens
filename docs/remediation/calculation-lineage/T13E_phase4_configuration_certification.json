@@ -1,0 +1,773 @@
+{
+  "authority_audit": {
+    "classifications": {
+      "CURRENT_RULES_EXPLICIT": 10,
+      "DISPLAY_ONLY": 31,
+      "LEGACY": 13,
+      "OBSERVABILITY_ONLY": 112,
+      "OPERATIONAL_ONLY": 373,
+      "OUT_OF_SCOPE": 414,
+      "PHASE4_FROZEN": 256,
+      "SCHEDULING_ONLY": 52,
+      "SECRET": 14
+    },
+    "files": 549,
+    "inventory_sha256": "fd2a679a96aa433a3e833de541152a291d9e5dba948f26b2ebf2d3697726edeb",
+    "keyword_hits": 6988,
+    "material_unresolved": {
+      "CONFIRMED_CONFIG_BYPASS": 0,
+      "POTENTIAL_CONFIG_BYPASS": 0,
+      "UNKNOWN_AUTHORITY": 0
+    },
+    "proof": "Reviewed native call graph + persisted schema + runtime invalid-source attacks; source census is discovery, not arbitrary data-flow verification",
+    "reads": 1275
+  },
+  "authority_entry_functions": [
+    "core_effective_configuration.resolve_fundamental_configuration",
+    "core_effective_configuration.resolve_combined_configuration",
+    "core_effective_configuration.resolve_ranking_configuration",
+    "core_effective_configuration.resolve_technical_configuration",
+    "contextual_effective_configuration.resolve_regime_configuration",
+    "contextual_effective_configuration.resolve_sector_configuration",
+    "contextual_effective_configuration.resolve_ceri_configuration",
+    "contextual_effective_configuration.resolve_ibmi_configuration",
+    "decision_effective_configuration.resolve_setup_configuration",
+    "decision_effective_configuration.resolve_lifecycle_configuration",
+    "decision_effective_configuration.resolve_alert_configuration",
+    "decision_effective_configuration.resolve_winner_configuration",
+    "decision_effective_configuration.resolve_ceri_decision_configuration",
+    "decision_effective_configuration.resolve_readiness_policy_configuration",
+    "configuration_delivery.resolve_pipeline_configurations"
+  ],
+  "baseline_parity_checkout": {
+    "baseline_reports": [
+      {
+        "name": "t13e-pre-phase4-clock.json",
+        "sha256": "c3db45bc5114b8cef654101213a9c48956e44b18ade29207dc69f8e6c45421c6"
+      },
+      {
+        "name": "t13e-core-pre-phase4-final.json",
+        "sha256": "8237e097c927e483685c3b12d08a55b296fd16ff11df037779656ded18dc8185"
+      }
+    ],
+    "head": "5422bcdf7703db891810d9e9c20a8f1770241fc9",
+    "identical_capture_plugins": {
+      "scripts/qa/t13d_behavior_probe.py": "90aa9ce7a63acdb6a4ed179275328c31cc9519700ed4886dd524624fe017c61a",
+      "scripts/qa/t13e_behavior_probe.py": "7e6b9e756d5525463b30a1b986757688e488a1b3c792571d1ae7cdaae2fd1a52",
+      "scripts/qa/t13e_core_behavior_probe.py": "46caae3488eaf64fa912ee0e3d4363c7d7c656f72a24827f9cf3a0a7108555f5"
+    },
+    "tracked_source_unmodified": true
+  },
+  "branch": "codex/t13e-phase4-config-certification",
+  "bulk_root_composers": 1,
+  "changed_files": [
+    "app/services/column_mapper.py",
+    "app/services/configuration_delivery.py",
+    "app/services/contextual_effective_configuration.py",
+    "app/services/core_calculation_evidence.py",
+    "app/services/core_effective_configuration.py",
+    "app/services/fundamental_score_service.py",
+    "app/services/pipeline_executor.py",
+    "app/services/pipeline_service.py",
+    "app/services/transition_preflight_plan_service.py",
+    "docs/architecture/SWINGLENS_CALCULATION_LINEAGE_REGISTRY.md",
+    "docs/architecture/SWINGLENS_EFFECTIVE_CONFIGURATION_PHASE4_CERTIFIED.md",
+    "docs/audit/calculation-lineage/08_synthesis_report.md",
+    "docs/remediation/calculation-lineage/T13E_configuration_authority_audit.json",
+    "docs/remediation/calculation-lineage/T13E_configuration_certification_matrix.md",
+    "docs/remediation/calculation-lineage/T13E_durable_anchor_matrix.md",
+    "docs/remediation/calculation-lineage/T13E_phase4_configuration_certification.json",
+    "docs/remediation/calculation-lineage/T13E_phase4_configuration_certification.md",
+    "scripts/qa/t13e_authority_audit.py",
+    "scripts/qa/t13e_behavior_probe.py",
+    "scripts/qa/t13e_configuration_benchmark.py",
+    "scripts/qa/t13e_core_behavior_probe.py",
+    "scripts/qa/t13e_deployed_probe.py",
+    "tests/integration/test_phase4_configuration_certification_postgresql.py",
+    "tests/test_phase4_configuration_certification.py",
+    "tests/test_phase4_same_output_configuration.py"
+  ],
+  "cleanup": {
+    "task_baseline_worktree_removed": true,
+    "task_postgresql_container_removed": true,
+    "unrelated_containers_preserved": [
+      "swinglens-prometheus-1",
+      "swinglens-grafana-1"
+    ],
+    "unrelated_worktrees_preserved": [
+      "swing-lens-feature-rebuild-perf",
+      "swing-lens-perf-remediation"
+    ]
+  },
+  "configuration_entries": 51,
+  "date": "2026-09-17",
+  "durable_execution_certified": true,
+  "exact_native_parity": [
+    {
+      "campaign": "context-decision",
+      "exact_bytes_equal": true,
+      "producers": {
+        "Actionability": 4,
+        "CERI": 33,
+        "Combined": 26,
+        "IBMI.histogram": 5,
+        "IBMI.liquidity": 10,
+        "IBMI.options_activity": 4,
+        "IBMI.short_pressure": 6,
+        "IBMI.volatility": 9,
+        "Lifecycle": 68,
+        "Ranking": 7,
+        "Regime": 7,
+        "Sector": 38,
+        "SectorUniverse": 42,
+        "Setup": 91,
+        "SetupAlerts": 13,
+        "SignalAlerts": 16,
+        "Winner": 34,
+        "WinnerCohortMath": 62,
+        "WinnerEstimate": 9,
+        "WinnerFeatures": 37,
+        "WinnerOutcomeMath": 7,
+        "WinnerProbability": 9
+      },
+      "records": 537,
+      "sha256": "cf237a6dae492647fbd7732abfcbebc86d7edc446975bac80a0c9267b8f7ff2f"
+    },
+    {
+      "campaign": "core",
+      "exact_bytes_equal": true,
+      "producers": {
+        "Fundamental": 1,
+        "TechnicalBase": 6,
+        "TechnicalV4": 12
+      },
+      "records": 19,
+      "sha256": "544ec3c4dad566589d20f26685dcfc089b37e381212e0c351128acca748158ae"
+    }
+  ],
+  "failure_classifications": {
+    "DEPLOYED_INTEGRATION_DEFECT": [
+      "Combined immutable source-address handoff",
+      "IBMI enum-case anchored lookup",
+      "handoff checkpoint before external provider scheduling interruption",
+      "resume ledger/projection canonical shape and source-pin validation, including the Fundamental source-model correction"
+    ],
+    "ENVIRONMENT_BLOCKER": [],
+    "FLAKY_TEST_CONFIRMED": [],
+    "MIGRATION_DEFECT": [],
+    "PHASE4_DEFECT": [
+      "Fundamental live CSV aliases before scoring"
+    ],
+    "PRE_EXISTING_UNRELATED": [
+      {
+        "classification": "PRE_EXISTING_UNRELATED",
+        "configuration_migration": "0080 checked separately",
+        "configured_ci_gate": "ruff check app tests scripts",
+        "diagnostics": 24,
+        "unchanged_files": [
+          "alembic/versions/20260702_1450_0001_create_database_foundation.py",
+          "alembic/versions/20260703_0002_add_fetch_summary_and_warning_flags.py",
+          "alembic/versions/20260703_0003_add_price_bar_revision_metadata.py",
+          "alembic/versions/20260703_0004_expand_ib_fetch_persistence.py",
+          "alembic/versions/20260707_0007_add_background_jobs.py",
+          "alembic/versions/20260707_0008_add_pipeline_tables.py",
+          "alembic/versions/20260707_0010_add_earnings_risk_gate.py",
+          "alembic/versions/20260731_0015_harden_background_job_leases.py",
+          "alembic/versions/20260907_0066_observability_review2_liveness.py"
+        ]
+      }
+    ],
+    "TEST_INFRASTRUCTURE": [
+      "Fixture static files/bar timeframe/safe DB alias/policy paths and ranges/expired ORM/tzdata guard",
+      "duplicate-completed original-job success expectation",
+      "parity midnight clock input mismatch; both checkouts rerun with identical clock",
+      "Supplemental equal-output test initially assumed the wrong Setup write DTO fields; corrected to compare all actual business collections. Local document validator required explicit UTF-8 on Windows."
+    ]
+  },
+  "family_resolvers": 14,
+  "final_commit": "The containing focused commit; resolve with git log --all -- docs/remediation/calculation-lineage/T13E_phase4_configuration_certification.json",
+  "handlers": [
+    {
+      "business": true,
+      "handler": "CERI_ALERT_REBUILD"
+    },
+    {
+      "business": true,
+      "handler": "CERI_BACKFILL"
+    },
+    {
+      "business": true,
+      "handler": "CERI_CAPTURE_RUN"
+    },
+    {
+      "business": true,
+      "handler": "CERI_CHANGE_DETECTION"
+    },
+    {
+      "business": true,
+      "handler": "CERI_FEATURE_BATCH"
+    },
+    {
+      "business": true,
+      "handler": "CERI_NORMALIZE"
+    },
+    {
+      "business": true,
+      "handler": "CERI_NORMALIZE_BATCH"
+    },
+    {
+      "business": true,
+      "handler": "CERI_PROVIDER_INGEST"
+    },
+    {
+      "business": true,
+      "handler": "CERI_PROVIDER_INGEST_BATCH"
+    },
+    {
+      "business": true,
+      "handler": "CERI_PURGE_LICENSED_DATA"
+    },
+    {
+      "business": true,
+      "handler": "CERI_REBUILD_FEATURES"
+    },
+    {
+      "business": true,
+      "handler": "CERI_RUN_FINALIZE"
+    },
+    {
+      "business": true,
+      "handler": "FULL_PIPELINE"
+    },
+    {
+      "business": false,
+      "handler": "IB_FETCH"
+    },
+    {
+      "business": false,
+      "handler": "IB_FLEX_IMPORT"
+    },
+    {
+      "business": true,
+      "handler": "IB_HISTOGRAM_FETCH"
+    },
+    {
+      "business": true,
+      "handler": "IB_INTELLIGENCE_HISTORICAL_REFRESH"
+    },
+    {
+      "business": true,
+      "handler": "IB_INTELLIGENCE_LIVE_SNAPSHOT"
+    },
+    {
+      "business": true,
+      "handler": "IB_INTELLIGENCE_REBUILD_FEATURES"
+    },
+    {
+      "business": false,
+      "handler": "IB_SCANNER_RUN"
+    },
+    {
+      "business": false,
+      "handler": "MARKET_DATA_PREWARM"
+    },
+    {
+      "business": false,
+      "handler": "SEC_READINESS_REPAIR"
+    },
+    {
+      "business": true,
+      "handler": "SETUP_ALERT_REBUILD"
+    },
+    {
+      "business": true,
+      "handler": "SETUP_LIFECYCLE_DAILY_MAINTENANCE"
+    },
+    {
+      "business": true,
+      "handler": "SETUP_LIFECYCLE_EVALUATE_RUN"
+    },
+    {
+      "business": true,
+      "handler": "SETUP_LIFECYCLE_REPAIR_TICKER"
+    },
+    {
+      "business": true,
+      "handler": "SETUP_LIFECYCLE_REPLAY"
+    },
+    {
+      "business": true,
+      "handler": "WINNER_COHORT_REFRESH"
+    },
+    {
+      "business": true,
+      "handler": "WINNER_HISTORICAL_BACKFILL"
+    },
+    {
+      "business": true,
+      "handler": "WINNER_LATEST_RESCORE"
+    },
+    {
+      "business": true,
+      "handler": "WINNER_OUTCOME_MATURATION"
+    },
+    {
+      "business": true,
+      "handler": "WINNER_OUTCOME_REVISION_CHECK"
+    },
+    {
+      "business": true,
+      "handler": "WINNER_PREDICTION_CAPTURE"
+    },
+    {
+      "business": false,
+      "handler": "WORKER_RECOVERY_PROBE"
+    }
+  ],
+  "lane_evidence": [
+    {
+      "arguments": [
+        "--ignore=tests/integration",
+        "--ignore=tests/e2e",
+        "--ignore=tests/test_migration_remediation.py",
+        "--ignore=tests/qa/test_qa_infrastructure.py",
+        "-m",
+        "not external and not e2e",
+        "-q",
+        "--tb=short",
+        "-ra",
+        "-p",
+        "scripts.qa.t12e_lane_report",
+        "--t12e-lane-report=.qa_work/t13e-broader-final.json"
+      ],
+      "exit_status": 0,
+      "passed": 3299,
+      "report": "t13e-broader-final.json",
+      "sha256": "d9fe259027fc08dd5ed511b12c2f477344d14be3ecef45b22257b93802bccd0e"
+    },
+    {
+      "arguments": [
+        "tests/integration/test_phase4_configuration_certification_postgresql.py",
+        "tests/test_phase4_configuration_certification.py",
+        "tests/integration/test_ceri_immutable_decision_evidence.py",
+        "tests/integration/test_contextual_configuration_adoption_postgresql.py",
+        "tests/integration/test_contextual_consumer_eligibility_postgresql.py",
+        "tests/integration/test_core_calculation_evidence_postgresql.py",
+        "tests/integration/test_core_configuration_adoption_postgresql.py",
+        "tests/integration/test_decision_configuration_delivery_postgresql.py",
+        "tests/integration/test_effective_configuration_postgresql.py",
+        "tests/integration/test_ibmi_immutable_constituent_evidence.py",
+        "tests/integration/test_phase2_immutable_evidence_certification.py",
+        "tests/integration/test_readiness_evidence_postgresql.py",
+        "tests/integration/test_regime_sector_immutable_evidence_postgresql.py",
+        "tests/integration/test_repository_historical_read_enforcement.py",
+        "tests/integration/test_session_temporal_integrity_postgresql.py",
+        "tests/integration/test_setup_lifecycle_alert_immutable_evidence.py",
+        "tests/integration/test_technical_consumer_eligibility_postgresql.py",
+        "tests/integration/test_transition_preflight_plan_postgresql.py",
+        "tests/integration/test_winner_consumer_eligibility_postgresql.py",
+        "tests/integration/test_winner_temporal_integrity_postgresql.py",
+        "tests/test_contextual_effective_configuration.py",
+        "tests/test_core_effective_configuration.py",
+        "tests/test_decision_effective_configuration.py",
+        "tests/test_effective_configuration.py",
+        "-q",
+        "--tb=short",
+        "-ra",
+        "-p",
+        "scripts.qa.t12e_lane_report",
+        "--t12e-lane-report=.qa_work/t13e-postgres-final.json"
+      ],
+      "exit_status": 0,
+      "passed": 306,
+      "report": "t13e-postgres-final.json",
+      "sha256": "7313590c527038044184c39d499d0baa4567a7063998da4cd8e38ec2749b84d9"
+    },
+    {
+      "arguments": [
+        "tests/integration/test_phase4_configuration_certification_postgresql.py",
+        "-q",
+        "--tb=short",
+        "-p",
+        "scripts.qa.t12e_lane_report",
+        "--t12e-lane-report=.qa_work/t13e-master-final.json"
+      ],
+      "exit_status": 0,
+      "passed": 7,
+      "report": "t13e-master-final.json",
+      "sha256": "2bb3b782a4a4f3550f0dfa8af8553f3561978170e8921ce1428fc62b8028751f"
+    },
+    {
+      "arguments": [
+        "tests/ceri/test_scoring.py",
+        "tests/ib_market_intelligence/test_calculations.py",
+        "tests/setup_lifecycle/test_alert_service.py",
+        "tests/setup_lifecycle/test_lifecycle_engine.py",
+        "tests/setup_lifecycle/test_snapshot_builder.py",
+        "tests/test_market_regime_command_center.py",
+        "tests/test_sector_rotation_service.py",
+        "tests/test_t12c_ready_scenarios.py",
+        "tests/test_t12e_ready_scenarios.py",
+        "tests/winner_probability/test_capture_service.py",
+        "tests/winner_probability/test_cohort_statistics.py",
+        "tests/winner_probability/test_outcome_service.py",
+        "tests/winner_probability/test_probability_estimator.py",
+        "tests/winner_probability/test_t12e_readiness_certification.py",
+        "-q",
+        "--tb=short",
+        "-p",
+        "scripts.qa.t13e_behavior_probe",
+        "--t12a-business-output=.qa_work/t13e-final-clock-business.json",
+        "-p",
+        "scripts.qa.t12e_lane_report",
+        "--t12e-lane-report=.qa_work/t13e-parity-final-clock.json"
+      ],
+      "exit_status": 0,
+      "passed": 309,
+      "report": "t13e-parity-final-clock.json",
+      "sha256": "8ca049006aeb42c380205b040a64510aa6ea285babc1721d7e495c3994b565d0"
+    },
+    {
+      "arguments": [
+        "tests/test_fundamental_ranker_v2.py",
+        "tests/test_pine_replica_engine.py",
+        "tests/test_technical_score_v4.py",
+        "-q",
+        "--tb=short",
+        "-p",
+        "scripts.qa.t13e_core_behavior_probe",
+        "--t12a-business-output=.qa_work/t13e-core-final-business.json",
+        "-p",
+        "scripts.qa.t12e_lane_report",
+        "--t12e-lane-report=.qa_work/t13e-core-parity-final.json"
+      ],
+      "exit_status": 0,
+      "passed": 31,
+      "report": "t13e-core-parity-final.json",
+      "sha256": "2a4f19dca5b6d52f0d1e52a4fe28321646c24b9a96a995104f6d2b9913e07a3b"
+    },
+    {
+      "arguments": [
+        "tests/test_phase4_same_output_configuration.py",
+        "tests/test_phase4_configuration_certification.py",
+        "-q",
+        "--tb=short",
+        "-p",
+        "scripts.qa.t12e_lane_report",
+        "--t12e-lane-report=.qa_work/t13e-authority-final.json"
+      ],
+      "exit_status": 0,
+      "passed": 39,
+      "report": "t13e-authority-final.json",
+      "sha256": "60ccc784b667cc79e2521c6886941d76f95be12d02f2aed49fb4e6ec486f611a"
+    }
+  ],
+  "legacy_backfill_required": false,
+  "migration_certification": {
+    "alembic_check_orm_parity": true,
+    "all_three_update_delete_immutable": true,
+    "fresh_upgrade": true,
+    "old_missing_authority_job_fails_closed": true,
+    "populated_0079_upgrade": true,
+    "populated_downgrade_reupgrade": true
+  },
+  "migration_head": "0080_effective_configuration",
+  "new_migration_required": false,
+  "original_audited_baseline": {
+    "ancestor_verified": true,
+    "head": "3a9d47063be996908b7d5d1cc5769e0bbd033546"
+  },
+  "pass_standard": {
+    "gate_56": "Satisfied by the containing single focused commit; no self-referential hash",
+    "gates_1_through_55": "PASS, documented and supported by final lanes/schema/audit/parity and matrices"
+  },
+  "performance": {
+    "actual_public_root_stage_durations": [
+      {
+        "job_id": 1,
+        "ranking_ms": 402.895,
+        "regime_ms": 1559.153
+      }
+    ],
+    "cold_persisted_native_batch": {
+      "batch_current_file_reads": 0,
+      "batch_db_selects": 0,
+      "cold_bundle_ms": 763.423,
+      "cold_bundle_selects": 2,
+      "families": 51,
+      "items": 100,
+      "limit": "Native synthetic computational inputs; public Ranking/Regime stage timings measured separately; no production SLA.",
+      "pid": 6752,
+      "schema": "t13e-cold-persisted-delivery-native-benchmark-v1",
+      "setup_100_ms": 2477.707,
+      "snapshot_bytes": 1382350,
+      "winner_features_100_ms": 162.881
+    }
+  },
+  "phase4_implementation_certified": true,
+  "phase4_overall_certified": true,
+  "postgresql_runtime_certified": true,
+  "production_file_sha256": {
+    "app/services/column_mapper.py": "b6065aa14f430985c2912d96feda5a4978820f69e3ae7f37c0f5719d531a6ad2",
+    "app/services/configuration_delivery.py": "712dd5e00062c456386775bfc08d0d92be55a9f21e2d3c34f270f51c8a463725",
+    "app/services/contextual_effective_configuration.py": "4e53bff7a00f66c3e1ee43702e683e204bfda0ce89279a3e8048618396ed9c18",
+    "app/services/core_calculation_evidence.py": "5fb836a9c3db7bb9975e66095936425416a260c2a15dfd38583469f88bf23698",
+    "app/services/core_effective_configuration.py": "9a93a83a7577aabcc8feb6fb5d8e918961ee13f9c7a88883d8700cd4b67f1b3e",
+    "app/services/fundamental_score_service.py": "aef401218d7109af41677c5164064538ec7b030bec73981c5f81fe1bb8214b97",
+    "app/services/pipeline_executor.py": "89b3e12adb753d36988b95be05a6fc8bb780738540627f0498c977c18fab9d80",
+    "app/services/pipeline_service.py": "6a10173a79d659f97ea30668d896b768f12e76e6bff9c21fb5428a20e9d021cb",
+    "app/services/transition_preflight_plan_service.py": "722769048b4e7c34632e6fcaaf36a9a1cc7f3c7ddd4f40dc40322319bd455fb4"
+  },
+  "production_mutations": "NONE; local files/branch, disposable test databases/role/container and task baseline worktree only",
+  "production_rewrite_required": false,
+  "protected_handlers": 28,
+  "readiness_policies": 23,
+  "registered_handlers": 34,
+  "required_subsystem_rows": 16,
+  "schema": "t13e-phase4-integration-certification-v1",
+  "scope": {
+    "current_rule_test": "New C2 native DRY_RUN_REPLAY over retained snapshots, own C2 policy; unchanged historical ledgers",
+    "deferred": [
+      "original-context reconstruction",
+      "acquisition-plan semantics",
+      "refresh-cycle identity",
+      "target-scope freezing",
+      "entry-point unification",
+      "privileged SQL",
+      "long-term retention/storage optimization"
+    ],
+    "external_boundaries": [
+      "IB availability/readiness",
+      "optional external provider acquisition scheduler; seeded native raw estimate/price rows"
+    ],
+    "native_math": "No replacements",
+    "original_context_replay_claim": "NONE",
+    "public_entry": "Real upload/pipeline/resume routes; normal app SessionLocal/get_db; fresh processes",
+    "unsupported_secret_transports": [
+      "SMTP",
+      "webhook",
+      "session-secret connector"
+    ]
+  },
+  "starting_state": {
+    "ancestry": {
+      "5422bcdf7703db891810d9e9c20a8f1770241fc9": true,
+      "6884b0d6a9f5179a0ccdd97b8215f0e542f0032d": true,
+      "7b015124807b8f895911d7e790fcbf01949ff85f": true,
+      "7fa173c1e34752d457043fce5b4c5f22ec6e25d5": true,
+      "b846e37bdfe823416ccb8c9b98c452243cb5ee0a": true,
+      "ea8d48a510acbee9b88886390a9f775a36a4510a": true
+    },
+    "branch": "codex/t13d-decision-config-durable-anchor",
+    "containers": "swinglens-prometheus-1 prom/prometheus:v3.5.0 127.0.0.1:9090->9090/tcp\nswinglens-grafana-1 grafana/grafana:12.1.1 127.0.0.1:3000->3000/tcp",
+    "docker_server": "29.6.2",
+    "head": "b846e37bdfe823416ccb8c9b98c452243cb5ee0a",
+    "local_main": "febe376be67f01589199cd3ba55af98fd54001ed",
+    "migration_heads": "0080_effective_configuration (head)",
+    "native_psql": "Not installed; Docker PostgreSQL available",
+    "origin_main": "febe376be67f01589199cd3ba55af98fd54001ed",
+    "python": "Python 3.12.2",
+    "repository": "C:/Users/Ivica/Documents/SwingLens",
+    "status": "",
+    "tracked_changes": "",
+    "untracked": ""
+  },
+  "tests": {
+    "adversarial_pg_passed": 7,
+    "broader_deselected": [
+      "tests/ib_market_intelligence/test_external_smoke.py::test_external_ib_market_intelligence[liquidity-external_ib_bid_ask]",
+      "tests/ib_market_intelligence/test_external_smoke.py::test_external_ib_market_intelligence[short-pressure-external_ib_fee_rate]",
+      "tests/ib_market_intelligence/test_external_smoke.py::test_external_ib_market_intelligence[volatility-external_ib_volatility]",
+      "tests/ib_market_intelligence/test_external_smoke.py::test_external_ib_market_intelligence[options-external_ib_generic_ticks]",
+      "tests/ib_market_intelligence/test_external_smoke.py::test_external_ib_market_intelligence[scanner-external_ib_scanner]",
+      "tests/ib_market_intelligence/test_external_smoke.py::test_external_ib_market_intelligence[histogram-external_ib_histogram]",
+      "tests/ib_market_intelligence/test_external_smoke.py::test_external_ib_market_intelligence[flex-external_ib_flex]"
+    ],
+    "broader_passed": 3299,
+    "configuration_flakes": 0,
+    "excluded_paths": [
+      "tests/integration (separate native PG lane)",
+      "tests/e2e (external)",
+      "tests/test_migration_remediation.py (separate project workflow)",
+      "tests/qa/test_qa_infrastructure.py (infrastructure/orchestration)"
+    ],
+    "failed": 0,
+    "lanes": [
+      {
+        "detail": "Final 7 native PG cases plus 39 authority attacks (36 broader/PG plus 3 supplemental same-output native cases)",
+        "lane": 1,
+        "name": "T13E adversarial integration",
+        "passed": 46,
+        "status": "PASS"
+      },
+      {
+        "detail": "0080 targeted and populated native downgrade case; scope overlaps durable lane",
+        "lane": 2,
+        "name": "migration 0080",
+        "passed": 23,
+        "status": "PASS"
+      },
+      {
+        "detail": "Two master variants, native resume, unfinished retry and actual DSN public-worker test",
+        "lane": 3,
+        "name": "deployed public-entry flow",
+        "passed": 5,
+        "status": "PASS"
+      },
+      {
+        "detail": "Includes all-34 classification/28 missing-binding guard test",
+        "lane": 4,
+        "name": "durable anchors",
+        "passed": 27,
+        "status": "PASS"
+      },
+      {
+        "detail": "Additional native master and existing full downstream modules in broader lane",
+        "lane": 5,
+        "name": "downstream decisions",
+        "passed": 50,
+        "status": "PASS"
+      },
+      {
+        "detail": "Regime/Sector/CERI/five IBMI modules",
+        "lane": 6,
+        "name": "contextual config",
+        "passed": 34,
+        "status": "PASS"
+      },
+      {
+        "detail": "Own family drift/isolation and native persisted evidence",
+        "lane": 7,
+        "name": "core config",
+        "passed": 29,
+        "status": "PASS"
+      },
+      {
+        "detail": "Individually parameterized native C1 evaluate/C2 version rejection",
+        "lane": 8,
+        "name": "readiness-policy authority",
+        "passed": 23,
+        "status": "PASS"
+      },
+      {
+        "detail": "Prior selected IDs rerun in final outcomes; native PG adds separate coverage",
+        "lane": 9,
+        "name": "Phase-3",
+        "passed": 563,
+        "status": "PASS"
+      },
+      {
+        "detail": "Seven original PostgreSQL files; further units/history overlap broader",
+        "lane": 10,
+        "name": "Phase-2",
+        "passed": 60,
+        "status": "PASS"
+      },
+      {
+        "detail": "Prior selected IDs rerun in final broader",
+        "lane": 11,
+        "name": "Phase-1",
+        "passed": 135,
+        "status": "PASS"
+      },
+      {
+        "detail": "Selected invocations may overlap; native temporal PG separately covered",
+        "lane": 12,
+        "name": "Phase-0",
+        "passed": 157,
+        "status": "PASS"
+      },
+      {
+        "detail": "PG suite contains configuration unit overlap; actual integration count separately recorded",
+        "lane": 13,
+        "name": "PostgreSQL",
+        "passed": 306,
+        "status": "PASS"
+      },
+      {
+        "detail": "309 context/decision plus 31 pure core; actual baseline and current; 556 captures",
+        "lane": 14,
+        "name": "behavior parity",
+        "passed": 340,
+        "status": "PASS"
+      },
+      {
+        "detail": "CI-style nonexternal/no-e2e lane, exclusions explicit",
+        "lane": 15,
+        "name": "broader repository",
+        "passed": 3299,
+        "status": "PASS"
+      },
+      {
+        "detail": "Configured CI Ruff plus 0080; changed-file format, compile, git diff; legacy diagnostics separately classified",
+        "lane": 16,
+        "name": "static gates",
+        "passed": null,
+        "status": "PASS"
+      }
+    ],
+    "new_authority_units": 39,
+    "postgres_integration_passed": 145,
+    "postgres_suite_passed": 306,
+    "prior_phase_selector_verification": {
+      "Phase-0": {
+        "node_ids_sha256": "268714572eb9300e6455cf3d0d234badf0041e5db905e074359c5fbc513d5acc",
+        "passed": 86,
+        "selected": 86,
+        "selector_sha256": "6e0e0e1c77e2fdee37f9ad7d2e0877769f9144374cb297c0053ee278867ccb59",
+        "source_selector": "t13c-phase0-certified-final.json"
+      },
+      "Phase-0-supplement": {
+        "node_ids_sha256": "2ab379bcb6fd4a323d892c003f91ef2b2dd3dfc9620d5e05016b26dae4c77959",
+        "passed": 71,
+        "selected": 71,
+        "selector_sha256": "063f79a7503813d1f2d94c29dc65763e206dc980596968676967236a0f758d9c",
+        "source_selector": "t13c-phase0-supplement-certified-final.json"
+      },
+      "Phase-1": {
+        "node_ids_sha256": "550d3e073d91f3b52cbf23042b08d8de7b1f11a8483ae8337954e65728305bbd",
+        "passed": 135,
+        "selected": 135,
+        "selector_sha256": "21f0efad38f849659b2ced028b6b478a4f56c41d63657738183e123100f95378",
+        "source_selector": "t13c-phase1.json"
+      },
+      "Phase-2": {
+        "files": [
+          "test_ceri_immutable_decision_evidence.py",
+          "test_core_calculation_evidence_postgresql.py",
+          "test_ibmi_immutable_constituent_evidence.py",
+          "test_phase2_immutable_evidence_certification.py",
+          "test_regime_sector_immutable_evidence_postgresql.py",
+          "test_repository_historical_read_enforcement.py",
+          "test_setup_lifecycle_alert_immutable_evidence.py"
+        ],
+        "passed": 60,
+        "selected": 60
+      },
+      "Phase-3": {
+        "node_ids_sha256": "056380aaae6dc2aa5b5fa359f0a0349a824bd9eb7bcb17e77f3e0befd1e40026",
+        "passed": 563,
+        "selected": 563,
+        "selector_sha256": "b53da2aa06389f5e2ff07bb6d1cfe42d5b4ea730103cb70c99e8ec89c72b2291",
+        "source_selector": "t13c-phase3.json"
+      }
+    },
+    "skipped": 0,
+    "supplemental_same_output_cases": 3,
+    "unique_final_passed": 3447,
+    "unit_overlap_broader_postgres": 161,
+    "warnings_adversarial_repeat": 19,
+    "warnings_authority_repeat": 1,
+    "warnings_broader": {
+      "DeprecationWarning": 21,
+      "StarletteDeprecationWarning": 1
+    },
+    "warnings_parity_current": 2,
+    "warnings_postgres": {
+      "DeprecationWarning": 141,
+      "SAWarning": 30,
+      "StarletteDeprecationWarning": 1
+    }
+  },
+  "verdict": "PASS"
+}

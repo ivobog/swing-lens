@@ -64,6 +64,7 @@ class CoreEffectiveConfiguration:
                 "field_priorities",
                 "coverage_only_fields",
                 "components",
+                "column_aliases",
             },
             "core.technical": {
                 "pine",
@@ -171,7 +172,7 @@ def freeze_core_configuration(
             raise ValueError("core configuration cannot be replayed without numeric loss")
     family = ConfigurationFamily(
         namespace,
-        f"{namespace}-v1",
+        f"{namespace}-v2" if namespace == "core.fundamental" else f"{namespace}-v1",
         ConfigurationResolution(
             f"core_effective_configuration.resolve_{namespace.split('.')[-1]}_configuration",
             "1",
@@ -251,21 +252,36 @@ def resolve_fundamental_configuration(
     path: Path = Path("config/fundamentals_v2.yaml"),
     *,
     source_identifier: str | None = None,
+    alias_path: Path = Path("config/column_aliases.yaml"),
 ) -> CoreEffectiveConfiguration:
     from app.services.configuration_delivery import current_delivery, delivered_configuration
 
     if current_delivery() is not None:
         return CoreEffectiveConfiguration(delivered_configuration("core.fundamental").snapshot)
 
+    from app.services.column_mapper import load_alias_map
     from app.services.fundamental_ranker_v2 import load_fundamentals_v2_config
 
-    values = load_fundamentals_v2_config(path).data
+    scoring = load_fundamentals_v2_config(path).data
+    aliases = load_alias_map(alias_path)
+    values = {**scoring, "column_aliases": aliases}
+    sources = _file_sources(
+        scoring, source_identifier or (path.as_posix() if not path.is_absolute() else None)
+    )
+    sources.update(
+        _file_sources(
+            {"column_aliases": aliases},
+            alias_path.as_posix() if not alias_path.is_absolute() else None,
+        )
+    )
+    if not alias_path.exists():
+        sources["column_aliases"] = ConfigurationSource(
+            SourceKind.CODE_DEFAULT, "column-mapper-missing-profile-empty-map"
+        )
     return freeze_core_configuration(
         "core.fundamental",
         values,
-        sources=_file_sources(
-            values, source_identifier or (path.as_posix() if not path.is_absolute() else None)
-        ),
+        sources=sources,
     )
 
 

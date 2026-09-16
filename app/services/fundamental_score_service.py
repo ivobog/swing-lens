@@ -34,14 +34,16 @@ def recalculate_run_fundamentals(
             .order_by(RawCompanyRow.row_number)
         )
     )
-    mapped_rows = _mapped_rows_from_stored_raw(raw_rows)
     effective_configuration = effective_configuration or resolve_fundamental_configuration()
     effective_configuration.require_family("core.fundamental")
     if expected_calculation_identity is not None:
         effective_configuration.require_retry_identity(expected_calculation_identity)
+    values = effective_configuration.values
+    mapped_rows = _mapped_rows_from_stored_raw(raw_rows, aliases=values["column_aliases"])
+    scoring_config = {key: value for key, value in values.items() if key != "column_aliases"}
     scores = [
         _fundamental_score_from_v2(run_id, score)
-        for score in score_rows_v2(mapped_rows, config=effective_configuration.values)
+        for score in score_rows_v2(mapped_rows, config=scoring_config)
     ]
     if market_cutoff is not None or pipeline_run_id is not None:
         if market_cutoff is None or pipeline_run_id is None:
@@ -87,8 +89,10 @@ def recalculate_run_fundamentals(
     return scores
 
 
-def _mapped_rows_from_stored_raw(raw_rows: list[RawCompanyRow]) -> list[MappedCsvRow]:
-    remapped = map_csv_rows([row.raw_json for row in raw_rows])
+def _mapped_rows_from_stored_raw(
+    raw_rows: list[RawCompanyRow], *, aliases: dict[str, list[str]] | None = None
+) -> list[MappedCsvRow]:
+    remapped = map_csv_rows([row.raw_json for row in raw_rows], aliases=aliases)
     mapped_by_index = dict(enumerate(remapped))
     return [
         MappedCsvRow(

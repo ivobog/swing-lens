@@ -118,28 +118,10 @@ def persist_core_evidence(
     payload = CanonicalEvidenceSerializer.canonicalize(
         payload if payload is not None else calculation_evidence_payload(current_row)
     )
-    if (
-        effective_configuration is not None
-        and effective_configuration.family.namespace == "core.combined"
-        and isinstance(payload.get("debug_json"), dict)
-    ):
-        # Current compatibility-row IDs can change on exact retries. The frozen
-        # graph describes immutable inputs, using the writer's exact source pins.
-        debug = payload["debug_json"]
-        raw_id = (debug.get("source_ids") or {}).get("raw_row_id")
-        debug["source_ids"] = {
-            "raw_row_id": raw_id,
-            **{f"{role}_evidence_id": value for role, value in source_ids.items()},
-        }
-        debug.pop("diagnostic_technical_score_id", None)
-        debug["diagnostic_technical_evidence_id"] = source_ids.get("technical")
-    if effective_configuration is not None and isinstance(payload.get("debug_json"), dict):
-        for role, permission in (
-            payload["debug_json"].get("contextual_consumer_eligibility") or {}
-        ).items():
-            if role in source_ids and isinstance(permission, dict):
-                permission.pop("source_feature_id", None)
-                permission["source_evidence_id"] = source_ids[role]
+    if effective_configuration is not None:
+        normalize_configuration_business_payload(
+            payload, namespace=effective_configuration.family.namespace, source_ids=source_ids
+        )
     if READINESS_PAYLOAD_KEY in payload:
         raise ValueError("readiness-at-creation is owned by the evidence writer")
     if CONFIGURATION_PAYLOAD_KEY in payload:
@@ -219,6 +201,29 @@ def persist_core_evidence(
         readiness.readiness_policy_version,
     )
     return evidence
+
+
+def normalize_configuration_business_payload(payload, *, namespace, source_ids):
+    """Use the same immutable source representation for writer and verifier.
+
+    The caller must already validate ownership/source pointers. This helper
+    changes only compatibility-row addresses, never financial values.
+    """
+    debug = payload.get("debug_json")
+    if not isinstance(debug, dict):
+        return
+    if namespace == "core.combined":
+        raw_id = (debug.get("source_ids") or {}).get("raw_row_id")
+        debug["source_ids"] = {
+            "raw_row_id": raw_id,
+            **{f"{role}_evidence_id": value for role, value in source_ids.items()},
+        }
+        debug.pop("diagnostic_technical_score_id", None)
+        debug["diagnostic_technical_evidence_id"] = source_ids.get("technical")
+    for role, permission in (debug.get("contextual_consumer_eligibility") or {}).items():
+        if role in source_ids and isinstance(permission, dict):
+            permission.pop("source_feature_id", None)
+            permission["source_evidence_id"] = source_ids[role]
 
 
 def get_current_evidence(
