@@ -7,11 +7,13 @@ from typing import Any
 
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.tables import (
     CoreCalculationCurrentProjection,
     CoreCalculationEvidence,
     CoreCalculationEvidenceSource,
+    TechnicalScore,
 )
 from app.services.calculation_identity import CalculationIdentity, IdentityState
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
@@ -150,6 +152,9 @@ def persist_core_evidence(
             db.flush()
 
     current_row.evidence_id = evidence.id
+    if isinstance(current_row, TechnicalScore):
+        # A same-session recalculation must advance the loaded exact source too.
+        set_committed_value(current_row, "calculation_evidence", evidence)
     _advance_current_projection(db, evidence)
     readiness = readiness_from_evidence(evidence)
     _logger.debug(

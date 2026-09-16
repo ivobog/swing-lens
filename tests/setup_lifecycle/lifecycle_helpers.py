@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Any
 
+from readiness_helpers import ready_setup_permission
+
 from app.services.setup_lifecycle.dtos import NormalizedSnapshot, SignalValue
 from app.services.setup_lifecycle.enums import DataQualityLabel, SignalValueType
 
@@ -44,6 +46,7 @@ def snapshot(
         freshness_status="FRESH",
         source_ids={"raw_row_id": 1, "technical_score_id": 2},
         source_lineage={
+            **ready_setup_permission(),
             "market_regime_as_of": "2026-08-01",
             "sector_rotation_as_of": "2026-08-01",
             "source_run_status": "COMPLETED",

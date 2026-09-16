@@ -126,3 +126,86 @@ T12B owns Technical → Combined, Ranking and direct Setup/Lifecycle readiness e
 T12C owns IBMI liquidity → Ranking; IBMI volatility/short pressure → CERI; Regime/Sector → Setup.
 T12D owns Ranking/Regime/Sector → Winner and its remaining Technical quality policy.
 T12E owns integrated Phase-3 certification. T12A does not close those edges.
+
+## T12B core Technical consumer policies
+
+T12B starts at `4c8eb3402b951482d590890e726195a3c445d786`. This section extends the
+T12A producer contract; it does not change its statuses, native confidence semantics or
+producer normalization. The implementation is `app/services/technical_consumer_eligibility.py`.
+
+| Edge / named policy | Policy version | READY | DEGRADED | Blocking readiness | UNKNOWN | LEGACY_UNKNOWN |
+|---|---|---|---|---|---|---|
+| TECHNICAL_TO_COMBINED | `technical-to-combined-v1` | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED | POLICY_UNDECIDED |
+| TECHNICAL_TO_RANKING | `technical-to-ranking-v1` | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED | POLICY_UNDECIDED |
+| TECHNICAL_TO_SETUP | `technical-to-setup-v1` | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED | POLICY_UNDECIDED |
+
+Every blocking reason, ERROR and INSUFFICIENT_EVIDENCE prevents permission. The policies
+defensively reject a STALE envelope. Technical's T12A producer does not emit a meaningful
+STALE classification or an age threshold: native Technical staleness certification is
+NOT_APPLICABLE here, and no new threshold is introduced. Only ELIGIBLE crosses a decision
+boundary. POLICY_UNDECIDED has the same omission effect as INELIGIBLE, while retaining its
+distinct typed meaning and reasons.
+
+DEGRADED has no explicit numeric-use permission on these three edges. Combined's warning
+and completeness conventions, Ranking's post-score low-quality label cap, and Setup's
+coverage/confidence fallback do not establish such permission. In particular the Ranking
+cap is part of the audited failure, not authorization to retain a valid rank. Each v1
+policy therefore leaves DEGRADED undecided. No confidence threshold or configurable
+override is added. Future changes require a separately reviewed consumer policy version.
+
+`technical_decision_input` follows an exact, scope-verified Technical evidence pointer,
+reads its frozen producer readiness, and evaluates the named policy. An eligible input is
+a projection of the evidence's frozen Technical values; current-row values cannot replace
+them. Decimal/date types are restored for existing formulas and signal serialization.
+Equal Decimal values may retain native display precision without changing the frozen value.
+Missing envelopes remain LEGACY_UNKNOWN, even if an earlier evidence payload contains
+positive values. Unresolved pointers, malformed contracts and identity mismatches fail
+explicitly. No current/latest fallback or retrospective readiness normalization is allowed.
+
+Combined omits the entire ineligible Technical behavior input, including classification,
+risk and liquidity penalties. It reuses available-weight normalization, the configured
+missing-input penalty and incomplete/Watchlist conventions. Technical diagnostics remain
+on the producer and in exact lineage. Exclusion never substitutes a valid numeric zero.
+
+Ranking omits Technical before component extraction, profile weighting, penalties and gates.
+Rows without usable Technical remain diagnostic, incomplete and unranked (`profile_rank=0`),
+with `No new entry`. They never enter the rankable population. Profile normalization is
+within each ticker's component/available-weight formula; this implementation has no
+peer-derived numeric statistics. Excluded rows cannot affect those formulas or ordinal
+positions of the remaining population. Removing formerly ranked invalid peers may change
+valid peers' ordinal ranks; fully READY populations retain exact outputs.
+
+Setup evaluates its direct Technical policy before promoting scores, signals, feature flags,
+trigger geometry or confidence. Ineligible inputs produce INSUFFICIENT diagnostic snapshots.
+Combined Technical-score/classification fallbacks cannot reintroduce an omitted input.
+Combined final score/decision and Ranking profile/score/decision remain metadata; Combined
+earnings risk remains behavioral. CERI remains absent from Setup's dependency graph.
+
+The reserved lineage/debug member `technical_consumer_eligibility` freezes the exact
+producer readiness DTO, identity/fingerprint, evidence ID, consumer decision, policy version
+and typed reasons with Combined, Ranking and Setup evidence before hashing. Source edges
+pin the same Technical evidence ID. Policy changes and current recalculations cannot
+reinterpret stored decisions. Exact evidence/policy/context retries are deterministic.
+
+Lifecycle consumes Setup, never TechnicalScore directly. Episode evaluation reads permission
+from the exact frozen Setup evidence rather than mutable Setup lineage. The engine, family
+gateway and actionability policy prevent recovery from residual numeric signals. Ineligible
+history is omitted from family calculations and Setup score velocities. A blocked new
+evaluation uses existing no-family-evidence conventions: it cannot open an actionable episode
+or advance READY/TRIGGERED/CONFIRMED. An existing episode keeps its state/phase and receives
+blocked current actionability; no historical state/evidence is rewritten. Existing terminal
+and independent observation-gap policies remain in place. Alert generation consequently
+has no invalid actionable transition to announce; diagnostic gate-blocked alerts remain
+permitted by existing alert rules.
+
+Generic state-machine DTOs with no Technical binding are mathematical test/domain inputs,
+not certified Technical consumers. Identity-bound or Technical-linked Setup input without
+the frozen permission fails closed. Unpersisted Technical previews do not obtain implicit
+permission: prospective discovery through the live builder becomes incomplete/low confidence
+until there is an explicit certified preview contract. No preview is promoted or backfilled.
+
+Combined, Ranking and Setup cohort readers select-in load the existing evidence relationship.
+Policy evaluation then needs no per-ticker/per-profile readiness query. The shared writer
+also advances a loaded Technical evidence reference after same-session recalculation.
+There are no new columns or migrations. Winner policy and T12C contextual consumers are
+unchanged; repository-wide INV-READINESS-001 remains partial pending T12C/D/E.

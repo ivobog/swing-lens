@@ -2,6 +2,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from readiness_helpers import certified_technical
+
 from app.db import Base
 from app.models.tables import (
     CombinedResult,
@@ -747,7 +749,7 @@ def _technical(
     dual_score: str,
     risk_score: str,
 ) -> TechnicalScore:
-    return TechnicalScore(
+    return certified_technical(
         run_id=1,
         ticker=ticker,
         classification=classification,

@@ -35,6 +35,12 @@ from app.services.setup_lifecycle.source_loader import (
     SetupLifecycleSourceLoader,
     TickerSourceContext,
 )
+from app.services.technical_consumer_eligibility import (
+    TECHNICAL_ELIGIBILITY_KEY,
+    TECHNICAL_TO_SETUP,
+    setup_technical_blocked,
+    technical_decision_input,
+)
 from app.services.us_market_calendar import previous_us_trading_day, us_trading_sessions_between
 
 REQUIRED_FEATURE_SOURCES = (
@@ -140,17 +146,22 @@ class SetupLifecycleSnapshotBuilder:
         if not ticker:
             raise ValueError("ticker is required")
 
+        technical, eligibility = technical_decision_input(
+            context.technical_score, TECHNICAL_TO_SETUP,
+        )
+        behavior_context = replace(context, technical_score=technical)
+
         latest_bar = context.latest_completed_bar
         as_of_date = self._resolve_data_as_of_date(context)
         reference_date = self._reference_date(context)
-        setup_family = _primary_setup_family(context.technical_score)
+        setup_family = _primary_setup_family(technical)
         trigger_reference = _trigger_reference(
-            context,
+            behavior_context,
             setup_family=setup_family,
             latest_bar=latest_bar,
         )
-        promoted = self._promoted_fields(context, latest_bar, trigger_reference)
-        source_values = self._source_values(context, promoted)
+        promoted = self._promoted_fields(behavior_context, latest_bar, trigger_reference)
+        source_values = self._source_values(behavior_context, promoted)
         warnings = list(self._warnings(context, as_of_date, reference_date, source_values))
         coverage = self._required_feature_coverage(source_values)
         freshness = self._freshness_status(as_of_date, reference_date, latest_bar is not None)
@@ -164,13 +175,18 @@ class SetupLifecycleSnapshotBuilder:
             hard_required_absent=coverage == 0.0,
             stale_beyond_hard_limit=freshness == "STALE",
         )
+        if technical is None:
+            data_quality = DataQualityLabel.INSUFFICIENT
+            warnings.append("TECHNICAL_CONSUMER_INELIGIBLE")
         source_values["data_quality_label"] = data_quality.value
         source_values["required_feature_coverage"] = Decimal(str(round(coverage, 6)))
         source_values["freshness_status"] = freshness
         promoted["data_quality_label"] = data_quality.value
         promoted["required_feature_coverage"] = Decimal(str(round(coverage, 6)))
         promoted["freshness_status"] = freshness
-        promoted["technical_confidence"] = self._technical_confidence(context, coverage, freshness)
+        promoted["technical_confidence"] = self._technical_confidence(
+            behavior_context, coverage, freshness,
+        )
         velocities = self._score_velocities(
             source_values,
             as_of_date=as_of_date,
@@ -190,6 +206,7 @@ class SetupLifecycleSnapshotBuilder:
             as_of_date,
             trigger_reference,
         )
+        source_lineage[TECHNICAL_ELIGIBILITY_KEY] = eligibility
         if context.market_cutoff is not None:
             source_lineage["temporal_lineage"] = {
                 "calculation_context_id": context.market_cutoff.context_id,
@@ -264,7 +281,7 @@ class SetupLifecycleSnapshotBuilder:
             source_ids=source_ids,
             promoted_fields=promoted,
             signals=self._signals_json(source_values, velocities=velocities),
-            feature_flags=self._feature_flags(context),
+            feature_flags=self._feature_flags(behavior_context),
             warning_flags=sorted(set(warnings)),
             missing_data={
                 **self._missing_data(source_values),
@@ -379,10 +396,7 @@ class SetupLifecycleSnapshotBuilder:
                 getattr(fundamental, "fundamental_score", None),
                 getattr(combined, "fundamental_score", None),
             ),
-            "dual_score": _first_value(
-                getattr(technical, "dual_score", None),
-                getattr(combined, "dual_score", None),
-            ),
+            "dual_score": getattr(technical, "dual_score", None),
             "trend_score": getattr(technical, "trend_score", None),
             "momentum_score": _first_value(
                 getattr(technical, "momentum_score", None),
@@ -395,10 +409,7 @@ class SetupLifecycleSnapshotBuilder:
             ),
             "final_score": getattr(combined, "final_score", None),
             "profile_score": getattr(ranking, "profile_score", None),
-            "technical_classification": _first_value(
-                getattr(technical, "classification", None),
-                getattr(combined, "technical_classification", None),
-            ),
+            "technical_classification": getattr(technical, "classification", None),
             "stage": getattr(technical, "stage", None),
             "pullback_health": getattr(technical, "pullback_health", None),
             "action_bias": getattr(technical, "action_bias", None),
@@ -647,7 +658,9 @@ class SetupLifecycleSnapshotBuilder:
             "pit_price_evidence": {
                 "series_fingerprint": price_bar_immutable_evidence_set_hash(context.price_bars),
                 "bars": [
-                    price_bar_immutable_evidence_manifest(row)
+                    CanonicalEvidenceSerializer.canonicalize(
+                        price_bar_immutable_evidence_manifest(row)
+                    )
                     for row in sorted(
                         context.price_bars,
                         key=lambda item: (item.bar_date, item.id or 0),
@@ -701,6 +714,10 @@ class SetupLifecycleSnapshotBuilder:
         as_of_date: date,
         history: tuple[SetupSignalSnapshot, ...],
     ) -> dict[str, dict[str, dict[str, Any]]]:
+        history = tuple(item for item in history if not setup_technical_blocked(SimpleNamespace(
+            source_lineage=item.source_lineage_json or {},
+            source_ids={"technical_score_id": item.technical_score_id},
+        )))
         current = SimpleNamespace(
             id=None,
             data_as_of_date=as_of_date,

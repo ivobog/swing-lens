@@ -5,6 +5,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from readiness_helpers import certified_technical, seal_technical
 
 from app.models.tables import (
     CombinedResult,
@@ -227,6 +228,7 @@ def test_snapshot_builder_promotes_family_specific_box_trigger_geometry(
 ) -> None:
     technical = _technical(classification=classification)
     technical.v4_debug_json = {"box": {"box_high": 100.0}}
+    seal_technical(technical)
 
     built = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()).build(
         _ticker_context(
@@ -511,7 +513,7 @@ def _technical(
     dual_score: Decimal = Decimal("8.2"),
     classification: str = "Breakout",
 ) -> TechnicalScore:
-    return TechnicalScore(
+    return certified_technical(
         id=301,
         run_id=7,
         ticker=ticker,

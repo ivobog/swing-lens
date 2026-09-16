@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -14,6 +14,7 @@ from app.models.tables import (
 from app.services.setup_lifecycle.actionability_policy import SetupLifecycleActionabilityPolicy
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.decision_evidence import (
+    get_setup_evidence,
     persist_lifecycle_evaluation_evidence,
     persist_lifecycle_transition_evidence,
     persist_observation_gap_evaluation_evidence,
@@ -35,6 +36,7 @@ from app.services.setup_lifecycle.enums import (
 )
 from app.services.setup_lifecycle.lifecycle_engine import SetupLifecycleEngine
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+from app.services.technical_consumer_eligibility import setup_technical_blocked
 from app.services.us_market_calendar import us_trading_sessions_between
 
 
@@ -80,6 +82,13 @@ class SetupLifecycleEpisodeService:
         refresh_primary: bool = True,
     ) -> EpisodeEvaluationResult:
         normalized = normalized_snapshot_from_row(snapshot)
+        if snapshot.evidence_id is not None:
+            setup = get_setup_evidence(db, snapshot.evidence_id)
+            if setup.run_id != snapshot.run_id or setup.ticker != snapshot.ticker.upper():
+                raise ValueError("EVIDENCE_UNAVAILABLE: Lifecycle Setup scope mismatch")
+            normalized = replace(normalized, source_lineage=dict(
+                setup.payload_json.get("source_lineage_json") or {}
+            ))
         first_pass = self.lifecycle_engine.evaluate(
             _request(
                 normalized,
@@ -88,10 +97,22 @@ class SetupLifecycleEpisodeService:
                 missing_observation_sessions=0,
             )
         )
+        lookup_family = first_pass.setup_family.value
+        if setup_technical_blocked(normalized):
+            episodes = preloaded_episodes
+            if episodes is None:
+                episodes = tuple(self.repository.active_episodes_for_ticker(
+                    db, ticker=snapshot.ticker, timeframe=snapshot.timeframe,
+                ))
+            eligible = [episode for episode in episodes if episode.status == "ACTIVE"]
+            if eligible:
+                primary = select_primary_episodes(eligible, config=self.config)[0]
+                lookup_family = primary.setup_family
+                first_pass = replace(first_pass, setup_family=SetupFamily(lookup_family))
         active = (
             _active_episode_from_preloaded(
                 preloaded_episodes,
-                setup_family=first_pass.setup_family.value,
+                setup_family=lookup_family,
                 as_of_date=snapshot.data_as_of_date,
             )
             if preloaded_episodes is not None
@@ -99,7 +120,7 @@ class SetupLifecycleEpisodeService:
                 db,
                 ticker=snapshot.ticker,
                 timeframe=snapshot.timeframe,
-                setup_family=first_pass.setup_family.value,
+                setup_family=lookup_family,
                 as_of_date=snapshot.data_as_of_date,
             )
         )
@@ -117,6 +138,8 @@ class SetupLifecycleEpisodeService:
                     missing_observation_sessions=active.missing_observation_sessions,
                 )
             )
+            if setup_technical_blocked(normalized):
+                decision = replace(decision, setup_family=SetupFamily(active.setup_family))
         actionability = self.actionability_policy.evaluate(decision, normalized)
         self._apply_snapshot_denormalization(snapshot, decision, actionability)
         evaluation_evidence = persist_lifecycle_evaluation_evidence(

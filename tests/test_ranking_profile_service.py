@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
+from readiness_helpers import certified_technical, seal_technical
 
 from app.models.tables import (
     CombinedResult,
@@ -297,7 +298,7 @@ def _technical(
     breakout: float,
     vcp: float,
 ) -> TechnicalScore:
-    return TechnicalScore(
+    return certified_technical(
         id=301 if ticker == "MOMO" else 302,
         run_id=7,
         ticker=ticker,
@@ -358,6 +359,7 @@ def _attach_identities(
             effective_config={"test": "technical"},
         )
         score.debug_json = embed_calculation_identity(score.debug_json, identity, policy="TEST")
+        seal_technical(score)
 
 
 def _config() -> dict:

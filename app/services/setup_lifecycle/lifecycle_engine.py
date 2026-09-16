@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from app.services.setup_lifecycle.confidence_service import SetupLifecycleConfidenceService
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
@@ -9,6 +9,10 @@ from app.services.setup_lifecycle.enums import Actionability, LifecycleState
 from app.services.setup_lifecycle.family_adapters import (
     evaluate_family_candidates,
     select_primary_family,
+)
+from app.services.technical_consumer_eligibility import (
+    TECHNICAL_ELIGIBILITY_KEY,
+    setup_technical_blocked,
 )
 
 STATE_FROM_EVIDENCE_PRECEDENCE = (
@@ -62,6 +66,16 @@ class SetupLifecycleEngine:
         self._validate_history(request)
         if request.previous_state in {LifecycleState.FAILED, LifecycleState.EXPIRED}:
             return self._terminal_decision(request)
+
+        if setup_technical_blocked(request.snapshot):
+            decision = self._no_evidence_decision(request)
+            return replace(
+                decision, actionability_candidate=Actionability.BLOCKED,
+                reason_codes=("TECHNICAL_CONSUMER_INELIGIBLE",),
+                evidence={TECHNICAL_ELIGIBILITY_KEY: request.snapshot.source_lineage.get(
+                    TECHNICAL_ELIGIBILITY_KEY
+                ), "prior_state_preserved": request.previous_state is not None},
+            )
 
         candidates = evaluate_family_candidates(
             request.snapshot,

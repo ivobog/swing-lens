@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import (
@@ -493,7 +493,9 @@ def _fundamentals_for_run(db: Session, run_id: int) -> list[FundamentalScore]:
 
 
 def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
-    return list(db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id)))
+    return list(db.scalars(select(TechnicalScore).options(
+        selectinload(TechnicalScore.calculation_evidence)
+    ).where(TechnicalScore.run_id == run_id)))
 
 
 def _to_ranking_model(

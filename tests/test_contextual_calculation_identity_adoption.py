@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from readiness_helpers import certified_technical
 
 from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
 from app.models.tables import (
@@ -14,7 +15,6 @@ from app.models.tables import (
     PriceBar,
     RankingResult,
     RawCompanyRow,
-    TechnicalScore,
     UploadRun,
 )
 from app.services.ceri import capture_service as ceri_capture
@@ -548,7 +548,7 @@ def _debug(identity):
 
 
 def _technical(identity):
-    return TechnicalScore(
+    return certified_technical(
         id=301,
         run_id=7,
         ticker="MSFT",

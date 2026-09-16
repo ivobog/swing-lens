@@ -3,6 +3,8 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from readiness_helpers import seal_technical
+
 from app.models.tables import RawCompanyRow, TechnicalScore
 from app.services.combined_decision import refresh_combined_results
 from app.services.combined_ranking_identity import (
@@ -50,6 +52,7 @@ def test_golden_pipeline_scoring_regression() -> None:
         technical.debug_json = embed_calculation_identity(
             technical.debug_json, identity, policy="GOLDEN_TEST"
         )
+        seal_technical(technical)
     combined = refresh_combined_results(
         db,
         fixture["run_id"],

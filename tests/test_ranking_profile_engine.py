@@ -2,6 +2,8 @@ from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
+from readiness_helpers import certified_technical
+
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
 from app.services.ranking_profile_config import (
     RankingProfileConfig,
@@ -419,7 +421,7 @@ def _technical(
     box_tightness: float = 7.0,
     derived: dict | None = None,
 ) -> TechnicalScore:
-    return TechnicalScore(
+    return certified_technical(
         run_id=1,
         ticker=ticker,
         trend_score=Decimal(str(trend)),

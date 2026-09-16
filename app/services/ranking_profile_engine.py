@@ -15,6 +15,11 @@ from app.services.ranking_profile_components import (
 from app.services.ranking_profile_config import RankingProfileConfig
 from app.services.ranking_profile_gates import apply_profile_gates
 from app.services.ranking_profile_penalties import calculate_profile_penalties
+from app.services.technical_consumer_eligibility import (
+    TECHNICAL_ELIGIBILITY_KEY,
+    TECHNICAL_TO_RANKING,
+    technical_decision_input,
+)
 
 RANKING_ENGINE_VERSION = "1.1.0"
 
@@ -75,8 +80,12 @@ def rank_profile(
         )
         for row in _unique_rows(rows)
     ]
-    ranked = sorted(decisions, key=ranking_sort_key)
-    return [replace(decision, profile_rank=index) for index, decision in enumerate(ranked, start=1)]
+    rankable = [decision for decision in decisions if decision.has_technical]
+    unranked = [decision for decision in decisions if not decision.has_technical]
+    ranked = sorted(rankable, key=ranking_sort_key)
+    return [
+        replace(decision, profile_rank=index) for index, decision in enumerate(ranked, start=1)
+    ] + sorted(unranked, key=lambda decision: decision.ticker)
 
 
 def rank_single_row(
@@ -89,6 +98,7 @@ def rank_single_row(
     today: date | None = None,
     liquidity_feature: Any | None = None,
 ) -> RankingProfileDecision:
+    technical, eligibility = technical_decision_input(technical, TECHNICAL_TO_RANKING)
     fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     base_technical_score = _float_or_none(technical.dual_score if technical else None)
     component_scores = extract_technical_components(technical)
@@ -165,13 +175,16 @@ def rank_single_row(
         technical_classification=technical.classification if technical else None,
         fundamental_label=fundamental.fundamental_label if fundamental else None,
         decision_label=gate_result.decision,
-        position_size_hint=_position_size_hint(gate_result.decision, technical),
+        position_size_hint=(
+            _position_size_hint(gate_result.decision, technical)
+            if technical is not None else "No new entry"
+        ),
         notes=notes,
         warning_flags=warning_flags,
         penalties=penalties,
         gates=gate_result.gates,
         component_scores=component_scores,
-        debug=_debug_payload(
+        debug={**_debug_payload(
             profile=profile,
             fundamental_score=fundamental_score,
             base_technical_score=base_technical_score,
@@ -186,7 +199,7 @@ def rank_single_row(
             profile_score=profile_score,
             liquidity_feature=liquidity_feature,
             tradeability_grade=tradeability_grade,
-        ),
+        ), TECHNICAL_ELIGIBILITY_KEY: eligibility},
         upcoming_earnings_date=earnings_risk.upcoming_earnings_date,
         days_until_earnings=earnings_risk.days_until_earnings,
         earnings_risk_level=earnings_risk.risk_level,

@@ -8,6 +8,7 @@ from app.services.setup_lifecycle.dtos import (
 )
 from app.services.setup_lifecycle.enums import Actionability, DataQualityLabel, LifecycleState
 from app.services.setup_lifecycle.family_adapters import signal_bool, signal_text, signal_value
+from app.services.technical_consumer_eligibility import setup_technical_blocked
 
 
 class SetupLifecycleActionabilityPolicy:
@@ -38,6 +39,8 @@ class SetupLifecycleActionabilityPolicy:
 
         if _has_hard_required_absence(snapshot):
             blockers.append("HARD_REQUIRED_DATA_ABSENT")
+        if setup_technical_blocked(snapshot):
+            blockers.append("TECHNICAL_CONSUMER_INELIGIBLE")
         if snapshot.data_quality_label is DataQualityLabel.INSUFFICIENT:
             blockers.append("INSUFFICIENT_DATA_QUALITY")
         if signal_bool(snapshot, "liquidity"):

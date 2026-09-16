@@ -575,6 +575,11 @@ class FundamentalScore(Base):
 class TechnicalScore(Base):
     __tablename__ = "technical_scores"
 
+    calculation_evidence: Mapped["CoreCalculationEvidence | None"] = relationship(
+        "CoreCalculationEvidence", foreign_keys="TechnicalScore.evidence_id",
+        viewonly=True, lazy="raise",
+    )
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="CASCADE"),

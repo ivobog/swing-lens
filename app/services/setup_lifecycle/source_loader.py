@@ -6,7 +6,7 @@ from datetime import date, datetime
 from time import perf_counter
 
 from sqlalchemy import case, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.tables import (
     CombinedResult,
@@ -144,6 +144,7 @@ class SetupLifecycleSourceLoader:
         technical_scores = tuple(
             db.scalars(
                 select(TechnicalScore)
+                .options(selectinload(TechnicalScore.calculation_evidence))
                 .where(TechnicalScore.run_id == run_id)
                 .where(TechnicalScore.ticker.in_(tickers))
             )
