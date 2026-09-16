@@ -47,8 +47,13 @@ def persist_ceri_decision_evidence(
     *,
     snapshot: CeriScoreSnapshot,
     config: CeriConfig,
+    effective_configuration=None,
 ) -> CoreCalculationEvidence | None:
     """Seal one identity-aware CERI decision in the shared Phase-2 ledger."""
+
+    effective_configuration = effective_configuration or getattr(
+        config, "_effective_configuration", None
+    )
 
     if snapshot.config_hash != config.config_hash or (
         snapshot.calculation_version != config.engine.calculation_version
@@ -56,7 +61,14 @@ def persist_ceri_decision_evidence(
         raise EvidenceUnavailableError(
             "EVIDENCE_UNAVAILABLE: CERI snapshot/config identity mismatch"
         )
-    if ceri_config_hash(config) != config.config_hash:
+    if effective_configuration is not None:
+        from app.services.contextual_effective_configuration import ceri_calculation_values
+
+        if ceri_calculation_values(config) != effective_configuration.values["config"]:
+            raise EvidenceUnavailableError(
+                "EVIDENCE_UNAVAILABLE: CERI frozen values/config mismatch"
+            )
+    elif ceri_config_hash(config) != config.config_hash:
         raise EvidenceUnavailableError(
             "EVIDENCE_UNAVAILABLE: CERI effective config payload/hash mismatch"
         )
@@ -66,7 +78,12 @@ def persist_ceri_decision_evidence(
         if (
             effective.state is not IdentityState.KNOWN
             or effective.value is None
-            or effective.value.fingerprint.digest != config.config_hash
+            or effective.value.fingerprint.digest
+            != (
+                effective_configuration.snapshot.semantic_hash
+                if effective_configuration is not None
+                else config.config_hash
+            )
         ):
             raise EvidenceUnavailableError(
                 "EVIDENCE_UNAVAILABLE: CERI Calculation Identity/config mismatch"
@@ -74,8 +91,7 @@ def persist_ceri_decision_evidence(
 
     source_manifest = build_ceri_source_manifest(db, snapshot)
     ibmi_sources = {
-        f"ibmi_{feature.module.lower()}": feature
-        for feature in _ibmi_features(db, snapshot)
+        f"ibmi_{feature.module.lower()}": feature for feature in _ibmi_features(db, snapshot)
     }
     payload = {
         "schema_version": CERI_DECISION_EVIDENCE_SCHEMA_VERSION,
@@ -86,19 +102,32 @@ def persist_ceri_decision_evidence(
             "declared_config_hash": config.config_hash,
             "declared_config_version": config.engine.config_version,
             "calculation_version": config.engine.calculation_version,
-            "resolved_config": ceri_config_payload(config),
+            "resolved_config": (
+                effective_configuration.values["config"]
+                if effective_configuration is not None
+                else ceri_config_payload(config)
+            ),
             "posture_thresholds": {
                 "insufficient_or_unrated": "Unrated",
-                "binary_risk_min": 6.0,
-                "positive_min": 7.0,
-                "improving_min": 5.0,
-                "mixed_min": 3.0,
+                **(
+                    effective_configuration.values["native_policy"]["posture"]
+                    if effective_configuration is not None
+                    else {
+                        "binary_risk_min": 6.0,
+                        "positive_min": 7.0,
+                        "improving_min": 5.0,
+                        "mixed_min": 3.0,
+                    }
+                ),
             },
         },
     }
     return persist_core_evidence(
         db,
         kind=CoreEvidenceKind.CERI,
+        effective_configuration=effective_configuration.snapshot
+        if effective_configuration is not None and identity is not None
+        else None,
         current_row=snapshot,
         sources=ibmi_sources,
         payload=payload,
@@ -252,9 +281,7 @@ def build_ceri_source_manifest(
                 "immutable_evidence_id": int(evidence.id),
                 "immutable_evidence_key": evidence.evidence_key,
                 "immutable_payload_fingerprint": evidence.payload_fingerprint,
-                "constituent_fingerprint": evidence.payload_json.get(
-                    "constituent_fingerprint"
-                ),
+                "constituent_fingerprint": evidence.payload_json.get("constituent_fingerprint"),
                 "calculation_identity": identity.canonical_payload(),
                 "calculation_identity_fingerprint": str(identity.fingerprint()),
                 "phase2_constituent_certification": "CERTIFIED_T11B3",

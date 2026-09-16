@@ -268,7 +268,34 @@ def load_ceri_config(
         config_hash="",
     )
     _validate_cross_section_rules(parsed)
-    return replace(parsed, config_hash=ceri_config_hash(parsed))
+    result = replace(parsed, config_hash=ceri_config_hash(parsed))
+    from app.services.configuration_source_values import configuration_leaves
+    from app.services.contextual_effective_configuration import resolve_ceri_configuration
+    from app.services.effective_configuration import ConfigurationSource, ConfigurationSourceKind
+
+    payload = json.loads(json.dumps(asdict(result), default=str))
+    object.__setattr__(
+        result,
+        "_configuration_sources",
+        tuple(
+            (
+                key,
+                ConfigurationSource(
+                    ConfigurationSourceKind.CODE_DEFAULT
+                    if key == "api_error_codes"
+                    else ConfigurationSourceKind.PROFILE,
+                    "ceri-native-api-error-codes"
+                    if key == "api_error_codes"
+                    else (taxonomy_path if key.startswith("taxonomy.") else path).as_posix()
+                    if not (taxonomy_path if key.startswith("taxonomy.") else path).is_absolute()
+                    else None,
+                ),
+            )
+            for key, _ in configuration_leaves(payload)
+        ),
+    )
+    object.__setattr__(result, "_effective_configuration", resolve_ceri_configuration(result))
+    return result
 
 
 def load_ceri_taxonomy(path: Path = CERI_TAXONOMY_PATH) -> CatalystTaxonomyConfig:

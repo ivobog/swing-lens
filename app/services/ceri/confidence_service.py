@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any
 
 from app.models.ceri_tables import CeriRevisionFeature
-from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.config import CeriConfig
 from app.services.ceri.enums import CeriConfidenceLabel, CeriDataset
 
 
@@ -35,7 +35,9 @@ class ConfidenceResult:
 
 class CeriConfidenceService:
     def __init__(self, config: CeriConfig | None = None) -> None:
-        self.config = config or load_ceri_config()
+        from app.services.contextual_effective_configuration import resolve_ceri_configuration
+
+        self.config = resolve_ceri_configuration(config).ceri_config()
 
     def calculate(
         self,
@@ -68,8 +70,11 @@ class CeriConfidenceService:
             else None
         )
         estimate_limit = self.config.datasets[CeriDataset.ESTIMATES].max_stale_days
-        analyst = _analyst_score(self.config.revision.minimum_analyst_count, revision_features)
-        timestamp = _timestamp_score(revision_features)
+        policy = self.config._effective_configuration.values["native_policy"]["confidence"]
+        analyst = _analyst_score(
+            self.config.revision.minimum_analyst_count, revision_features, policy
+        )
+        timestamp = _timestamp_score(revision_features, policy)
         estimate_coverage = min(10.0, coverage_pct / 10.0)
         conflict_free = max(0.0, 10.0 - conflict_penalty)
         weights = self.config.confidence.weights
@@ -160,14 +165,15 @@ def _freshness_score(
     if estimate_age is None:
         return None
     estimate_limit = config.datasets[CeriDataset.ESTIMATES].max_stale_days
-    if estimate_age <= 1:
-        return 10.0
+    policy = config._effective_configuration.values["native_policy"]["confidence"]
+    if estimate_age <= policy["fresh_age_days"]:
+        return policy["fresh_score"]
     if estimate_age <= estimate_limit:
-        return 7.0
-    return max(0.0, 7.0 - float(estimate_age - estimate_limit))
+        return policy["within_limit_score"]
+    return max(0.0, policy["within_limit_score"] - float(estimate_age - estimate_limit))
 
 
-def _analyst_score(minimum: int, features: list[CeriRevisionFeature]) -> float | None:
+def _analyst_score(minimum: int, features: list[CeriRevisionFeature], policy) -> float | None:
     counts = [
         (feature.upward_count or 0) + (feature.downward_count or 0)
         for feature in features
@@ -176,20 +182,20 @@ def _analyst_score(minimum: int, features: list[CeriRevisionFeature]) -> float |
     if not counts:
         return None
     sample = max(counts)
-    if sample >= minimum * 2:
-        return 10.0
+    if sample >= minimum * policy["analyst_high_multiple"]:
+        return policy["analyst_high_score"]
     if sample >= minimum:
-        return 7.0
-    return 3.0
+        return policy["analyst_normal_score"]
+    return policy["analyst_low_score"]
 
 
-def _timestamp_score(features: list[CeriRevisionFeature]) -> float | None:
+def _timestamp_score(features: list[CeriRevisionFeature], policy) -> float | None:
     usable = [feature for feature in features if feature.pct_change is not None]
     if not usable:
         return None
     warnings = set().union(*(set(feature.warnings_json or []) for feature in usable))
     if "current_snapshot_unavailable" in warnings or "baseline_unavailable" in warnings:
-        return 4.0
+        return policy["timestamp_unavailable_score"]
     if any("missing_timestamp" in warning for warning in warnings):
-        return 6.0
-    return 9.0
+        return policy["timestamp_missing_score"]
+    return policy["timestamp_verified_score"]

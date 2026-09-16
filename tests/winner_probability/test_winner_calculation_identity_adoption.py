@@ -81,9 +81,7 @@ def test_same_run_ticker_wrong_source_identity_never_drives_winner(source: str) 
     context, cutoff = ready_identity_context(wrong_source=source)
     repository = FakeWinnerRepository(context)
 
-    result = _service(repository).capture_run(
-        _session(), run_id=7, market_cutoff=cutoff
-    )
+    result = _service(repository).capture_run(_session(), run_id=7, market_cutoff=cutoff)
 
     if source in {"technical", "combined"}:
         assert result.failed == 1
@@ -98,9 +96,7 @@ def test_fundamental_identity_mismatch_is_optional_omission() -> None:
     context, cutoff = ready_identity_context(wrong_source="fundamental")
     repository = FakeWinnerRepository(context)
 
-    result = _service(repository).capture_run(
-        _session(), run_id=7, market_cutoff=cutoff
-    )
+    result = _service(repository).capture_run(_session(), run_id=7, market_cutoff=cutoff)
 
     assert result.inserted == 1
     prediction = repository.predictions[0]
@@ -113,9 +109,7 @@ def test_raw_row_mismatch_fails_before_vector_freeze() -> None:
     context.tickers[0].raw_row.raw_json = {"Symbol": "MUTATED"}
     repository = FakeWinnerRepository(context)
 
-    result = _service(repository).capture_run(
-        _session(), run_id=7, market_cutoff=cutoff
-    )
+    result = _service(repository).capture_run(_session(), run_id=7, market_cutoff=cutoff)
 
     assert result.failed == 1
     assert repository.predictions == []
@@ -125,9 +119,7 @@ def test_compatible_cross_run_regime_is_accepted_after_newer_incompatible_candid
     context, cutoff = ready_identity_context(newer_incompatible_regime=True)
     repository = FakeWinnerRepository(context)
 
-    result = _service(repository).capture_run(
-        _session(), run_id=7, market_cutoff=cutoff
-    )
+    result = _service(repository).capture_run(_session(), run_id=7, market_cutoff=cutoff)
 
     assert result.inserted == 1
     prediction = repository.predictions[0]
@@ -140,9 +132,7 @@ def test_incompatible_sector_is_omitted_from_frozen_vector() -> None:
     context, cutoff = ready_identity_context(wrong_source="sector")
     repository = FakeWinnerRepository(context)
 
-    result = _service(repository).capture_run(
-        _session(), run_id=7, market_cutoff=cutoff
-    )
+    result = _service(repository).capture_run(_session(), run_id=7, market_cutoff=cutoff)
 
     assert result.inserted == 1
     prediction = repository.predictions[0]
@@ -154,9 +144,7 @@ def test_ranking_filters_identity_before_priority_selection() -> None:
     context, cutoff = ready_identity_context(ranking_priority_mismatch=True)
     repository = FakeWinnerRepository(context)
 
-    result = _service(repository).capture_run(
-        _session(), run_id=7, market_cutoff=cutoff
-    )
+    result = _service(repository).capture_run(_session(), run_id=7, market_cutoff=cutoff)
 
     assert result.inserted == 1
     prediction = repository.predictions[0]
@@ -180,9 +168,7 @@ def test_handoff_mismatch_fails_closed(dimension: str) -> None:
         market["calendar_version"] = "wrong-calendar"
     payload["market_context"] = market
     handoff.manifest_json = CanonicalEvidenceSerializer.canonicalize(payload)
-    handoff.manifest_fingerprint = CanonicalEvidenceSerializer.fingerprint(
-        handoff.manifest_json
-    )
+    handoff.manifest_fingerprint = CanonicalEvidenceSerializer.fingerprint(handoff.manifest_json)
 
     with pytest.raises(WinnerCalculationIdentityError):
         validate_winner_handoff(handoff, run_id=7, market_cutoff=cutoff)
@@ -237,9 +223,7 @@ def test_identity_compatible_technical_insufficiency_remains_excluded() -> None:
     reseal_context(context, cutoff, "technical")
     repository = FakeWinnerRepository(context)
 
-    result = _service(repository).capture_run(
-        _session(), run_id=7, market_cutoff=cutoff
-    )
+    result = _service(repository).capture_run(_session(), run_id=7, market_cutoff=cutoff)
 
     assert result.excluded == 1
     assert result.exclusion_reasons == {"insufficient_completed_bars": 1}
@@ -295,9 +279,11 @@ def _identity_context(
     newer_incompatible_regime: bool = False,
     ranking_priority_mismatch: bool = False,
 ):
-    cutoff = MarketClockService().cutoff_for(
-        datetime(2026, 7, 31, 21, 30, tzinfo=UTC), reason="T10D_TEST"
-    ).with_context_id(71)
+    cutoff = (
+        MarketClockService()
+        .cutoff_for(datetime(2026, 7, 31, 21, 30, tzinfo=UTC), reason="T10D_TEST")
+        .with_context_id(71)
+    )
     context = build_run_context(as_of_date=cutoff.latest_completed_session)
     ticker_context = context.tickers[0]
     base = consumer_context_identity(
@@ -376,6 +362,9 @@ def _identity_context(
     expected = expected_sector_identity(
         context=replace(base, subject=replace(base.subject, ticker=base.subject.company_id)),
         config_hash=sector_hash if wrong_source != "sector" else "f" * 64,
+        effective_configuration=sector_config.effective_configuration
+        if wrong_source != "sector"
+        else None,
         calculation_version="sector-rotation-1.0.0",
         mode=(
             "combined"
@@ -417,9 +406,7 @@ def _identity_context(
 
 def _refresh_handoff(context: RunCaptureContext, cutoff) -> None:
     ticker = context.tickers[0]
-    compatible_market = next(
-        row for row in context.market_regime_candidates if row.id == 61
-    )
+    compatible_market = next(row for row in context.market_regime_candidates if row.id == 61)
     compatible_ranking = next(row for row in ticker.ranking_results if row.id == 51)
     artifacts = {
         "raw_row": semantic_artifact_identity(ticker.raw_row),
@@ -428,9 +415,7 @@ def _refresh_handoff(context: RunCaptureContext, cutoff) -> None:
         "combined_result": semantic_artifact_identity(ticker.combined_result),
         "ranking_results": [semantic_artifact_identity(compatible_ranking)],
         "market_regime_snapshot": semantic_artifact_identity(compatible_market),
-        "sector_rotation_snapshot": semantic_artifact_identity(
-            context.sector_rotation_snapshot
-        ),
+        "sector_rotation_snapshot": semantic_artifact_identity(context.sector_rotation_snapshot),
         "sector_rotation_row": semantic_artifact_identity(ticker.sector_row),
         "eligible_price_bars": [],
         "setup_signal_input_hash": "setup-input",

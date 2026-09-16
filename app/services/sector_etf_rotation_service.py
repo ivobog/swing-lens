@@ -33,6 +33,12 @@ class SectorEtfRotationService:
         market_cutoff = market_cutoff or standalone_market_context(
             reason="STANDALONE_SECTOR_ETF_ROTATION"
         )
+        from app.services.configuration_source_values import SourcedConfigurationValues
+        from app.services.contextual_effective_configuration import resolve_sector_configuration
+
+        frozen = resolve_sector_configuration(config)
+        config = SourcedConfigurationValues(frozen.values["config"], ())
+        config.effective_configuration = frozen
         benchmark_ticker = str(config["etf_score"]["benchmark_ticker"]).strip().upper()
         benchmark_price, _benchmark_volume = _load_preferred_bounded(
             db, benchmark_ticker, market_cutoff
@@ -89,7 +95,15 @@ class SectorEtfRotationService:
                 debug={"missing_proxy_data": True},
             )
 
-        feature_result = calculate_technical_features(price, volume, ticker=proxy_ticker)
+        frozen = getattr(config, "effective_configuration", None)
+        feature_config = frozen.values["feature"] if frozen is not None else {}
+        feature_result = calculate_technical_features(
+            price,
+            volume,
+            ticker=proxy_ticker,
+            params=feature_config.get("pine"),
+            v4_params=feature_config.get("v4"),
+        )
         latest = feature_result.latest
         if feature_result.insufficient_data:
             warnings.append("insufficient_etf_history")
@@ -100,7 +114,11 @@ class SectorEtfRotationService:
         if benchmark_price.empty:
             warnings.append(f"missing_{benchmark_ticker.lower()}_benchmark_data")
         else:
-            rs_features = calculate_relative_strength_features(price, benchmark_price)
+            rs_features = calculate_relative_strength_features(
+                price,
+                benchmark_price,
+                params=feature_config.get("pine"),
+            )
 
         component_scores = _component_scores(latest, rs_features)
         score = _weighted_score(component_scores, config["etf_score"]["weights"])

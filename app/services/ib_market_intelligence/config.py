@@ -14,6 +14,26 @@ class IBMarketIntelligenceConfigError(ValueError):
     pass
 
 
+def secret_safe_ibmi_config_hash(raw: dict[str, Any]) -> str:
+    """Keep legacy non-secret compatibility hashing without credential-derived digests."""
+    from app.services.effective_configuration import _secret_key
+
+    def nonsecret(value):
+        if isinstance(value, dict):
+            return {
+                key: nonsecret(item)
+                for key, item in value.items()
+                if not _secret_key(key)
+                and key.lower()
+                not in {"username", "login", "cookie", "cookies", "authorization", "auth"}
+            }
+        if isinstance(value, (list, tuple)):
+            return [nonsecret(item) for item in value]
+        return value
+
+    return evidence_hash(nonsecret(raw))
+
+
 @dataclass(frozen=True)
 class ScannerPreset:
     name: str
@@ -60,14 +80,37 @@ def load_ib_market_intelligence_config(
     names = [item.name for item in presets]
     if len(names) != len(set(names)):
         raise IBMarketIntelligenceConfigError("scanner preset names must be unique")
-    return IBMarketIntelligenceConfig(
+    result = IBMarketIntelligenceConfig(
         raw=raw,
-        config_hash=evidence_hash(raw),
+        config_hash=secret_safe_ibmi_config_hash(raw),
         calculation_version=str(engine["calculation_version"]),
         config_version=str(engine["config_version"]),
         source_version=str(engine["source_version"]),
         scanner_presets=presets,
     )
+    from app.services.configuration_source_values import winning_sources
+
+    object.__setattr__(
+        result,
+        "_configuration_sources",
+        winning_sources(
+            raw,
+            raw,
+            config_path.as_posix() if not config_path.is_absolute() else None,
+            "ibmi-parser-defaults",
+        ),
+    )
+    from app.services.contextual_effective_configuration import (
+        IBMI_DEFAULTS,
+        resolve_ibmi_configuration,
+    )
+
+    object.__setattr__(
+        result,
+        "_effective_configurations",
+        {module: resolve_ibmi_configuration(result, module) for module in IBMI_DEFAULTS},
+    )
+    return result
 
 
 def effective_module_enabled(

@@ -98,6 +98,7 @@ class MarketRegimeRepository:
                 "evidence_hash": snapshot.evidence_hash,
             },
             scope_ticker=None,
+            effective_configuration=getattr(dto, "_effective_configuration", None),
         )
 
     def latest(self, db: Session) -> MarketRegimeSnapshot | None:
@@ -203,9 +204,7 @@ class MarketRegimeRepository:
     def evidence(self, db: Session, evidence_id: int):
         """Return exact immutable Regime evidence without projection fallback."""
 
-        return get_evidence_by_id(
-            db, evidence_id=evidence_id, kind=CoreEvidenceKind.REGIME
-        )
+        return get_evidence_by_id(db, evidence_id=evidence_id, kind=CoreEvidenceKind.REGIME)
 
     def delete_for_run(self, db: Session, run_id: int) -> None:
         db.execute(delete(MarketRegimeSnapshot).where(MarketRegimeSnapshot.run_id == run_id))

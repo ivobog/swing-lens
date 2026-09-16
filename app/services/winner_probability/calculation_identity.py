@@ -193,6 +193,23 @@ def validate_winner_handoff(
     return actual, pipeline_id
 
 
+def _contextual_expectation_configurations(run_context):
+    """Freeze producer expectations once for this acquisition context, never globally."""
+    frozen = getattr(run_context, "_contextual_expectation_configurations", None)
+    if frozen is None:
+        from app.services.contextual_effective_configuration import (
+            resolve_regime_configuration,
+            resolve_sector_configuration,
+        )
+
+        frozen = (
+            resolve_regime_configuration(load_market_regime_command_center_config()),
+            resolve_sector_configuration(load_sector_rotation_config()),
+        )
+        object.__setattr__(run_context, "_contextual_expectation_configurations", frozen)
+    return frozen
+
+
 def acquire_winner_sources(
     run_context: Any,
     ticker_context: Any,
@@ -274,7 +291,8 @@ def acquire_winner_sources(
     for candidate, identity in rankings:
         sources.append(("RankingResult", candidate, identity))
 
-    regime_config = load_market_regime_command_center_config()
+    regime_configuration, sector_configuration = _contextual_expectation_configurations(run_context)
+    regime_config = regime_configuration.regime_config()
     regime_expected = expected_regime_identity(market_cutoff=market_cutoff, config=regime_config)
     market, market_identity = _context_source(
         _candidates(
@@ -289,7 +307,7 @@ def acquire_winner_sources(
     if market is not None and market_identity is not None:
         sources.append(("MarketRegimeSnapshot", market, market_identity))
 
-    sector_config = load_sector_rotation_config()
+    sector_config = sector_configuration.values["config"]
     mode = (
         "combined"
         if bool(sector_config.get("etf_score", {}).get("enabled", False))
@@ -304,6 +322,7 @@ def acquire_winner_sources(
             ),
         ),
         config_hash=sector_rotation_config_hash(sector_config),
+        effective_configuration=sector_configuration,
         calculation_version="sector-rotation-1.0.0",
         mode=mode,
     )

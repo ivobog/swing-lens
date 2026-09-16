@@ -149,7 +149,13 @@ def persist_ibmi_feature_evidence(
     config: IBMarketIntelligenceConfig,
     constituent_manifest: dict[str, Any],
 ) -> CoreCalculationEvidence:
-    identity = build_ibmi_feature_identity(feature)
+    effective = getattr(config, "_effective_configuration", None) or getattr(
+        config, "_effective_configurations", {}
+    ).get(feature.module.lower())
+    if effective is None:
+        raise EvidenceUnavailableError("IBMI_CONFIGURATION_REQUIRED_BEFORE_CALCULATION")
+    effective.require_family(f"contextual.ibmi.{feature.module.lower()}")
+    identity = effective.bind(build_ibmi_feature_identity(feature))
     payload = {
         "schema_version": IBMI_FEATURE_EVIDENCE_SCHEMA_VERSION,
         "derived_output": _row_payload(feature, excluded={"id", "evidence_id"}),
@@ -171,6 +177,7 @@ def persist_ibmi_feature_evidence(
         scope_ticker=feature.ticker,
         scope_profile=feature.module,
         calculation_identity=identity,
+        effective_configuration=effective.snapshot,
     )
     if evidence is None:  # pragma: no cover - an explicit identity is supplied above
         raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: IBMI Calculation Identity absent")
@@ -192,6 +199,9 @@ def get_certified_ibmi_evidence(
         raise EvidenceUnavailableError(
             f"EVIDENCE_UNAVAILABLE: IBMI feature id={feature.id} scope/evidence mismatch"
         )
+    from sqlalchemy.orm.attributes import set_committed_value
+
+    set_committed_value(feature, "calculation_evidence", evidence)
     identity = build_ibmi_feature_identity(feature)
     if evidence.calculation_identity_fingerprint != str(identity.fingerprint()):
         raise EvidenceUnavailableError(

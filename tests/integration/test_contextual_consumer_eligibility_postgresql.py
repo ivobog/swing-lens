@@ -268,6 +268,11 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
                 **identity_metadata(regime_identity, policy="T12C_TEST"),
             },
         )
+        object.__setattr__(
+            regime_write,
+            "_effective_configuration",
+            regime_config._effective_configuration.snapshot,
+        )
         regime = MarketRegimeRepository().upsert_snapshot(db, regime_write, run_id=99)
         selected = _select_compatible_context_candidate(
             (regime,),
@@ -391,9 +396,13 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
         db.add(episode)
         db.flush()
         old_payload = deepcopy(old_evaluation.payload_json)
+        stale_write = replace(regime_write, warnings=["severely_stale_market_data"])
+        object.__setattr__(
+            stale_write, "_effective_configuration", regime_config._effective_configuration.snapshot
+        )
         stale = MarketRegimeRepository().upsert_snapshot(
             db,
-            replace(regime_write, warnings=["severely_stale_market_data"]),
+            stale_write,
             run_id=99,
         )
         # New global READY evidence cannot replace the exact selected stale source.
@@ -639,6 +648,7 @@ def _ceri(db, ticker, cutoff, features, *, run_id=7):
         source_payload=permissions,
         company_id=1,
     )
+    identity = config._effective_configuration.bind(identity)
     lineage = {
         CONTEXTUAL_ELIGIBILITY_KEY: permissions,
         "historical_view_mode": "AS_KNOWN",

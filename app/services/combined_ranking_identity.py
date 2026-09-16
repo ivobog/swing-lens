@@ -462,6 +462,10 @@ def cohort_identity_fingerprint(identities: Iterable[CalculationIdentity]) -> st
 
 
 def build_ibmi_liquidity_identity(feature: IBIntelligenceFeature) -> CalculationIdentity:
+    if feature.evidence_id is not None:
+        from app.services.contextual_calculation_identity import build_ibmi_feature_identity
+
+        return build_ibmi_feature_identity(feature)
     not_applicable = IdentityDimension.not_applicable()
     cutoff = (
         IdentityDimension.known(feature.calculation_cutoff_at)
@@ -543,7 +547,13 @@ def validate_ibmi_liquidity_for_ranking(
     ranking_spine: CalculationIdentity,
     expected_config: IBMarketIntelligenceConfig,
 ) -> CalculationIdentityAdoptionResult:
-    expected = _expected_ibmi_identity(ranking_spine, expected_config)
+    effective = feature_identity.configuration.effective_configuration
+    expected = _expected_ibmi_identity(
+        ranking_spine,
+        expected_config,
+        certified=effective.state is IdentityState.KNOWN
+        and effective.value.namespace.startswith("contextual.ibmi."),
+    )
     comparison = CalculationIdentityCompatibilityValidator.compare(
         expected,
         feature_identity,
@@ -642,6 +652,8 @@ def _build_result_identity(
 def _expected_ibmi_identity(
     ranking_spine: CalculationIdentity,
     config: IBMarketIntelligenceConfig,
+    *,
+    certified: bool = True,
 ) -> CalculationIdentity:
     not_applicable = IdentityDimension.not_applicable()
     from app.services.calculation_identity import CalendarIdentity
@@ -657,7 +669,7 @@ def _expected_ibmi_identity(
                 bar_readiness_version=not_applicable,
             )
         )
-    return replace(
+    result = replace(
         ranking_spine,
         ownership=replace(
             ranking_spine.ownership,
@@ -690,6 +702,9 @@ def _expected_ibmi_identity(
             not_applicable, not_applicable, not_applicable, not_applicable
         ),
     )
+    from app.services.contextual_effective_configuration import resolve_ibmi_configuration
+
+    return resolve_ibmi_configuration(config, "liquidity").bind(result) if certified else result
 
 
 def _effective_configuration_dimension(

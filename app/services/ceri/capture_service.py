@@ -136,8 +136,86 @@ class CeriRunCaptureService:
         force: bool = False,
         cutoff_at: datetime | None = None,
         market_cutoff: MarketCalculationCutoff | None = None,
+        effective_configuration=None,
+        expected_calculation_identity=None,
     ) -> CeriRunCaptureResult:
-        if not force and not ceri_flags().run_capture:
+        from copy import deepcopy
+
+        from app.services.contextual_effective_configuration import resolve_ceri_configuration
+
+        settings = deepcopy(get_settings())
+        ibmi_config = load_ib_market_intelligence_config()
+        consumer = {
+            "run_capture": ceri_flags(settings).run_capture,
+            "revision_feature_config_hash": self.snapshot_service.config.config_hash,
+            "ibmi_enabled": bool(getattr(settings, "ib_market_intelligence_enabled", False)),
+            "volatility_enabled": bool(
+                getattr(settings, "ib_volatility_intelligence_enabled", False)
+            ),
+            "short_pressure_enabled": bool(getattr(settings, "ib_short_pressure_enabled", False)),
+            "volatility": {
+                "ceri_risk_max_contribution": float(
+                    ibmi_config.section("volatility").get("ceri_risk_max_contribution", 1.5)
+                )
+            },
+        }
+        from app.services.effective_configuration import (
+            ConfigurationSource,
+            ConfigurationSourceKind,
+        )
+
+        native_sources = dict(getattr(settings, "_contextual_configuration_sources", ()))
+        consumer_sources = {
+            f"consumer.{key}": ConfigurationSource(
+                ConfigurationSourceKind(native_sources.get(field, "SETTINGS_MODEL")), field
+            )
+            for key, field in (
+                ("ibmi_enabled", "ib_market_intelligence_enabled"),
+                ("volatility_enabled", "ib_volatility_intelligence_enabled"),
+                ("short_pressure_enabled", "ib_short_pressure_enabled"),
+            )
+        }
+        consumer_sources["consumer.run_capture"] = ConfigurationSource(
+            ConfigurationSourceKind.SETTINGS_MODEL, "ceri-effective-master-and-run-capture-flags"
+        )
+        consumer_sources["consumer.revision_feature_config_hash"] = ConfigurationSource(
+            ConfigurationSourceKind.REQUEST, "ceri-native-feature-config-filter"
+        )
+        cap_key = "volatility.ceri_risk_max_contribution"
+        consumer_sources[f"consumer.{cap_key}"] = dict(
+            getattr(ibmi_config, "_configuration_sources", ())
+        ).get(
+            cap_key,
+            ConfigurationSource(
+                ConfigurationSourceKind.CODE_DEFAULT, "ceri-options-risk-default-cap"
+            ),
+        )
+        frozen = effective_configuration or resolve_ceri_configuration(
+            self.snapshot_service.config,
+            consumer=consumer,
+            consumer_sources=consumer_sources,
+        )
+        frozen.require_family("contextual.ceri")
+        if frozen.values["consumer"].get("revision_feature_config_hash") is None:
+            raise ValueError("CERI_CAPTURE_INPUT_SELECTION_REQUIRED")
+        if expected_calculation_identity is not None:
+            frozen.require_retry_identity(expected_calculation_identity)
+        self.snapshot_service.effective_configuration = frozen
+        self.snapshot_service.config = frozen.ceri_config()
+        for service in (
+            self.opportunity,
+            self.risk,
+            self.confidence,
+            self.surprise,
+            self.catalysts,
+            self.price_response,
+        ):
+            service.config = self.snapshot_service.config
+        consumer = frozen.values["consumer"]
+        settings.ib_market_intelligence_enabled = consumer["ibmi_enabled"]
+        settings.ib_volatility_intelligence_enabled = consumer["volatility_enabled"]
+        settings.ib_short_pressure_enabled = consumer["short_pressure_enabled"]
+        if not force and not consumer["run_capture"]:
             return CeriRunCaptureResult(skipped=1)
         rows = _raw_rows_for_run(db, run_id)
         if tickers is not None:
@@ -173,15 +251,12 @@ class CeriRunCaptureService:
                 for feature in features
                 if feature.calculation_version
                 == self.snapshot_service.config.engine.calculation_version
-                and feature.config_hash == self.snapshot_service.config.config_hash
+                and feature.config_hash == consumer["revision_feature_config_hash"]
             ]
             for company_id, features in features_by_company.items()
         }
-        pipeline_id = pipeline_id_for_cutoff(
-            db, run_id=run_id, market_cutoff=market_cutoff
-        )
-        ibmi_config = load_ib_market_intelligence_config()
-        ibmi_candidates = _preload_ibmi_context(db, rows, cutoff_at)
+        pipeline_id = pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
+        ibmi_candidates = _preload_ibmi_context(db, rows, cutoff_at, settings=settings)
         existing_snapshot_company_ids = _existing_snapshot_company_ids(
             db,
             run_id,
@@ -265,14 +340,26 @@ class CeriRunCaptureService:
                 )
                 contextual_permissions = {}
                 volatility_feature = _point_in_time_volatility_feature(
-                    db, row.ticker, cutoff_at, as_of_session=as_of_session,
-                    market_cutoff=market_cutoff, ibmi_config=ibmi_config,
-                    candidates=ibmi_candidates, decisions=contextual_permissions,
+                    db,
+                    row.ticker,
+                    cutoff_at,
+                    as_of_session=as_of_session,
+                    market_cutoff=market_cutoff,
+                    ibmi_config=ibmi_config,
+                    candidates=ibmi_candidates,
+                    decisions=contextual_permissions,
+                    settings=settings,
                 )
                 short_pressure_feature = _point_in_time_short_pressure_feature(
-                    db, row.ticker, cutoff_at, as_of_session=as_of_session,
-                    market_cutoff=market_cutoff, ibmi_config=ibmi_config,
-                    candidates=ibmi_candidates, decisions=contextual_permissions,
+                    db,
+                    row.ticker,
+                    cutoff_at,
+                    as_of_session=as_of_session,
+                    market_cutoff=market_cutoff,
+                    ibmi_config=ibmi_config,
+                    candidates=ibmi_candidates,
+                    decisions=contextual_permissions,
+                    settings=settings,
                 )
                 confidence = self.confidence.calculate(
                     as_of_session=as_of_session,
@@ -307,7 +394,7 @@ class CeriRunCaptureService:
                     conflict_penalty=min(3.0, float(company_conflicted)),
                     as_of_session=as_of_session,
                 )
-                volatility_config = ibmi_config.section("volatility")
+                volatility_config = consumer["volatility"]
                 volatility_risk = (
                     options_event_premium_score(
                         volatility_feature,
@@ -439,10 +526,9 @@ class CeriRunCaptureService:
                     source_payload=evidence_lineage,
                     company_id=company.id,
                 )
+                ceri_identity = self.snapshot_service.effective_configuration.bind(ceri_identity)
                 evidence_lineage.update(
-                    identity_metadata(
-                        ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name
-                    )
+                    identity_metadata(ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name)
                 )
                 source_ids = sorted(
                     set(
@@ -975,6 +1061,11 @@ def _existing_snapshot_company_ids(
                 "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
                 "producer=legacy CeriScoreSnapshot reason=LEGACY_UNKNOWN"
             )
+        frozen = getattr(config, "_effective_configuration", None)
+        if frozen is not None and identity.configuration != frozen.bind(identity).configuration:
+            # A new native input-selection policy is a new calculation, even
+            # when the compatibility row's historical raw config hash is equal.
+            continue
         expected = consumer_context_identity(
             market_cutoff=market_cutoff,
             run_id=run_id,
@@ -982,9 +1073,7 @@ def _existing_snapshot_company_ids(
             ticker=row.ticker,
             company_id=row.company_id,
         )
-        result = contextual_compatibility(
-            expected, identity, policy=CERI_CONTEXT_COMPATIBILITY
-        )
+        result = contextual_compatibility(expected, identity, policy=CERI_CONTEXT_COMPATIBILITY)
         if not result.accepted:
             raise ValueError(
                 "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
@@ -1037,37 +1126,45 @@ def _point_in_time_volatility_feature(
     ibmi_config=None,
     candidates=None,
     decisions=None,
+    settings=None,
 ) -> _VolatilityRiskFeature | None:
     if decisions is not None:
         decisions["ibmi_volatility"] = contextual_decision_input(None, IBMI_VOLATILITY_TO_CERI)[1]
-    settings = get_settings()
+    settings = settings or get_settings()
     if not (
         getattr(settings, "ib_market_intelligence_enabled", False)
         and getattr(settings, "ib_volatility_intelligence_enabled", False)
     ):
         return None
-    rows = candidates if candidates is not None else _scalars(
-        db,
-        select(IBIntelligenceFeature)
-        .options(selectinload(IBIntelligenceFeature.calculation_evidence))
-        .where(IBIntelligenceFeature.ticker == ticker.upper())
-        .where(IBIntelligenceFeature.module == "VOLATILITY")
-        .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
-        .where(
-            IBIntelligenceFeature.as_of_session
-            <= MarketClockService()
-            .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
-            .latest_completed_session
+    rows = (
+        candidates
+        if candidates is not None
+        else _scalars(
+            db,
+            select(IBIntelligenceFeature)
+            .options(selectinload(IBIntelligenceFeature.calculation_evidence))
+            .where(IBIntelligenceFeature.ticker == ticker.upper())
+            .where(IBIntelligenceFeature.module == "VOLATILITY")
+            .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
+            .where(
+                IBIntelligenceFeature.as_of_session
+                <= MarketClockService()
+                .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
+                .latest_completed_session
+            )
+            .order_by(
+                IBIntelligenceFeature.as_of_session.desc(),
+                IBIntelligenceFeature.calculated_at.desc(),
+            ),
         )
-        .order_by(
-            IBIntelligenceFeature.as_of_session.desc(),
-            IBIntelligenceFeature.calculated_at.desc(),
-        ),
     )
     ibmi_config = ibmi_config or load_ib_market_intelligence_config()
-    session = as_of_session or MarketClockService().cutoff_for(
-        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
-    ).latest_completed_session
+    session = (
+        as_of_session
+        or MarketClockService()
+        .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_IDENTITY")
+        .latest_completed_session
+    )
     market_cutoff = market_cutoff or MarketClockService().cutoff_for(
         cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
     )
@@ -1085,6 +1182,7 @@ def _point_in_time_volatility_feature(
         calculation_version=ibmi_config.calculation_version,
         source_version=ibmi_config.source_version,
         module="volatility",
+        effective_configuration=ibmi_config._effective_configurations["volatility"],
     )
     for row in rows:
         if row.ticker.upper() != ticker.upper() or row.module != "VOLATILITY":
@@ -1092,8 +1190,20 @@ def _point_in_time_volatility_feature(
         if row.as_of_session != session:
             continue
         identity = build_ibmi_feature_identity(row)
+        candidate_expected = expected
+        if row.evidence_id is None:
+            # An unsealed matching current candidate remains the selected,
+            # blocked input. It cannot authorize fallback to an older READY row.
+            candidate_expected = expected_ibmi_identity(
+                context=base,
+                ticker=ticker,
+                config_hash=ibmi_config.config_hash,
+                calculation_version=ibmi_config.calculation_version,
+                source_version=ibmi_config.source_version,
+                module="volatility",
+            )
         if ibmi_contextual_compatibility(
-            expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
+            expected=candidate_expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
         ).accepted:
             usable, permission = contextual_decision_input(row, IBMI_VOLATILITY_TO_CERI)
             if decisions is not None:
@@ -1118,39 +1228,48 @@ def _point_in_time_short_pressure_feature(
     ibmi_config=None,
     candidates=None,
     decisions=None,
+    settings=None,
 ) -> _ShortPressureContextFeature | None:
     if decisions is not None:
         decisions["ibmi_short_pressure"] = contextual_decision_input(
-            None, IBMI_SHORT_PRESSURE_TO_CERI,
+            None,
+            IBMI_SHORT_PRESSURE_TO_CERI,
         )[1]
-    settings = get_settings()
+    settings = settings or get_settings()
     if not (
         getattr(settings, "ib_market_intelligence_enabled", False)
         and getattr(settings, "ib_short_pressure_enabled", False)
     ):
         return None
-    rows = candidates if candidates is not None else _scalars(
-        db,
-        select(IBIntelligenceFeature)
-        .options(selectinload(IBIntelligenceFeature.calculation_evidence))
-        .where(IBIntelligenceFeature.ticker == ticker.upper())
-        .where(IBIntelligenceFeature.module == "SHORT_PRESSURE")
-        .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
-        .where(
-            IBIntelligenceFeature.as_of_session
-            <= MarketClockService()
-            .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
-            .latest_completed_session
+    rows = (
+        candidates
+        if candidates is not None
+        else _scalars(
+            db,
+            select(IBIntelligenceFeature)
+            .options(selectinload(IBIntelligenceFeature.calculation_evidence))
+            .where(IBIntelligenceFeature.ticker == ticker.upper())
+            .where(IBIntelligenceFeature.module == "SHORT_PRESSURE")
+            .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
+            .where(
+                IBIntelligenceFeature.as_of_session
+                <= MarketClockService()
+                .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
+                .latest_completed_session
+            )
+            .order_by(
+                IBIntelligenceFeature.as_of_session.desc(),
+                IBIntelligenceFeature.calculated_at.desc(),
+            ),
         )
-        .order_by(
-            IBIntelligenceFeature.as_of_session.desc(),
-            IBIntelligenceFeature.calculated_at.desc(),
-        ),
     )
     ibmi_config = ibmi_config or load_ib_market_intelligence_config()
-    session = as_of_session or MarketClockService().cutoff_for(
-        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
-    ).latest_completed_session
+    session = (
+        as_of_session
+        or MarketClockService()
+        .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_IDENTITY")
+        .latest_completed_session
+    )
     market_cutoff = market_cutoff or MarketClockService().cutoff_for(
         cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
     )
@@ -1168,6 +1287,7 @@ def _point_in_time_short_pressure_feature(
         calculation_version=ibmi_config.calculation_version,
         source_version=ibmi_config.source_version,
         module="short_pressure",
+        effective_configuration=ibmi_config._effective_configurations["short_pressure"],
     )
     for row in rows:
         if row.ticker.upper() != ticker.upper() or row.module != "SHORT_PRESSURE":
@@ -1175,8 +1295,18 @@ def _point_in_time_short_pressure_feature(
         if row.as_of_session != session:
             continue
         identity = build_ibmi_feature_identity(row)
+        candidate_expected = expected
+        if row.evidence_id is None:
+            candidate_expected = expected_ibmi_identity(
+                context=base,
+                ticker=ticker,
+                config_hash=ibmi_config.config_hash,
+                calculation_version=ibmi_config.calculation_version,
+                source_version=ibmi_config.source_version,
+                module="short_pressure",
+            )
         if ibmi_contextual_compatibility(
-            expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
+            expected=candidate_expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
         ).accepted:
             usable, permission = contextual_decision_input(row, IBMI_SHORT_PRESSURE_TO_CERI)
             if decisions is not None:
@@ -1191,22 +1321,31 @@ def _point_in_time_short_pressure_feature(
     return None
 
 
-def _preload_ibmi_context(db: Session, rows, cutoff_at: datetime):
-    settings = get_settings()
+def _preload_ibmi_context(db: Session, rows, cutoff_at: datetime, *, settings=None):
+    settings = settings or get_settings()
     if not getattr(settings, "ib_market_intelligence_enabled", False) or not (
         getattr(settings, "ib_volatility_intelligence_enabled", False)
         or getattr(settings, "ib_short_pressure_enabled", False)
     ):
         return ()
-    return tuple(_scalars(db, select(IBIntelligenceFeature).options(
-        selectinload(IBIntelligenceFeature.calculation_evidence),
-    ).where(
-        IBIntelligenceFeature.ticker.in_({str(row.ticker).upper() for row in rows}),
-        IBIntelligenceFeature.module.in_(("VOLATILITY", "SHORT_PRESSURE")),
-        IBIntelligenceFeature.calculated_at <= cutoff_at,
-    ).order_by(
-        IBIntelligenceFeature.as_of_session.desc(), IBIntelligenceFeature.calculated_at.desc(),
-    )))
+    return tuple(
+        _scalars(
+            db,
+            select(IBIntelligenceFeature)
+            .options(
+                selectinload(IBIntelligenceFeature.calculation_evidence),
+            )
+            .where(
+                IBIntelligenceFeature.ticker.in_({str(row.ticker).upper() for row in rows}),
+                IBIntelligenceFeature.module.in_(("VOLATILITY", "SHORT_PRESSURE")),
+                IBIntelligenceFeature.calculated_at <= cutoff_at,
+            )
+            .order_by(
+                IBIntelligenceFeature.as_of_session.desc(),
+                IBIntelligenceFeature.calculated_at.desc(),
+            ),
+        )
+    )
 
 
 def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:

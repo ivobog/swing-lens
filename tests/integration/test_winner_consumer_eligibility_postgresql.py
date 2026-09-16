@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from alembic.config import Config
+from contextual_readiness_helpers import configuration_for_source
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session
 
@@ -117,7 +118,14 @@ def test_native_sector_dependencies_freeze_permissions_and_advance_current(
         ):
             source = db.get(model, source_id)
             setattr(source, attr, value)
-            persist_core_evidence(db, kind=kind, current_row=source)
+            persist_core_evidence(
+                db,
+                kind=kind,
+                current_row=source,
+                effective_configuration=configuration_for_source(source)
+                if kind in {CoreEvidenceKind.REGIME, CoreEvidenceKind.SECTOR}
+                else None,
+            )
         db.commit()
         second = service.build_sector_rotation_snapshot(
             db, run_id=7, market_cutoff=cutoff, persist=True
@@ -362,7 +370,12 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
         persist_core_evidence(db, kind=CoreEvidenceKind.RANKING, current_row=ranking_current)
         regime_current = db.get(MarketRegimeSnapshot, 61)
         regime_current.warnings_json = ["severely_stale_market_data"]
-        persist_core_evidence(db, kind=CoreEvidenceKind.REGIME, current_row=regime_current)
+        persist_core_evidence(
+            db,
+            kind=CoreEvidenceKind.REGIME,
+            current_row=regime_current,
+            effective_configuration=configuration_for_source(regime_current),
+        )
         sector_current = db.get(SectorRotationSnapshot, 71)
         sector_native_row = db.get(SectorRotationRow, 81)
         sector_native_row.confidence = "insufficient"
@@ -370,6 +383,7 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
             db,
             kind=CoreEvidenceKind.SECTOR,
             current_row=sector_current,
+            effective_configuration=configuration_for_source(sector_current),
             payload={
                 **calculation_evidence_payload(sector_current),
                 "rows": [calculation_evidence_payload(sector_native_row)],
@@ -596,6 +610,7 @@ def _seed(engine, mode):
     sector_base = replace(base, subject=replace(base.subject, ticker=base.subject.company_id))
     expected = expected_sector_identity(
         context=sector_base,
+        effective_configuration=sector_config.effective_configuration,
         config_hash=sector_rotation_config_hash(sector_config),
         calculation_version="sector-rotation-1.0.0",
         mode="combined"
@@ -688,7 +703,15 @@ def _seed(engine, mode):
             (CoreEvidenceKind.RANKING, ranking, {"combined": combined}),
             (CoreEvidenceKind.REGIME, market, {}),
         ):
-            persist_core_evidence(db, kind=kind, current_row=source, sources=sources)
+            persist_core_evidence(
+                db,
+                kind=kind,
+                current_row=source,
+                sources=sources,
+                effective_configuration=configuration_for_source(source)
+                if kind in {CoreEvidenceKind.REGIME, CoreEvidenceKind.SECTOR}
+                else None,
+            )
         payload = calculation_evidence_payload(sector)
         payload["rows"] = [
             Canonical.canonicalize({**calculation_evidence_payload(sector_row), "id": 81})
@@ -697,6 +720,7 @@ def _seed(engine, mode):
             db,
             kind=CoreEvidenceKind.SECTOR,
             current_row=sector,
+            effective_configuration=configuration_for_source(sector),
             payload=payload,
             sources={"regime": market, "ranking:MSFT": ranking},
         )

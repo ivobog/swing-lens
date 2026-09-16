@@ -471,6 +471,9 @@ def test_legacy_ibmi_reference_cannot_certify_ceri_evidence(evidence_db: Session
         source_payload={"ib_volatility_feature_ids": [701]},
         company_id=1,
     )
+    from app.services.contextual_effective_configuration import resolve_ceri_configuration
+
+    identity = resolve_ceri_configuration(config).bind(identity)
     lineage = {
         "historical_view_mode": "AS_KNOWN",
         "ib_volatility_feature_ids": [701],
@@ -482,6 +485,18 @@ def test_legacy_ibmi_reference_cannot_certify_ceri_evidence(evidence_db: Session
     with pytest.raises(EvidenceUnavailableError, match="LEGACY_CURRENT/LEGACY_UNKNOWN"):
         CeriSnapshotService(config=config).persist_snapshot(evidence_db, snapshot)
 
+    from dataclasses import replace
+
+    from app.services.contextual_effective_configuration import resolve_ibmi_configuration
+    from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+
+    declared_ibmi_config = replace(
+        load_ib_market_intelligence_config(),
+        calculation_version=ibmi.calculation_version,
+        source_version=ibmi.source_version,
+        config_hash=ibmi.config_hash,
+    )
+    ibmi_configuration = resolve_ibmi_configuration(declared_ibmi_config, "volatility")
     ibmi_evidence = persist_core_evidence(
         evidence_db,
         kind=CoreEvidenceKind.IBMI,
@@ -493,7 +508,8 @@ def test_legacy_ibmi_reference_cannot_certify_ceri_evidence(evidence_db: Session
         },
         scope_ticker="ACME",
         scope_profile="VOLATILITY",
-        calculation_identity=build_ibmi_feature_identity(ibmi),
+        calculation_identity=ibmi_configuration.bind(build_ibmi_feature_identity(ibmi)),
+        effective_configuration=ibmi_configuration.snapshot,
     )
     assert ibmi_evidence is not None
     CeriSnapshotService(config=config).persist_snapshot(evidence_db, snapshot)
@@ -577,6 +593,9 @@ def _persist(
         },
         company_id=1,
     )
+    from app.services.contextual_effective_configuration import resolve_ceri_configuration
+
+    identity = resolve_ceri_configuration(config).bind(identity)
     lineage = {
         "historical_view_mode": view_mode,
         "revision_source_ids": list(source_ids),

@@ -6,6 +6,7 @@ from pydantic import Field, PrivateAttr, SecretStr, field_validator, model_valid
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.services.core_settings_provenance import (
+    CONTEXTUAL_SETTING_KEYS,
     CORE_SETTING_KEYS,
     CORE_SETTINGS_TRACE,
     TracedCoreSettingsSource,
@@ -44,6 +45,7 @@ class ProcessRole(StrEnum):
 
 class Settings(BaseSettings):
     _core_configuration_sources: tuple[tuple[str, str, bool], ...] = PrivateAttr(default=())
+    _contextual_configuration_sources: tuple[tuple[str, str], ...] = PrivateAttr(default=())
 
     def __init__(self, **values):
         trace: dict[str, str] = {}
@@ -55,6 +57,9 @@ class Settings(BaseSettings):
         self._core_configuration_sources = tuple(
             (key, trace.get(key, "CODE_DEFAULT"), bool(getattr(self, key)))
             for key in CORE_SETTING_KEYS
+        )
+        self._contextual_configuration_sources = tuple(
+            (key, trace.get(key, "CODE_DEFAULT")) for key in CONTEXTUAL_SETTING_KEYS
         )
 
     @classmethod

@@ -16,6 +16,39 @@ from app.services.producer_readiness import normalize_producer_readiness
 _ids = count(200000)
 
 
+def configuration_for_source(row):
+    """Explicit config precondition for synthetic native projection writes."""
+    from sqlalchemy.orm import object_session
+
+    from app.services.contextual_effective_configuration import (
+        contextual_configuration_from_evidence,
+        resolve_regime_configuration,
+        resolve_sector_configuration,
+    )
+
+    session = object_session(row)
+    evidence = (
+        session.get(CoreCalculationEvidence, row.evidence_id)
+        if session is not None and row.evidence_id is not None
+        else vars(row).get("calculation_evidence")
+    )
+    if evidence is not None:
+        previous = contextual_configuration_from_evidence(evidence)
+        if previous is not None:
+            return previous.snapshot
+    identity = artifact_identity(row)
+    effective = identity.configuration.effective_configuration
+    if effective.value is None or not effective.value.namespace.startswith("contextual."):
+        return None
+    frozen = (
+        resolve_regime_configuration()
+        if isinstance(row, MarketRegimeSnapshot)
+        else resolve_sector_configuration()
+    )
+    assert frozen.bind(identity).configuration == identity.configuration
+    return frozen.snapshot
+
+
 def seal_contextual(row, *, rows=(), evidence_id=None):
     output = {
         column.key: getattr(row, column.key)
@@ -26,6 +59,17 @@ def seal_contextual(row, *, rows=(), evidence_id=None):
         kind = "IBMI"
         identity = build_ibmi_feature_identity(row)
         payload = {"derived_output": output}
+        from app.services.contextual_effective_configuration import (
+            contextual_configuration_from_evidence,
+            resolve_ibmi_configuration,
+        )
+        from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+
+        previous = row.calculation_evidence if row.evidence_id is not None else None
+        frozen = contextual_configuration_from_evidence(previous) if previous is not None else None
+        frozen = frozen or resolve_ibmi_configuration(module=row.module.lower())
+        identity = frozen.bind(identity)
+        payload[CONFIGURATION_PAYLOAD_KEY] = frozen.snapshot.as_dict()
         ticker, profile = row.ticker.upper(), row.module
         run_id = None
     else:
@@ -55,6 +99,8 @@ def seal_contextual(row, *, rows=(), evidence_id=None):
         ticker=ticker,
         ranking_profile=profile,
         calculation_identity_fingerprint=fingerprint,
+        calculation_identity_json=identity.canonical_payload(),
+        payload_fingerprint=Canonical.fingerprint(payload),
         payload_json=payload,
     )
     return row

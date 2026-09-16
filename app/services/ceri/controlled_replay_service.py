@@ -253,9 +253,7 @@ class CeriControlledReplayService:
                     for row in features
                 )
             )
-            old_components = list(
-                (original.opportunity_ledger_json or {}).get("components") or []
-            )
+            old_components = list((original.opportunity_ledger_json or {}).get("components") or [])
             opportunity = _merge_opportunity(
                 old_components,
                 features,
@@ -297,9 +295,7 @@ class CeriControlledReplayService:
                 if row.id in _snapshot_selected_revision_ids(replay_snapshot)
             )
             estimate_map = dict(old_lineage_estimates)
-            estimate_map.update(
-                {row.id: row for row in estimates_by_company[original.company_id]}
-            )
+            estimate_map.update({row.id: row for row in estimates_by_company[original.company_id]})
             for identity in sorted(set(original_by_identity) | set(replay_by_identity)):
                 old = original_by_identity.get(identity)
                 corrected = replay_by_identity.get(identity)
@@ -345,9 +341,7 @@ class CeriControlledReplayService:
         )
         status = "PASS" if all(certification["invariants"].values()) else "FAIL"
         if status != "PASS":
-            failures = [
-                key for key, value in certification["invariants"].items() if not value
-            ]
+            failures = [key for key, value in certification["invariants"].items() if not value]
             raise ControlledReplayCertificationError(
                 f"controlled replay certification failed: {', '.join(failures)}"
             )
@@ -461,9 +455,7 @@ def _merge_opportunity(
         value = row.get("value")
         available = bool(row.get("available", value is not None)) and value is not None
         contribution = (
-            max(0.0, min(10.0, float(value))) * float(configured_weight)
-            if available
-            else None
+            max(0.0, min(10.0, float(value))) * float(configured_weight) if available else None
         )
         merged.append(
             ScoreComponent(
@@ -506,9 +498,7 @@ def _merge_opportunity(
         unrated_reason=None if rated else "INSUFFICIENT_COMPONENT_COVERAGE",
         components=tuple(merged),
         penalties=(
-            ({"name": "conflict_penalty", "value": conflict_penalty},)
-            if conflict_penalty
-            else ()
+            ({"name": "conflict_penalty", "value": conflict_penalty},) if conflict_penalty else ()
         ),
         reasons=reasons,
         warnings=warnings,
@@ -568,11 +558,7 @@ def _build_replay_snapshot(
         for row in features
     ]
     lineage["revision_source_ids"] = sorted(
-        {
-            source_id
-            for row in features
-            for source_id in (row.source_observation_ids_json or [])
-        }
+        {source_id for row in features for source_id in (row.source_observation_ids_json or [])}
     )
     lineage["controlled_replay"] = {
         "replay_id": replay.id,
@@ -613,6 +599,7 @@ def _build_replay_snapshot(
         source_payload=replay_identity_payload,
         company_id=original.company_id,
     )
+    replay_identity = snapshot_service.effective_configuration.bind(replay_identity)
     lineage.update(identity_metadata(replay_identity, policy="CERI_CONTROLLED_REPLAY"))
     opportunity_ledger = {
         "rated": opportunity.rated,
@@ -637,6 +624,7 @@ def _build_replay_snapshot(
         opportunity_score=opportunity.score,
         event_risk_score=original.event_risk_score,
         confidence_label=confidence.label.value,
+        policy=snapshot_service.effective_configuration.values["native_policy"]["posture"],
     )
     alignment_context = dict(original.alignment_context_json or {})
     payload = {
@@ -739,9 +727,10 @@ def _validate_selected_revision_features(
                     f"feature {feature_id} selected Breadth has no current lineage"
                 )
             reproduced_breadth = _net_breadth(current.upward_count, current.downward_count)
-            if reproduced_breadth is None or abs(
-                _quantize(reproduced_breadth, 6) - feature.net_breadth
-            ) > tolerance:
+            if (
+                reproduced_breadth is None
+                or abs(_quantize(reproduced_breadth, 6) - feature.net_breadth) > tolerance
+            ):
                 raise ControlledReplayCertificationError(
                     f"feature {feature_id} Breadth does not reproduce"
                 )
@@ -751,9 +740,10 @@ def _validate_selected_revision_features(
                     f"feature {feature_id} selected value has incomplete lineage"
                 )
             reproduced_pct = _pct_change(current.consensus, baseline.consensus)
-            if reproduced_pct is None or abs(
-                _quantize(reproduced_pct, 6) - feature.pct_change
-            ) > tolerance:
+            if (
+                reproduced_pct is None
+                or abs(_quantize(reproduced_pct, 6) - feature.pct_change) > tolerance
+            ):
                 raise ControlledReplayCertificationError(
                     f"feature {feature_id} selected value does not reproduce"
                 )
@@ -770,13 +760,10 @@ def _validate_selected_revision_features(
                 raise ControlledReplayCertificationError(
                     f"feature {feature_id} acceleration lineage is incomplete"
                 )
-            reproduced_acceleration = (
-                recent.pct_change / Decimal(recent.actual_elapsed_days)
-                - longer.pct_change / Decimal(longer.actual_elapsed_days)
-            )
-            if abs(
-                _quantize(reproduced_acceleration, 6) - feature.acceleration
-            ) > tolerance:
+            reproduced_acceleration = recent.pct_change / Decimal(
+                recent.actual_elapsed_days
+            ) - longer.pct_change / Decimal(longer.actual_elapsed_days)
+            if abs(_quantize(reproduced_acceleration, 6) - feature.acceleration) > tolerance:
                 raise ControlledReplayCertificationError(
                     f"feature {feature_id} acceleration does not reproduce"
                 )
@@ -832,9 +819,7 @@ def _feature_change(
         "old_feature_id": old.id,
         "replay_feature_id": replay.id,
         "old_pct_change": _decimal(old.pct_change),
-        "old_lineage_reproduced_pct_change": _decimal(
-            _quantize(old_lineage_pct, 6)
-        ),
+        "old_lineage_reproduced_pct_change": _decimal(_quantize(old_lineage_pct, 6)),
         "replay_pct_change": _decimal(replay.pct_change),
         "old_net_breadth": _decimal(old.net_breadth),
         "replay_net_breadth": _decimal(replay.net_breadth),
@@ -879,12 +864,10 @@ def _snapshot_comparison(
     replay: CeriScoreSnapshot,
 ) -> dict[str, Any]:
     old_components = {
-        row["name"]: row
-        for row in (original.opportunity_ledger_json or {}).get("components") or []
+        row["name"]: row for row in (original.opportunity_ledger_json or {}).get("components") or []
     }
     replay_components = {
-        row["name"]: row
-        for row in (replay.opportunity_ledger_json or {}).get("components") or []
+        row["name"]: row for row in (replay.opportunity_ledger_json or {}).get("components") or []
     }
     row: dict[str, Any] = {
         "record_type": "SNAPSHOT",
@@ -973,21 +956,13 @@ def _ranking_impact(rows: list[dict[str, Any]]) -> dict[str, Any]:
             if row["original_posture"] == "Positive" and row["replay_posture"] != "Positive"
         ),
         "entering_high_opportunity_low_risk": sorted(
-            row["ticker"]
-            for row in rows
-            if not row["original_high_low"] and row["replay_high_low"]
+            row["ticker"] for row in rows if not row["original_high_low"] and row["replay_high_low"]
         ),
         "leaving_high_opportunity_low_risk": sorted(
-            row["ticker"]
-            for row in rows
-            if row["original_high_low"] and not row["replay_high_low"]
+            row["ticker"] for row in rows if row["original_high_low"] and not row["replay_high_low"]
         ),
-        "original_top_20": [
-            row["ticker"] for row in _rank_order(rows, "original_score")[:20]
-        ],
-        "replay_top_20": [
-            row["ticker"] for row in _rank_order(rows, "replay_score")[:20]
-        ],
+        "original_top_20": [row["ticker"] for row in _rank_order(rows, "original_score")[:20]],
+        "replay_top_20": [row["ticker"] for row in _rank_order(rows, "replay_score")[:20]],
         "rank_movements": movements,
         "largest_upward_movers": sorted(
             movements,
@@ -1029,16 +1004,14 @@ def _certification(
     )
     lineage_ok = all(
         all(
-            bool(component.get("evidence_ids"))
-            or bool(component.get("lineage_exemption_reason"))
+            bool(component.get("evidence_ids")) or bool(component.get("lineage_exemption_reason"))
             for component in (row.opportunity_ledger_json or {}).get("components") or []
             if component.get("available")
         )
         for row in replay_snapshots
     )
     source_cutoff_ok = all(
-        row.known_at is None or _aware(row.known_at) <= _aware(cutoff_at)
-        for row in replay_features
+        row.known_at is None or _aware(row.known_at) <= _aware(cutoff_at) for row in replay_features
     )
     selected_source_ids = {
         source_id
@@ -1070,8 +1043,7 @@ def _certification(
         and config.missing_values.provider_zero_distinct_from_missing
         and config.missing_values.forbid_zero_fill_defaults,
         "sec_literal_true_acceptance_unchanged": all(
-            _component_value(original, "guidance")
-            == _component_value(replay, "guidance")
+            _component_value(original, "guidance") == _component_value(replay, "guidance")
             for original, replay in zip(originals, replay_snapshots, strict=True)
         ),
         "opportunity_threshold_60_unchanged": math.isclose(
@@ -1091,8 +1063,7 @@ def _certification(
             row.config_hash == config.config_hash for row in replay_snapshots
         ),
         "source_run_provenance": all(
-            row.run_id is None
-            and row.source_run_id_text == str(request.source_run_id)
+            row.run_id is None and row.source_run_id_text == str(request.source_run_id)
             for row in replay_snapshots
         ),
     }
@@ -1109,9 +1080,7 @@ def _certification(
             "config_hash": config.config_hash,
             "calculation_version": config.engine.calculation_version,
             "opportunity_weights": dict(config.opportunity_weights),
-            "opportunity_coverage_threshold_pct": (
-                config.revision.minimum_component_coverage_pct
-            ),
+            "opportunity_coverage_threshold_pct": (config.revision.minimum_component_coverage_pct),
         },
         "invariants": invariants,
         "selected_revision_feature_count": len(selected_replay_ids),
@@ -1201,10 +1170,7 @@ def _snapshot_selected_revision_ids(snapshot: CeriScoreSnapshot) -> set[int]:
 
 
 def _features_by_identity(features) -> dict[tuple[str, str | None, int], CeriRevisionFeature]:
-    return {
-        (row.metric, row.period_slot, row.window_days): row
-        for row in features
-    }
+    return {(row.metric, row.period_slot, row.window_days): row for row in features}
 
 
 def _feature_groups(
@@ -1254,9 +1220,7 @@ def _freshness_days(
         if stamp is not None and _aware(stamp) <= _aware(cutoff_at):
             stamps[dataset].append(stamp)
     return {
-        dataset: (
-            max(0, (cutoff_at.date() - max(values).date()).days) if values else None
-        )
+        dataset: (max(0, (cutoff_at.date() - max(values).date()).days) if values else None)
         for dataset, values in stamps.items()
     }
 

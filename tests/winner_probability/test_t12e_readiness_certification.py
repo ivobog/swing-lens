@@ -72,6 +72,9 @@ def stored_state(row, status):
             warning_reasons=(),
         ).canonical_payload()
     evidence.payload_json = payload
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+
+    evidence.payload_fingerprint = Canonical.fingerprint(payload)
 
 
 @pytest.mark.parametrize(

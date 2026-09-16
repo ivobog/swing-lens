@@ -41,7 +41,6 @@ from app.services.market_regime_policy import load_market_regime_command_center_
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.sector_etf_rotation_service import SectorEtfRotationService
 from app.services.sector_rotation_config import (
-    load_sector_rotation_config,
     sector_rotation_config_hash,
 )
 from app.services.sector_rotation_dtos import (
@@ -89,6 +88,8 @@ class SectorRotationService:
         persist: bool = True,
         config: dict[str, Any] | None = None,
         market_cutoff: MarketCalculationCutoff | None = None,
+        effective_configuration=None,
+        expected_calculation_identity=None,
     ) -> SectorRotationSnapshotDto:
         return build_sector_rotation_snapshot(
             db=db,
@@ -102,6 +103,8 @@ class SectorRotationService:
             repository=self.repository,
             market_repository=self.market_repository,
             market_cutoff=market_cutoff,
+            effective_configuration=effective_configuration,
+            expected_calculation_identity=expected_calculation_identity,
         )
 
 
@@ -117,8 +120,18 @@ def build_sector_rotation_snapshot(
     repository: SectorRotationRepository | None = None,
     market_repository: MarketRegimeRepository | None = None,
     market_cutoff: MarketCalculationCutoff | None = None,
+    effective_configuration=None,
+    expected_calculation_identity=None,
 ) -> SectorRotationSnapshotDto:
-    config = config or load_sector_rotation_config()
+    from app.services.configuration_source_values import SourcedConfigurationValues
+    from app.services.contextual_effective_configuration import resolve_sector_configuration
+
+    effective_configuration = effective_configuration or resolve_sector_configuration(config)
+    effective_configuration.require_family("contextual.sector")
+    if expected_calculation_identity is not None:
+        effective_configuration.require_retry_identity(expected_calculation_identity)
+    config = SourcedConfigurationValues(effective_configuration.values["config"], ())
+    config.effective_configuration = effective_configuration
     config_hash = sector_rotation_config_hash(config)
     default_profile = config["defaults"]["default_ranking_profile"]
     mode = (
@@ -170,6 +183,7 @@ def build_sector_rotation_snapshot(
         config_hash=config_hash,
         run_id=run_id,
         market_cutoff=market_cutoff,
+        effective_configuration=effective_configuration,
     )
     selected_previous = previous_snapshot
     previous_snapshot, previous_permission = contextual_decision_input(
@@ -306,11 +320,18 @@ def build_sector_rotation_snapshot(
         )
         dto = replace(
             dto,
-            debug=embed_identity(dto.debug, identity, policy=SECTOR_RANKING_COMPATIBILITY.name),
+            debug=embed_identity(
+                dto.debug,
+                effective_configuration.bind(identity),
+                policy=SECTOR_RANKING_COMPATIBILITY.name,
+            ),
         )
 
     if persist:
         snapshot_write = _to_snapshot_write(dto, config)
+        object.__setattr__(
+            snapshot_write, "_effective_configuration", effective_configuration.snapshot
+        )
         if isinstance(db, Session):
             evidence_sources = {
                 f"ranking:{index:06d}": ranking
@@ -579,6 +600,7 @@ def _compatible_previous_snapshot(
     config_hash: str,
     run_id: int | None,
     market_cutoff: MarketCalculationCutoff,
+    effective_configuration=None,
 ):
     if not isinstance(db, Session) or not hasattr(repository, "previous_snapshot_candidates"):
         return repository.get_previous_snapshot(
@@ -603,6 +625,7 @@ def _compatible_previous_snapshot(
         config_hash=config_hash,
         calculation_version=CALCULATION_VERSION,
         mode=mode,
+        effective_configuration=effective_configuration,
     )
     return _select_compatible_previous_snapshot(
         repository.previous_snapshot_candidates(db, as_of_date=as_of_date, mode=mode),

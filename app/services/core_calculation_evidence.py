@@ -88,7 +88,7 @@ def persist_core_evidence(
     config_dimension = identity.configuration.effective_configuration
     if (
         config_dimension.state is IdentityState.KNOWN
-        and config_dimension.value.namespace.startswith("core.")
+        and config_dimension.value.namespace.startswith(("core.", "contextual."))
         and effective_configuration is None
     ):
         raise ValueError("CORE_EFFECTIVE_CONFIGURATION_REQUIRED")

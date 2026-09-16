@@ -221,6 +221,7 @@ class SetupLifecycleSourceLoader:
                     pipeline_id=pipeline_id,
                 ),
                 config_hash=sector_rotation_config_hash(sector_config),
+                effective_configuration=sector_config.effective_configuration,
                 calculation_version="sector-rotation-1.0.0",
                 mode=(
                     "combined"

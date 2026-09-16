@@ -432,3 +432,146 @@ PARTIAL repository-wide. T13C adopts Regime/Sector/CERI/IBMI; T13D adopts
 Setup/Lifecycle/Alert/Winner and durable configuration/policy propagation;
 T13E certifies integration. Privileged direct SQL, original-context replay and
 truth of external provenance claims retain the existing stated proof boundaries.
+
+## 31. T13C native contextual families
+
+`contextual_effective_configuration.py` adapts the native parsers to the existing
+T13A tagged snapshot, semantic identity and resolution hash. It does not define
+another identity or ledger. Families are `contextual.regime`, `contextual.sector`,
+`contextual.ceri` and five `contextual.ibmi.<metric>` families: liquidity,
+short_pressure, volatility, options_activity and histogram. Each uses its own
+`<namespace>-v1` snapshot schema. Native normalization runs before financial math;
+services consume native typed adapters reconstructed from the frozen values.
+
+The resolver boundary declares REQUEST > SETTINGS_MODEL > ENVIRONMENT > DOTENV >
+PROFILE > CODE_DEFAULT. This describes existing layers, rather than adding a new
+override path. File parsers retain actual winning leaf provenance. Changed explicit
+requests cannot inherit a former file winner. The Settings trace now separately
+retains the names and source kinds of five contextual booleans in addition to the
+three core booleans; it never retains complete Settings/source dictionaries.
+
+## 32. Complete Regime and Sector authority
+
+Regime freezes the normalized eight native policy roots, all nine supported Regime
+mappings and policy fallbacks, freshness, required symbols and the Pine/v4 rules
+actually consumed by market-input feature calculation. Missing policy/mapping,
+missing feature groups and material UNKNOWN provenance are rejected. Unused feature
+groups, disabled-group children and unused display switches remain explanatory
+outside semantic hashing. Explicit frozen feature arguments remove hidden parser
+reads inside `_load_market_input`.
+
+Regime compatibility still compares temporal/calendar/context and source identity.
+Run identity does not become a substitute for those dimensions: same-context,
+same-configuration cross-run use remains permitted; different configuration fails
+compatibility even when output values happen to match.
+
+Sector freezes its own universe, weights, profile selection, policy, confidence,
+taxonomy/proxies and active ETF feature rules. It does not copy upstream Ranking,
+Regime or prior-Sector configuration. ETF-disabled children are display-only;
+enabling ETF freezes its actual Pine/v4 feature dependencies. A prior S1 retains
+its immutable C1. Existing strict raw hash/mode/calendar/prior-context compatibility
+continues to govern whether current C2 may consume S1; this change does not relax
+the native same-configuration prior-state rule. The actual opaque full own-config
+hash used by prior selection is frozen as behavioral selection authority, because
+even directly inactive fields can affect that legacy compatibility filter.
+
+## 33. CERI four-output and ordered native policy authority
+
+CERI freezes its calculation config, resolved taxonomy, weights, windows,
+freshness/coverage/confidence rules, active provider order and code-owned posture,
+guidance, event-risk and confidence policies. Capture additionally freezes the
+actual Settings winners controlling capture and IBMI consumption, its own IBMI
+volatility contribution cap, and the actual revision-feature selection hash.
+Standalone scoring snapshots declare that capture context has not been supplied;
+they cannot silently certify the capture input-selection rule.
+
+The native provider conflict selector consumes frozen priority, quality, freshness
+and source-id ordering. The native guidance scorer consumes frozen timestamp/id
+ordering and continues its existing behavior of ignoring provider priority.
+Freezing these distinct active policies does not close CERI-001's separate
+selection algorithm defect. The configuration file's declared posture labels do
+not replace the code-owned posture rules actually used by the four outputs.
+
+Alert/change thresholds, backfill, exports and retention remain with their native
+downstream loaders for T13D. Provider transport/capability metadata and unused
+display clauses are excluded from financial semantic hashing. Capture's legacy
+revision-feature filter really compares the full native CERI raw hash, which can
+change following downstream-only file edits. Its opaque filter value is therefore
+behavioral capture authority; claiming all such file edits are semantically
+neutral would misdescribe the existing algorithm. Redesigning that legacy filter
+is separate integration work, rather than silently changing selected inputs.
+
+## 34. IBMI metric granularity and operational separation
+
+Each metric freezes only its engine/source versions, own mathematical parameters,
+materialized native defaults and the freshness fields that its calculator uses.
+Liquidity freezes its windows, minimum dollar volume and spread grades; short
+pressure freezes fee/availability thresholds and historical/live ages; volatility
+freezes IV/lookback/ratio rules and historical age; options activity freezes
+activity/put-call thresholds and live age; histogram freezes activity fraction
+and percentile rules. An edit to liquidity does not invalidate volatility.
+
+Acquisition use-RTH/period/generic-tick switches, enable/shortlist flags and unused
+freshness fields are operational for these calculations. Timeout, retry, request
+budget, pacing, concurrency, cache, host/port and scanner transport settings do not
+enter their semantic identity. Credentials/Flex tokens and full transport trees
+are absent from snapshots. The existing safe legacy configuration hash is retained
+as operational compatibility metadata so a frozen retry preserves the native
+evidence address; it is not reconstructed from the scoped subset.
+The native compatibility hashing boundary excludes secret-bearing keys and login,
+cookies/authorization. Credential-only edits therefore cannot influence retained
+digest values or either snapshot hash. Existing files without secret keys retain
+their original compatibility hash.
+
+## 35. Exact contextual evidence, history and retries
+
+New contextual identities replace the existing configuration dimension with the
+shared semantic hash/schema identity before metadata or evidence is produced.
+The shared core writer requires the exact matching snapshot for new contextual
+namespaces and embeds it in existing immutable evidence. Exact ORM evidence
+pointers and payload/identity fingerprints are checked before historical decoding.
+No migration or financial model field is needed.
+
+Historical decoding and typed adapters use only the embedded tagged values.
+They consult no current files, Settings, environment, thresholds or parser
+defaults. Legacy evidence without a snapshot remains LEGACY_UNKNOWN; no backfill
+or upgrade through present-day defaults. Provided frozen C1 is usable for a retry;
+a supplied expected C1 configuration rejects C2 before financial calculation.
+This is a configuration anchor check, alongside existing temporal/source/write
+fences, rather than a claim of complete durable retry delivery.
+
+Frozen families are reused at their native context/run scope. Repeated per-ticker
+resolution uses immutable adapters/cached snapshots and no file/Settings reads.
+Winner's current Regime/Sector producer expectations are also frozen once per
+native RunCaptureContext, so complete Regime feature rules do not introduce
+per-ticker parser reads. A new run context resolves current rules again; this
+ephemeral producer expectation cache does not adopt Winner's own T13D policy.
+Local tagged JSON decoding, validation and hashing remain real CPU work and are
+not characterized as free or as a certified production latency improvement.
+
+## 36. T13C proof boundary and T13D handoff
+
+The deterministic leaf inventory covers native defaults plus active ETF Sector:
+735 behavioral, 42 operational and 149 display leaves. A bounded AST census records
+52 native source-boundary call sites, with manual call-graph interpretation in
+the T13C report. These different units are not a repository-wide dataflow proof.
+Certified contextual paths have zero remaining live material behavioral rereads.
+Transport/upstream current selection and downstream policy/delivery reads remain
+separate authority boundaries, explicitly inventoried for T13D.
+
+Phase-3 permissions and readiness policy versions remain independent and unchanged.
+No CERI-to-Ranking/Setup/Winner, IBMI-to-Winner or Sector-to-same-run-Ranking edge
+is introduced. CORE-008 closes for newly certified complete Regime policies;
+legacy is unknown. RANK-005 remains closed; CERI-001 algorithm work, XINT-010 and
+repository-wide INV-CONFIG-001 remain partial. T13D must adopt own Setup,
+Lifecycle, Alert, Winner and readiness consumer policy authority and transport
+configuration/identity/evidence anchors through durable jobs and resume. T13E
+certifies integration; original-context reconstruction and privileged SQL
+governance remain deferred. See the 36-section T13C remediation report for the
+native resolver/key/function inventory and executable certification record.
+
+T13C final certification: 3,233 safe broad tests; 177 PostgreSQL/focused tests
+(82 PG + 95 configuration units); Phase-3 563, Phase-1 135, Phase-0 86 + 71.
+Zero failures/skips; seven established external IBMI cases deselected in broad.
+The identical 211-test native probe yields 308 exact business captures, SHA-256
+`c2aca12aed30ea178d2542a64e8404764a5362fc442c055323c89498849e49df`.

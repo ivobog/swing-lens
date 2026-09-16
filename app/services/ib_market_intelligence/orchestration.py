@@ -351,9 +351,7 @@ def execute_historical_refresh(
             # calculation cutoff only after the provider observations have been
             # persisted so they are eligible without pretending they were known
             # at request-planning time.
-            feature_cutoff = standalone_market_context(
-                reason="IBMI_HISTORICAL_REFRESH_FEATURE"
-            )
+            feature_cutoff = standalone_market_context(reason="IBMI_HISTORICAL_REFRESH_FEATURE")
             _rebuild_ticker_feature(
                 db,
                 ticker,
@@ -870,7 +868,7 @@ def execute_histogram_fetch(
             feature = calculate_histogram(
                 levels,
                 reference_price=reference,
-                config=section,
+                config=config._effective_configurations["histogram"].values["config"]["histogram"],
                 malformed_bin_count=capture.malformed_bin_count,
             )
             _finish_request_item(
@@ -1209,6 +1207,8 @@ def _rebuild_ticker_feature(
     *,
     calculation_cutoff_at: datetime | None = None,
     operation_mode: str = "HISTORICAL",
+    effective_configuration=None,
+    expected_calculation_identity=None,
 ):
     try:
         return _rebuild_ticker_feature_impl(
@@ -1221,6 +1221,8 @@ def _rebuild_ticker_feature(
             historical_availability,
             calculation_cutoff_at=calculation_cutoff_at,
             operation_mode=operation_mode,
+            effective_configuration=effective_configuration,
+            expected_calculation_identity=expected_calculation_identity,
         )
     except Exception:
         operational_metrics.increment(
@@ -1240,22 +1242,25 @@ def _rebuild_ticker_feature_impl(
     *,
     calculation_cutoff_at: datetime | None = None,
     operation_mode: str = "HISTORICAL",
+    effective_configuration=None,
+    expected_calculation_identity=None,
 ):
     if calculation_cutoff_at is None:
         raise ValueError("historical IBMI feature rebuild requires calculation_cutoff_at")
-    if (
-        calculation_cutoff_at.tzinfo is None
-        or calculation_cutoff_at.utcoffset() is None
-    ):
+    if calculation_cutoff_at.tzinfo is None or calculation_cutoff_at.utcoffset() is None:
         raise ValueError("calculation_cutoff_at must be timezone-aware")
     operation_mode = operation_mode.upper()
     if operation_mode not in {"CURRENT", "HISTORICAL"}:
         raise ValueError("IBMI operation_mode must be CURRENT or HISTORICAL")
     if operation_mode == "HISTORICAL":
-        latest_eligible_session = MarketClockService().cutoff_for(
-            calculation_cutoff_at,
-            reason="IBMI_FEATURE_TEMPORAL_BOUNDARY",
-        ).latest_completed_session
+        latest_eligible_session = (
+            MarketClockService()
+            .cutoff_for(
+                calculation_cutoff_at,
+                reason="IBMI_FEATURE_TEMPORAL_BOUNDARY",
+            )
+            .latest_completed_session
+        )
         if as_of > latest_eligible_session:
             raise ValueError("IBMI as_of session is later than calculation_cutoff_at permits")
     else:
@@ -1265,6 +1270,13 @@ def _rebuild_ticker_feature_impl(
         )
         if as_of > current_session:
             raise ValueError("IBMI current as_of session is in the future")
+    from app.services.contextual_effective_configuration import resolve_ibmi_configuration
+
+    frozen = effective_configuration or resolve_ibmi_configuration(config, module)
+    frozen.require_family(f"contextual.ibmi.{str(module).lower()}")
+    if expected_calculation_identity is not None:
+        frozen.require_retry_identity(expected_calculation_identity)
+    config = frozen.ibmi_config(config)
     historical_availability = historical_availability or {}
     ib_conid = None
     metric_constituents: list[IBHistoricalMetricBar] = []
@@ -1319,12 +1331,14 @@ def _rebuild_ticker_feature_impl(
         )
         if snapshot is not None:
             live_constituents.append(snapshot)
-            live_constituents.extend(_shortable_share_snapshots(
-                db,
-                ticker,
-                as_of_session=as_of,
-                cutoff_at=calculation_cutoff_at,
-            ))
+            live_constituents.extend(
+                _shortable_share_snapshots(
+                    db,
+                    ticker,
+                    as_of_session=as_of,
+                    cutoff_at=calculation_cutoff_at,
+                )
+            )
         values = snapshot.values_json if snapshot else {}
         status = _snapshot_availability(
             snapshot,
@@ -1723,14 +1737,16 @@ def _metric_bars(
     as_of_session: date,
     cutoff_at: datetime,
 ) -> list[IBHistoricalMetricBar]:
-    rows = list(db.scalars(
-        select(IBHistoricalMetricBar)
-        .where(IBHistoricalMetricBar.ticker == ticker.upper())
-        .where(IBHistoricalMetricBar.metric_type == metric.value)
-        .where(IBHistoricalMetricBar.effective_session <= as_of_session)
-        .where(IBHistoricalMetricBar.first_seen_at <= cutoff_at)
-        .order_by(IBHistoricalMetricBar.effective_session, IBHistoricalMetricBar.id)
-    ).all())
+    rows = list(
+        db.scalars(
+            select(IBHistoricalMetricBar)
+            .where(IBHistoricalMetricBar.ticker == ticker.upper())
+            .where(IBHistoricalMetricBar.metric_type == metric.value)
+            .where(IBHistoricalMetricBar.effective_session <= as_of_session)
+            .where(IBHistoricalMetricBar.first_seen_at <= cutoff_at)
+            .order_by(IBHistoricalMetricBar.effective_session, IBHistoricalMetricBar.id)
+        ).all()
+    )
     rows = [
         row
         for row in rows
@@ -1792,17 +1808,19 @@ def _latest_snapshot(
     as_of_session: date,
     cutoff_at: datetime,
 ) -> IBMarketIntelligenceSnapshot | None:
-    rows = list(db.scalars(
-        select(IBMarketIntelligenceSnapshot)
-        .where(IBMarketIntelligenceSnapshot.ticker == ticker.upper())
-        .where(IBMarketIntelligenceSnapshot.snapshot_type == snapshot_type)
-        .where(IBMarketIntelligenceSnapshot.effective_session <= as_of_session)
-        .where(IBMarketIntelligenceSnapshot.observed_at <= cutoff_at)
-        .order_by(
-            IBMarketIntelligenceSnapshot.observed_at.desc(),
-            IBMarketIntelligenceSnapshot.id.desc(),
-        )
-    ).all())
+    rows = list(
+        db.scalars(
+            select(IBMarketIntelligenceSnapshot)
+            .where(IBMarketIntelligenceSnapshot.ticker == ticker.upper())
+            .where(IBMarketIntelligenceSnapshot.snapshot_type == snapshot_type)
+            .where(IBMarketIntelligenceSnapshot.effective_session <= as_of_session)
+            .where(IBMarketIntelligenceSnapshot.observed_at <= cutoff_at)
+            .order_by(
+                IBMarketIntelligenceSnapshot.observed_at.desc(),
+                IBMarketIntelligenceSnapshot.id.desc(),
+            )
+        ).all()
+    )
     eligible = [
         row
         for row in rows
@@ -1842,21 +1860,23 @@ def _shortable_share_snapshots(
     cutoff_at: datetime,
     limit: int = 30,
 ) -> list[IBMarketIntelligenceSnapshot]:
-    snapshots = list(db.scalars(
-        select(IBMarketIntelligenceSnapshot)
-        .where(
-            IBMarketIntelligenceSnapshot.ticker == ticker.upper(),
-            IBMarketIntelligenceSnapshot.snapshot_type == "SHORTABLE",
-            IBMarketIntelligenceSnapshot.availability_status == AvailabilityStatus.AVAILABLE,
-            IBMarketIntelligenceSnapshot.effective_session <= as_of_session,
-            IBMarketIntelligenceSnapshot.observed_at <= cutoff_at,
-        )
-        .order_by(
-            IBMarketIntelligenceSnapshot.observed_at.desc(),
-            IBMarketIntelligenceSnapshot.id.desc(),
-        )
-        .limit(limit)
-    ).all())
+    snapshots = list(
+        db.scalars(
+            select(IBMarketIntelligenceSnapshot)
+            .where(
+                IBMarketIntelligenceSnapshot.ticker == ticker.upper(),
+                IBMarketIntelligenceSnapshot.snapshot_type == "SHORTABLE",
+                IBMarketIntelligenceSnapshot.availability_status == AvailabilityStatus.AVAILABLE,
+                IBMarketIntelligenceSnapshot.effective_session <= as_of_session,
+                IBMarketIntelligenceSnapshot.observed_at <= cutoff_at,
+            )
+            .order_by(
+                IBMarketIntelligenceSnapshot.observed_at.desc(),
+                IBMarketIntelligenceSnapshot.id.desc(),
+            )
+            .limit(limit)
+        ).all()
+    )
     snapshots = [
         snapshot
         for snapshot in snapshots
@@ -1948,9 +1968,7 @@ def _dollar_volume(
     if price_frame.empty or volume_frame is None or volume_frame.empty:
         return None
     price_by_date = {
-        row.date: row.close
-        for row in price_frame.itertuples(index=False)
-        if row.close is not None
+        row.date: row.close for row in price_frame.itertuples(index=False) if row.close is not None
     }
     volume_by_date = {
         row.date: row.volume
@@ -1959,8 +1977,7 @@ def _dollar_volume(
     }
     eligible_dates = sorted(set(price_by_date) & set(volume_by_date))[-20:]
     values = sorted(
-        float(price_by_date[session]) * float(volume_by_date[session])
-        for session in eligible_dates
+        float(price_by_date[session]) * float(volume_by_date[session]) for session in eligible_dates
     )
     if not values:
         return None
@@ -1992,9 +2009,7 @@ def _liquidity_price_constituents(
         )
     )
     projected = project_price_bar_rows_as_of(db, rows, as_of=cutoff_at)
-    adjusted_all = {
-        row.bar_date: row for row in projected if row.what_to_show == "ADJUSTED_LAST"
-    }
+    adjusted_all = {row.bar_date: row for row in projected if row.what_to_show == "ADJUSTED_LAST"}
     trades_all = {row.bar_date: row for row in projected if row.what_to_show == "TRADES"}
     adjusted_complete = bool(adjusted_all) and (
         not trades_all or set(adjusted_all) >= set(trades_all)
@@ -2002,11 +2017,7 @@ def _liquidity_price_constituents(
     price_all = adjusted_all if adjusted_complete else trades_all
     price = {session: row for session, row in price_all.items() if row.close is not None}
     price_basis = "ADJUSTED_LAST" if adjusted_complete else "TRADES"
-    volume = {
-        session: row
-        for session, row in trades_all.items()
-        if row.volume is not None
-    }
+    volume = {session: row for session, row in trades_all.items() if row.volume is not None}
     eligible_dates = sorted(set(price) & set(volume))[-20:]
     selected: dict[int, PriceBar] = {}
     roles: list[tuple[int, str]] = []

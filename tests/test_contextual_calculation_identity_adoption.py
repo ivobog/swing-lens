@@ -32,6 +32,7 @@ from app.services.contextual_calculation_identity import (
     SETUP_TECHNICAL_COMPATIBILITY,
     artifact_identity,
     build_contextual_result_identity,
+    build_ibmi_feature_identity,
     build_regime_identity,
     consumer_context_identity,
     contextual_compatibility,
@@ -62,12 +63,8 @@ def test_global_regime_requires_exact_contextual_identity_not_run_ownership() ->
         source_payload={"SPY": "source-a", "QQQ": "source-b"},
     )
 
-    assert contextual_compatibility(
-        expected, actual, policy=REGIME_CONTEXT_COMPATIBILITY
-    ).accepted
-    assert contextual_compatibility(
-        expected, actual, policy=SECTOR_REGIME_COMPATIBILITY
-    ).accepted
+    assert contextual_compatibility(expected, actual, policy=REGIME_CONTEXT_COMPATIBILITY).accepted
+    assert contextual_compatibility(expected, actual, policy=SECTOR_REGIME_COMPATIBILITY).accepted
     assert actual.ownership.run_id.state.name == "NOT_APPLICABLE"
 
 
@@ -96,9 +93,7 @@ def test_global_regime_rejects_one_dimension_context_mismatch(mutation: str) -> 
         source_payload={"SPY": "source-a"},
     )
 
-    result = contextual_compatibility(
-        expected, actual, policy=REGIME_CONTEXT_COMPATIBILITY
-    )
+    result = contextual_compatibility(expected, actual, policy=REGIME_CONTEXT_COMPATIBILITY)
 
     assert not result.accepted
 
@@ -156,9 +151,7 @@ def test_legacy_unknown_never_proves_setup_or_regime_compatibility() -> None:
     )
     legacy = artifact_identity(SimpleNamespace(run_id=7, ticker="MSFT", debug_json={}))
 
-    result = contextual_compatibility(
-        expected, legacy, policy=SETUP_TECHNICAL_COMPATIBILITY
-    )
+    result = contextual_compatibility(expected, legacy, policy=SETUP_TECHNICAL_COMPATIBILITY)
 
     assert not result.accepted
     assert result.status.name == "INSUFFICIENT_IDENTITY"
@@ -170,9 +163,7 @@ def test_setup_omits_incompatible_combined_risk_and_ranking_metadata() -> None:
         market_cutoff=cutoff, run_id=7, pipeline_id=3, ticker="MSFT"
     )
     technical = _technical(_producer(expected, "technical"))
-    wrong = consumer_context_identity(
-        market_cutoff=cutoff, run_id=7, pipeline_id=88, ticker="MSFT"
-    )
+    wrong = consumer_context_identity(market_cutoff=cutoff, run_id=7, pipeline_id=88, ticker="MSFT")
     combined = _combined(_producer(wrong, "combined"))
     ranking = _ranking(_producer(wrong, "ranking"))
     compatible_combined = _compatible_ticker_artifacts(
@@ -210,17 +201,14 @@ def test_setup_omits_incompatible_combined_risk_and_ranking_metadata() -> None:
     assert built.dto.source_ids["combined_result_id"] is None
     assert built.dto.source_ids["ranking_result_id"] is None
     assert (
-        artifact_identity(SimpleNamespace(debug_json=built.dto.debug))
-        .source_lineage.state.name
+        artifact_identity(SimpleNamespace(debug_json=built.dto.debug)).source_lineage.state.name
         == "KNOWN"
     )
 
 
 def test_setup_incompatible_technical_cannot_drive_setup() -> None:
     cutoff = _cutoff(context_id=42)
-    wrong = consumer_context_identity(
-        market_cutoff=cutoff, run_id=7, pipeline_id=88, ticker="MSFT"
-    )
+    wrong = consumer_context_identity(market_cutoff=cutoff, run_id=7, pipeline_id=88, ticker="MSFT")
     technical = _technical(_producer(wrong, "technical"))
 
     accepted = _compatible_ticker_artifacts(
@@ -277,9 +265,7 @@ def test_setup_selects_older_compatible_regime_over_newer_incompatible() -> None
 
 def test_setup_sector_requires_run_context_and_current_sector_contract() -> None:
     cutoff = _cutoff(context_id=42)
-    context = consumer_context_identity(
-        market_cutoff=cutoff, run_id=7, pipeline_id=3
-    )
+    context = consumer_context_identity(market_cutoff=cutoff, run_id=7, pipeline_id=3)
     expected = expected_sector_identity(
         context=context,
         config_hash="a" * 64,
@@ -287,9 +273,7 @@ def test_setup_sector_requires_run_context_and_current_sector_contract() -> None
         mode="universe_only",
     )
     compatible = _sector_identity(expected, context)
-    wrong_context = consumer_context_identity(
-        market_cutoff=cutoff, run_id=7, pipeline_id=44
-    )
+    wrong_context = consumer_context_identity(market_cutoff=cutoff, run_id=7, pipeline_id=44)
     incompatible = _sector_identity(
         expected_sector_identity(
             context=wrong_context,
@@ -310,9 +294,7 @@ def test_setup_sector_requires_run_context_and_current_sector_contract() -> None
 
 def test_sector_prior_selector_skips_newer_incompatible_snapshot() -> None:
     cutoff = _cutoff(context_id=42)
-    context = consumer_context_identity(
-        market_cutoff=cutoff, run_id=7, pipeline_id=3
-    )
+    context = consumer_context_identity(market_cutoff=cutoff, run_id=7, pipeline_id=3)
     expected = expected_sector_identity(
         context=context,
         config_hash="a" * 64,
@@ -358,9 +340,7 @@ def test_sector_prior_selector_skips_newer_incompatible_snapshot() -> None:
 
 def test_sector_prior_selector_returns_unavailable_without_compatible_predecessor() -> None:
     cutoff = _cutoff(context_id=42)
-    context = consumer_context_identity(
-        market_cutoff=cutoff, run_id=7, pipeline_id=3
-    )
+    context = consumer_context_identity(market_cutoff=cutoff, run_id=7, pipeline_id=3)
     expected = expected_sector_identity(
         context=context,
         config_hash="a" * 64,
@@ -448,19 +428,32 @@ def test_ceri_uses_compatible_global_ibmi_and_skips_newer_incompatible(
     from contextual_readiness_helpers import ibmi_feature, seal_contextual
 
     seal_contextual(compatible)
-    assert selector(
-        _RowsDb([incompatible, compatible]), "MSFT", cutoff.cutoff_at,
-        as_of_session=cutoff.latest_completed_session, market_cutoff=cutoff,
-        ibmi_config=config, decisions=decisions,
-    ) is None
+    assert (
+        selector(
+            _RowsDb([incompatible, compatible]),
+            "MSFT",
+            cutoff.cutoff_at,
+            as_of_session=cutoff.latest_completed_session,
+            market_cutoff=cutoff,
+            ibmi_config=config,
+            decisions=decisions,
+        )
+        is None
+    )
     assert decisions[edge]["producer_readiness"]["status"] == "UNKNOWN"
     ready = ibmi_feature(
-        module, config_hash=config.config_hash, calculation_cutoff_at=cutoff.cutoff_at,
-        calendar_version=cutoff.calendar_version, as_of_session=cutoff.latest_completed_session,
+        module,
+        config_hash=config.config_hash,
+        calculation_cutoff_at=cutoff.cutoff_at,
+        calendar_version=cutoff.calendar_version,
+        as_of_session=cutoff.latest_completed_session,
     )
     selected = selector(
-        _RowsDb([incompatible, ready]), "MSFT", cutoff.cutoff_at,
-        as_of_session=cutoff.latest_completed_session, market_cutoff=cutoff,
+        _RowsDb([incompatible, ready]),
+        "MSFT",
+        cutoff.cutoff_at,
+        as_of_session=cutoff.latest_completed_session,
+        market_cutoff=cutoff,
         ibmi_config=config,
     )
     assert selected is not None and selected.id == ready.id
@@ -514,15 +507,11 @@ def test_ceri_legacy_result_is_not_silently_reused_or_upgraded() -> None:
 
 
 def test_no_negative_architecture_edges_were_introduced() -> None:
-    setup_source = Path("app/services/setup_lifecycle/source_loader.py").read_text(
-        encoding="utf-8"
-    )
+    setup_source = Path("app/services/setup_lifecycle/source_loader.py").read_text(encoding="utf-8")
     winner_source = Path("app/services/winner_probability/capture_service.py").read_text(
         encoding="utf-8"
     )
-    sector_source = Path("app/services/sector_rotation_service.py").read_text(
-        encoding="utf-8"
-    )
+    sector_source = Path("app/services/sector_rotation_service.py").read_text(encoding="utf-8")
 
     assert "app.services.ceri" not in setup_source
     assert "setup_lifecycle" not in winner_source
@@ -562,9 +551,7 @@ def _sector_identity(expected, context):
     return replace(
         identity,
         configuration=expected.configuration,
-        algorithm=replace(
-            identity.algorithm, components=expected.algorithm.components
-        ),
+        algorithm=replace(identity.algorithm, components=expected.algorithm.components),
     )
 
 
@@ -672,7 +659,7 @@ def _ibmi_feature(
     config_hash=None,
     calculated_at=datetime(2026, 9, 11, 18, tzinfo=UTC),
 ):
-    return IBIntelligenceFeature(
+    row = IBIntelligenceFeature(
         id=701 if config_hash is None else 702,
         ticker="MSFT",
         as_of_session=date(2026, 9, 11),
@@ -694,6 +681,42 @@ def _ibmi_feature(
         config_hash=config_hash or config.config_hash,
         input_signature="input",
     )
+    from test_contextual_effective_configuration import frozen_evidence
+
+    from app.services.contextual_effective_configuration import resolve_ibmi_configuration
+
+    if cutoff is None:
+        return row
+    frozen = resolve_ibmi_configuration(config, module.lower())
+    if config_hash is not None:
+        from app.services.contextual_effective_configuration import _freeze
+
+        values = frozen.values
+        key = "high_fee_rate_pct" if module == "SHORT_PRESSURE" else "lookback_sessions"
+        values["config"][module.lower()][key] = 999
+        frozen = _freeze(
+            frozen.snapshot.family.namespace,
+            values,
+            {entry.key: entry.source for entry in frozen.snapshot.entries},
+        )
+    identity = frozen.bind(build_ibmi_feature_identity(row))
+    # The legacy readiness fixture stays uncertified; only its own configuration
+    # and temporal compatibility are explicit. This still proves the blocked edge.
+    from app.models.tables import CoreCalculationEvidence
+
+    evidence = frozen_evidence(frozen, identity)
+    row.calculation_evidence = CoreCalculationEvidence(
+        id=900 + row.id,
+        artifact_kind="IBMI",
+        ticker=row.ticker,
+        ranking_profile=module,
+        payload_json=evidence.payload_json,
+        payload_fingerprint=evidence.payload_fingerprint,
+        calculation_identity_json=evidence.calculation_identity_json,
+        calculation_identity_fingerprint=evidence.calculation_identity_fingerprint,
+    )
+    row.evidence_id = 900 + row.id
+    return row
 
 
 class _RowsDb:

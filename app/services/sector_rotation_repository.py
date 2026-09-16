@@ -105,9 +105,7 @@ class SectorRotationRepository:
         evidence_hash = self.snapshot_evidence_hash(dto)
         snapshot = self._matching_snapshot(db, dto, evidence_hash)
         if snapshot is not None:
-            self._persist_evidence(
-                db, snapshot, dto, evidence_sources=evidence_sources
-            )
+            self._persist_evidence(db, snapshot, dto, evidence_sources=evidence_sources)
             return snapshot
 
         previous = self._latest_logical_snapshot(db, dto)
@@ -179,12 +177,11 @@ class SectorRotationRepository:
             payload=payload,
             scope_ticker=None,
             scope_profile=snapshot.mode,
+            effective_configuration=getattr(dto, "_effective_configuration", None),
         )
 
     @staticmethod
-    def _validate_source_evidence_kinds(
-        db: Session, evidence_sources: dict[str, Any]
-    ) -> None:
+    def _validate_source_evidence_kinds(db: Session, evidence_sources: dict[str, Any]) -> None:
         expected = {
             role: (
                 CoreEvidenceKind.RANKING.value
@@ -196,8 +193,7 @@ class SectorRotationRepository:
             for role in evidence_sources
         }
         evidence_ids = {
-            role: getattr(source, "evidence_id", None)
-            for role, source in evidence_sources.items()
+            role: getattr(source, "evidence_id", None) for role, source in evidence_sources.items()
         }
         if any(evidence_id is None for evidence_id in evidence_ids.values()):
             missing = sorted(role for role, value in evidence_ids.items() if value is None)
@@ -374,9 +370,7 @@ class SectorRotationRepository:
     def evidence(self, db: Session, evidence_id: int):
         """Return exact immutable Sector evidence without projection fallback."""
 
-        return get_evidence_by_id(
-            db, evidence_id=evidence_id, kind=CoreEvidenceKind.SECTOR
-        )
+        return get_evidence_by_id(db, evidence_id=evidence_id, kind=CoreEvidenceKind.SECTOR)
 
     def _matching_snapshot(
         self,

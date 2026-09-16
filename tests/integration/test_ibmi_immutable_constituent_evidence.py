@@ -34,7 +34,6 @@ from app.models.tables import (
     PriceBarRevision,
     UploadRun,
 )
-from app.services.contextual_calculation_identity import build_ibmi_feature_identity
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
@@ -111,9 +110,7 @@ def evidence_db():
 def test_metric_correction_same_score_retry_and_current_projection(evidence_db: Session) -> None:
     observed_1 = datetime(2026, 9, 14, 20, tzinfo=UTC)
     dto = _metric(close=0.20)
-    metric, outcome = persist_historical_metric_bar(
-        evidence_db, dto, observed_at=observed_1
-    )
+    metric, outcome = persist_historical_metric_bar(evidence_db, dto, observed_at=observed_1)
     assert outcome == "INSERTED"
     f1, inserted = _persist_metric_feature(
         evidence_db, metric, score=7.0, cutoff=observed_1 + timedelta(minutes=1)
@@ -152,13 +149,16 @@ def test_metric_correction_same_score_retry_and_current_projection(evidence_db: 
     )
     assert inserted is False
     assert retry.id == f2.id and retry.evidence_id == f2.evidence_id
-    assert get_current_evidence(
-        evidence_db,
-        kind=CoreEvidenceKind.IBMI,
-        run_id=None,
-        ticker="ACME",
-        ranking_profile="LIQUIDITY",
-    ).id == f2.evidence_id
+    assert (
+        get_current_evidence(
+            evidence_db,
+            kind=CoreEvidenceKind.IBMI,
+            run_id=None,
+            ticker="ACME",
+            ranking_profile="LIQUIDITY",
+        ).id
+        == f2.evidence_id
+    )
 
 
 def test_production_rebuild_path_seals_selected_metric_state(evidence_db: Session) -> None:
@@ -177,9 +177,9 @@ def test_production_rebuild_path_seals_selected_metric_state(evidence_db: Sessio
         operation_mode="HISTORICAL",
     )
     assert inserted is True and feature.evidence_id is not None
-    states = get_certified_ibmi_evidence(evidence_db, feature).payload_json[
-        "constituent_manifest"
-    ]["historical_metric_states"]
+    states = get_certified_ibmi_evidence(evidence_db, feature).payload_json["constituent_manifest"][
+        "historical_metric_states"
+    ]
     assert states[0]["metric_bar_id"] == metric.id
     assert states[0]["revision_number"] == 0
 
@@ -335,13 +335,23 @@ def test_ranking_edge_stays_on_original_ibmi_evidence(evidence_db: Session) -> N
         ranking_profile="momentum_swing",
         evidence_id=None,
     )
+    from app.services.calculation_identity import CalculationIdentity
+    from app.services.core_effective_configuration import resolve_ranking_configuration
+    from app.services.ranking_profile_config import load_ranking_profiles
+
+    own_configuration = resolve_ranking_configuration(
+        next(profile for profile in load_ranking_profiles() if profile.name == "momentum_swing"), {}
+    )
     ranking_evidence = persist_core_evidence(
         evidence_db,
         kind=CoreEvidenceKind.RANKING,
         current_row=ranking,
         sources={"ibmi_liquidity": f1},
         payload={"score": 88},
-        calculation_identity=build_ibmi_feature_identity(f1),
+        calculation_identity=own_configuration.bind(
+            CalculationIdentity.legacy_unknown(run_id=1, ticker="ACME")
+        ),
+        effective_configuration=own_configuration.snapshot,
     )
     corrected, _ = persist_historical_metric_bar(
         evidence_db, _metric(close=0.40), observed_at=observed + timedelta(hours=1)
@@ -427,15 +437,11 @@ def test_0078_disposable_postgresql_upgrade_and_downgrade(
     command.upgrade(config, "head")
     engine = create_engine(disposable_postgres_database)
     schema = inspect(engine)
-    columns = {
-        column["name"]: column
-        for column in schema.get_columns("ib_intelligence_features")
-    }
+    columns = {column["name"]: column for column in schema.get_columns("ib_intelligence_features")}
     assert columns["evidence_id"]["nullable"] is True
     command.downgrade(config, "0077_ceri_decision_evidence")
     assert "evidence_id" not in {
-        column["name"]
-        for column in inspect(engine).get_columns("ib_intelligence_features")
+        column["name"] for column in inspect(engine).get_columns("ib_intelligence_features")
     }
     engine.dispose()
 
