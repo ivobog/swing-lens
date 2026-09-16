@@ -51,7 +51,7 @@ class CeriEventRiskService:
         catalyst_features: list[CatalystFeature] | None = None,
         stale: bool = False,
         conflict_penalty: float = 0.0,
-        options_event_premium_score: float = 0.0,
+        options_event_premium_score: float | None = None,
         short_pressure_classification: str | None = None,
     ) -> EventRiskResult:
         catalyst_features = catalyst_features or []
@@ -96,7 +96,10 @@ class CeriEventRiskService:
                 )
             )
         dominant = max(ledger, key=lambda entry: entry.score)
-        options_event_premium_score = max(0.0, min(1.5, float(options_event_premium_score)))
+        options_event_premium_score = (
+            max(0.0, min(1.5, float(options_event_premium_score)))
+            if options_event_premium_score is not None else None
+        )
         penalties: list[dict[str, float]] = []
         if conflict_penalty:
             penalties.append({"name": "conflict_penalty", "value": max(0.0, conflict_penalty)})

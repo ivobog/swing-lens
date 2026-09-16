@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.dtos import (
     ActionabilityDecision,
@@ -20,6 +21,7 @@ class SetupLifecycleActionabilityPolicy:
         lifecycle: LifecycleDecision,
         snapshot: NormalizedSnapshot,
     ) -> ActionabilityDecision:
+        snapshot = setup_with_contextual_permission(snapshot)
         state = lifecycle.proposed_state
         reasons: list[str] = []
         blockers: list[str] = []

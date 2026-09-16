@@ -8,6 +8,11 @@ from app.services.combined_decision import (
     _calculate_row_earnings_risk,
 )
 from app.services.confidence_service import build_combined_warning_flags
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    IBMI_LIQUIDITY_TO_RANKING,
+    contextual_decision_input,
+)
 from app.services.ranking_profile_components import (
     calculate_technical_profile_score,
     extract_technical_components,
@@ -99,6 +104,9 @@ def rank_single_row(
     liquidity_feature: Any | None = None,
 ) -> RankingProfileDecision:
     technical, eligibility = technical_decision_input(technical, TECHNICAL_TO_RANKING)
+    liquidity_feature, liquidity_permission = contextual_decision_input(
+        liquidity_feature, IBMI_LIQUIDITY_TO_RANKING,
+    )
     fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     base_technical_score = _float_or_none(technical.dual_score if technical else None)
     component_scores = extract_technical_components(technical)
@@ -199,7 +207,8 @@ def rank_single_row(
             profile_score=profile_score,
             liquidity_feature=liquidity_feature,
             tradeability_grade=tradeability_grade,
-        ), TECHNICAL_ELIGIBILITY_KEY: eligibility},
+        ), TECHNICAL_ELIGIBILITY_KEY: eligibility,
+            CONTEXTUAL_ELIGIBILITY_KEY: {"ibmi_liquidity": liquidity_permission}},
         upcoming_earnings_date=earnings_risk.upcoming_earnings_date,
         days_until_earnings=earnings_risk.days_until_earnings,
         earnings_risk_level=earnings_risk.risk_level,

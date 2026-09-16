@@ -317,6 +317,7 @@ def _ibmi_features(db: Session, snapshot: CeriScoreSnapshot) -> list[IBIntellige
         {
             *_ints(lineage.get("ib_volatility_feature_ids")),
             *_ints(lineage.get("ib_short_pressure_feature_ids")),
+            *_ints(lineage.get("ib_context_selected_feature_ids")),
         },
         "IBMI features",
     )

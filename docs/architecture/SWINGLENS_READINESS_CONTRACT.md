@@ -209,3 +209,90 @@ Policy evaluation then needs no per-ticker/per-profile readiness query. The shar
 also advances a loaded Technical evidence reference after same-session recalculation.
 There are no new columns or migrations. Winner policy and T12C contextual consumers are
 unchanged; repository-wide INV-READINESS-001 remains partial pending T12C/D/E.
+
+## T12C contextual consumer enforcement
+
+T12C starts from T12B `b5af43ca8690cb65980be79c4a453ee1d4f7739e`. The T12A
+producer normalizers and the preceding T12B certification remain authoritative.
+Implementation: `app/services/contextual_consumer_eligibility.py`. Five independent
+consumer policies reuse `ProducerReadinessEnvelope` and `ConsumerEligibilityDecision`:
+
+| Policy | Version | READY | DEGRADED | INSUFFICIENT_EVIDENCE / ERROR / STALE or blocking reasons | UNKNOWN / LEGACY_UNKNOWN |
+|---|---|---|---|---|---|
+| IBMI_LIQUIDITY_TO_RANKING | ibmi-liquidity-to-ranking-v1 | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+| IBMI_VOLATILITY_TO_CERI | ibmi-volatility-to-ceri-v1 | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+| IBMI_SHORT_PRESSURE_TO_CERI | ibmi-short-pressure-to-ceri-v1 | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+| REGIME_TO_SETUP | regime-to-setup-v1 | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+| SECTOR_TO_SETUP | sector-to-setup-v1 | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+
+Only ELIGIBLE grants behavioral use. Blocking reasons override even a READY status.
+Undecided and ineligible inputs are omitted, with different typed reasons retained.
+Each DEGRADED edge was reviewed independently: Ranking's bounded optional liquidity
+overlay (`ranking_profile_engine._tradeability_penalty`, `config/ranking_profiles.yaml`)
+does not grant degraded permission; CERI's options event-premium penalty and short-pressure
+reason (`ceri/event_risk_service.py`, `config/ceri.yaml`) do not grant permission for
+low-quality provider context; Regime's `low_market_confidence` warning
+(`market_regime_policy.py`) is a producer warning rather than a Setup use grant; and
+Setup's optional Sector confidence/context conventions (`config/setup_lifecycle.yaml`)
+do not authorize DEGRADED snapshot numerics. No degraded override or new threshold exists.
+
+The shared selector verifies the exact evidence pointer, artifact kind, owner/ticker/module
+scope, identity fingerprint and T12A envelope binding. Missing envelopes remain legacy;
+native current values cannot retrospectively establish readiness. Eligible ORM inputs are
+projections of frozen evidence values, including the exact Sector row within its snapshot.
+Unresolved pointers and mismatched contracts fail explicitly. A failed eligibility decision
+never selects an older READY row, another run, latest/current or a global replacement.
+Identity compatibility selection still precedes eligibility and retains its existing rules.
+
+Ranking removes ineligible liquidity before its optional tradeability penalty. The existing
+missing-overlay behavior leaves the otherwise qualified Ranking row valid; no extra penalty,
+zero-valued substitute, profile weight change or whole-consumer invalidation is introduced.
+
+CERI selects volatility and short pressure independently before Confidence and Opportunity
+calculation. Eligible volatility supplies the existing options event-premium risk penalty;
+eligible short pressure supplies the existing explanatory risk reason. In the actual engine,
+neither input belongs to Opportunity's available-weight formula or Confidence's coverage
+formula. This graph is preserved: omission cannot rescue insufficient revisions or bypass
+the existing minimum evidence. Missing volatility is `None`, distinct from an eligible native
+zero. Removing one source does not remove the other, fabricate coverage, or add a new penalty.
+
+Setup evaluates Regime and Sector independently before source values, promoted signals and
+context completeness. Omitted Regime contributes neither market label nor gate; omitted Sector
+contributes neither rank nor confidence. Optional omission follows existing missing-context
+quality, warning and confidence conventions. `required_context=[technical]` remains unchanged;
+optional omission alone is not a universal entry block. An omitted bullish/stale gate cannot
+grant permission, but independently qualified Technical behavior can still apply. Native
+Regime sizing remains a producer diagnostic and is not a direct Setup field.
+
+Lifecycle, family adapters, confidence and actionability consume frozen Setup permission;
+they introduce no direct Regime/Sector producer query. Omitted context also removes its
+lineage-date confidence vote and residual signal values, including historical family inputs.
+The alert market-context fallback resolves exact frozen Setup evidence and respects recorded
+omission. Historical event evidence retains its stored meaning. Existing READY episodes and
+their old evaluations are not rewritten; new evaluation follows optional missing-context
+semantics and cannot restore excluded context. No CERI -> Setup or IBMI -> Winner edge exists.
+
+The reserved member `contextual_consumer_eligibility` freezes each decision, policy version,
+typed reasons, producer readiness DTO/fingerprint, evidence ID, inclusion and selected feature
+reference inside Ranking debug, CERI evidence lineage and Setup lineage before hashing.
+Certified omitted sources remain pinned for audit. Unpointed legacy references are diagnostic
+only and never masquerade as certified source edges. Exact retries are deterministic, and
+policy changes do not reevaluate stored decisions or reinterpret historical payloads.
+
+Ranking, CERI and Setup bulk readers select-in load existing evidence relationships. CERI
+preloads both optional modules once for the cohort. PostgreSQL verifies zero evidence SELECTs
+during repeated permission/profile evaluation after preload. The writer advances loaded
+relationships when a current pointer advances. Relationships add no database column or schema.
+
+Regime cross-run reuse remains permitted when the existing temporal/calendar/configuration/
+algorithm compatibility policy accepts the exact artifact and REGIME_TO_SETUP is ELIGIBLE.
+Cross-run reuse does not make a stale or unknown artifact usable. T12C does not add a Regime
+history-length threshold: sparse SPY evidence with native LOW is DEGRADED and omitted, while
+sparse evidence still labeled NORMAL by the producer remains native READY. CORE-001 therefore
+retains a producer-side residual. CORE-002's consumer gate bypass is enforced without changing
+the producer's native stale gate/sizing policy.
+
+T12C enforces its five edges; INV-READINESS-001 and XINT-004 remain partial across the repository.
+T12D retains Winner Technical quality and Ranking/Regime/Sector permission certification;
+T12E retains Phase-3 integration. No migration, production rewrite or legacy backfill is needed.
+Full results and scope limits: `docs/remediation/calculation-lineage/T12C_contextual_consumer_readiness_enforcement.md`.

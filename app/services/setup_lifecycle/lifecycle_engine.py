@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
 from app.services.setup_lifecycle.confidence_service import SetupLifecycleConfidenceService
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.dtos import FamilyEvidence, LifecycleDecision, NormalizedSnapshot
@@ -63,6 +64,12 @@ class SetupLifecycleEngine:
         )
 
     def evaluate(self, request: LifecycleEvaluationInput) -> LifecycleDecision:
+        request = replace(
+            request, snapshot=setup_with_contextual_permission(request.snapshot),
+            previous_snapshots=tuple(
+                setup_with_contextual_permission(item) for item in request.previous_snapshots
+            ),
+        )
         self._validate_history(request)
         if request.previous_state in {LifecycleState.FAILED, LifecycleState.EXPIRED}:
             return self._terminal_decision(request)

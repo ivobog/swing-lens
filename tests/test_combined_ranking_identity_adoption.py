@@ -301,6 +301,23 @@ def test_optional_compatible_ibmi_is_used_and_included_in_identity(monkeypatch) 
     assert "IBIntelligenceFeature" in {
         item.artifact_type for item in identity.source_lineage.value.references
     }
+    assert result.debug_json["inputs"]["ibkr_liquidity_classification"] is None
+    assert result.debug_json["contextual_consumer_eligibility"]["ibmi_liquidity"][
+        "producer_readiness"
+    ]["status"] == "LEGACY_UNKNOWN"
+    # Keep the original unsealed/CURRENT input as an exclusion regression.
+    from contextual_readiness_helpers import ibmi_feature
+
+    from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+
+    ready = ibmi_feature(
+        ticker="ACME", classification="POOR", components_json={"dollar_volume": 1000},
+        config_hash=load_ib_market_intelligence_config().config_hash,
+        as_of_session=cutoff.latest_completed_session, calendar_version=cutoff.calendar_version,
+        calculated_at=cutoff.cutoff_at, calculation_cutoff_at=cutoff.cutoff_at,
+    )
+    _patch_ranking(monkeypatch, row, fundamental, technical, liquidity={"ACME": ready})
+    result = ranking_profile_service.refresh_ranking_profile(FakeDb(), RUN_ID, "momentum_swing")[0]
     assert result.debug_json["inputs"]["ibkr_liquidity_classification"] == "POOR"
 
 

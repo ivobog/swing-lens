@@ -15,6 +15,13 @@ from app.services.contextual_calculation_identity import (
     embed_identity,
     identity_metadata,
 )
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    REGIME_TO_SETUP,
+    SECTOR_TO_SETUP,
+    contextual_decision_input,
+    frozen_sector_row,
+)
 from app.services.market_clock_service import MarketClockService
 from app.services.price_bar_evidence import (
     price_bar_immutable_evidence_manifest,
@@ -149,7 +156,17 @@ class SetupLifecycleSnapshotBuilder:
         technical, eligibility = technical_decision_input(
             context.technical_score, TECHNICAL_TO_SETUP,
         )
-        behavior_context = replace(context, technical_score=technical)
+        market, regime_permission = contextual_decision_input(
+            context.market_regime_snapshot, REGIME_TO_SETUP,
+        )
+        sector, sector_permission = contextual_decision_input(
+            context.sector_rotation_snapshot, SECTOR_TO_SETUP,
+        )
+        behavior_context = replace(
+            context, technical_score=technical, market_regime_snapshot=market,
+            sector_rotation_snapshot=sector,
+            sector_rotation_row=frozen_sector_row(sector, context.sector_rotation_row),
+        )
 
         latest_bar = context.latest_completed_bar
         as_of_date = self._resolve_data_as_of_date(context)
@@ -162,10 +179,14 @@ class SetupLifecycleSnapshotBuilder:
         )
         promoted = self._promoted_fields(behavior_context, latest_bar, trigger_reference)
         source_values = self._source_values(behavior_context, promoted)
-        warnings = list(self._warnings(context, as_of_date, reference_date, source_values))
+        warning_context = replace(
+            context, market_regime_snapshot=market, sector_rotation_snapshot=sector,
+            sector_rotation_row=behavior_context.sector_rotation_row,
+        )
+        warnings = list(self._warnings(warning_context, as_of_date, reference_date, source_values))
         coverage = self._required_feature_coverage(source_values)
         freshness = self._freshness_status(as_of_date, reference_date, latest_bar is not None)
-        context_complete = self._context_complete(context)
+        context_complete = self._context_complete(behavior_context)
         data_quality = data_quality_label_for(
             self.config,
             required_feature_coverage=coverage,
@@ -207,6 +228,9 @@ class SetupLifecycleSnapshotBuilder:
             trigger_reference,
         )
         source_lineage[TECHNICAL_ELIGIBILITY_KEY] = eligibility
+        source_lineage[CONTEXTUAL_ELIGIBILITY_KEY] = {
+            "regime": regime_permission, "sector": sector_permission,
+        }
         if context.market_cutoff is not None:
             source_lineage["temporal_lineage"] = {
                 "calculation_context_id": context.market_cutoff.context_id,

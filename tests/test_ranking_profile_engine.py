@@ -2,6 +2,7 @@ from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
+from contextual_readiness_helpers import ibmi_feature
 from readiness_helpers import certified_technical
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
@@ -45,7 +46,7 @@ def test_ibkr_tradeability_penalty_is_profile_scoped_visible_and_bounded() -> No
         config=_config(),
         today=TODAY,
     )
-    penalized = rank_single_row(
+    unsealed = rank_single_row(
         profile=profile,
         row=row,
         fundamental=fundamental,
@@ -57,6 +58,17 @@ def test_ibkr_tradeability_penalty_is_profile_scoped_visible_and_bounded() -> No
             "coverage_status": "AVAILABLE",
             "components": {"dollar_volume": 2_000_000},
         },
+    )
+    assert replace(unsealed, debug=baseline.debug) == baseline
+    assert unsealed.debug["contextual_consumer_eligibility"]["ibmi_liquidity"][
+        "producer_readiness"
+    ]["status"] == "LEGACY_UNKNOWN"
+    penalized = rank_single_row(
+        profile=profile, row=row, fundamental=fundamental, technical=technical,
+        config=_config(), today=TODAY,
+        liquidity_feature=ibmi_feature(
+            ticker="THIN", components_json={"dollar_volume": 2_000_000},
+        ),
     )
     assert penalized.profile_score == baseline.profile_score - 0.75
     assert penalized.penalties["ibkr_tradeability"] == 0.75

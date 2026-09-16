@@ -333,7 +333,7 @@ def _persist_rankings(
             ibmi = (ibmi_sources or {}).get(
                 (result.ranking_profile, result.ticker.upper())
             )
-            if ibmi is not None:
+            if ibmi is not None and ibmi.evidence_id is not None:
                 evidence_sources["ibmi_liquidity"] = ibmi
             persist_core_evidence(
                 db,
@@ -446,6 +446,7 @@ def _load_liquidity_features(
 ) -> dict[str, IBIntelligenceFeature]:
     features = db.scalars(
         select(IBIntelligenceFeature)
+        .options(selectinload(IBIntelligenceFeature.calculation_evidence))
         .where(
             IBIntelligenceFeature.module == "LIQUIDITY",
             IBIntelligenceFeature.calculated_at <= cutoff,
@@ -673,7 +674,7 @@ def _identity_safe_liquidity(
         source = validated.get(ticker)
         if source is None:
             continue
-        if isinstance(db, Session):
+        if isinstance(db, Session) and feature.evidence_id is not None:
             try:
                 get_certified_ibmi_evidence(db, feature)
             except EvidenceUnavailableError:

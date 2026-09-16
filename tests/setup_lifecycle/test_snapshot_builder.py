@@ -5,6 +5,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from contextual_readiness_helpers import seal_contextual
 from readiness_helpers import certified_technical, seal_technical
 
 from app.models.tables import (
@@ -592,7 +593,7 @@ def _ranking(ticker: str) -> RankingResult:
 
 
 def _market_snapshot() -> MarketRegimeSnapshot:
-    return MarketRegimeSnapshot(
+    return seal_contextual(MarketRegimeSnapshot(
         id=601,
         evidence_id=1601,
         run_id=7,
@@ -602,18 +603,19 @@ def _market_snapshot() -> MarketRegimeSnapshot:
         risk_state="NORMAL",
         score=80.0,
         action_summary="Constructive",
-    )
+        confidence="normal",
+    ))
 
 
 def _sector_snapshot() -> SectorRotationSnapshot:
-    return SectorRotationSnapshot(
+    return seal_contextual(SectorRotationSnapshot(
         id=701,
         evidence_id=1701,
         run_id=7,
         as_of_date=date(2026, 8, 1),
         calculation_version="v1",
         mode="LIVE",
-    )
+    ), rows=(_sector_row(),))
 
 
 def _sector_row() -> SectorRotationRow:

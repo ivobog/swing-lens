@@ -629,7 +629,9 @@ def _bar_identity(bar: PriceBar | None) -> tuple[object, ...] | None:
 
 
 def _latest_context_statement(model, cutoff: date, *, cutoff_at: datetime | None = None):
-    statement = select(model).where(model.as_of_date <= cutoff)
+    statement = select(model).options(
+        selectinload(model.calculation_evidence)
+    ).where(model.as_of_date <= cutoff)
     if cutoff_at is not None:
         statement = statement.where(model.calculation_cutoff_at.is_not(None)).where(
             model.calculation_cutoff_at <= cutoff_at

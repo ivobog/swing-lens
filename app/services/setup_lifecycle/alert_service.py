@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -16,14 +16,19 @@ from app.models.tables import (
     SignalAlertRule,
     SignalChangeEvent,
 )
+from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.decision_evidence import (
+    get_setup_evidence,
     persist_alert_decision_evidence,
     prior_generated_alert_decision,
 )
 from app.services.setup_lifecycle.dtos import AlertEvaluationResult
 from app.services.setup_lifecycle.enums import Actionability, AlertStatus
-from app.services.setup_lifecycle.episode_service import EpisodeEvaluationResult
+from app.services.setup_lifecycle.episode_service import (
+    EpisodeEvaluationResult,
+    normalized_snapshot_from_row,
+)
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.us_market_calendar import next_us_trading_day
 
@@ -130,7 +135,7 @@ class SetupLifecycleAlertService:
             if event.snapshot_id and hasattr(db, "get")
             else None
         )
-        market_regime = _event_market_regime(event, snapshot)
+        market_regime = _event_market_regime(event, snapshot, db=db)
         for rule in rules if rules is not None else self._rules(db):
             if not _lifecycle_rule_matches(rule, event):
                 continue
@@ -659,13 +664,33 @@ def _signal_semantic_key(rule: SignalAlertRule, event: SignalChangeEvent) -> str
 def _event_market_regime(
     event: SetupLifecycleEvent,
     snapshot: SetupSignalSnapshot | None,
+    *,
+    db=None,
 ) -> str | None:
     evidence_value = (event.evidence_json or {}).get("market_regime")
     if evidence_value is not None:
         return str(evidence_value)
-    raw = (getattr(snapshot, "signals_json", None) or {}).get("market_regime")
-    if isinstance(raw, dict):
-        raw = raw.get("value")
+    if snapshot is None:
+        return None
+    normalized = normalized_snapshot_from_row(snapshot)
+    if snapshot.evidence_id is not None:
+        setup = get_setup_evidence(db, snapshot.evidence_id)
+        if setup.run_id != snapshot.run_id or setup.ticker != snapshot.ticker.upper():
+            raise ValueError("EVIDENCE_UNAVAILABLE: Alert Setup scope mismatch")
+        signals = dict(normalized.signals)
+        raw = (setup.payload_json.get("signals_json") or {}).get("market_regime")
+        if isinstance(raw, dict):
+            raw = raw.get("value")
+        signals["market_regime"] = replace(
+            signals["market_regime"], raw_value=raw, normalized_value=raw,
+        )
+        normalized = replace(
+            normalized, signals=signals,
+            source_lineage=dict(setup.payload_json.get("source_lineage_json") or {}),
+        )
+    normalized = setup_with_contextual_permission(normalized)
+    signal = normalized.signals.get("market_regime")
+    raw = signal.raw_value if signal else None
     return str(raw) if raw is not None else None
 
 

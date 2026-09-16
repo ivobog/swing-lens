@@ -19,7 +19,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -192,6 +192,11 @@ class IBMarketIntelligenceSnapshot(Base):
 
 class IBIntelligenceFeature(Base):
     __tablename__ = "ib_intelligence_features"
+
+    calculation_evidence = relationship(
+        "CoreCalculationEvidence", foreign_keys="IBIntelligenceFeature.evidence_id",
+        viewonly=True, lazy="raise",
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     evidence_id: Mapped[int | None] = mapped_column(

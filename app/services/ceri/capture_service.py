@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.ceri_tables import (
     CeriCatalystEvent,
@@ -56,12 +56,14 @@ from app.services.contextual_calculation_identity import (
     identity_metadata,
     pipeline_id_for_cutoff,
 )
-from app.services.core_calculation_evidence import EvidenceUnavailableError
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    IBMI_SHORT_PRESSURE_TO_CERI,
+    IBMI_VOLATILITY_TO_CERI,
+    contextual_decision_input,
+)
 from app.services.ib_market_intelligence.calculations import options_event_premium_score
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
-from app.services.ib_market_intelligence.decision_evidence import (
-    get_certified_ibmi_evidence,
-)
 from app.services.market_calculation_context_service import standalone_market_context
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.settings import get_settings
@@ -179,6 +181,7 @@ class CeriRunCaptureService:
             db, run_id=run_id, market_cutoff=market_cutoff
         )
         ibmi_config = load_ib_market_intelligence_config()
+        ibmi_candidates = _preload_ibmi_context(db, rows, cutoff_at)
         existing_snapshot_company_ids = _existing_snapshot_company_ids(
             db,
             run_id,
@@ -260,6 +263,17 @@ class CeriRunCaptureService:
                     calendar_version=market_cutoff.calendar_version,
                     service=self.price_response,
                 )
+                contextual_permissions = {}
+                volatility_feature = _point_in_time_volatility_feature(
+                    db, row.ticker, cutoff_at, as_of_session=as_of_session,
+                    market_cutoff=market_cutoff, ibmi_config=ibmi_config,
+                    candidates=ibmi_candidates, decisions=contextual_permissions,
+                )
+                short_pressure_feature = _point_in_time_short_pressure_feature(
+                    db, row.ticker, cutoff_at, as_of_session=as_of_session,
+                    market_cutoff=market_cutoff, ibmi_config=ibmi_config,
+                    candidates=ibmi_candidates, decisions=contextual_permissions,
+                )
                 confidence = self.confidence.calculate(
                     as_of_session=as_of_session,
                     revision_features=features,
@@ -293,22 +307,6 @@ class CeriRunCaptureService:
                     conflict_penalty=min(3.0, float(company_conflicted)),
                     as_of_session=as_of_session,
                 )
-                volatility_feature = _point_in_time_volatility_feature(
-                    db,
-                    row.ticker,
-                    cutoff_at,
-                    as_of_session=as_of_session,
-                    market_cutoff=market_cutoff,
-                    ibmi_config=ibmi_config,
-                )
-                short_pressure_feature = _point_in_time_short_pressure_feature(
-                    db,
-                    row.ticker,
-                    cutoff_at,
-                    as_of_session=as_of_session,
-                    market_cutoff=market_cutoff,
-                    ibmi_config=ibmi_config,
-                )
                 volatility_config = ibmi_config.section("volatility")
                 volatility_risk = (
                     options_event_premium_score(
@@ -316,7 +314,7 @@ class CeriRunCaptureService:
                         maximum=float(volatility_config.get("ceri_risk_max_contribution", 1.5)),
                     )
                     if volatility_feature is not None
-                    else 0.0
+                    else None
                 )
                 risk = self.risk.calculate(
                     as_of_session=as_of_session,
@@ -334,6 +332,13 @@ class CeriRunCaptureService:
                 guidance_rows = _guidance_for_company(db, company.id, as_of_session, cutoff_at)
                 catalyst_lineage = _catalyst_lineage(db, company.id, as_of_session, cutoff_at)
                 evidence_lineage = {
+                    CONTEXTUAL_ELIGIBILITY_KEY: contextual_permissions,
+                    "ib_context_selected_feature_ids": sorted(
+                        permission["source_feature_id"]
+                        for permission in contextual_permissions.values()
+                        if permission["source_feature_id"] is not None
+                        and permission["decision"]["producer_evidence_id"] is not None
+                    ),
                     "historical_view_mode": "AS_KNOWN",
                     "temporal_lineage": {
                         "calculation_context_id": market_cutoff.context_id,
@@ -1030,16 +1035,21 @@ def _point_in_time_volatility_feature(
     as_of_session=None,
     market_cutoff: MarketCalculationCutoff | None = None,
     ibmi_config=None,
+    candidates=None,
+    decisions=None,
 ) -> _VolatilityRiskFeature | None:
+    if decisions is not None:
+        decisions["ibmi_volatility"] = contextual_decision_input(None, IBMI_VOLATILITY_TO_CERI)[1]
     settings = get_settings()
     if not (
         getattr(settings, "ib_market_intelligence_enabled", False)
         and getattr(settings, "ib_volatility_intelligence_enabled", False)
     ):
         return None
-    rows = _scalars(
+    rows = candidates if candidates is not None else _scalars(
         db,
         select(IBIntelligenceFeature)
+        .options(selectinload(IBIntelligenceFeature.calculation_evidence))
         .where(IBIntelligenceFeature.ticker == ticker.upper())
         .where(IBIntelligenceFeature.module == "VOLATILITY")
         .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
@@ -1077,17 +1087,22 @@ def _point_in_time_volatility_feature(
         module="volatility",
     )
     for row in rows:
+        if row.ticker.upper() != ticker.upper() or row.module != "VOLATILITY":
+            continue
         if row.as_of_session != session:
             continue
         identity = build_ibmi_feature_identity(row)
         if ibmi_contextual_compatibility(
             expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
-        ).accepted and _ibmi_feature_is_certified(db, row):
-            if row.coverage_status != "AVAILABLE":
+        ).accepted:
+            usable, permission = contextual_decision_input(row, IBMI_VOLATILITY_TO_CERI)
+            if decisions is not None:
+                decisions["ibmi_volatility"] = permission
+            if usable is None:
                 return None
             return _VolatilityRiskFeature(
                 id=row.id,
-                components=dict(row.components_json or {}),
+                components=dict(usable.components_json or {}),
                 source_identity=identity,
             )
     return None
@@ -1101,16 +1116,23 @@ def _point_in_time_short_pressure_feature(
     as_of_session=None,
     market_cutoff: MarketCalculationCutoff | None = None,
     ibmi_config=None,
+    candidates=None,
+    decisions=None,
 ) -> _ShortPressureContextFeature | None:
+    if decisions is not None:
+        decisions["ibmi_short_pressure"] = contextual_decision_input(
+            None, IBMI_SHORT_PRESSURE_TO_CERI,
+        )[1]
     settings = get_settings()
     if not (
         getattr(settings, "ib_market_intelligence_enabled", False)
         and getattr(settings, "ib_short_pressure_enabled", False)
     ):
         return None
-    rows = _scalars(
+    rows = candidates if candidates is not None else _scalars(
         db,
         select(IBIntelligenceFeature)
+        .options(selectinload(IBIntelligenceFeature.calculation_evidence))
         .where(IBIntelligenceFeature.ticker == ticker.upper())
         .where(IBIntelligenceFeature.module == "SHORT_PRESSURE")
         .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
@@ -1148,30 +1170,43 @@ def _point_in_time_short_pressure_feature(
         module="short_pressure",
     )
     for row in rows:
+        if row.ticker.upper() != ticker.upper() or row.module != "SHORT_PRESSURE":
+            continue
         if row.as_of_session != session:
             continue
         identity = build_ibmi_feature_identity(row)
         if ibmi_contextual_compatibility(
             expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
-        ).accepted and _ibmi_feature_is_certified(db, row):
-            if row.coverage_status != "AVAILABLE":
+        ).accepted:
+            usable, permission = contextual_decision_input(row, IBMI_SHORT_PRESSURE_TO_CERI)
+            if decisions is not None:
+                decisions["ibmi_short_pressure"] = permission
+            if usable is None:
                 return None
             return _ShortPressureContextFeature(
                 id=row.id,
-                classification=row.classification,
+                classification=usable.classification,
                 source_identity=identity,
             )
     return None
 
 
-def _ibmi_feature_is_certified(db: Session, row: IBIntelligenceFeature) -> bool:
-    if not isinstance(db, Session):
-        return True
-    try:
-        get_certified_ibmi_evidence(db, row)
-    except EvidenceUnavailableError:
-        return False
-    return True
+def _preload_ibmi_context(db: Session, rows, cutoff_at: datetime):
+    settings = get_settings()
+    if not getattr(settings, "ib_market_intelligence_enabled", False) or not (
+        getattr(settings, "ib_volatility_intelligence_enabled", False)
+        or getattr(settings, "ib_short_pressure_enabled", False)
+    ):
+        return ()
+    return tuple(_scalars(db, select(IBIntelligenceFeature).options(
+        selectinload(IBIntelligenceFeature.calculation_evidence),
+    ).where(
+        IBIntelligenceFeature.ticker.in_({str(row.ticker).upper() for row in rows}),
+        IBIntelligenceFeature.module.in_(("VOLATILITY", "SHORT_PRESSURE")),
+        IBIntelligenceFeature.calculated_at <= cutoff_at,
+    ).order_by(
+        IBIntelligenceFeature.as_of_session.desc(), IBIntelligenceFeature.calculated_at.desc(),
+    )))
 
 
 def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:

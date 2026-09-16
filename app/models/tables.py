@@ -888,6 +888,11 @@ class RankingResult(Base):
 class MarketRegimeSnapshot(Base):
     __tablename__ = "market_regime_snapshots"
 
+    calculation_evidence = relationship(
+        "CoreCalculationEvidence", foreign_keys="MarketRegimeSnapshot.evidence_id",
+        viewonly=True, lazy="raise",
+    )
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int | None] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="SET NULL"),
@@ -1057,6 +1062,11 @@ class MarketRegimeSnapshot(Base):
 
 class SectorRotationSnapshot(Base):
     __tablename__ = "sector_rotation_snapshots"
+
+    calculation_evidence = relationship(
+        "CoreCalculationEvidence", foreign_keys="SectorRotationSnapshot.evidence_id",
+        viewonly=True, lazy="raise",
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int | None] = mapped_column(

@@ -30,8 +30,11 @@ def evaluate_family_candidates(
     previous_state: object | None = None,
     state_age_sessions: int = 0,
 ) -> tuple[FamilyEvidence, ...]:
+    from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
     from app.services.technical_consumer_eligibility import setup_technical_blocked
 
+    snapshot = setup_with_contextual_permission(snapshot)
+    history = tuple(setup_with_contextual_permission(item) for item in history)
     if setup_technical_blocked(snapshot):
         return ()
     history = tuple(item for item in history if not setup_technical_blocked(item))

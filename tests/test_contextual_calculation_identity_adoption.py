@@ -428,6 +428,7 @@ def test_ceri_uses_compatible_global_ibmi_and_skips_newer_incompatible(
         else ceri_capture._point_in_time_short_pressure_feature
     )
 
+    decisions = {}
     selected = selector(
         db,
         "MSFT",
@@ -435,10 +436,34 @@ def test_ceri_uses_compatible_global_ibmi_and_skips_newer_incompatible(
         as_of_session=cutoff.latest_completed_session,
         market_cutoff=cutoff,
         ibmi_config=config,
+        decisions=decisions,
     )
 
-    assert selected is not None
-    assert selected.id == compatible.id
+    edge = "ibmi_volatility" if module == "VOLATILITY" else "ibmi_short_pressure"
+    assert selected is None
+    assert decisions[edge]["source_feature_id"] == compatible.id
+    assert decisions[edge]["producer_readiness"]["status"] == "LEGACY_UNKNOWN"
+    # Preserve the original invalid FRESH/unsealed input and independently prove
+    # that the native AVAILABLE, fully frozen equivalent passes identity selection.
+    from contextual_readiness_helpers import ibmi_feature, seal_contextual
+
+    seal_contextual(compatible)
+    assert selector(
+        _RowsDb([incompatible, compatible]), "MSFT", cutoff.cutoff_at,
+        as_of_session=cutoff.latest_completed_session, market_cutoff=cutoff,
+        ibmi_config=config, decisions=decisions,
+    ) is None
+    assert decisions[edge]["producer_readiness"]["status"] == "UNKNOWN"
+    ready = ibmi_feature(
+        module, config_hash=config.config_hash, calculation_cutoff_at=cutoff.cutoff_at,
+        calendar_version=cutoff.calendar_version, as_of_session=cutoff.latest_completed_session,
+    )
+    selected = selector(
+        _RowsDb([incompatible, ready]), "MSFT", cutoff.cutoff_at,
+        as_of_session=cutoff.latest_completed_session, market_cutoff=cutoff,
+        ibmi_config=config,
+    )
+    assert selected is not None and selected.id == ready.id
     assert selected.source_identity.ownership.run_id.state.name == "NOT_APPLICABLE"
 
 
