@@ -26,6 +26,13 @@ from app.services.core_calculation_evidence import (
     calculation_evidence_payload,
     persist_core_evidence,
 )
+from app.services.producer_readiness import (
+    READINESS_PAYLOAD_KEY,
+    ProducerReadinessEnvelope,
+    legacy_readiness,
+    normalize_producer_readiness,
+    readiness_from_lifecycle_evaluation,
+)
 
 _SETUP_PROJECTION_FIELDS = {
     "evaluation_run_id",
@@ -37,6 +44,17 @@ _SETUP_PROJECTION_FIELDS = {
     "superseded_by_snapshot_id",
     "captured_at",
 }
+
+
+def get_lifecycle_readiness_for_episode(
+    db, episode: SetupLifecycleEpisode,
+) -> ProducerReadinessEnvelope:
+    """Trading state does not certify quality; follow the exact evaluation pointer."""
+    evidence_id = episode.latest_evaluation_evidence_id
+    if evidence_id is None:
+        return legacy_readiness("LIFECYCLE")
+    evaluation = get_lifecycle_evaluation_evidence(db, int(evidence_id))
+    return readiness_from_lifecycle_evaluation(evaluation)
 
 
 def persist_setup_evidence(db, snapshot: SetupSignalSnapshot) -> CoreCalculationEvidence | None:
@@ -204,6 +222,19 @@ def persist_lifecycle_evaluation_evidence(
         "reasons": list(decision.reason_codes),
         "warnings": list(snapshot.warning_flags_json or []),
     }
+    decision_payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
+        "LIFECYCLE",
+        {
+            "confidence_score": decision.confidence_score,
+            "confidence_label": decision.confidence_label.value,
+            "warnings": list(snapshot.warning_flags_json or []),
+            "confidence_components": (decision.evidence or {}).get("confidence"),
+        },
+        identity_fingerprint=setup.calculation_identity_fingerprint,
+        calculation_versions={"engine_version": snapshot.engine_version},
+        evaluated_at=snapshot.calculation_cutoff_at,
+        business_anchor=snapshot.data_as_of_date,
+    ).canonical_payload()
     payload = CanonicalEvidenceSerializer.canonicalize(decision_payload)
     payload_fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)
     evidence_key = CanonicalEvidenceSerializer.fingerprint(
@@ -387,6 +418,17 @@ def persist_observation_gap_evaluation_evidence(
             "warnings": [],
         }
     )
+    payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
+        "LIFECYCLE",
+        {
+            "missing_observation_sessions": missing_observation_sessions,
+            "observation_gap_threshold": threshold,
+        },
+        identity_fingerprint=prior.calculation_identity_fingerprint,
+        calculation_versions={"engine_version": episode.engine_version},
+        evaluated_at=prior.calculation_cutoff_at,
+        business_anchor=observed_on,
+    ).canonical_payload()
     fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)
     key = CanonicalEvidenceSerializer.fingerprint(
         {"contract": "setup-lifecycle-evaluation-evidence-v1", "payload_fingerprint": fingerprint}

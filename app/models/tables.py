@@ -18,6 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     event,
     func,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -2388,6 +2389,38 @@ class WinnerPredictionSnapshot(Base):
             postgresql_where=text("superseded_at IS NULL"),
         ),
     )
+
+
+def _protect_winner_readiness_update(_mapper: Any, connection: Any, target: Any) -> None:
+    # Winner retains mutable operational lineage. Only readiness-at-creation is
+    # sealed here; legacy predictions cannot be retrospectively certified.
+    from sqlalchemy import inspect
+
+    if not inspect(target).attrs.lineage_json.history.has_changes():
+        return
+    stored = connection.execute(
+        select(WinnerPredictionSnapshot.__table__.c.lineage_json).where(
+            WinnerPredictionSnapshot.__table__.c.id == target.id
+        )
+    ).scalar_one()
+    if (stored or {}).get("producer_readiness") != (target.lineage_json or {}).get(
+        "producer_readiness"
+    ):
+        _reject_core_evidence_mutation(_mapper, connection, target)
+
+
+def _protect_winner_readiness_delete(mapper: Any, connection: Any, target: Any) -> None:
+    stored = connection.execute(
+        select(WinnerPredictionSnapshot.__table__.c.lineage_json).where(
+            WinnerPredictionSnapshot.__table__.c.id == target.id
+        )
+    ).scalar_one()
+    if (stored or {}).get("producer_readiness") is not None:
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+event.listen(WinnerPredictionSnapshot, "before_update", _protect_winner_readiness_update)
+event.listen(WinnerPredictionSnapshot, "before_delete", _protect_winner_readiness_delete)
 
 
 class WinnerTemporalValidityDecision(Base):

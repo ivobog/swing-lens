@@ -596,6 +596,26 @@ class WinnerPredictionCaptureService:
                 winner_identity,
                 policy=WINNER_HANDOFF_COMPATIBILITY.name,
             )
+            from app.services.producer_readiness import (
+                READINESS_PAYLOAD_KEY,
+                normalize_producer_readiness,
+            )
+
+            prediction.lineage_json = {
+                **prediction.lineage_json,
+                READINESS_PAYLOAD_KEY: normalize_producer_readiness(
+                    "WINNER",
+                    {
+                        "technical_data_quality": prediction.technical_data_quality,
+                        "fundamental_coverage": prediction.fundamental_coverage,
+                        "warning_flags_json": prediction.warning_flags_json,
+                    },
+                    identity_fingerprint=str(winner_identity.fingerprint()),
+                    calculation_versions=winner_identity.canonical_payload()["algorithm"],
+                    evaluated_at=winner_identity.temporal.calculation_cutoff.value,
+                    business_anchor=winner_identity.temporal.as_of_session.value,
+                ).canonical_payload(),
+            }
         return prediction
 
 

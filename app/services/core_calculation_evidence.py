@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -15,6 +16,13 @@ from app.models.tables import (
 from app.services.calculation_identity import CalculationIdentity, IdentityState
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.combined_ranking_identity import calculation_identity_from_debug
+from app.services.producer_readiness import (
+    READINESS_PAYLOAD_KEY,
+    ProducerReadinessEnvelope,
+    legacy_readiness,
+    normalize_producer_readiness,
+    readiness_from_evidence,
+)
 
 
 class CoreEvidenceKind(StrEnum):
@@ -39,6 +47,7 @@ class EvidenceAmbiguousError(LookupError):
 
 _PAYLOAD_EXCLUDED_COLUMNS = {"id", "evidence_id", "created_at", "updated_at"}
 _SCOPE_UNSET = object()
+_logger = logging.getLogger(__name__)
 
 
 def persist_core_evidence(
@@ -73,14 +82,25 @@ def persist_core_evidence(
         evidence_id = getattr(source, "evidence_id", None)
         if evidence_id is None:
             raise EvidenceUnavailableError(
-                "EVIDENCE_UNAVAILABLE: "
-                f"{kind.value} source role={role} has no immutable evidence"
+                f"EVIDENCE_UNAVAILABLE: {kind.value} source role={role} has no immutable evidence"
             )
         source_ids[role] = int(evidence_id)
 
     payload = CanonicalEvidenceSerializer.canonicalize(
         payload if payload is not None else calculation_evidence_payload(current_row)
     )
+    if READINESS_PAYLOAD_KEY in payload:
+        raise ValueError("readiness-at-creation is owned by the evidence writer")
+    identity_payload = identity.canonical_payload()
+    temporal = identity_payload["temporal"]
+    payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
+        kind.value,
+        payload,
+        identity_fingerprint=str(identity.fingerprint()),
+        calculation_versions=identity_payload.get("algorithm", {}),
+        evaluated_at=temporal["calculation_cutoff"].get("value"),
+        business_anchor=temporal["as_of_session"].get("value"),
+    ).canonical_payload()
     payload_fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)
     identity_fingerprint = str(identity.fingerprint())
     key_payload = {
@@ -91,16 +111,12 @@ def persist_core_evidence(
     }
     evidence_key = CanonicalEvidenceSerializer.fingerprint(key_payload)
     evidence = db.scalar(
-        select(CoreCalculationEvidence).where(
-            CoreCalculationEvidence.evidence_key == evidence_key
-        )
+        select(CoreCalculationEvidence).where(CoreCalculationEvidence.evidence_key == evidence_key)
     )
     if evidence is None:
         run_id = getattr(current_row, "run_id", None)
         ticker = (
-            getattr(current_row, "ticker", None)
-            if scope_ticker is _SCOPE_UNSET
-            else scope_ticker
+            getattr(current_row, "ticker", None) if scope_ticker is _SCOPE_UNSET else scope_ticker
         )
         profile = (
             getattr(current_row, "ranking_profile", None)
@@ -135,6 +151,15 @@ def persist_core_evidence(
 
     current_row.evidence_id = evidence.id
     _advance_current_projection(db, evidence)
+    readiness = readiness_from_evidence(evidence)
+    _logger.debug(
+        "producer readiness producer=%s status=%s blocking=%s warnings=%s policy=%s",
+        readiness.producer,
+        readiness.status.value,
+        [reason.value for reason in readiness.blocking_reasons],
+        [reason.value for reason in readiness.warning_reasons],
+        readiness.readiness_policy_version,
+    )
     return evidence
 
 
@@ -169,6 +194,24 @@ def get_current_evidence(
     return evidence
 
 
+def get_current_readiness(db: Session, **scope: Any) -> ProducerReadinessEnvelope:
+    """Resolve readiness from the exact evidence referenced by the scoped projection."""
+    return readiness_from_evidence(get_current_evidence(db, **scope))
+
+
+def get_readiness_for_row(
+    db: Session,
+    *,
+    kind: CoreEvidenceKind,
+    current_row: Any,
+) -> ProducerReadinessEnvelope:
+    if getattr(current_row, "evidence_id", None) is None:
+        return legacy_readiness(kind.value)
+    return readiness_from_evidence(
+        get_certified_evidence_for_row(db, kind=kind, current_row=current_row)
+    )
+
+
 def get_evidence_for_identity(
     db: Session,
     *,
@@ -190,13 +233,9 @@ def get_evidence_for_identity(
         CoreCalculationEvidence.calculation_identity_fingerprint == identity_fingerprint,
     )
     if ticker is not None:
-        statement = statement.where(
-            CoreCalculationEvidence.ticker == ticker.strip().upper()
-        )
+        statement = statement.where(CoreCalculationEvidence.ticker == ticker.strip().upper())
     if ranking_profile is not None:
-        statement = statement.where(
-            CoreCalculationEvidence.ranking_profile == ranking_profile
-        )
+        statement = statement.where(CoreCalculationEvidence.ranking_profile == ranking_profile)
     if payload_fingerprint is not None:
         statement = statement.where(
             CoreCalculationEvidence.payload_fingerprint == payload_fingerprint
@@ -227,8 +266,7 @@ def get_evidence_by_id(
     if evidence is None or (kind is not None and evidence.artifact_kind != kind.value):
         expected = kind.value if kind is not None else "ANY"
         raise EvidenceUnavailableError(
-            "EVIDENCE_UNAVAILABLE: no immutable evidence "
-            f"id={evidence_id} kind={expected}"
+            f"EVIDENCE_UNAVAILABLE: no immutable evidence id={evidence_id} kind={expected}"
         )
     return evidence
 
