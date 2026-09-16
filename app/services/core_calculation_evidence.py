@@ -14,9 +14,14 @@ from app.models.tables import (
     CoreCalculationEvidence,
     CoreCalculationEvidenceSource,
 )
-from app.services.calculation_identity import CalculationIdentity, IdentityState
+from app.services.calculation_identity import CalculationIdentity, IdentityDimension, IdentityState
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.combined_ranking_identity import calculation_identity_from_debug
+from app.services.effective_configuration import (
+    CONFIGURATION_PAYLOAD_KEY,
+    ConfigurationCompatibilityStatus,
+    EffectiveConfigurationSnapshot,
+)
 from app.services.producer_readiness import (
     READINESS_PAYLOAD_KEY,
     ProducerReadinessEnvelope,
@@ -61,6 +66,7 @@ def persist_core_evidence(
     scope_ticker: str | None | object = _SCOPE_UNSET,
     scope_profile: str | None | object = _SCOPE_UNSET,
     calculation_identity: CalculationIdentity | None = None,
+    effective_configuration: EffectiveConfigurationSnapshot | None = None,
 ) -> CoreCalculationEvidence | None:
     """Persist/reuse immutable evidence and advance its independent current pointer.
 
@@ -75,7 +81,21 @@ def persist_core_evidence(
             identity_payload = getattr(current_row, "evidence_lineage_json", None)
         identity = calculation_identity_from_debug(identity_payload)
     if identity is None:
+        if effective_configuration is not None:
+            raise ValueError("configuration evidence requires an explicit Calculation Identity")
         return None
+
+    if effective_configuration is not None:
+        from app.services.effective_configuration import compare_configuration
+
+        if not isinstance(effective_configuration, EffectiveConfigurationSnapshot):
+            raise TypeError("effective configuration evidence requires a typed snapshot")
+        comparison = compare_configuration(
+            identity.configuration.effective_configuration,
+            IdentityDimension.known(effective_configuration.identity),
+        )
+        if comparison.status is not ConfigurationCompatibilityStatus.EXACT:
+            raise ValueError("effective configuration must match the bound Calculation Identity")
 
     source_rows = sources or {}
     source_ids: dict[str, int] = {}
@@ -92,6 +112,10 @@ def persist_core_evidence(
     )
     if READINESS_PAYLOAD_KEY in payload:
         raise ValueError("readiness-at-creation is owned by the evidence writer")
+    if CONFIGURATION_PAYLOAD_KEY in payload:
+        raise ValueError("effective configuration-at-creation is owned by the evidence writer")
+    if effective_configuration is not None:
+        payload[CONFIGURATION_PAYLOAD_KEY] = effective_configuration.as_dict()
     identity_payload = identity.canonical_payload()
     temporal = identity_payload["temporal"]
     payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
