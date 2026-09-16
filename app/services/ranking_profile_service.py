@@ -280,8 +280,7 @@ def refresh_ranking_profile(
         desired=models,
         source_rows=validated,
         ibmi_sources={
-            (profile.name, ticker.upper()): feature
-            for ticker, feature in profile_liquidity.items()
+            (profile.name, ticker.upper()): feature for ticker, feature in profile_liquidity.items()
         },
     )
 
@@ -330,9 +329,7 @@ def _persist_rankings(
                 "fundamental": item.fundamental,
                 "technical": item.technical,
             }
-            ibmi = (ibmi_sources or {}).get(
-                (result.ranking_profile, result.ticker.upper())
-            )
+            ibmi = (ibmi_sources or {}).get((result.ranking_profile, result.ticker.upper()))
             if ibmi is not None and ibmi.evidence_id is not None:
                 evidence_sources["ibmi_liquidity"] = ibmi
             persist_core_evidence(
@@ -490,13 +487,23 @@ def _raw_rows_for_run(db: Session, run_id: int) -> list[RawCompanyRow]:
 
 
 def _fundamentals_for_run(db: Session, run_id: int) -> list[FundamentalScore]:
-    return list(db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(FundamentalScore)
+            .options(selectinload(FundamentalScore.calculation_evidence))
+            .where(FundamentalScore.run_id == run_id)
+        )
+    )
 
 
 def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
-    return list(db.scalars(select(TechnicalScore).options(
-        selectinload(TechnicalScore.calculation_evidence)
-    ).where(TechnicalScore.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(TechnicalScore)
+            .options(selectinload(TechnicalScore.calculation_evidence))
+            .where(TechnicalScore.run_id == run_id)
+        )
+    )
 
 
 def _to_ranking_model(

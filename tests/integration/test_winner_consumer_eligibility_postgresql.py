@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from alembic import command
 from app.models.tables import (
     CombinedResult,
+    CoreCalculationEvidence,
     FundamentalScore,
     MarketCalculationContext,
     MarketRegimeSnapshot,
@@ -67,8 +68,99 @@ from app.services.winner_probability.repository import WinnerProbabilityReposito
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
 
+def test_native_sector_dependencies_freeze_permissions_and_advance_current(
+    disposable_postgres_database,
+):
+    from app.services.contextual_consumer_eligibility import CONTEXTUAL_ELIGIBILITY_KEY
+    from app.services.sector_rotation_service import SectorRotationService
+
+    config = Config("alembic.ini")
+    config.attributes["database_url"] = disposable_postgres_database
+    command.upgrade(config, "head")
+    engine = create_engine(disposable_postgres_database)
+    cutoff = _seed(engine, "ready")
+    service = SectorRotationService()
+    with Session(engine, expire_on_commit=False) as db:
+        first = service.build_sector_rotation_snapshot(
+            db, run_id=7, market_cutoff=cutoff, persist=True
+        )
+        permissions = first.universe_rows[0].debug[CONTEXTUAL_ELIGIBILITY_KEY]
+        assert len(permissions) == 3 and all(
+            item["decision"]["status"] == "ELIGIBLE" for item in permissions.values()
+        )
+        assert first.debug[CONTEXTUAL_ELIGIBILITY_KEY]["regime"]["included"]
+        db.commit()
+        projection = db.scalar(
+            select(SectorRotationSnapshot)
+            .where(SectorRotationSnapshot.run_id == 7)
+            .order_by(SectorRotationSnapshot.created_at.desc(), SectorRotationSnapshot.id.desc())
+            .limit(1)
+        )
+        first_id = projection.evidence_id
+        first_payload = deepcopy(db.get(CoreCalculationEvidence, first_id).payload_json)
+        assert "debug" in first_payload, [
+            (item.id, item.created_at, item.evidence_id, list(item.debug_json or {}))
+            for item in db.scalars(select(SectorRotationSnapshot))
+        ]
+        assert first_payload["debug"][CONTEXTUAL_ELIGIBILITY_KEY]["regime"]["included"]
+        for model, source_id, kind, attr, value in (
+            (TechnicalScore, 31, CoreEvidenceKind.TECHNICAL, "insufficient_data", True),
+            (CombinedResult, 41, CoreEvidenceKind.COMBINED, "is_complete", False),
+            (RankingResult, 51, CoreEvidenceKind.RANKING, "is_complete", False),
+            (
+                MarketRegimeSnapshot,
+                61,
+                CoreEvidenceKind.REGIME,
+                "warnings_json",
+                ["severely_stale_market_data"],
+            ),
+        ):
+            source = db.get(model, source_id)
+            setattr(source, attr, value)
+            persist_core_evidence(db, kind=kind, current_row=source)
+        db.commit()
+        second = service.build_sector_rotation_snapshot(
+            db, run_id=7, market_cutoff=cutoff, persist=True
+        )
+        permissions = second.universe_rows[0].debug[CONTEXTUAL_ELIGIBILITY_KEY]
+        assert len(permissions) == 3 and all(
+            item["decision"]["status"] != "ELIGIBLE" for item in permissions.values()
+        )
+        assert not second.debug[CONTEXTUAL_ELIGIBILITY_KEY]["regime"]["included"]
+        assert second.universe_rows[0].average_technical_score is None
+        assert second.universe_rows[0].average_final_score is None
+        db.commit()
+        projection = db.scalar(
+            select(SectorRotationSnapshot)
+            .where(SectorRotationSnapshot.run_id == 7)
+            .order_by(SectorRotationSnapshot.created_at.desc(), SectorRotationSnapshot.id.desc())
+            .limit(1)
+        )
+        assert projection.evidence_id != first_id
+        assert db.get(CoreCalculationEvidence, first_id).payload_json == first_payload
+        frozen_second = deepcopy(
+            db.get(CoreCalculationEvidence, projection.evidence_id).payload_json
+        )
+        retry = service.build_sector_rotation_snapshot(
+            db, run_id=7, market_cutoff=cutoff, persist=True
+        )
+        db.commit()
+        assert retry.rows == second.rows
+        assert db.get(CoreCalculationEvidence, projection.evidence_id).payload_json == frozen_second
+    engine.dispose()
+
+
 @pytest.mark.parametrize(
-    "mode", ["ready", "technical_insufficient", "ranking_incomplete", "optional_blocked"]
+    "mode",
+    [
+        "ready",
+        "technical_insufficient",
+        "ranking_incomplete",
+        "optional_blocked",
+        "fundamental_degraded",
+        "combined_incomplete",
+        "regime_sparse",
+    ],
 )
 def test_native_winner_permissions_atomic_retry_and_frozen_history(
     disposable_postgres_database,
@@ -85,13 +177,43 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
     winner_config = load_winner_probability_config()
     with Session(engine, expire_on_commit=False) as db:
         context = repository.load_run_context(db, 7, market_cutoff=cutoff)
+        from integration.test_contextual_consumer_eligibility_postgresql import _setup
+
+        from app.services.contextual_consumer_eligibility import CONTEXTUAL_ELIGIBILITY_KEY
+        from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotBuilder
+        from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
+
+        setup_context = SetupLifecycleSourceLoader().load_run_context(db, 7, market_cutoff=cutoff)
+        assert setup_context.tickers[0].combined_result is not None
+        evidence_selects = []
+
+        def count_setup_evidence(_conn, _cursor, statement, _params, _context, _many):
+            if (
+                statement.lstrip().upper().startswith("SELECT")
+                and "core_calculation_evidence" in statement
+            ):
+                evidence_selects.append(statement)
+
+        event.listen(engine, "before_cursor_execute", count_setup_evidence)
+        try:
+            for _ in range(7):
+                SetupLifecycleSnapshotBuilder().build(setup_context.tickers[0])
+        finally:
+            event.remove(engine, "before_cursor_execute", count_setup_evidence)
+        assert evidence_selects == []
+        setup_snapshot = _setup(db, setup_context.tickers[0])
+        setup_permissions = setup_snapshot.source_lineage_json[CONTEXTUAL_ELIGIBILITY_KEY]
+        assert setup_permissions["fundamental"]["included"] == (mode != "fundamental_degraded")
+        assert setup_permissions["combined"]["included"] == (mode != "combined_incomplete")
+        setup_payload = db.get(CoreCalculationEvidence, setup_snapshot.evidence_id).payload_json
+        assert setup_payload["source_lineage_json"][CONTEXTUAL_ELIGIBILITY_KEY] == setup_permissions
         selects = []
 
         def count(_conn, _cursor, statement, _params, _context, _many):
             if statement.lstrip().upper().startswith("SELECT"):
                 selects.append(statement)
 
-        if mode in {"ready", "optional_blocked"}:
+        if mode not in {"technical_insufficient", "ranking_incomplete", "combined_incomplete"}:
             event.listen(engine, "before_cursor_execute", count)
             try:
                 for _ in range(7):
@@ -119,15 +241,19 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
                 WinnerProbabilityEstimate,
             )
         }
-        if mode in {"technical_insufficient", "ranking_incomplete"}:
+        if mode in {"technical_insufficient", "ranking_incomplete", "combined_incomplete"}:
             assert result.excluded == 1 and result.failed == 0
             assert all(value == 0 for value in counts.values())
             metadata = result.readiness_rejections[0][WINNER_ELIGIBILITY_KEY]
-            assert len(metadata) == 4
+            assert len(metadata) == 6
             assert (
-                metadata["technical" if mode == "technical_insufficient" else "ranking"][
-                    "decision"
-                ]["status"]
+                metadata[
+                    {
+                        "technical_insufficient": "technical",
+                        "ranking_incomplete": "ranking",
+                        "combined_incomplete": "combined",
+                    }[mode]
+                ]["decision"]["status"]
                 == "INELIGIBLE"
             )
             if mode == "technical_insufficient":
@@ -145,24 +271,45 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
         frozen = deepcopy(prediction.feature_json), deepcopy(prediction.lineage_json)
         decisions = frozen[1][WINNER_ELIGIBILITY_KEY]
         exact_rows = {
+            "fundamental": db.get(FundamentalScore, 21),
+            "combined": db.get(CombinedResult, 41),
             "technical": db.get(TechnicalScore, 31),
             "ranking": db.get(RankingResult, 51),
             "regime": db.get(MarketRegimeSnapshot, 61),
             "sector": db.get(SectorRotationSnapshot, 71),
         }
         for name, source in exact_rows.items():
+            policy_revision = 2 if name in {"ranking", "combined", "regime", "sector"} else 1
             assert decisions[name]["decision"]["producer_evidence_id"] == source.evidence_id
             assert decisions[name]["producer_readiness"]["evidence_id"] == source.evidence_id
             assert decisions[name]["source_id"] == source.id
-            assert decisions[name]["decision"]["policy_version"] == f"{name}-to-winner-v1"
-        assert decisions["regime"]["included"] == (mode == "ready")
-        assert decisions["sector"]["included"] == (mode == "ready")
+            assert (
+                decisions[name]["decision"]["policy_version"]
+                == f"{name}-to-winner-v{policy_revision}"
+            )
+        regime_included = mode not in {"optional_blocked", "regime_sparse"}
+        assert decisions["regime"]["included"] == regime_included
+        assert decisions["sector"]["included"] == (mode != "optional_blocked")
+        assert decisions["fundamental"]["included"] == (mode != "fundamental_degraded")
+        if mode == "fundamental_degraded":
+            assert prediction.feature_json["fundamental_score"] is None
+            assert prediction.feature_json["fundamental_coverage"] is None
+            assert decisions["fundamental"]["decision"]["status"] == "POLICY_UNDECIDED"
+        if mode == "regime_sparse":
+            assert exact_rows["regime"].confidence == "normal" and exact_rows["regime"].score == 8
+            assert decisions["regime"]["producer_readiness"]["status"] == "INSUFFICIENT_EVIDENCE"
+            assert (
+                "REGIME_INSUFFICIENT_PRIMARY"
+                in decisions["regime"]["producer_readiness"]["blocking_reasons"]
+            )
         assert prediction.feature_json["market_regime"] == (
-            "Confirmed Uptrend" if mode == "ready" else None
+            "Confirmed Uptrend" if regime_included else None
         )
-        assert prediction.feature_json["sector_state"] == ("Leading" if mode == "ready" else None)
+        assert prediction.feature_json["sector_state"] == (
+            "Leading" if mode != "optional_blocked" else None
+        )
         assert prediction.source_ids_json.get("market_regime_snapshot_id") == (
-            61 if mode == "ready" else None
+            61 if regime_included else None
         )
         retry = service.capture_run(db, run_id=7, market_cutoff=cutoff)
         assert retry.duplicate == 1 and retry.inserted == 0
@@ -175,6 +322,8 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
             for name, producer in (
                 ("TECHNICAL_TO_WINNER", "TECHNICAL"),
                 ("RANKING_TO_WINNER", "RANKING"),
+                ("FUNDAMENTAL_TO_WINNER", "FUNDAMENTAL"),
+                ("COMBINED_TO_WINNER", "COMBINED"),
                 ("REGIME_TO_WINNER", "REGIME"),
                 ("SECTOR_TO_WINNER", "SECTOR"),
             ):
@@ -208,6 +357,24 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
         technical = db.get(TechnicalScore, 31)
         technical.insufficient_data = True
         persist_core_evidence(db, kind=CoreEvidenceKind.TECHNICAL, current_row=technical)
+        ranking_current = db.get(RankingResult, 51)
+        ranking_current.is_complete = False
+        persist_core_evidence(db, kind=CoreEvidenceKind.RANKING, current_row=ranking_current)
+        regime_current = db.get(MarketRegimeSnapshot, 61)
+        regime_current.warnings_json = ["severely_stale_market_data"]
+        persist_core_evidence(db, kind=CoreEvidenceKind.REGIME, current_row=regime_current)
+        sector_current = db.get(SectorRotationSnapshot, 71)
+        sector_native_row = db.get(SectorRotationRow, 81)
+        sector_native_row.confidence = "insufficient"
+        persist_core_evidence(
+            db,
+            kind=CoreEvidenceKind.SECTOR,
+            current_row=sector_current,
+            payload={
+                **calculation_evidence_payload(sector_current),
+                "rows": [calculation_evidence_payload(sector_native_row)],
+            },
+        )
         db.commit()
 
         def forbidden(*_args, **_kwargs):
@@ -233,6 +400,67 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
         assert estimate.status == "insufficient"
         db.commit()
         assert (prediction.feature_json, prediction.lineage_json) == frozen
+        from winner_probability.test_outcome_service import _bars
+
+        from app.services.winner_probability.outcome_service import OutcomeMaturationService
+
+        bars = _bars([100, 101, 102, 102, 103], highs=[101, 102, 103, 103, 104])
+        bars += _bars([200, 200, 201, 201, 202], ticker="SPY")
+        bars += _bars([50, 50, 50.5, 51, 51], ticker="XLK")
+        for bar in bars:
+            bar.id = None  # Let the native SQL primary key allocator assign each bar.
+        db.add_all(bars)
+        db.commit()
+        from app.models.tables import IBContract
+        from app.services.winner_probability.market_data_obligation_service import (
+            MarketDataObligationService,
+        )
+
+        db.add(
+            IBContract(
+                ticker="MSFT",
+                ib_conid=81234,
+                symbol="MSFT",
+                local_symbol="MSFT",
+                exchange="SMART",
+                primary_exchange="NASDAQ",
+                currency="USD",
+                sec_type="STK",
+                trading_class="NMS",
+                resolution_status="RESOLVED",
+            )
+        )
+        db.flush()
+        due_forward = db.scalar(
+            select(WinnerForwardOutcome).where(
+                WinnerForwardOutcome.entry_model == "NEXT_OPEN",
+                WinnerForwardOutcome.horizon_sessions == 5,
+                WinnerForwardOutcome.is_current_revision.is_(True),
+            )
+        )
+        obligations = MarketDataObligationService().ensure_for_outcomes(
+            db, [due_forward], now=datetime(2026, 8, 10, 21, tzinfo=UTC)
+        )
+        assert obligations.satisfied == 1 and obligations.identity_blocked == 0
+        db.commit()
+        matured = OutcomeMaturationService().process_due_outcomes(
+            db,
+            now=datetime(2026, 8, 10, 21, tzinfo=UTC),
+            entry_model="NEXT_OPEN",
+            horizon_sessions=5,
+        )
+        assert matured.matured == 1 and matured.target_stop_matured == 1, matured.as_dict()
+        db.commit()
+        native_forward = db.scalar(
+            select(WinnerForwardOutcome).where(
+                WinnerForwardOutcome.entry_model == "NEXT_OPEN",
+                WinnerForwardOutcome.horizon_sessions == 5,
+                WinnerForwardOutcome.is_current_revision.is_(True),
+            )
+        )
+        assert native_forward.close_return_pct == 3
+        assert prediction.feature_json == frozen[0]
+        assert prediction.lineage_json[WINNER_ELIGIBILITY_KEY] == frozen[1][WINNER_ELIGIBILITY_KEY]
         altered = deepcopy(prediction.lineage_json)
         altered[WINNER_ELIGIBILITY_KEY]["technical"]["included"] = False
         prediction.lineage_json = altered
@@ -272,6 +500,9 @@ def _seed(engine, mode):
         ticker="MSFT",
         fundamental_score=8.2,
         data_coverage_score=0.92,
+        v2_warning_flags_json={
+            "flags": ["sparse_fundamental_data"] if mode == "fundamental_degraded" else []
+        },
         created_at=created,
     )
     technical = TechnicalScore(
@@ -299,7 +530,7 @@ def _seed(engine, mode):
         dual_score=8.4,
         combined_decision="Strong candidate",
         earnings_risk_level="low",
-        is_complete=True,
+        is_complete=mode != "combined_incomplete",
         has_warning=False,
         created_at=created,
     )
@@ -348,7 +579,10 @@ def _seed(engine, mode):
         warnings_json=["severely_stale_market_data"] if mode == "optional_blocked" else [],
     )
     market.debug_json = embed_calculation_identity(
-        {},
+        {
+            "input_symbols": {"primary_market": "SPY"},
+            "market_inputs": {"SPY": {"insufficient_data": mode == "regime_sparse"}},
+        },
         build_regime_identity(
             market_cutoff=cutoff,
             config=load_market_regime_command_center_config(),

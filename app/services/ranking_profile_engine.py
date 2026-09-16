@@ -10,6 +10,7 @@ from app.services.combined_decision import (
 from app.services.confidence_service import build_combined_warning_flags
 from app.services.contextual_consumer_eligibility import (
     CONTEXTUAL_ELIGIBILITY_KEY,
+    FUNDAMENTAL_TO_RANKING,
     IBMI_LIQUIDITY_TO_RANKING,
     contextual_decision_input,
 )
@@ -105,7 +106,11 @@ def rank_single_row(
 ) -> RankingProfileDecision:
     technical, eligibility = technical_decision_input(technical, TECHNICAL_TO_RANKING)
     liquidity_feature, liquidity_permission = contextual_decision_input(
-        liquidity_feature, IBMI_LIQUIDITY_TO_RANKING,
+        liquidity_feature,
+        IBMI_LIQUIDITY_TO_RANKING,
+    )
+    fundamental, fundamental_permission = contextual_decision_input(
+        fundamental, FUNDAMENTAL_TO_RANKING
     )
     fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     base_technical_score = _float_or_none(technical.dual_score if technical else None)
@@ -163,9 +168,9 @@ def rank_single_row(
         if tradeability_penalty > 0
         else []
     )
-    notes = _merge_unique_text(
-        penalty_result.notes, tradeability_notes, gate_result.notes
-    ) or ["aligned"]
+    notes = _merge_unique_text(penalty_result.notes, tradeability_notes, gate_result.notes) or [
+        "aligned"
+    ]
     is_complete = fundamental_score is not None and technical_profile_score is not None
 
     return RankingProfileDecision(
@@ -185,30 +190,37 @@ def rank_single_row(
         decision_label=gate_result.decision,
         position_size_hint=(
             _position_size_hint(gate_result.decision, technical)
-            if technical is not None else "No new entry"
+            if technical is not None
+            else "No new entry"
         ),
         notes=notes,
         warning_flags=warning_flags,
         penalties=penalties,
         gates=gate_result.gates,
         component_scores=component_scores,
-        debug={**_debug_payload(
-            profile=profile,
-            fundamental_score=fundamental_score,
-            base_technical_score=base_technical_score,
-            technical=technical,
-            fundamental=fundamental,
-            component_scores=component_scores,
-            penalties=penalties,
-            gates=gate_result.gates,
-            technical_profile_score=technical_profile_score,
-            weighted_score=weighted_score,
-            total_penalty=total_penalty,
-            profile_score=profile_score,
-            liquidity_feature=liquidity_feature,
-            tradeability_grade=tradeability_grade,
-        ), TECHNICAL_ELIGIBILITY_KEY: eligibility,
-            CONTEXTUAL_ELIGIBILITY_KEY: {"ibmi_liquidity": liquidity_permission}},
+        debug={
+            **_debug_payload(
+                profile=profile,
+                fundamental_score=fundamental_score,
+                base_technical_score=base_technical_score,
+                technical=technical,
+                fundamental=fundamental,
+                component_scores=component_scores,
+                penalties=penalties,
+                gates=gate_result.gates,
+                technical_profile_score=technical_profile_score,
+                weighted_score=weighted_score,
+                total_penalty=total_penalty,
+                profile_score=profile_score,
+                liquidity_feature=liquidity_feature,
+                tradeability_grade=tradeability_grade,
+            ),
+            TECHNICAL_ELIGIBILITY_KEY: eligibility,
+            CONTEXTUAL_ELIGIBILITY_KEY: {
+                "ibmi_liquidity": liquidity_permission,
+                "fundamental": fundamental_permission,
+            },
+        },
         upcoming_earnings_date=earnings_risk.upcoming_earnings_date,
         days_until_earnings=earnings_risk.days_until_earnings,
         earnings_risk_level=earnings_risk.risk_level,
@@ -329,9 +341,7 @@ def _debug_payload(
             "technical_classification": technical.classification if technical else None,
             "fundamental_label": fundamental.fundamental_label if fundamental else None,
             "ibkr_liquidity_coverage": _feature_field(liquidity_feature, "coverage_status"),
-            "ibkr_liquidity_classification": _feature_field(
-                liquidity_feature, "classification"
-            ),
+            "ibkr_liquidity_classification": _feature_field(liquidity_feature, "classification"),
             "ibkr_tradeability_grade": tradeability_grade,
         },
         "component_scores": component_scores,
@@ -356,9 +366,9 @@ def _tradeability_penalty(
     if str(_feature_field(feature, "coverage_status") or "").upper() != "AVAILABLE":
         return 0.0, None, None
     grade = str(_feature_field(feature, "classification") or "").upper()
-    components = _feature_field(feature, "components_json") or _feature_field(
-        feature, "components"
-    ) or {}
+    components = (
+        _feature_field(feature, "components_json") or _feature_field(feature, "components") or {}
+    )
     dollar_volume = _float_or_none(components.get("dollar_volume"))
     below_profile_floor = (
         overlay.minimum_dollar_volume is not None

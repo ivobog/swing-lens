@@ -83,6 +83,14 @@ def test_policy_version_changes_bind_new_acquisition_and_preserve_historical_cap
     context, cutoff, repository, service, prediction = _captured()
     original = deepcopy(prediction.feature_json), deepcopy(prediction.lineage_json)
     for name, policy in (
+        (
+            "FUNDAMENTAL_TO_WINNER",
+            ContextualConsumerPolicy("FUNDAMENTAL", "WINNER", "fundamental-to-winner-v2-test"),
+        ),
+        (
+            "COMBINED_TO_WINNER",
+            ContextualConsumerPolicy("COMBINED", "WINNER", "combined-to-winner-v2-test"),
+        ),
         ("TECHNICAL_TO_WINNER", TechnicalConsumerPolicy("WINNER", "technical-to-winner-v2-test")),
         (
             "RANKING_TO_WINNER",

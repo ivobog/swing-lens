@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from core_readiness_helpers import certified_fundamental
 from readiness_helpers import certified_technical
 
 from app.db import Base
@@ -615,69 +616,66 @@ def test_technical_score_model_accepts_v4_values() -> None:
 
 
 def test_fundamentals_v2_migration_follows_current_head() -> None:
-    migration = Path(
-        "alembic/versions/20260704_0005_add_fundamentals_v2_columns.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260704_0005_add_fundamentals_v2_columns.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0005_add_fundamentals_v2_columns"' in migration
     assert 'down_revision: str | None = "0004_expand_ib_fetch_persistence"' in migration
 
 
 def test_technical_v4_migration_follows_current_head() -> None:
-    migration = Path(
-        "alembic/versions/20260705_0006_add_technical_v4_columns.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260705_0006_add_technical_v4_columns.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0006_add_technical_v4_columns"' in migration
     assert 'down_revision: str | None = "0005_add_fundamentals_v2_columns"' in migration
 
 
 def test_earnings_risk_gate_migration_follows_current_head() -> None:
-    migration = Path(
-        "alembic/versions/20260707_0010_add_earnings_risk_gate.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260707_0010_add_earnings_risk_gate.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0010_add_earnings_risk_gate"' in migration
     assert 'down_revision: str | None = "0009_history_indexes"' in migration
 
 
 def test_ranking_results_migration_follows_current_head() -> None:
-    migration = Path(
-        "alembic/versions/20260709_0011_create_ranking_results.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260709_0011_create_ranking_results.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0011_create_ranking_results"' in migration
     assert 'down_revision: str | None = "0010_add_earnings_risk_gate"' in migration
 
 
 def test_market_regime_snapshots_migration_follows_current_head() -> None:
-    migration = Path(
-        "alembic/versions/20260728_0012_add_market_regime_snapshots.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260728_0012_add_market_regime_snapshots.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0012_add_market_regime_snapshots"' in migration
     assert 'down_revision: str | None = "0011_create_ranking_results"' in migration
 
 
 def test_sector_rotation_tables_migration_follows_current_head() -> None:
-    migration = Path(
-        "alembic/versions/20260728_0013_add_sector_rotation_tables.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260728_0013_add_sector_rotation_tables.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0013_add_sector_rotation_tables"' in migration
     assert 'down_revision: str | None = "0012_add_market_regime_snapshots"' in migration
 
 
 def test_immutable_snapshot_evidence_migration_follows_price_revision_head() -> None:
-    migration = Path(
-        "alembic/versions/20260802_0023_add_immutable_snapshot_evidence.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("alembic/versions/20260802_0023_add_immutable_snapshot_evidence.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision: str = "0023_immutable_snapshot_evidence"' in migration
-    assert (
-        'down_revision: str | None = "0022_price_bar_revisions_ceri_corrections"'
-        in migration
-    )
+    assert 'down_revision: str | None = "0022_price_bar_revisions_ceri_corrections"' in migration
     assert "idx_market_regime_snapshots_current_revision" in migration
     assert "uq_setup_signal_snapshots_run_identity" in migration
 
@@ -735,7 +733,7 @@ def _fundamental(
     label: str,
     score: str,
 ) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         run_id=1,
         ticker=ticker,
         fundamental_label=label,

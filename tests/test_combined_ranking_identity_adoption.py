@@ -302,19 +302,26 @@ def test_optional_compatible_ibmi_is_used_and_included_in_identity(monkeypatch) 
         item.artifact_type for item in identity.source_lineage.value.references
     }
     assert result.debug_json["inputs"]["ibkr_liquidity_classification"] is None
-    assert result.debug_json["contextual_consumer_eligibility"]["ibmi_liquidity"][
-        "producer_readiness"
-    ]["status"] == "LEGACY_UNKNOWN"
+    assert (
+        result.debug_json["contextual_consumer_eligibility"]["ibmi_liquidity"][
+            "producer_readiness"
+        ]["status"]
+        == "LEGACY_UNKNOWN"
+    )
     # Keep the original unsealed/CURRENT input as an exclusion regression.
     from contextual_readiness_helpers import ibmi_feature
 
     from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 
     ready = ibmi_feature(
-        ticker="ACME", classification="POOR", components_json={"dollar_volume": 1000},
+        ticker="ACME",
+        classification="POOR",
+        components_json={"dollar_volume": 1000},
         config_hash=load_ib_market_intelligence_config().config_hash,
-        as_of_session=cutoff.latest_completed_session, calendar_version=cutoff.calendar_version,
-        calculated_at=cutoff.cutoff_at, calculation_cutoff_at=cutoff.cutoff_at,
+        as_of_session=cutoff.latest_completed_session,
+        calendar_version=cutoff.calendar_version,
+        calculated_at=cutoff.cutoff_at,
+        calculation_cutoff_at=cutoff.cutoff_at,
     )
     _patch_ranking(monkeypatch, row, fundamental, technical, liquidity={"ACME": ready})
     result = ranking_profile_service.refresh_ranking_profile(FakeDb(), RUN_ID, "momentum_swing")[0]
@@ -377,7 +384,7 @@ def test_legacy_ranking_row_is_explicitly_replaced_not_upgraded(monkeypatch) -> 
 
 
 def _identity_aware_sources(
-    *, cutoff: MarketCalculationCutoff | None = None
+    *, cutoff: MarketCalculationCutoff | None = None, seal_fundamental: bool = True
 ) -> tuple[RawCompanyRow, FundamentalScore, TechnicalScore, MarketCalculationCutoff]:
     cutoff = cutoff or _cutoff()
     row = RawCompanyRow(
@@ -394,6 +401,7 @@ def _identity_aware_sources(
         run_id=RUN_ID,
         ticker="ACME",
         fundamental_score=Decimal("8.2"),
+        data_coverage_score=10,
         fundamental_label="Clean compounder",
         scoring_model_version="fundamentals_v2.1",
         debug_json={"config_hash": "a" * 64, "model_version": "fundamentals_v2.1"},
@@ -444,6 +452,10 @@ def _identity_aware_sources(
     technical.debug_json = embed_calculation_identity(
         technical.debug_json, technical_identity, policy="TEST_PRODUCER"
     )
+    from core_readiness_helpers import seal_core
+
+    if seal_fundamental:
+        seal_core(fundamental)
     return row, fundamental, technical, cutoff
 
 

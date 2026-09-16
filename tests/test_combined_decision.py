@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from core_readiness_helpers import certified_fundamental
 from readiness_helpers import certified_technical, seal_technical
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
@@ -426,7 +427,7 @@ def _fundamental(
     label: str,
     score: str,
 ) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         run_id=1,
         ticker=ticker,
         fundamental_label=label,

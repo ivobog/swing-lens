@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from contextual_readiness_helpers import seal_contextual
+from core_readiness_helpers import certified_combined, certified_fundamental
 from readiness_helpers import certified_technical, seal_technical
 
 from app.models.tables import (
@@ -499,7 +500,7 @@ def _raw_row(ticker: str) -> RawCompanyRow:
 
 
 def _fundamental(ticker: str) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         id=201 if ticker == "MSFT" else 202,
         run_id=7,
         ticker=ticker,
@@ -564,7 +565,7 @@ def _technical(
 
 
 def _combined(ticker: str) -> CombinedResult:
-    return CombinedResult(
+    return certified_combined(
         id=401 if ticker == "MSFT" else 402,
         run_id=7,
         ticker=ticker,
@@ -593,29 +594,38 @@ def _ranking(ticker: str) -> RankingResult:
 
 
 def _market_snapshot() -> MarketRegimeSnapshot:
-    return seal_contextual(MarketRegimeSnapshot(
-        id=601,
-        evidence_id=1601,
-        run_id=7,
-        as_of_date=date(2026, 8, 1),
-        calculation_version="v1",
-        regime="RISK_ON",
-        risk_state="NORMAL",
-        score=80.0,
-        action_summary="Constructive",
-        confidence="normal",
-    ))
+    return seal_contextual(
+        MarketRegimeSnapshot(
+            id=601,
+            evidence_id=1601,
+            run_id=7,
+            as_of_date=date(2026, 8, 1),
+            calculation_version="v1",
+            regime="RISK_ON",
+            risk_state="NORMAL",
+            score=80.0,
+            action_summary="Constructive",
+            confidence="normal",
+            debug_json={
+                "input_symbols": {"primary_market": "SPY"},
+                "market_inputs": {"SPY": {"insufficient_data": False}},
+            },
+        )
+    )
 
 
 def _sector_snapshot() -> SectorRotationSnapshot:
-    return seal_contextual(SectorRotationSnapshot(
-        id=701,
-        evidence_id=1701,
-        run_id=7,
-        as_of_date=date(2026, 8, 1),
-        calculation_version="v1",
-        mode="LIVE",
-    ), rows=(_sector_row(),))
+    return seal_contextual(
+        SectorRotationSnapshot(
+            id=701,
+            evidence_id=1701,
+            run_id=7,
+            as_of_date=date(2026, 8, 1),
+            calculation_version="v1",
+            mode="LIVE",
+        ),
+        rows=(_sector_row(),),
+    )
 
 
 def _sector_row() -> SectorRotationRow:

@@ -16,7 +16,9 @@ from app.services.contextual_calculation_identity import (
     identity_metadata,
 )
 from app.services.contextual_consumer_eligibility import (
+    COMBINED_TO_SETUP,
     CONTEXTUAL_ELIGIBILITY_KEY,
+    FUNDAMENTAL_TO_SETUP,
     REGIME_TO_SETUP,
     SECTOR_TO_SETUP,
     contextual_decision_input,
@@ -154,16 +156,31 @@ class SetupLifecycleSnapshotBuilder:
             raise ValueError("ticker is required")
 
         technical, eligibility = technical_decision_input(
-            context.technical_score, TECHNICAL_TO_SETUP,
+            context.technical_score,
+            TECHNICAL_TO_SETUP,
         )
         market, regime_permission = contextual_decision_input(
-            context.market_regime_snapshot, REGIME_TO_SETUP,
+            context.market_regime_snapshot,
+            REGIME_TO_SETUP,
         )
         sector, sector_permission = contextual_decision_input(
-            context.sector_rotation_snapshot, SECTOR_TO_SETUP,
+            context.sector_rotation_snapshot,
+            SECTOR_TO_SETUP,
+        )
+        fundamental, fundamental_permission = contextual_decision_input(
+            context.fundamental_score,
+            FUNDAMENTAL_TO_SETUP,
+        )
+        combined, combined_permission = contextual_decision_input(
+            context.combined_result,
+            COMBINED_TO_SETUP,
         )
         behavior_context = replace(
-            context, technical_score=technical, market_regime_snapshot=market,
+            context,
+            technical_score=technical,
+            fundamental_score=fundamental,
+            combined_result=combined,
+            market_regime_snapshot=market,
             sector_rotation_snapshot=sector,
             sector_rotation_row=frozen_sector_row(sector, context.sector_rotation_row),
         )
@@ -180,7 +197,9 @@ class SetupLifecycleSnapshotBuilder:
         promoted = self._promoted_fields(behavior_context, latest_bar, trigger_reference)
         source_values = self._source_values(behavior_context, promoted)
         warning_context = replace(
-            context, market_regime_snapshot=market, sector_rotation_snapshot=sector,
+            context,
+            market_regime_snapshot=market,
+            sector_rotation_snapshot=sector,
             sector_rotation_row=behavior_context.sector_rotation_row,
         )
         warnings = list(self._warnings(warning_context, as_of_date, reference_date, source_values))
@@ -206,7 +225,9 @@ class SetupLifecycleSnapshotBuilder:
         promoted["required_feature_coverage"] = Decimal(str(round(coverage, 6)))
         promoted["freshness_status"] = freshness
         promoted["technical_confidence"] = self._technical_confidence(
-            behavior_context, coverage, freshness,
+            behavior_context,
+            coverage,
+            freshness,
         )
         velocities = self._score_velocities(
             source_values,
@@ -229,7 +250,10 @@ class SetupLifecycleSnapshotBuilder:
         )
         source_lineage[TECHNICAL_ELIGIBILITY_KEY] = eligibility
         source_lineage[CONTEXTUAL_ELIGIBILITY_KEY] = {
-            "regime": regime_permission, "sector": sector_permission,
+            "regime": regime_permission,
+            "sector": sector_permission,
+            "fundamental": fundamental_permission,
+            "combined": combined_permission,
         }
         if context.market_cutoff is not None:
             source_lineage["temporal_lineage"] = {
@@ -637,24 +661,16 @@ class SetupLifecycleSnapshotBuilder:
             "ranking_result_id": getattr(context.ranking_results[0], "id", None)
             if context.ranking_results
             else None,
-            "fundamental_evidence_id": getattr(
-                context.fundamental_score, "evidence_id", None
-            ),
+            "fundamental_evidence_id": getattr(context.fundamental_score, "evidence_id", None),
             "technical_evidence_id": getattr(context.technical_score, "evidence_id", None),
             "combined_evidence_id": getattr(context.combined_result, "evidence_id", None),
-            "ranking_evidence_id": getattr(
-                context.ranking_results[0], "evidence_id", None
-            )
+            "ranking_evidence_id": getattr(context.ranking_results[0], "evidence_id", None)
             if context.ranking_results
             else None,
             "market_regime_snapshot_id": getattr(context.market_regime_snapshot, "id", None),
             "sector_rotation_snapshot_id": getattr(context.sector_rotation_snapshot, "id", None),
-            "regime_evidence_id": getattr(
-                context.market_regime_snapshot, "evidence_id", None
-            ),
-            "sector_evidence_id": getattr(
-                context.sector_rotation_snapshot, "evidence_id", None
-            ),
+            "regime_evidence_id": getattr(context.market_regime_snapshot, "evidence_id", None),
+            "sector_evidence_id": getattr(context.sector_rotation_snapshot, "evidence_id", None),
         }
 
     def _source_lineage(
@@ -738,10 +754,16 @@ class SetupLifecycleSnapshotBuilder:
         as_of_date: date,
         history: tuple[SetupSignalSnapshot, ...],
     ) -> dict[str, dict[str, dict[str, Any]]]:
-        history = tuple(item for item in history if not setup_technical_blocked(SimpleNamespace(
-            source_lineage=item.source_lineage_json or {},
-            source_ids={"technical_score_id": item.technical_score_id},
-        )))
+        history = tuple(
+            item
+            for item in history
+            if not setup_technical_blocked(
+                SimpleNamespace(
+                    source_lineage=item.source_lineage_json or {},
+                    source_ids={"technical_score_id": item.technical_score_id},
+                )
+            )
+        )
         current = SimpleNamespace(
             id=None,
             data_as_of_date=as_of_date,

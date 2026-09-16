@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 from readiness_helpers import seal_technical
-from setup_lifecycle.test_snapshot_builder import _ticker_context
+from setup_lifecycle.test_snapshot_builder import _market_snapshot, _ticker_context
 from test_combined_decision import _config
 from test_ranking_profile_engine import _fundamental, _row, _technical
 
@@ -60,7 +60,7 @@ def test_fully_ready_population_preserves_all_profile_calculations():
 
 @pytest.mark.parametrize("previous", [None, LifecycleState.DEVELOPING, LifecycleState.READY])
 def test_fully_ready_actual_setup_lifecycle_chain(previous):
-    context = _ticker_context()
+    context = _ticker_context(market_regime_snapshot=_market_snapshot())
     seal_technical(context.technical_score)
     combined = combine_row_decision(
         context.raw_row, context.fundamental_score, context.technical_score, config=_config()

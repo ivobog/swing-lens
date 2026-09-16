@@ -118,7 +118,9 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
         .cutoff_for(_cutoff().cutoff_at, reason="T12C_NATIVE_POSTGRES")
         .with_context_id(17)
     )
-    row, fundamental, technical, cutoff = _identity_aware_sources(cutoff=native_cutoff)
+    row, fundamental, technical, cutoff = _identity_aware_sources(
+        cutoff=native_cutoff, seal_fundamental=False
+    )
     technical.insufficient_data, technical.data_quality_score = False, 9
     with Session(engine, expire_on_commit=False) as db:
         db.add_all(
@@ -167,6 +169,14 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
                 )
             )
         )
+        from app.models.tables import FundamentalScore, TechnicalScore
+
+        fundamental = db.scalars(
+            select(FundamentalScore).options(selectinload(FundamentalScore.calculation_evidence))
+        ).one()
+        technical = db.scalars(
+            select(TechnicalScore).options(selectinload(TechnicalScore.calculation_evidence))
+        ).one()
         selects = []
 
         def count(_conn, _cursor, statement, _params, _context, _many):
@@ -248,6 +258,8 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
             action_summary="Constructive",
             position_size_multiplier=1,
             debug={
+                "input_symbols": {"primary_market": "SPY"},
+                "market_inputs": {"SPY": {"insufficient_data": False}},
                 "temporal_lineage": {
                     "calculation_cutoff_at": cutoff.cutoff_at.isoformat(),
                     "input_as_of_session": cutoff.latest_completed_session.isoformat(),

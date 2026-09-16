@@ -52,7 +52,13 @@ POLICIES = (
 @pytest.mark.parametrize("policy", POLICIES, ids=lambda item: item.policy_version)
 @pytest.mark.parametrize("status", list(ReadinessStatus))
 def test_policy_matrix_is_explicit_typed_and_retry_deterministic(policy, status):
-    readiness = ProducerReadinessEnvelope(policy.producer, status, "identity", evidence_id=71)
+    readiness = ProducerReadinessEnvelope(
+        policy.producer,
+        status,
+        "identity",
+        evidence_id=71,
+        readiness_policy_version=policy.required_readiness_version or "producer-readiness-v1",
+    )
     decision = policy.evaluate(readiness)
     expected = (
         ConsumerEligibilityStatus.ELIGIBLE

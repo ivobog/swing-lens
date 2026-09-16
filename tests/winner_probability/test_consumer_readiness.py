@@ -41,7 +41,14 @@ def test_exact_ranking_evidence_ticker_and_profile_must_match(member, value):
 @pytest.mark.parametrize("status", list(ReadinessStatus))
 def test_winner_policy_matrix_and_retry_are_typed(policy, status):
     producer = getattr(policy, "producer", "TECHNICAL")
-    envelope = ProducerReadinessEnvelope(producer, status, "source-identity", evidence_id=12)
+    envelope = ProducerReadinessEnvelope(
+        producer,
+        status,
+        "source-identity",
+        evidence_id=12,
+        readiness_policy_version=getattr(policy, "required_readiness_version", None)
+        or "producer-readiness-v1",
+    )
     decision = policy.evaluate(envelope)
     expected = (
         ConsumerEligibilityStatus.ELIGIBLE

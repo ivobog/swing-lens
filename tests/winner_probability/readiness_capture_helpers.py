@@ -45,6 +45,12 @@ def ready_identity_context(**kwargs):
 
     context, cutoff = _identity_context(**kwargs)
     ticker = context.tickers[0]
+    seal_winner_source(
+        ticker.fundamental_score, "FUNDAMENTAL", evidence_id=ticker.fundamental_score.evidence_id
+    )
+    seal_winner_source(
+        ticker.combined_result, "COMBINED", evidence_id=ticker.combined_result.evidence_id
+    )
     ticker.technical_score.technical_confidence = "normal"
     seal_winner_source(
         ticker.technical_score,
@@ -55,6 +61,11 @@ def ready_identity_context(**kwargs):
         seal_winner_source(row, "RANKING", evidence_id=row.evidence_id)
     for market in context.market_regime_candidates:
         if market.debug_json.get("calculation_identity"):
+            market.debug_json = {
+                **market.debug_json,
+                "input_symbols": {"primary_market": "SPY"},
+                "market_inputs": {"SPY": {"insufficient_data": False}},
+            }
             seal_contextual(market, evidence_id=market.evidence_id or next(_ids))
     seal_contextual(
         context.sector_rotation_snapshot,
@@ -73,6 +84,11 @@ def reseal_context(context, cutoff, source):
         seal_winner_source(ticker.technical_score, "TECHNICAL")
     elif source == "ranking":
         seal_winner_source(ticker.ranking_results[0], "RANKING")
+    elif source in {"fundamental", "combined"}:
+        seal_winner_source(
+            getattr(ticker, "fundamental_score" if source == "fundamental" else "combined_result"),
+            source.upper(),
+        )
     elif source == "regime":
         seal_contextual(context.market_regime_snapshot, evidence_id=next(_ids))
     else:

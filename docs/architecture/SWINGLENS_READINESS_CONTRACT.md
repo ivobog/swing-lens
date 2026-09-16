@@ -1,5 +1,10 @@
 # SwingLens Producer Readiness and Consumer Eligibility Contract
 
+The prospective certified implementation is recorded in
+[SWINGLENS_READINESS_PHASE3_CERTIFIED.md](SWINGLENS_READINESS_PHASE3_CERTIFIED.md).
+T12A–D sections below preserve the contract's implementation history; the T12E
+version rules at the end supersede the earlier prospective policy inventory.
+
 ## Authority and scope
 
 T12A begins Phase 3 from Phase-2 baseline
@@ -370,3 +375,43 @@ inventoried policy gaps remain separate. INV-READINESS-001 is code-enforced and
 runtime-validated for these edges; repository-wide Phase-3 certification remains
 partial pending T12E. Full audit, parity and native-lane evidence:
 `docs/remediation/calculation-lineage/T12D_winner_readiness_enforcement.md`.
+
+## T12E prospective version and graph rules
+
+T12E corrects the Regime readiness mapping using the feature engine's existing
+primary benchmark and active risk-proxy insufficiency/missing flags. Primary or
+active proxy sufficiency proof must be present to support READY. Native scoring,
+stale diagnostic sizing and gates remain unchanged. New Regime envelopes use
+`regime-readiness-v2`; newly fenced Combined, Ranking and Sector producer services
+use `combined-readiness-v2`, `ranking-readiness-v2` and `sector-readiness-v2`.
+Other producer envelopes retain `producer-readiness-v1`.
+
+Regime/Sector → Setup and Ranking/Regime/Sector → Winner now use their named v2
+consumer policies, requiring the corresponding v2 producer contract. Additional
+material edges are Fundamental → Combined/Ranking/Setup/Winner; Combined →
+Setup/Winner/Sector; Technical → Sector; Ranking → Sector; Regime → Sector; and
+Prior Sector → Sector. Fundamental and Technical policies retain named v1
+versions; additional Combined/Ranking/Regime/Sector policies use named v2 versions.
+There are 23 distinct current policies. The exact canonical inventory and matrix
+are in the certified implementation document.
+
+An old v1 READY envelope for a corrected producer remains frozen READY in
+historical reads. A new policy requiring its v2 contract returns POLICY_UNDECIDED
+with `PRODUCER_READINESS_VERSION_UNSUPPORTED`; it cannot authorize new numeric
+consumption. Blocking states remain INELIGIBLE regardless of producer version.
+All current DEGRADED, UNKNOWN and LEGACY_UNKNOWN policies abstain. None rehashes
+or reclassifies historical producer or consumer evidence, adds a current/global
+fallback, substitutes a valid zero, or introduces a new native threshold.
+
+Winner now requires Technical, Ranking and Combined permission atomically.
+Fundamental, Regime and Sector use existing nullable optional representations.
+Fundamental's native sparse/missing/warning states are also excluded before
+Combined/Ranking math and Setup liquidity use. Sector filters material Technical,
+Combined, Ranking, Regime and prior Sector inputs before native score/history math.
+Sector's Fundamental average, Market Participation and Sector Leadership are
+display-only. The original nine negative dependencies remain absent. Lifecycle
+and Alerts propagate the exact frozen Setup permission, without adding selectors.
+
+No migration, column change, production rewrite or legacy backfill is required.
+The T12E report separates corrected material loopholes from retained diagnostic
+producer gaps and configuration/replay/governance concerns belonging to later work.

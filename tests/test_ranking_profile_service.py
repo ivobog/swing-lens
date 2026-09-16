@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
+from core_readiness_helpers import certified_fundamental
 from readiness_helpers import certified_technical, seal_technical
 
 from app.models.tables import (
@@ -276,7 +277,7 @@ def _row(row_id: int, ticker: str, row_number: int) -> RawCompanyRow:
 
 
 def _fundamental(ticker: str, score: float) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         id=201 if ticker == "MOMO" else 202,
         run_id=7,
         ticker=ticker,
@@ -347,6 +348,9 @@ def _attach_identities(
             pipeline_run_id=11,
         )
         score.debug_json = embed_calculation_identity(score.debug_json, identity, policy="TEST")
+        from core_readiness_helpers import seal_core
+
+        seal_core(score)
     for score in technicals:
         score.calculation_context_id = cutoff.context_id
         score.calculation_cutoff_at = cutoff.cutoff_at

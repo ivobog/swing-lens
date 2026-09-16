@@ -181,6 +181,10 @@ def test_same_score_different_readiness_and_peer_population_isolation():
         fundamentals={"A": ready.fundamental_score, "B": bad.fundamental_score},
         technicals={"A": ready.technical_score, "B": bad.technical_score},
     )
+    from core_readiness_helpers import seal_core
+
+    for source in kwargs["fundamentals"].values():
+        seal_core(source)
     alone = rank_profile(rows=[ready.raw_row], **kwargs)[0]
     together = rank_profile(rows=[bad.raw_row, ready.raw_row], **kwargs)
     assert together[0] == alone
@@ -234,7 +238,8 @@ def test_existing_blocking_reason_is_never_eligible_and_config_cannot_override()
         assert policy.evaluate(readiness).status is Eligibility.INELIGIBLE
         with pytest.raises(ValueError, match="no configurable overrides"):
             policy.evaluate(
-                readiness, config=NativeReadinessMetrics.freeze({"allow_degraded": True}),
+                readiness,
+                config=NativeReadinessMetrics.freeze({"allow_degraded": True}),
             )
 
 
@@ -247,7 +252,10 @@ def test_ineligible_is_absent_and_never_a_valid_zero_substitution():
         assert allowed.dual_score == Decimal("0")
         assert absent is None
     ready_combined = combine_row_decision(
-        zero.raw_row, zero.fundamental_score, zero.technical_score, config=_config(),
+        zero.raw_row,
+        zero.fundamental_score,
+        zero.technical_score,
+        config=_config(),
     )
     assert ready_combined.has_technical is True
     assert ready_combined.dual_score == 0.0

@@ -71,6 +71,7 @@ class TechnicalConsumerPolicy:
 TECHNICAL_TO_COMBINED = TechnicalConsumerPolicy("COMBINED", "technical-to-combined-v1")
 TECHNICAL_TO_RANKING = TechnicalConsumerPolicy("RANKING", "technical-to-ranking-v1")
 TECHNICAL_TO_SETUP = TechnicalConsumerPolicy("SETUP", "technical-to-setup-v1")
+TECHNICAL_TO_SECTOR = TechnicalConsumerPolicy("SECTOR", "technical-to-sector-v1")
 
 
 def technical_decision_input(

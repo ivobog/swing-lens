@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.tables import (
     CombinedResult,
@@ -22,6 +22,12 @@ from app.services.contextual_calculation_identity import (
     contextual_compatibility,
     pipeline_id_for_cutoff,
 )
+from app.services.contextual_consumer_eligibility import (
+    COMBINED_TO_SECTOR,
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    RANKING_TO_SECTOR,
+    contextual_decision_input,
+)
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_participation_service import (
     CLEAN_PULLBACK_CLASSIFICATIONS,
@@ -32,6 +38,10 @@ from app.services.sector_taxonomy import (
     SectorNormalizationResult,
     normalize_sector_result,
     sector_slug,
+)
+from app.services.technical_consumer_eligibility import (
+    TECHNICAL_TO_SECTOR,
+    technical_decision_input,
 )
 
 
@@ -67,21 +77,31 @@ def build_universe_sector_metrics(
     combined_list = _combined_results_for_run(db, run_id)
     ranking_results = _ranking_results_for_run(db, run_id)
     if market_cutoff is not None and isinstance(db, Session):
-        pipeline_id = pipeline_id_for_cutoff(
-            db, run_id=run_id, market_cutoff=market_cutoff
-        )
+        pipeline_id = pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
         fundamentals_list = _compatible_run_artifacts(
             fundamentals_list, run_id, pipeline_id, market_cutoff
         )
         technicals_list = _compatible_run_artifacts(
             technicals_list, run_id, pipeline_id, market_cutoff
         )
-        combined_list = _compatible_run_artifacts(
-            combined_list, run_id, pipeline_id, market_cutoff
-        )
+        combined_list = _compatible_run_artifacts(combined_list, run_id, pipeline_id, market_cutoff)
         ranking_results = _coherent_compatible_rankings(
             ranking_results, run_id, pipeline_id, market_cutoff
         )
+    permissions = {}
+
+    def permitted(rows, policy, selector):
+        retained = []
+        for index, row in enumerate(rows):
+            projected, permission = selector(row, policy)
+            permissions[f"{policy.policy_version}:{index:06d}"] = permission
+            if projected is not None:
+                retained.append(projected)
+        return retained
+
+    technicals_list = permitted(technicals_list, TECHNICAL_TO_SECTOR, technical_decision_input)
+    combined_list = permitted(combined_list, COMBINED_TO_SECTOR, contextual_decision_input)
+    ranking_results = permitted(ranking_results, RANKING_TO_SECTOR, contextual_decision_input)
     fundamentals = _by_ticker(fundamentals_list)
     technicals = _by_ticker(technicals_list)
     combined_results = _by_ticker(combined_list)
@@ -119,6 +139,9 @@ def build_universe_sector_metrics(
             config=config,
         )
         for bucket in buckets.values()
+    ]
+    rows = [
+        replace(row, debug={**row.debug, CONTEXTUAL_ELIGIBILITY_KEY: permissions}) for row in rows
     ]
     return sorted(rows, key=lambda row: (row.sector == "Unknown", row.sector))
 
@@ -234,15 +257,11 @@ class _SectorBucket:
                     self.top_counts[key] = self.top_counts.get(key, 0) + 1
 
         for ranking in rankings:
-            self.profile_buckets.setdefault(ranking.ranking_profile, _ProfileBucket()).add(
-                ranking
-            )
+            self.profile_buckets.setdefault(ranking.ranking_profile, _ProfileBucket()).add(ranking)
 
     def _add_technical(self, technical: TechnicalScore, config: dict[str, Any]) -> None:
         classification = technical.classification or "Other"
-        self.setup_distribution[classification] = (
-            self.setup_distribution.get(classification, 0) + 1
-        )
+        self.setup_distribution[classification] = self.setup_distribution.get(classification, 0) + 1
 
         setup_labels = config["universe_score"]["setup_labels"]
         if classification in setup_labels["buyable"]:
@@ -280,8 +299,7 @@ def _to_metrics(
     ticker_count = len(bucket.tickers)
     warnings = _bucket_warnings(bucket, default_profile)
     top_counts = {
-        f"top_{int(cutoff)}": bucket.top_counts.get(f"top_{int(cutoff)}", 0)
-        for cutoff in cutoffs
+        f"top_{int(cutoff)}": bucket.top_counts.get(f"top_{int(cutoff)}", 0) for cutoff in cutoffs
     }
     averages = {
         "fundamental": _average(bucket.fundamental_scores),
@@ -318,9 +336,7 @@ def _to_metrics(
         sector=bucket.sector,
         sector_slug=sector_slug(bucket.sector),
         raw_sector_distribution=dict(sorted(bucket.raw_sector_distribution.items())),
-        sector_mapping_status_counts=dict(
-            sorted(bucket.sector_mapping_status_counts.items())
-        ),
+        sector_mapping_status_counts=dict(sorted(bucket.sector_mapping_status_counts.items())),
         ticker_count=ticker_count,
         universe_share=_share(ticker_count, total_tickers),
         average_fundamental_score=averages["fundamental"],
@@ -420,10 +436,7 @@ def _universe_score_components(
     }
     weights = config["universe_score"]["weights"]
     score = _clamp(
-        sum(
-            component_scores[component] * float(weight)
-            for component, weight in weights.items()
-        )
+        sum(component_scores[component] * float(weight) for component, weight in weights.items())
     )
 
     return _UniverseComponentResult(
@@ -506,11 +519,7 @@ def _danger_warning_count(
     config: dict[str, Any],
 ) -> int:
     danger_flags = set(config["universe_score"]["warning_flags"]["danger"])
-    return sum(
-        count
-        for warning, count in warning_distribution.items()
-        if warning in danger_flags
-    )
+    return sum(count for warning, count in warning_distribution.items() if warning in danger_flags)
 
 
 def _ticker_records(
@@ -592,9 +601,7 @@ def _normalization_for_row(
         return SectorNormalizationResult(
             raw_sector=str(raw_sector).strip() if raw_sector is not None else None,
             canonical_sector=canonical,
-            taxonomy=taxonomy or str(
-                config.get("sector_taxonomy", {}).get("source") or "unknown"
-            ),
+            taxonomy=taxonomy or str(config.get("sector_taxonomy", {}).get("source") or "unknown"),
             status=status,
         )
     return normalize_sector_result(raw_sector, config)
@@ -639,19 +646,43 @@ def _raw_rows_for_run(db: Session, run_id: int) -> list[RawCompanyRow]:
 
 
 def _fundamentals_for_run(db: Session, run_id: int) -> list[FundamentalScore]:
-    return list(db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(FundamentalScore)
+            .options(selectinload(FundamentalScore.calculation_evidence))
+            .where(FundamentalScore.run_id == run_id)
+        )
+    )
 
 
 def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
-    return list(db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(TechnicalScore)
+            .options(selectinload(TechnicalScore.calculation_evidence))
+            .where(TechnicalScore.run_id == run_id)
+        )
+    )
 
 
 def _combined_results_for_run(db: Session, run_id: int) -> list[CombinedResult]:
-    return list(db.scalars(select(CombinedResult).where(CombinedResult.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(CombinedResult)
+            .options(selectinload(CombinedResult.calculation_evidence))
+            .where(CombinedResult.run_id == run_id)
+        )
+    )
 
 
 def _ranking_results_for_run(db: Session, run_id: int) -> list[RankingResult]:
-    return list(db.scalars(select(RankingResult).where(RankingResult.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(RankingResult)
+            .options(selectinload(RankingResult.calculation_evidence))
+            .where(RankingResult.run_id == run_id)
+        )
+    )
 
 
 def _unique_rows(rows: list[RawCompanyRow]) -> list[RawCompanyRow]:

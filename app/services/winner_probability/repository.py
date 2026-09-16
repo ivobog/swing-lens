@@ -73,7 +73,13 @@ class WinnerProbabilityRepository:
             )
         )
         fundamentals = _by_ticker(
-            db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id))
+            db.scalars(
+                select(FundamentalScore)
+                .options(
+                    selectinload(FundamentalScore.calculation_evidence),
+                )
+                .where(FundamentalScore.run_id == run_id)
+            )
         )
         technicals = _by_ticker(
             db.scalars(
@@ -85,7 +91,13 @@ class WinnerProbabilityRepository:
             )
         )
         combined = _by_ticker(
-            db.scalars(select(CombinedResult).where(CombinedResult.run_id == run_id))
+            db.scalars(
+                select(CombinedResult)
+                .options(
+                    selectinload(CombinedResult.calculation_evidence),
+                )
+                .where(CombinedResult.run_id == run_id)
+            )
         )
         rankings = _rankings_by_ticker(
             db.scalars(

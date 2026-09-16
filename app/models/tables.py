@@ -429,9 +429,7 @@ class CoreCalculationEvidenceSource(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint(
-            "evidence_id", "source_role", name="uq_core_evidence_source_role"
-        ),
+        UniqueConstraint("evidence_id", "source_role", name="uq_core_evidence_source_role"),
         CheckConstraint(
             "evidence_id <> source_evidence_id", name="ck_core_evidence_source_not_self"
         ),
@@ -521,6 +519,13 @@ for _immutable_model in (CoreCalculationEvidence, CoreCalculationEvidenceSource)
 class FundamentalScore(Base):
     __tablename__ = "fundamental_scores"
 
+    calculation_evidence: Mapped["CoreCalculationEvidence | None"] = relationship(
+        "CoreCalculationEvidence",
+        foreign_keys="FundamentalScore.evidence_id",
+        viewonly=True,
+        lazy="raise",
+    )
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="CASCADE"),
@@ -576,8 +581,10 @@ class TechnicalScore(Base):
     __tablename__ = "technical_scores"
 
     calculation_evidence: Mapped["CoreCalculationEvidence | None"] = relationship(
-        "CoreCalculationEvidence", foreign_keys="TechnicalScore.evidence_id",
-        viewonly=True, lazy="raise",
+        "CoreCalculationEvidence",
+        foreign_keys="TechnicalScore.evidence_id",
+        viewonly=True,
+        lazy="raise",
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -674,6 +681,13 @@ class TechnicalScore(Base):
 class CombinedResult(Base):
     __tablename__ = "combined_results"
 
+    calculation_evidence: Mapped["CoreCalculationEvidence | None"] = relationship(
+        "CoreCalculationEvidence",
+        foreign_keys="CombinedResult.evidence_id",
+        viewonly=True,
+        lazy="raise",
+    )
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="CASCADE"),
@@ -760,8 +774,10 @@ class RankingResult(Base):
     __tablename__ = "ranking_results"
 
     calculation_evidence = relationship(
-        "CoreCalculationEvidence", foreign_keys="RankingResult.evidence_id",
-        viewonly=True, lazy="raise",
+        "CoreCalculationEvidence",
+        foreign_keys="RankingResult.evidence_id",
+        viewonly=True,
+        lazy="raise",
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -894,8 +910,10 @@ class MarketRegimeSnapshot(Base):
     __tablename__ = "market_regime_snapshots"
 
     calculation_evidence = relationship(
-        "CoreCalculationEvidence", foreign_keys="MarketRegimeSnapshot.evidence_id",
-        viewonly=True, lazy="raise",
+        "CoreCalculationEvidence",
+        foreign_keys="MarketRegimeSnapshot.evidence_id",
+        viewonly=True,
+        lazy="raise",
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -1069,8 +1087,10 @@ class SectorRotationSnapshot(Base):
     __tablename__ = "sector_rotation_snapshots"
 
     calculation_evidence = relationship(
-        "CoreCalculationEvidence", foreign_keys="SectorRotationSnapshot.evidence_id",
-        viewonly=True, lazy="raise",
+        "CoreCalculationEvidence",
+        foreign_keys="SectorRotationSnapshot.evidence_id",
+        viewonly=True,
+        lazy="raise",
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -4589,8 +4609,7 @@ class SignalAlertDecisionEvidence(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "decision IN ('GENERATED', 'SUPPRESSED_COOLDOWN', 'SUPPRESSED_DEDUP', "
-            "'INELIGIBLE')",
+            "decision IN ('GENERATED', 'SUPPRESSED_COOLDOWN', 'SUPPRESSED_DEDUP', 'INELIGIBLE')",
             name="ck_signal_alert_decision_evidence_decision",
         ),
         UniqueConstraint("evidence_key", name="uq_signal_alert_decision_evidence_key"),
@@ -4650,9 +4669,7 @@ class SignalAlertEvent(Base):
 
     __table_args__ = (
         UniqueConstraint("event_key", name="uq_signal_alert_events_event_key"),
-        UniqueConstraint(
-            "decision_evidence_id", name="uq_signal_alert_events_decision_evidence"
-        ),
+        UniqueConstraint("decision_evidence_id", name="uq_signal_alert_events_decision_evidence"),
         Index("idx_signal_alert_events_status_severity", "status", "severity"),
         Index("idx_signal_alert_events_ticker_date", "ticker", "effective_date"),
         Index("idx_signal_alert_events_rule", "alert_rule_id"),

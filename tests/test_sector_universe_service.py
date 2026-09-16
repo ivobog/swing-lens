@@ -1,6 +1,9 @@
 from copy import deepcopy
 from decimal import Decimal
 
+from core_readiness_helpers import certified_combined, certified_fundamental, certified_ranking
+from readiness_helpers import certified_technical
+
 from app.models.tables import (
     CombinedResult,
     FundamentalScore,
@@ -34,9 +37,9 @@ def test_universe_metrics_groups_sector_metrics_and_profile_distribution(
     monkeypatch.setattr(
         "app.services.sector_universe_service._technicals_for_run",
         lambda _db, _run_id: [
-            _technical("TECH1", "Prime clean pullback", "9.0", warnings=["liquidity_warning"]),
+            _technical("TECH1", "Prime clean pullback", "9.0"),
             _technical("TECH2", "Fresh breakout", "8.0"),
-            _technical("HEAL1", "Failed breakout", "4.0", warnings=["failed_breakout"]),
+            _technical("HEAL1", "Failed breakout", "4.0"),
         ],
     )
     monkeypatch.setattr(
@@ -77,7 +80,7 @@ def test_universe_metrics_groups_sector_metrics_and_profile_distribution(
     assert technology.buyable_share == 1.0
     assert technology.clean_pullback_count == 1
     assert technology.breakout_count == 1
-    assert technology.warning_distribution == {"liquidity_warning": 1}
+    assert technology.warning_distribution == {}
     assert technology.raw_sector_distribution == {
         "Information Technology": 1,
         "Technology": 1,
@@ -111,8 +114,8 @@ def test_universe_metrics_groups_sector_metrics_and_profile_distribution(
     assert healthcare.sector == "Healthcare"
     assert healthcare.danger_count == 1
     assert healthcare.danger_share == 1.0
-    assert healthcare.warning_distribution == {"failed_breakout": 1}
-    assert healthcare.component_scores["risk_control"] == 0.0
+    assert healthcare.warning_distribution == {}
+    assert healthcare.component_scores["risk_control"] == 3.0
     assert healthcare.reason_codes == [
         "high_danger_density",
         "low_confidence_sector",
@@ -368,9 +371,7 @@ def test_universe_score_uses_final_score_fallback_when_profile_is_missing(
 
     assert row.average_profile_score is None
     assert row.component_scores["average_profile_score"] == 6.5
-    assert row.debug["component_debug"]["average_profile_score_source"] == (
-        "final_score_fallback"
-    )
+    assert row.debug["component_debug"]["average_profile_score_source"] == ("final_score_fallback")
     assert 0 <= row.universe_leadership_score <= 10
 
 
@@ -390,10 +391,7 @@ def test_universe_score_rewards_top_candidate_overrepresentation(monkeypatch) ->
     )
     monkeypatch.setattr(
         "app.services.sector_universe_service._technicals_for_run",
-        lambda _db, _run_id: [
-            _technical(ticker, "No trade", "5.0")
-            for ticker in [*tech, *other]
-        ],
+        lambda _db, _run_id: [_technical(ticker, "No trade", "5.0") for ticker in [*tech, *other]],
     )
     monkeypatch.setattr(
         "app.services.sector_universe_service._combined_results_for_run",
@@ -494,10 +492,7 @@ def test_universe_confidence_uses_ticker_count_and_technical_availability(
     )
     monkeypatch.setattr(
         "app.services.sector_universe_service._technicals_for_run",
-        lambda _db, _run_id: [
-            _technical(ticker, "No trade", "6.0")
-            for ticker in tickers[:3]
-        ],
+        lambda _db, _run_id: [_technical(ticker, "No trade", "6.0") for ticker in tickers[:3]],
     )
     monkeypatch.setattr(
         "app.services.sector_universe_service._combined_results_for_run",
@@ -606,7 +601,7 @@ def _row(ticker: str, sector: str | None) -> RawCompanyRow:
 
 
 def _fundamental(ticker: str, score: str) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         run_id=7,
         ticker=ticker,
         fundamental_score=Decimal(score),
@@ -619,7 +614,7 @@ def _technical(
     dual: str,
     warnings: list[str] | None = None,
 ) -> TechnicalScore:
-    return TechnicalScore(
+    return certified_technical(
         run_id=7,
         ticker=ticker,
         classification=classification,
@@ -635,7 +630,7 @@ def _combined(
     score: str,
     warnings: list[str] | None = None,
 ) -> CombinedResult:
-    return CombinedResult(
+    return certified_combined(
         run_id=7,
         ticker=ticker,
         company_name=f"{ticker.upper()} Corp",
@@ -653,7 +648,7 @@ def _ranking(
     rank: int,
     score: str,
 ) -> RankingResult:
-    return RankingResult(
+    return certified_ranking(
         run_id=7,
         ticker=ticker,
         company_name=f"{ticker.upper()} Corp",

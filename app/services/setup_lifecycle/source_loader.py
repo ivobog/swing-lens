@@ -285,6 +285,7 @@ class SetupLifecycleSourceLoader:
         combined_results = tuple(
             db.scalars(
                 select(CombinedResult)
+                .options(selectinload(CombinedResult.calculation_evidence))
                 .where(CombinedResult.run_id == run_id)
                 .where(CombinedResult.ticker.in_(tickers))
             )
@@ -321,6 +322,7 @@ class SetupLifecycleSourceLoader:
             fundamental_scores=tuple(
                 db.scalars(
                     select(FundamentalScore)
+                    .options(selectinload(FundamentalScore.calculation_evidence))
                     .where(FundamentalScore.run_id == run_id)
                     .where(FundamentalScore.ticker.in_(tickers))
                 )
@@ -629,9 +631,11 @@ def _bar_identity(bar: PriceBar | None) -> tuple[object, ...] | None:
 
 
 def _latest_context_statement(model, cutoff: date, *, cutoff_at: datetime | None = None):
-    statement = select(model).options(
-        selectinload(model.calculation_evidence)
-    ).where(model.as_of_date <= cutoff)
+    statement = (
+        select(model)
+        .options(selectinload(model.calculation_evidence))
+        .where(model.as_of_date <= cutoff)
+    )
     if cutoff_at is not None:
         statement = statement.where(model.calculation_cutoff_at.is_not(None)).where(
             model.calculation_cutoff_at <= cutoff_at

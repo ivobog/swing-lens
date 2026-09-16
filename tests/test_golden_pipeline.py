@@ -37,6 +37,10 @@ def test_golden_pipeline_scoring_regression() -> None:
         market_cutoff=cutoff,
         pipeline_run_id=11,
     )
+    from core_readiness_helpers import seal_core
+
+    for fundamental in fundamentals:
+        seal_core(fundamental)
     for technical in db.technicals:
         technical.calculation_context_id = cutoff.context_id
         technical.calculation_cutoff_at = cutoff.cutoff_at
@@ -66,6 +70,14 @@ def test_golden_pipeline_scoring_regression() -> None:
     assert combined[0].ticker == expected["top_ticker"]
     assert fundamentals[0].fundamental_score == Decimal(expected["fundamental_score"])
     assert fundamentals[0].fundamental_label == expected["fundamental_label"]
+    # Native Fundamental warnings are DEGRADED; its retained score cannot enter
+    # Combined. Apply the existing missing-source penalty once to Technical.
+    assert (
+        combined[0].debug_json["contextual_consumer_eligibility"]["fundamental"]["decision"][
+            "status"
+        ]
+        == "POLICY_UNDECIDED"
+    )
     assert combined[0].final_score == Decimal(expected["final_score"])
     assert combined[0].combined_decision == expected["combined_decision"]
     assert combined[0].position_size_hint == expected["position_size_hint"]

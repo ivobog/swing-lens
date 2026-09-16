@@ -28,6 +28,13 @@ from app.services.contextual_calculation_identity import (
     expected_sector_identity,
     pipeline_id_for_cutoff,
 )
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    PRIOR_SECTOR_TO_SECTOR,
+    REGIME_TO_SECTOR,
+    contextual_decision_input,
+    frozen_sector_row,
+)
 from app.services.market_calculation_context_service import standalone_market_context
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_regime_policy import load_market_regime_command_center_config
@@ -136,6 +143,10 @@ def build_sector_rotation_snapshot(
         as_of_date,
         market_cutoff,
     )
+    selected_market = market_snapshot
+    market_snapshot, market_permission = contextual_decision_input(
+        market_snapshot, REGIME_TO_SECTOR
+    )
     universe_rows = (
         universe_service.build(
             db=db,
@@ -160,7 +171,14 @@ def build_sector_rotation_snapshot(
         run_id=run_id,
         market_cutoff=market_cutoff,
     )
+    selected_previous = previous_snapshot
+    previous_snapshot, previous_permission = contextual_decision_input(
+        previous_snapshot, PRIOR_SECTOR_TO_SECTOR
+    )
     previous_rows = _previous_rows_by_sector(repository, db, previous_snapshot)
+    previous_rows = {
+        key: frozen_sector_row(previous_snapshot, row) for key, row in previous_rows.items()
+    }
 
     decisions = [
         policy_service.decide(
@@ -196,6 +214,10 @@ def build_sector_rotation_snapshot(
         summary=summary,
         warnings=warnings,
         debug={
+            CONTEXTUAL_ELIGIBILITY_KEY: {
+                "regime": market_permission,
+                "prior_sector": previous_permission,
+            },
             "sector_count": len(decisions),
             "ticker_count": sum(row.ticker_count for row in universe_rows),
             "etf_enabled": bool(config.get("etf_score", {}).get("enabled", False)),
@@ -229,11 +251,7 @@ def build_sector_rotation_snapshot(
         ranking_sources: list[RankingResult] = []
         if run_id is not None:
             ranking_sources = _coherent_compatible_rankings(
-                list(
-                    db.scalars(
-                        select(RankingResult).where(RankingResult.run_id == run_id)
-                    )
-                ),
+                list(db.scalars(select(RankingResult).where(RankingResult.run_id == run_id))),
                 run_id,
                 pipeline_id,
                 market_cutoff,
@@ -241,16 +259,16 @@ def build_sector_rotation_snapshot(
             for ranking in ranking_sources:
                 identity = artifact_identity(ranking)
                 source_artifacts.append(("RankingResult", ranking, identity))
-        if market_snapshot is not None:
+        if selected_market is not None:
             source_artifacts.append(
-                ("MarketRegimeSnapshot", market_snapshot, artifact_identity(market_snapshot))
+                ("MarketRegimeSnapshot", selected_market, artifact_identity(selected_market))
             )
-        if previous_snapshot is not None:
+        if selected_previous is not None:
             source_artifacts.append(
                 (
                     "PriorSectorRotationSnapshot",
-                    previous_snapshot,
-                    artifact_identity(previous_snapshot),
+                    selected_previous,
+                    artifact_identity(selected_previous),
                 )
             )
         identity = build_contextual_result_identity(
@@ -264,6 +282,7 @@ def build_sector_rotation_snapshot(
                 "mode": mode,
                 "default_ranking_profile": default_profile,
                 "universe_rows": [asdict(row) for row in universe_rows],
+                CONTEXTUAL_ELIGIBILITY_KEY: dto.debug[CONTEXTUAL_ELIGIBILITY_KEY],
                 "etf_rows": [asdict(row) for row in etf_rows],
             },
         )
@@ -287,9 +306,7 @@ def build_sector_rotation_snapshot(
         )
         dto = replace(
             dto,
-            debug=embed_identity(
-                dto.debug, identity, policy=SECTOR_RANKING_COMPATIBILITY.name
-            ),
+            debug=embed_identity(dto.debug, identity, policy=SECTOR_RANKING_COMPATIBILITY.name),
         )
 
     if persist:
@@ -305,10 +322,10 @@ def build_sector_rotation_snapshot(
                     start=1,
                 )
             }
-            if market_snapshot is not None:
-                evidence_sources["regime"] = market_snapshot
-            if previous_snapshot is not None:
-                evidence_sources["prior_sector"] = previous_snapshot
+            if selected_market is not None:
+                evidence_sources["regime"] = selected_market
+            if selected_previous is not None:
+                evidence_sources["prior_sector"] = selected_previous
             repository.save_snapshot(
                 db,
                 snapshot_write,
@@ -532,11 +549,14 @@ def _latest_market_snapshot(
             db, as_of_date, run_id=run_id
         )
         for snapshot in candidates:
-            if contextual_compatibility(
-                expected,
-                artifact_identity(snapshot),
-                policy=SECTOR_REGIME_COMPATIBILITY,
-            ).accepted and getattr(snapshot, "evidence_id", None) is not None:
+            if (
+                contextual_compatibility(
+                    expected,
+                    artifact_identity(snapshot),
+                    policy=SECTOR_REGIME_COMPATIBILITY,
+                ).accepted
+                and getattr(snapshot, "evidence_id", None) is not None
+            ):
                 return snapshot
         return None
     if run_id is not None:
@@ -594,9 +614,7 @@ def _compatible_previous_snapshot(
 def _select_compatible_previous_snapshot(candidates, *, expected, current_session):
     for snapshot in candidates:
         identity = artifact_identity(snapshot)
-        result = contextual_compatibility(
-            expected, identity, policy=SECTOR_PRIOR_COMPATIBILITY
-        )
+        result = contextual_compatibility(expected, identity, policy=SECTOR_PRIOR_COMPATIBILITY)
         session = identity.temporal.as_of_session
         if (
             result.accepted

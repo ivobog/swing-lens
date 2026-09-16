@@ -39,6 +39,7 @@ class ContextualConsumerPolicy:
     consumer: str
     policy_version: str
     module: str | None = None
+    required_readiness_version: str | None = None
 
     def evaluate(
         self,
@@ -60,8 +61,11 @@ class ContextualConsumerPolicy:
             status = ConsumerEligibilityStatus.INELIGIBLE
             reasons = (EligibilityReason.PRODUCER_READINESS_BLOCKED,)
         elif readiness.status is ReadinessStatus.READY:
-            status = ConsumerEligibilityStatus.ELIGIBLE
-            reasons = ()
+            if self.required_readiness_version not in {None, readiness.readiness_policy_version}:
+                reasons = (EligibilityReason.PRODUCER_READINESS_VERSION_UNSUPPORTED,)
+            else:
+                status = ConsumerEligibilityStatus.ELIGIBLE
+                reasons = ()
         elif readiness.status is ReadinessStatus.DEGRADED:
             reasons = (EligibilityReason.DEGRADED_POLICY_UNDECIDED,)
         else:
@@ -94,8 +98,40 @@ IBMI_SHORT_PRESSURE_TO_CERI = ContextualConsumerPolicy(
     "ibmi-short-pressure-to-ceri-v1",
     "SHORT_PRESSURE",
 )
-REGIME_TO_SETUP = ContextualConsumerPolicy("REGIME", "SETUP", "regime-to-setup-v1")
-SECTOR_TO_SETUP = ContextualConsumerPolicy("SECTOR", "SETUP", "sector-to-setup-v1")
+REGIME_TO_SETUP = ContextualConsumerPolicy(
+    "REGIME", "SETUP", "regime-to-setup-v2", required_readiness_version="regime-readiness-v2"
+)
+SECTOR_TO_SETUP = ContextualConsumerPolicy(
+    "SECTOR", "SETUP", "sector-to-setup-v2", required_readiness_version="sector-readiness-v2"
+)
+FUNDAMENTAL_TO_COMBINED = ContextualConsumerPolicy(
+    "FUNDAMENTAL", "COMBINED", "fundamental-to-combined-v1"
+)
+FUNDAMENTAL_TO_RANKING = ContextualConsumerPolicy(
+    "FUNDAMENTAL", "RANKING", "fundamental-to-ranking-v1"
+)
+FUNDAMENTAL_TO_SETUP = ContextualConsumerPolicy("FUNDAMENTAL", "SETUP", "fundamental-to-setup-v1")
+COMBINED_TO_SETUP = ContextualConsumerPolicy(
+    "COMBINED", "SETUP", "combined-to-setup-v2", required_readiness_version="combined-readiness-v2"
+)
+COMBINED_TO_SECTOR = ContextualConsumerPolicy(
+    "COMBINED",
+    "SECTOR",
+    "combined-to-sector-v2",
+    required_readiness_version="combined-readiness-v2",
+)
+RANKING_TO_SECTOR = ContextualConsumerPolicy(
+    "RANKING", "SECTOR", "ranking-to-sector-v2", required_readiness_version="ranking-readiness-v2"
+)
+REGIME_TO_SECTOR = ContextualConsumerPolicy(
+    "REGIME", "SECTOR", "regime-to-sector-v2", required_readiness_version="regime-readiness-v2"
+)
+PRIOR_SECTOR_TO_SECTOR = ContextualConsumerPolicy(
+    "SECTOR",
+    "SECTOR",
+    "prior-sector-to-sector-v2",
+    required_readiness_version="sector-readiness-v2",
+)
 
 
 def contextual_decision_input(
@@ -131,6 +167,11 @@ def contextual_decision_input(
             identity = artifact_identity(row)
             if evidence.run_id != row.run_id:
                 raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual owner mismatch")
+            if (
+                policy.producer in {"FUNDAMENTAL", "COMBINED", "TECHNICAL"}
+                and evidence.ticker != row.ticker.upper()
+            ):
+                raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual ticker mismatch")
             if policy.producer == "RANKING" and (
                 evidence.ticker != row.ticker.upper()
                 or evidence.ranking_profile != row.ranking_profile
@@ -233,6 +274,8 @@ def setup_with_contextual_permission(snapshot: Any):
     for edge, producer, keys in (
         ("regime", "REGIME", ("market_regime", "market_gate")),
         ("sector", "SECTOR", ("sector_rank", "sector_confidence")),
+        ("fundamental", "FUNDAMENTAL", ("liquidity",)),
+        ("combined", "COMBINED", ("earnings_risk",)),
     ):
         permission = frozen.get(edge)
         if permission is None:

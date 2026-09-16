@@ -37,6 +37,8 @@ class ReadinessReason(Enum):
     COMBINED_INCOMPLETE = "COMBINED_INCOMPLETE"
     RANKING_INCOMPLETE = "RANKING_INCOMPLETE"
     REGIME_STALE_INPUT = "REGIME_STALE_INPUT"
+    REGIME_INSUFFICIENT_PRIMARY = "REGIME_INSUFFICIENT_PRIMARY"
+    REGIME_INSUFFICIENT_RISK_PROXY = "REGIME_INSUFFICIENT_RISK_PROXY"
     SECTOR_INCOMPLETE_CONTEXT = "SECTOR_INCOMPLETE_CONTEXT"
     CERI_INSUFFICIENT_AVAILABLE_WEIGHT = "CERI_INSUFFICIENT_AVAILABLE_WEIGHT"
     CERI_STALE_SOURCE = "CERI_STALE_SOURCE"
@@ -173,6 +175,7 @@ class EligibilityReason(Enum):
     POLICY_NOT_IMPLEMENTED = "POLICY_NOT_IMPLEMENTED"
     PRODUCER_READINESS_UNKNOWN = "PRODUCER_READINESS_UNKNOWN"
     PRODUCER_READINESS_BLOCKED = "PRODUCER_READINESS_BLOCKED"
+    PRODUCER_READINESS_VERSION_UNSUPPORTED = "PRODUCER_READINESS_VERSION_UNSUPPORTED"
     DEGRADED_POLICY_UNDECIDED = "DEGRADED_POLICY_UNDECIDED"
 
 
@@ -385,6 +388,34 @@ def normalize_producer_readiness(
             status = ReadinessStatus.INSUFFICIENT_EVIDENCE
             blocks.append(ReadinessReason[f"{producer}_INCOMPLETE"])
     elif producer == "REGIME":
+        # The classifier retains its native numeric fallbacks. Permission must
+        # also bind the feature engine's already-produced primary history flag.
+        debug = output.get("debug", output.get("debug_json", {})) or {}
+        symbols = output.get("input_symbols") or debug.get("input_symbols") or {}
+        primary = symbols.get("primary_market")
+        primary_input = (debug.get("market_inputs") or {}).get(primary, {})
+        if primary_input:
+            coverage["primary_market_input"] = primary_input
+        if primary_input.get("insufficient_data") is True or primary_input.get("missing") is True:
+            status = ReadinessStatus.INSUFFICIENT_EVIDENCE
+            blocks.append(ReadinessReason.REGIME_INSUFFICIENT_PRIMARY)
+        elif (
+            primary_input.get("insufficient_data") is not False and status is ReadinessStatus.READY
+        ):
+            status = ReadinessStatus.UNKNOWN
+        proxy = symbols.get("risk_proxy") if symbols.get("use_risk_proxy") is not False else None
+        proxy_input = (debug.get("market_inputs") or {}).get(proxy, {})
+        if proxy_input:
+            coverage["risk_proxy_market_input"] = proxy_input
+        if proxy_input.get("insufficient_data") is True or proxy_input.get("missing") is True:
+            status = ReadinessStatus.INSUFFICIENT_EVIDENCE
+            blocks.append(ReadinessReason.REGIME_INSUFFICIENT_RISK_PROXY)
+        elif (
+            proxy
+            and proxy_input.get("insufficient_data") is not False
+            and status is ReadinessStatus.READY
+        ):
+            status = ReadinessStatus.UNKNOWN
         all_warnings = output.get("warnings", output.get("warnings_json", [])) or []
         if "stale_market_data" in all_warnings or "severely_stale_market_data" in all_warnings:
             status = ReadinessStatus.STALE
@@ -475,6 +506,11 @@ def normalize_producer_readiness(
         calculation_versions=NativeReadinessMetrics.freeze(calculation_versions or {}),
         evaluated_at=Canonical.canonicalize(evaluated_at),
         business_anchor=Canonical.canonicalize(business_anchor),
+        readiness_policy_version=(
+            f"{producer.lower()}-readiness-v2"
+            if producer in {"REGIME", "SECTOR", "COMBINED", "RANKING"}
+            else READINESS_POLICY_VERSION
+        ),
     )
 
 

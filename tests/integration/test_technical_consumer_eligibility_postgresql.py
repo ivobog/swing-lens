@@ -60,7 +60,7 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
     from app.models.tables import UploadRun
     from app.services.combined_ranking_identity import calculation_identity_from_debug
 
-    row, fundamental, technical, cutoff = _identity_aware_sources()
+    row, fundamental, technical, cutoff = _identity_aware_sources(seal_fundamental=False)
     technical.insufficient_data = False
     technical.data_quality_score = 9
     technical_id = calculation_identity_from_debug(technical.debug_json)
@@ -104,6 +104,11 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
         event.listen(engine, "before_cursor_execute", count_select)
         technical = db.scalars(
             select(TechnicalScore).options(selectinload(TechnicalScore.calculation_evidence))
+        ).one()
+        from app.models.tables import FundamentalScore
+
+        fundamental = db.scalars(
+            select(FundamentalScore).options(selectinload(FundamentalScore.calculation_evidence))
         ).one()
         # Warm unrelated source projections so the measured policy lane is isolated.
         _ = row.ticker, fundamental.fundamental_score
@@ -299,8 +304,11 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
             prospective = (
                 combine_row_decision(row, fundamental, technical, config=_config()).debug_evidence,
                 rank_single_row(
-                    profile=profile, row=row, fundamental=fundamental,
-                    technical=technical, config=_config(),
+                    profile=profile,
+                    row=row,
+                    fundamental=fundamental,
+                    technical=technical,
+                    config=_config(),
                 ).debug,
                 SetupLifecycleSnapshotBuilder().build(context).dto.source_lineage,
             )

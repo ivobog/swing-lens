@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from contextual_readiness_helpers import ibmi_feature
+from core_readiness_helpers import certified_fundamental
 from readiness_helpers import certified_technical
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
@@ -35,9 +36,7 @@ def test_ibkr_tradeability_penalty_is_profile_scoped_visible_and_bounded() -> No
     )
     row = _row("THIN")
     fundamental = _fundamental("THIN", 8.0)
-    technical = _technical(
-        "THIN", trend=8, momentum=8, setup=8, risk=2, rs=8
-    )
+    technical = _technical("THIN", trend=8, momentum=8, setup=8, risk=2, rs=8)
     baseline = rank_single_row(
         profile=replace(profile, tradeability_overlay=TradeabilityOverlayConfig()),
         row=row,
@@ -60,14 +59,22 @@ def test_ibkr_tradeability_penalty_is_profile_scoped_visible_and_bounded() -> No
         },
     )
     assert replace(unsealed, debug=baseline.debug) == baseline
-    assert unsealed.debug["contextual_consumer_eligibility"]["ibmi_liquidity"][
-        "producer_readiness"
-    ]["status"] == "LEGACY_UNKNOWN"
+    assert (
+        unsealed.debug["contextual_consumer_eligibility"]["ibmi_liquidity"]["producer_readiness"][
+            "status"
+        ]
+        == "LEGACY_UNKNOWN"
+    )
     penalized = rank_single_row(
-        profile=profile, row=row, fundamental=fundamental, technical=technical,
-        config=_config(), today=TODAY,
+        profile=profile,
+        row=row,
+        fundamental=fundamental,
+        technical=technical,
+        config=_config(),
+        today=TODAY,
         liquidity_feature=ibmi_feature(
-            ticker="THIN", components_json={"dollar_volume": 2_000_000},
+            ticker="THIN",
+            components_json={"dollar_volume": 2_000_000},
         ),
     )
     assert penalized.profile_score == baseline.profile_score - 0.75
@@ -410,7 +417,7 @@ def _fundamental(
     score: float,
     label: str = "High-quality quant",
 ) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         run_id=1,
         ticker=ticker,
         fundamental_score=Decimal(str(score)),

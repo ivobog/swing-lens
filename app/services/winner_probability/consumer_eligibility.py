@@ -16,9 +16,24 @@ from app.services.technical_consumer_eligibility import (
 
 WINNER_ELIGIBILITY_KEY = "winner_consumer_eligibility"
 TECHNICAL_TO_WINNER = TechnicalConsumerPolicy("WINNER", "technical-to-winner-v1")
-RANKING_TO_WINNER = ContextualConsumerPolicy("RANKING", "WINNER", "ranking-to-winner-v1")
-REGIME_TO_WINNER = ContextualConsumerPolicy("REGIME", "WINNER", "regime-to-winner-v1")
-SECTOR_TO_WINNER = ContextualConsumerPolicy("SECTOR", "WINNER", "sector-to-winner-v1")
+RANKING_TO_WINNER = ContextualConsumerPolicy(
+    "RANKING", "WINNER", "ranking-to-winner-v2", required_readiness_version="ranking-readiness-v2"
+)
+REGIME_TO_WINNER = ContextualConsumerPolicy(
+    "REGIME", "WINNER", "regime-to-winner-v2", required_readiness_version="regime-readiness-v2"
+)
+SECTOR_TO_WINNER = ContextualConsumerPolicy(
+    "SECTOR", "WINNER", "sector-to-winner-v2", required_readiness_version="sector-readiness-v2"
+)
+FUNDAMENTAL_TO_WINNER = ContextualConsumerPolicy(
+    "FUNDAMENTAL", "WINNER", "fundamental-to-winner-v1"
+)
+COMBINED_TO_WINNER = ContextualConsumerPolicy(
+    "COMBINED",
+    "WINNER",
+    "combined-to-winner-v2",
+    required_readiness_version="combined-readiness-v2",
+)
 
 
 class WinnerSourceEligibilityError(ValueError):
@@ -53,14 +68,20 @@ class WinnerSourceEligibilityError(ValueError):
 def winner_decision_inputs(run_context: Any, ticker_context: Any):
     """Called only after exact source identity/handoff acquisition, without reselection.
 
-    The v1 feature registry requires Technical and ranking_profile. Regime and Sector
-    have nullable_warning representations. Every decision is computed before rejection.
+    Technical, Ranking and Combined are mandatory. Fundamental, Regime and
+    Sector have native nullable representations. Compute every decision first.
     """
     if getattr(ticker_context, "setup_lifecycle_features", None):
         raise ValueError("Winner acquisition does not accept Setup/Lifecycle features")
     ranking = ticker_context.ranking_results[0] if ticker_context.ranking_results else None
     technical, tech = technical_decision_input(ticker_context.technical_score, TECHNICAL_TO_WINNER)
     ranking_input, rank = contextual_decision_input(ranking, RANKING_TO_WINNER)
+    fundamental, fund = contextual_decision_input(
+        ticker_context.fundamental_score, FUNDAMENTAL_TO_WINNER
+    )
+    combined, combination = contextual_decision_input(
+        ticker_context.combined_result, COMBINED_TO_WINNER
+    )
     regime, market = contextual_decision_input(run_context.market_regime_snapshot, REGIME_TO_WINNER)
     sector, rotation = contextual_decision_input(
         run_context.sector_rotation_snapshot, SECTOR_TO_WINNER
@@ -69,6 +90,8 @@ def winner_decision_inputs(run_context: Any, ticker_context: Any):
     for name, row, permission, requirement in (
         ("technical", ticker_context.technical_score, tech, "MANDATORY"),
         ("ranking", ranking, rank, "MANDATORY"),
+        ("combined", ticker_context.combined_result, combination, "MANDATORY"),
+        ("fundamental", ticker_context.fundamental_score, fund, "OPTIONAL"),
         ("regime", run_context.market_regime_snapshot, market, "OPTIONAL"),
         ("sector", run_context.sector_rotation_snapshot, rotation, "OPTIONAL"),
     ):
@@ -79,11 +102,15 @@ def winner_decision_inputs(run_context: Any, ticker_context: Any):
             "included": permission["decision"]["status"] == "ELIGIBLE",
         }
     frozen = NativeReadinessMetrics.freeze(decisions)
-    if not decisions["technical"]["included"] or not decisions["ranking"]["included"]:
+    if any(
+        item["requirement"] == "MANDATORY" and not item["included"] for item in decisions.values()
+    ):
         raise WinnerSourceEligibilityError(frozen)
     for projected, original in (
         (technical, ticker_context.technical_score),
         (ranking_input, ranking),
+        (fundamental, ticker_context.fundamental_score),
+        (combined, ticker_context.combined_result),
         (regime, run_context.market_regime_snapshot),
         (sector, run_context.sector_rotation_snapshot),
     ):
@@ -97,6 +124,8 @@ def winner_decision_inputs(run_context: Any, ticker_context: Any):
         replace(
             ticker_context,
             technical_score=technical,
+            fundamental_score=fundamental,
+            combined_result=combined,
             ranking_results=(ranking_input, *ticker_context.ranking_results[1:]),
             sector_row=frozen_sector_row(sector, ticker_context.sector_row),
         ),

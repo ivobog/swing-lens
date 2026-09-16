@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from core_readiness_helpers import certified_fundamental
 from readiness_helpers import certified_technical
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
@@ -213,7 +214,7 @@ def _row(
 
 
 def _fundamental(ticker: str, score: float) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         run_id=1,
         ticker=ticker,
         fundamental_score=Decimal(str(score)),

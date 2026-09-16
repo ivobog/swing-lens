@@ -35,6 +35,11 @@ from app.services.combined_ranking_identity import (
     technical_score_identity,
 )
 from app.services.confidence_service import build_combined_warning_flags
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    FUNDAMENTAL_TO_COMBINED,
+    contextual_decision_input,
+)
 from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
 from app.services.earnings_date_parser import MISSING_EARNINGS_DATE_VALUES
 from app.services.earnings_risk_service import (
@@ -257,6 +262,9 @@ def combine_row_decision(
     diagnostic_technical = technical
     technical, eligibility = technical_decision_input(technical, TECHNICAL_TO_COMBINED)
 
+    fundamental, fundamental_permission = contextual_decision_input(
+        fundamental, FUNDAMENTAL_TO_COMBINED
+    )
     fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     dual_score = _float_or_none(technical.dual_score if technical else None)
     technical_classification = technical.classification if technical else None
@@ -352,7 +360,7 @@ def combine_row_decision(
     warning_flags = _merge_warning_flags(warnings.flags, earnings_risk.warning_flags)
     if technical is None and diagnostic_technical is not None:
         warning_flags = _merge_warning_flags(
-            warning_flags, tuple(warning_flags_for_row(None, diagnostic_technical))
+            warning_flags, tuple(warning_flags_for_row(fundamental, diagnostic_technical))
         )
 
     return CombinedDecision(
@@ -377,21 +385,25 @@ def combine_row_decision(
         has_fundamental=warnings.has_fundamental,
         has_technical=warnings.has_technical,
         sort_bucket=warnings.sort_bucket,
-        debug_evidence={**_combined_debug_evidence(
-            row=row,
-            fundamental=fundamental,
-            technical=technical,
-            config=config,
-            weighted_score_before_penalties=weighted_score_before_penalties,
-            penalty_breakdown=penalty_breakdown,
-            earnings_risk=earnings_risk,
-            final_score=final_score,
-            decision=decision,
-            position_size=position_size,
-            warning_flags=warning_flags,
-            sort_bucket=warnings.sort_bucket,
-        ), TECHNICAL_ELIGIBILITY_KEY: eligibility,
-            "diagnostic_technical_score_id": getattr(diagnostic_technical, "id", None)},
+        debug_evidence={
+            CONTEXTUAL_ELIGIBILITY_KEY: {"fundamental": fundamental_permission},
+            **_combined_debug_evidence(
+                row=row,
+                fundamental=fundamental,
+                technical=technical,
+                config=config,
+                weighted_score_before_penalties=weighted_score_before_penalties,
+                penalty_breakdown=penalty_breakdown,
+                earnings_risk=earnings_risk,
+                final_score=final_score,
+                decision=decision,
+                position_size=position_size,
+                warning_flags=warning_flags,
+                sort_bucket=warnings.sort_bucket,
+            ),
+            TECHNICAL_ELIGIBILITY_KEY: eligibility,
+            "diagnostic_technical_score_id": getattr(diagnostic_technical, "id", None),
+        },
     )
 
 
@@ -600,13 +612,23 @@ def _rows_for_run(db: Session, run_id: int) -> list[RawCompanyRow]:
 
 
 def _fundamentals_for_run(db: Session, run_id: int) -> list[FundamentalScore]:
-    return list(db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(FundamentalScore)
+            .options(selectinload(FundamentalScore.calculation_evidence))
+            .where(FundamentalScore.run_id == run_id)
+        )
+    )
 
 
 def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
-    return list(db.scalars(select(TechnicalScore).options(
-        selectinload(TechnicalScore.calculation_evidence)
-    ).where(TechnicalScore.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(TechnicalScore)
+            .options(selectinload(TechnicalScore.calculation_evidence))
+            .where(TechnicalScore.run_id == run_id)
+        )
+    )
 
 
 def _load_scoring_config(path: Path = Path("config/scoring_weights.yaml")) -> dict[str, Any]:
