@@ -35,12 +35,17 @@ from app.services.combined_ranking_identity import (
     technical_score_identity,
 )
 from app.services.confidence_service import build_combined_warning_flags
+from app.services.configuration_source_values import SourcedConfigurationValues, winning_sources
 from app.services.contextual_consumer_eligibility import (
     CONTEXTUAL_ELIGIBILITY_KEY,
     FUNDAMENTAL_TO_COMBINED,
     contextual_decision_input,
 )
 from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_effective_configuration import (
+    CoreEffectiveConfiguration,
+    resolve_combined_configuration,
+)
 from app.services.earnings_date_parser import MISSING_EARNINGS_DATE_VALUES
 from app.services.earnings_risk_service import (
     EarningsRiskResult,
@@ -129,12 +134,18 @@ def refresh_combined_results(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
     pipeline_run_id: int | None = None,
+    effective_configuration: CoreEffectiveConfiguration | None = None,
+    expected_calculation_identity: CalculationIdentity | None = None,
 ) -> list[CombinedResult]:
     rows = _rows_for_run(db, run_id)
     fundamentals = {score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)}
     technicals = {score.ticker.upper(): score for score in _technicals_for_run(db, run_id)}
 
-    config = _load_scoring_config()
+    effective_configuration = effective_configuration or resolve_combined_configuration()
+    effective_configuration.require_family("core.combined")
+    if expected_calculation_identity is not None:
+        effective_configuration.require_retry_identity(expected_calculation_identity)
+    config = effective_configuration.values
     validated: list[
         tuple[
             RawCompanyRow,
@@ -212,7 +223,7 @@ def refresh_combined_results(
             calculation_version=COMBINED_DECISION_CALCULATION_VERSION,
             cohort_fingerprint=cohort_fingerprint,
         )
-        decisions_with_identity.append((decision, output_identity))
+        decisions_with_identity.append((decision, effective_configuration.bind(output_identity)))
     decisions_with_identity.sort(key=lambda item: cockpit_sort_key(item[0]))
 
     results = [
@@ -239,6 +250,7 @@ def refresh_combined_results(
                 db,
                 kind=CoreEvidenceKind.COMBINED,
                 current_row=result,
+                effective_configuration=effective_configuration.snapshot,
                 sources={
                     "fundamental": fundamentals[result.ticker.upper()],
                     "technical": technicals[result.ticker.upper()],
@@ -633,7 +645,16 @@ def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
 
 def _load_scoring_config(path: Path = Path("config/scoring_weights.yaml")) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle) or {}
+        values = yaml.safe_load(handle) or {}
+    return SourcedConfigurationValues(
+        values,
+        winning_sources(
+            values,
+            values,
+            path.as_posix() if not path.is_absolute() else None,
+            "scoring-defaults",
+        ),
+    )
 
 
 def _combined_debug_evidence(

@@ -2,8 +2,14 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, PrivateAttr, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.services.core_settings_provenance import (
+    CORE_SETTING_KEYS,
+    CORE_SETTINGS_TRACE,
+    TracedCoreSettingsSource,
+)
 
 
 class TechnicalArtifactCacheMode(StrEnum):
@@ -37,6 +43,39 @@ class ProcessRole(StrEnum):
 
 
 class Settings(BaseSettings):
+    _core_configuration_sources: tuple[tuple[str, str, bool], ...] = PrivateAttr(default=())
+
+    def __init__(self, **values):
+        trace: dict[str, str] = {}
+        token = CORE_SETTINGS_TRACE.set(trace)
+        try:
+            super().__init__(**values)
+        finally:
+            CORE_SETTINGS_TRACE.reset(token)
+        self._core_configuration_sources = tuple(
+            (key, trace.get(key, "CODE_DEFAULT"), bool(getattr(self, key)))
+            for key in CORE_SETTING_KEYS
+        )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        return tuple(
+            TracedCoreSettingsSource(source, kind)
+            for source, kind in (
+                (init_settings, "REQUEST"),
+                (env_settings, "ENVIRONMENT"),
+                (dotenv_settings, "DOTENV"),
+                (file_secret_settings, "SETTINGS_MODEL"),
+            )
+        )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -483,9 +522,7 @@ class Settings(BaseSettings):
             )
         if self.use_durable_pipeline and not self.durable_worker_process_enabled:
             context = (
-                "CERTIFICATION runtime: "
-                if self.runtime_mode is RuntimeMode.CERTIFICATION
-                else ""
+                "CERTIFICATION runtime: " if self.runtime_mode is RuntimeMode.CERTIFICATION else ""
             )
             raise ValueError(
                 f"{context}USE_DURABLE_PIPELINE=true requires "
@@ -496,9 +533,7 @@ class Settings(BaseSettings):
             self.supervisor_restart_backoff_initial_seconds
             > self.supervisor_restart_backoff_max_seconds
         ):
-            raise ValueError(
-                "supervisor restart initial backoff must not exceed maximum backoff"
-            )
+            raise ValueError("supervisor restart initial backoff must not exceed maximum backoff")
         if self.runtime_mode is RuntimeMode.CERTIFICATION:
             if not self.use_durable_pipeline:
                 raise ValueError("CERTIFICATION runtime requires USE_DURABLE_PIPELINE=true")

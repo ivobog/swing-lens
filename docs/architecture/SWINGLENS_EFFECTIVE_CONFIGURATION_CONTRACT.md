@@ -301,3 +301,134 @@ drift, historical isolation, authority inventory, and compatibility. RANK-005,
 CORE-008, WIN-003, CERI-008, and SETUP-007 remain open for configuration adoption.
 XINT-010 is partial; INV-CONFIG-001 is foundation implemented and enforced only
 on the new opt-in writer path.
+
+## 25. T13B core adoption and authority boundary
+
+Sections 1–24 establish the T13A contract and its then-current adoption state.
+The following sections supplement that state for T13B; the shared canonical
+identity, classification, provenance, compatibility and legacy rules are unchanged.
+T13B is certified PASS within the supported core producer boundary. Detailed native proofs,
+lane accounting and finding dispositions are in
+[the T13B report](../remediation/calculation-lineage/T13B_core_configuration_adoption.md).
+
+| Producer | Family / schema | Authoritative entry resolver | Native sources / key groups |
+|---|---|---|---|
+| Fundamental v2 | `core.fundamental` / `core.fundamental-v1` | `resolve_fundamental_configuration` | Validated fundamentals YAML; model, weights, missing data, thresholds, field priorities, coverage fields, components |
+| Technical | `core.technical` / `core.technical-v1` | `resolve_technical_configuration` | Pine YAML, native v4 file/default merge, active v5 rules, three native Settings flags and explicit benchmark request |
+| Combined | `core.combined` / `core.combined-v1` | `resolve_combined_configuration` | Own mixture/rescaling, penalties, labels, fully merged earnings gate |
+| Ranking | `core.ranking` / `core.ranking-v1` | `resolve_ranking_configuration` | Selected parsed profile rules, missing-data policy, thresholds, gates, penalties, tradeability overlay and own earnings gate |
+
+The complete per-key defaults, tagged types, classifications, sources, resolver,
+schema, consumers and identity coverage are in
+[the executable inventory](../remediation/calculation-lineage/T13B_core_configuration_inventory.csv).
+Repository defaults produce 600 entries across the four families and five
+profiles, including 577 behavioral and 23 frozen observability entries.
+Technical inventory depends on actual enabled/shadow calculation flags.
+
+## 26. Resolve, execute, bind and freeze
+
+Each supported producer resolves before financial calculation. The
+`CoreEffectiveConfiguration` wrapper retains only the shared immutable snapshot;
+native value trees are decoded afresh, preventing caller alias mutations. Values
+must round-trip without numeric loss. Native helpers receive those explicit trees.
+Calculation Identity uses the existing effective-configuration dimension, bound
+to the same snapshot's namespace, schema and semantic digest. No parallel ID model.
+
+The writer requires the exact typed snapshot for known `core.*` identity, verifies
+identity correspondence, owns `effective_configuration_at_creation` and embeds it
+before evidence hashing. It retains semantic/resolution hashes and full safe
+values/provenance in existing immutable evidence. Native input/context/code/source
+identity and independently frozen Phase-3 permissions remain present. No new
+table/column/index/FK or migration, production rewrite or legacy backfill.
+
+Fundamental resolves once per batch. Technical entry/coordinator resolves each
+native file once, passes Pine/v4 through every feature/HTF/RS/Pine worker and
+market helper, and shares its snapshot through finalization/fallback. Certified
+Technical finalization cannot guess prior feature configuration. Empty parameters
+cannot activate a hidden live fallback. Operational Settings are privately copied;
+three behavior flags are replaced from the snapshot. Existing cache hashes use
+the same explicit parameters. Combined resolves its own rules before decisions.
+Ranking parses once per step and freezes each selected profile before ticker math.
+
+## 27. Native precedence and semantic exclusions
+
+File values/default merges keep native authority. Ephemeral source metadata sits
+outside native dict/dataclass value semantics. Settings keeps constructor >
+environment > dotenv > file-secret > code-default precedence. Only the three
+Technical flag winners are traced; no credential/source dictionaries are retained
+in the trace. Private normalized booleans/source kinds are excluded from model_dump.
+Hand-built objects without native trace retain honest unknown provenance or the
+resolved Settings boundary, rather than fabricated environment/file sources.
+
+The family precedence descriptor records Technical's layered REQUEST > resolved
+SETTINGS_MODEL boundary > ENVIRONMENT > DOTENV > PROFILE > CODE_DEFAULT; native
+Settings winner tracing explains its inner precedence. Other families declare
+REQUEST > PROFILE > CODE_DEFAULT. This does not introduce competing global sources
+or new file overrides. Logical source/default identifiers are safe; absolute file
+paths are omitted unless an explicit logical identifier is supplied.
+
+Names, descriptions, unused port/debug/benchmark labels and flags overridden by
+active selection remain frozen explanation outside semantic hashing. The actually
+used benchmark, financial rules and active v5 configuration are behavioral.
+Operational execution/cache/resources and secrets never become financial identity.
+Actual algorithm/engine versions remain independently represented by code identity.
+Native configurable defaults are materialized; fixed formula constants remain
+under their existing algorithm version contract.
+
+## 28. Composition and Ranking profile granularity
+
+Combined and Ranking include only their own configuration. Fundamental, Technical
+and IBMI producer rules propagate through exact upstream evidence/identity pins.
+New core source references use immutable evidence addresses so compatibility-row
+replacement cannot alter an exact retry's lineage or diagnostic payload. This
+does not change eligibility decisions, policy versions or financial behavior.
+
+Each Ranking snapshot contains one selected profile plus own earnings gate.
+Changing Defensive does not invalidate Momentum. Equal selected rules with
+different sources have equal semantic identity/different resolution hash. Same
+profile name with 45/55 -> 40/60 weights produces different semantic and Calculation
+Identity fingerprints and distinct immutable evidence. Profile name/label/
+description/schema/provenance remain frozen, and old rules remain inspectable.
+
+## 29. Historical authority, legacy and retries
+
+Historical readers verify the exact evidence payload/identity before rehydrating
+the snapshot and checking both hashes. No current Settings, YAML, environment,
+profile/default or database rule is consulted. Ranking result readers eager-load
+exact evidence; result APIs present their frozen profile and per-result snapshot.
+Export selection no longer requires a surviving current profile definition.
+Current catalogue and contextual market display remain separate current views.
+
+Legacy evidence without a snapshot remains LEGACY_UNKNOWN, including old debug
+hash/name remnants. No current-rule substitution or backfill. Core entry APIs
+accept frozen snapshots for retries; an incompatible supplied expected Calculation
+Identity fails before financial math. Native PG retries rehydrate C1 after current
+resolver attack and reuse exact identity/evidence. Unanchored current resolution
+creates the current configuration identity; it cannot retain a supplied C1 anchor.
+Durable storage/delivery of anchors across pipeline restart remains T13D.
+
+## 30. T13B coverage, proof and handoff
+
+The bounded native AST census plus manual call-graph review records 237
+T13B_FROZEN, 28 OPERATIONAL_ONLY, 21 DISPLAY_ONLY, 2 T13C, 2 T13D, zero detected
+TEST_ONLY and zero material UNKNOWN_REMAINING reads. It is not repository-wide
+dataflow certification. Certified live material behavioral reads are zero;
+explicit reads from resolved frozen trees and code-versioned formulas remain.
+Legacy standalone v1/preview/helper fallback APIs do not certify original config.
+
+The final focused lane passes 70 tests; core representatives pass 292, full PG
+passes 78, Phase-3 passes 563, Phase-1 passes 135 and Phase-0 passes 86 + 71.
+The final broad lane passes 3,203 tests with seven established live IBMI cases
+deselected and zero failures/skips. Native baseline/current business bytes are
+identical (SHA-256
+`52e42c9f6721371f494fd0ade8f65163771514cc29b1d2d504d57504d356c0f1`).
+No unexpected score/readiness/decision behavior change. Native resolution-count
+tests prohibit per-ticker file reads and repeated per-step profile parsing.
+
+RANK-005 is CLOSED for newly certified selected profile results, with legacy
+explicitly unknown. CORE-008 remains OPEN for Regime in T13C. XINT-010 remains
+PARTIAL. INV-CONFIG-001 is ENFORCED for supported certified core producers and
+PARTIAL repository-wide. T13C adopts Regime/Sector/CERI/IBMI; T13D adopts
+Setup/Lifecycle/Alert/Winner and durable configuration/policy propagation;
+T13E certifies integration. Privileged direct SQL, original-context replay and
+truth of external provenance claims retain the existing stated proof boundaries.

@@ -10,6 +10,7 @@ import yaml
 from app.services.adaptive_technical_features import add_adaptive_features
 from app.services.box_breakout import add_box_features
 from app.services.climax_risk import add_climax_risk_features
+from app.services.configuration_source_values import SourcedConfigurationValues, winning_sources
 from app.services.stage_analysis import add_stage_features
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
 from app.services.volatility_contraction import add_contraction_features
@@ -28,7 +29,16 @@ class TechnicalFeatureResult:
 
 def load_pine_defaults(path: Path = Path("config/pine_defaults.yaml")) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle) or {}
+        values = yaml.safe_load(handle) or {}
+    return SourcedConfigurationValues(
+        values,
+        winning_sources(
+            values,
+            values,
+            path.as_posix() if not path.is_absolute() else None,
+            "pine-defaults",
+        ),
+    )
 
 
 def calculate_technical_features(

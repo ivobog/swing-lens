@@ -740,6 +740,13 @@ def _identity_source_reference(
 ) -> SourceArtifactReference:
     fingerprint = str(identity.fingerprint())
     artifact_id = getattr(artifact, "id", None)
+    config = identity.configuration.effective_configuration
+    if (
+        config.state is IdentityState.KNOWN
+        and config.value.namespace.startswith("core.")
+        and getattr(artifact, "evidence_id", None) is not None
+    ):
+        artifact_id = f"evidence:{artifact.evidence_id}"
     return SourceArtifactReference(
         artifact_type=artifact_type,
         artifact_id=str(artifact_id) if artifact_id is not None else f"identity:{fingerprint}",

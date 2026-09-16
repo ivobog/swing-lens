@@ -27,9 +27,14 @@ from app.services.combined_ranking_identity import (
     calculation_identity_from_debug,
     embed_calculation_identity,
 )
+from app.services.core_effective_configuration import resolve_technical_configuration
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.ranking_profile_config import get_ranking_profile
+from app.services.technical_indicators import load_pine_defaults
+from app.services.technical_scoring_config import load_technical_scoring_v4_config
+from app.services.technical_scoring_v5_config import load_technical_scoring_v5_config
+from app.settings import Settings
 
 SESSION = date(2026, 7, 7)
 PIPELINE_ID = 11
@@ -114,6 +119,12 @@ def test_fundamental_and_technical_producers_persist_context_bound_identities() 
         market_cutoff=cutoff,
         pipeline_run_id=PIPELINE_ID,
         persist=False,
+        effective_configuration=resolve_technical_configuration(
+            pine=load_pine_defaults(),
+            v4=load_technical_scoring_v4_config(),
+            v5=load_technical_scoring_v5_config(),
+            settings=Settings(_env_file=None),
+        ),
     )
 
     for score in (fundamentals[0], finalized[0]):
@@ -353,7 +364,7 @@ def test_new_ranking_identity_may_advance_current_projection(monkeypatch) -> Non
     assert len(first) == 1
     original_fingerprint = first[0].debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY]
 
-    changed = replace(profile, description="materially changed profile identity")
+    changed = replace(profile, technical_weight=0.6, fundamental_weight=0.4)
     monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: [changed])
     second = ranking_profile_service.refresh_all_ranking_profiles(db, RUN_ID)
     assert second[0] is first[0]

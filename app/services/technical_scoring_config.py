@@ -4,6 +4,8 @@ from typing import Any
 
 import yaml
 
+from app.services.configuration_source_values import SourcedConfigurationValues, winning_sources
+
 TECHNICAL_SCORING_V4_CONFIG_PATH = Path("config/technical_scoring_v4.yaml")
 
 DEFAULT_TECHNICAL_SCORING_V4_CONFIG: dict[str, Any] = {
@@ -145,7 +147,15 @@ def load_technical_scoring_v4_config(
 
     config = _deep_merge(DEFAULT_TECHNICAL_SCORING_V4_CONFIG, file_config)
     _validate_regime_weights(config)
-    return config
+    return SourcedConfigurationValues(
+        config,
+        winning_sources(
+            config,
+            file_config,
+            path.as_posix() if not path.is_absolute() else None,
+            "technical-v4-defaults",
+        ),
+    )
 
 
 def _deep_merge(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:

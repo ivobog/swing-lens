@@ -41,6 +41,10 @@ from app.services.core_calculation_evidence import (
     EvidenceUnavailableError,
     persist_core_evidence,
 )
+from app.services.core_effective_configuration import (
+    CoreEffectiveConfiguration,
+    resolve_ranking_configuration,
+)
 from app.services.ib_market_intelligence.config import (
     load_ib_market_intelligence_config,
 )
@@ -105,13 +109,14 @@ def execute_ranking_pipeline_step(
         )
     rows = _raw_rows_for_run(db, run_id)
     if market_cutoff is None and pipeline_run_id is None:
-        results = refresh_all_ranking_profiles(db, run_id)
+        results = refresh_all_ranking_profiles(db, run_id, resolved_profiles=profiles)
     else:
         results = refresh_all_ranking_profiles(
             db,
             run_id,
             market_cutoff=market_cutoff,
             pipeline_run_id=pipeline_run_id,
+            resolved_profiles=profiles,
         )
     if rows and not results:
         raise RuntimeError(
@@ -133,11 +138,22 @@ def refresh_all_ranking_profiles(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
     pipeline_run_id: int | None = None,
+    effective_configurations: tuple[CoreEffectiveConfiguration, ...] | None = None,
+    resolved_profiles: list[RankingProfileConfig] | None = None,
 ) -> list[RankingResult]:
     _require_run(db, run_id)
-    profiles = load_ranking_profiles()
+    profiles = (
+        (resolved_profiles if resolved_profiles is not None else load_ranking_profiles())
+        if effective_configurations is None
+        else [item.ranking_profile() for item in effective_configurations]
+    )
     rows, fundamentals, technicals = _load_run_inputs(db, run_id)
-    config = _load_scoring_config()
+    config = _load_scoring_config() if effective_configurations is None else {}
+    configurations = (
+        {item.ranking_profile().name: item for item in effective_configurations}
+        if effective_configurations is not None
+        else {profile.name: resolve_ranking_configuration(profile, config) for profile in profiles}
+    )
     validated = _validated_ranking_sources(
         rows=rows,
         fundamentals=fundamentals,
@@ -158,6 +174,9 @@ def refresh_all_ranking_profiles(
     desired: list[RankingResult] = []
     ranking_ibmi_sources: dict[tuple[str, str], IBIntelligenceFeature] = {}
     for profile in profiles:
+        effective_configuration = configurations[profile.name]
+        profile = effective_configuration.ranking_profile()
+        config = effective_configuration.values
         profile_liquidity = safe_liquidity if profile.tradeability_overlay.enabled else {}
         decisions = rank_profile(
             profile=profile,
@@ -195,7 +214,9 @@ def refresh_all_ranking_profiles(
                 liquidity_feature=liquidity,
                 liquidity_identity=liquidity_identity if liquidity is not None else None,
             )
-            models.append(_to_ranking_model(run_id, decision, identity))
+            models.append(
+                _to_ranking_model(run_id, decision, effective_configuration.bind(identity))
+            )
         desired.extend(models)
 
     return _persist_rankings(
@@ -204,6 +225,7 @@ def refresh_all_ranking_profiles(
         desired=desired,
         source_rows=validated,
         ibmi_sources=ranking_ibmi_sources,
+        effective_configurations=configurations,
     )
 
 
@@ -215,11 +237,25 @@ def refresh_ranking_profile(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
     pipeline_run_id: int | None = None,
+    effective_configuration: CoreEffectiveConfiguration | None = None,
+    expected_calculation_identity: CalculationIdentity | None = None,
 ) -> list[RankingResult]:
     _require_run(db, run_id)
-    profile = get_ranking_profile(profile_name)
+    profile = (
+        get_ranking_profile(profile_name)
+        if effective_configuration is None
+        else effective_configuration.ranking_profile()
+    )
+    if profile.name != profile_name:
+        raise ValueError("Ranking retry profile mismatch")
     rows, fundamentals, technicals = _load_run_inputs(db, run_id)
-    config = _load_scoring_config()
+    effective_configuration = effective_configuration or resolve_ranking_configuration(
+        profile, _load_scoring_config()
+    )
+    if expected_calculation_identity is not None:
+        effective_configuration.require_retry_identity(expected_calculation_identity)
+    profile = effective_configuration.ranking_profile()
+    config = effective_configuration.values
     validated = _validated_ranking_sources(
         rows=rows,
         fundamentals=fundamentals,
@@ -273,7 +309,7 @@ def refresh_ranking_profile(
                 liquidity_identities.get(decision.ticker) if liquidity is not None else None
             ),
         )
-        models.append(_to_ranking_model(run_id, decision, identity))
+        models.append(_to_ranking_model(run_id, decision, effective_configuration.bind(identity)))
     return _persist_rankings(
         db,
         run_id=run_id,
@@ -282,6 +318,7 @@ def refresh_ranking_profile(
         ibmi_sources={
             (profile.name, ticker.upper()): feature for ticker, feature in profile_liquidity.items()
         },
+        effective_configurations={profile.name: effective_configuration},
     )
 
 
@@ -292,6 +329,7 @@ def _persist_rankings(
     desired: list[RankingResult],
     source_rows: dict[str, _ValidatedRankingSources] | None = None,
     ibmi_sources: dict[tuple[str, str], IBIntelligenceFeature] | None = None,
+    effective_configurations: dict[str, CoreEffectiveConfiguration] | None = None,
 ) -> list[RankingResult]:
     existing = {
         (row.ranking_profile, row.ticker.upper()): row for row in _existing_rankings(db, run_id)
@@ -337,6 +375,9 @@ def _persist_rankings(
                 kind=CoreEvidenceKind.RANKING,
                 current_row=result,
                 sources=evidence_sources,
+                effective_configuration=(effective_configurations or {})[
+                    result.ranking_profile
+                ].snapshot,
             )
     return persisted
 
@@ -411,6 +452,7 @@ def get_ranking_results(
     return list(
         db.scalars(
             select(RankingResult)
+            .options(selectinload(RankingResult.calculation_evidence))
             .where(
                 RankingResult.run_id == run_id,
                 RankingResult.ranking_profile == profile_name,
@@ -424,6 +466,7 @@ def get_all_ranking_results(db: Session, run_id: int) -> list[RankingResult]:
     return list(
         db.scalars(
             select(RankingResult)
+            .options(selectinload(RankingResult.calculation_evidence))
             .where(RankingResult.run_id == run_id)
             .order_by(RankingResult.ranking_profile, RankingResult.profile_rank)
         )

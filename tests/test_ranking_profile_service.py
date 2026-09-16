@@ -115,7 +115,9 @@ def test_ranking_pipeline_step_is_explicitly_skipped_without_profiles(monkeypatc
 def test_ranking_pipeline_step_fails_when_profiles_produce_zero_results(monkeypatch) -> None:
     monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: [object()])
     monkeypatch.setattr(ranking_profile_service, "_raw_rows_for_run", lambda *_: _rows())
-    monkeypatch.setattr(ranking_profile_service, "refresh_all_ranking_profiles", lambda *_: [])
+    monkeypatch.setattr(
+        ranking_profile_service, "refresh_all_ranking_profiles", lambda *_, **__: []
+    )
 
     with pytest.raises(RuntimeError, match="produced zero results"):
         execute_ranking_pipeline_step(FakeDb(), run_id=7)
@@ -130,7 +132,7 @@ def test_run105_shaped_ranking_step_reports_186_by_configured_profiles(monkeypat
     monkeypatch.setattr(
         ranking_profile_service,
         "refresh_all_ranking_profiles",
-        lambda *_: persisted,
+        lambda *_, **__: persisted,
     )
 
     result = execute_ranking_pipeline_step(FakeDb(), run_id=105)

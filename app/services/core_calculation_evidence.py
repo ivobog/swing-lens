@@ -85,6 +85,14 @@ def persist_core_evidence(
             raise ValueError("configuration evidence requires an explicit Calculation Identity")
         return None
 
+    config_dimension = identity.configuration.effective_configuration
+    if (
+        config_dimension.state is IdentityState.KNOWN
+        and config_dimension.value.namespace.startswith("core.")
+        and effective_configuration is None
+    ):
+        raise ValueError("CORE_EFFECTIVE_CONFIGURATION_REQUIRED")
+
     if effective_configuration is not None:
         from app.services.effective_configuration import compare_configuration
 
@@ -110,6 +118,28 @@ def persist_core_evidence(
     payload = CanonicalEvidenceSerializer.canonicalize(
         payload if payload is not None else calculation_evidence_payload(current_row)
     )
+    if (
+        effective_configuration is not None
+        and effective_configuration.family.namespace == "core.combined"
+        and isinstance(payload.get("debug_json"), dict)
+    ):
+        # Current compatibility-row IDs can change on exact retries. The frozen
+        # graph describes immutable inputs, using the writer's exact source pins.
+        debug = payload["debug_json"]
+        raw_id = (debug.get("source_ids") or {}).get("raw_row_id")
+        debug["source_ids"] = {
+            "raw_row_id": raw_id,
+            **{f"{role}_evidence_id": value for role, value in source_ids.items()},
+        }
+        debug.pop("diagnostic_technical_score_id", None)
+        debug["diagnostic_technical_evidence_id"] = source_ids.get("technical")
+    if effective_configuration is not None and isinstance(payload.get("debug_json"), dict):
+        for role, permission in (
+            payload["debug_json"].get("contextual_consumer_eligibility") or {}
+        ).items():
+            if role in source_ids and isinstance(permission, dict):
+                permission.pop("source_feature_id", None)
+                permission["source_evidence_id"] = source_ids[role]
     if READINESS_PAYLOAD_KEY in payload:
         raise ValueError("readiness-at-creation is owned by the evidence writer")
     if CONFIGURATION_PAYLOAD_KEY in payload:

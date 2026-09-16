@@ -174,7 +174,13 @@ def _value(value: Any) -> Any:
 
 def _secret_key(key: str) -> bool:
     normalized = re.sub(r"[^a-z0-9]", "", key.lower())
-    return any(
+    # DSN is an identifier component/prefix/suffix, not an arbitrary substring:
+    # "thresholds.net_debt..." otherwise falsely matches across the separator.
+    return (
+        normalized.startswith("dsn")
+        or normalized.endswith("dsn")
+        or any("dsn" in part for part in re.findall(r"[a-z0-9]+", key.lower()))
+    ) or any(
         word in normalized
         for word in (
             "password",
@@ -187,7 +193,6 @@ def _secret_key(key: str) -> bool:
             "token",
             "databaseurl",
             "connectionstring",
-            "dsn",
         )
     )
 

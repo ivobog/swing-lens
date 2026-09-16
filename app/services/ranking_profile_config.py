@@ -1,8 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import InitVar, asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from app.services.configuration_source_values import winning_sources
+from app.services.effective_configuration import ConfigurationSource
 
 RANKING_PROFILES_CONFIG_PATH = Path("config/ranking_profiles.yaml")
 
@@ -70,6 +73,10 @@ class RankingProfileConfig:
     tradeability_overlay: TradeabilityOverlayConfig = field(
         default_factory=TradeabilityOverlayConfig
     )
+    configuration_provenance: InitVar[tuple[tuple[str, ConfigurationSource], ...]] = ()
+
+    def __post_init__(self, configuration_provenance) -> None:
+        object.__setattr__(self, "_configuration_sources", configuration_provenance)
 
 
 def load_ranking_profiles(
@@ -82,7 +89,20 @@ def load_ranking_profiles(
     if not isinstance(raw_profiles, dict):
         raise RankingProfileConfigError("profiles must be a mapping")
 
-    profiles = [_parse_profile(name, raw) for name, raw in raw_profiles.items()]
+    profiles = []
+    for name, raw in raw_profiles.items():
+        profile = _parse_profile(name, raw)
+        resolved_raw = dict(raw)
+        resolved_raw["name"] = name
+        resolved_raw["technical_weight"] = raw.get("weights", {}).get("technical")
+        resolved_raw["fundamental_weight"] = raw.get("weights", {}).get("fundamental")
+        sources = winning_sources(
+            asdict(profile),
+            resolved_raw,
+            path.as_posix() if not path.is_absolute() else None,
+            "ranking-profile-parser-defaults",
+        )
+        profiles.append(replace(profile, configuration_provenance=sources))
     for profile in profiles:
         _validate_profile(profile)
 
@@ -164,20 +184,24 @@ def _parse_profile(name: str, raw: Any) -> RankingProfileConfig:
         tradeability_overlay=TradeabilityOverlayConfig(
             enabled=bool(tradeability.get("enabled", False)),
             poor_penalty=_float(
-                name, tradeability.get("poor_penalty", 0.0),
+                name,
+                tradeability.get("poor_penalty", 0.0),
                 "tradeability_overlay.poor_penalty",
             ),
             very_poor_penalty=_float(
-                name, tradeability.get("very_poor_penalty", 0.0),
+                name,
+                tradeability.get("very_poor_penalty", 0.0),
                 "tradeability_overlay.very_poor_penalty",
             ),
             maximum_penalty=_float(
-                name, tradeability.get("maximum_penalty", 0.0),
+                name,
+                tradeability.get("maximum_penalty", 0.0),
                 "tradeability_overlay.maximum_penalty",
             ),
             minimum_dollar_volume=(
                 _float(
-                    name, tradeability["minimum_dollar_volume"],
+                    name,
+                    tradeability["minimum_dollar_volume"],
                     "tradeability_overlay.minimum_dollar_volume",
                 )
                 if tradeability.get("minimum_dollar_volume") is not None
@@ -199,14 +223,10 @@ def _validate_profile(profile: RankingProfileConfig) -> None:
         list(profile.technical_components.values()),
     )
 
-    unknown_components = sorted(
-        set(profile.technical_components) - SUPPORTED_TECHNICAL_COMPONENTS
-    )
+    unknown_components = sorted(set(profile.technical_components) - SUPPORTED_TECHNICAL_COMPONENTS)
     if unknown_components:
         joined = ", ".join(unknown_components)
-        raise RankingProfileConfigError(
-            f"{profile.name}: unknown technical component(s): {joined}"
-        )
+        raise RankingProfileConfigError(f"{profile.name}: unknown technical component(s): {joined}")
 
     if not (
         profile.thresholds.strong_candidate_min_score
@@ -283,9 +303,7 @@ def _float(profile_name: str, value: Any, field: str) -> float:
     try:
         return float(value)
     except (TypeError, ValueError) as exc:
-        raise RankingProfileConfigError(
-            f"{profile_name}: {field} must be numeric"
-        ) from exc
+        raise RankingProfileConfigError(f"{profile_name}: {field} must be numeric") from exc
 
 
 def _require_approx_sum(profile_name: str, field: str, values: list[float]) -> None:

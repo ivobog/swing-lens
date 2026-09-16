@@ -391,7 +391,7 @@ def test_overlap_waits_for_current_spy_and_qqq_before_submitting(monkeypatch) ->
     monkeypatch.setattr(
         technical_score_service,
         "_market_features",
-        lambda frame, ticker: _market_features_for_test(
+        lambda frame, ticker, *_configuration: _market_features_for_test(
             ticker,
             qqq_distribution=4 if len(frame) < 320 else 3,
         ),
@@ -438,7 +438,7 @@ def test_overlap_rescores_result_when_final_market_signature_changes(monkeypatch
     monkeypatch.setattr(
         technical_score_service,
         "_market_features",
-        lambda frame, ticker: _market_features_for_test(
+        lambda frame, ticker, *_configuration: _market_features_for_test(
             ticker,
             qqq_distribution=4 if len(frame) < 320 else 3,
         ),

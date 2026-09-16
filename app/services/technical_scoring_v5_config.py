@@ -4,6 +4,8 @@ from typing import Any
 
 import yaml
 
+from app.services.configuration_source_values import SourcedConfigurationValues, winning_sources
+
 TECHNICAL_SCORING_V5_CONFIG_PATH = Path("config/technical_scoring_v5.yaml")
 
 
@@ -14,7 +16,15 @@ def load_technical_scoring_v5_config(
         config = yaml.safe_load(handle) or {}
     config = deepcopy(config)
     _validate(config)
-    return config
+    return SourcedConfigurationValues(
+        config,
+        winning_sources(
+            config,
+            config,
+            path.as_posix() if not path.is_absolute() else None,
+            "technical-v5-defaults",
+        ),
+    )
 
 
 def _validate(config: dict[str, Any]) -> None:
