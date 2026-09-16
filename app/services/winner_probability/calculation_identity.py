@@ -29,10 +29,12 @@ from app.services.contextual_calculation_identity import (
 )
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_regime_policy import load_market_regime_command_center_config
+from app.services.producer_readiness import NativeReadinessMetrics
 from app.services.sector_rotation_config import (
     load_sector_rotation_config,
     sector_rotation_config_hash,
 )
+from app.services.winner_probability.consumer_eligibility import winner_decision_inputs
 
 
 class WinnerCalculationIdentityError(ValueError):
@@ -42,9 +44,7 @@ class WinnerCalculationIdentityError(ValueError):
 WINNER_HANDOFF_CONTRACT = "transition-decision-handoff-v1"
 
 
-def _profile(
-    name: str, *dimensions: tuple[str, bool]
-) -> CalculationIdentityCompatibilityProfile:
+def _profile(name: str, *dimensions: tuple[str, bool]) -> CalculationIdentityCompatibilityProfile:
     return CalculationIdentityCompatibilityProfile(
         name,
         tuple(
@@ -126,6 +126,7 @@ class WinnerSourceAcquisition:
     decision_identity: CalculationIdentity
     handoff_identity: CalculationIdentity
     source_artifacts: tuple[tuple[str, Any, CalculationIdentity], ...]
+    consumer_eligibility: NativeReadinessMetrics
 
 
 def validate_winner_handoff(
@@ -157,9 +158,7 @@ def validate_winner_handoff(
         "upload_run_id": run_id,
         "pipeline_run_id": pipeline_id,
         "market_context_id": market_cutoff.context_id,
-        "run_start_anchor_fingerprint": getattr(
-            handoff, "run_start_anchor_fingerprint", None
-        ),
+        "run_start_anchor_fingerprint": getattr(handoff, "run_start_anchor_fingerprint", None),
     }
     actual_values = {
         "upload_run_id": run_payload.get("upload_run_id"),
@@ -169,8 +168,7 @@ def validate_winner_handoff(
     }
     if (
         getattr(handoff, "upload_run_id", None) != run_id
-        or getattr(handoff, "market_calculation_context_id", None)
-        != market_cutoff.context_id
+        or getattr(handoff, "market_calculation_context_id", None) != market_cutoff.context_id
         or actual_values != expected_values
     ):
         raise WinnerCalculationIdentityError("Winner Decision Handoff ownership mismatch")
@@ -277,9 +275,7 @@ def acquire_winner_sources(
         sources.append(("RankingResult", candidate, identity))
 
     regime_config = load_market_regime_command_center_config()
-    regime_expected = expected_regime_identity(
-        market_cutoff=market_cutoff, config=regime_config
-    )
+    regime_expected = expected_regime_identity(market_cutoff=market_cutoff, config=regime_config)
     market, market_identity = _context_source(
         _candidates(
             run_context,
@@ -346,6 +342,10 @@ def acquire_winner_sources(
         market_regime_snapshot=market,
         sector_rotation_snapshot=sector,
     )
+    selected_run, selected_ticker, eligibility = winner_decision_inputs(
+        selected_run,
+        selected_ticker,
+    )
     _ = winner_config
     return WinnerSourceAcquisition(
         run_context=selected_run,
@@ -353,6 +353,7 @@ def acquire_winner_sources(
         decision_identity=decision,
         handoff_identity=handoff_identity,
         source_artifacts=tuple(sources),
+        consumer_eligibility=eligibility,
     )
 
 
@@ -372,6 +373,7 @@ def build_winner_prediction_identity(
         source_payload={
             "feature_schema_version": config.feature_schema.version,
             "feature_vector_hash": feature_vector_hash,
+            "winner_consumer_eligibility": acquisition.consumer_eligibility.canonical_payload(),
         },
     )
 
@@ -410,9 +412,7 @@ def _context_source(
         identity = artifact_identity(artifact)
         if not _artifact_matches(artifact, expected_artifact):
             continue
-        if contextual_compatibility(
-            expected_identity, identity, policy=policy
-        ).accepted:
+        if contextual_compatibility(expected_identity, identity, policy=policy).accepted:
             return artifact, identity
     return None, None
 
@@ -498,9 +498,7 @@ def _handoff_identity(
         f"sha256:{manifest_fingerprint}",
         na,
         IdentityDimension.known(
-            DigestIdentity(
-                "sha256", manifest_fingerprint, "complete immutable Handoff manifest"
-            )
+            DigestIdentity("sha256", manifest_fingerprint, "complete immutable Handoff manifest")
         ),
     )
     return replace(
@@ -519,9 +517,7 @@ def _handoff_identity(
             SourceLineageIdentity(
                 (reference,),
                 IdentityDimension.known(
-                    DigestIdentity(
-                        "sha256", manifest_fingerprint, "complete Handoff fingerprint"
-                    )
+                    DigestIdentity("sha256", manifest_fingerprint, "complete Handoff fingerprint")
                 ),
                 "validated immutable Decision Handoff",
             )

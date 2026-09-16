@@ -131,6 +131,13 @@ def contextual_decision_input(
             identity = artifact_identity(row)
             if evidence.run_id != row.run_id:
                 raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual owner mismatch")
+            if policy.producer == "RANKING" and (
+                evidence.ticker != row.ticker.upper()
+                or evidence.ranking_profile != row.ranking_profile
+            ):
+                raise EvidenceUnavailableError(
+                    "EVIDENCE_UNAVAILABLE: Ranking ticker/profile mismatch"
+                )
         if str(identity.fingerprint()) != evidence.calculation_identity_fingerprint:
             raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual identity mismatch")
         readiness = readiness_from_evidence(evidence)

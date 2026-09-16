@@ -46,6 +46,22 @@ class ExtractedPredictionFeatures:
 
 
 class WinnerFeatureExtractor:
+    def validate_capture_vector(
+        self,
+        features: ExtractedPredictionFeatures,
+        config: WinnerProbabilityConfig,
+    ) -> None:
+        registry = FeatureSchemaRegistry(config.feature_schema.version)
+        missing = [
+            item.name for item in registry.list_features()
+            if item.missingness_policy == "required_for_eligible_prediction"
+            and features.feature_json.get(item.name) in (None, "")
+        ]
+        if missing:
+            raise WinnerFeatureExtractionError(
+                f"Winner required feature unavailable: {','.join(sorted(missing))}"
+            )
+
     def finalize_decision_timing(
         self,
         features: ExtractedPredictionFeatures,

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from _phase3_helpers import FakeWinnerRepository, build_run_context
+from readiness_capture_helpers import ready_identity_context, reseal_context
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -39,7 +40,7 @@ from app.services.winner_probability.repository import RunCaptureContext
 
 
 def test_canonical_capture_validates_sources_then_freezes_identity() -> None:
-    context, cutoff = _identity_context()
+    context, cutoff = ready_identity_context()
     repository = FakeWinnerRepository(context)
 
     result = _service(repository).capture_run(
@@ -77,7 +78,7 @@ def test_canonical_capture_validates_sources_then_freezes_identity() -> None:
 
 @pytest.mark.parametrize("source", ["technical", "combined", "ranking"])
 def test_same_run_ticker_wrong_source_identity_never_drives_winner(source: str) -> None:
-    context, cutoff = _identity_context(wrong_source=source)
+    context, cutoff = ready_identity_context(wrong_source=source)
     repository = FakeWinnerRepository(context)
 
     result = _service(repository).capture_run(
@@ -88,14 +89,13 @@ def test_same_run_ticker_wrong_source_identity_never_drives_winner(source: str) 
         assert result.failed == 1
         assert repository.predictions == []
     else:
-        assert result.inserted == 1
-        prediction = repository.predictions[0]
-        assert prediction.source_ids_json["ranking_result_id"] is None
-        assert "missing_ranking_result" in prediction.warning_flags_json
+        # Preserve the incompatible input; the registry requires ranking_profile.
+        assert result.excluded == 1
+        assert repository.predictions == []
 
 
 def test_fundamental_identity_mismatch_is_optional_omission() -> None:
-    context, cutoff = _identity_context(wrong_source="fundamental")
+    context, cutoff = ready_identity_context(wrong_source="fundamental")
     repository = FakeWinnerRepository(context)
 
     result = _service(repository).capture_run(
@@ -109,7 +109,7 @@ def test_fundamental_identity_mismatch_is_optional_omission() -> None:
 
 
 def test_raw_row_mismatch_fails_before_vector_freeze() -> None:
-    context, cutoff = _identity_context()
+    context, cutoff = ready_identity_context()
     context.tickers[0].raw_row.raw_json = {"Symbol": "MUTATED"}
     repository = FakeWinnerRepository(context)
 
@@ -122,7 +122,7 @@ def test_raw_row_mismatch_fails_before_vector_freeze() -> None:
 
 
 def test_compatible_cross_run_regime_is_accepted_after_newer_incompatible_candidate() -> None:
-    context, cutoff = _identity_context(newer_incompatible_regime=True)
+    context, cutoff = ready_identity_context(newer_incompatible_regime=True)
     repository = FakeWinnerRepository(context)
 
     result = _service(repository).capture_run(
@@ -137,7 +137,7 @@ def test_compatible_cross_run_regime_is_accepted_after_newer_incompatible_candid
 
 
 def test_incompatible_sector_is_omitted_from_frozen_vector() -> None:
-    context, cutoff = _identity_context(wrong_source="sector")
+    context, cutoff = ready_identity_context(wrong_source="sector")
     repository = FakeWinnerRepository(context)
 
     result = _service(repository).capture_run(
@@ -151,7 +151,7 @@ def test_incompatible_sector_is_omitted_from_frozen_vector() -> None:
 
 
 def test_ranking_filters_identity_before_priority_selection() -> None:
-    context, cutoff = _identity_context(ranking_priority_mismatch=True)
+    context, cutoff = ready_identity_context(ranking_priority_mismatch=True)
     repository = FakeWinnerRepository(context)
 
     result = _service(repository).capture_run(
@@ -166,7 +166,7 @@ def test_ranking_filters_identity_before_priority_selection() -> None:
 
 @pytest.mark.parametrize("dimension", ["context", "session", "cutoff", "calendar"])
 def test_handoff_mismatch_fails_closed(dimension: str) -> None:
-    context, cutoff = _identity_context()
+    context, cutoff = ready_identity_context()
     handoff = context.decision_handoff_manifest
     payload = dict(handoff.manifest_json)
     market = dict(payload["market_context"])
@@ -189,7 +189,7 @@ def test_handoff_mismatch_fails_closed(dimension: str) -> None:
 
 
 def test_missing_handoff_and_historical_capture_without_identity_fail_closed() -> None:
-    context, cutoff = _identity_context()
+    context, cutoff = ready_identity_context()
     context = replace(context, decision_handoff_manifest=None)
 
     with pytest.raises(WinnerCalculationIdentityError, match="DecisionHandoff"):
@@ -203,8 +203,8 @@ def test_missing_handoff_and_historical_capture_without_identity_fail_closed() -
 
 
 def test_historical_business_identity_is_wall_clock_invariant() -> None:
-    first_context, cutoff = _identity_context()
-    second_context, _ = _identity_context()
+    first_context, cutoff = ready_identity_context()
+    second_context, _ = ready_identity_context()
     first = FakeWinnerRepository(first_context)
     second = FakeWinnerRepository(second_context)
 
@@ -232,9 +232,9 @@ def test_historical_business_identity_is_wall_clock_invariant() -> None:
 
 
 def test_identity_compatible_technical_insufficiency_remains_excluded() -> None:
-    context, cutoff = _identity_context()
+    context, cutoff = ready_identity_context()
     context.tickers[0].technical_score.insufficient_data = True
-    _refresh_handoff(context, cutoff)
+    reseal_context(context, cutoff, "technical")
     repository = FakeWinnerRepository(context)
 
     result = _service(repository).capture_run(
@@ -242,11 +242,20 @@ def test_identity_compatible_technical_insufficiency_remains_excluded() -> None:
     )
 
     assert result.excluded == 1
-    assert repository.predictions[0].exclusion_reason == "insufficient_completed_bars"
+    assert result.exclusion_reasons == {"insufficient_completed_bars": 1}
+    assert repository.predictions == []
+
+
+def test_original_unloaded_identity_only_fixture_is_retained_and_rejected() -> None:
+    context, cutoff = _identity_context()
+    repository = FakeWinnerRepository(context)
+    result = _service(repository).capture_run(_session(), run_id=7, market_cutoff=cutoff)
+    assert result.failed == 1
+    assert repository.predictions == []
 
 
 def test_legacy_prediction_is_not_silently_upgraded_or_rewritten() -> None:
-    context, cutoff = _identity_context()
+    context, cutoff = ready_identity_context()
     repository = FakeWinnerRepository(context)
     service = _service(repository)
     service.capture_run(_session(), run_id=7, market_cutoff=cutoff)

@@ -296,3 +296,77 @@ T12C enforces its five edges; INV-READINESS-001 and XINT-004 remain partial acro
 T12D retains Winner Technical quality and Ranking/Regime/Sector permission certification;
 T12E retains Phase-3 integration. No migration, production rewrite or legacy backfill is needed.
 Full results and scope limits: `docs/remediation/calculation-lineage/T12C_contextual_consumer_readiness_enforcement.md`.
+
+## T12D Winner acquisition enforcement
+
+T12D starts from T12C `40f7f1bfa54fe2914f1f9f73ffb8c84026fedf01`.
+`winner_probability/consumer_eligibility.py` defines four independent policies using
+the existing Technical/contextual policy registries and T12A immutable envelopes:
+
+| Policy | Version | Winner requirement | READY | DEGRADED | INSUFFICIENT_EVIDENCE / ERROR / STALE or blocking reasons | UNKNOWN / LEGACY_UNKNOWN |
+|---|---|---|---|---|---|---|
+| TECHNICAL_TO_WINNER | technical-to-winner-v1 | MANDATORY | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+| RANKING_TO_WINNER | ranking-to-winner-v1 | MANDATORY | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+| REGIME_TO_WINNER | regime-to-winner-v1 | OPTIONAL / MODEL_DEFINED_MISSING | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+| SECTOR_TO_WINNER | sector-to-winner-v1 | OPTIONAL / MODEL_DEFINED_MISSING | ELIGIBLE | POLICY_UNDECIDED | INELIGIBLE | POLICY_UNDECIDED |
+
+Only ELIGIBLE contributes values. Each degraded policy was reviewed against actual
+Winner configuration and feature semantics; none grants degraded use. No quality
+override, sufficiency threshold or producer normalizer change is introduced.
+The existing feature registry requires Technical score/quality/trigger inputs and
+`ranking_profile`; Regime and Sector features use `nullable_warning`. Required
+source rejection prevents capture. Optional omission preserves native None and
+existing missing-context warnings, rather than assigning zero or rejecting all vectors.
+
+Exact identity, owner, cutoff, calendar, configuration, algorithm and handoff
+membership selection precedes all four eligibility decisions. Ranking also checks
+the evidence ticker and profile. Selected source values are projected from their
+immutable evidence; Sector uses the exact row inside the selected frozen snapshot.
+The selected rows' original operational clocks remain subject to Winner's existing
+point-in-time audit. An ineligible selection cannot trigger current/global/older
+READY replacement. Compatible exact Regime reuse across runs remains supported.
+
+`acquire_winner_sources` computes all four decisions before rejecting a required
+source. Vector validation checks the existing registry's required members before
+prediction, episode, child outcomes or estimates are persisted. Native Technical
+`insufficient_data=true` is normalized to TECH_INSUFFICIENT_HISTORY and subsumed by
+TECHNICAL_TO_WINNER; `insufficient_completed_bars` remains the exclusion reason.
+Other required rejections use `winner_source_ineligible` or
+`winner_readiness_undecided`, with all four full decisions in structured rejection
+metadata. No partial excluded numeric prediction is stored by new certified capture.
+The existing per-ticker transaction still governs subsequent persistence failures.
+Direct SQL-session persistence without exact acquisition is rejected.
+
+The reserved prediction-lineage member `winner_consumer_eligibility` seals producer
+envelopes/fingerprints, evidence IDs, policy versions, typed decisions/reasons,
+source references, requiredness and inclusion/omission. The complete canonical
+decision set participates in acquisition/prediction Calculation Identity, outside
+feature_json and its business hash. Omitted certified evidence remains pinned for
+audit. ORM guards protect the reserved member against edits, removal and addition
+to pre-T12D predictions while allowing existing operational lineage updates.
+Exact retries reuse their original prediction; prospective version changes cannot
+overwrite an active identity. Historical reads, Bayesian rescoring, outcome
+maturation and cohort/generation operations use frozen predictions and never
+reacquire these producer policies. Existing predictions are not rewritten/backfilled.
+
+Winner bulk readers preload existing evidence relationships. Repeated native PG
+acquisition after preload has zero additional SELECTs for permission evaluation.
+Ranking's view-only relationship reuses its existing evidence_id foreign key;
+there are no new columns, migrations or schema heads.
+
+Winner's complete input audit also identifies Raw as a base fact, Fundamental as
+the previously inventoried optional coverage input without a dedicated Winner
+producer policy, and Combined as protected by its existing native completeness
+gate. These match the T12A inventory and are not silently certified under the four
+T12D policies. Copied Fundamental denormalization is display-only; it cannot restore
+an omitted Fundamental feature. The inactive Setup/Lifecycle feature-injection hook
+is rejected at certified acquisition. No CERI, IBMI, Setup, Lifecycle or Alert edge
+is added to Winner. Sparse native-NORMAL Regime remains the CORE-001 producer gap;
+correctly marked stale Regime cannot contribute even when retained values are bullish.
+
+The known major Phase-3 graph now has 12 enforced edges (T12B 3, T12C 5, T12D 4),
+with zero remaining bypass in that enumerated graph. Producer defects and other
+inventoried policy gaps remain separate. INV-READINESS-001 is code-enforced and
+runtime-validated for these edges; repository-wide Phase-3 certification remains
+partial pending T12E. Full audit, parity and native-lane evidence:
+`docs/remediation/calculation-lineage/T12D_winner_readiness_enforcement.md`.

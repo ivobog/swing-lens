@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from inspect import Parameter, signature
@@ -34,6 +34,10 @@ from app.services.winner_probability.calculation_identity import (
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
     load_winner_probability_config,
+)
+from app.services.winner_probability.consumer_eligibility import (
+    WINNER_ELIGIBILITY_KEY,
+    WinnerSourceEligibilityError,
 )
 from app.services.winner_probability.decision_time_estimate_service import (
     DecisionTimeEstimateService,
@@ -89,6 +93,7 @@ class WinnerPredictionCaptureResult:
     exclusion_reasons: dict[str, int] = field(default_factory=dict)
     failure_classifications: dict[str, int] = field(default_factory=dict)
     representative_failures: tuple[dict[str, str], ...] = ()
+    readiness_rejections: tuple[dict[str, Any], ...] = ()
     performance: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -299,6 +304,23 @@ class WinnerPredictionCaptureService:
                             item_db.commit()
                 except (JobLeaseLost, WorkerMemoryCritical, WinnerPredictionCaptureCancelled):
                     raise
+                except WinnerSourceEligibilityError as exc:
+                    totals.excluded += 1
+                    totals.record_exclusion(exc.reason)
+                    totals.readiness_rejections.append(exc.metadata(ticker))
+                    logger.info(
+                        "winner_prediction.readiness_rejected",
+                        extra={"run_id": run_id, "ticker": ticker, "reason": exc.reason},
+                    )
+                    _record_ticker_progress(
+                        progress_callback,
+                        db,
+                        run_id=run_id,
+                        ticker_contexts=ticker_contexts,
+                        item_index=item_index,
+                        ticker=ticker,
+                    )
+                    _commit_if_supported(db)
                 except Exception as exc:
                     totals.record_failure(ticker, exc)
                     logger.exception(
@@ -361,6 +383,10 @@ class WinnerPredictionCaptureService:
         acquisition: WinnerSourceAcquisition | None,
         totals: _MutableCaptureCounts,
     ) -> None:
+        if isinstance(db, Session) and acquisition is None:
+            raise WinnerCalculationIdentityError(
+                "Winner persistence requires exact source acquisition"
+            )
         if acquisition is not None:
             run_context = acquisition.run_context
             ticker_context = acquisition.ticker_context
@@ -371,6 +397,15 @@ class WinnerPredictionCaptureService:
             config,
             decision_at=feature_as_of_at,
         )
+        if acquisition is not None:
+            self.feature_extractor.validate_capture_vector(features, config)
+            features = replace(
+                features,
+                lineage_json={
+                    **features.lineage_json,
+                    WINNER_ELIGIBILITY_KEY: acquisition.consumer_eligibility.canonical_payload(),
+                },
+            )
         ticker_decision_at = decision_at or datetime.now(UTC)
         features = self.feature_extractor.finalize_decision_timing(
             features,
@@ -635,6 +670,7 @@ class _MutableCaptureCounts:
     exclusion_reasons: dict[str, int] = field(default_factory=dict)
     failure_classifications: dict[str, int] = field(default_factory=dict)
     representative_failures: list[dict[str, str]] = field(default_factory=list)
+    readiness_rejections: list[dict[str, Any]] = field(default_factory=list)
 
     def add(self, other: _MutableCaptureCounts) -> None:
         for name in (
@@ -657,6 +693,7 @@ class _MutableCaptureCounts:
             )
         remaining = max(0, 5 - len(self.representative_failures))
         self.representative_failures.extend(other.representative_failures[:remaining])
+        self.readiness_rejections.extend(other.readiness_rejections)
 
     def record_exclusion(self, reason: str | None) -> None:
         normalized = str(reason or "unspecified").strip() or "unspecified"
@@ -698,6 +735,7 @@ class _MutableCaptureCounts:
             exclusion_reasons=dict(sorted(self.exclusion_reasons.items())),
             failure_classifications=dict(sorted(self.failure_classifications.items())),
             representative_failures=tuple(self.representative_failures),
+            readiness_rejections=tuple(self.readiness_rejections),
             performance=dict(performance or {}),
         )
 

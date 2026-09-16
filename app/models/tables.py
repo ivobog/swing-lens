@@ -759,6 +759,11 @@ class CombinedResult(Base):
 class RankingResult(Base):
     __tablename__ = "ranking_results"
 
+    calculation_evidence = relationship(
+        "CoreCalculationEvidence", foreign_keys="RankingResult.evidence_id",
+        viewonly=True, lazy="raise",
+    )
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="CASCADE"),
@@ -2407,8 +2412,8 @@ class WinnerPredictionSnapshot(Base):
 
 
 def _protect_winner_readiness_update(_mapper: Any, connection: Any, target: Any) -> None:
-    # Winner retains mutable operational lineage. Only readiness-at-creation is
-    # sealed here; legacy predictions cannot be retrospectively certified.
+    # Winner retains mutable operational lineage. Readiness-at-creation and
+    # capture-time consumer permission are sealed; legacy rows cannot be promoted.
     from sqlalchemy import inspect
 
     if not inspect(target).attrs.lineage_json.history.has_changes():
@@ -2418,8 +2423,10 @@ def _protect_winner_readiness_update(_mapper: Any, connection: Any, target: Any)
             WinnerPredictionSnapshot.__table__.c.id == target.id
         )
     ).scalar_one()
-    if (stored or {}).get("producer_readiness") != (target.lineage_json or {}).get(
-        "producer_readiness"
+    sealed_members = ("producer_readiness", "winner_consumer_eligibility")
+    if any(
+        (stored or {}).get(member) != (target.lineage_json or {}).get(member)
+        for member in sealed_members
     ):
         _reject_core_evidence_mutation(_mapper, connection, target)
 
@@ -2430,7 +2437,10 @@ def _protect_winner_readiness_delete(mapper: Any, connection: Any, target: Any) 
             WinnerPredictionSnapshot.__table__.c.id == target.id
         )
     ).scalar_one()
-    if (stored or {}).get("producer_readiness") is not None:
+    if any(
+        (stored or {}).get(member) is not None
+        for member in ("producer_readiness", "winner_consumer_eligibility")
+    ):
         _reject_core_evidence_mutation(mapper, connection, target)
 
 
