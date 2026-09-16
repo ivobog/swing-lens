@@ -12,6 +12,11 @@ TECHNICAL_SCORING_V5_CONFIG_PATH = Path("config/technical_scoring_v5.yaml")
 def load_technical_scoring_v5_config(
     path: Path = TECHNICAL_SCORING_V5_CONFIG_PATH,
 ) -> dict[str, Any]:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("v5")
+
     with path.open("r", encoding="utf-8") as handle:
         config = yaml.safe_load(handle) or {}
     config = deepcopy(config)

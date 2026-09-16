@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from inspect import Parameter, signature
 from typing import Any
 
+from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.market_calculation_context_service import (
     assert_pipeline_calculation_context,
 )
@@ -18,7 +19,7 @@ from app.services.setup_lifecycle.change_detector import (
     SetupLifecycleChangeDetector,
     SignalChangeDetectionResult,
 )
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
 from app.services.setup_lifecycle.enums import EvaluationStatus
 from app.services.setup_lifecycle.episode_service import (
@@ -88,7 +89,10 @@ class SetupLifecycleEvaluationService:
         alert_service: SetupLifecycleAlertService | None = None,
         config: SetupLifecycleConfig | None = None,
     ) -> None:
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_setup_configuration
+
+        self.effective_configuration = resolve_setup_configuration(config)
+        self.config = self.effective_configuration.setup_config()
         self.repository = repository or SetupLifecycleRepository()
         self.capture_service = capture_service or SetupLifecycleSnapshotCaptureService(
             repository=self.repository,
@@ -111,6 +115,7 @@ class SetupLifecycleEvaluationService:
             config=self.config,
         )
 
+    @anchored_decision_calculator
     def evaluate_run(
         self,
         db,

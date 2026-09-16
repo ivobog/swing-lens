@@ -40,6 +40,7 @@ from app.services.ceri.feature_flags import ceri_flags
 from app.services.ceri.job_handlers import CERI_PROVIDER_INGEST
 from app.services.ceri.sec.pipeline_preflight import validate_sec_pipeline_preflight
 from app.services.combined_decision import refresh_combined_results
+from app.services.configuration_delivery import pipeline_configuration_delivery
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
@@ -251,6 +252,7 @@ class PipelineExecutionDependencies:
     )
 
 
+@pipeline_configuration_delivery
 def execute_full_pipeline(
     db: Session,
     pipeline_run_id: int,
@@ -263,6 +265,28 @@ def execute_full_pipeline(
     execution_token: str | None = None,
 ) -> PipelineExecutionResult:
     dependencies = dependencies or PipelineExecutionDependencies()
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if isinstance(db, Session) and current_delivery() is not None:
+        frozen_flags = delivered_configuration("execution.settings").values
+        expected_flags = {
+            "ceri_run_capture_enabled": frozen_flags["ceri_enabled"]
+            and frozen_flags["ceri_run_capture_enabled"],
+            "ceri_provider_ingest_enabled": frozen_flags["ceri_enabled"]
+            and frozen_flags["ceri_provider_ingest_enabled"],
+            "setup_lifecycle_pipeline_step_enabled": frozen_flags[
+                "setup_lifecycle_pipeline_step_enabled"
+            ],
+            "setup_capture_handoff_enabled": frozen_flags["setup_capture_handoff_enabled"],
+            "winner_probability_capture_enabled": (
+                frozen_flags["winner_probability_enabled"]
+                and frozen_flags["winner_probability_capture_in_pipeline"]
+            ),
+        }
+        for name, expected in expected_flags.items():
+            supplied = getattr(dependencies, name)
+            if supplied is not None and supplied != expected:
+                raise ValueError("PIPELINE_CONFIGURATION_FLAG_ANCHOR_MISMATCH: " + name)
     pipeline = _require_pipeline(db, pipeline_run_id)
     market_cutoff = dependencies.market_cutoff or market_context_for_pipeline(db, pipeline)
     if dependencies.market_cutoff is None:
@@ -785,9 +809,7 @@ def execute_full_pipeline(
                     db,
                     upload_run.id,
                     market_cutoff=market_cutoff,
-                    decision_handoff_manifest_id=result.get(
-                        "decision_handoff_manifest_id"
-                    ),
+                    decision_handoff_manifest_id=result.get("decision_handoff_manifest_id"),
                     should_cancel=should_cancel,
                     lease_guard=lease_guard,
                     progress_callback=progress_callback,
@@ -977,9 +999,7 @@ def _execute_resumed_pipeline(
                     db,
                     upload_run.id,
                     market_cutoff=dependencies.market_cutoff,
-                    decision_handoff_manifest_id=result.get(
-                        "decision_handoff_manifest_id"
-                    ),
+                    decision_handoff_manifest_id=result.get("decision_handoff_manifest_id"),
                     should_cancel=should_cancel,
                     lease_guard=lease_guard,
                     progress_callback=progress_callback,
@@ -1151,9 +1171,7 @@ def _validate_resume_evidence(
         or binding.get("pipeline_run_id") != pipeline.id
         or market_context.get("id") != handoff.market_calculation_context_id
     ):
-        raise ValueError(
-            "HISTORICAL_EVIDENCE_UNAVAILABLE: resume handoff ownership mismatch"
-        )
+        raise ValueError("HISTORICAL_EVIDENCE_UNAVAILABLE: resume handoff ownership mismatch")
 
     raw_rows = list(
         db.scalars(
@@ -1194,9 +1212,7 @@ def _validate_resume_evidence(
                 ranking, expected_ranking, label=f"{ticker}:ranking:{ranking.ranking_profile}"
             )
             certified_ids.add(
-                _require_unchanged_core_evidence(
-                    db, kind=CoreEvidenceKind.RANKING, row=ranking
-                )
+                _require_unchanged_core_evidence(db, kind=CoreEvidenceKind.RANKING, row=ranking)
             )
         for label, kind, model in (
             ("market_regime_snapshot", CoreEvidenceKind.REGIME, MarketRegimeSnapshot),
@@ -1250,9 +1266,7 @@ def _require_manifest_artifact(row: Any, expected: Any, *, label: str) -> None:
         ),
     }
     if actual != expected:
-        raise ValueError(
-            f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume artifact changed {label}"
-        )
+        raise ValueError(f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume artifact changed {label}")
 
 
 def _require_certified_pointer(db: Session, *, kind: CoreEvidenceKind, row: Any) -> int:

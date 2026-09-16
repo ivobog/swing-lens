@@ -214,6 +214,11 @@ class SetupLifecycleConfig:
 def load_setup_lifecycle_config(
     path: Path = SETUP_LIFECYCLE_CONFIG_PATH,
 ) -> SetupLifecycleConfig:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("setup")
+
     with path.open("r", encoding="utf-8") as handle:
         raw = yaml.safe_load(handle) or {}
     if not isinstance(raw, dict):
@@ -246,7 +251,64 @@ def load_setup_lifecycle_config(
         config_hash="",
     )
     _validate_cross_section_rules(parsed)
-    return replace(parsed, config_hash=setup_lifecycle_config_hash(parsed))
+    resolved = replace(parsed, config_hash=setup_lifecycle_config_hash(parsed))
+    from app.services.effective_configuration import ConfigurationSource, ConfigurationSourceKind
+
+    object.__setattr__(
+        resolved,
+        "_native_configuration_source",
+        ConfigurationSource(ConfigurationSourceKind.PROFILE, "setup-lifecycle-native-profile"),
+    )
+    from app.services.configuration_source_values import winning_sources
+
+    # Native parser aliases must be projected before tracing winning leaves.
+    provided = dict(raw)
+    provided["phases"] = {key.upper(): value for key, value in raw["phases"].items()}
+    policies = {}
+    for family in SetupFamily:
+        row = dict(raw["families"][family.value.lower()])
+        common = {
+            "enabled",
+            "tracking_score_min",
+            "ready_score_min",
+            "observation_gap_sessions",
+            "max_age_sessions",
+            "failed_rearm_cooldown_sessions",
+        }
+        policies[family.value] = {
+            **{key: value for key, value in row.items() if key in common},
+            "parameters": {key: value for key, value in row.items() if key not in common},
+        }
+    provided["families"] = {**raw["families"], "policies": policies}
+    provided["data_quality_labels"] = {
+        key: {**value, "label": key} for key, value in raw["data_quality_labels"].items()
+    }
+    common_rule = {"enabled", "severity", "source", "cooldown_sessions", "minimum_confidence"}
+    provided["alerts"] = {
+        **raw["alerts"],
+        "rules": {
+            key: {
+                **{k: v for k, v in value.items() if k in common_rule},
+                "rule_id": key,
+                "filters": {k: v for k, v in value.items() if k not in common_rule},
+            }
+            for key, value in raw["alerts"]["rules"].items()
+        },
+    }
+    # Registry is one STRUCTURE authority unit: profile definitions interpreted
+    # by the declared native parser, including its per-definition defaults.
+    provided["signal_registry"] = list(raw["signals"].items())
+    object.__setattr__(
+        resolved,
+        "_configuration_sources",
+        winning_sources(
+            json.loads(json.dumps(_normalized_data(resolved), default=str)),
+            provided,
+            "setup-lifecycle-native-profile",
+            "setup-lifecycle-parser-defaults-v1",
+        ),
+    )
+    return resolved
 
 
 def setup_lifecycle_config_hash(config: SetupLifecycleConfig | dict[str, Any]) -> str:
@@ -544,9 +606,7 @@ def _parse_data_quality_rule(
         else _ratio(coverage, f"data_quality_labels.{label}.required_feature_coverage_min"),
         fresh_completed_bar_required=bool(raw.get("fresh_completed_bar_required", False)),
         context_required=bool(raw.get("context_required", False)),
-        allows_inferred_required_feature=bool(
-            raw.get("allows_inferred_required_feature", False)
-        ),
+        allows_inferred_required_feature=bool(raw.get("allows_inferred_required_feature", False)),
         allows_missing_context=bool(raw.get("allows_missing_context", False)),
         allows_near_stale_data=bool(raw.get("allows_near_stale_data", False)),
         optional_omissions_allowed=bool(raw.get("optional_omissions_allowed", False)),

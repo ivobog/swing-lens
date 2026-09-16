@@ -28,6 +28,11 @@ class TechnicalFeatureResult:
 
 
 def load_pine_defaults(path: Path = Path("config/pine_defaults.yaml")) -> dict[str, Any]:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("pine")
+
     with path.open("r", encoding="utf-8") as handle:
         values = yaml.safe_load(handle) or {}
     return SourcedConfigurationValues(

@@ -5,6 +5,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import select
+
 from app.models.tables import (
     SetupLifecycleEpisode,
     SetupLifecycleEvaluationEvidence,
@@ -16,8 +18,9 @@ from app.models.tables import (
     SignalAlertRule,
     SignalChangeEvent,
 )
+from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.decision_evidence import (
     get_setup_evidence,
     persist_alert_decision_evidence,
@@ -55,12 +58,36 @@ class SetupLifecycleAlertService:
         repository: SetupLifecycleRepository | None = None,
         config: SetupLifecycleConfig | None = None,
     ) -> None:
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_alert_configuration
+
+        self.effective_configuration = resolve_alert_configuration(config)
+        self.config = self.effective_configuration.setup_config()
         self.repository = repository or SetupLifecycleRepository()
 
+    @anchored_decision_calculator
     def seed_builtin_rules(self, db) -> tuple[SignalAlertRule, ...]:
         if not self.config.alerts.built_in_rules_enabled:
             return ()
+        from app.services.configuration_delivery import current_delivery
+
+        if current_delivery() is not None:
+            from sqlalchemy.dialects.postgresql import insert
+
+            # C1 owns matching values. Seeding supplies physical FK addresses;
+            # an older queued root must never overwrite a current C2 rule row.
+            values = [
+                row
+                for row in self.effective_configuration.values["rules"]
+                if row["rule_id"] in self.config.alerts.rules
+            ]
+            if values:
+                db.execute(
+                    insert(SignalAlertRule)
+                    .values(values)
+                    .on_conflict_do_nothing(index_elements=[SignalAlertRule.rule_id])
+                )
+            ids = dict(db.execute(select(SignalAlertRule.rule_id, SignalAlertRule.id)).all())
+            return tuple(SignalAlertRule(**row, id=ids[row["rule_id"]]) for row in values)
         rules: list[SignalAlertRule] = []
         for rule_id, rule in self.config.alerts.rules.items():
             rules.append(
@@ -80,6 +107,7 @@ class SetupLifecycleAlertService:
             )
         return tuple(rules)
 
+    @anchored_decision_calculator
     def evaluate_episode_result(
         self,
         db,
@@ -119,6 +147,7 @@ class SetupLifecycleAlertService:
             warning_codes=tuple(dict.fromkeys(warning_codes)),
         )
 
+    @anchored_decision_calculator
     def evaluate_lifecycle_event(
         self,
         db,
@@ -136,7 +165,7 @@ class SetupLifecycleAlertService:
             else None
         )
         market_regime = _event_market_regime(event, snapshot, db=db)
-        for rule in rules if rules is not None else self._rules(db):
+        for rule in self._prepare_rules(db, rules):
             if not _lifecycle_rule_matches(rule, event):
                 continue
             outcome = self._persist_alert(
@@ -174,6 +203,7 @@ class SetupLifecycleAlertService:
             warning_codes=tuple(dict.fromkeys(warning_codes)),
         )
 
+    @anchored_decision_calculator
     def evaluate_signal_change_events(
         self,
         db,
@@ -245,7 +275,7 @@ class SetupLifecycleAlertService:
         episode = result.episode
         if episode is None:
             return AlertServiceResult()
-        available_rules = rules if rules is not None else self._rules(db)
+        available_rules = self._prepare_rules(db, rules)
         rule = next((item for item in available_rules if item.rule_id == "GATE_BLOCKED"), None)
         if rule is None:
             return AlertServiceResult()
@@ -281,6 +311,7 @@ class SetupLifecycleAlertService:
             },
         )
 
+    @anchored_decision_calculator
     def _persist_alert(
         self,
         db,
@@ -299,6 +330,17 @@ class SetupLifecycleAlertService:
         signal_change_event_id: int | None = None,
         episode_id: int | None = None,
     ) -> AlertServiceResult:
+        from app.services.configuration_delivery import current_delivery
+
+        effective = self.effective_configuration
+        if current_delivery() is not None:
+            rule = next((row for row in self._rules(db) if row.rule_id == rule.rule_id), None)
+            if rule is None:
+                raise ValueError("MISSING_FROZEN_ALERT_RULE")
+        elif not hasattr(self, "_frozen_rules"):
+            # A direct legacy helper call is a new explicit current-rules
+            # operation. Public matching paths already froze their whole batch.
+            effective = self._freeze_rules((rule,))
         (
             setup_evidence_id,
             lifecycle_evaluation_evidence_id,
@@ -310,6 +352,7 @@ class SetupLifecycleAlertService:
             episode_id=episode_id,
         )
         decision_kwargs = {
+            "effective_configuration": effective,
             "rule": rule,
             "ticker": ticker,
             "timeframe": timeframe,
@@ -457,7 +500,48 @@ class SetupLifecycleAlertService:
         )
 
     def _rules(self, db) -> tuple[SignalAlertRule, ...]:
-        return tuple(self.repository.alert_rules(db, enabled_only=True))
+        if not hasattr(self, "_frozen_rules"):
+            from copy import deepcopy
+
+            from app.services.configuration_delivery import (
+                current_delivery,
+                delivered_configuration,
+            )
+
+            if current_delivery() is not None:
+                frozen = delivered_configuration("decision.alerts.setup")
+                # Database row addresses are operational; decision values are C1.
+                ids = dict(db.execute(select(SignalAlertRule.rule_id, SignalAlertRule.id)).all())
+                self._frozen_rules = tuple(
+                    SignalAlertRule(**values, id=ids.get(values["rule_id"]))
+                    for values in frozen.values["rules"]
+                    if values["enabled"]
+                )
+                self.effective_configuration = frozen
+                return self._frozen_rules
+
+            self._frozen_rules = tuple(
+                deepcopy(row) for row in self.repository.alert_rules(db, enabled_only=True)
+            )
+            self.effective_configuration = self._freeze_rules(self._frozen_rules)
+        return self._frozen_rules
+
+    def _prepare_rules(self, db, rules):
+        from copy import deepcopy
+
+        from app.services.configuration_delivery import current_delivery
+
+        if current_delivery() is not None or rules is None:
+            return self._rules(db)
+        if not hasattr(self, "_frozen_rules"):
+            self._frozen_rules = tuple(deepcopy(row) for row in rules)
+            self.effective_configuration = self._freeze_rules(self._frozen_rules)
+        return self._frozen_rules
+
+    def _freeze_rules(self, rules):
+        from app.services.decision_effective_configuration import resolve_alert_configuration
+
+        return resolve_alert_configuration(self.config, rules=rules)
 
     def rules_for_evaluation(self, db) -> tuple[SignalAlertRule, ...]:
         return self._rules(db)
@@ -682,10 +766,13 @@ def _event_market_regime(
         if isinstance(raw, dict):
             raw = raw.get("value")
         signals["market_regime"] = replace(
-            signals["market_regime"], raw_value=raw, normalized_value=raw,
+            signals["market_regime"],
+            raw_value=raw,
+            normalized_value=raw,
         )
         normalized = replace(
-            normalized, signals=signals,
+            normalized,
+            signals=signals,
             source_lineage=dict(setup.payload_json.get("source_lineage_json") or {}),
         )
     normalized = setup_with_contextual_permission(normalized)

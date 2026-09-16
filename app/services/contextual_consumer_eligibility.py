@@ -48,6 +48,11 @@ class ContextualConsumerPolicy:
         consumer: str | None = None,
         config: NativeReadinessMetrics | None = None,
     ) -> ConsumerEligibilityDecision:
+        from app.services.decision_effective_configuration import (
+            validate_delivered_readiness_policy,
+        )
+
+        validate_delivered_readiness_policy(self)
         if readiness.producer != self.producer or consumer not in {None, self.consumer}:
             raise ValueError("Contextual eligibility producer/consumer mismatch")
         if config is not None and config.canonical_payload():

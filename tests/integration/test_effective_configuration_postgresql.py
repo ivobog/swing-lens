@@ -45,7 +45,7 @@ def test_configuration_embedded_evidence_round_trip_retry_drift_and_immutability
 ):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", disposable_postgres_database)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0079_setup_lifecycle_alert_ev"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0080_effective_configuration"]
     command.upgrade(config, "head")
     command.check(config)
     engine = create_engine(disposable_postgres_database)

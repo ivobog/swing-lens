@@ -38,6 +38,11 @@ class TechnicalConsumerPolicy:
         consumer: str | None = None,
         config: NativeReadinessMetrics | None = None,
     ) -> ConsumerEligibilityDecision:
+        from app.services.decision_effective_configuration import (
+            validate_delivered_readiness_policy,
+        )
+
+        validate_delivered_readiness_policy(self)
         # No configurable threshold or permissive degraded override exists in v1.
         if readiness.producer != "TECHNICAL" or consumer not in {None, self.consumer}:
             raise ValueError("Technical eligibility policy producer/consumer mismatch")

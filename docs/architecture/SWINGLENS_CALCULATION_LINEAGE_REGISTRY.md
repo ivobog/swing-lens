@@ -699,3 +699,22 @@ This is a dependency-aware architecture blueprint only. It implements no remedia
 |---|---|---|---|
 | ambiguous replay/backfill | `CERI-004/008`, `SETUP-002/006/007`, `WIN-001`, `XINT-006` | requires Phases 1–5; explicit temporal mode and original-context manifests; API/schema changes and selective backfills | operation declares ORIGINAL_CONTEXT, CURRENT_RULES, REPAIR, NEW_VERSION, ACQUISITION, or RETRY and cannot masquerade as another |
 | certification evidence | all systemic invariants | generate immutable audit manifest over code/deployment/config/schema/context/source revisions | repeatable golden historical cases, concurrency cases, and registry drift check against a declared implementation baseline |
+## T13D scoped configuration reconciliation — 2026-09-16
+
+| Finding | T13D status | Boundary |
+| --- | --- | --- |
+| SETUP-007 | CONFIGURATION PORTION CLOSED for new certified alerts | Exact original rules/own snapshot and upper-bounded predecessor evidence; legacy unknown |
+| SETUP-010 | CONFIGURATION PORTION CLOSED | Own Setup/Lifecycle policy retained; reconstruction/other algorithm portions not claimed |
+| WIN-003 | CONFIGURATION PORTION CLOSED | Four own families; original prediction/outcome policy separate from current rescore/model source |
+| CERI-008 | DOWNSTREAM CONFIGURATION PORTION CLOSED | Own changes/alerts; exact selected rules; opaque native feature-selection coupling retained |
+| PIPE-005 | CONFIGURATION PORTION CLOSED | Root enqueue and immutable pipeline/job binding |
+| PIPE-006 | CONFIGURATION PORTION CLOSED | Durable retry/child/resume C1 delivery; temporal/source manifests still independent |
+| PIPE-007 | CONFIGURATION PORTION CLOSED | Stale reclaim changes token, not config; full recovery integration T13E |
+| XINT-010 | PARTIAL; certified configuration authority/delivery enforced | T13E integration, acquisition and entrypoint unification remain |
+| INV-CONFIG-001 | ENFORCED on supported certified calculations; PARTIAL repository-wide | Legacy UNKNOWN, direct current-rules APIs and privileged SQL not promoted to certification |
+
+Original audit rows above are historical findings. This additive scoped status
+applies to supported newly certified T13A-D calculation/delivery paths. Legacy
+UNKNOWN remains unknown; T13E integration/original-context reconstruction and
+privileged SQL remain deferred. See `T13D_decision_configuration_durable_anchor.md`
+for native authority, durable boundary tests and final gate evidence.

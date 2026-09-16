@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.dtos import (
     ActionabilityDecision,
     LifecycleDecision,
@@ -14,8 +15,12 @@ from app.services.technical_consumer_eligibility import setup_technical_blocked
 
 class SetupLifecycleActionabilityPolicy:
     def __init__(self, config: SetupLifecycleConfig | None = None) -> None:
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_lifecycle_configuration
 
+        self.effective_configuration = resolve_lifecycle_configuration(config)
+        self.config = self.effective_configuration.setup_config()
+
+    @anchored_decision_calculator
     def evaluate(
         self,
         lifecycle: LifecycleDecision,

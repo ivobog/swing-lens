@@ -50,6 +50,7 @@ from app.services.ceri.purge_service import (
     CeriPurgePreviewRequest,
     CeriPurgeService,
 )
+from app.services.configuration_delivery import anchored_job_configuration
 from app.services.market_calculation_context_service import resolve_pipeline_market_context
 from app.services.redaction import redact_text
 
@@ -81,6 +82,7 @@ def implemented_ceri_job_handlers() -> dict[str, CeriJobHandler]:
     }
 
 
+@anchored_job_configuration
 def execute_provider_ingest_job(
     db: Session,
     job: BackgroundJob,
@@ -143,6 +145,7 @@ def execute_provider_ingest_job(
     return {"job_type": CERI_PROVIDER_INGEST, **values}
 
 
+@anchored_job_configuration
 def execute_normalize_job(
     db: Session,
     job: BackgroundJob,
@@ -219,6 +222,7 @@ def execute_normalize_job(
     return values
 
 
+@anchored_job_configuration
 def execute_rebuild_features_job(
     db: Session,
     job: BackgroundJob,
@@ -320,6 +324,7 @@ def execute_rebuild_features_job(
     return values
 
 
+@anchored_job_configuration
 def execute_capture_run_job(
     db: Session,
     job: BackgroundJob,
@@ -414,6 +419,7 @@ def execute_capture_run_job(
     return {"job_type": CERI_CAPTURE_RUN, "processing_run_id": processing.id, **values}
 
 
+@anchored_job_configuration
 def execute_change_detection_job(
     db: Session,
     job: BackgroundJob,
@@ -503,6 +509,7 @@ def execute_change_detection_job(
     return values
 
 
+@anchored_job_configuration
 def execute_backfill_job(
     db: Session,
     job: BackgroundJob,
@@ -532,6 +539,7 @@ def execute_backfill_job(
     return {"job_type": CERI_BACKFILL, **result.as_dict()}
 
 
+@anchored_job_configuration
 def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     if not ceri_flags().alerts:
         return _skipped_job(CERI_ALERT_REBUILD, "alerts_disabled")
@@ -556,6 +564,10 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         if company.id in {change.company_id for change in changes}
     }
     alerts_enabled = parse_explicit_bool(payload.get("alerts_enabled"), default=ceri_flags().alerts)
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        alerts_enabled = delivered_configuration("decision.alerts.ceri").values["enabled"]
     result = CeriAlertService(alerts_enabled=bool(alerts_enabled)).rebuild_alerts(
         db,
         changes=changes,
@@ -586,6 +598,7 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
     }
 
 
+@anchored_job_configuration
 def execute_purge_licensed_data_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     if not ceri_flags().admin:
         return _skipped_job(CERI_PURGE_LICENSED_DATA, "admin_disabled")

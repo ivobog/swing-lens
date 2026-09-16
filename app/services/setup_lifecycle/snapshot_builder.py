@@ -8,6 +8,7 @@ from typing import Any
 
 from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.contextual_calculation_identity import (
     SETUP_TECHNICAL_COMPATIBILITY,
     artifact_identity,
@@ -33,7 +34,6 @@ from app.services.setup_lifecycle.change_detector import velocity_by_window
 from app.services.setup_lifecycle.config import (
     SetupLifecycleConfig,
     data_quality_label_for,
-    load_setup_lifecycle_config,
 )
 from app.services.setup_lifecycle.enums import DataQualityLabel, EvaluationStatus, SnapshotOrigin
 from app.services.setup_lifecycle.repository import (
@@ -143,8 +143,12 @@ class TriggerReference:
 
 class SetupLifecycleSnapshotBuilder:
     def __init__(self, config: SetupLifecycleConfig | None = None) -> None:
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_setup_configuration
 
+        self.effective_configuration = resolve_setup_configuration(config)
+        self.config = self.effective_configuration.setup_config()
+
+    @anchored_decision_calculator
     def build(
         self,
         context: TickerSourceContext,
@@ -298,6 +302,7 @@ class SetupLifecycleSnapshotBuilder:
                     "trigger_reference": trigger_reference.as_dict(),
                 },
             )
+            setup_identity = self.effective_configuration.bind(setup_identity)
             source_lineage.update(
                 identity_metadata(setup_identity, policy=SETUP_TECHNICAL_COMPATIBILITY.name)
             )
@@ -358,6 +363,7 @@ class SetupLifecycleSnapshotBuilder:
                 }
             ),
         )
+        object.__setattr__(dto, "effective_configuration", self.effective_configuration.snapshot)
         return BuiltSnapshot(
             dto=dto,
             warnings=tuple(sorted(set(warnings))),
@@ -870,11 +876,15 @@ class SetupLifecycleSnapshotCaptureService:
         repository: SetupLifecycleRepository | None = None,
         config: SetupLifecycleConfig | None = None,
     ) -> None:
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_setup_configuration
+
+        self.effective_configuration = resolve_setup_configuration(config)
+        self.config = self.effective_configuration.setup_config()
         self.loader = loader or SetupLifecycleSourceLoader()
         self.builder = builder or SetupLifecycleSnapshotBuilder(self.config)
         self.repository = repository or SetupLifecycleRepository()
 
+    @anchored_decision_calculator
     def capture_snapshots_for_run(
         self,
         db,
@@ -983,6 +993,16 @@ class SetupLifecycleSnapshotCaptureService:
                     else self.repository.upsert_snapshot(db, dto)
                 )
                 snapshot_ids.append(snapshot.id)
+                if dto.effective_configuration is not None:
+                    from sqlalchemy.orm import Session
+
+                    from app.services.setup_lifecycle.decision_evidence import (
+                        persist_setup_evidence,
+                    )
+
+                    if isinstance(db, Session):
+                        snapshot._effective_configuration = dto.effective_configuration
+                        persist_setup_evidence(db, snapshot)
                 if built.warnings:
                     warnings_by_ticker[ticker_context.ticker] = built.warnings
                 if dto.data_quality_label in {

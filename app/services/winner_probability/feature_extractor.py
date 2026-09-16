@@ -53,7 +53,8 @@ class WinnerFeatureExtractor:
     ) -> None:
         registry = FeatureSchemaRegistry(config.feature_schema.version)
         missing = [
-            item.name for item in registry.list_features()
+            item.name
+            for item in registry.list_features()
             if item.missingness_policy == "required_for_eligible_prediction"
             and features.feature_json.get(item.name) in (None, "")
         ]
@@ -111,6 +112,16 @@ class WinnerFeatureExtractor:
         captured_at: datetime | None = None,
         decision_at: datetime | None = None,
     ) -> ExtractedPredictionFeatures:
+        from app.services.decision_effective_configuration import resolve_winner_configuration
+
+        # Capture supplies an owned native adapter once per batch. External
+        # callers are frozen here; active delivery always selects its C1.
+        effective = resolve_winner_configuration(config, family="prediction")
+        owned = getattr(config, "_configuration_snapshots", {}).get("decision.winner.prediction")
+        if owned is None:
+            config = effective.winner_config()
+        elif owned.snapshot.resolution_hash != effective.snapshot.resolution_hash:
+            raise ValueError("WINNER_FEATURE_CONFIGURATION_ANCHOR_MISMATCH")
         decision_at = decision_at or captured_at or datetime.now(UTC)
         raw_row = ticker_context.raw_row
         ticker = _ticker(raw_row.ticker)
@@ -258,9 +269,7 @@ class WinnerFeatureExtractor:
             lineage_json={
                 "capture_phase": "phase_3",
                 "decision_handoff": {
-                    "manifest_id": getattr(
-                        run_context.decision_handoff_manifest, "id", None
-                    ),
+                    "manifest_id": getattr(run_context.decision_handoff_manifest, "id", None),
                     "manifest_fingerprint": getattr(
                         run_context.decision_handoff_manifest,
                         "manifest_fingerprint",
@@ -543,6 +552,12 @@ def _planned_entry_session(decision_at: datetime) -> date | None:
 def _stable_hash(payload: dict[str, Any]) -> str:
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _feature_semantic_hash(payload):
+    # The native whole-file compatibility hash is metadata. Cohort/governance
+    # edits do not change the frozen prediction vector's financial semantics.
+    return _stable_hash({key: value for key, value in payload.items() if key != "config_hash"})
 
 
 def _normalize(value: Any) -> Any:

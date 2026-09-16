@@ -142,6 +142,11 @@ DEFAULT_TECHNICAL_SCORING_V4_CONFIG: dict[str, Any] = {
 def load_technical_scoring_v4_config(
     path: Path = TECHNICAL_SCORING_V4_CONFIG_PATH,
 ) -> dict[str, Any]:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("v4")
+
     with path.open("r", encoding="utf-8") as handle:
         file_config = yaml.safe_load(handle) or {}
 

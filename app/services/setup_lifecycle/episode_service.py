@@ -11,6 +11,7 @@ from app.models.tables import (
     SetupLifecycleEvent,
     SetupSignalSnapshot,
 )
+from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.setup_lifecycle.actionability_policy import SetupLifecycleActionabilityPolicy
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.decision_evidence import (
@@ -63,13 +64,17 @@ class SetupLifecycleEpisodeService:
         actionability_policy: SetupLifecycleActionabilityPolicy | None = None,
         config: SetupLifecycleConfig | None = None,
     ) -> None:
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_lifecycle_configuration
+
+        self.effective_configuration = resolve_lifecycle_configuration(config)
+        self.config = self.effective_configuration.setup_config()
         self.repository = repository or SetupLifecycleRepository()
         self.lifecycle_engine = lifecycle_engine or SetupLifecycleEngine(config=self.config)
         self.actionability_policy = actionability_policy or SetupLifecycleActionabilityPolicy(
             self.config
         )
 
+    @anchored_decision_calculator
     def apply_snapshot(
         self,
         db,
@@ -86,9 +91,9 @@ class SetupLifecycleEpisodeService:
             setup = get_setup_evidence(db, snapshot.evidence_id)
             if setup.run_id != snapshot.run_id or setup.ticker != snapshot.ticker.upper():
                 raise ValueError("EVIDENCE_UNAVAILABLE: Lifecycle Setup scope mismatch")
-            normalized = replace(normalized, source_lineage=dict(
-                setup.payload_json.get("source_lineage_json") or {}
-            ))
+            normalized = replace(
+                normalized, source_lineage=dict(setup.payload_json.get("source_lineage_json") or {})
+            )
         first_pass = self.lifecycle_engine.evaluate(
             _request(
                 normalized,
@@ -101,9 +106,13 @@ class SetupLifecycleEpisodeService:
         if setup_technical_blocked(normalized):
             episodes = preloaded_episodes
             if episodes is None:
-                episodes = tuple(self.repository.active_episodes_for_ticker(
-                    db, ticker=snapshot.ticker, timeframe=snapshot.timeframe,
-                ))
+                episodes = tuple(
+                    self.repository.active_episodes_for_ticker(
+                        db,
+                        ticker=snapshot.ticker,
+                        timeframe=snapshot.timeframe,
+                    )
+                )
             eligible = [episode for episode in episodes if episode.status == "ACTIVE"]
             if eligible:
                 primary = select_primary_episodes(eligible, config=self.config)[0]
@@ -155,6 +164,7 @@ class SetupLifecycleEpisodeService:
                 else active.current_state != decision.proposed_state.value
                 or active.current_phase != decision.phase_code
             ),
+            effective_configuration=self.lifecycle_engine.effective_configuration,
         )
 
         if active is None:
@@ -186,6 +196,7 @@ class SetupLifecycleEpisodeService:
             refresh_primary=refresh_primary,
         )
 
+    @anchored_decision_calculator
     def apply_observation_gap(
         self,
         db,
@@ -223,6 +234,7 @@ class SetupLifecycleEpisodeService:
             missing_observation_sessions=episode.missing_observation_sessions,
             threshold=threshold,
             evaluation_run_id=evaluation_run_id,
+            effective_configuration=self.lifecycle_engine.effective_configuration,
         )
         if evaluation_evidence is not None:
             episode.latest_evaluation_evidence_id = evaluation_evidence.id

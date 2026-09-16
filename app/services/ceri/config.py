@@ -230,6 +230,11 @@ def load_ceri_config(
     path: Path | None = None,
     taxonomy_path: Path | None = None,
 ) -> CeriConfig:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("ceri")
+
     if path is None or taxonomy_path is None:
         # Resolve the runtime settings lazily to avoid a settings/config import
         # cycle and to make CERI_CONFIG_PATH/CERI_TAXONOMY_PATH authoritative.
@@ -292,6 +297,13 @@ def load_ceri_config(
                 ),
             )
             for key, _ in configuration_leaves(payload)
+        ),
+    )
+    object.__setattr__(
+        result,
+        "_native_configuration_source",
+        ConfigurationSource(
+            ConfigurationSourceKind.PROFILE, path.as_posix() if not path.is_absolute() else None
         ),
     )
     object.__setattr__(result, "_effective_configuration", resolve_ceri_configuration(result))

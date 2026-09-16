@@ -382,18 +382,23 @@ def build_winner_prediction_identity(
     config: Any,
     feature_vector_hash: str,
 ) -> CalculationIdentity:
-    return build_contextual_result_identity(
-        base=acquisition.decision_identity,
-        namespace="winner-prediction",
-        config_hash=config.config_hash,
-        calculation_version=config.engine.calculation_version,
-        engine_version=config.feature_schema.version,
-        source_artifacts=acquisition.source_artifacts,
-        source_payload={
-            "feature_schema_version": config.feature_schema.version,
-            "feature_vector_hash": feature_vector_hash,
-            "winner_consumer_eligibility": acquisition.consumer_eligibility.canonical_payload(),
-        },
+    from app.services.decision_effective_configuration import resolve_winner_configuration
+
+    frozen = resolve_winner_configuration(config)
+    return frozen.bind(
+        build_contextual_result_identity(
+            base=acquisition.decision_identity,
+            namespace="winner-prediction",
+            config_hash=frozen.snapshot.semantic_hash,
+            calculation_version=config.engine.calculation_version,
+            engine_version=config.feature_schema.version,
+            source_artifacts=acquisition.source_artifacts,
+            source_payload={
+                "feature_schema_version": config.feature_schema.version,
+                "feature_vector_hash": feature_vector_hash,
+                "winner_consumer_eligibility": acquisition.consumer_eligibility.canonical_payload(),
+            },
+        )
     )
 
 

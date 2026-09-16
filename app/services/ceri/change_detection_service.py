@@ -18,8 +18,9 @@ from app.services.ceri.change_semantics import (
     change_dimensions,
     classify_snapshot_comparison,
 )
-from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.config import CeriConfig
 from app.services.ceri.enums import CeriChangeType
+from app.services.configuration_delivery import anchored_decision_calculator
 
 
 @dataclass(frozen=True)
@@ -42,8 +43,14 @@ class ChangeDetectionResult:
 
 class CeriChangeDetectionService:
     def __init__(self, config: CeriConfig | None = None) -> None:
-        self.config = config or load_ceri_config()
+        from app.services.decision_effective_configuration import (
+            resolve_ceri_decision_configuration,
+        )
 
+        self.effective_configuration = resolve_ceri_decision_configuration(config, family="changes")
+        self.config = self.effective_configuration.ceri_decision_config()
+
+    @anchored_decision_calculator
     def detect_score_changes(
         self,
         db: Session,
@@ -90,6 +97,7 @@ class CeriChangeDetectionService:
             change_ids=tuple(change_ids),
         )
 
+    @anchored_decision_calculator
     def detect_catalyst_revision(
         self,
         db: Session,
@@ -142,6 +150,7 @@ class CeriChangeDetectionService:
             change_ids=(int(event.id),) if event.id is not None else (),
         )
 
+    @anchored_decision_calculator
     def detect_guidance_change(
         self,
         db: Session,
@@ -276,8 +285,7 @@ class CeriChangeDetectionService:
             changes[CeriChangeType.DATA_REFRESHED] = {
                 "prior_warnings": prior.warnings_json,
                 "freshness": (current.confidence_ledger_json or {}).get("freshness") or {},
-                "prior_freshness": (prior.confidence_ledger_json or {}).get("freshness")
-                or {},
+                "prior_freshness": (prior.confidence_ledger_json or {}).get("freshness") or {},
             }
         current_conflicts = _has_conflict_warning(current)
         prior_conflicts = _has_conflict_warning(prior)
@@ -287,6 +295,7 @@ class CeriChangeDetectionService:
             changes[CeriChangeType.CONFLICT_RESOLVED] = {"prior_warnings": prior.warnings_json}
         return changes
 
+    @anchored_decision_calculator
     def _persist_change(
         self,
         db: Session,
@@ -317,6 +326,7 @@ class CeriChangeDetectionService:
             guidance_event_id=guidance_event_id,
             config_hash=config_hash,
             calculation_version=calculation_version,
+            effective_configuration_hash=self.effective_configuration.snapshot.semantic_hash,
         )
         existing = _maybe_scalar(
             db,
@@ -324,6 +334,7 @@ class CeriChangeDetectionService:
         )
         if existing is not None:
             return existing, False
+        configuration_payload = self.effective_configuration.snapshot.as_dict()
         event = CeriChangeEvent(
             company_id=company_id,
             from_snapshot_id=from_snapshot_id,
@@ -335,7 +346,10 @@ class CeriChangeDetectionService:
             importance=importance.value,
             signal_class=signal_class.value,
             comparison_state=ComparisonState(comparison_state).value,
-            delta_json=delta,
+            delta_json={
+                **delta,
+                "effective_configuration_at_creation": configuration_payload,
+            },
             dedup_key=dedup_key,
         )
         db.add(event)

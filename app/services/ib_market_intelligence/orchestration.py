@@ -25,6 +25,7 @@ from app.models.tables import BackgroundJob, PriceBar
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import is_cancel_requested
 from app.services.background_worker import CancelRequested
+from app.services.configuration_delivery import anchored_job_configuration
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_market_intelligence.adapters import (
@@ -129,6 +130,7 @@ def shared_request_budget() -> IBRequestBudget:
     )
 
 
+@anchored_job_configuration
 def execute_historical_refresh(
     db: Session,
     job: BackgroundJob,
@@ -397,6 +399,7 @@ def execute_historical_refresh(
     return {"intelligence_run_id": run.id, "status": status.value, **counts}
 
 
+@anchored_job_configuration
 def execute_live_snapshot(
     db: Session,
     job: BackgroundJob,
@@ -555,6 +558,7 @@ def execute_live_snapshot(
     return {"intelligence_run_id": run.id, "status": status.value, **counts}
 
 
+@anchored_job_configuration
 def execute_scanner_run(
     db: Session,
     job: BackgroundJob,
@@ -742,6 +746,7 @@ def execute_scanner_run(
     return {"intelligence_run_id": run.id, "status": status.value, **counts}
 
 
+@anchored_job_configuration
 def execute_histogram_fetch(
     db: Session,
     job: BackgroundJob,
@@ -941,6 +946,7 @@ def execute_histogram_fetch(
     return {"intelligence_run_id": run.id, "status": "COMPLETED", **counts}
 
 
+@anchored_job_configuration
 def execute_flex_import(
     db: Session,
     job: BackgroundJob,
@@ -1152,6 +1158,7 @@ def _activity_imported_today(db: Session, report_timezone: str) -> bool:
     )
 
 
+@anchored_job_configuration
 def execute_feature_rebuild(db: Session, job: BackgroundJob) -> dict[str, Any]:
     config = load_ib_market_intelligence_config()
     module = IntelligenceModule(str(job.payload_json["module"]))

@@ -47,7 +47,8 @@ _SETUP_PROJECTION_FIELDS = {
 
 
 def get_lifecycle_readiness_for_episode(
-    db, episode: SetupLifecycleEpisode,
+    db,
+    episode: SetupLifecycleEpisode,
 ) -> ProducerReadinessEnvelope:
     """Trading state does not certify quality; follow the exact evaluation pointer."""
     evidence_id = episode.latest_evaluation_evidence_id
@@ -88,6 +89,13 @@ def persist_setup_evidence(db, snapshot: SetupSignalSnapshot) -> CoreCalculation
         sources[role] = SimpleNamespace(evidence_id=int(evidence_id))
 
     payload = calculation_evidence_payload(snapshot, excluded_columns=_SETUP_PROJECTION_FIELDS)
+    frozen = getattr(snapshot, "_effective_configuration", None)
+    if frozen is None and getattr(snapshot, "evidence_id", None) is not None:
+        from app.services.core_effective_configuration import core_configuration_from_evidence
+
+        prior = get_setup_evidence(db, snapshot.evidence_id)
+        retained = core_configuration_from_evidence(prior)
+        frozen = retained.snapshot if retained is not None else None
     return persist_core_evidence(
         db,
         kind=CoreEvidenceKind.SETUP,
@@ -95,6 +103,7 @@ def persist_setup_evidence(db, snapshot: SetupSignalSnapshot) -> CoreCalculation
         sources=sources,
         payload=payload,
         calculation_identity=identity,
+        effective_configuration=frozen,
     )
 
 
@@ -116,6 +125,7 @@ def persist_lifecycle_evaluation_evidence(
     actionability: Any,
     evaluation_run_id: int | None,
     transition_eligible: bool,
+    effective_configuration=None,
 ) -> SetupLifecycleEvaluationEvidence | None:
     setup = (
         get_setup_evidence(db, snapshot.evidence_id)
@@ -147,6 +157,13 @@ def persist_lifecycle_evaluation_evidence(
         and prior_evaluation.config_hash == snapshot.config_hash
         and episode.current_state == decision.proposed_state.value
         and episode.current_phase == decision.phase_code
+        and (
+            effective_configuration is None
+            or (prior_evaluation.payload_json.get("effective_configuration_at_creation") or {}).get(
+                "semantic_hash"
+            )
+            == effective_configuration.snapshot.semantic_hash
+        )
     ):
         return prior_evaluation
     if (
@@ -222,6 +239,34 @@ def persist_lifecycle_evaluation_evidence(
         "reasons": list(decision.reason_codes),
         "warnings": list(snapshot.warning_flags_json or []),
     }
+    if effective_configuration is not None:
+        from app.services.contextual_calculation_identity import build_contextual_result_identity
+        from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+
+        base = _setup_base_identity(setup, snapshot.ticker)
+        identity = effective_configuration.bind(
+            build_contextual_result_identity(
+                base=base,
+                namespace="lifecycle-evaluation",
+                config_hash=effective_configuration.snapshot.semantic_hash,
+                calculation_version=snapshot.engine_version,
+                engine_version=snapshot.engine_version,
+                source_artifacts=(),
+                source_payload={
+                    "setup_evidence_id": setup.id,
+                    "prior_evaluation_evidence_id": prior_evaluation_id,
+                    "prior_transition_evidence_id": prior_transition_id,
+                },
+            )
+        )
+        decision_payload[CONFIGURATION_PAYLOAD_KEY] = effective_configuration.snapshot.as_dict()
+        decision_payload["calculation_identity"] = identity.canonical_payload()
+        decision_payload["calculation_identity_fingerprint"] = str(identity.fingerprint())
+        decision_payload["execution_semantics"] = (
+            "CURRENT_RULES_RETROSPECTIVE"
+            if decision_payload["execution_mode"] == "REPLAY"
+            else "CURRENT_CALCULATION"
+        )
     decision_payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
         "LIFECYCLE",
         {
@@ -230,7 +275,7 @@ def persist_lifecycle_evaluation_evidence(
             "warnings": list(snapshot.warning_flags_json or []),
             "confidence_components": (decision.evidence or {}).get("confidence"),
         },
-        identity_fingerprint=setup.calculation_identity_fingerprint,
+        identity_fingerprint=decision_payload["calculation_identity_fingerprint"],
         calculation_versions={"engine_version": snapshot.engine_version},
         evaluated_at=snapshot.calculation_cutoff_at,
         business_anchor=snapshot.data_as_of_date,
@@ -261,7 +306,7 @@ def persist_lifecycle_evaluation_evidence(
         decision_session=snapshot.data_as_of_date,
         calculation_cutoff_at=snapshot.calculation_cutoff_at,
         calendar_version=snapshot.calendar_version,
-        calculation_identity_fingerprint=setup.calculation_identity_fingerprint,
+        calculation_identity_fingerprint=decision_payload["calculation_identity_fingerprint"],
         execution_mode=decision_payload["execution_mode"],
         previous_state=decision_payload["previous_state"],
         output_state=decision.proposed_state.value,
@@ -363,6 +408,7 @@ def persist_observation_gap_evaluation_evidence(
     missing_observation_sessions: int,
     threshold: int,
     evaluation_run_id: int | None,
+    effective_configuration=None,
 ) -> SetupLifecycleEvaluationEvidence | None:
     """Record a gap/no-gap evaluation from the exact current certified chain."""
 
@@ -379,6 +425,13 @@ def persist_observation_gap_evaluation_evidence(
         and (prior.counters_json or {}).get("missing_observation_sessions")
         == missing_observation_sessions
         and prior.output_state in {episode.current_state, "EXPIRED"}
+        and (
+            effective_configuration is None
+            or (prior.payload_json.get("effective_configuration_at_creation") or {}).get(
+                "semantic_hash"
+            )
+            == effective_configuration.snapshot.semantic_hash
+        )
     ):
         return prior
     run = (
@@ -418,13 +471,42 @@ def persist_observation_gap_evaluation_evidence(
             "warnings": [],
         }
     )
+    if effective_configuration is not None:
+        from app.services.contextual_calculation_identity import build_contextual_result_identity
+        from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+
+        payload[CONFIGURATION_PAYLOAD_KEY] = effective_configuration.snapshot.as_dict()
+        payload["execution_semantics"] = "CURRENT_STATE_REPAIR"
+        setup = db.get(CoreCalculationEvidence, prior.setup_evidence_id)
+        if setup is None:
+            raise EvidenceUnavailableError("gap repair setup evidence is missing")
+        base = _setup_base_identity(setup, episode.ticker)
+        identity = effective_configuration.bind(
+            build_contextual_result_identity(
+                base=base,
+                namespace="lifecycle-gap-repair",
+                config_hash=effective_configuration.snapshot.semantic_hash,
+                calculation_version=episode.engine_version,
+                engine_version=episode.engine_version,
+                source_artifacts=(),
+                source_payload={
+                    "setup_evidence_id": setup.id,
+                    "prior_evaluation_evidence_id": prior.id,
+                    "prior_transition_evidence_id": episode.latest_transition_evidence_id,
+                    "observed_on": observed_on,
+                    "threshold": threshold,
+                },
+            )
+        )
+        payload["calculation_identity"] = identity.canonical_payload()
+        payload["calculation_identity_fingerprint"] = str(identity.fingerprint())
     payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
         "LIFECYCLE",
         {
             "missing_observation_sessions": missing_observation_sessions,
             "observation_gap_threshold": threshold,
         },
-        identity_fingerprint=prior.calculation_identity_fingerprint,
+        identity_fingerprint=payload["calculation_identity_fingerprint"],
         calculation_versions={"engine_version": episode.engine_version},
         evaluated_at=prior.calculation_cutoff_at,
         business_anchor=observed_on,
@@ -451,7 +533,7 @@ def persist_observation_gap_evaluation_evidence(
         decision_session=observed_on,
         calculation_cutoff_at=prior.calculation_cutoff_at,
         calendar_version=prior.calendar_version,
-        calculation_identity_fingerprint=prior.calculation_identity_fingerprint,
+        calculation_identity_fingerprint=payload["calculation_identity_fingerprint"],
         execution_mode=payload["execution_mode"],
         previous_state=episode.current_state,
         output_state=output_state,
@@ -558,6 +640,7 @@ def persist_alert_decision_evidence(
     lifecycle_transition_evidence_id: int | None = None,
     cooldown_predecessor_evidence_id: int | None = None,
     dedup_predecessor_evidence_id: int | None = None,
+    effective_configuration=None,
 ) -> SignalAlertDecisionEvidence:
     rule_evidence = persist_alert_rule_evidence(db, rule)
     cutoff = None
@@ -588,6 +671,10 @@ def persist_alert_decision_evidence(
             "decision_payload": payload,
         }
     )
+    if effective_configuration is not None:
+        from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+
+        evidence_payload[CONFIGURATION_PAYLOAD_KEY] = effective_configuration.snapshot.as_dict()
     fingerprint = CanonicalEvidenceSerializer.fingerprint(evidence_payload)
     key = CanonicalEvidenceSerializer.fingerprint(
         {"contract": "signal-alert-decision-evidence-v1", "payload": fingerprint}
@@ -647,3 +734,14 @@ def get_alert_decision_evidence(db, evidence_id: int) -> SignalAlertDecisionEvid
             f"EVIDENCE_UNAVAILABLE: alert decision evidence id={evidence_id}"
         )
     return row
+
+
+def _setup_base_identity(setup, ticker):
+    """New repair proof preserves unknown historical input dimensions."""
+    from app.services.calculation_identity import CalculationIdentity
+
+    payload = setup.calculation_identity_json or {}
+    if "schema_version" in payload:
+        # A claimed typed identity must validate; corruption is never legacy.
+        return CalculationIdentity.from_canonical_payload(payload)
+    return CalculationIdentity.legacy_unknown(run_id=setup.run_id, ticker=ticker)

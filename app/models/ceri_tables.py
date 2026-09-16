@@ -25,6 +25,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.services.configuration_artifact_immutability import seal_configuration_member
 
 
 class CeriCompany(Base):
@@ -1387,4 +1388,19 @@ CERI_TABLES = (
     CeriAlertRule.__table__,
     CeriAlertEvent.__table__,
     CeriPurgeAudit.__table__,
+)
+
+
+seal_configuration_member(CeriChangeEvent, "delta_json")
+seal_configuration_member(
+    CeriAlertEvent,
+    "evidence_json",
+    members=(
+        "alert_rule",
+        "alert_rule_version",
+        "cooldown_sessions",
+        "dedup_identity",
+        "dedup_identity_type",
+        "cooldown_scope",
+    ),
 )

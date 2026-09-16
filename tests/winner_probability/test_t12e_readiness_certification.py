@@ -230,10 +230,22 @@ def test_certification_adds_no_columns_or_table_constraints():
         encoding="utf-8",
     ).stdout
 
+    baseline_classes = {
+        node.name for node in ast.parse(baseline).body if isinstance(node, ast.ClassDef)
+    }
+
     def schema_nodes(source):
+        # T13D adds separate configuration tables. This Phase-3 guard continues
+        # to protect every pre-existing model's complete column/constraint schema.
+        models = [
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.ClassDef) and node.name in baseline_classes
+        ]
         return [
             ast.dump(node, include_attributes=False)
-            for node in ast.walk(ast.parse(source))
+            for model in models
+            for node in ast.walk(model)
             if (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Name)

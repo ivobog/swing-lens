@@ -6,7 +6,8 @@ from decimal import Decimal
 from typing import Any
 
 from app.models.tables import SetupSignalSnapshot, SignalChangeEvent
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.enums import EventSeverity, SignalCategory, SignalValueType
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.signal_registry import SignalDefinition
@@ -64,8 +65,12 @@ class SetupLifecycleChangeDetector:
         config: SetupLifecycleConfig | None = None,
     ) -> None:
         self.repository = repository or SetupLifecycleRepository()
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_setup_configuration
 
+        self.effective_configuration = resolve_setup_configuration(config)
+        self.config = self.effective_configuration.setup_config()
+
+    @anchored_decision_calculator
     def detect_changes(
         self,
         *,
@@ -85,6 +90,7 @@ class SetupLifecycleChangeDetector:
                 changes.append(change)
         return tuple(changes)
 
+    @anchored_decision_calculator
     def detect_and_persist(
         self,
         db,

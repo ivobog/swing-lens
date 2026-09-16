@@ -252,6 +252,11 @@ def resolve_fundamental_configuration(
     *,
     source_identifier: str | None = None,
 ) -> CoreEffectiveConfiguration:
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        return CoreEffectiveConfiguration(delivered_configuration("core.fundamental").snapshot)
+
     from app.services.fundamental_ranker_v2 import load_fundamentals_v2_config
 
     values = load_fundamentals_v2_config(path).data
@@ -267,6 +272,11 @@ def resolve_fundamental_configuration(
 def resolve_combined_configuration(
     config: dict[str, Any] | None = None,
 ) -> CoreEffectiveConfiguration:
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        return CoreEffectiveConfiguration(delivered_configuration("core.combined").snapshot)
+
     from app.services.combined_decision import _load_scoring_config
     from app.services.earnings_risk_service import _merged_config
 
@@ -284,6 +294,13 @@ def resolve_combined_configuration(
 def resolve_ranking_configuration(
     profile: Any, config: dict[str, Any]
 ) -> CoreEffectiveConfiguration:
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        return CoreEffectiveConfiguration(
+            delivered_configuration("core.ranking", scope=profile.name).snapshot
+        )
+
     from app.services.earnings_risk_service import _merged_config
 
     values = {
@@ -308,6 +325,11 @@ def resolve_technical_configuration(
     settings: Any,
     benchmark_ticker: str = "SPY",
 ) -> CoreEffectiveConfiguration:
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        return CoreEffectiveConfiguration(delivered_configuration("core.technical").snapshot)
+
     from app.services.technical_score_v4 import _danger_priority
     from app.services.technical_scoring_config import (
         DEFAULT_TECHNICAL_SCORING_V4_CONFIG,

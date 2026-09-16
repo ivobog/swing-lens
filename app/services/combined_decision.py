@@ -644,6 +644,11 @@ def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
 
 
 def _load_scoring_config(path: Path = Path("config/scoring_weights.yaml")) -> dict[str, Any]:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("scoring")
+
     with path.open("r", encoding="utf-8") as handle:
         values = yaml.safe_load(handle) or {}
     return SourcedConfigurationValues(

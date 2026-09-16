@@ -82,6 +82,11 @@ class RankingProfileConfig:
 def load_ranking_profiles(
     path: Path = RANKING_PROFILES_CONFIG_PATH,
 ) -> list[RankingProfileConfig]:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("ranking")
+
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle) or {}
 

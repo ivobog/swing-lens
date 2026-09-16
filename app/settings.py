@@ -596,7 +596,21 @@ class Settings(BaseSettings):
 
 
 @lru_cache
-def get_settings() -> Settings:
+def _get_current_settings() -> Settings:
     settings = Settings()
     settings.ensure_local_dirs()
     return settings
+
+
+def get_settings() -> Settings:
+    import sys
+
+    # Bootstrap may construct app.db while delivery imports ORM models. No
+    # delivery scope can exist before its module has finished initialization.
+    delivery = sys.modules.get("app.services.configuration_delivery")
+    adapter = getattr(delivery, "settings_for_delivery", None)
+    return adapter(_get_current_settings()) if adapter else _get_current_settings()
+
+
+get_settings.cache_clear = _get_current_settings.cache_clear
+get_settings.cache_info = _get_current_settings.cache_info

@@ -124,6 +124,11 @@ class MarketRegimePolicyService:
 def load_market_regime_command_center_config(
     path: Path = MARKET_REGIME_COMMAND_CENTER_CONFIG_PATH,
 ) -> MarketRegimeCommandCenterConfig:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("regime")
+
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle) or {}
 

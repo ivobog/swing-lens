@@ -29,6 +29,7 @@ from app.services.background_job_service import (
     record_coalesced_enqueue_attempt,
 )
 from app.services.background_worker import CancelRequested, JobDeferred
+from app.services.configuration_delivery import anchored_job_configuration
 from app.services.market_calculation_context_service import resolve_pipeline_market_context
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 from app.services.winner_probability.backfill import (
@@ -230,6 +231,10 @@ class WinnerCohortRefreshService:
             state=state,
             contract=contract_for(outcome_definition, config),
         )
+        if isinstance(db, Session):
+            from app.services.configuration_delivery import bind_winner_generation_configuration
+
+            bind_winner_generation_configuration(db, generation, config)
         if on_generation_captured is not None:
             on_generation_captured(generation)
         materialized = self.materialization_service.materialize_slice(
@@ -329,6 +334,7 @@ def disabled_winner_job_handler(job_type: str) -> WinnerJobHandler:
     return handler
 
 
+@anchored_job_configuration
 def execute_prediction_capture_job(
     db: Session,
     job: BackgroundJob,
@@ -371,9 +377,7 @@ def execute_prediction_capture_job(
             expected_calendar_version=calendar_version,
         )
         if market_cutoff.bar_readiness_version != payload.get("bar_readiness_version"):
-            raise ValueError(
-                f"{WINNER_PREDICTION_CAPTURE} job bar-readiness identity mismatch."
-            )
+            raise ValueError(f"{WINNER_PREDICTION_CAPTURE} job bar-readiness identity mismatch.")
 
     try:
         result = capture_service.capture_run(
@@ -426,6 +430,7 @@ def execute_prediction_capture_job(
     }
 
 
+@anchored_job_configuration
 def execute_outcome_maturation_job(
     db: Session,
     job: BackgroundJob,
@@ -672,6 +677,7 @@ def execute_outcome_maturation_job(
     return response
 
 
+@anchored_job_configuration
 def execute_outcome_revision_check_job(
     db: Session,
     job: BackgroundJob,
@@ -752,6 +758,7 @@ def execute_outcome_revision_check_job(
     }
 
 
+@anchored_job_configuration
 def execute_cohort_refresh_job(
     db: Session,
     job: BackgroundJob,
@@ -862,6 +869,7 @@ def execute_cohort_refresh_job(
     }
 
 
+@anchored_job_configuration
 def execute_latest_rescore_job(
     db: Session,
     job: BackgroundJob,
@@ -1007,6 +1015,7 @@ def execute_latest_rescore_job(
     }
 
 
+@anchored_job_configuration
 def execute_historical_backfill_job(
     db: Session,
     job: BackgroundJob,
@@ -1301,9 +1310,7 @@ def _parse_required_date(payload: dict[str, Any], key: str) -> date:
     try:
         return value if isinstance(value, date) else date.fromisoformat(str(value))
     except ValueError as exc:
-        raise ValueError(
-            f"{WINNER_PREDICTION_CAPTURE} job payload has invalid {key}."
-        ) from exc
+        raise ValueError(f"{WINNER_PREDICTION_CAPTURE} job payload has invalid {key}.") from exc
 
 
 def _int_list(
@@ -1326,9 +1333,7 @@ def _decision_contexts(value: Any) -> dict[int, dict[str, Any]]:
     if value is None:
         return {}
     if not isinstance(value, dict):
-        raise ValueError(
-            f"{WINNER_HISTORICAL_BACKFILL} job payload has invalid decision_contexts."
-        )
+        raise ValueError(f"{WINNER_HISTORICAL_BACKFILL} job payload has invalid decision_contexts.")
     contexts: dict[int, dict[str, Any]] = {}
     for run_id, payload in value.items():
         if not isinstance(payload, dict):

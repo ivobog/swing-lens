@@ -199,6 +199,13 @@ def test_actual_maturation_uses_outcome_truth_after_current_readiness_changes(mo
     context.tickers[0].ranking_results[0].is_complete = False
     _no_current_policy(monkeypatch)
     forward, target = _forward(), _target_stop()
+    from app.services.decision_effective_configuration import configuration_from_payload
+
+    # The fake outcome row must refer to the contract captured for this prediction.
+    original_outcome = configuration_from_payload(
+        prediction.lineage_json["outcome_effective_configuration"]
+    ).winner_config()
+    target.outcome_definition.definition_id = original_outcome.primary_outcome_definition.id
     repository = FakeOutcomeRepository(
         predictions=[prediction],
         forward_outcomes=[forward],

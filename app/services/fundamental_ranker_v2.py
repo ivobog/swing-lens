@@ -181,6 +181,11 @@ def score_row_v2(
 def load_fundamentals_v2_config(
     path: Path = Path("config/fundamentals_v2.yaml"),
 ) -> FundamentalsV2Config:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("fundamental")
+
     with path.open("r", encoding="utf-8") as handle:
         return parse_fundamentals_v2_config(yaml.safe_load(handle) or {})
 

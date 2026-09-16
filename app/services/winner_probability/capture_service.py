@@ -144,6 +144,14 @@ class WinnerPredictionCaptureService:
         memory_probe: Callable[[Session, int, int, str], None] | None = None,
     ) -> WinnerPredictionCaptureResult:
         config = config or load_winner_probability_config()
+        from app.services.decision_effective_configuration import resolve_winner_configuration
+
+        configurations = {
+            "decision.winner." + family: resolve_winner_configuration(config, family=family)
+            for family in ("prediction", "outcome", "cohort", "generation")
+        }
+        config = configurations["decision.winner.prediction"].winner_config()
+        object.__setattr__(config, "_configuration_snapshots", configurations)
         identity_enforced = isinstance(db, Session)
         if identity_enforced and market_cutoff is None:
             raise WinnerCalculationIdentityError(
@@ -415,7 +423,7 @@ class WinnerPredictionCaptureService:
             build_winner_prediction_identity(
                 acquisition,
                 config=config,
-                feature_vector_hash=features.feature_vector_hash,
+                feature_vector_hash=_prediction_semantic_hash(features.feature_json),
             )
             if acquisition is not None
             else None
@@ -430,6 +438,33 @@ class WinnerPredictionCaptureService:
         )
         if existing is not None:
             if winner_identity is not None:
+                from app.services.decision_effective_configuration import (
+                    resolve_winner_configuration,
+                )
+                from app.services.effective_configuration import ConfigurationClassification
+                from app.services.winner_probability.outcome_service import (
+                    _retained_outcome_configuration,
+                )
+
+                original_outcome = _retained_outcome_configuration(existing)
+                if original_outcome is None:
+                    raise WinnerPredictionCaptureConflict(
+                        "existing prediction has UNKNOWN outcome configuration"
+                    )
+                original_entries = {
+                    entry.key: entry.canonical_value_json
+                    for entry in original_outcome.snapshot.entries
+                }
+                current_outcome = resolve_winner_configuration(config, family="outcome")
+                if any(
+                    original_entries.get(entry.key) != entry.canonical_value_json
+                    for entry in current_outcome.snapshot.entries
+                    if entry.classification is ConfigurationClassification.BEHAVIORAL
+                ):
+                    raise WinnerPredictionCaptureConflict(
+                        "active prediction outcome configuration conflict"
+                    )
+            if winner_identity is not None:
                 existing_identity = calculation_identity_from_debug(existing.lineage_json)
                 if existing_identity is None:
                     raise WinnerPredictionCaptureConflict(
@@ -439,7 +474,11 @@ class WinnerPredictionCaptureService:
                     raise WinnerPredictionCaptureConflict(
                         f"{features.ticker}: active prediction identity conflict"
                     )
-            if existing.feature_vector_hash != features.feature_vector_hash:
+            if existing.feature_vector_hash != features.feature_vector_hash and (
+                winner_identity is None
+                or _prediction_semantic_hash(existing.feature_json)
+                != _prediction_semantic_hash(features.feature_json)
+            ):
                 raise WinnerPredictionCaptureConflict(
                     f"{features.ticker}: active prediction hash conflict"
                 )
@@ -469,6 +508,7 @@ class WinnerPredictionCaptureService:
             decision_at=ticker_decision_at,
             captured_at=captured_at or datetime.now(UTC),
             winner_identity=winner_identity,
+            run_context=run_context,
         )
         assignment = self.episode_service.assign_episode(db, features, config)
         prediction.episode_id = assignment.episode.id
@@ -548,6 +588,7 @@ class WinnerPredictionCaptureService:
         decision_at: datetime,
         captured_at: datetime,
         winner_identity: Any | None,
+        run_context: Any | None = None,
     ) -> WinnerPredictionSnapshot:
         raw_row = ticker_context.raw_row
         technical = ticker_context.technical_score
@@ -626,6 +667,40 @@ class WinnerPredictionCaptureService:
             retention_class="permanent",
         )
         if winner_identity is not None:
+            from app.services.decision_effective_configuration import (
+                resolve_winner_configuration,
+                winner_outcome_reference_configuration,
+            )
+            from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+
+            reference_policy = {
+                "version": "winner-outcome-reference-v1",
+                "sector_proxy": self._outcome_sector_proxy(prediction, run_context),
+                "benchmark_ticker": "SPY",
+            }
+            outcome_base = resolve_winner_configuration(config, family="outcome")
+            cache = getattr(run_context, "_winner_outcome_configuration_cache", None)
+            if cache is None:
+                cache = {}
+                object.__setattr__(run_context, "_winner_outcome_configuration_cache", cache)
+            key = (
+                outcome_base.snapshot.resolution_hash,
+                reference_policy["sector_proxy"],
+                reference_policy["version"],
+                reference_policy["benchmark_ticker"],
+            )
+            outcome_configuration = cache.get(key)
+            if outcome_configuration is None:
+                outcome_configuration = winner_outcome_reference_configuration(
+                    outcome_base, reference_policy
+                )
+                cache[key] = outcome_configuration
+            prediction.lineage_json = {
+                **prediction.lineage_json,
+                CONFIGURATION_PAYLOAD_KEY: resolve_winner_configuration(config).snapshot.as_dict(),
+                "outcome_effective_configuration": outcome_configuration.snapshot.as_dict(),
+                "outcome_reference_policy": reference_policy,
+            }
             prediction.lineage_json = embed_identity(
                 prediction.lineage_json,
                 winner_identity,
@@ -652,6 +727,20 @@ class WinnerPredictionCaptureService:
                 ).canonical_payload(),
             }
         return prediction
+
+    def _outcome_sector_proxy(self, prediction, run_context):
+        from app.services.winner_probability.calculation_identity import (
+            _contextual_expectation_configurations,
+        )
+        from app.services.winner_probability.outcome_service import _prediction_sector
+
+        _, sector = _contextual_expectation_configurations(run_context)
+        proxy = (
+            sector.values["config"]
+            .get("sector_etf_proxies", {})
+            .get(_prediction_sector(prediction))
+        )
+        return str(proxy).upper() if proxy else None
 
 
 @dataclass
@@ -840,3 +929,9 @@ def _initial_temporal_decision(
         evaluated_by="WINNER_CAPTURE",
         metadata_json={"capture_revision": prediction.revision},
     )
+
+
+def _prediction_semantic_hash(feature_json):
+    from app.services.winner_probability.feature_extractor import _feature_semantic_hash
+
+    return _feature_semantic_hash(feature_json)

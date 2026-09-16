@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, is_cancel_requested
 from app.services.background_worker import CancelRequested
+from app.services.configuration_delivery import anchored_job_configuration
 from app.services.setup_lifecycle.evaluation_service import (
     SetupLifecycleEvaluationCancelled,
     SetupLifecycleEvaluationService,
@@ -37,6 +38,7 @@ def implemented_setup_lifecycle_job_handlers() -> dict[str, SetupLifecycleJobHan
     }
 
 
+@anchored_job_configuration
 def execute_evaluate_run_job(
     db: Session,
     job: BackgroundJob,
@@ -66,6 +68,7 @@ def execute_evaluate_run_job(
     }
 
 
+@anchored_job_configuration
 def execute_replay_job(
     db: Session,
     job: BackgroundJob,
@@ -89,6 +92,7 @@ def execute_replay_job(
     return {"job_type": SETUP_LIFECYCLE_REPLAY, **result}
 
 
+@anchored_job_configuration
 def execute_repair_ticker_job(
     db: Session,
     job: BackgroundJob,
@@ -110,6 +114,7 @@ def execute_repair_ticker_job(
     return {"job_type": SETUP_LIFECYCLE_REPAIR_TICKER, **result.as_dict()}
 
 
+@anchored_job_configuration
 def execute_daily_maintenance_job(
     db: Session,
     job: BackgroundJob,
@@ -132,6 +137,7 @@ def execute_daily_maintenance_job(
     return {"job_type": SETUP_LIFECYCLE_DAILY_MAINTENANCE, **result.as_dict()}
 
 
+@anchored_job_configuration
 def execute_alert_rebuild_job(
     db: Session,
     job: BackgroundJob,

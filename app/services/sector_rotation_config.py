@@ -42,6 +42,11 @@ class SectorRotationConfigError(ValueError):
 def load_sector_rotation_config(
     path: Path = SECTOR_ROTATION_CONFIG_PATH,
 ) -> dict[str, Any]:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("sector")
+
     with path.open("r", encoding="utf-8") as handle:
         config = yaml.safe_load(handle) or {}
 

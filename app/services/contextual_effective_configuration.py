@@ -406,6 +406,13 @@ def contextual_configuration_for_row(row):
 
 
 def resolve_regime_configuration(config=None, *, pine=None, v4=None):
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        return ContextualEffectiveConfiguration(
+            delivered_configuration("contextual.regime").snapshot
+        )
+
     from app.services.effective_configuration_families import snapshot_regime_configuration
     from app.services.market_regime_policy import load_market_regime_command_center_config
     from app.services.technical_indicators import load_pine_defaults
@@ -464,6 +471,13 @@ def resolve_regime_configuration(config=None, *, pine=None, v4=None):
 
 
 def resolve_sector_configuration(config=None, *, pine=None, v4=None):
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        return ContextualEffectiveConfiguration(
+            delivered_configuration("contextual.sector").snapshot
+        )
+
     from app.services.sector_rotation_config import (
         load_sector_rotation_config,
         sector_rotation_config_hash,
@@ -524,6 +538,11 @@ def resolve_sector_configuration(config=None, *, pine=None, v4=None):
 
 
 def resolve_ceri_configuration(config=None, *, consumer=None, consumer_sources=None):
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        return ContextualEffectiveConfiguration(delivered_configuration("contextual.ceri").snapshot)
+
     from app.services.ceri.config import load_ceri_config
 
     config = config if config is not None else load_ceri_config()
@@ -720,6 +739,13 @@ IBMI_DEFAULTS = {
 
 
 def resolve_ibmi_configuration(config=None, module="liquidity"):
+    from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+    if current_delivery() is not None:
+        return ContextualEffectiveConfiguration(
+            delivered_configuration("contextual.ibmi" + "." + module).snapshot
+        )
+
     from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 
     config = config if config is not None else load_ib_market_intelligence_config()

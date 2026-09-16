@@ -80,10 +80,10 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
 ) -> None:
     config = _config(disposable_postgres_database)
     script = ScriptDirectory.from_config(config)
-    assert tuple(script.get_heads()) == (PHASE2_REVISIONS[-1],)
+    assert tuple(script.get_heads()) == ("0080_effective_configuration",)
+    assert script.get_revision("0080_effective_configuration").down_revision == PHASE2_REVISIONS[-1]
     phase2_chain = tuple(
-        revision.revision
-        for revision in script.walk_revisions(PHASE2_BASE, PHASE2_REVISIONS[-1])
+        revision.revision for revision in script.walk_revisions(PHASE2_BASE, PHASE2_REVISIONS[-1])
     )
     assert phase2_chain == (*reversed(PHASE2_REVISIONS), PHASE2_BASE)
 
@@ -104,7 +104,7 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
         "signal_alert_decision_evidence",
     }
     assert expected_tables <= set(schema.get_table_names())
-    assert _alembic_revision(engine) == PHASE2_REVISIONS[-1]
+    assert _alembic_revision(engine) == "0080_effective_configuration"
 
     for table_name, column_name in {
         "fundamental_scores": "evidence_id",
@@ -154,7 +154,7 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
     assert _alembic_revision(engine) == PHASE2_BASE
 
     command.upgrade(config, "head")
-    assert _alembic_revision(engine) == PHASE2_REVISIONS[-1]
+    assert _alembic_revision(engine) == "0080_effective_configuration"
     engine.dispose()
 
 
@@ -267,9 +267,7 @@ def test_phase2_integrated_evidence_graph_survives_a_new_world(
         with pytest.raises(
             HistoricalReadError, match="ORIGINAL_CONTEXT_RECONSTRUCTION_UNSUPPORTED"
         ):
-            read_core_artifact(
-                db, kind=CoreEvidenceKind.COMBINED, mode=ReadMode.ORIGINAL_CONTEXT
-            )
+            read_core_artifact(db, kind=CoreEvidenceKind.COMBINED, mode=ReadMode.ORIGINAL_CONTEXT)
         with pytest.raises(HistoricalReadError, match="HISTORICAL_MODE_REQUIRES_IDENTITY"):
             read_core_artifact(
                 db,
@@ -287,9 +285,7 @@ def test_phase2_integrated_evidence_graph_survives_a_new_world(
             get_certified_evidence_for_row(
                 db,
                 kind=CoreEvidenceKind.RANKING,
-                current_row=SimpleNamespace(
-                    id=999, run_id=1, ticker="ACME", evidence_id=None
-                ),
+                current_row=SimpleNamespace(id=999, run_id=1, ticker="ACME", evidence_id=None),
             )
 
     with Session(engine) as reloaded:
@@ -300,26 +296,25 @@ def test_phase2_integrated_evidence_graph_survives_a_new_world(
             "combined_evidence_id": first[CoreEvidenceKind.COMBINED].id,
             "ranking_evidence_id": first[CoreEvidenceKind.RANKING].id,
         }
-        assert read_core_artifact(
-            reloaded,
-            kind=CoreEvidenceKind.COMBINED,
-            mode=ReadMode.EVIDENCE,
-            evidence_id=first[CoreEvidenceKind.COMBINED].id,
-        ).payload_json == first_payloads[CoreEvidenceKind.COMBINED]
+        assert (
+            read_core_artifact(
+                reloaded,
+                kind=CoreEvidenceKind.COMBINED,
+                mode=ReadMode.EVIDENCE,
+                evidence_id=first[CoreEvidenceKind.COMBINED].id,
+            ).payload_json
+            == first_payloads[CoreEvidenceKind.COMBINED]
+        )
         lifecycle1 = reloaded.get(SetupLifecycleEvaluationEvidence, lifecycle1_id)
         transition1 = reloaded.get(SetupLifecycleTransitionEvidence, transition1_id)
         alert1 = reloaded.get(SignalAlertDecisionEvidence, alert1_id)
         assert lifecycle1 is not None and lifecycle1.output_state == "READY"
         assert transition1 is not None and transition1.to_state == "READY"
-        assert alert1 is not None and alert1.payload_json["decision_payload"] == {
-            "world": "C1"
-        }
+        assert alert1 is not None and alert1.payload_json["decision_payload"] == {"world": "C1"}
         rule1 = reloaded.get(SignalAlertRuleEvidence, alert1.rule_evidence_id)
         assert rule1 is not None and rule1.config_version == "C1"
 
-        immutable = reloaded.get(
-            CoreCalculationEvidence, first[CoreEvidenceKind.FUNDAMENTAL].id
-        )
+        immutable = reloaded.get(CoreCalculationEvidence, first[CoreEvidenceKind.FUNDAMENTAL].id)
         assert immutable is not None
         immutable.payload_json = {"score": "mutated"}
         with pytest.raises(ValueError, match="IMMUTABLE_EVIDENCE_MUTATION_REJECTED"):
@@ -333,14 +328,15 @@ def test_phase2_integrated_evidence_graph_survives_a_new_world(
             )
             reloaded.flush()
         reloaded.rollback()
-        assert reloaded.get(
-            CoreCalculationEvidence, first[CoreEvidenceKind.FUNDAMENTAL].id
-        ) is not None
+        assert (
+            reloaded.get(CoreCalculationEvidence, first[CoreEvidenceKind.FUNDAMENTAL].id)
+            is not None
+        )
 
     command.downgrade(config, PHASE2_BASE)
     assert _alembic_revision(engine) == PHASE2_BASE
     command.upgrade(config, "head")
-    assert _alembic_revision(engine) == PHASE2_REVISIONS[-1]
+    assert _alembic_revision(engine) == "0080_effective_configuration"
     engine.dispose()
 
 
@@ -357,8 +353,7 @@ def _world(db: Session, suffix: str) -> dict[CoreEvidenceKind, CoreCalculationEv
         payload: dict | None = None,
     ) -> CoreCalculationEvidence:
         source_rows = {
-            role: SimpleNamespace(evidence_id=row.id)
-            for role, row in (sources or {}).items()
+            role: SimpleNamespace(evidence_id=row.id) for role, row in (sources or {}).items()
         }
         row = SimpleNamespace(
             run_id=run_id,

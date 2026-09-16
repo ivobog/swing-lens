@@ -83,6 +83,9 @@ class ProbabilityEstimator:
         config: WinnerProbabilityConfig | None = None,
     ) -> ProbabilityEstimateResult:
         config = config or load_winner_probability_config()
+        from app.services.decision_effective_configuration import resolve_winner_configuration
+
+        config = resolve_winner_configuration(config, family="cohort").winner_config()
         estimate_kind = (
             EstimateKind.AS_OF_REPLAY
             if prediction.reconstruction_method
@@ -142,6 +145,9 @@ class ProbabilityEstimator:
         inherited from the selected generation statistic's shared manifest.
         """
         config = config or load_winner_probability_config()
+        from app.services.decision_effective_configuration import resolve_winner_configuration
+
+        config = resolve_winner_configuration(config, family="cohort").winner_config()
         if _candidate:
             if model_version_id is not None:
                 raise ValueError("candidate cohort rescore cannot attach a serving model")
@@ -161,6 +167,10 @@ class ProbabilityEstimator:
         )
         if not expected_contract:
             raise ValueError("cohort generation is incompatible with the rescore contract")
+        if isinstance(db, Session):
+            from app.services.configuration_delivery import configuration_for_winner_generation
+
+            config = configuration_for_winner_generation(db, generation, config)
         existing = db.scalar(
             select(WinnerProbabilityEstimate)
             .where(WinnerProbabilityEstimate.prediction_id == prediction.id)
@@ -170,6 +180,13 @@ class ProbabilityEstimator:
             .where(WinnerProbabilityEstimate.source_version == _source_version)
         )
         if existing is not None:
+            retained = (existing.metadata_json or {}).get("effective_configuration_at_creation")
+            if (
+                retained is not None
+                and retained["semantic_hash"]
+                != resolve_winner_configuration(config, family="cohort").snapshot.semantic_hash
+            ):
+                raise ValueError("WINNER_ESTIMATE_CONFIGURATION_MISMATCH")
             return ProbabilityEstimateResult(
                 estimate=existing,
                 status="duplicate",
@@ -278,6 +295,10 @@ class ProbabilityEstimator:
             feature_schema_version=config.feature_schema.version,
             evidence_manifest_hash=(statistic.evidence_manifest_hash if statistic else None),
             metadata_json={
+                "effective_configuration_at_creation": _cohort_configuration(config),
+                "configuration_execution_semantics": getattr(
+                    config, "_configuration_execution_semantics", "CURRENT_RULES_RESCORE"
+                ),
                 "cohort_generation_id": generation.id,
                 "generation_key": generation.generation_key,
                 "watermark_hash": generation.watermark_hash,
@@ -337,6 +358,9 @@ class ProbabilityEstimator:
         reconstruction_method: str | None,
         model_version_id: int | None = None,
     ) -> ProbabilityEstimateResult:
+        from app.services.decision_effective_configuration import resolve_winner_configuration
+
+        config = resolve_winner_configuration(config, family="cohort").winner_config()
         existing = _existing_estimate(
             db,
             prediction=prediction,
@@ -408,6 +432,10 @@ class ProbabilityEstimator:
                 config_hash=config.config_hash,
                 evidence_manifest_hash=manifest.manifest_hash,
                 metadata_json={
+                    "effective_configuration_at_creation": _cohort_configuration(config),
+                    "configuration_execution_semantics": getattr(
+                        config, "_configuration_execution_semantics", "CURRENT_RULES_RESCORE"
+                    ),
                     "mean_return_pct": _str_or_none(statistics.mean_return_pct),
                     "target_first_rate": _str_or_none(statistics.target_first_rate),
                     "interval_width": str(statistics.interval_width),
@@ -593,6 +621,10 @@ class ProbabilityEstimator:
             config_hash=config.config_hash,
             evidence_manifest_hash=manifest.manifest_hash,
             metadata_json={
+                "effective_configuration_at_creation": _cohort_configuration(config),
+                "configuration_execution_semantics": getattr(
+                    config, "_configuration_execution_semantics", "CURRENT_RULES_RESCORE"
+                ),
                 "mean_return_pct": _str_or_none(statistics.mean_return_pct),
                 "target_first_rate": _str_or_none(statistics.target_first_rate),
                 "interval_width": str(statistics.interval_width),
@@ -761,6 +793,10 @@ def _estimate_metadata(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
+        "effective_configuration_at_creation": _cohort_configuration(config),
+        "configuration_execution_semantics": getattr(
+            config, "_configuration_execution_semantics", "CURRENT_RULES_RESCORE"
+        ),
         "feature_vector_hash": prediction.feature_vector_hash,
         "outcome_definition": outcome_definition.definition_id,
         "outcome_definition_id": outcome_definition.id,
@@ -800,6 +836,12 @@ def _estimate_metadata(
 
 def _str_or_none(value) -> str | None:
     return str(value) if value is not None else None
+
+
+def _cohort_configuration(config):
+    from app.services.decision_effective_configuration import resolve_winner_configuration
+
+    return resolve_winner_configuration(config, family="cohort").snapshot.as_dict()
 
 
 def _statistic_interval_width(statistic: WinnerCohortStatistic) -> Decimal:

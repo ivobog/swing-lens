@@ -62,6 +62,11 @@ def load_ib_market_intelligence_config(
     path: Path | None = None,
     settings: Settings | None = None,
 ) -> IBMarketIntelligenceConfig:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("ibmi")
+
     settings = settings or get_settings()
     config_path = path or settings.ib_intelligence_config_path
     try:

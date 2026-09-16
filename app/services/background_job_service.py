@@ -177,6 +177,10 @@ def enqueue_job(
             request_key=request_key,
         )
 
+    from app.services.configuration_delivery import anchor_enqueue_payload
+
+    if isinstance(db, Session):
+        payload = anchor_enqueue_payload(db, job_type, payload, parent_job_id=causal.parent_job_id)
     job_values: dict[str, Any] = {
         "job_type": job_type,
         "related_run_id": related_run_id,
@@ -243,6 +247,10 @@ def enqueue_job(
             db, job_type, causal, request_key, workflow_key, "COALESCED", existing
         )
         return existing
+    if isinstance(db, Session):
+        from app.services.configuration_delivery import bind_job_configuration
+
+        bind_job_configuration(db, job)
     publish_after_commit(db, "increment", "swinglens_jobs_enqueued_total", job_type=job_type)
     _record_enqueue_attempt(db, job_type, causal, request_key, workflow_key, "CREATED", job)
     return job
@@ -1295,9 +1303,7 @@ def mark_job_failed_or_retry(
     metadata = _with_attempt_finished(
         job.operational_metadata_json,
         finished_at=now,
-        status=(
-            "RETRYING" if retryable and retry_count <= job.max_retries else JobStatus.FAILED
-        ),
+        status=("RETRYING" if retryable and retry_count <= job.max_retries else JobStatus.FAILED),
     )
     metadata["failure_classification"] = failure
     values: dict[str, Any] = {

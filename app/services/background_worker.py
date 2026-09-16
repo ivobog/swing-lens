@@ -598,8 +598,33 @@ def execute_job(
     workflow_key = job.workflow_key or payload.get("workflow_key")
     ticker = payload.get("ticker")
     company = payload.get("company")
+    from app.services.configuration_delivery import (
+        ANCHOR_KEY,
+        binding_reference,
+        configuration_delivery_scope,
+        durable_business_job,
+        load_configuration_delivery,
+    )
+
+    delivery = None
+    if isinstance(db, Session) and durable_business_job(job.job_type):
+        expected = binding_reference(db, job_id=job.id)
+        if payload.get("pipeline_run_id") is not None:
+            pipeline_anchor = binding_reference(db, pipeline_run_id=payload["pipeline_run_id"])
+            if expected != pipeline_anchor:
+                raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+        parent_id = getattr(job, "parent_job_id", None)
+        if parent_id is not None:
+            parent_anchor = binding_reference(db, job_id=parent_id)
+            if parent_anchor is None or (expected is not None and expected != parent_anchor):
+                raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+            expected = parent_anchor
+        delivery = load_configuration_delivery(
+            db, payload.get(ANCHOR_KEY), expected_anchor=expected
+        )
     try:
         with (
+            configuration_delivery_scope(delivery),
             worker_job_scope(job),
             background_job_scope(
                 job_id=job.id,
@@ -615,9 +640,12 @@ def execute_job(
                 job_status_getter=lambda: str(job.status) if job.status is not None else None,
             ),
         ):
-            with job_phase("job_handler"), fence_domain_commits(
-                job_id=job.id,
-                execution_token=execution_token,
+            with (
+                job_phase("job_handler"),
+                fence_domain_commits(
+                    job_id=job.id,
+                    execution_token=execution_token,
+                ),
             ):
                 return handler(db, job)
     finally:

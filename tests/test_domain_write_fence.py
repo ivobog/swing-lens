@@ -6,9 +6,16 @@ from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import Integer, String, create_engine, select, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-from app.models.tables import BackgroundJob
+from app.models.tables import (
+    BackgroundJob,
+    EffectiveConfigurationRecord,
+    ExecutionConfigurationAnchor,
+    ExecutionConfigurationBinding,
+)
 from app.services.background_job_service import JobLeaseLost, JobStatus
 from app.services.background_worker import execute_job, run_worker_once
 from app.services.ib_market_intelligence import orchestration
@@ -17,6 +24,11 @@ from app.services.ib_market_intelligence.enums import IntelligenceModule
 
 class _TestBase(DeclarativeBase):
     pass
+
+
+@compiles(JSONB, "sqlite")
+def _configuration_jsonb_sqlite(_type, _compiler, **_kwargs):
+    return "JSON"
 
 
 class _DomainMutation(_TestBase):
@@ -199,6 +211,34 @@ def test_ibmi_reclaim_between_tickers_fences_old_owner_and_new_owner_continues(
 
     old_job = _job(tickers=["AAA", "BBB", "CCC"])
     old_job.job_type = "IB_INTELLIGENCE_REBUILD_FEATURES"
+    # The financial calculators/config loader below are mocked. Supply a real
+    # durable binding for this isolated Phase-0 lease test instead of executing
+    # a newly certified business job with missing configuration authority.
+    from app.services.configuration_delivery import (
+        ANCHOR_KEY,
+        bind_job_configuration,
+        persist_configuration_anchor,
+    )
+    from app.services.decision_effective_configuration import freeze_decision_configuration
+
+    with fenced_sessions() as db:
+        for model in (
+            EffectiveConfigurationRecord,
+            ExecutionConfigurationAnchor,
+            ExecutionConfigurationBinding,
+        ):
+            model.__table__.create(db.get_bind())
+        anchor = persist_configuration_anchor(
+            db,
+            [
+                freeze_decision_configuration(
+                    "test.domain_fence", {"policy_version": "mocked-financial-calculator-v1"}, ()
+                )
+            ],
+        )
+        old_job.payload_json = {**old_job.payload_json, ANCHOR_KEY: anchor}
+        bind_job_configuration(db, old_job)
+        db.commit()
     with fenced_sessions() as db:
         with pytest.raises(JobLeaseLost):
             execute_job(
@@ -214,6 +254,7 @@ def test_ibmi_reclaim_between_tickers_fences_old_owner_and_new_owner_continues(
 
     new_job = _job(token="token-b", tickers=["BBB", "CCC"])
     new_job.job_type = old_job.job_type
+    new_job.payload_json = {**new_job.payload_json, ANCHOR_KEY: anchor}
     with fenced_sessions() as db:
         execute_job(
             db,
@@ -322,9 +363,7 @@ def test_not_cancelled_does_not_override_stale_execution_token(fenced_sessions) 
 
         def handler(session: Session, _job: BackgroundJob):
             cancelled = bool(
-                session.scalar(
-                    select(BackgroundJob.requested_cancel).where(BackgroundJob.id == 1)
-                )
+                session.scalar(select(BackgroundJob.requested_cancel).where(BackgroundJob.id == 1))
             )
             assert cancelled is False
             session.add(_DomainMutation(name="not-cancelled", kind="domain"))

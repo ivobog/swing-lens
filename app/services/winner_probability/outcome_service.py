@@ -237,7 +237,7 @@ class OutcomeMaturationService:
         )
         for target_stop in target_stops:
             matured_target, material = self._mature_target_stop(
-                db, target_stop, matured_outcome, calculation, now=now
+                db, target_stop, matured_outcome, calculation, now=now, prediction=prediction
             )
             if material:
                 totals.target_stop_matured += 1
@@ -263,6 +263,15 @@ class OutcomeMaturationService:
         now: datetime,
         context: OutcomeBatchContext | None = None,
     ) -> ForwardCalculation | None:
+        retained = _retained_outcome_configuration(prediction)
+        if retained is not None:
+            native = retained.values["native"]
+            models = {native["entry_models"]["production"], *native["entry_models"]["diagnostics"]}
+            if (
+                outcome.entry_model not in models
+                or int(outcome.horizon_sessions) not in native["horizon"]["sessions"]
+            ):
+                raise ValueError("WINNER_FORWARD_OUTCOME_CONFIGURATION_MISMATCH")
         if outcome.entry_session is None or outcome.due_session is None:
             _mark_pending(outcome, "unresolved_entry_or_due_session", now=now)
             return None
@@ -318,7 +327,7 @@ class OutcomeMaturationService:
         warnings: list[str] = []
         spy_return = self._comparison_return(
             db,
-            BENCHMARK_TICKER,
+            _benchmark_for_prediction(prediction),
             outcome,
             entry_price_from_model=outcome.entry_model,
             lineage_bars=lineage_bars,
@@ -361,6 +370,11 @@ class OutcomeMaturationService:
                 **(outcome.metadata_json or {}),
                 "warnings": warnings,
                 "calculation_phase": "phase_5",
+                "configuration_semantics": (
+                    "FROZEN_PREDICTION_OUTCOME_RULES"
+                    if (prediction.lineage_json or {}).get("outcome_effective_configuration")
+                    else "LEGACY_UNKNOWN_CURRENT_RULES_REFERENCE"
+                ),
             },
         }
         return ForwardCalculation(
@@ -423,8 +437,7 @@ class OutcomeMaturationService:
         warnings: list[str],
         context: OutcomeBatchContext | None = None,
     ) -> Decimal | None:
-        sector = _prediction_sector(prediction)
-        proxy = _sector_proxy(sector)
+        proxy = _sector_proxy_for_prediction(prediction)
         if not proxy:
             warnings.append("missing_sector_proxy")
             return None
@@ -446,17 +459,15 @@ class OutcomeMaturationService:
         calculation: ForwardCalculation,
         *,
         now: datetime,
+        prediction: WinnerPredictionSnapshot | None = None,
     ) -> tuple[WinnerTargetStopOutcome, bool]:
+        policy = _target_stop_policy(prediction, target_stop)
         evaluation = self.target_stop_service.evaluate(
             bars=calculation.ticker_bars,
             entry_price=Decimal(str(forward_outcome.entry_price)),
             target_pct=Decimal(str(target_stop.target_pct)),
             stop_pct=Decimal(str(target_stop.stop_pct)),
-            same_bar_conflict_policy=getattr(
-                getattr(target_stop, "outcome_definition", None),
-                "same_bar_conflict_policy",
-                "CONSERVATIVE_STOP_FIRST",
-            ),
+            same_bar_conflict_policy=policy,
         )
         values = {
             "forward_outcome_id": forward_outcome.id,
@@ -597,12 +608,10 @@ class WinnerOutcomeRepository:
                 continue
             _validate_target_stop_link(row, definition, forward)
             target_stops.setdefault(key, []).append(row)
-        symbols = {BENCHMARK_TICKER}
-        sectors = {_prediction_sector(prediction) for prediction in predictions.values()}
-        sector_proxies = {sector: _sector_proxy(sector) for sector in sectors}
+        symbols = {_benchmark_for_prediction(prediction) for prediction in predictions.values()}
         for prediction in predictions.values():
             symbols.add(prediction.ticker.upper())
-            proxy = sector_proxies.get(_prediction_sector(prediction))
+            proxy = _sector_proxy_for_prediction(prediction)
             if proxy:
                 symbols.add(proxy)
         starts = [row.entry_session for row in outcomes if row.entry_session is not None]
@@ -912,6 +921,88 @@ def _sector_proxy(sector: str | None) -> str | None:
         return None
     proxy = config.get("sector_etf_proxies", {}).get(sector)
     return str(proxy).upper() if proxy else None
+
+
+def _retained_outcome_configuration(prediction):
+    if prediction is None:
+        return None
+    from app.services.decision_effective_configuration import (
+        configuration_from_payload,
+        validate_executable_configuration,
+    )
+    from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+
+    lineage = getattr(prediction, "lineage_json", None) or {}
+    payload = lineage.get("outcome_effective_configuration")
+    if payload is None:
+        if lineage.get(CONFIGURATION_PAYLOAD_KEY) is not None:
+            raise ValueError("MISSING_WINNER_OUTCOME_FROZEN_CONFIGURATION")
+        return None
+    cached = getattr(prediction, "_retained_outcome_configuration", None)
+    if cached is None or cached.snapshot.resolution_hash != payload.get("resolution_hash"):
+        cached = configuration_from_payload(payload)
+        cached.require_family("decision.winner.outcome")
+        prediction._retained_outcome_configuration = cached
+    validate_executable_configuration(cached)
+    return cached
+
+
+def _retained_outcome_reference(prediction):
+    config = _retained_outcome_configuration(prediction)
+    if config is None:
+        return None
+    retained = (prediction.lineage_json or {}).get("outcome_reference_policy")
+    if (
+        retained is None
+        or retained.get("version") != "winner-outcome-reference-v1"
+        or not retained.get("benchmark_ticker")
+        or "sector_proxy" not in retained
+    ):
+        raise ValueError("MISSING_WINNER_OUTCOME_REFERENCE_CONFIGURATION")
+    frozen = config.values.get("reference_policy")
+    if frozen is not None and retained != frozen:
+        raise ValueError("WINNER_OUTCOME_REFERENCE_CONFIGURATION_MISMATCH")
+    return retained
+
+
+def _benchmark_for_prediction(prediction):
+    retained = _retained_outcome_reference(prediction)
+    return retained["benchmark_ticker"] if retained is not None else BENCHMARK_TICKER
+
+
+def _sector_proxy_for_prediction(prediction):
+    retained = _retained_outcome_reference(prediction)
+    if retained is not None:
+        return retained["sector_proxy"]
+    # Legacy auxiliary reference computation is explicitly current-rules, never
+    # inferred original configuration. Stored legacy outcome rules remain unknown.
+    return _sector_proxy(_prediction_sector(prediction))
+
+
+def _target_stop_policy(prediction, target_stop):
+    retained = _retained_outcome_configuration(prediction)
+    if retained is None:
+        return getattr(
+            getattr(target_stop, "outcome_definition", None),
+            "same_bar_conflict_policy",
+            "CONSERVATIVE_STOP_FIRST",
+        )
+    definition = getattr(target_stop, "outcome_definition", None)
+    logical_id = getattr(definition, "definition_id", None)
+    rules = [
+        row for row in retained.values["native"]["outcome_definitions"] if row["id"] == logical_id
+    ]
+    if len(rules) != 1:
+        raise ValueError("MISSING_WINNER_TARGET_STOP_FROZEN_CONFIGURATION")
+    rule = rules[0]
+    if (
+        target_stop.entry_model != rule["entry_model"]
+        or int(target_stop.horizon_sessions) != rule["horizon_sessions"]
+        or Decimal(str(target_stop.target_pct)) != Decimal(str(rule["target_pct"]))
+        or Decimal(str(target_stop.stop_pct)) != Decimal(str(rule["stop_pct"]))
+    ):
+        raise ValueError("WINNER_TARGET_STOP_CONFIGURATION_MISMATCH")
+    return rule["same_bar_conflict_policy"]
 
 
 def _mark_pending(

@@ -575,3 +575,110 @@ T13C final certification: 3,233 safe broad tests; 177 PostgreSQL/focused tests
 Zero failures/skips; seven established external IBMI cases deselected in broad.
 The identical 211-test native probe yields 308 exact business captures, SHA-256
 `c2aca12aed30ea178d2542a64e8404764a5362fc442c055323c89498849e49df`.
+
+## 37. Setup configuration authority
+
+T13D adopts `decision.setup` on the shared typed T13A contract. The native
+resolver traces profile aliases and parser defaults, freezes actual family,
+canonicalization, confidence/quality, registry and feature policy before math,
+and hands the same snapshot from builder DTO to typed identity and immutable
+Setup evidence. Upstream producer rules remain pinned by their exact evidence.
+Registry/rule lists are declared STRUCTURE units, not pretended scalar leaves.
+Preconstructed native services must match active delivered authority before math.
+
+## 38. Lifecycle configuration authority
+
+`decision.lifecycle` independently owns state/phase/family/episode/actionability
+and confidence policy. Exact prior Setup/evaluation/transition pins retain prior
+authority; new C2 evaluation cannot revise C1. Gap repair receives a new identity
+bound to its current frozen policy and exact predecessor. Native adapters own
+decoded values; caller-owned source dictionaries do not become calculation state.
+
+## 39. Alert rule, cooldown and dedup configuration authority
+
+`decision.alerts.setup`, `decision.alerts.ceri` and `decision.ceri.changes` are
+separate from producer thresholds. Selected logical DB/profile rules and code
+cooldown/dedup policy freeze before matching. Rule rows supply physical addresses
+under delivered C1; current severity/enabled/cooldown values cannot override it.
+Builtin seeding creates missing addresses without overwriting existing current C2
+rule values; selected logical rule sources retain actual profile/database winners.
+Historical bounds and exact predecessor evidence remain. CERI cooldown compares
+stored logical rule identity so replacing a row cannot erase suppression history.
+Configuration/rule/cooldown proof is sealed; acknowledgement/dismissal is operational.
+Alert transport credentials do not enter semantic or resolution payloads.
+
+## 40. Winner configuration families
+
+Prediction, original outcome/maturation, cohort and generation have four own
+`decision.winner.*` families. Cohort-only drift does not change prediction policy
+identity. Predictions retain original outcome definitions and selected benchmark/
+sector proxy/reference version before outcomes. Maturation uses that original
+policy, including when a new job root has current rules. Rescore has its own
+current cohort policy plus native model/source/version/manifest pins. Generation
+slices validate immutable cohort/generation binding before math. Missing old
+generation authority cannot be certified from current configuration.
+
+Maturation consumes the prediction's retained entry/horizon, target/stop, same-bar conflict policy and benchmark/sector reference contract. Recapture cannot attach conflicting current outcome rules to an existing frozen prediction.
+
+## 41. Readiness-policy configuration authority
+
+The 23 existing named immutable consumer policies have their own versioned family
+identities. Root freezes them once. Current executable permission evaluation must
+match retained C1; unsupported versions/material changes fail before permission
+or math. Producer thresholds remain upstream, and no Phase-3 permission widens.
+
+## 42. Pipeline configuration anchors
+
+Additive migration `0080_effective_configuration` adds content-addressed immutable
+configuration records, compositional anchors and exact one-scope job/pipeline/
+Winner-generation bindings. RESTRICT FKs, unique scope and CHECK constraints
+preserve references; ORM and PostgreSQL triggers reject update/delete. Business
+fingerprint composes semantic family identities; integrity additionally covers
+resolution provenance and record addresses. Whitelisted behavioral Settings
+switches are retained; runtime credentials stay live/RAM operational authority.
+
+## 43. Durable job configuration delivery
+
+New authorized roots resolve once before enqueue and bulk persist safe snapshots.
+Durable payload contains only `{anchor_id,fingerprint}`. Worker validates immutable
+job/parent/pipeline binding before one-anchor/one-bulk-record load, then native
+resolvers/adapters use C1 with no current file/default fallback or per-item config
+DB reads. Selected family closures and 23 policy snapshots are compositional.
+Acquisition-only Scanner/Flex/fetch/prewarm and worker probes are explicitly
+separate; administrative/scheduling/transport failure can still stop a job.
+
+## 44. Retry configuration semantics
+
+> A durable execution token may change across retries; the effective configuration identity for the same anchored calculation must not.
+
+Retry/reclaim changes lease ownership independently of immutable C1 authority.
+Existing temporal/source/manifest/domain-write fences still apply. Alternate
+legitimate C2 reference substitution, missing records/families, tampering and
+unsupported executable code policy fail before handler math. Immutable snapshot
+hash caching is safe; external mutable native DTOs are never memoized as authority.
+
+## 45. Resume and child inheritance
+
+Public pipeline resume and SEC-repair continuation inherit persisted pipeline C1;
+children inherit parent binding even without a live delivery scope. All supplied,
+parent and pipeline references must agree. Missing inherited family fails instead
+of resolving current rules. A legacy pipeline/job without known immutable binding
+cannot be silently resumed/executed as a certified anchored calculation.
+
+> Missing frozen configuration for an anchored certified calculation is an error, not permission to resolve current configuration.
+
+## 46. Current-rules repair, retrospective and history semantics
+
+New current-state repair is `CURRENT_STATE_REPAIR`; persisted lifecycle replay is
+`CURRENT_RULES_RETROSPECTIVE`. Prior C1 proof is immutable. Legacy inputs preserve
+UNKNOWN/LEGACY_UNKNOWN source/context/temporal dimensions; malformed claimed
+typed identities fail. Standalone legacy generation work marks new output
+`CURRENT_RULES_LEGACY_GENERATION`, without backfilling original authority.
+Neutral historical decoding reads retained tagged values and never current
+files/defaults; old code policy may be inspectable while execution is rejected.
+Direct unanchored legacy APIs remain current-rules entrypoints. T13E graph
+integration, original-context reconstruction, acquisition-plan/refresh-cycle/
+target-scope semantics, entrypoint unification and privileged SQL remain deferred.
+Full native artifact snapshots remain embedded according to T13A; durable jobs
+use content-addressed references. Snapshot sizes and CPU cost are disclosed in
+the T13D report, without production storage or latency improvement claims.

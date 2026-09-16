@@ -19,6 +19,7 @@ from app.services.ceri.effective_session_service import CeriEffectiveSessionServ
 from app.services.ceri.enums import CeriChangeType
 from app.services.ceri.evidence_eligibility import EXCLUDED, effective_disposition_by_snapshot
 from app.services.ceri.feature_flags import ceri_flags
+from app.services.configuration_delivery import anchored_decision_calculator
 
 
 @dataclass(frozen=True)
@@ -41,8 +42,18 @@ class CeriAlertService:
         self.config = config or load_ceri_config()
         requested = self.config.alerts.enabled if alerts_enabled is None else bool(alerts_enabled)
         self.alerts_enabled = ceri_flags().alerts and requested
+        from app.services.decision_effective_configuration import (
+            resolve_ceri_decision_configuration,
+        )
+
+        self.effective_configuration = resolve_ceri_decision_configuration(
+            self.config, enabled=self.alerts_enabled
+        )
+        self.config = self.effective_configuration.ceri_decision_config()
+        self.alerts_enabled = self.effective_configuration.values["enabled"]
         self.sessions = CeriEffectiveSessionService(self.config.engine.timezone)
 
+    @anchored_decision_calculator
     def rebuild_alerts(
         self,
         db: Session,
@@ -51,6 +62,7 @@ class CeriAlertService:
         ticker_by_company: dict[int, str] | None = None,
     ) -> AlertRebuildResult:
         alerts = duplicates = skipped = 0
+        self._ensure_rule_configuration(db)
         if not self.alerts_enabled:
             return AlertRebuildResult(alerts=0, duplicates=0, skipped=len(changes))
         ticker_by_company = ticker_by_company or {}
@@ -63,8 +75,7 @@ class CeriAlertService:
         dispositions = effective_disposition_by_snapshot(db, referenced_snapshot_ids)
         for change in changes:
             if any(
-                snapshot_id is not None
-                and dispositions.get(int(snapshot_id)) == EXCLUDED
+                snapshot_id is not None and dispositions.get(int(snapshot_id)) == EXCLUDED
                 for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
             ):
                 skipped += 1
@@ -125,6 +136,7 @@ class CeriAlertService:
         )
         return bool(delta.get("prior_comparable") is True and accepted)
 
+    @anchored_decision_calculator
     def persist_alert_for_change(
         self,
         db: Session,
@@ -132,6 +144,7 @@ class CeriAlertService:
         change: CeriChangeEvent,
         ticker: str,
     ) -> CeriAlertEvent | None:
+        self._ensure_rule_configuration(db)
         rule = self._rule_for_change(db, change)
         if rule is None:
             return None
@@ -145,6 +158,7 @@ class CeriAlertService:
             return None
         if self._within_cooldown(db, rule, ticker, change):
             return None
+        configuration_payload = self.effective_configuration.snapshot.as_dict()
         event = CeriAlertEvent(
             alert_rule_id=rule.id,
             source_change_event_id=change.id,
@@ -157,6 +171,7 @@ class CeriAlertService:
             validity_classification="VALID_CURRENT",
             status="UNREAD",
             evidence_json={
+                "effective_configuration_at_creation": configuration_payload,
                 "change_type": change.change_type,
                 "dedup_key": change.dedup_key,
                 "delta": change.delta_json,
@@ -205,7 +220,20 @@ class CeriAlertService:
             select(CeriAlertRule).where(CeriAlertRule.rule_id == change_type.value),
         )
         if existing is not None:
-            return existing if existing.enabled else None
+            from types import SimpleNamespace
+
+            values = self._rule_values.get(change_type.value)
+            # A newly appeared C2 row supplies an address only; the C1 native
+            # default remains authority if this rule did not exist at resolution.
+            if values is None:
+                values = dict(
+                    rule_id=change_type.value,
+                    enabled=rule_config.enabled,
+                    severity=rule_config.severity,
+                    cooldown_sessions=rule_config.cooldown_sessions,
+                    config_version=self.config.engine.config_version,
+                )
+            return SimpleNamespace(id=existing.id, **values) if values["enabled"] else None
         rule = CeriAlertRule(
             rule_id=change_type.value,
             enabled=True,
@@ -219,6 +247,22 @@ class CeriAlertService:
         db.add(rule)
         db.flush()
         return rule
+
+    def _ensure_rule_configuration(self, db):
+        if hasattr(self, "_rule_values"):
+            return
+        from app.services.configuration_delivery import current_delivery
+        from app.services.decision_effective_configuration import (
+            resolve_ceri_decision_configuration,
+        )
+
+        if current_delivery() is None:
+            self.effective_configuration = resolve_ceri_decision_configuration(
+                self.config, enabled=self.alerts_enabled, rules=tuple(_load(db, CeriAlertRule))
+            )
+        self._rule_values = {
+            row["rule_id"]: row for row in self.effective_configuration.values["rules"]
+        }
 
     def _within_cooldown(
         self,
@@ -235,7 +279,13 @@ class CeriAlertService:
             return False
         alerts = _load(db, CeriAlertEvent)
         for alert in alerts:
-            if alert.alert_rule_id != rule.id or alert.ticker.upper() != ticker.upper():
+            historical_rule = (alert.evidence_json or {}).get("alert_rule")
+            same_rule = (
+                historical_rule == rule.rule_id
+                if historical_rule
+                else alert.alert_rule_id == rule.id
+            )
+            if not same_rule or alert.ticker.upper() != ticker.upper():
                 continue
             if alert.created_at is None or change.created_at is None:
                 continue

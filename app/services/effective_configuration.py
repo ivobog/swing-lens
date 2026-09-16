@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, time, timezone
 from decimal import Decimal
 from enum import Enum, StrEnum
+from functools import cached_property
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -331,7 +332,7 @@ class EffectiveConfigurationSnapshot:
             },
         }
 
-    @property
+    @cached_property
     def semantic_hash(self) -> str:
         return Canonical.fingerprint(self.semantic_payload())
 
@@ -346,11 +347,11 @@ class EffectiveConfigurationSnapshot:
             ],
         }
 
-    @property
+    @cached_property
     def resolution_hash(self) -> str:
         return Canonical.fingerprint(self.resolution_payload())
 
-    @property
+    @cached_property
     def identity(self) -> EffectiveConfigurationIdentity:
         coverage = (
             ConfigurationCoverage.PARTIAL_DEBUG

@@ -25,6 +25,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.services.configuration_artifact_immutability import seal_configuration_member
 
 
 class UploadRun(Base):
@@ -2443,7 +2444,13 @@ def _protect_winner_readiness_update(_mapper: Any, connection: Any, target: Any)
             WinnerPredictionSnapshot.__table__.c.id == target.id
         )
     ).scalar_one()
-    sealed_members = ("producer_readiness", "winner_consumer_eligibility")
+    sealed_members = (
+        "producer_readiness",
+        "winner_consumer_eligibility",
+        "effective_configuration_at_creation",
+        "outcome_effective_configuration",
+        "outcome_reference_policy",
+    )
     if any(
         (stored or {}).get(member) != (target.lineage_json or {}).get(member)
         for member in sealed_members
@@ -2459,7 +2466,13 @@ def _protect_winner_readiness_delete(mapper: Any, connection: Any, target: Any) 
     ).scalar_one()
     if any(
         (stored or {}).get(member) is not None
-        for member in ("producer_readiness", "winner_consumer_eligibility")
+        for member in (
+            "producer_readiness",
+            "winner_consumer_eligibility",
+            "effective_configuration_at_creation",
+            "outcome_effective_configuration",
+            "outcome_reference_policy",
+        )
     ):
         _reject_core_evidence_mutation(mapper, connection, target)
 
@@ -4686,6 +4699,60 @@ for _immutable_setup_model in (
     event.listen(_immutable_setup_model, "before_delete", _reject_core_evidence_mutation)
 
 
+class EffectiveConfigurationRecord(Base):
+    """Content-addressed T13A snapshots shared by durable execution anchors."""
+
+    __tablename__ = "effective_configuration_records"
+    resolution_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    namespace: Mapped[str] = mapped_column(Text, nullable=False)
+    semantic_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+event.listen(EffectiveConfigurationRecord, "before_update", _reject_core_evidence_mutation)
+event.listen(EffectiveConfigurationRecord, "before_delete", _reject_core_evidence_mutation)
+
+
+class ExecutionConfigurationAnchor(Base):
+    __tablename__ = "execution_configuration_anchors"
+    anchor_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class ExecutionConfigurationBinding(Base):
+    __tablename__ = "execution_configuration_bindings"
+    binding_key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    anchor_id: Mapped[str] = mapped_column(
+        ForeignKey("execution_configuration_anchors.anchor_id", ondelete="RESTRICT"), nullable=False
+    )
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("background_jobs.id", ondelete="RESTRICT"), unique=True
+    )
+    pipeline_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT"), unique=True
+    )
+    winner_cohort_generation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_cohort_generations.id", ondelete="RESTRICT"), unique=True
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "(CASE WHEN job_id IS NULL THEN 0 ELSE 1 END + "
+            "CASE WHEN pipeline_run_id IS NULL THEN 0 ELSE 1 END + "
+            "CASE WHEN winner_cohort_generation_id IS NULL THEN 0 ELSE 1 END) = 1",
+            name="ck_configuration_binding_scope",
+        ),
+    )
+
+
+for _immutable_configuration_model in (ExecutionConfigurationAnchor, ExecutionConfigurationBinding):
+    event.listen(_immutable_configuration_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_immutable_configuration_model, "before_delete", _reject_core_evidence_mutation)
+
+
 class SetupLifecycleAdministrativeAuditEvent(Base):
     __tablename__ = "setup_lifecycle_administrative_audit_events"
 
@@ -4718,3 +4785,11 @@ class SetupLifecycleAdministrativeAuditEvent(Base):
         Index("idx_setup_lifecycle_admin_audit_eval", "evaluation_run_id"),
         Index("idx_setup_lifecycle_admin_audit_created", "created_at"),
     )
+
+
+for _configured_model in (
+    WinnerOutcomeDefinition,
+    WinnerCohortStatistic,
+    WinnerProbabilityEstimate,
+):
+    seal_configuration_member(_configured_model, "metadata_json")

@@ -389,10 +389,12 @@ class CohortGenerationService:
             )
             if generation is None:
                 raise GenerationInvariantViolation("cohort generation insert was lost")
+            generation._configuration_generation_created = generation_id is not None
             return generation
         generation = WinnerCohortGeneration(**values)
         db.add(generation)
         db.flush()
+        generation._configuration_generation_created = True
         return generation
 
     def published_for_state(
@@ -446,8 +448,7 @@ class CohortGenerationService:
                 or state.published_watermark_hash != locked_generation.watermark_hash
                 or not complete
                 or not self._generation_matches_state(locked_generation, state)
-                or locked_generation.watermark_hash
-                != canonical_watermark_hash(active_watermark)
+                or locked_generation.watermark_hash != canonical_watermark_hash(active_watermark)
                 or locked_generation.generation_key
                 != canonical_generation_key(
                     self._contract_from_generation(locked_generation), active_watermark
@@ -480,12 +481,10 @@ class CohortGenerationService:
                 previous,
             )
         desired_watermark = watermark_from_state(state)
-        if (
-            locked_generation.watermark_hash != canonical_watermark_hash(candidate_watermark)
-            or locked_generation.generation_key
-            != canonical_generation_key(
-                self._contract_from_generation(locked_generation), candidate_watermark
-            )
+        if locked_generation.watermark_hash != canonical_watermark_hash(
+            candidate_watermark
+        ) or locked_generation.generation_key != canonical_generation_key(
+            self._contract_from_generation(locked_generation), candidate_watermark
         ):
             return self._rejected_result(
                 GenerationPublicationStatus.REJECTED_INCOMPATIBLE,
@@ -703,8 +702,7 @@ class CohortGenerationService:
         right: WinnerCohortGeneration,
     ) -> bool:
         return all(
-            getattr(left, field) == getattr(right, field)
-            for field in _PUBLICATION_CONTRACT_FIELDS
+            getattr(left, field) == getattr(right, field) for field in _PUBLICATION_CONTRACT_FIELDS
         )
 
     @staticmethod
@@ -712,10 +710,7 @@ class CohortGenerationService:
         generation: WinnerCohortGeneration,
     ) -> WinnerCohortContract:
         return WinnerCohortContract(
-            **{
-                field: getattr(generation, field)
-                for field in _PUBLICATION_CONTRACT_FIELDS
-            }
+            **{field: getattr(generation, field) for field in _PUBLICATION_CONTRACT_FIELDS}
         )
 
     @staticmethod
