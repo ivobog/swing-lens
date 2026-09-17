@@ -19,7 +19,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.database_safety import assert_disposable_database
-from app.models.tables import BackgroundJob, BackgroundWorker
+from app.models.tables import BackgroundJob, BackgroundWorker, PipelineRun, UploadRun
 from app.services.background_job_service import (
     JobLeaseLost,
     JobStatus,
@@ -319,6 +319,17 @@ def test_migration_import_lint_rejects_live_model_imports() -> None:
     assert violations == []
 
 
+def _seed_pipeline_job_owners(db: Session, *pipeline_ids: int) -> None:
+    """Queue tests need real owners for the Phase-4 configuration binding FK."""
+    db.add(UploadRun(id=7, filename="queue-contract.csv", status="COMPLETED"))
+    db.flush()
+    db.add_all(
+        PipelineRun(id=pipeline_id, upload_run_id=7, status="QUEUED")
+        for pipeline_id in pipeline_ids
+    )
+    db.flush()
+
+
 def test_postgresql_duplicate_request_key_enqueue_coalesces_across_sessions() -> None:
     clean_db_name = f"swinglens_pytest_enqueue_{uuid.uuid4().hex[:12]}"
     with _connect_admin_or_skip() as conn:
@@ -332,6 +343,7 @@ def test_postgresql_duplicate_request_key_enqueue_coalesces_across_sessions() ->
             engine = create_engine(database_url)
             try:
                 with Session(engine, expire_on_commit=False) as first_session:
+                    _seed_pipeline_job_owners(first_session, 1, 2)
                     first_job = enqueue_job(
                         first_session,
                         job_type="FULL_PIPELINE",
@@ -384,6 +396,7 @@ def test_postgresql_old_worker_cannot_complete_after_stale_recovery() -> None:
             engine = create_engine(database_url)
             try:
                 with Session(engine, expire_on_commit=False) as setup_session:
+                    _seed_pipeline_job_owners(setup_session, 1)
                     setup_session.add(
                         BackgroundWorker(
                             worker_id="old-worker",

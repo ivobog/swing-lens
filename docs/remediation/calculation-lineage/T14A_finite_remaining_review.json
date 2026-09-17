@@ -1,0 +1,9 @@
+{
+  "caller_adoption_pending_is_not_foundation_failure": true,
+  "entry_families": [],
+  "foundation_verdict": "PASS",
+  "phase5_handoff": "T14A_phase5_handoff.json",
+  "prior_remaining_review": "T14A_before_closure_remaining_review.json",
+  "unowned_business_artifacts": [],
+  "writer_families": []
+}

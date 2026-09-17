@@ -14,6 +14,10 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
+
+# PIDs may be reused after exit; this identity belongs to one probe address space.
+PROBE_PROCESS_INSTANCE_ID = uuid4().hex
 
 
 def main(mode: str) -> dict:
@@ -472,4 +476,11 @@ def main(mode: str) -> dict:
 
 
 if __name__ == "__main__":
-    print("T13E_RESULT=" + json.dumps(main(sys.argv[1]), default=str, sort_keys=True))
+    print(
+        "T13E_RESULT="
+        + json.dumps(
+            {**main(sys.argv[1]), "probe_process_instance_id": PROBE_PROCESS_INSTANCE_ID},
+            default=str,
+            sort_keys=True,
+        )
+    )

@@ -1,0 +1,2839 @@
+{
+  "entry_families": [
+    {
+      "entrypoints": [
+        "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot"
+      ],
+      "family_id": "EF_021cfb93d6813955",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SECTOR_SNAPSHOT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pipeline_service.py:cancel_pipeline"
+      ],
+      "family_id": "EF_025e41805514b5ba",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_PIPELINE_CONTROL"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/pre11_activation_service.py:Pre11L5ActivationService.activate"
+      ],
+      "family_id": "EF_02815044960ac52c",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT",
+        "WF_WINNER_PRE11_ACTIVATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/replay_service.py:SetupLifecycleReplayService.replay"
+      ],
+      "family_id": "EF_03715d8cb04ab7de",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_market_intelligence/decision_evidence.py:persist_ibmi_feature_evidence"
+      ],
+      "family_id": "EF_053db506b2540635",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/temporal_validation_service.py:TemporalValidationService.apply_certification"
+      ],
+      "family_id": "EF_08367ecd4bfc25ab",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_TEMPORAL_VALIDITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService.capture_or_resume"
+      ],
+      "family_id": "EF_0a056737ae51257a",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_GENERATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.evaluate"
+      ],
+      "family_id": "EF_0a5cee795e4d11d5",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/transition_preflight_plan_service.py:freeze_transition_decision_handoff_manifest"
+      ],
+      "family_id": "EF_0c0cd820f687c1bb",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_DECISION_HANDOFF_MANIFEST",
+        "WF_TRANSITION_PREFLIGHT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.write_admin_audit_event"
+      ],
+      "family_id": "EF_0f42cc0be4abc685",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/model_registry.py:ModelRegistry.retire_model"
+      ],
+      "family_id": "EF_108005c3877b73f8",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MODEL_GOVERNANCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_alert_decision_evidence"
+      ],
+      "family_id": "EF_12960f471203b24d",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.persist_feature"
+      ],
+      "family_id": "EF_14ac8eafdc1a1ae0",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_REVISION_FEATURE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/canonicalization.py:SetupLifecycleCanonicalizer.canonicalize_snapshots"
+      ],
+      "family_id": "EF_14cfda3844ac2a98",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/resolve_sec_ciks.py:main"
+      ],
+      "family_id": "EF_16848e7d5042bbd5",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SEC_CIK_CLI"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_lifecycle_evaluation_evidence"
+      ],
+      "family_id": "EF_16c693b72a6392ab",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/purge_service.py:CeriPurgeService.execute"
+      ],
+      "family_id": "EF_17af8f95c72dc4b5",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_LICENSED_PURGE",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_alert_event"
+      ],
+      "family_id": "EF_17cd4c0e3faace6e",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.ensure_for_outcomes"
+      ],
+      "family_id": "EF_17fbd8ea8e28f686",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/sec/readiness_repair.py:schedule_sec_readiness_repair"
+      ],
+      "family_id": "EF_1829ba4c1327b124",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_COMBINED_REFRESH",
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_MARKET_CONTEXT_AUTHORITY",
+        "WF_PIPELINE_CONTROL",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE",
+        "WF_REGIME_SNAPSHOT",
+        "WF_SECTOR_SNAPSHOT",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_IDENTITY_REPAIR",
+        "WF_SEC_INCREMENTAL_IDENTITY",
+        "WF_SEC_PIPELINE_READINESS_REPAIR",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService.materialize_slice"
+      ],
+      "family_id": "EF_188a52d7dc0ff552",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/normalization_service.py:CeriNormalizationService.normalize"
+      ],
+      "family_id": "EF_193d9ffd0c79c2f8",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/winner_maturation_canary.py:main"
+      ],
+      "family_id": "EF_1d0eb4e43cbd2c5f",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_MATURATION_CANARY",
+        "WF_WINNER_OUTCOME_REVISION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/episode_service.py:WinnerEpisodeService.assign_episode"
+      ],
+      "family_id": "EF_1fcddaaed4bf5583",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_EPISODE",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/winner_target_stop_scope_repair.py:main"
+      ],
+      "family_id": "EF_1ffa51a772dfc285",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_TARGET_STOP_REPAIR"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/temporal_validation_service.py:TemporalValidationService.apply_quarantine"
+      ],
+      "family_id": "EF_20010a31016223bb",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_TEMPORAL_VALIDITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/price_response_service.py:CeriPriceResponseService.persist"
+      ],
+      "family_id": "EF_20e06c4f9457355d",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_PRICE_RESPONSE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record"
+      ],
+      "family_id": "EF_213662a6d137bcac",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_SOURCE_IDENTITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_current_revisions"
+      ],
+      "family_id": "EF_21b51ca218ca4e33",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_OUTCOME_REVISION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.supersede_prior_current_events"
+      ],
+      "family_id": "EF_22b85b4f8e513ffa",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_fetch_job_service.py:submit_fetch_job"
+      ],
+      "family_id": "EF_22da324cfd71d5ee",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/configuration_delivery.py:bind_job_configuration"
+      ],
+      "family_id": "EF_22ed64aba322f7af",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_snapshot_canonical_decision"
+      ],
+      "family_id": "EF_2549c9b27b482b53",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_CURRENT_SELECTION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/sec/identity_repair.py:resolve_and_persist_sec_identity"
+      ],
+      "family_id": "EF_26b4197e150dd293",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SEC_IDENTITY_REPAIR"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/bar_cache_service.py:ensure_daily_bars"
+      ],
+      "family_id": "EF_26f8eec180edfe25",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService.rebuild"
+      ],
+      "family_id": "EF_29d8aab26f7bc1b7",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_REVISION_FEATURE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/estimate_publication_service.py:WinnerEstimatePublicationService.publish"
+      ],
+      "family_id": "EF_2bf8cff4ba3b4f20",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_PUBLICATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/pre11_compatibility_service.py:Pre11CompatibilityWriteService.persist_decisions_and_replays"
+      ],
+      "family_id": "EF_2c20ef6c4a891318",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_PRE11_TRAINING_REPLAY",
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_lifecycle_transition_evidence"
+      ],
+      "family_id": "EF_2ccea74c5c437507",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/target_stop_scope_repair_service.py:apply_target_stop_scope_repair"
+      ],
+      "family_id": "EF_2d2b331779e8c8de",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_TARGET_STOP_REPAIR"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/job_handlers.py:WinnerCohortRefreshService.refresh_cohorts"
+      ],
+      "family_id": "EF_33499b0639d00900",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_market_intelligence/journal.py:rebuild_trade_episodes"
+      ],
+      "family_id": "EF_3392d180c1a8d378",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_TRADE_EPISODES"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.apply_snapshot"
+      ],
+      "family_id": "EF_34751282c1807125",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome"
+      ],
+      "family_id": "EF_3544a66f80c3a3ee",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_OUTCOME_REVISION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/technical_score_service.py:score_run_technicals"
+      ],
+      "family_id": "EF_3984d25edba4f45f",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.with_acceleration"
+      ],
+      "family_id": "EF_3aa9732708e9982e",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_REVISION_FEATURE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pipeline_executor.py:build_sector_rotation_snapshot_for_run"
+      ],
+      "family_id": "EF_3c20103a5ea92683",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SECTOR_SNAPSHOT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/bar_cache_service.py:cache_bars"
+      ],
+      "family_id": "EF_3d469f86339ccac7",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_latest_rescore_from_generation"
+      ],
+      "family_id": "EF_3fc4b414d23b5f24",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_LATEST_RESCORE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:get_local_artifact"
+      ],
+      "family_id": "EF_431a8947c0b31cbf",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/alert_service.py:CeriAlertService.acknowledge"
+      ],
+      "family_id": "EF_43e51c53a8544734",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_STATUS"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence"
+      ],
+      "family_id": "EF_4401e1a8a0cd2743",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/cohort_definition.py:CohortDefinitionService.ensure_definition"
+      ],
+      "family_id": "EF_446e95876ddd58c5",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_COHORT_DEFINITION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.record_downloaded_content"
+      ],
+      "family_id": "EF_44e2b88da09c0be6",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/winner_clean_reconstruction.py:main"
+      ],
+      "family_id": "EF_47b620eb610ed3cd",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_CURRENT_RULE_RECONSTRUCTION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.apply_evaluation_counts"
+      ],
+      "family_id": "EF_48bd32bb045bb8b9",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_alert_rule_evidence"
+      ],
+      "family_id": "EF_4a7754d23dd80087",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_ALERT_RULE_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/change_detection_service.py:CeriChangeDetectionService.detect_catalyst_revision"
+      ],
+      "family_id": "EF_4ab938a993a4d853",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CHANGE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/maintenance_service.py:SetupLifecycleMaintenanceService.repair_ticker"
+      ],
+      "family_id": "EF_4dac4941b428441c",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/similarity_service.py:SimilarityService.persist_neighbors"
+      ],
+      "family_id": "EF_4f6bcd619acea809",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_SIMILARITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/evaluation_service.py:SetupLifecycleEvaluationService.evaluate_run"
+      ],
+      "family_id": "EF_5088947f34107440",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/maintenance_service.py:SetupLifecycleMaintenanceService.rebuild_alerts"
+      ],
+      "family_id": "EF_51bfaf224a5cb9ee",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.attach_consensus_snapshot"
+      ],
+      "family_id": "EF_538276c91abb138c",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CONSENSUS_ATTACH"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/sec/readiness_repair.py:mark_sec_repair_failure"
+      ],
+      "family_id": "EF_539de8ba1f139e53",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SEC_PIPELINE_READINESS_REPAIR"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_snapshot_canonical_decisions"
+      ],
+      "family_id": "EF_53e5ff53b1c5e6dd",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_CURRENT_SELECTION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/alert_service.py:CeriAlertService.dismiss"
+      ],
+      "family_id": "EF_552e27976095f9b4",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_STATUS"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_signal_change_event"
+      ],
+      "family_id": "EF_567aa492a5f39941",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/profile_sec_performance.py:main"
+      ],
+      "family_id": "EF_57005fc921eb55e1",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_RAW_SOURCE",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/backfill_service.py:CeriBackfillService.run"
+      ],
+      "family_id": "EF_57e42943795f68d5",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.register_document"
+      ],
+      "family_id": "EF_5acf98114588686d",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/decision_time_estimate_service.py:DecisionTimeEstimateService.create_decision_time_estimate"
+      ],
+      "family_id": "EF_5b65c0a336085ec6",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pipeline_service.py:mark_pipeline_job_failure"
+      ],
+      "family_id": "EF_5d82bf1f829e0378",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_PIPELINE_CONTROL"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/snapshot_builder.py:SetupLifecycleSnapshotCaptureService.capture_snapshots_for_run"
+      ],
+      "family_id": "EF_5ecffaf35b261ecd",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_market_intelligence/flex.py:import_flex_report"
+      ],
+      "family_id": "EF_5f39587263ee923e",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_FLEX_IMPORT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/certify_technical_artifact_cache.py:main"
+      ],
+      "family_id": "EF_605087d3a0d9034a",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/snapshot_builder.py:capture_snapshots_for_run"
+      ],
+      "family_id": "EF_60948ade054ed19a",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/calibration_service.py:CalibrationService.persist_bins"
+      ],
+      "family_id": "EF_62e86ef307df87ac",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_CALIBRATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pipeline_executor.py:build_market_regime_snapshot_for_run"
+      ],
+      "family_id": "EF_633140182b79ba72",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_REGIME_SNAPSHOT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.create_evaluation_run"
+      ],
+      "family_id": "EF_6512999c3ff8e394",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/qa/rebuild_slse_dev_history.py:main"
+      ],
+      "family_id": "EF_65e0e20a4aabf36e",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/configuration_delivery.py:persist_configuration_anchor"
+      ],
+      "family_id": "EF_6954da3818e91504",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_calculation_context_service.py:attach_reserved_market_context"
+      ],
+      "family_id": "EF_6bbd386aea2907d8",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_MARKET_CONTEXT_AUTHORITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/qa/certify_slse_natural.py:main"
+      ],
+      "family_id": "EF_6cafbc6643911d81",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/model_training.py:ShadowModelTrainingService.persist_training_run"
+      ],
+      "family_id": "EF_7042df9c9280cacb",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MODEL_TRAINING"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/technical_score_service.py:finalize_technical_scores"
+      ],
+      "family_id": "EF_756b7b07d4f365c0",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FINALIZATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/transition_preflight_plan_service.py:cancel_transition_preflight"
+      ],
+      "family_id": "EF_78de7a499feb8c0b",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_TRANSITION_PREFLIGHT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_regime_command_center.py:MarketRegimeCommandCenterService.build_snapshot"
+      ],
+      "family_id": "EF_791a604abef6589e",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_REGIME_SNAPSHOT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild"
+      ],
+      "family_id": "EF_7a4eefa3be56b725",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CHANGE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/outcome_revision_service.py:OutcomeRevisionService.upsert_forward_revision"
+      ],
+      "family_id": "EF_7ce4f5f114ccbfab",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_OUTCOME_REVISION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.refresh_primary_status"
+      ],
+      "family_id": "EF_7de5b07f9f5c012a",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_LIFECYCLE_EPISODE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator.on_ticker_ready"
+      ],
+      "family_id": "EF_7eea11a8cded4a8a",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.persist_members"
+      ],
+      "family_id": "EF_7f9ab18e0a68b4e4",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_EVIDENCE_MANIFEST"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/core_calculation_evidence.py:persist_core_evidence"
+      ],
+      "family_id": "EF_7fabc787dc6ffca2",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_historical_metric_bar"
+      ],
+      "family_id": "EF_812da22fe41fbcba",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IBMI_HISTORICAL_SOURCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot"
+      ],
+      "family_id": "EF_82522331e642b008",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_SCORE",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/sector_rotation_service.py:SectorRotationService.build_sector_rotation_snapshot"
+      ],
+      "family_id": "EF_8322d930fc0acb54",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SECTOR_SNAPSHOT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/orchestration.py:CeriIngestionService.ingest"
+      ],
+      "family_id": "EF_832da348c142644a",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_RAW_SOURCE",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/transition_preflight_plan_service.py:expire_abandoned_preflights"
+      ],
+      "family_id": "EF_84afac2f08856690",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_TRANSITION_PREFLIGHT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/change_detector.py:SetupLifecycleChangeDetector.detect_and_persist"
+      ],
+      "family_id": "EF_84d4762d05423329",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_calculation_context_service.py:market_context_for_pipeline"
+      ],
+      "family_id": "EF_85f4b661ddf7bbe3",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_MARKET_CONTEXT_AUTHORITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/price_series_version_service.py:maintain_price_series_versions"
+      ],
+      "family_id": "EF_866ac2c173ac81d7",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_PRICE_SERIES_VERSION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot"
+      ],
+      "family_id": "EF_874835d87c21855e",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_REGIME_SNAPSHOT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/winner_market_data_recovery.py:main"
+      ],
+      "family_id": "EF_883a8783001bcffe",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION",
+        "WF_WINNER_TEMPORAL_VALIDITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_feature"
+      ],
+      "family_id": "EF_8971757daefc9594",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_IBMI_NATIVE_FEATURE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/scheduler.py:schedule_primary_h5_maturation"
+      ],
+      "family_id": "EF_8ad883f17f5b8452",
+      "kind": "SCHEDULER",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_OUTCOME_REVISION",
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_decision_time_estimate"
+      ],
+      "family_id": "EF_8cbe38eaadc0dfcb",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/alert_service.py:CeriAlertService.persist_alert_for_change"
+      ],
+      "family_id": "EF_8d44630b5c3bfb20",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/transition_preflight_plan_service.py:consume_transition_preflight"
+      ],
+      "family_id": "EF_8dac9448947605ba",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_MARKET_CONTEXT_AUTHORITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_data_prewarm_service.py:execute_market_data_prewarm"
+      ],
+      "family_id": "EF_8e2313d593ef63fa",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/cohort_generation_service.py:EvidenceWatermarkService.advance_to_current_material_evidence"
+      ],
+      "family_id": "EF_8e47858541189c36",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/capture_service.py:CeriRunCaptureService.capture_run"
+      ],
+      "family_id": "EF_8eedb2c400c92649",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_SCORE",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_data_prewarm_service.py:enqueue_market_data_prewarm"
+      ],
+      "family_id": "EF_8f75a6b432147740",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/outcome_revision_service.py:OutcomeRevisionService.upsert_target_stop_revision"
+      ],
+      "family_id": "EF_913f3902d02f0fc3",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_OUTCOME_REVISION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_contract_resolver.py:resolve_us_stock_contract"
+      ],
+      "family_id": "EF_919b08f9bc6d4b63",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_CONTRACT_IDENTITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/validate_ib_market_intelligence.py:main"
+      ],
+      "family_id": "EF_9271dda80cbc7784",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_CONTRACT_IDENTITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_new_lifecycle_event"
+      ],
+      "family_id": "EF_9331426e90d56ac8",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/background_worker.py:run_worker_once"
+      ],
+      "family_id": "EF_952eb770ffb142bc",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_PIPELINE_CONTROL",
+        "WF_SEC_PIPELINE_READINESS_REPAIR",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_OUTCOME_REVISION",
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/model_registry.py:ModelRegistry.promote_model"
+      ],
+      "family_id": "EF_955c1ccf26f164a6",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MODEL_GOVERNANCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/maturation_canary_service.py:execute_reviewed_maturation_canary"
+      ],
+      "family_id": "EF_9ae86c108357a235",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_MATURATION_CANARY",
+        "WF_WINNER_OUTCOME_REVISION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_alert_rule"
+      ],
+      "family_id": "EF_9b4d3201debe9ea7",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.seed_builtin_rules"
+      ],
+      "family_id": "EF_9b54186b1978efc7",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService.publish_reviewed_supersession"
+      ],
+      "family_id": "EF_9de871e1a7416925",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_GENERATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.advance_canonical_selections"
+      ],
+      "family_id": "EF_9e0bf6312cea1b10",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_CURRENT_SELECTION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/change_detection_service.py:CeriChangeDetectionService.detect_score_changes"
+      ],
+      "family_id": "EF_9ecbca3f3412c850",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CHANGE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/certify_sec_incremental_ingestion.py:main"
+      ],
+      "family_id": "EF_9fb0b29fc945c34f",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_RAW_SOURCE",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.summarize"
+      ],
+      "family_id": "EF_9ffa04a332230973",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CONSENSUS_ATTACH"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/transition_preflight_plan_service.py:create_transition_preflight_plan"
+      ],
+      "family_id": "EF_a005dd81d77d51c6",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_MARKET_CONTEXT_AUTHORITY",
+        "WF_TRANSITION_PREFLIGHT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/sec/readiness_repair.py:execute_sec_readiness_repair"
+      ],
+      "family_id": "EF_a046247f0bce46ec",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_COMBINED_REFRESH",
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_MARKET_CONTEXT_AUTHORITY",
+        "WF_PIPELINE_CONTROL",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE",
+        "WF_REGIME_SNAPSHOT",
+        "WF_SECTOR_SNAPSHOT",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_IDENTITY_REPAIR",
+        "WF_SEC_INCREMENTAL_IDENTITY",
+        "WF_SEC_PIPELINE_READINESS_REPAIR",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/background_job_service.py:enqueue_job"
+      ],
+      "family_id": "EF_a0ee551be8adb522",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/combined_decision.py:refresh_combined_results"
+      ],
+      "family_id": "EF_a27b7ead7124b2da",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_COMBINED_REFRESH",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:refresh_ranking_profile"
+      ],
+      "family_id": "EF_a3fd956e147403b1",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/forensics/run159_ceri_quarantine.py:main"
+      ],
+      "family_id": "EF_a4620089ed8199e3",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_DISPOSITION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_snapshot"
+      ],
+      "family_id": "EF_a65afd15a9f488ee",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:refresh_all_ranking_profiles"
+      ],
+      "family_id": "EF_a8016e0b9d69e5be",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.record_fetch_results"
+      ],
+      "family_id": "EF_a89fe25d89061bca",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.create_or_get_manifest"
+      ],
+      "family_id": "EF_abd56d56b5b99888",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_EVIDENCE_MANIFEST"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record"
+      ],
+      "family_id": "EF_ad585eacf12c98d7",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_RAW_SOURCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pre_enqueue_operational_gate.py:validate_pre_enqueue_operational_gate"
+      ],
+      "family_id": "EF_add9abc9ad900919",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_COMBINED_REFRESH",
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_MARKET_CONTEXT_AUTHORITY",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE",
+        "WF_REGIME_SNAPSHOT",
+        "WF_SECTOR_SNAPSHOT",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.refresh_primary_statuses"
+      ],
+      "family_id": "EF_b28b7630f07da0e9",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_LIFECYCLE_EPISODE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_market_intelligence/journal.py:match_episode_to_research"
+      ],
+      "family_id": "EF_b29864373e3407c6",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_TRADE_EPISODES"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/training_eligibility.py:TrainingEligibilityPolicy.persist_capture_decision"
+      ],
+      "family_id": "EF_b2c4eae10dbb7074",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_CAPTURE_TRAINING_METADATA"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pipeline_service.py:start_pipeline"
+      ],
+      "family_id": "EF_b485539a18ce34a9",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_COMBINED_REFRESH",
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_MARKET_CONTEXT_AUTHORITY",
+        "WF_PIPELINE_CONTROL",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE",
+        "WF_REGIME_SNAPSHOT",
+        "WF_SECTOR_SNAPSHOT",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_IDENTITY_REPAIR",
+        "WF_SEC_INCREMENTAL_IDENTITY",
+        "WF_SEC_PIPELINE_READINESS_REPAIR",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/decision_evidence.py:persist_ceri_decision_evidence"
+      ],
+      "family_id": "EF_b52294e32a1ee5d9",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.heartbeat_evaluation_run"
+      ],
+      "family_id": "EF_b91e53fb5c6f1222",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/evidence_eligibility.py:append_evidence_dispositions"
+      ],
+      "family_id": "EF_b95c796004827c0e",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_DISPOSITION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_calculation_context_service.py:reserve_preflight_market_context"
+      ],
+      "family_id": "EF_bd24dd9da817c632",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_MARKET_CONTEXT_AUTHORITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_live_snapshot"
+      ],
+      "family_id": "EF_be226eaac46d1ab2",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IBMI_LIVE_SOURCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/sector_rotation_service.py:build_sector_rotation_snapshot"
+      ],
+      "family_id": "EF_be3b33a649ccba7e",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SECTOR_SNAPSHOT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.persist_manifest_members"
+      ],
+      "family_id": "EF_bf185d27ba6a5998",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_EVIDENCE_MANIFEST"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add"
+      ],
+      "family_id": "EF_c0bd3112a99523a0",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_setup_evidence"
+      ],
+      "family_id": "EF_c213ced13c9ed3f5",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/repository.py:WinnerProbabilityRepository.add"
+      ],
+      "family_id": "EF_c37482a6d5894991",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_TYPED_REPOSITORY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pipeline_service.py:enqueue_pipeline_after_sec_repair"
+      ],
+      "family_id": "EF_c637fc640f1c37bb",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_COMBINED_REFRESH",
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_MARKET_CONTEXT_AUTHORITY",
+        "WF_PIPELINE_CONTROL",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE",
+        "WF_REGIME_SNAPSHOT",
+        "WF_SECTOR_SNAPSHOT",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/winner_ib_request_scope_canary.py:main"
+      ],
+      "family_id": "EF_c6e52b9cafebbd63",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/background_job_service.py:fence_stalled_jobs"
+      ],
+      "family_id": "EF_c7f7c896fe1e6070",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_PIPELINE_FENCE_INTERRUPTION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.apply_observation_gap"
+      ],
+      "family_id": "EF_c9db4dc167d1d6e3",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_OBSERVATION_GAP",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_candidate_rescore_from_generation"
+      ],
+      "family_id": "EF_c9e75e814c3b2bca",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_LATEST_RESCORE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.complete_evaluation_run"
+      ],
+      "family_id": "EF_ca5cc419a94e79c8",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:upsert_local_artifact"
+      ],
+      "family_id": "EF_cb55d161e779c8be",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/ceri_run104_controlled_replay.py:main"
+      ],
+      "family_id": "EF_cc88287ad5594ea1",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CURRENT_RULE_REPLAY",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_calculation_context_service.py:create_pipeline_market_context"
+      ],
+      "family_id": "EF_d02936b13662f350",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_MARKET_CONTEXT_AUTHORITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.execute_purge"
+      ],
+      "family_id": "EF_d169ba011ca95514",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_DERIVED_PURGE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/api_service.py:WinnerProbabilityApiService.retire_model"
+      ],
+      "family_id": "EF_d45e97b8bb4b82c2",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MODEL_GOVERNANCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/canonicalization.py:SetupLifecycleCanonicalizer.canonicalize_run"
+      ],
+      "family_id": "EF_d464434e38c414dc",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.evaluate_episode_result"
+      ],
+      "family_id": "EF_d50f2f406f864b95",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:execute_ranking_pipeline_step"
+      ],
+      "family_id": "EF_d526d0a0522f099b",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/purge_service.py:SetupLifecyclePurgeService.execute"
+      ],
+      "family_id": "EF_d800f3dfe4a32b6f",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/configuration_delivery.py:anchor_enqueue_payload"
+      ],
+      "family_id": "EF_d92272017d7e1e0f",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/background_job_service.py:mark_job_failed_or_retry"
+      ],
+      "family_id": "EF_d996ca3584688062",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_PIPELINE_CONTROL",
+        "WF_SEC_PIPELINE_READINESS_REPAIR"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/evaluation_service.py:evaluate_setup_lifecycles_for_run"
+      ],
+      "family_id": "EF_daf4c522e989a063",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_snapshots"
+      ],
+      "family_id": "EF_dc80507b53b12bdc",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/guidance_normalizer.py:apply_guidance_eligibility"
+      ],
+      "family_id": "EF_dcf27689d2681c17",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_GUIDANCE_ELIGIBILITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow"
+      ],
+      "family_id": "EF_ddff1e372aaee0e2",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_OUTCOME_REVISION",
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator.finalize"
+      ],
+      "family_id": "EF_de562c9ceb6ee65a",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService.capture_run"
+      ],
+      "family_id": "EF_dfa047a276b66281",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_CAPTURE_TRAINING_METADATA",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_EPISODE",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT",
+        "WF_WINNER_MARKET_DATA_OBLIGATION",
+        "WF_WINNER_PENDING_OUTCOME",
+        "WF_WINNER_PREDICTION_CAPTURE",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/backfill.py:WinnerProbabilityBackfillService.execute_backfill"
+      ],
+      "family_id": "EF_dfb135b926a8760e",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_CAPTURE_TRAINING_METADATA",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_EPISODE",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT",
+        "WF_WINNER_MARKET_DATA_OBLIGATION",
+        "WF_WINNER_PENDING_OUTCOME",
+        "WF_WINNER_PREDICTION_CAPTURE",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/owpe_pre11_activate_l5.py:main"
+      ],
+      "family_id": "EF_dffa2b1993aa2354",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT",
+        "WF_WINNER_PRE11_ACTIVATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_due_outcomes"
+      ],
+      "family_id": "EF_e07c379588727421",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_OUTCOME_REVISION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService.publish"
+      ],
+      "family_id": "EF_e127938927133466",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_GENERATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/maintenance_service.py:SetupLifecycleMaintenanceService.daily_maintenance"
+      ],
+      "family_id": "EF_e3e63ca037854ac0",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_OBSERVATION_GAP",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/outcome_orchestration_service.py:H5NextOpenOrchestrationService.drain_due"
+      ],
+      "family_id": "EF_e53568287697baf9",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_OUTCOME_REVISION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_latest_rescore"
+      ],
+      "family_id": "EF_e53dd685d5dadcf0",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/model_registry.py:ModelRegistry.register_model"
+      ],
+      "family_id": "EF_e5897acb70c600d3",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MODEL_GOVERNANCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/owpe_pre11_training_compatibility.py:main"
+      ],
+      "family_id": "EF_e7b00a98f583e767",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_PRE11_TRAINING_REPLAY",
+        "WF_WINNER_WATERMARK"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/fundamental_score_service.py:recalculate_run_fundamentals"
+      ],
+      "family_id": "EF_e90cea98144e2940",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/temporal_validation_service.py:TemporalValidationService.record"
+      ],
+      "family_id": "EF_e90fcdb88b1d464c",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_TEMPORAL_VALIDITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_observation_gap_evaluation_evidence"
+      ],
+      "family_id": "EF_e9f698aec5b69e29",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_LIFECYCLE_OBSERVATION_GAP"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/configuration_delivery.py:bind_winner_generation_configuration"
+      ],
+      "family_id": "EF_eb14cf8fae70670c",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CONFIGURATION_DELIVERY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_lifecycle_event"
+      ],
+      "family_id": "EF_f0226ae27f1e202f",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.advance_canonical_selection"
+      ],
+      "family_id": "EF_f07d87c600a3ded4",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_CURRENT_SELECTION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.complete"
+      ],
+      "family_id": "EF_f0d208ce35a33ed6",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "scripts/winner_estimate_publication.py:main"
+      ],
+      "family_id": "EF_f15527d79c7c93f0",
+      "kind": "CLI",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_PUBLICATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService.rebuild_from_context"
+      ],
+      "family_id": "EF_f1b793dd95869927",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_REVISION_FEATURE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.evaluate_lifecycle_event"
+      ],
+      "family_id": "EF_f2b0ab3e703edec5",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/controlled_replay_service.py:CeriControlledReplayService.replay"
+      ],
+      "family_id": "EF_f3014b101f7ca379",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CURRENT_RULE_REPLAY",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.evaluate_signal_change_events"
+      ],
+      "family_id": "EF_f3a7461cf3417399",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pipeline_executor.py:execute_full_pipeline"
+      ],
+      "family_id": "EF_f3e3fc7ce827f01c",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_COMBINED_REFRESH",
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_MARKET_CONTEXT_AUTHORITY",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE",
+        "WF_REGIME_SNAPSHOT",
+        "WF_SECTOR_SNAPSHOT",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/drift_service.py:DriftService.persist_metrics"
+      ],
+      "family_id": "EF_f6c22b4705f16967",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_DRIFT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_lifecycle_events"
+      ],
+      "family_id": "EF_f6ddec7d59b9a9f3",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_SETUP_PERSISTENCE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/sec/incremental_ingestion.py:SecGuidanceIncrementalIngestionService.ingest"
+      ],
+      "family_id": "EF_f72ef83620027f4c",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_RAW_SOURCE",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/pipeline_service.py:resume_pipeline"
+      ],
+      "family_id": "EF_f86acc74753df900",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_CHANGE",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SCORE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_COMBINED_REFRESH",
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION",
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_MARKET_CONTEXT_AUTHORITY",
+        "WF_PIPELINE_CONTROL",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE",
+        "WF_REGIME_SNAPSHOT",
+        "WF_SECTOR_SNAPSHOT",
+        "WF_SEC_DOCUMENT_SOURCE",
+        "WF_SEC_INCREMENTAL_IDENTITY",
+        "WF_SEC_PIPELINE_READINESS_REPAIR",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/alert_service.py:CeriAlertService.rebuild_alerts"
+      ],
+      "family_id": "EF_f8e65d11efa50fea",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_ALERT_CREATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/change_detection_service.py:CeriChangeDetectionService.detect_guidance_change"
+      ],
+      "family_id": "EF_f95821db8f721266",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_CHANGE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ceri/batched_workflow.py:schedule_ceri_batched_workflow"
+      ],
+      "family_id": "EF_fb3da89576a5f670",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_CERI_COMPANY_BOOTSTRAP",
+        "WF_CONFIGURATION_DELIVERY"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:record_local_artifact_shadow_validation"
+      ],
+      "family_id": "EF_fb5089df555b2b2f",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/ib_fetch_executor.py:execute_fetch_plan"
+      ],
+      "family_id": "EF_fbcb7015c3527f14",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_IB_CONTRACT_IDENTITY",
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION",
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository.delete_for_run"
+      ],
+      "family_id": "EF_fd8cd8fbbbba07f7",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_REGIME_SNAPSHOT"
+      ]
+    },
+    {
+      "entrypoints": [
+        "app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService.materialize_pending_outcomes"
+      ],
+      "family_id": "EF_ff740e59dc6eec85",
+      "kind": "SERVICE_PUBLIC",
+      "remaining_review": "Classify native operation modes, exact authority supplied and conditional/root variants; source signature/selector extraction alone is not semantic review.",
+      "writer_families": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION",
+        "WF_WINNER_PENDING_OUTCOME",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ]
+    }
+  ],
+  "unowned_business_artifacts": [],
+  "writer_families": [
+    {
+      "family_id": "WF_COMBINED_REFRESH",
+      "owner": "app/services/combined_decision.py:refresh_combined_results",
+      "remaining_review": "Separate Combined calculation from serving associations on Winner rows; define artifact-specific authority without injecting a direct Winner calculation dependency."
+    },
+    {
+      "family_id": "WF_FUNDAMENTAL_RECALCULATION",
+      "owner": "app/services/fundamental_score_service.py:recalculate_run_fundamentals",
+      "remaining_review": "Separate bound canonical and no-context legacy writer variants at the same concrete function; preserve reviewed synchronous bypass."
+    },
+    {
+      "family_id": "WF_IB_TRADE_EPISODES",
+      "owner": "app/services/ib_market_intelligence/journal.py:rebuild_trade_episodes",
+      "remaining_review": "Separate execution episode rebuild from prior latest-completed research association and its selector authority."
+    },
+    {
+      "family_id": "WF_REGIME_SNAPSHOT",
+      "owner": "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot",
+      "remaining_review": "Separate derived serving deletion/current repair from canonical revision insert/supersession."
+    },
+    {
+      "family_id": "WF_SETUP_PERSISTENCE",
+      "owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_snapshot",
+      "remaining_review": "Split generic event/evaluation/rule add mechanisms from snapshot calculation and current selection; attach them to native semantic owners."
+    },
+    {
+      "family_id": "WF_WINNER_ESTIMATOR",
+      "owner": "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_estimate",
+      "remaining_review": "Separate estimate/insufficient-artifact delivery from the remaining inline cohort side effect and current-rescore branches."
+    },
+    {
+      "family_id": "WF_WINNER_TYPED_REPOSITORY",
+      "owner": "app/services/winner_probability/repository.py:WinnerProbabilityRepository.add",
+      "remaining_review": "Assign shared typed adds to artifact-specific semantic caller families; repository.add is not an independent estimation algorithm."
+    }
+  ]
+}

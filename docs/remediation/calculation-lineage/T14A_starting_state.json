@@ -1,0 +1,21 @@
+{
+  "task": "Phase-5 T14A — Canonical Mutation Entry-Point Contract and Repository-Wide Writer Inventory",
+  "repository": "C:\\Users\\Ivica\\Documents\\SwingLens",
+  "starting_branch": "codex/t13e-phase4-config-certification",
+  "branch": "codex/t14a-mutation-entrypoint-contract",
+  "starting_head": "05b43bba69c1b39b0838762fe7b11188401814d8",
+  "phase4_baseline": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+  "phase4_is_ancestor": true,
+  "legitimate_advances": ["25cc0a3", "7c4955d", "4683a6c", "05b43bb"],
+  "git_status": "clean",
+  "tracked_modifications": [],
+  "untracked_files": [],
+  "origin_main": "febe376be67f01589199cd3ba55af98fd54001ed",
+  "local_main": "febe376be67f01589199cd3ba55af98fd54001ed",
+  "migration_head": "0080_effective_configuration",
+  "python": "3.12.2",
+  "docker": "client installed; Docker Desktop Linux daemon unavailable",
+  "postgresql": "PostgreSQL 18 binaries installed; task-owned disposable cluster to be verified",
+  "repository_instructions": "No AGENTS.md found in repository or ancestor directories",
+  "production_mutations": false
+}

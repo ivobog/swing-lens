@@ -1,0 +1,1089 @@
+{
+  "CERI_ALERT_REBUILD": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI_ALERT"
+    ],
+    "entry_families": [
+      "EF_aeb34a0b17ebe519"
+    ],
+    "handler": "app/services/ceri/job_handlers.py:execute_alert_rebuild_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION"
+    ]
+  },
+  "CERI_BACKFILL": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI_SOURCE"
+    ],
+    "entry_families": [
+      "EF_fb37ba876e73e13d"
+    ],
+    "handler": "app/services/ceri/job_handlers.py:execute_backfill_job",
+    "writer_families": [
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_GUIDANCE_ELIGIBILITY",
+      "WF_CERI_RAW_SOURCE",
+      "WF_CERI_REVISION_FEATURE",
+      "WF_CERI_SOURCE_IDENTITY",
+      "WF_CERI_SOURCE_NORMALIZATION",
+      "WF_SEC_DOCUMENT_SOURCE",
+      "WF_SEC_INCREMENTAL_IDENTITY"
+    ]
+  },
+  "CERI_CAPTURE_RUN": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CERI_SOURCE",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_6277f667d9db5d08"
+    ],
+    "handler": "app/services/ceri/job_handlers.py:execute_capture_run_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_PRICE_RESPONSE",
+      "WF_CERI_SCORE",
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE"
+    ]
+  },
+  "CERI_CHANGE_DETECTION": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CONFIGURATION"
+    ],
+    "entry_families": [
+      "EF_a858bf7694ca75d1"
+    ],
+    "handler": "app/services/ceri/job_handlers.py:execute_change_detection_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CONFIGURATION_DELIVERY"
+    ]
+  },
+  "CERI_FEATURE_BATCH": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI_SOURCE"
+    ],
+    "entry_families": [
+      "EF_396637ef05c88e25"
+    ],
+    "handler": "app/services/ceri/batched_job_handlers.py:execute_feature_batch_job",
+    "writer_families": [
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_REVISION_FEATURE"
+    ]
+  },
+  "CERI_NORMALIZE": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CERI_SOURCE",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_9ec7335da7c27e86"
+    ],
+    "handler": "app/services/ceri/job_handlers.py:execute_normalize_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_GUIDANCE_ELIGIBILITY",
+      "WF_CERI_PRICE_RESPONSE",
+      "WF_CERI_REVISION_FEATURE",
+      "WF_CERI_SCORE",
+      "WF_CERI_SOURCE_IDENTITY",
+      "WF_CERI_SOURCE_NORMALIZATION",
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE"
+    ]
+  },
+  "CERI_NORMALIZE_BATCH": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI_SOURCE"
+    ],
+    "entry_families": [
+      "EF_4b57eb3e4ba3ac95"
+    ],
+    "handler": "app/services/ceri/batched_job_handlers.py:execute_normalize_batch_job",
+    "writer_families": [
+      "WF_CERI_GUIDANCE_ELIGIBILITY",
+      "WF_CERI_SOURCE_IDENTITY",
+      "WF_CERI_SOURCE_NORMALIZATION"
+    ]
+  },
+  "CERI_PROVIDER_INGEST": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CERI_SOURCE",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_f625f1c6154924e0"
+    ],
+    "handler": "app/services/ceri/job_handlers.py:execute_provider_ingest_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_GUIDANCE_ELIGIBILITY",
+      "WF_CERI_PRICE_RESPONSE",
+      "WF_CERI_RAW_SOURCE",
+      "WF_CERI_REVISION_FEATURE",
+      "WF_CERI_SCORE",
+      "WF_CERI_SOURCE_IDENTITY",
+      "WF_CERI_SOURCE_NORMALIZATION",
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_SEC_DOCUMENT_SOURCE",
+      "WF_SEC_INCREMENTAL_IDENTITY"
+    ]
+  },
+  "CERI_PROVIDER_INGEST_BATCH": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI_SOURCE"
+    ],
+    "entry_families": [
+      "EF_cbb8326842449165"
+    ],
+    "handler": "app/services/ceri/batched_job_handlers.py:execute_provider_ingest_batch_job",
+    "writer_families": [
+      "WF_CERI_RAW_SOURCE",
+      "WF_SEC_DOCUMENT_SOURCE",
+      "WF_SEC_INCREMENTAL_IDENTITY"
+    ]
+  },
+  "CERI_PURGE_LICENSED_DATA": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CERI_SOURCE",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_82e637435e97fe46"
+    ],
+    "handler": "app/services/ceri/job_handlers.py:execute_purge_licensed_data_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_LICENSED_PURGE",
+      "WF_CERI_PRICE_RESPONSE",
+      "WF_CERI_REVISION_FEATURE",
+      "WF_CERI_SCORE",
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE"
+    ]
+  },
+  "CERI_REBUILD_FEATURES": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CERI_SOURCE",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_8c34bf021c5cd042"
+    ],
+    "handler": "app/services/ceri/job_handlers.py:execute_rebuild_features_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_PRICE_RESPONSE",
+      "WF_CERI_REVISION_FEATURE",
+      "WF_CERI_SCORE",
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE"
+    ]
+  },
+  "CERI_RUN_FINALIZE": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CERI_SOURCE",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_1b91db6627789dc6"
+    ],
+    "handler": "app/services/ceri/batched_job_handlers.py:execute_run_finalize_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_PRICE_RESPONSE",
+      "WF_CERI_REVISION_FEATURE",
+      "WF_CERI_SCORE",
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE"
+    ]
+  },
+  "FULL_PIPELINE": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CERI_SOURCE",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "IBMI_SOURCE",
+      "PIPELINE",
+      "PRICE",
+      "RANKING",
+      "RAW",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_42b795771febb433"
+    ],
+    "handler": "app/services/background_worker.py:_execute_full_pipeline_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_GUIDANCE_ELIGIBILITY",
+      "WF_CERI_PRICE_RESPONSE",
+      "WF_CERI_RAW_SOURCE",
+      "WF_CERI_REVISION_FEATURE",
+      "WF_CERI_SCORE",
+      "WF_CERI_SOURCE_IDENTITY",
+      "WF_CERI_SOURCE_NORMALIZATION",
+      "WF_COMBINED_REFRESH",
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_FUNDAMENTAL_RECALCULATION",
+      "WF_IB_CONTRACT_IDENTITY",
+      "WF_MARKET_CONTEXT_AUTHORITY",
+      "WF_PIPELINE_STAGE_STATE",
+      "WF_PRICE_INGESTION",
+      "WF_PRICE_SERIES_VERSION",
+      "WF_RANKING_LEGACY_REPLACEMENT",
+      "WF_RANKING_PERSISTENCE",
+      "WF_REGIME_SNAPSHOT",
+      "WF_SECTOR_SNAPSHOT",
+      "WF_SEC_DOCUMENT_SOURCE",
+      "WF_SEC_INCREMENTAL_IDENTITY",
+      "WF_TECHNICAL_FEATURE_CACHE",
+      "WF_TECHNICAL_FINALIZATION",
+      "WF_WINNER_MARKET_DATA_OBLIGATION"
+    ]
+  },
+  "IB_FETCH": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "IBMI_SOURCE",
+      "PRICE"
+    ],
+    "entry_families": [
+      "EF_64159a91b7fd323b"
+    ],
+    "handler": "app/services/ib_fetch_job_service.py:execute_durable_fetch_job",
+    "writer_families": [
+      "WF_IB_CONTRACT_IDENTITY",
+      "WF_PRICE_INGESTION",
+      "WF_PRICE_SERIES_VERSION",
+      "WF_WINNER_MARKET_DATA_OBLIGATION"
+    ]
+  },
+  "IB_FLEX_IMPORT": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "TRADE_JOURNAL"
+    ],
+    "entry_families": [
+      "EF_ac7c37fdb3ecd56c"
+    ],
+    "handler": "app/services/ib_market_intelligence/orchestration.py:execute_flex_import",
+    "writer_families": [
+      "WF_IB_FLEX_IMPORT",
+      "WF_IB_TRADE_EPISODES",
+      "WF_IB_TRADE_RESEARCH_LINK"
+    ]
+  },
+  "IB_HISTOGRAM_FETCH": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "COMBINED",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "IBMI_SOURCE",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_ad6df420db64c51c"
+    ],
+    "handler": "app/services/ib_market_intelligence/orchestration.py:execute_histogram_fetch",
+    "writer_families": [
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_IBMI_NATIVE_FEATURE",
+      "WF_IB_CONTRACT_IDENTITY",
+      "WF_IB_HISTOGRAM_SCANNER"
+    ]
+  },
+  "IB_INTELLIGENCE_HISTORICAL_REFRESH": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "COMBINED",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "IBMI_SOURCE",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_3a2e1392612da502"
+    ],
+    "handler": "app/services/ib_market_intelligence/orchestration.py:execute_historical_refresh",
+    "writer_families": [
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_IBMI_HISTORICAL_SOURCE",
+      "WF_IBMI_NATIVE_FEATURE",
+      "WF_IB_CONTRACT_IDENTITY"
+    ]
+  },
+  "IB_INTELLIGENCE_LIVE_SNAPSHOT": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "COMBINED",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "IBMI_SOURCE",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_bbe23c5f58004112"
+    ],
+    "handler": "app/services/ib_market_intelligence/orchestration.py:execute_live_snapshot",
+    "writer_families": [
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_IBMI_LIVE_SOURCE",
+      "WF_IBMI_NATIVE_FEATURE",
+      "WF_IB_CONTRACT_IDENTITY"
+    ]
+  },
+  "IB_INTELLIGENCE_REBUILD_FEATURES": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "COMBINED",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_f08968c9df1fcf75"
+    ],
+    "handler": "app/services/ib_market_intelligence/orchestration.py:execute_feature_rebuild",
+    "writer_families": [
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_IBMI_NATIVE_FEATURE"
+    ]
+  },
+  "IB_SCANNER_RUN": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "IBMI_SOURCE"
+    ],
+    "entry_families": [
+      "EF_fa5141b1061baaf2"
+    ],
+    "handler": "app/services/ib_market_intelligence/orchestration.py:execute_scanner_run",
+    "writer_families": [
+      "WF_IB_SCANNER_SOURCE"
+    ]
+  },
+  "MARKET_DATA_PREWARM": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "IBMI_SOURCE",
+      "PRICE"
+    ],
+    "entry_families": [
+      "EF_33bfaa981caf74af"
+    ],
+    "handler": "app/services/market_data_prewarm_service.py:execute_market_data_prewarm_job",
+    "writer_families": [
+      "WF_IB_CONTRACT_IDENTITY",
+      "WF_PRICE_INGESTION",
+      "WF_PRICE_SERIES_VERSION",
+      "WF_WINNER_MARKET_DATA_OBLIGATION"
+    ]
+  },
+  "SEC_READINESS_REPAIR": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CERI",
+      "CERI_ALERT",
+      "CERI_CHANGE",
+      "CERI_SOURCE",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "IBMI_SOURCE",
+      "PIPELINE",
+      "PRICE",
+      "RANKING",
+      "RAW",
+      "REGIME",
+      "SECTOR",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_b66fd9fbd8bf92e7"
+    ],
+    "handler": "app/services/background_worker.py:_execute_sec_readiness_repair_job",
+    "writer_families": [
+      "WF_CERI_ALERT_CREATION",
+      "WF_CERI_CHANGE",
+      "WF_CERI_CONSENSUS_ATTACH",
+      "WF_CERI_FEATURE_BUILD",
+      "WF_CERI_GUIDANCE_ELIGIBILITY",
+      "WF_CERI_PRICE_RESPONSE",
+      "WF_CERI_RAW_SOURCE",
+      "WF_CERI_REVISION_FEATURE",
+      "WF_CERI_SCORE",
+      "WF_CERI_SOURCE_IDENTITY",
+      "WF_CERI_SOURCE_NORMALIZATION",
+      "WF_COMBINED_REFRESH",
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_FUNDAMENTAL_RECALCULATION",
+      "WF_IB_CONTRACT_IDENTITY",
+      "WF_MARKET_CONTEXT_AUTHORITY",
+      "WF_PIPELINE_CONTROL",
+      "WF_PIPELINE_STAGE_STATE",
+      "WF_PRICE_INGESTION",
+      "WF_PRICE_SERIES_VERSION",
+      "WF_RANKING_LEGACY_REPLACEMENT",
+      "WF_RANKING_PERSISTENCE",
+      "WF_REGIME_SNAPSHOT",
+      "WF_SECTOR_SNAPSHOT",
+      "WF_SEC_DOCUMENT_SOURCE",
+      "WF_SEC_IDENTITY_REPAIR",
+      "WF_SEC_INCREMENTAL_IDENTITY",
+      "WF_SEC_PIPELINE_READINESS_REPAIR",
+      "WF_TECHNICAL_FEATURE_CACHE",
+      "WF_TECHNICAL_FINALIZATION",
+      "WF_WINNER_MARKET_DATA_OBLIGATION"
+    ]
+  },
+  "SETUP_ALERT_REBUILD": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "ALERT_DECISION",
+      "CONFIGURATION",
+      "LIFECYCLE_EVALUATION",
+      "LIFECYCLE_TRANSITION",
+      "SETUP"
+    ],
+    "entry_families": [
+      "EF_3cae421594a55a30"
+    ],
+    "handler": "app/services/setup_lifecycle/job_handlers.py:execute_alert_rebuild_job",
+    "writer_families": [
+      "WF_SETUP_ALERT_EVENT_STATE",
+      "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+      "WF_SETUP_ALERT_RULE_EVIDENCE",
+      "WF_SETUP_ALERT_RULE_STATE",
+      "WF_SETUP_DECISION_EVIDENCE",
+      "WF_SETUP_TYPED_REPOSITORY"
+    ]
+  },
+  "SETUP_LIFECYCLE_DAILY_MAINTENANCE": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "ALERT_DECISION",
+      "LIFECYCLE_EVALUATION",
+      "LIFECYCLE_TRANSITION",
+      "SETUP"
+    ],
+    "entry_families": [
+      "EF_e019fa69d6156a8a"
+    ],
+    "handler": "app/services/setup_lifecycle/job_handlers.py:execute_daily_maintenance_job",
+    "writer_families": [
+      "WF_LIFECYCLE_EPISODE",
+      "WF_LIFECYCLE_OBSERVATION_GAP",
+      "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+      "WF_SETUP_TRANSITION_EVENT_STATE",
+      "WF_SETUP_TYPED_REPOSITORY"
+    ]
+  },
+  "SETUP_LIFECYCLE_EVALUATE_RUN": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "ALERT_DECISION",
+      "CERI",
+      "COMBINED",
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "LIFECYCLE_EVALUATION",
+      "LIFECYCLE_TRANSITION",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "SETUP",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_45c95cae4cabbaf8"
+    ],
+    "handler": "app/services/setup_lifecycle/job_handlers.py:execute_evaluate_run_job",
+    "writer_families": [
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_LIFECYCLE_EPISODE",
+      "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+      "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+      "WF_SETUP_ALERT_EVENT_STATE",
+      "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+      "WF_SETUP_ALERT_RULE_EVIDENCE",
+      "WF_SETUP_ALERT_RULE_STATE",
+      "WF_SETUP_CHANGE_EVENT_STATE",
+      "WF_SETUP_CURRENT_SELECTION",
+      "WF_SETUP_DECISION_EVIDENCE",
+      "WF_SETUP_EVALUATION_RUN_STATE",
+      "WF_SETUP_PERSISTENCE",
+      "WF_SETUP_TRANSITION_EVENT_STATE",
+      "WF_SETUP_TYPED_REPOSITORY"
+    ]
+  },
+  "SETUP_LIFECYCLE_REPAIR_TICKER": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "ALERT_DECISION",
+      "CERI",
+      "COMBINED",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "LIFECYCLE_EVALUATION",
+      "LIFECYCLE_TRANSITION",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "SETUP",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_be776167a4a792cf"
+    ],
+    "handler": "app/services/setup_lifecycle/job_handlers.py:execute_repair_ticker_job",
+    "writer_families": [
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_LIFECYCLE_EPISODE",
+      "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+      "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+      "WF_SETUP_ALERT_EVENT_STATE",
+      "WF_SETUP_ALERT_RULE_EVIDENCE",
+      "WF_SETUP_DECISION_EVIDENCE",
+      "WF_SETUP_TRANSITION_EVENT_STATE",
+      "WF_SETUP_TYPED_REPOSITORY"
+    ]
+  },
+  "SETUP_LIFECYCLE_REPLAY": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "ALERT_DECISION",
+      "CERI",
+      "COMBINED",
+      "CURRENT_PROJECTION",
+      "FUNDAMENTAL",
+      "IBMI",
+      "LIFECYCLE_EVALUATION",
+      "LIFECYCLE_TRANSITION",
+      "RANKING",
+      "REGIME",
+      "SECTOR",
+      "SETUP",
+      "TECHNICAL"
+    ],
+    "entry_families": [
+      "EF_afffe1082832c5a1"
+    ],
+    "handler": "app/services/setup_lifecycle/job_handlers.py:execute_replay_job",
+    "writer_families": [
+      "WF_CORE_CURRENT_PROJECTION",
+      "WF_CORE_RETAINED_EVIDENCE",
+      "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+      "WF_SETUP_EVALUATION_RUN_STATE",
+      "WF_SETUP_TYPED_REPOSITORY"
+    ]
+  },
+  "WINNER_COHORT_REFRESH": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "WINNER_COHORT",
+      "WINNER_GENERATION"
+    ],
+    "entry_families": [
+      "EF_44af811a1c6f79b6"
+    ],
+    "handler": "app/services/winner_probability/job_handlers.py:execute_cohort_refresh_job",
+    "writer_families": [
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_WINNER_COHORT_DEFINITION",
+      "WF_WINNER_COHORT_MATERIALIZATION",
+      "WF_WINNER_EVIDENCE_MANIFEST",
+      "WF_WINNER_GENERATION",
+      "WF_WINNER_WATERMARK"
+    ]
+  },
+  "WINNER_HISTORICAL_BACKFILL": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "PRICE",
+      "WINNER_COHORT",
+      "WINNER_ESTIMATE",
+      "WINNER_OUTCOME",
+      "WINNER_PREDICTION"
+    ],
+    "entry_families": [
+      "EF_4e8e234f5820cedb"
+    ],
+    "handler": "app/services/winner_probability/job_handlers.py:execute_historical_backfill_job",
+    "writer_families": [
+      "WF_WINNER_CAPTURE_TRAINING_METADATA",
+      "WF_WINNER_COHORT_DEFINITION",
+      "WF_WINNER_EPISODE",
+      "WF_WINNER_ESTIMATOR",
+      "WF_WINNER_EVIDENCE_MANIFEST",
+      "WF_WINNER_INLINE_COHORT",
+      "WF_WINNER_MARKET_DATA_OBLIGATION",
+      "WF_WINNER_PENDING_OUTCOME",
+      "WF_WINNER_PREDICTION_CAPTURE",
+      "WF_WINNER_TYPED_REPOSITORY"
+    ]
+  },
+  "WINNER_LATEST_RESCORE": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "WINNER_ESTIMATE"
+    ],
+    "entry_families": [
+      "EF_91d23aeb828f0378"
+    ],
+    "handler": "app/services/winner_probability/job_handlers.py:execute_latest_rescore_job",
+    "writer_families": [
+      "WF_WINNER_LATEST_RESCORE"
+    ]
+  },
+  "WINNER_OUTCOME_MATURATION": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "WINNER_COHORT",
+      "WINNER_GENERATION",
+      "WINNER_OUTCOME",
+      "WINNER_PREDICTION"
+    ],
+    "entry_families": [
+      "EF_0ef7906db6e76146"
+    ],
+    "handler": "app/services/winner_probability/job_handlers.py:execute_outcome_maturation_job",
+    "writer_families": [
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_WINNER_COHORT_DEFINITION",
+      "WF_WINNER_COHORT_MATERIALIZATION",
+      "WF_WINNER_EVIDENCE_MANIFEST",
+      "WF_WINNER_FORWARD_MATURATION",
+      "WF_WINNER_GENERATION",
+      "WF_WINNER_OUTCOME_REVISION",
+      "WF_WINNER_WATERMARK"
+    ]
+  },
+  "WINNER_OUTCOME_REVISION_CHECK": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "CONFIGURATION",
+      "CURRENT_PROJECTION",
+      "WINNER_COHORT",
+      "WINNER_GENERATION",
+      "WINNER_OUTCOME",
+      "WINNER_PREDICTION"
+    ],
+    "entry_families": [
+      "EF_253b79a161c2f85f"
+    ],
+    "handler": "app/services/winner_probability/job_handlers.py:execute_outcome_revision_check_job",
+    "writer_families": [
+      "WF_CONFIGURATION_DELIVERY",
+      "WF_WINNER_COHORT_DEFINITION",
+      "WF_WINNER_COHORT_MATERIALIZATION",
+      "WF_WINNER_EVIDENCE_MANIFEST",
+      "WF_WINNER_FORWARD_MATURATION",
+      "WF_WINNER_GENERATION",
+      "WF_WINNER_OUTCOME_REVISION",
+      "WF_WINNER_WATERMARK"
+    ]
+  },
+  "WINNER_PREDICTION_CAPTURE": {
+    "adoption_status": [
+      "T14D_ADOPTION"
+    ],
+    "classification": "BUSINESS",
+    "dispositions": [
+      "T14D"
+    ],
+    "domains": [
+      "PRICE",
+      "WINNER_COHORT",
+      "WINNER_ESTIMATE",
+      "WINNER_OUTCOME",
+      "WINNER_PREDICTION"
+    ],
+    "entry_families": [
+      "EF_d75034ba94b404c0"
+    ],
+    "handler": "app/services/winner_probability/job_handlers.py:execute_prediction_capture_job",
+    "writer_families": [
+      "WF_WINNER_CAPTURE_TRAINING_METADATA",
+      "WF_WINNER_COHORT_DEFINITION",
+      "WF_WINNER_EPISODE",
+      "WF_WINNER_ESTIMATOR",
+      "WF_WINNER_EVIDENCE_MANIFEST",
+      "WF_WINNER_INLINE_COHORT",
+      "WF_WINNER_MARKET_DATA_OBLIGATION",
+      "WF_WINNER_PENDING_OUTCOME",
+      "WF_WINNER_PREDICTION_CAPTURE",
+      "WF_WINNER_TYPED_REPOSITORY"
+    ]
+  },
+  "WORKER_RECOVERY_PROBE": {
+    "adoption_status": [
+      "NO_ACTION"
+    ],
+    "classification": "OPERATIONAL",
+    "dispositions": [
+      "OPERATIONAL_NO_ACTION"
+    ],
+    "domains": [
+      "OPERATIONAL"
+    ],
+    "entry_families": [],
+    "handler": "app/services/background_worker.py:_execute_worker_recovery_probe",
+    "writer_families": [
+      "OPERATIONAL_ONLY"
+    ]
+  }
+}

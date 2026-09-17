@@ -129,7 +129,7 @@ def test_public_upload_enqueue_process_restart_native_worker_and_frozen_history(
         JOB_POLL_INTERVAL_SECONDS="7",
         T13E_READY_BOUNDARY="true" if full_graph else "false",
     )
-    assert executed["pid"] != queued["pid"]
+    assert executed["probe_process_instance_id"] != queued["probe_process_instance_id"]
     job = next(j for j in executed["jobs"] if j["id"] == queued["job_id"])
     assert job["status"] == "COMPLETED", job
     assert job["payload"]["effective_configuration_anchor"] == queued["anchor"]
@@ -173,7 +173,10 @@ def test_public_upload_enqueue_process_restart_native_worker_and_frozen_history(
     # A second fresh application process retrieves retained proof with unusable
     # current sources, independently of the execution process's ContextVars.
     historical = _process("history", tmp_path, disposable_postgres_database)
-    assert historical["pid"] not in {queued["pid"], executed["pid"]}
+    assert historical["probe_process_instance_id"] not in {
+        queued["probe_process_instance_id"],
+        executed["probe_process_instance_id"],
+    }
     assert historical["evidence"] == executed["evidence"]
     assert historical["records"] == executed["records"]
     if full_graph:
