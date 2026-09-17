@@ -26,6 +26,7 @@ from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import is_cancel_requested
 from app.services.background_worker import CancelRequested
 from app.services.configuration_delivery import anchored_job_configuration
+from app.services.domain_mutation import MutationDomain
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_market_intelligence.adapters import (
@@ -95,6 +96,7 @@ from app.services.price_bar_repository import (
     project_price_bar_rows_as_of,
 )
 from app.services.redaction import redact_text
+from app.services.source_mutation_authority import source_mutation_writer
 from app.services.us_market_calendar import (
     is_us_trading_day,
     next_us_trading_day,
@@ -559,6 +561,7 @@ def execute_live_snapshot(
 
 
 @anchored_job_configuration
+@source_mutation_writer(MutationDomain.IBMI_SOURCE, "request_scope")
 def execute_scanner_run(
     db: Session,
     job: BackgroundJob,
@@ -747,6 +750,7 @@ def execute_scanner_run(
 
 
 @anchored_job_configuration
+@source_mutation_writer(MutationDomain.IBMI_SOURCE, "request_scope")
 def execute_histogram_fetch(
     db: Session,
     job: BackgroundJob,

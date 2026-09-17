@@ -31,8 +31,10 @@ from app.services.contextual_calculation_identity import build_ibmi_feature_iden
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
+    declare_core_evidence_mutation,
     persist_core_evidence,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.ib_market_intelligence.decision_evidence import (
     get_certified_ibmi_evidence,
 )
@@ -42,12 +44,14 @@ CERI_DECISION_EVIDENCE_SCHEMA_VERSION = "ceri-decision-evidence-v1"
 CERI_DECISION_RULE_VERSION = "ceri-decision-rules-v1"
 
 
+@core_writer_transaction
 def persist_ceri_decision_evidence(
     db: Session,
     *,
     snapshot: CeriScoreSnapshot,
     config: CeriConfig,
     effective_configuration=None,
+    legacy_only: bool = False,
 ) -> CoreCalculationEvidence | None:
     """Seal one identity-aware CERI decision in the shared Phase-2 ledger."""
 
@@ -73,6 +77,18 @@ def persist_ceri_decision_evidence(
             "EVIDENCE_UNAVAILABLE: CERI effective config payload/hash mismatch"
         )
     identity = calculation_identity_from_debug(snapshot.evidence_lineage_json)
+    if identity is None:
+        if not legacy_only:
+            raise ValueError("CERI_CANONICAL_CALCULATION_IDENTITY_REQUIRED")
+        snapshot.evidence_id = None
+        snapshot.evidence_lineage_json = {
+            **(snapshot.evidence_lineage_json or {}),
+            "mutation_semantics": {
+                "mode": "LEGACY_UNCERTIFIED",
+                "artifact_role": "LEGACY_SERVING_ONLY",
+            },
+        }
+        return None
     if identity is not None:
         effective = identity.configuration.effective_configuration
         if (
@@ -135,6 +151,16 @@ def persist_ceri_decision_evidence(
             f"controlled-replay:{snapshot.controlled_replay_id}"
             if snapshot.controlled_replay_id is not None
             else None
+        ),
+        mutation_context=declare_core_evidence_mutation(
+            db,
+            kind=CoreEvidenceKind.CERI,
+            effective_configuration=effective_configuration.snapshot
+            if effective_configuration is not None and identity is not None
+            else None,
+            current_row=snapshot,
+            sources=ibmi_sources,
+            payload=payload,
         ),
     )
 
@@ -233,6 +259,23 @@ def build_ceri_source_manifest(
         _ints(lineage.get("price_response_feature_ids")),
         "price-response features",
     )
+    for source in sources:
+        known_at = source.observed_at or source.published_at or source.ingested_at
+        if known_at is None or (
+            lineage.get("historical_view_mode", "AS_KNOWN") == "AS_KNOWN"
+            and _normalize_db_datetime(known_at) > _normalize_db_datetime(snapshot.cutoff_at)
+        ):
+            raise ValueError("MUTATION_CERI_SOURCE_OBSERVATION_MISMATCH")
+    for row in [
+        *revision_features,
+        *estimates,
+        *earnings,
+        *guidance,
+        *catalyst_events,
+        *price_features,
+    ]:
+        if getattr(row, "company_id", snapshot.company_id) != snapshot.company_id:
+            raise ValueError("MUTATION_CERI_SOURCE_COMPANY_MISMATCH")
     price_bar_ids = set(_ints(lineage.get("price_bar_ids")))
     price_bar_ids.update(
         int(value) for feature in price_features for value in (feature.price_bar_ids_json or [])
@@ -272,8 +315,8 @@ def build_ceri_source_manifest(
     ibmi_features = _ibmi_features(db, snapshot)
     ibmi_payload = []
     for feature in ibmi_features:
-        identity = build_ibmi_feature_identity(feature)
         evidence = get_certified_ibmi_evidence(db, feature)
+        identity = build_ibmi_feature_identity(feature)
         ibmi_payload.append(
             {
                 "feature_id": int(feature.id),
@@ -385,7 +428,9 @@ def _required_rows(
     wanted = sorted({int(value) for value in ids})
     if not wanted:
         return []
-    rows = list(db.scalars(select(model).where(model.id.in_(wanted)).order_by(model.id)))
+    rows = list(
+        db.scalars(select(model).where(model.id.in_(wanted)).order_by(model.id).with_for_update())
+    )
     found = {int(row.id) for row in rows}
     missing = sorted(set(wanted) - found)
     if missing:
@@ -394,7 +439,7 @@ def _required_rows(
 
 
 def _rows_where(db: Session, model: type, predicate: Any) -> list[Any]:
-    return list(db.scalars(select(model).where(predicate).order_by(model.id)))
+    return list(db.scalars(select(model).where(predicate).order_by(model.id).with_for_update()))
 
 
 def _ints(values: Any) -> set[int]:

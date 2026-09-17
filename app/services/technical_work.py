@@ -44,6 +44,7 @@ class TechnicalWorkItem:
     artifact_key: dict[str, Any] | None = None
     cached_local_artifact: dict[str, Any] | None = None
     shadow_local_artifact: dict[str, Any] | None = None
+    source_manifests: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ def build_technical_work_item(
     artifact_key: dict[str, Any] | None = None,
     cached_local_artifact: dict[str, Any] | None = None,
     shadow_local_artifact: dict[str, Any] | None = None,
+    source_manifests: dict[str, Any] | None = None,
 ) -> TechnicalWorkItem:
     return TechnicalWorkItem(
         ticker=ticker.upper(),
@@ -105,6 +107,7 @@ def build_technical_work_item(
         artifact_key=artifact_key,
         cached_local_artifact=cached_local_artifact,
         shadow_local_artifact=shadow_local_artifact,
+        source_manifests=source_manifests or {},
     )
 
 
@@ -301,6 +304,7 @@ def _with_temporal_lineage(
         },
         "price_basis": item.price_basis,
         "volume_basis": item.volume_basis,
+        "source_manifests": item.source_manifests,
     }
     return replace(score, debug={**(score.debug or {}), "temporal_lineage": lineage})
 

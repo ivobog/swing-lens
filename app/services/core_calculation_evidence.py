@@ -17,6 +17,14 @@ from app.models.tables import (
 from app.services.calculation_identity import CalculationIdentity, IdentityDimension, IdentityState
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.combined_ranking_identity import calculation_identity_from_debug
+from app.services.core_mutation_authority import (
+    artifact_mutation_context,
+    core_writer_transaction,
+    projection_mutation_context,
+    validate_core_mutation_authority,
+    validate_projection_mutation,
+)
+from app.services.domain_mutation import DomainMutationContext, MutationDomain
 from app.services.effective_configuration import (
     CONFIGURATION_PAYLOAD_KEY,
     ConfigurationCompatibilityStatus,
@@ -56,6 +64,35 @@ _SCOPE_UNSET = object()
 _logger = logging.getLogger(__name__)
 
 
+def declare_core_evidence_mutation(
+    db: Session,
+    *,
+    kind: CoreEvidenceKind,
+    current_row: Any,
+    sources: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
+    calculation_identity: CalculationIdentity | None = None,
+    effective_configuration: EffectiveConfigurationSnapshot | None = None,
+) -> DomainMutationContext:
+    """Native callers declare exact arguments; the writer revalidates storage."""
+    identity = calculation_identity or calculation_identity_from_debug(
+        getattr(current_row, "debug_json", None)
+        or getattr(current_row, "evidence_lineage_json", None)
+    )
+    with db.no_autoflush:
+        declaration, _, _ = artifact_mutation_context(
+            db,
+            kind=kind,
+            current_row=current_row,
+            identity=identity,
+            configuration=effective_configuration,
+            sources=sources or {},
+            payload=payload or {},
+        )
+    return declaration
+
+
+@core_writer_transaction
 def persist_core_evidence(
     db: Session,
     *,
@@ -67,11 +104,12 @@ def persist_core_evidence(
     scope_profile: str | None | object = _SCOPE_UNSET,
     calculation_identity: CalculationIdentity | None = None,
     effective_configuration: EffectiveConfigurationSnapshot | None = None,
+    mutation_context: DomainMutationContext | None = None,
 ) -> CoreCalculationEvidence | None:
     """Persist/reuse immutable evidence and advance its independent current pointer.
 
-    Rows without a Phase-1 Calculation Identity remain explicit legacy current rows.
-    They are never promoted into the evidence ledger.
+    Core/contextual calls require complete native authority. Legacy serving rows
+    are maintained separately and cannot be promoted by this writer.
     """
 
     identity = calculation_identity
@@ -83,7 +121,11 @@ def persist_core_evidence(
     if identity is None:
         if effective_configuration is not None:
             raise ValueError("configuration evidence requires an explicit Calculation Identity")
-        return None
+        if kind is CoreEvidenceKind.SETUP:
+            return None  # Retained decision-writer behavior; adoption is T14C.
+        raise ValueError(
+            "DOMAIN_MUTATION_CONTEXT_REQUIRED: legacy serving rows cannot create evidence"
+        )
 
     config_dimension = identity.configuration.effective_configuration
     if (
@@ -106,6 +148,46 @@ def persist_core_evidence(
             raise ValueError("effective configuration must match the bound Calculation Identity")
 
     source_rows = sources or {}
+    if kind is not CoreEvidenceKind.SETUP:
+        if not isinstance(mutation_context, DomainMutationContext):
+            raise ValueError("DOMAIN_MUTATION_CONTEXT_REQUIRED")
+        expected_profile = (
+            getattr(current_row, "ranking_profile", None)
+            if kind is CoreEvidenceKind.RANKING
+            else getattr(current_row, "module", None)
+            if kind is CoreEvidenceKind.IBMI
+            else getattr(current_row, "mode", None)
+            if kind is CoreEvidenceKind.SECTOR
+            else f"controlled-replay:{current_row.controlled_replay_id}"
+            if kind is CoreEvidenceKind.CERI
+            and getattr(current_row, "controlled_replay_id", None) is not None
+            else None
+        )
+        if (scope_profile is not _SCOPE_UNSET and scope_profile != expected_profile) or (
+            scope_ticker is not _SCOPE_UNSET
+            and _normalized_ticker(scope_ticker)
+            != _normalized_ticker(getattr(current_row, "ticker", None))
+        ):
+            raise ValueError("MUTATION_ARTIFACT_PROJECTION_SCOPE_MISMATCH")
+        with db.no_autoflush:
+            declared, native_sources, manifests = artifact_mutation_context(
+                db,
+                kind=kind,
+                current_row=current_row,
+                identity=identity,
+                configuration=effective_configuration,
+                sources=source_rows,
+                payload=payload or {},
+            )
+            validate_core_mutation_authority(
+                db,
+                mutation_context,
+                domain=MutationDomain(kind.value),
+                identity=identity,
+                configuration=effective_configuration,
+                sources=native_sources,
+                manifests=manifests,
+            )
     source_ids: dict[str, int] = {}
     for role, source in sorted(source_rows.items()):
         evidence_id = getattr(source, "evidence_id", None)
@@ -190,7 +272,26 @@ def persist_core_evidence(
     if hasattr(type(current_row), "calculation_evidence"):
         # A same-session recalculation must advance the loaded exact source too.
         set_committed_value(current_row, "calculation_evidence", evidence)
-    _advance_current_projection(db, evidence)
+    projection = _advance_current_projection(
+        db,
+        evidence,
+        mutation_context=projection_mutation_context(evidence)
+        if kind is not CoreEvidenceKind.SETUP
+        else None,
+    )
+    if (
+        kind
+        in {
+            CoreEvidenceKind.FUNDAMENTAL,
+            CoreEvidenceKind.TECHNICAL,
+            CoreEvidenceKind.COMBINED,
+            CoreEvidenceKind.RANKING,
+        }
+        and projection.evidence_id != evidence.id
+    ):
+        # These rows have one serving value per run/ticker/profile. Historical
+        # replay cannot replace that value while its newer pointer stays put.
+        raise ValueError("MUTATION_SERVING_PROJECTION_REGRESSION_REJECTED")
     readiness = readiness_from_evidence(evidence)
     _logger.debug(
         "producer readiness producer=%s status=%s blocking=%s warnings=%s policy=%s",
@@ -342,6 +443,10 @@ def get_certified_evidence_for_row(
 ) -> CoreCalculationEvidence:
     """Follow a compatibility row's evidence pointer or reject it as legacy."""
 
+    declaration = (getattr(current_row, "debug_json", None) or {}).get("mutation_semantics")
+    if isinstance(declaration, dict) and declaration.get("artifact_role") == "LEGACY_SERVING_ONLY":
+        raise EvidenceUnavailableError("LEGACY_EVIDENCE_UNAVAILABLE: upload serving scores")
+
     evidence_id = getattr(current_row, "evidence_id", None)
     if evidence_id is None:
         row_id = getattr(current_row, "id", None)
@@ -385,17 +490,43 @@ def _calculated_at(identity: CalculationIdentity) -> datetime:
     return datetime.now(UTC)
 
 
+@core_writer_transaction
 def _advance_current_projection(
-    db: Session, evidence: CoreCalculationEvidence
+    db: Session,
+    evidence: CoreCalculationEvidence,
+    *,
+    mutation_context: DomainMutationContext | None = None,
 ) -> CoreCalculationCurrentProjection:
+    if evidence.artifact_kind != CoreEvidenceKind.SETUP.value:
+        if mutation_context is None:
+            raise ValueError("DOMAIN_MUTATION_CONTEXT_REQUIRED: projection")
+        validate_projection_mutation(db, evidence, mutation_context)
     profile_key = evidence.ranking_profile or ""
+    if isinstance(db, Session) and db.get_bind().dialect.name == "postgresql":
+        from sqlalchemy import text
+
+        # A row lock cannot serialize creation of a pointer that does not exist.
+        scope = CanonicalEvidenceSerializer.fingerprint(
+            {
+                "kind": evidence.artifact_kind,
+                "run_id": evidence.run_id,
+                "ticker": evidence.ticker,
+                "profile": profile_key,
+            }
+        )
+        lock_key = int(scope[:16], 16)
+        if lock_key >= 2**63:
+            lock_key -= 2**64
+        db.execute(text("SELECT pg_advisory_xact_lock(:scope)"), {"scope": lock_key})
     projection = db.scalar(
-        select(CoreCalculationCurrentProjection).where(
+        select(CoreCalculationCurrentProjection)
+        .where(
             CoreCalculationCurrentProjection.artifact_kind == evidence.artifact_kind,
             CoreCalculationCurrentProjection.run_id == evidence.run_id,
             CoreCalculationCurrentProjection.ticker == evidence.ticker,
             CoreCalculationCurrentProjection.ranking_profile_key == profile_key,
         )
+        .with_for_update()
     )
     if projection is None:
         projection = CoreCalculationCurrentProjection(
@@ -407,6 +538,11 @@ def _advance_current_projection(
         )
         db.add(projection)
     else:
+        previous = db.get(CoreCalculationEvidence, projection.evidence_id)
+        if previous is None:
+            raise ValueError("MUTATION_CURRENT_PROJECTION_TARGET_MISSING")
+        if previous.calculated_at > evidence.calculated_at:
+            return projection
         projection.evidence_id = evidence.id
         projection.updated_at = datetime.now(UTC)
     db.flush()

@@ -23,6 +23,9 @@ from scripts.qa.t14a_semantic_review import (
     REVIEWED_DISPATCH,
     TABLE_REVIEWS,
 )
+from scripts.qa.t14b_semantic_review import NON_EDGE_REVIEWS as ADOPTION_NON_EDGE_REVIEWS
+
+NON_EDGE_REVIEWS = {**NON_EDGE_REVIEWS, **ADOPTION_NON_EDGE_REVIEWS}
 
 DESTINATION = ROOT / "docs/remediation/calculation-lineage"
 # These exclusions have source-level database isolation, rather than a QA name.

@@ -82,6 +82,12 @@ class SectorEtfRotationService:
             )
 
         price, volume = _load_preferred_bounded(db, proxy_ticker, market_cutoff)
+        source_manifests = {
+            "proxy": price.attrs.get("pit_source_manifest"),
+            "benchmark": benchmark_price.attrs.get("pit_source_manifest"),
+        }
+        if volume is not None:
+            source_manifests["volume"] = volume.attrs.get("pit_source_manifest")
         _assert_temporal_boundary(proxy_ticker, price, market_cutoff.latest_completed_session)
         if price.empty:
             return SectorEtfRotationMetrics(
@@ -92,7 +98,7 @@ class SectorEtfRotationService:
                 as_of_date=None,
                 etf_rotation_score=None,
                 warnings=[f"missing_{proxy_ticker.lower()}_etf_data"],
-                debug={"missing_proxy_data": True},
+                debug={"missing_proxy_data": True, "source_manifests": source_manifests},
             )
 
         frozen = getattr(config, "effective_configuration", None)
@@ -141,6 +147,7 @@ class SectorEtfRotationService:
             metrics=metrics,
             warnings=_unique(warnings),
             debug={
+                "source_manifests": source_manifests,
                 "proxy_debug": feature_result.debug,
                 "missing_data": feature_result.missing_data,
                 "score_weights": dict(config["etf_score"]["weights"]),

@@ -17,7 +17,9 @@ from app.services.ceri.point_in_time_query import (
     CeriPointInTimeQuery,
     canonical_estimate_key,
 )
+from app.services.domain_mutation import MutationDomain
 from app.services.market_clock_service import MarketClockService
+from app.services.source_mutation_authority import source_mutation_writer
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,7 @@ class CeriRevisionFeatureService:
             for window in self.config.revision.windows_days
         ]
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def persist_feature(self, db: Session, feature: CeriRevisionFeature) -> CeriRevisionFeature:
         db.add(feature)
         db.flush()
@@ -305,6 +308,7 @@ class CeriRevisionFeatureService:
         feature.evidence_hash = self.reproduce_evidence_hash(feature)
         return feature
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def with_acceleration(
         self,
         recent: CeriRevisionFeature,

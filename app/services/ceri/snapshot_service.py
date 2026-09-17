@@ -19,6 +19,7 @@ from app.services.ceri.dtos import ScoreComponent
 from app.services.ceri.event_risk_service import EventRiskResult
 from app.services.ceri.evidence_state_service import CeriEvidenceLedgerService
 from app.services.ceri.opportunity_score_service import OpportunityResult
+from app.services.core_mutation_authority import core_writer_transaction
 
 
 @dataclass(frozen=True)
@@ -185,6 +186,7 @@ class CeriSnapshotService:
         )
         return snapshot
 
+    @core_writer_transaction
     def persist_snapshot(self, db: Session, snapshot: CeriScoreSnapshot) -> CeriScoreSnapshot:
         from app.services.ceri.decision_evidence import persist_ceri_decision_evidence
 

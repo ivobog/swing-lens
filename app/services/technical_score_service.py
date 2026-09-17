@@ -3,7 +3,7 @@ from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
 from copy import deepcopy
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime
 from decimal import Decimal
 from inspect import Parameter, signature
@@ -21,11 +21,16 @@ from app.services.combined_ranking_identity import (
     build_technical_score_identity,
     embed_calculation_identity,
 )
-from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    declare_core_evidence_mutation,
+    persist_core_evidence,
+)
 from app.services.core_effective_configuration import (
     CoreEffectiveConfiguration,
     resolve_technical_configuration,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.leadership_v5 import rank_leadership_v5
 from app.services.market_calculation_context_service import (
@@ -74,6 +79,8 @@ from app.services.technical_scoring_v5_config import load_technical_scoring_v5_c
 from app.services.technical_work import (
     TechnicalWorkItem,
     TechnicalWorkResult,
+    _latest_session,
+    _with_temporal_lineage,
     build_technical_work_item,
     execute_technical_work_item,
 )
@@ -111,6 +118,7 @@ def load_winner_point_in_time_technical_frames(
 class TechnicalV5RunContext:
     resolutions: dict[str, SectorBenchmarkResolution]
     sector_features: dict[str, dict[str, float | None]]
+    source_manifests: dict[str, dict] = field(default_factory=dict)
 
 
 def score_run_technicals(
@@ -322,6 +330,7 @@ def preview_run_technicals(
     )
 
 
+@core_writer_transaction
 def finalize_technical_scores(
     db: Session,
     run_id: int,
@@ -337,6 +346,12 @@ def finalize_technical_scores(
     persist: bool = True,
     effective_configuration: CoreEffectiveConfiguration | None = None,
 ) -> list[TechnicalScore]:
+    if (
+        isinstance(db, Session)
+        and persist
+        and (market_cutoff is None or pipeline_run_id is None or effective_configuration is None)
+    ):
+        raise ValueError("TECHNICAL_MUTATION_AUTHORITY_REQUIRED")
     if pipeline_run_id is not None and effective_configuration is None:
         raise ValueError(
             "certified Technical finalization requires configuration frozen "
@@ -399,9 +414,42 @@ def finalize_technical_scores(
         else {}
     )
     scores: list[TechnicalScore] = []
+    cohort_manifests = {
+        f"cohort:{member.ticker.upper()}:{role}": manifest
+        for member in scored
+        for role, manifest in (
+            (
+                (member.debug if isinstance(member, PineReplicaScore) else member.debug_json) or {}
+            ).get("temporal_lineage")
+            or {}
+        )
+        .get("source_manifests", {})
+        .items()
+    }
     for result in score_results:
         _record_temporal_lineage_metrics(result)
         if not isinstance(result, PineReplicaScore):
+            if isinstance(db, Session) and market_cutoff is not None:
+                price, volume = load_preferred_ohlcv_frames(
+                    db,
+                    result.ticker,
+                    max_session=market_cutoff.latest_completed_session,
+                    as_of=market_cutoff.cutoff_at,
+                )
+                manifests = {
+                    name: frame.attrs["pit_source_manifest"]
+                    for name, frame in (("price", price), ("volume", volume))
+                    if frame is not None and "pit_source_manifest" in frame.attrs
+                }
+                result.debug_json = {
+                    **(result.debug_json or {}),
+                    "temporal_lineage": {
+                        "source_manifests": {**cohort_manifests, **manifests},
+                        "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
+                        "calculation_cutoff_at": market_cutoff.cutoff_at.isoformat(),
+                        "calculation_context_id": market_cutoff.context_id,
+                    },
+                }
             if market_cutoff is not None:
                 result.calculation_context_id = market_cutoff.context_id
                 result.calculation_cutoff_at = market_cutoff.cutoff_at
@@ -447,6 +495,17 @@ def finalize_technical_scores(
                 or getattr(settings, "technical_v5_persist_shadow_results", True)
             ),
         )
+        if isinstance(db, Session):
+            lineage = dict((persisted.debug_json or {}).get("temporal_lineage") or {})
+            lineage["source_manifests"] = {
+                **lineage.get("source_manifests", {}),
+                **cohort_manifests,
+                **{
+                    f"v5_sector:{symbol}": manifest
+                    for symbol, manifest in v5_context.source_manifests.items()
+                },
+            }
+            persisted.debug_json = {**(persisted.debug_json or {}), "temporal_lineage": lineage}
         if market_cutoff is not None:
             persisted.calculation_context_id = market_cutoff.context_id
             persisted.calculation_cutoff_at = market_cutoff.cutoff_at
@@ -493,6 +552,14 @@ def finalize_technical_scores(
                     effective_configuration=effective_configuration.snapshot
                     if pipeline_run_id is not None
                     else None,
+                    mutation_context=declare_core_evidence_mutation(
+                        db,
+                        kind=CoreEvidenceKind.TECHNICAL,
+                        current_row=score,
+                        effective_configuration=effective_configuration.snapshot
+                        if pipeline_run_id is not None
+                        else None,
+                    ),
                 )
     return scores
 
@@ -731,6 +798,9 @@ class TechnicalScoringOverlapCoordinator:
                 feature_config_hash=self.feature_config_hash,
                 scoring_config_hash=self.scoring_config_hash,
                 input_as_of_session=self.market_cutoff.latest_completed_session,
+                market_cutoff=self.market_cutoff,
+                price=price,
+                trades=trades,
             )
             item = _build_work_item(
                 ticker=ticker,
@@ -1039,6 +1109,9 @@ def _score_tickers_pure_sequential(
                 feature_config_hash=feature_config_hash,
                 scoring_config_hash=scoring_config_hash,
                 input_as_of_session=market_cutoff.latest_completed_session,
+                market_cutoff=market_cutoff,
+                price=price,
+                trades=trades,
             )
             item = _build_work_item(
                 ticker=ticker,
@@ -1141,6 +1214,9 @@ def _score_tickers_process_pool(
                 feature_config_hash=feature_config_hash,
                 scoring_config_hash=scoring_config_hash,
                 input_as_of_session=market_cutoff.latest_completed_session,
+                market_cutoff=market_cutoff,
+                price=price,
+                trades=trades,
             )
             items.append(
                 (
@@ -1318,6 +1394,21 @@ def _build_work_item(
         artifact_key=asdict(artifact_key) if artifact_key else None,
         cached_local_artifact=cached_local_artifact,
         shadow_local_artifact=shadow_local_artifact,
+        source_manifests={
+            name: frame.attrs["pit_source_manifest"]
+            for name, frame in {
+                "price": price,
+                "trades": trades,
+                "benchmark": benchmark_price,
+                "sector": sector_price,
+            }.items()
+            if frame is not None and "pit_source_manifest" in frame.attrs
+        }
+        | (
+            {"qqq": qqq_market_features["_pit_source_manifest"]}
+            if qqq_market_features.get("_pit_source_manifest")
+            else {}
+        ),
     )
 
 
@@ -1329,10 +1420,22 @@ def _artifact_cache_context(
     feature_config_hash: str,
     scoring_config_hash: str,
     input_as_of_session: date,
+    market_cutoff: MarketCalculationCutoff | None = None,
+    price: pd.DataFrame | None = None,
+    trades: pd.DataFrame | None = None,
 ) -> tuple[LocalArtifactKey | None, dict[str, Any] | None]:
     cache_reads = settings.technical_artifact_cache_reads_enabled
     cache_writes = settings.technical_artifact_cache_writes_enabled
     if not cache_reads and not cache_writes:
+        return None, None
+    source_manifests = {
+        role: frame.attrs.get("pit_source_manifest")
+        for role, frame in (("price", price), ("trades", trades))
+        if frame is not None
+    }
+    if isinstance(db, Session) and (
+        market_cutoff is None or not source_manifests or not all(source_manifests.values())
+    ):
         return None, None
     versions = load_series_versions(db, ticker)
     if "ADJUSTED_LAST" not in versions or "TRADES" not in versions:
@@ -1345,6 +1448,8 @@ def _artifact_cache_context(
         scoring_config_hash=scoring_config_hash,
         technical_engine_version=ENGINE_VERSION,
         input_as_of_session=input_as_of_session,
+        calculation_cutoff_at=market_cutoff.cutoff_at if market_cutoff else None,
+        source_manifest_hash=config_hash(source_manifests) if source_manifests else None,
     )
     if not cache_reads:
         return key, None
@@ -1696,7 +1801,7 @@ def _score_ticker(
         pine_params=pine_params,
     )
 
-    return score_from_feature_result(
+    score = score_from_feature_result(
         features,
         htf_features=htf_features,
         relative_strength_features=relative_strength_features,
@@ -1704,6 +1809,34 @@ def _score_ticker(
         qqq_market_features=qqq_market_features,
         v4_params=v4_params,
         params=pine_params,
+    )
+    if not isinstance(db, Session) and not price.attrs.get("pit_source_manifest"):
+        return score
+
+    item = _build_work_item(
+        ticker=ticker,
+        price=price,
+        trades=trades,
+        benchmark_price=benchmark_price,
+        sector_price=sector_price,
+        market_features=market_features,
+        qqq_market_features=qqq_market_features or {},
+        pine_params=pine_params,
+        v4_params=v4_params,
+        market_cutoff=market_cutoff,
+    )
+    return _with_temporal_lineage(
+        item,
+        score,
+        {
+            name: _latest_session(frame)
+            for name, frame in (
+                ("ticker_price", price),
+                ("ticker_trades", trades),
+                ("benchmark", benchmark_price),
+                ("sector", sector_price),
+            )
+        },
     )
 
 
@@ -1763,6 +1896,7 @@ def _technical_v5_run_context(
             sectors[normalized] = sector
     resolutions = resolutions_for_tickers(sectors, v5_params["sector_benchmarks"])
     sector_features: dict[str, dict[str, float | None]] = {}
+    source_manifests = {}
     for symbol in sorted(
         {
             resolution.benchmark_symbol
@@ -1771,6 +1905,8 @@ def _technical_v5_run_context(
         }
     ):
         frame = _call_price_frame(db, symbol, market_cutoff)
+        if frame.attrs.get("pit_source_manifest") is not None:
+            source_manifests[symbol] = frame.attrs["pit_source_manifest"]
         features = _benchmark_roc_features(frame)
         if features:
             sector_features[symbol] = features
@@ -1783,7 +1919,9 @@ def _technical_v5_run_context(
         )
         for ticker, resolution in resolutions.items()
     }
-    return TechnicalV5RunContext(resolutions=resolutions, sector_features=sector_features)
+    return TechnicalV5RunContext(
+        resolutions=resolutions, sector_features=sector_features, source_manifests=source_manifests
+    )
 
 
 def _benchmark_roc_features(frame: pd.DataFrame) -> dict[str, float | None]:
@@ -1851,7 +1989,7 @@ def _market_features(
         return {}
     return calculate_technical_features(
         price, ticker=ticker, params=pine_params, v4_params=v4_params
-    ).latest
+    ).latest | {"_pit_source_manifest": price.attrs.get("pit_source_manifest")}
 
 
 def _market_frames_signature(

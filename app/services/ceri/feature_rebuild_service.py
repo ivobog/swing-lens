@@ -44,12 +44,14 @@ from app.services.ceri.point_in_time_query import CeriPointInTimeQuery
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.revision_feature_service import CeriRevisionFeatureService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
+from app.services.domain_mutation import MutationDomain
 from app.services.market_clock_service import (
     CALENDAR_VERSION,
     MarketClockService,
     SessionTimestampPolicy,
 )
 from app.services.price_bar_repository import project_price_bar_rows_as_of
+from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
 from app.services.us_market_calendar import us_market_session
 
 FEATURE_REBUILD_IMPL_VERSION = "batch-prefetch-pit-v2"
@@ -221,9 +223,7 @@ class CeriFeatureRebuildService:
             cutoff = explicit_session
             cutoff_at = schedule.close_at + timedelta(minutes=15)
         else:
-            raise ValueError(
-                "historical CERI feature rebuild requires cutoff_at or as_of_session"
-            )
+            raise ValueError("historical CERI feature rebuild requires cutoff_at or as_of_session")
         try:
             mode = HistoricalViewMode(request.mode)
         except ValueError:
@@ -653,6 +653,7 @@ class CeriFeatureRebuildService:
                 batch_total_ms=int((perf_counter() - started) * 1000),
             )
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def _rebuild_company(
         self,
         db: Session,
@@ -1029,6 +1030,7 @@ class CeriFeatureRebuildService:
             ownership_mode=context.ownership_mode,
         )
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def _persist_company(
         self,
         db: Session,
@@ -1277,6 +1279,9 @@ class CeriFeatureRebuildService:
         ]
         return sorted(companies, key=lambda row: (row.ticker.upper(), row.id or 0))
 
+    @source_writer_member(
+        "app.services.ceri.feature_rebuild_service:CeriFeatureRebuildService._persist_company"
+    )
     def _upsert_derived(
         self,
         db: Session,
@@ -1411,6 +1416,9 @@ _PRICE_UPDATE_COLUMNS = (
 )
 
 
+@source_writer_member(
+    "app.services.ceri.feature_rebuild_service:CeriFeatureRebuildService._persist_company"
+)
 def _execute_upsert(
     db: Session, model: Any, rows: list[Any], constraint: str, update_columns: tuple[str, ...]
 ) -> None:
@@ -1543,11 +1551,17 @@ def _output_fingerprint(rows: Iterable[Any]) -> str:
     )
 
 
+@source_writer_member(
+    "app.services.ceri.feature_rebuild_service:CeriFeatureRebuildService._persist_company"
+)
 def _copy_revision_derived(target: CeriRevisionFeature, source: CeriRevisionFeature) -> None:
     for name in _REVISION_UPDATE_COLUMNS:
         setattr(target, name, getattr(source, name))
 
 
+@source_writer_member(
+    "app.services.ceri.feature_rebuild_service:CeriFeatureRebuildService._persist_company"
+)
 def _copy_derived(target: CeriDerivedFeature, source: CeriDerivedFeature) -> None:
     for name in (
         "value_json",
@@ -1562,11 +1576,17 @@ def _copy_derived(target: CeriDerivedFeature, source: CeriDerivedFeature) -> Non
         setattr(target, name, getattr(source, name))
 
 
+@source_writer_member(
+    "app.services.ceri.feature_rebuild_service:CeriFeatureRebuildService._persist_company"
+)
 def _copy_price(target: CeriPriceResponseFeature, source: CeriPriceResponseFeature) -> None:
     for name in _PRICE_UPDATE_COLUMNS:
         setattr(target, name, getattr(source, name))
 
 
+@source_writer_member(
+    "app.services.ceri.feature_rebuild_service:CeriFeatureRebuildService._persist_company"
+)
 def _copy_state(target: CeriFeatureBuildState, source: CeriFeatureBuildState) -> None:
     for name in (
         "calculation_cutoff_at",

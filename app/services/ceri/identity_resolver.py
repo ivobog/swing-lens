@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany, CeriCompanyAlias, CeriSourceRecord
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.source_mutation_authority import source_mutation_writer
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,9 @@ class CeriIdentityResolver:
             self._aliases = [_alias_snapshot(row) for row in _load_aliases(db)]
         return self
 
+    @source_mutation_writer(
+        MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
+    )
     def resolve_source_record(
         self,
         db: Session,

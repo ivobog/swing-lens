@@ -1,6 +1,7 @@
 import shutil
 from contextlib import suppress
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
 
@@ -11,6 +12,16 @@ from app.models.enums import RunStatus
 from app.models.tables import FundamentalScore, RawCompanyRow, UploadRun
 from app.services.column_mapper import MappedCsvRow, map_csv_rows
 from app.services.csv_loader import CsvLoadError, load_csv_rows
+from app.services.domain_mutation import (
+    DomainMutationContext,
+    MutationDomain,
+    MutationEntryPointDescriptor,
+    MutationEvidenceReference,
+    MutationSemanticMode,
+    MutationWriterDescriptor,
+    fence_mutation_transaction,
+)
+from app.services.domain_write_fence import current_domain_write_ownership
 from app.services.earnings_date_parser import parse_earnings_date
 from app.services.fundamental_ranker_v2 import (
     FundamentalScoreV2Result,
@@ -50,6 +61,26 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
     committed = False
 
     try:
+        if isinstance(db, Session):
+            file_hash = sha256(file_path.read_bytes()).hexdigest()
+            ownership = current_domain_write_ownership()
+            context = DomainMutationContext(
+                domain=MutationDomain.RAW,
+                semantic_mode=MutationSemanticMode.BOOTSTRAP,
+                entrypoint=MutationEntryPointDescriptor("create_upload_run", "SOURCE_INGESTION"),
+                writer=MutationWriterDescriptor(
+                    "create_upload_run", "phase5-upload-v1", MutationDomain.RAW
+                ),
+                reason="Acquire exact CSV source; initial scores are legacy serving only",
+                evidence=(
+                    MutationEvidenceReference(
+                        "source_file", "uploaded_csv", str(file_path), file_hash
+                    ),
+                ),
+                execution=ownership,
+                durable=ownership is not None,
+            )
+            fence_mutation_transaction(db, context)
         run = UploadRun(
             filename=filename,
             file_path=str(file_path),
@@ -84,7 +115,20 @@ def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:
         fundamental_scores = [
             _fundamental_score_from_v2(run.id, score) for score in score_rows_v2(mapped_rows)
         ]
+        for score in fundamental_scores:
+            # Upload-time numerics are serving conveniences, never sealed evidence.
+            score.evidence_id = None
+            score.debug_json = {
+                **(score.debug_json or {}),
+                "mutation_semantics": {
+                    "mode": "LEGACY_UNCERTIFIED",
+                    "artifact_role": "LEGACY_SERVING_ONLY",
+                    "certified_evidence": False,
+                },
+            }
 
+        if isinstance(db, Session) and sha256(file_path.read_bytes()).hexdigest() != file_hash:
+            raise UploadProcessingError("UPLOAD_SOURCE_CHANGED_DURING_ACQUISITION")
         db.add_all(raw_rows)
         db.add_all(fundamental_scores)
         run.row_count = len(raw_rows)

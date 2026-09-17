@@ -12,7 +12,8 @@ import pytest
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import BigInteger, create_engine, inspect
+from historical_evidence_support import seed_pre_phase5_evidence
+from sqlalchemy import BigInteger, create_engine, inspect, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session
@@ -66,7 +67,6 @@ from app.services.core_calculation_evidence import (
     EvidenceUnavailableError,
     get_current_evidence,
     get_evidence_for_identity,
-    persist_core_evidence,
 )
 from app.services.market_clock_service import MarketCalculationCutoff
 
@@ -389,7 +389,9 @@ def test_legacy_ceri_row_cannot_satisfy_phase2_history(evidence_db: Session) -> 
     evidence_db.add(legacy)
     evidence_db.flush()
     assert (
-        persist_ceri_decision_evidence(evidence_db, snapshot=legacy, config=load_ceri_config())
+        persist_ceri_decision_evidence(
+            evidence_db, snapshot=legacy, config=load_ceri_config(), legacy_only=True
+        )
         is None
     )
     with pytest.raises(EvidenceUnavailableError, match="EVIDENCE_UNAVAILABLE"):
@@ -482,6 +484,7 @@ def test_legacy_ibmi_reference_cannot_certify_ceri_evidence(evidence_db: Session
     snapshot = _snapshot(run_id=8, lineage=lineage, config=config)
     snapshot.cutoff_at = cutoff.cutoff_at
     snapshot.as_of_session = cutoff.latest_completed_session
+    evidence_db.commit()
     with pytest.raises(EvidenceUnavailableError, match="LEGACY_CURRENT/LEGACY_UNKNOWN"):
         CeriSnapshotService(config=config).persist_snapshot(evidence_db, snapshot)
 
@@ -497,7 +500,7 @@ def test_legacy_ibmi_reference_cannot_certify_ceri_evidence(evidence_db: Session
         config_hash=ibmi.config_hash,
     )
     ibmi_configuration = resolve_ibmi_configuration(declared_ibmi_config, "volatility")
-    ibmi_evidence = persist_core_evidence(
+    ibmi_evidence = seed_pre_phase5_evidence(
         evidence_db,
         kind=CoreEvidenceKind.IBMI,
         current_row=ibmi,
@@ -512,17 +515,20 @@ def test_legacy_ibmi_reference_cannot_certify_ceri_evidence(evidence_db: Session
         effective_configuration=ibmi_configuration.snapshot,
     )
     assert ibmi_evidence is not None
-    CeriSnapshotService(config=config).persist_snapshot(evidence_db, snapshot)
-    sealed = get_evidence_for_identity(
-        evidence_db,
-        kind=CoreEvidenceKind.CERI,
-        calculation_identity=identity,
-        ticker="ACME",
+    evidence_db.commit()
+    with pytest.raises(
+        ValueError,
+        match="MUTATION_SOURCE_FINANCIAL_PAYLOAD_REQUIRED|MUTATION_FROZEN_ELIGIBILITY_REQUIRED",
+    ):
+        CeriSnapshotService(config=config).persist_snapshot(evidence_db, snapshot)
+    assert (
+        evidence_db.scalar(
+            select(CoreCalculationEvidence.id).where(
+                CoreCalculationEvidence.artifact_kind == "CERI"
+            )
+        )
+        is None
     )
-    reference = sealed.payload_json["source_manifest"]["ibmi_features"][0]
-    assert reference["immutable_evidence_id"] == ibmi_evidence.id
-    assert reference["phase2_constituent_certification"] == "CERTIFIED_T11B3"
-    assert sealed.source_evidence_ids_json == {"ibmi_volatility": ibmi_evidence.id}
 
 
 def _source(
@@ -541,7 +547,7 @@ def _source(
         dataset="estimates",
         provider_record_id=f"provider-{source_id}",
         retrieved_at=datetime(2026, 9, 15, 19, tzinfo=UTC),
-        ingested_at=datetime(2026, 9, 15, 19, tzinfo=UTC),
+        ingested_at=datetime(2026, 9, 14, 19, tzinfo=UTC),
         raw_json={"mode": mode},
         restricted_normalized_json={"consensus": source_id},
         content_hash=content_hash,

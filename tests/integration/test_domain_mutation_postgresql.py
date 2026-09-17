@@ -1,5 +1,4 @@
 from dataclasses import replace
-from types import SimpleNamespace
 
 import psycopg
 import pytest
@@ -12,7 +11,6 @@ from test_domain_mutation import mutation_context
 from alembic import command
 from app.models.tables import BackgroundJob, CoreCalculationEvidence, UploadRun
 from app.services.background_job_service import JobLeaseLost
-from app.services.calculation_identity import IdentityDimension
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     get_evidence_by_id,
@@ -20,9 +18,7 @@ from app.services.core_calculation_evidence import (
 )
 from app.services.core_effective_configuration import resolve_fundamental_configuration
 from app.services.domain_mutation import (
-    MutationDomain,
     fence_mutation_transaction,
-    validate_mutation_context,
 )
 from app.services.domain_write_fence import DomainWriteOwnership
 from app.services.effective_configuration import configuration_from_evidence
@@ -89,49 +85,83 @@ def test_stale_execution_cannot_authorize_domain_write(mutation_engine, token):
 
 
 def test_configuration_readiness_and_immutable_identity_compose(mutation_engine):
-    config = resolve_fundamental_configuration().snapshot
-    context = mutation_context(MutationDomain.FUNDAMENTAL)
-    identity = replace(
-        context.calculation_identity,
-        configuration=replace(
-            context.calculation_identity.configuration,
-            effective_configuration=IdentityDimension.known(config.identity),
-        ),
-    )
-    context = replace(
-        context,
-        calculation_identity=identity,
-        configuration=config.identity,
-        durable=True,
-        execution=DomainWriteOwnership(1, "attempt-one"),
-    )
-    validate_mutation_context(context).require_valid()
+    from native_mutation_support import bound_pipeline
+    from test_fundamental_ranker_v2 import _quality_values
+
+    from app.models.tables import ExecutionConfigurationBinding, RawCompanyRow
+    from app.services.combined_ranking_identity import calculation_identity_from_debug
+    from app.services.configuration_delivery import persist_configuration_anchor
+    from app.services.core_calculation_evidence import declare_core_evidence_mutation
+    from app.services.fundamental_score_service import recalculate_run_fundamentals
+
+    config = resolve_fundamental_configuration()
     with Session(mutation_engine) as db:
-        fence_mutation_transaction(db, context)
-        current = SimpleNamespace(run_id=101, ticker="AAPL", evidence_id=None)
-        first = persist_core_evidence(
-            db,
-            kind=CoreEvidenceKind.FUNDAMENTAL,
-            current_row=current,
-            calculation_identity=identity,
-            effective_configuration=config,
-            payload={"fundamental_score": 7.0, "is_complete": True},
+        db.add(
+            RawCompanyRow(
+                run_id=101,
+                row_number=1,
+                ticker="AAPL",
+                raw_json={"Symbol": "AAPL", **_quality_values()},
+            )
         )
-        second = persist_core_evidence(
-            db,
-            kind=CoreEvidenceKind.FUNDAMENTAL,
-            current_row=current,
-            calculation_identity=identity,
-            effective_configuration=config,
-            payload={"fundamental_score": 8.0, "is_complete": True},
+        db.flush()
+        cutoff, pipeline_id = bound_pipeline(db, 101, [config])
+        job = db.get(BackgroundJob, 1)
+        job.related_run_id = 101
+        job.payload_json = {"pipeline_run_id": pipeline_id}
+        anchor = persist_configuration_anchor(db, [config])
+        db.add(
+            ExecutionConfigurationBinding(
+                binding_key="job:1", job_id=1, anchor_id=anchor["anchor_id"]
+            )
         )
-        first_id, second_id = first.id, second.id
+        db.commit()
+        current = recalculate_run_fundamentals(
+            db,
+            101,
+            market_cutoff=cutoff,
+            pipeline_run_id=pipeline_id,
+            effective_configuration=config,
+        )[0]
+        db.commit()
+        identity = calculation_identity_from_debug(current.debug_json)
+
+        def seal(score, token):
+            payload = {"fundamental_score": score, "is_complete": True}
+            context = declare_core_evidence_mutation(
+                db,
+                kind=CoreEvidenceKind.FUNDAMENTAL,
+                current_row=current,
+                payload=payload,
+                effective_configuration=config.snapshot,
+            )
+            context = replace(context, durable=True, execution=DomainWriteOwnership(1, token))
+            return persist_core_evidence(
+                db,
+                kind=CoreEvidenceKind.FUNDAMENTAL,
+                current_row=current,
+                calculation_identity=identity,
+                effective_configuration=config.snapshot,
+                payload=payload,
+                mutation_context=context,
+            )
+
+        first = seal(7.0, "attempt-one")
+        first_id = first.id
+        db.commit()
+        job = db.get(BackgroundJob, 1)
+        job.execution_token = "attempt-two"
+        db.commit()
+        with pytest.raises(JobLeaseLost):
+            seal(8.0, "attempt-one")
+        db.commit()
+        second = seal(8.0, "attempt-two")
+        second_id = second.id
         assert first_id != second_id
-        assert first.payload_json["fundamental_score"] == 7.0
         db.commit()
     with Session(mutation_engine) as db:
         retained = get_evidence_by_id(db, evidence_id=first_id, kind=CoreEvidenceKind.FUNDAMENTAL)
-        assert configuration_from_evidence(retained).value == context.configuration
+        assert configuration_from_evidence(retained).value == config.snapshot.identity
         assert readiness_from_evidence(retained).calculation_identity_fingerprint == str(
             identity.fingerprint()
         )

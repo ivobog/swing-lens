@@ -39,12 +39,14 @@ from app.services.combined_ranking_identity import (
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
+    declare_core_evidence_mutation,
     persist_core_evidence,
 )
 from app.services.core_effective_configuration import (
     CoreEffectiveConfiguration,
     resolve_ranking_configuration,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.ib_market_intelligence.config import (
     load_ib_market_intelligence_config,
 )
@@ -322,6 +324,7 @@ def refresh_ranking_profile(
     )
 
 
+@core_writer_transaction
 def _persist_rankings(
     db: Session,
     *,
@@ -378,6 +381,15 @@ def _persist_rankings(
                 effective_configuration=(effective_configurations or {})[
                     result.ranking_profile
                 ].snapshot,
+                mutation_context=declare_core_evidence_mutation(
+                    db,
+                    kind=CoreEvidenceKind.RANKING,
+                    current_row=result,
+                    sources=evidence_sources,
+                    effective_configuration=(effective_configurations or {})[
+                        result.ranking_profile
+                    ].snapshot,
+                ),
             )
     return persisted
 
@@ -401,6 +413,7 @@ def _preflight_ranking_persistence(
             continue
 
 
+@core_writer_member("app.services.ranking_profile_service:_persist_rankings")
 def _replace_legacy_ranking(
     db: Session,
     *,
@@ -429,6 +442,7 @@ def _existing_rankings(db: Session, run_id: int) -> list[RankingResult]:
     ]
 
 
+@core_writer_member("app.services.ranking_profile_service:_persist_rankings")
 def _copy_ranking_values(target: RankingResult, source: RankingResult) -> None:
     immutable = {
         "id",

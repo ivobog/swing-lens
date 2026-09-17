@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -42,7 +43,6 @@ from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
     get_certified_evidence_for_row,
-    persist_core_evidence,
 )
 from app.services.historical_read_service import (
     HistoricalReadError,
@@ -361,7 +361,7 @@ def _world(db: Session, suffix: str) -> dict[CoreEvidenceKind, CoreCalculationEv
             ranking_profile=ranking_profile,
             evidence_id=None,
         )
-        result = persist_core_evidence(
+        result = seed_pre_phase5_evidence(
             db,
             kind=kind,
             current_row=row,

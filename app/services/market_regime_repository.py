@@ -9,12 +9,14 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import MarketRegimeSnapshot
+from app.models.tables import CoreCalculationEvidence, MarketRegimeSnapshot
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
+    declare_core_evidence_mutation,
     get_evidence_by_id,
     persist_core_evidence,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 
 
 @dataclass(frozen=True)
@@ -46,6 +48,7 @@ class MarketRegimeSnapshotWrite:
 
 
 class MarketRegimeRepository:
+    @core_writer_transaction
     def upsert_snapshot(
         self,
         db: Session,
@@ -99,6 +102,13 @@ class MarketRegimeRepository:
             },
             scope_ticker=None,
             effective_configuration=getattr(dto, "_effective_configuration", None),
+            mutation_context=declare_core_evidence_mutation(
+                db,
+                kind=CoreEvidenceKind.REGIME,
+                current_row=snapshot,
+                payload={"run_id": run_id, **asdict(dto), "evidence_hash": snapshot.evidence_hash},
+                effective_configuration=getattr(dto, "_effective_configuration", None),
+            ),
         )
 
     def latest(self, db: Session) -> MarketRegimeSnapshot | None:
@@ -206,8 +216,46 @@ class MarketRegimeRepository:
 
         return get_evidence_by_id(db, evidence_id=evidence_id, kind=CoreEvidenceKind.REGIME)
 
-    def delete_for_run(self, db: Session, run_id: int) -> None:
-        db.execute(delete(MarketRegimeSnapshot).where(MarketRegimeSnapshot.run_id == run_id))
+    @core_writer_transaction
+    def delete_for_run(self, db: Session, run_id: int, *, legacy_only: bool = False) -> None:
+        if isinstance(db, Session):
+            if not legacy_only:
+                raise ValueError("REGIME_LEGACY_MAINTENANCE_MODE_REQUIRED")
+            targets = list(
+                db.scalars(
+                    select(MarketRegimeSnapshot)
+                    .where(MarketRegimeSnapshot.run_id == run_id)
+                    .with_for_update()
+                )
+            )
+            retained = db.scalar(
+                select(CoreCalculationEvidence.id)
+                .where(
+                    CoreCalculationEvidence.artifact_kind == CoreEvidenceKind.REGIME.value,
+                    CoreCalculationEvidence.run_id == run_id,
+                )
+                .limit(1)
+            )
+            if retained is not None or any(row.evidence_id is not None for row in targets):
+                raise ValueError("REGIME_CERTIFIED_ARTIFACT_DELETE_FORBIDDEN")
+            from app.services.domain_write_fence import (
+                assert_current_execution_ownership,
+                current_domain_write_ownership,
+            )
+
+            ownership = current_domain_write_ownership()
+            if ownership is not None:
+                assert_current_execution_ownership(
+                    db, job_id=ownership.job_id, execution_token=ownership.execution_token
+                )
+            # Delete exactly the checked, locked legacy targets. A new snapshot
+            # for this run must not be swept into a later broad DELETE.
+            statement = delete(MarketRegimeSnapshot).where(
+                MarketRegimeSnapshot.id.in_([row.id for row in targets])
+            )
+        else:
+            statement = delete(MarketRegimeSnapshot).where(MarketRegimeSnapshot.run_id == run_id)
+        db.execute(statement)
         db.flush()
 
     def _matching_snapshot(
@@ -259,6 +307,9 @@ class MarketRegimeRepository:
 
         return statement
 
+    @core_writer_member(
+        "app.services.market_regime_repository:MarketRegimeRepository.upsert_snapshot"
+    )
     def _supersede_previous_revision(
         self,
         db: Session,
@@ -271,6 +322,9 @@ class MarketRegimeRepository:
         previous.superseded_at = now
         db.flush()
 
+    @core_writer_member(
+        "app.services.market_regime_repository:MarketRegimeRepository.upsert_snapshot"
+    )
     def _apply_snapshot_fields(
         self,
         snapshot: MarketRegimeSnapshot,

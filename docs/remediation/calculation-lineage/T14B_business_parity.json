@@ -1,0 +1,4315 @@
+{
+  "after_sha256": "0ac9d0ecc7bf981916dcaa4310043f446fc3d2aeaae07fdaf65509ff7293547c",
+  "before_sha256": "0ac9d0ecc7bf981916dcaa4310043f446fc3d2aeaae07fdaf65509ff7293547c",
+  "outputs": {
+    "ceri": {
+      "confidence": {
+        "caps": [],
+        "coverage_pct": 0.0,
+        "freshness_details": {
+          "age_days": null,
+          "dataset": "estimates",
+          "max_stale_days": 7,
+          "semantic": "PROVIDER_FEED_FRESHNESS",
+          "status": "UNAVAILABLE"
+        },
+        "gates": [
+          "ZERO_USABLE_CORE_REVISION_COVERAGE"
+        ],
+        "label": "Insufficient",
+        "ledger": [
+          {
+            "basis": "accepted_revision_feature_quality",
+            "contribution": 0.0,
+            "name": "source_quality",
+            "unavailable_reason": "SOURCE_QUALITY_UNAVAILABLE",
+            "value": null,
+            "weight": 0.25
+          },
+          {
+            "basis": "estimate_provider_feed_last_successful_check_age",
+            "contribution": 0.0,
+            "name": "freshness",
+            "unavailable_reason": "FRESHNESS_UNAVAILABLE",
+            "value": null,
+            "weight": 0.2
+          },
+          {
+            "basis": "required_metric_period_window_slots",
+            "contribution": 0.0,
+            "name": "estimate_coverage",
+            "unavailable_reason": null,
+            "value": 0.0,
+            "weight": 0.2
+          },
+          {
+            "basis": "accepted_estimate_revision_counts",
+            "contribution": 0.0,
+            "name": "analyst_sample",
+            "unavailable_reason": "ANALYST_SAMPLE_UNAVAILABLE",
+            "value": null,
+            "weight": 0.15
+          },
+          {
+            "basis": "accepted_evidence_timestamp_provenance",
+            "contribution": 0.0,
+            "name": "timestamp_quality",
+            "unavailable_reason": "TIMESTAMP_QUALITY_UNAVAILABLE",
+            "value": null,
+            "weight": 0.1
+          },
+          {
+            "basis": "accepted_evidence_conflicts",
+            "contribution": 1.0,
+            "name": "conflict_free_score",
+            "unavailable_reason": null,
+            "value": 10.0,
+            "weight": 0.1
+          }
+        ],
+        "reasons": [
+          "no_usable_core_revision_evidence"
+        ],
+        "score": 1.0,
+        "warnings": [
+          "estimate_coverage_low",
+          "analyst_sample_unavailable",
+          "dataset_freshness_unavailable"
+        ]
+      },
+      "event_risk": {
+        "dominant_component": "earnings_proximity_risk",
+        "earnings_proximity": {
+          "days_until_earnings": null,
+          "level": "unknown",
+          "risk_score": 0.0
+        },
+        "ledger": [
+          {
+            "component": "earnings_proximity_risk",
+            "event_ids": [],
+            "reason": "earnings_proximity:unknown",
+            "score": 0.0
+          }
+        ],
+        "penalties": [],
+        "reasons": [
+          "dominant_risk:earnings_proximity_risk"
+        ],
+        "rejected_event_ids": [],
+        "rejected_events": [],
+        "score": 0.0,
+        "selected_event_ids": [],
+        "warnings": [
+          "earnings_date_unavailable"
+        ]
+      },
+      "opportunity": {
+        "available_weight": 0,
+        "components": [
+          {
+            "available": false,
+            "contribution": null,
+            "evidence_ids": [],
+            "name": "revision_magnitude",
+            "reasons": [],
+            "unavailable_reason": "REVISION_EVIDENCE_MISSING",
+            "value": null,
+            "warnings": [
+              "revision_magnitude_unavailable"
+            ],
+            "weight": 0.25
+          },
+          {
+            "available": false,
+            "contribution": null,
+            "evidence_ids": [],
+            "name": "revision_breadth",
+            "reasons": [],
+            "unavailable_reason": "BREADTH_COUNTS_UNAVAILABLE",
+            "value": null,
+            "warnings": [
+              "revision_breadth_unavailable"
+            ],
+            "weight": 0.15
+          },
+          {
+            "available": false,
+            "contribution": null,
+            "evidence_ids": [],
+            "name": "revision_acceleration",
+            "reasons": [],
+            "unavailable_reason": "ACCELERATION_HISTORY_UNAVAILABLE",
+            "value": null,
+            "warnings": [
+              "revision_acceleration_unavailable"
+            ],
+            "weight": 0.1
+          },
+          {
+            "available": false,
+            "contribution": null,
+            "evidence_ids": [],
+            "name": "surprise_trend",
+            "reasons": [],
+            "unavailable_reason": "HISTORICAL_REPORTED_EARNINGS_MISSING",
+            "value": null,
+            "warnings": [
+              "surprise_trend_unavailable"
+            ],
+            "weight": 0.15
+          },
+          {
+            "available": false,
+            "contribution": null,
+            "evidence_ids": [],
+            "name": "guidance",
+            "reasons": [],
+            "unavailable_reason": "NO_ACCEPTED_CURRENT_GUIDANCE",
+            "value": null,
+            "warnings": [
+              "guidance_unavailable"
+            ],
+            "weight": 0.15
+          },
+          {
+            "available": false,
+            "contribution": null,
+            "evidence_ids": [],
+            "name": "catalysts",
+            "reasons": [],
+            "unavailable_reason": "NO_ACCEPTED_CATALYST",
+            "value": null,
+            "warnings": [
+              "catalysts_unavailable"
+            ],
+            "weight": 0.15
+          },
+          {
+            "available": false,
+            "contribution": null,
+            "evidence_ids": [],
+            "name": "price_response",
+            "reasons": [],
+            "unavailable_reason": "NO_ACCEPTED_EVENT",
+            "value": null,
+            "warnings": [
+              "price_response_unavailable"
+            ],
+            "weight": 0.05
+          }
+        ],
+        "coverage_pct": 0.0,
+        "minimum_required_coverage_pct": 60.0,
+        "penalties": [],
+        "rated": false,
+        "reasons": [],
+        "reweighted": false,
+        "score": null,
+        "unrated_reason": "INSUFFICIENT_COMPONENT_COVERAGE",
+        "warnings": [
+          "revision_magnitude_unavailable",
+          "revision_breadth_unavailable",
+          "revision_acceleration_unavailable",
+          "surprise_trend_unavailable",
+          "guidance_unavailable",
+          "catalysts_unavailable",
+          "price_response_unavailable",
+          "opportunity_component_coverage_insufficient"
+        ]
+      }
+    },
+    "combined": {
+      "missing": {
+        "combined_decision": "Incomplete data",
+        "company_name": "ACME Corp",
+        "days_until_earnings": null,
+        "debug_evidence": {
+          "calculation_version": "combined-decision-1.0.0",
+          "combined_decision": "Incomplete data",
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "COMBINED",
+                "policy_version": "fundamental-to-combined-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "34b504d8c609fdd4f111f1f1b0c19c92ac770d634112ad2c5561988f8e59e018",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "diagnostic_technical_score_id": null,
+          "earnings": {
+            "days_until_earnings": null,
+            "decision_blocked": false,
+            "penalty": 0.3,
+            "risk_level": "unknown",
+            "upcoming_earnings_date": null,
+            "warning_flags": [
+              "earnings_date_missing"
+            ]
+          },
+          "final_score": 0.0,
+          "input_scores": {
+            "dual_score": null,
+            "fundamental_label": null,
+            "fundamental_score": null,
+            "technical_classification": null
+          },
+          "label_thresholds": {
+            "candidate_min_score": 6.8,
+            "strong_candidate_min_score": 8.0,
+            "watch_min_score": 5.5
+          },
+          "penalty_breakdown": {
+            "earnings_unknown": 0.3,
+            "missing_fundamental": 1.0,
+            "missing_technical": 1.0
+          },
+          "position_size_hint": "Wait",
+          "sort_bucket": 50,
+          "source_ids": {
+            "fundamental_score_id": null,
+            "raw_row_id": null,
+            "technical_score_id": null
+          },
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": null,
+            "decision": {
+              "consumer": "COMBINED",
+              "policy_version": "technical-to-combined-v1",
+              "producer_evidence_id": null,
+              "producer_readiness_fingerprint": "27c1fb02d8e8771036e033f96de48abfc067d9b51fde534b757cc6efe3f62c95",
+              "reasons": [
+                "PRODUCER_READINESS_UNKNOWN"
+              ],
+              "status": "POLICY_UNDECIDED"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": null,
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": null,
+              "native_confidence": {},
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {},
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "LEGACY_UNKNOWN",
+              "warning_reasons": [
+                "LEGACY_READINESS_UNKNOWN"
+              ]
+            }
+          },
+          "warning_flags": [
+            "incomplete_data",
+            "missing_fundamental",
+            "missing_technical",
+            "earnings_date_missing"
+          ],
+          "weighted_score_before_penalties": 0.0,
+          "weights": {
+            "dual_score": 0.45,
+            "fundamental_score": 0.55
+          }
+        },
+        "dual_score": null,
+        "earnings_risk_level": "unknown",
+        "earnings_warning_flags": [
+          "earnings_date_missing"
+        ],
+        "final_score": 0.0,
+        "fundamental_label": null,
+        "fundamental_score": null,
+        "has_fundamental": false,
+        "has_technical": false,
+        "has_warning": true,
+        "is_complete": false,
+        "notes": "fundamental missing, technical missing, earnings date missing",
+        "position_size_hint": "Wait",
+        "sector": "Technology",
+        "sort_bucket": 50,
+        "technical_classification": null,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "incomplete_data",
+          "missing_fundamental",
+          "missing_technical",
+          "earnings_date_missing"
+        ]
+      },
+      "ready": {
+        "combined_decision": "Watchlist",
+        "company_name": "ACME Corp",
+        "days_until_earnings": null,
+        "debug_evidence": {
+          "calculation_version": "combined-decision-1.0.0",
+          "combined_decision": "Watchlist",
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "COMBINED",
+                "policy_version": "fundamental-to-combined-v1",
+                "producer_evidence_id": 500000,
+                "producer_readiness_fingerprint": "0d5cbfc988f3f1c4bf6a66cb6b64075392467592770e7dbdc6086fc27527965f",
+                "reasons": [],
+                "status": "ELIGIBLE"
+              },
+              "included": true,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": "8b0ce37a221faecd1d5f5e0f2973b34d103d44a9ecfb65e36205fca74f587e1c",
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": 500000,
+                "native_confidence": {},
+                "native_coverage": {
+                  "data_coverage_score": 10
+                },
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "READY",
+                "warning_reasons": []
+              },
+              "source_feature_id": null
+            }
+          },
+          "diagnostic_technical_score_id": null,
+          "earnings": {
+            "days_until_earnings": null,
+            "decision_blocked": false,
+            "penalty": 0.3,
+            "risk_level": "unknown",
+            "upcoming_earnings_date": null,
+            "warning_flags": [
+              "earnings_date_missing"
+            ]
+          },
+          "final_score": 6.7,
+          "input_scores": {
+            "dual_score": 7.0,
+            "fundamental_label": "High-quality quant",
+            "fundamental_score": 7.0,
+            "technical_classification": "Prime clean pullback"
+          },
+          "label_thresholds": {
+            "candidate_min_score": 6.8,
+            "strong_candidate_min_score": 8.0,
+            "watch_min_score": 5.5
+          },
+          "penalty_breakdown": {
+            "earnings_unknown": 0.3
+          },
+          "position_size_hint": "Small probe",
+          "sort_bucket": 30,
+          "source_ids": {
+            "fundamental_score_id": null,
+            "raw_row_id": null,
+            "technical_score_id": null
+          },
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+            "decision": {
+              "consumer": "COMBINED",
+              "policy_version": "technical-to-combined-v1",
+              "producer_evidence_id": 100000,
+              "producer_readiness_fingerprint": "6d49fafbe18ecaea9ab678a0b1576344752a2e59bc9291984ff57faace098c8b",
+              "reasons": [],
+              "status": "ELIGIBLE"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": 100000,
+              "native_confidence": {
+                "technical_confidence": "normal"
+              },
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {
+                "insufficient_data": false
+              },
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "READY",
+              "warning_reasons": []
+            }
+          },
+          "warning_flags": [
+            "earnings_date_missing"
+          ],
+          "weighted_score_before_penalties": 7.0,
+          "weights": {
+            "dual_score": 0.45,
+            "fundamental_score": 0.55
+          }
+        },
+        "dual_score": 7.0,
+        "earnings_risk_level": "unknown",
+        "earnings_warning_flags": [
+          "earnings_date_missing"
+        ],
+        "final_score": 6.7,
+        "fundamental_label": "High-quality quant",
+        "fundamental_score": 7.0,
+        "has_fundamental": true,
+        "has_technical": true,
+        "has_warning": true,
+        "is_complete": true,
+        "notes": "earnings date missing",
+        "position_size_hint": "Small probe",
+        "sector": "Technology",
+        "sort_bucket": 30,
+        "technical_classification": "Prime clean pullback",
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "earnings_date_missing"
+        ]
+      }
+    },
+    "fundamental": [
+      {
+        "balance_sheet_quality_score": 9.3009,
+        "capital_efficiency_score": 10.0,
+        "data_coverage_score": 10.0,
+        "debug": {
+          "canonical_fields_present": [
+            "analyst_rating",
+            "asset_turnover_annual",
+            "asset_turnover_ttm",
+            "beta_1y",
+            "beta_3y",
+            "buyback_yield",
+            "capex_estimate_ntm",
+            "capex_growth_quarterly_yoy",
+            "capex_growth_ttm_yoy",
+            "capex_per_share_ttm",
+            "capex_ttm",
+            "cash_short_term_investments_annual",
+            "cash_short_term_investments_estimate_annual",
+            "current_ratio",
+            "debt_to_assets",
+            "debt_to_ebitda_annual",
+            "debt_to_equity",
+            "dividend_payout_ratio_ttm",
+            "dividend_yield_ttm",
+            "dollar_volume_10d",
+            "dollar_volume_30d",
+            "dollar_volume_60d",
+            "earnings_yield_ttm",
+            "ebit_estimate_ntm",
+            "ebitda_growth_ttm_yoy",
+            "ebitda_interest_coverage_ttm",
+            "ebitda_margin_ttm",
+            "eps_estimate_annual",
+            "eps_estimate_quarterly",
+            "eps_growth_quarterly_yoy",
+            "eps_growth_ttm_yoy",
+            "ev_ebitda",
+            "ev_fcf",
+            "ev_revenue",
+            "fcf_growth_ttm_yoy",
+            "fcf_margin_ttm",
+            "fcf_ttm",
+            "forward_pe",
+            "free_float",
+            "gross_margin_annual",
+            "gross_margin_ttm",
+            "gross_profit_growth_ttm_yoy",
+            "market_cap",
+            "net_debt_to_ebitda",
+            "net_income_estimate_ntm",
+            "net_income_growth_ttm_yoy",
+            "net_income_ttm",
+            "net_margin_annual",
+            "net_margin_ttm",
+            "operating_cash_flow_per_share_ttm",
+            "operating_margin_annual",
+            "operating_margin_ttm",
+            "pe_ratio",
+            "peg_ratio",
+            "pfcf",
+            "price_change_1d_pct",
+            "ps_ratio",
+            "quick_ratio_annual",
+            "quick_ratio_quarterly",
+            "relative_volume_1d",
+            "return_on_total_capital_ttm",
+            "revenue_estimate_annual",
+            "revenue_growth_5y_cagr",
+            "revenue_growth_quarterly_yoy",
+            "revenue_growth_ttm_yoy",
+            "roa_annual",
+            "roa_ttm",
+            "roce_ttm",
+            "roe_ttm",
+            "roic_annual",
+            "roic_ttm",
+            "sloan_ratio_ttm",
+            "total_assets_annual",
+            "total_assets_growth_annual_yoy",
+            "total_common_shares_outstanding",
+            "total_debt_to_capital_annual",
+            "total_liabilities_annual",
+            "total_revenue_ttm",
+            "tradingview_atr_pct_14d",
+            "volume_change_1d_pct",
+            "working_capital_per_share_annual",
+            "working_capital_per_share_quarterly"
+          ],
+          "component_coverage": {
+            "balance_sheet_quality_score": 1.0,
+            "capital_efficiency_score": 1.0,
+            "earnings_quality_score": 1.0,
+            "fcf_quality_score": 1.0,
+            "forward_quality_score": 1.0,
+            "growth_quality_score": 1.0,
+            "liquidity_risk_score": 1.0,
+            "profitability_quality_score": 1.0,
+            "shareholder_quality_score": 1.0,
+            "valuation_quality_score": 1.0
+          },
+          "component_scores": {
+            "balance_sheet_quality_score": 9.3009,
+            "capital_efficiency_score": 10.0,
+            "earnings_quality_score": 9.55,
+            "fcf_quality_score": 8.7184,
+            "forward_quality_score": 10.0,
+            "growth_quality_score": 8.2657,
+            "liquidity_risk_score": 9.4865,
+            "profitability_quality_score": 10.0,
+            "shareholder_quality_score": 7.9111,
+            "valuation_quality_score": 6.5986
+          },
+          "config_hash": "dfe3ec507f2bf86641c81130d2613254153c028cb172c24974deda199dde6e24",
+          "coverage": {
+            "available_scoring_fields": 79,
+            "coverage_ratio": 1.0,
+            "data_coverage_score": 10.0,
+            "missing_core_fields": [],
+            "missing_fields_by_priority": {
+              "critical": [],
+              "high": [],
+              "low": [
+                "number_of_shareholders_annual"
+              ],
+              "medium": [
+                "ebit_per_share_ttm",
+                "total_assets_estimate_annual"
+              ]
+            },
+            "missing_high_fields": [],
+            "total_scoring_fields": 79
+          },
+          "model_version": "fundamentals_v2.1",
+          "parse_diagnostics": {
+            "failed_field_count": 0,
+            "failed_fields": []
+          },
+          "warnings": []
+        },
+        "earnings_quality_score": 9.55,
+        "explanation": "Clean compounder: strongest area is profitability quality; weakest area is valuation quality; data coverage 10.0/10.",
+        "fcf_quality_score": 8.7184,
+        "forward_quality_score": 10.0,
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": 8.7729,
+        "growth_quality_score": 8.2657,
+        "liquidity_risk_score": 9.4865,
+        "missing_data_penalty": 0.25,
+        "profitability_quality_score": 10.0,
+        "shareholder_quality_score": 7.9111,
+        "ticker": "QUALITY",
+        "valuation_quality_score": 6.5986,
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": 5.0,
+        "capital_efficiency_score": 5.0,
+        "data_coverage_score": 0.0,
+        "debug": {
+          "canonical_fields_present": [],
+          "component_coverage": {
+            "balance_sheet_quality_score": 0.0,
+            "capital_efficiency_score": 0.0,
+            "earnings_quality_score": 0.0,
+            "fcf_quality_score": 0.0,
+            "forward_quality_score": 0.0,
+            "growth_quality_score": 0.0,
+            "liquidity_risk_score": 0.0,
+            "profitability_quality_score": 0.0,
+            "shareholder_quality_score": 0.0,
+            "valuation_quality_score": 0.0
+          },
+          "component_scores": {
+            "balance_sheet_quality_score": 5.0,
+            "capital_efficiency_score": 5.0,
+            "earnings_quality_score": 5.0,
+            "fcf_quality_score": 5.0,
+            "forward_quality_score": 5.0,
+            "growth_quality_score": 5.0,
+            "liquidity_risk_score": 5.0,
+            "profitability_quality_score": 5.0,
+            "shareholder_quality_score": 5.0,
+            "valuation_quality_score": 5.0
+          },
+          "config_hash": "dfe3ec507f2bf86641c81130d2613254153c028cb172c24974deda199dde6e24",
+          "coverage": {
+            "available_scoring_fields": 0,
+            "coverage_ratio": 0.0,
+            "data_coverage_score": 0.0,
+            "missing_core_fields": [
+              "fcf_ttm",
+              "market_cap",
+              "net_income_ttm",
+              "operating_margin_ttm",
+              "revenue_growth_ttm_yoy",
+              "roa_ttm",
+              "roic_ttm",
+              "sloan_ratio_ttm",
+              "total_assets_annual",
+              "total_liabilities_annual"
+            ],
+            "missing_fields_by_priority": {
+              "critical": [
+                "fcf_ttm",
+                "market_cap",
+                "net_income_ttm",
+                "operating_margin_ttm",
+                "revenue_growth_ttm_yoy",
+                "roa_ttm",
+                "roic_ttm",
+                "sloan_ratio_ttm",
+                "total_assets_annual",
+                "total_liabilities_annual"
+              ],
+              "high": [
+                "asset_turnover_annual",
+                "asset_turnover_ttm",
+                "capex_growth_ttm_yoy",
+                "capex_ttm",
+                "current_ratio",
+                "earnings_yield_ttm",
+                "ebit_estimate_ntm",
+                "eps_estimate_annual",
+                "fcf_margin_ttm",
+                "net_debt_to_ebitda",
+                "net_income_estimate_ntm",
+                "net_income_growth_ttm_yoy",
+                "net_margin_annual",
+                "operating_margin_annual",
+                "pe_ratio",
+                "quick_ratio_quarterly",
+                "return_on_total_capital_ttm",
+                "revenue_estimate_annual",
+                "roa_annual",
+                "roic_annual",
+                "total_assets_growth_annual_yoy",
+                "total_revenue_ttm",
+                "working_capital_per_share_annual",
+                "working_capital_per_share_quarterly"
+              ],
+              "low": [
+                "analyst_rating",
+                "capex_estimate_ntm",
+                "number_of_shareholders_annual",
+                "quick_ratio_annual"
+              ],
+              "medium": [
+                "capex_growth_quarterly_yoy",
+                "capex_per_share_ttm",
+                "cash_short_term_investments_annual",
+                "cash_short_term_investments_estimate_annual",
+                "debt_to_ebitda_annual",
+                "dividend_payout_ratio_ttm",
+                "dividend_yield_ttm",
+                "dollar_volume_10d",
+                "dollar_volume_60d",
+                "ebit_per_share_ttm",
+                "eps_estimate_quarterly",
+                "free_float",
+                "gross_margin_annual",
+                "gross_profit_growth_ttm_yoy",
+                "total_assets_estimate_annual",
+                "total_common_shares_outstanding"
+              ]
+            },
+            "missing_high_fields": [
+              "asset_turnover_annual",
+              "asset_turnover_ttm",
+              "capex_growth_ttm_yoy",
+              "capex_ttm",
+              "current_ratio",
+              "earnings_yield_ttm",
+              "ebit_estimate_ntm",
+              "eps_estimate_annual",
+              "fcf_margin_ttm",
+              "net_debt_to_ebitda",
+              "net_income_estimate_ntm",
+              "net_income_growth_ttm_yoy",
+              "net_margin_annual",
+              "operating_margin_annual",
+              "pe_ratio",
+              "quick_ratio_quarterly",
+              "return_on_total_capital_ttm",
+              "revenue_estimate_annual",
+              "roa_annual",
+              "roic_annual",
+              "total_assets_growth_annual_yoy",
+              "total_revenue_ttm",
+              "working_capital_per_share_annual",
+              "working_capital_per_share_quarterly"
+            ],
+            "total_scoring_fields": 79
+          },
+          "model_version": "fundamentals_v2.1",
+          "parse_diagnostics": {
+            "failed_field_count": 0,
+            "failed_fields": []
+          },
+          "warnings": [
+            "sparse_fundamental_data"
+          ]
+        },
+        "earnings_quality_score": 5.0,
+        "explanation": "Low priority: strongest area is growth quality; weakest area is growth quality; data coverage 0.0/10; warnings: sparse_fundamental_data.",
+        "fcf_quality_score": 5.0,
+        "forward_quality_score": 5.0,
+        "fundamental_label": "Low priority",
+        "fundamental_score": 2.5,
+        "growth_quality_score": 5.0,
+        "liquidity_risk_score": 5.0,
+        "missing_data_penalty": 2.5,
+        "profitability_quality_score": 5.0,
+        "shareholder_quality_score": 5.0,
+        "ticker": "SPARSE",
+        "valuation_quality_score": 5.0,
+        "warning_flags": [
+          "sparse_fundamental_data"
+        ]
+      }
+    ],
+    "ibmi": [
+      {
+        "classification": "EXCELLENT",
+        "components": {
+          "dollar_volume": null,
+          "median_spread_20d": 0.0499875031242161,
+          "median_spread_5d": 0.0499875031242161,
+          "midpoint": 100.025,
+          "rejected_bars": 0,
+          "representative_ask": 100.05,
+          "representative_bid": 100.0,
+          "spread_amount": 0.04999999999999716,
+          "spread_pct": 0.0499875031242161,
+          "spread_percentile_60d": 50.0,
+          "spread_stability": 0.0,
+          "valid_bars": 1
+        },
+        "confidence": "LOW",
+        "coverage_status": "AVAILABLE",
+        "evidence_hashes": [
+          "fixed-source-observation"
+        ],
+        "freshness_status": "AVAILABLE",
+        "module": "LIQUIDITY",
+        "reasons": [
+          "TIGHT_SPREAD"
+        ],
+        "score": 10.0,
+        "warnings": []
+      },
+      {
+        "classification": "INSUFFICIENT",
+        "components": {
+          "rejected_bars": 0,
+          "valid_bars": 0
+        },
+        "confidence": "INSUFFICIENT",
+        "coverage_status": "UNAVAILABLE",
+        "evidence_hashes": [],
+        "freshness_status": "UNAVAILABLE",
+        "module": "LIQUIDITY",
+        "reasons": [
+          "SPREAD_UNAVAILABLE"
+        ],
+        "score": null,
+        "warnings": [
+          "BID_ASK_DATA_UNAVAILABLE"
+        ]
+      }
+    ],
+    "ranking": {
+      "missing:clean_compounder_pullback": {
+        "base_technical_score": null,
+        "company_name": "ACME Corp",
+        "component_scores": {},
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 0.0,
+            "technical_profile_score": null,
+            "total_penalty": 1.2,
+            "weighted_score_before_penalty": 0.0
+          },
+          "component_scores": {},
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "34b504d8c609fdd4f111f1f1b0c19c92ac770d634112ad2c5561988f8e59e018",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "data_quality": false,
+            "earnings_block": false,
+            "fundamental_floor": {
+              "min_score": 5.5,
+              "passed": true
+            }
+          },
+          "inputs": {
+            "base_technical_score": null,
+            "fundamental_label": null,
+            "fundamental_score": null,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": null
+          },
+          "penalties": {
+            "missing_data": 1.2
+          },
+          "profile": {
+            "label": "Clean Compounder Pullback",
+            "name": "clean_compounder_pullback",
+            "technical_components": {
+              "momentum_health": 0.15,
+              "pullback_health": 0.3,
+              "relative_strength": 0.1,
+              "risk_control": 0.2,
+              "trend_quality": 0.25
+            },
+            "tradeability_overlay": {
+              "enabled": false,
+              "maximum_penalty": 0.0,
+              "minimum_dollar_volume": null,
+              "poor_penalty": 0.0,
+              "very_poor_penalty": 0.0
+            },
+            "weights": {
+              "fundamental": 0.65,
+              "technical": 0.35
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": null,
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": null,
+              "producer_readiness_fingerprint": "27c1fb02d8e8771036e033f96de48abfc067d9b51fde534b757cc6efe3f62c95",
+              "reasons": [
+                "PRODUCER_READINESS_UNKNOWN"
+              ],
+              "status": "POLICY_UNDECIDED"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": null,
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": null,
+              "native_confidence": {},
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {},
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "LEGACY_UNKNOWN",
+              "warning_reasons": [
+                "LEGACY_READINESS_UNKNOWN"
+              ]
+            }
+          }
+        },
+        "decision_label": "Avoid",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": null,
+        "fundamental_score": null,
+        "gates": {
+          "data_quality": false,
+          "earnings_block": false,
+          "fundamental_floor": {
+            "min_score": 5.5,
+            "passed": true
+          }
+        },
+        "has_fundamental": false,
+        "has_technical": false,
+        "has_warning": true,
+        "is_complete": false,
+        "notes": [
+          "fundamental missing",
+          "technical missing",
+          "low data quality"
+        ],
+        "penalties": {
+          "missing_data": 1.2
+        },
+        "position_size_hint": "No new entry",
+        "profile_rank": 0,
+        "profile_score": 0.0,
+        "ranking_label": "Clean Compounder Pullback",
+        "ranking_profile": "clean_compounder_pullback",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 3,
+        "technical_classification": null,
+        "technical_profile_score": null,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "incomplete_data",
+          "missing_fundamental",
+          "missing_technical",
+          "earnings_date_missing",
+          "low_data_quality"
+        ]
+      },
+      "missing:defensive_quality": {
+        "base_technical_score": null,
+        "company_name": "ACME Corp",
+        "component_scores": {},
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 0.0,
+            "technical_profile_score": null,
+            "total_penalty": 1.5,
+            "weighted_score_before_penalty": 0.0
+          },
+          "component_scores": {},
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "34b504d8c609fdd4f111f1f1b0c19c92ac770d634112ad2c5561988f8e59e018",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "data_quality": false,
+            "earnings_block": false,
+            "liquidity_cap": false
+          },
+          "inputs": {
+            "base_technical_score": null,
+            "fundamental_label": null,
+            "fundamental_score": null,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": null
+          },
+          "penalties": {
+            "missing_data": 1.5
+          },
+          "profile": {
+            "label": "Defensive Quality",
+            "name": "defensive_quality",
+            "technical_components": {
+              "market_regime_alignment": 0.15,
+              "momentum_health": 0.15,
+              "risk_control": 0.35,
+              "setup_quality": 0.15,
+              "trend_quality": 0.2
+            },
+            "tradeability_overlay": {
+              "enabled": true,
+              "maximum_penalty": 1.5,
+              "minimum_dollar_volume": 10000000.0,
+              "poor_penalty": 0.75,
+              "very_poor_penalty": 1.5
+            },
+            "weights": {
+              "fundamental": 0.6,
+              "technical": 0.4
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": null,
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": null,
+              "producer_readiness_fingerprint": "27c1fb02d8e8771036e033f96de48abfc067d9b51fde534b757cc6efe3f62c95",
+              "reasons": [
+                "PRODUCER_READINESS_UNKNOWN"
+              ],
+              "status": "POLICY_UNDECIDED"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": null,
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": null,
+              "native_confidence": {},
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {},
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "LEGACY_UNKNOWN",
+              "warning_reasons": [
+                "LEGACY_READINESS_UNKNOWN"
+              ]
+            }
+          }
+        },
+        "decision_label": "Avoid",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": null,
+        "fundamental_score": null,
+        "gates": {
+          "data_quality": false,
+          "earnings_block": false,
+          "liquidity_cap": false
+        },
+        "has_fundamental": false,
+        "has_technical": false,
+        "has_warning": true,
+        "is_complete": false,
+        "notes": [
+          "fundamental missing",
+          "technical missing",
+          "low data quality"
+        ],
+        "penalties": {
+          "missing_data": 1.5
+        },
+        "position_size_hint": "No new entry",
+        "profile_rank": 0,
+        "profile_score": 0.0,
+        "ranking_label": "Defensive Quality",
+        "ranking_profile": "defensive_quality",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 3,
+        "technical_classification": null,
+        "technical_profile_score": null,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "incomplete_data",
+          "missing_fundamental",
+          "missing_technical",
+          "earnings_date_missing",
+          "low_data_quality"
+        ]
+      },
+      "missing:early_rocket": {
+        "base_technical_score": null,
+        "company_name": "ACME Corp",
+        "component_scores": {},
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 0.0,
+            "technical_profile_score": null,
+            "total_penalty": 0.8,
+            "weighted_score_before_penalty": 0.0
+          },
+          "component_scores": {},
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "34b504d8c609fdd4f111f1f1b0c19c92ac770d634112ad2c5561988f8e59e018",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "data_quality": false,
+            "earnings_block": false,
+            "fundamental_floor": {
+              "min_score": 2.5,
+              "passed": true
+            }
+          },
+          "inputs": {
+            "base_technical_score": null,
+            "fundamental_label": null,
+            "fundamental_score": null,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": null
+          },
+          "penalties": {
+            "missing_data": 0.8
+          },
+          "profile": {
+            "label": "Early Rocket",
+            "name": "early_rocket",
+            "technical_components": {
+              "breakout_quality": 0.15,
+              "momentum_strength": 0.35,
+              "relative_strength_acceleration": 0.1,
+              "risk_control": 0.1,
+              "trend_repair": 0.2,
+              "volume_expansion": 0.1
+            },
+            "tradeability_overlay": {
+              "enabled": true,
+              "maximum_penalty": 0.8,
+              "minimum_dollar_volume": 3000000.0,
+              "poor_penalty": 0.4,
+              "very_poor_penalty": 0.8
+            },
+            "weights": {
+              "fundamental": 0.3,
+              "technical": 0.7
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": null,
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": null,
+              "producer_readiness_fingerprint": "27c1fb02d8e8771036e033f96de48abfc067d9b51fde534b757cc6efe3f62c95",
+              "reasons": [
+                "PRODUCER_READINESS_UNKNOWN"
+              ],
+              "status": "POLICY_UNDECIDED"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": null,
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": null,
+              "native_confidence": {},
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {},
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "LEGACY_UNKNOWN",
+              "warning_reasons": [
+                "LEGACY_READINESS_UNKNOWN"
+              ]
+            }
+          }
+        },
+        "decision_label": "Avoid",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": null,
+        "fundamental_score": null,
+        "gates": {
+          "data_quality": false,
+          "earnings_block": false,
+          "fundamental_floor": {
+            "min_score": 2.5,
+            "passed": true
+          }
+        },
+        "has_fundamental": false,
+        "has_technical": false,
+        "has_warning": true,
+        "is_complete": false,
+        "notes": [
+          "fundamental missing",
+          "technical missing",
+          "low data quality"
+        ],
+        "penalties": {
+          "missing_data": 0.8
+        },
+        "position_size_hint": "No new entry",
+        "profile_rank": 0,
+        "profile_score": 0.0,
+        "ranking_label": "Early Rocket",
+        "ranking_profile": "early_rocket",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 3,
+        "technical_classification": null,
+        "technical_profile_score": null,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "incomplete_data",
+          "missing_fundamental",
+          "missing_technical",
+          "earnings_date_missing",
+          "low_data_quality"
+        ]
+      },
+      "missing:momentum_swing": {
+        "base_technical_score": null,
+        "company_name": "ACME Corp",
+        "component_scores": {},
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 0.0,
+            "technical_profile_score": null,
+            "total_penalty": 1.0,
+            "weighted_score_before_penalty": 0.0
+          },
+          "component_scores": {},
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "34b504d8c609fdd4f111f1f1b0c19c92ac770d634112ad2c5561988f8e59e018",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "data_quality": false,
+            "earnings_block": false,
+            "fundamental_floor": {
+              "min_score": 3.0,
+              "passed": true
+            }
+          },
+          "inputs": {
+            "base_technical_score": null,
+            "fundamental_label": null,
+            "fundamental_score": null,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": null
+          },
+          "penalties": {
+            "missing_data": 1.0
+          },
+          "profile": {
+            "label": "Momentum Swing",
+            "name": "momentum_swing",
+            "technical_components": {
+              "breakout_or_vcp_quality": 0.1,
+              "momentum_health": 0.25,
+              "momentum_strength": 0.3,
+              "risk_control": 0.1,
+              "setup_quality": 0.1,
+              "trend_quality": 0.15
+            },
+            "tradeability_overlay": {
+              "enabled": true,
+              "maximum_penalty": 1.0,
+              "minimum_dollar_volume": 5000000.0,
+              "poor_penalty": 0.5,
+              "very_poor_penalty": 1.0
+            },
+            "weights": {
+              "fundamental": 0.45,
+              "technical": 0.55
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": null,
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": null,
+              "producer_readiness_fingerprint": "27c1fb02d8e8771036e033f96de48abfc067d9b51fde534b757cc6efe3f62c95",
+              "reasons": [
+                "PRODUCER_READINESS_UNKNOWN"
+              ],
+              "status": "POLICY_UNDECIDED"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": null,
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": null,
+              "native_confidence": {},
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {},
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "LEGACY_UNKNOWN",
+              "warning_reasons": [
+                "LEGACY_READINESS_UNKNOWN"
+              ]
+            }
+          }
+        },
+        "decision_label": "Avoid",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": null,
+        "fundamental_score": null,
+        "gates": {
+          "data_quality": false,
+          "earnings_block": false,
+          "fundamental_floor": {
+            "min_score": 3.0,
+            "passed": true
+          }
+        },
+        "has_fundamental": false,
+        "has_technical": false,
+        "has_warning": true,
+        "is_complete": false,
+        "notes": [
+          "fundamental missing",
+          "technical missing",
+          "low data quality"
+        ],
+        "penalties": {
+          "missing_data": 1.0
+        },
+        "position_size_hint": "No new entry",
+        "profile_rank": 0,
+        "profile_score": 0.0,
+        "ranking_label": "Momentum Swing",
+        "ranking_profile": "momentum_swing",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 3,
+        "technical_classification": null,
+        "technical_profile_score": null,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "incomplete_data",
+          "missing_fundamental",
+          "missing_technical",
+          "earnings_date_missing",
+          "low_data_quality"
+        ]
+      },
+      "missing:quality_momentum": {
+        "base_technical_score": null,
+        "company_name": "ACME Corp",
+        "component_scores": {},
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 0.0,
+            "technical_profile_score": null,
+            "total_penalty": 1.0,
+            "weighted_score_before_penalty": 0.0
+          },
+          "component_scores": {},
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "34b504d8c609fdd4f111f1f1b0c19c92ac770d634112ad2c5561988f8e59e018",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "data_quality": false,
+            "earnings_block": false
+          },
+          "inputs": {
+            "base_technical_score": null,
+            "fundamental_label": null,
+            "fundamental_score": null,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": null
+          },
+          "penalties": {
+            "missing_data": 1.0
+          },
+          "profile": {
+            "label": "Quality Momentum",
+            "name": "quality_momentum",
+            "technical_components": {
+              "momentum_health": 0.25,
+              "momentum_strength": 0.25,
+              "risk_control": 0.15,
+              "setup_quality": 0.15,
+              "trend_quality": 0.2
+            },
+            "tradeability_overlay": {
+              "enabled": false,
+              "maximum_penalty": 0.0,
+              "minimum_dollar_volume": null,
+              "poor_penalty": 0.0,
+              "very_poor_penalty": 0.0
+            },
+            "weights": {
+              "fundamental": 0.55,
+              "technical": 0.45
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": null,
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": null,
+              "producer_readiness_fingerprint": "27c1fb02d8e8771036e033f96de48abfc067d9b51fde534b757cc6efe3f62c95",
+              "reasons": [
+                "PRODUCER_READINESS_UNKNOWN"
+              ],
+              "status": "POLICY_UNDECIDED"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": null,
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": null,
+              "native_confidence": {},
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {},
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "LEGACY_UNKNOWN",
+              "warning_reasons": [
+                "LEGACY_READINESS_UNKNOWN"
+              ]
+            }
+          }
+        },
+        "decision_label": "Avoid",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": null,
+        "fundamental_score": null,
+        "gates": {
+          "data_quality": false,
+          "earnings_block": false
+        },
+        "has_fundamental": false,
+        "has_technical": false,
+        "has_warning": true,
+        "is_complete": false,
+        "notes": [
+          "fundamental missing",
+          "technical missing",
+          "low data quality"
+        ],
+        "penalties": {
+          "missing_data": 1.0
+        },
+        "position_size_hint": "No new entry",
+        "profile_rank": 0,
+        "profile_score": 0.0,
+        "ranking_label": "Quality Momentum",
+        "ranking_profile": "quality_momentum",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 3,
+        "technical_classification": null,
+        "technical_profile_score": null,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "incomplete_data",
+          "missing_fundamental",
+          "missing_technical",
+          "earnings_date_missing",
+          "low_data_quality"
+        ]
+      },
+      "ready:clean_compounder_pullback": {
+        "base_technical_score": 7.0,
+        "company_name": "ACME Corp",
+        "component_scores": {
+          "box_tightness": 7.0,
+          "breakout_or_vcp_quality": 7.0,
+          "breakout_quality": 7.0,
+          "market_regime_alignment": 8.0,
+          "momentum_danger": 1.5,
+          "momentum_health": 7.15,
+          "momentum_strength": 5.95,
+          "pullback_health": 10.0,
+          "relative_strength": 7.0,
+          "relative_strength_acceleration": 0.0,
+          "risk_control": 8.0,
+          "setup_quality": 7.0,
+          "trend_quality": 7.0,
+          "trend_repair": 4.34,
+          "vcp_quality": 7.0,
+          "volume_expansion": 0.0
+        },
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 7.3929,
+            "technical_profile_score": 8.1225,
+            "total_penalty": 0.0,
+            "weighted_score_before_penalty": 7.3929
+          },
+          "component_scores": {
+            "box_tightness": 7.0,
+            "breakout_or_vcp_quality": 7.0,
+            "breakout_quality": 7.0,
+            "market_regime_alignment": 8.0,
+            "momentum_danger": 1.5,
+            "momentum_health": 7.15,
+            "momentum_strength": 5.95,
+            "pullback_health": 10.0,
+            "relative_strength": 7.0,
+            "relative_strength_acceleration": 0.0,
+            "risk_control": 8.0,
+            "setup_quality": 7.0,
+            "trend_quality": 7.0,
+            "trend_repair": 4.34,
+            "vcp_quality": 7.0,
+            "volume_expansion": 0.0
+          },
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": 500000,
+                "producer_readiness_fingerprint": "0d5cbfc988f3f1c4bf6a66cb6b64075392467592770e7dbdc6086fc27527965f",
+                "reasons": [],
+                "status": "ELIGIBLE"
+              },
+              "included": true,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": "8b0ce37a221faecd1d5f5e0f2973b34d103d44a9ecfb65e36205fca74f587e1c",
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": 500000,
+                "native_confidence": {},
+                "native_coverage": {
+                  "data_coverage_score": 10
+                },
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "READY",
+                "warning_reasons": []
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "danger_gate": false,
+            "data_quality": true,
+            "earnings_block": false,
+            "fundamental_floor": {
+              "min_score": 5.5,
+              "passed": true
+            }
+          },
+          "inputs": {
+            "base_technical_score": 7.0,
+            "fundamental_label": "High-quality quant",
+            "fundamental_score": 7.0,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": "Prime clean pullback"
+          },
+          "penalties": {},
+          "profile": {
+            "label": "Clean Compounder Pullback",
+            "name": "clean_compounder_pullback",
+            "technical_components": {
+              "momentum_health": 0.15,
+              "pullback_health": 0.3,
+              "relative_strength": 0.1,
+              "risk_control": 0.2,
+              "trend_quality": 0.25
+            },
+            "tradeability_overlay": {
+              "enabled": false,
+              "maximum_penalty": 0.0,
+              "minimum_dollar_volume": null,
+              "poor_penalty": 0.0,
+              "very_poor_penalty": 0.0
+            },
+            "weights": {
+              "fundamental": 0.65,
+              "technical": 0.35
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": 100000,
+              "producer_readiness_fingerprint": "6d49fafbe18ecaea9ab678a0b1576344752a2e59bc9291984ff57faace098c8b",
+              "reasons": [],
+              "status": "ELIGIBLE"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": 100000,
+              "native_confidence": {
+                "technical_confidence": "normal"
+              },
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {
+                "insufficient_data": false
+              },
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "READY",
+              "warning_reasons": []
+            }
+          }
+        },
+        "decision_label": "Candidate",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": "High-quality quant",
+        "fundamental_score": 7.0,
+        "gates": {
+          "danger_gate": false,
+          "data_quality": true,
+          "earnings_block": false,
+          "fundamental_floor": {
+            "min_score": 5.5,
+            "passed": true
+          }
+        },
+        "has_fundamental": true,
+        "has_technical": true,
+        "has_warning": true,
+        "is_complete": true,
+        "notes": [
+          "aligned"
+        ],
+        "penalties": {},
+        "position_size_hint": "Half starter",
+        "profile_rank": 0,
+        "profile_score": 7.3929,
+        "ranking_label": "Clean Compounder Pullback",
+        "ranking_profile": "clean_compounder_pullback",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 1,
+        "technical_classification": "Prime clean pullback",
+        "technical_profile_score": 8.1225,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "earnings_date_missing"
+        ]
+      },
+      "ready:defensive_quality": {
+        "base_technical_score": 7.0,
+        "company_name": "ACME Corp",
+        "component_scores": {
+          "box_tightness": 7.0,
+          "breakout_or_vcp_quality": 7.0,
+          "breakout_quality": 7.0,
+          "market_regime_alignment": 8.0,
+          "momentum_danger": 1.5,
+          "momentum_health": 7.15,
+          "momentum_strength": 5.95,
+          "pullback_health": 10.0,
+          "relative_strength": 7.0,
+          "relative_strength_acceleration": 0.0,
+          "risk_control": 8.0,
+          "setup_quality": 7.0,
+          "trend_quality": 7.0,
+          "trend_repair": 4.34,
+          "vcp_quality": 7.0,
+          "volume_expansion": 0.0
+        },
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 7.209,
+            "technical_profile_score": 7.5225,
+            "total_penalty": 0.0,
+            "weighted_score_before_penalty": 7.209
+          },
+          "component_scores": {
+            "box_tightness": 7.0,
+            "breakout_or_vcp_quality": 7.0,
+            "breakout_quality": 7.0,
+            "market_regime_alignment": 8.0,
+            "momentum_danger": 1.5,
+            "momentum_health": 7.15,
+            "momentum_strength": 5.95,
+            "pullback_health": 10.0,
+            "relative_strength": 7.0,
+            "relative_strength_acceleration": 0.0,
+            "risk_control": 8.0,
+            "setup_quality": 7.0,
+            "trend_quality": 7.0,
+            "trend_repair": 4.34,
+            "vcp_quality": 7.0,
+            "volume_expansion": 0.0
+          },
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": 500000,
+                "producer_readiness_fingerprint": "0d5cbfc988f3f1c4bf6a66cb6b64075392467592770e7dbdc6086fc27527965f",
+                "reasons": [],
+                "status": "ELIGIBLE"
+              },
+              "included": true,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": "8b0ce37a221faecd1d5f5e0f2973b34d103d44a9ecfb65e36205fca74f587e1c",
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": 500000,
+                "native_confidence": {},
+                "native_coverage": {
+                  "data_coverage_score": 10
+                },
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "READY",
+                "warning_reasons": []
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "danger_gate": false,
+            "data_quality": true,
+            "earnings_block": false,
+            "liquidity_cap": false
+          },
+          "inputs": {
+            "base_technical_score": 7.0,
+            "fundamental_label": "High-quality quant",
+            "fundamental_score": 7.0,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": "Prime clean pullback"
+          },
+          "penalties": {},
+          "profile": {
+            "label": "Defensive Quality",
+            "name": "defensive_quality",
+            "technical_components": {
+              "market_regime_alignment": 0.15,
+              "momentum_health": 0.15,
+              "risk_control": 0.35,
+              "setup_quality": 0.15,
+              "trend_quality": 0.2
+            },
+            "tradeability_overlay": {
+              "enabled": true,
+              "maximum_penalty": 1.5,
+              "minimum_dollar_volume": 10000000.0,
+              "poor_penalty": 0.75,
+              "very_poor_penalty": 1.5
+            },
+            "weights": {
+              "fundamental": 0.6,
+              "technical": 0.4
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": 100000,
+              "producer_readiness_fingerprint": "6d49fafbe18ecaea9ab678a0b1576344752a2e59bc9291984ff57faace098c8b",
+              "reasons": [],
+              "status": "ELIGIBLE"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": 100000,
+              "native_confidence": {
+                "technical_confidence": "normal"
+              },
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {
+                "insufficient_data": false
+              },
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "READY",
+              "warning_reasons": []
+            }
+          }
+        },
+        "decision_label": "Candidate",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": "High-quality quant",
+        "fundamental_score": 7.0,
+        "gates": {
+          "danger_gate": false,
+          "data_quality": true,
+          "earnings_block": false,
+          "liquidity_cap": false
+        },
+        "has_fundamental": true,
+        "has_technical": true,
+        "has_warning": true,
+        "is_complete": true,
+        "notes": [
+          "aligned"
+        ],
+        "penalties": {},
+        "position_size_hint": "Half starter",
+        "profile_rank": 0,
+        "profile_score": 7.209,
+        "ranking_label": "Defensive Quality",
+        "ranking_profile": "defensive_quality",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 1,
+        "technical_classification": "Prime clean pullback",
+        "technical_profile_score": 7.5225,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "earnings_date_missing"
+        ]
+      },
+      "ready:early_rocket": {
+        "base_technical_score": 7.0,
+        "company_name": "ACME Corp",
+        "component_scores": {
+          "box_tightness": 7.0,
+          "breakout_or_vcp_quality": 7.0,
+          "breakout_quality": 7.0,
+          "market_regime_alignment": 8.0,
+          "momentum_danger": 1.5,
+          "momentum_health": 7.15,
+          "momentum_strength": 5.95,
+          "pullback_health": 10.0,
+          "relative_strength": 7.0,
+          "relative_strength_acceleration": 0.0,
+          "risk_control": 8.0,
+          "setup_quality": 7.0,
+          "trend_quality": 7.0,
+          "trend_repair": 4.34,
+          "vcp_quality": 7.0,
+          "volume_expansion": 0.0
+        },
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 5.4604,
+            "technical_profile_score": 4.8005,
+            "total_penalty": 0.0,
+            "weighted_score_before_penalty": 5.4604
+          },
+          "component_scores": {
+            "box_tightness": 7.0,
+            "breakout_or_vcp_quality": 7.0,
+            "breakout_quality": 7.0,
+            "market_regime_alignment": 8.0,
+            "momentum_danger": 1.5,
+            "momentum_health": 7.15,
+            "momentum_strength": 5.95,
+            "pullback_health": 10.0,
+            "relative_strength": 7.0,
+            "relative_strength_acceleration": 0.0,
+            "risk_control": 8.0,
+            "setup_quality": 7.0,
+            "trend_quality": 7.0,
+            "trend_repair": 4.34,
+            "vcp_quality": 7.0,
+            "volume_expansion": 0.0
+          },
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": 500000,
+                "producer_readiness_fingerprint": "0d5cbfc988f3f1c4bf6a66cb6b64075392467592770e7dbdc6086fc27527965f",
+                "reasons": [],
+                "status": "ELIGIBLE"
+              },
+              "included": true,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": "8b0ce37a221faecd1d5f5e0f2973b34d103d44a9ecfb65e36205fca74f587e1c",
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": 500000,
+                "native_confidence": {},
+                "native_coverage": {
+                  "data_coverage_score": 10
+                },
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "READY",
+                "warning_reasons": []
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "danger_gate": false,
+            "data_quality": true,
+            "earnings_block": false,
+            "fundamental_floor": {
+              "min_score": 2.5,
+              "passed": true
+            }
+          },
+          "inputs": {
+            "base_technical_score": 7.0,
+            "fundamental_label": "High-quality quant",
+            "fundamental_score": 7.0,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": "Prime clean pullback"
+          },
+          "penalties": {},
+          "profile": {
+            "label": "Early Rocket",
+            "name": "early_rocket",
+            "technical_components": {
+              "breakout_quality": 0.15,
+              "momentum_strength": 0.35,
+              "relative_strength_acceleration": 0.1,
+              "risk_control": 0.1,
+              "trend_repair": 0.2,
+              "volume_expansion": 0.1
+            },
+            "tradeability_overlay": {
+              "enabled": true,
+              "maximum_penalty": 0.8,
+              "minimum_dollar_volume": 3000000.0,
+              "poor_penalty": 0.4,
+              "very_poor_penalty": 0.8
+            },
+            "weights": {
+              "fundamental": 0.3,
+              "technical": 0.7
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": 100000,
+              "producer_readiness_fingerprint": "6d49fafbe18ecaea9ab678a0b1576344752a2e59bc9291984ff57faace098c8b",
+              "reasons": [],
+              "status": "ELIGIBLE"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": 100000,
+              "native_confidence": {
+                "technical_confidence": "normal"
+              },
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {
+                "insufficient_data": false
+              },
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "READY",
+              "warning_reasons": []
+            }
+          }
+        },
+        "decision_label": "Avoid",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": "High-quality quant",
+        "fundamental_score": 7.0,
+        "gates": {
+          "danger_gate": false,
+          "data_quality": true,
+          "earnings_block": false,
+          "fundamental_floor": {
+            "min_score": 2.5,
+            "passed": true
+          }
+        },
+        "has_fundamental": true,
+        "has_technical": true,
+        "has_warning": true,
+        "is_complete": true,
+        "notes": [
+          "aligned"
+        ],
+        "penalties": {},
+        "position_size_hint": "Avoid",
+        "profile_rank": 0,
+        "profile_score": 5.4604,
+        "ranking_label": "Early Rocket",
+        "ranking_profile": "early_rocket",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 3,
+        "technical_classification": "Prime clean pullback",
+        "technical_profile_score": 4.8005,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "earnings_date_missing"
+        ]
+      },
+      "ready:momentum_swing": {
+        "base_technical_score": 7.0,
+        "company_name": "ACME Corp",
+        "component_scores": {
+          "box_tightness": 7.0,
+          "breakout_or_vcp_quality": 7.0,
+          "breakout_quality": 7.0,
+          "market_regime_alignment": 8.0,
+          "momentum_danger": 1.5,
+          "momentum_health": 7.15,
+          "momentum_strength": 5.95,
+          "pullback_health": 10.0,
+          "relative_strength": 7.0,
+          "relative_strength_acceleration": 0.0,
+          "risk_control": 8.0,
+          "setup_quality": 7.0,
+          "trend_quality": 7.0,
+          "trend_repair": 4.34,
+          "vcp_quality": 7.0,
+          "volume_expansion": 0.0
+        },
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 6.9024,
+            "technical_profile_score": 6.8225,
+            "total_penalty": 0.0,
+            "weighted_score_before_penalty": 6.9024
+          },
+          "component_scores": {
+            "box_tightness": 7.0,
+            "breakout_or_vcp_quality": 7.0,
+            "breakout_quality": 7.0,
+            "market_regime_alignment": 8.0,
+            "momentum_danger": 1.5,
+            "momentum_health": 7.15,
+            "momentum_strength": 5.95,
+            "pullback_health": 10.0,
+            "relative_strength": 7.0,
+            "relative_strength_acceleration": 0.0,
+            "risk_control": 8.0,
+            "setup_quality": 7.0,
+            "trend_quality": 7.0,
+            "trend_repair": 4.34,
+            "vcp_quality": 7.0,
+            "volume_expansion": 0.0
+          },
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": 500000,
+                "producer_readiness_fingerprint": "0d5cbfc988f3f1c4bf6a66cb6b64075392467592770e7dbdc6086fc27527965f",
+                "reasons": [],
+                "status": "ELIGIBLE"
+              },
+              "included": true,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": "8b0ce37a221faecd1d5f5e0f2973b34d103d44a9ecfb65e36205fca74f587e1c",
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": 500000,
+                "native_confidence": {},
+                "native_coverage": {
+                  "data_coverage_score": 10
+                },
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "READY",
+                "warning_reasons": []
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "danger_gate": false,
+            "data_quality": true,
+            "earnings_block": false,
+            "fundamental_floor": {
+              "min_score": 3.0,
+              "passed": true
+            }
+          },
+          "inputs": {
+            "base_technical_score": 7.0,
+            "fundamental_label": "High-quality quant",
+            "fundamental_score": 7.0,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": "Prime clean pullback"
+          },
+          "penalties": {},
+          "profile": {
+            "label": "Momentum Swing",
+            "name": "momentum_swing",
+            "technical_components": {
+              "breakout_or_vcp_quality": 0.1,
+              "momentum_health": 0.25,
+              "momentum_strength": 0.3,
+              "risk_control": 0.1,
+              "setup_quality": 0.1,
+              "trend_quality": 0.15
+            },
+            "tradeability_overlay": {
+              "enabled": true,
+              "maximum_penalty": 1.0,
+              "minimum_dollar_volume": 5000000.0,
+              "poor_penalty": 0.5,
+              "very_poor_penalty": 1.0
+            },
+            "weights": {
+              "fundamental": 0.45,
+              "technical": 0.55
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": 100000,
+              "producer_readiness_fingerprint": "6d49fafbe18ecaea9ab678a0b1576344752a2e59bc9291984ff57faace098c8b",
+              "reasons": [],
+              "status": "ELIGIBLE"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": 100000,
+              "native_confidence": {
+                "technical_confidence": "normal"
+              },
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {
+                "insufficient_data": false
+              },
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "READY",
+              "warning_reasons": []
+            }
+          }
+        },
+        "decision_label": "Candidate",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": "High-quality quant",
+        "fundamental_score": 7.0,
+        "gates": {
+          "danger_gate": false,
+          "data_quality": true,
+          "earnings_block": false,
+          "fundamental_floor": {
+            "min_score": 3.0,
+            "passed": true
+          }
+        },
+        "has_fundamental": true,
+        "has_technical": true,
+        "has_warning": true,
+        "is_complete": true,
+        "notes": [
+          "aligned"
+        ],
+        "penalties": {},
+        "position_size_hint": "Half starter",
+        "profile_rank": 0,
+        "profile_score": 6.9024,
+        "ranking_label": "Momentum Swing",
+        "ranking_profile": "momentum_swing",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 1,
+        "technical_classification": "Prime clean pullback",
+        "technical_profile_score": 6.8225,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "earnings_date_missing"
+        ]
+      },
+      "ready:quality_momentum": {
+        "base_technical_score": 7.0,
+        "company_name": "ACME Corp",
+        "component_scores": {
+          "box_tightness": 7.0,
+          "breakout_or_vcp_quality": 7.0,
+          "breakout_quality": 7.0,
+          "market_regime_alignment": 8.0,
+          "momentum_danger": 1.5,
+          "momentum_health": 7.15,
+          "momentum_strength": 5.95,
+          "pullback_health": 10.0,
+          "relative_strength": 7.0,
+          "relative_strength_acceleration": 0.0,
+          "risk_control": 8.0,
+          "setup_quality": 7.0,
+          "trend_quality": 7.0,
+          "trend_repair": 4.34,
+          "vcp_quality": 7.0,
+          "volume_expansion": 0.0
+        },
+        "days_until_earnings": null,
+        "debug": {
+          "calculation": {
+            "profile_score": 6.9663,
+            "technical_profile_score": 6.925,
+            "total_penalty": 0.0,
+            "weighted_score_before_penalty": 6.9663
+          },
+          "component_scores": {
+            "box_tightness": 7.0,
+            "breakout_or_vcp_quality": 7.0,
+            "breakout_quality": 7.0,
+            "market_regime_alignment": 8.0,
+            "momentum_danger": 1.5,
+            "momentum_health": 7.15,
+            "momentum_strength": 5.95,
+            "pullback_health": 10.0,
+            "relative_strength": 7.0,
+            "relative_strength_acceleration": 0.0,
+            "risk_control": 8.0,
+            "setup_quality": 7.0,
+            "trend_quality": 7.0,
+            "trend_repair": 4.34,
+            "vcp_quality": 7.0,
+            "volume_expansion": 0.0
+          },
+          "contextual_consumer_eligibility": {
+            "fundamental": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "fundamental-to-ranking-v1",
+                "producer_evidence_id": 500000,
+                "producer_readiness_fingerprint": "0d5cbfc988f3f1c4bf6a66cb6b64075392467592770e7dbdc6086fc27527965f",
+                "reasons": [],
+                "status": "ELIGIBLE"
+              },
+              "included": true,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": "8b0ce37a221faecd1d5f5e0f2973b34d103d44a9ecfb65e36205fca74f587e1c",
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": 500000,
+                "native_confidence": {},
+                "native_coverage": {
+                  "data_coverage_score": 10
+                },
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "FUNDAMENTAL",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "READY",
+                "warning_reasons": []
+              },
+              "source_feature_id": null
+            },
+            "ibmi_liquidity": {
+              "decision": {
+                "consumer": "RANKING",
+                "policy_version": "ibmi-liquidity-to-ranking-v1",
+                "producer_evidence_id": null,
+                "producer_readiness_fingerprint": "740f1dd6ee2585aa53a35244a7ca6a536512d75d6331c84069ec9d931c4195ab",
+                "reasons": [
+                  "PRODUCER_READINESS_UNKNOWN"
+                ],
+                "status": "POLICY_UNDECIDED"
+              },
+              "included": false,
+              "producer_readiness": {
+                "blocking_reasons": [],
+                "business_anchor": null,
+                "calculation_identity_fingerprint": null,
+                "calculation_versions": {},
+                "evaluated_at": null,
+                "evidence_id": null,
+                "native_confidence": {},
+                "native_coverage": {},
+                "native_freshness": {},
+                "native_signals": {},
+                "producer": "IBMI",
+                "readiness_policy_version": "producer-readiness-v1",
+                "status": "LEGACY_UNKNOWN",
+                "warning_reasons": [
+                  "LEGACY_READINESS_UNKNOWN"
+                ]
+              },
+              "source_feature_id": null
+            }
+          },
+          "gates": {
+            "danger_gate": false,
+            "data_quality": true,
+            "earnings_block": false
+          },
+          "inputs": {
+            "base_technical_score": 7.0,
+            "fundamental_label": "High-quality quant",
+            "fundamental_score": 7.0,
+            "ibkr_liquidity_classification": null,
+            "ibkr_liquidity_coverage": null,
+            "ibkr_tradeability_grade": null,
+            "technical_classification": "Prime clean pullback"
+          },
+          "penalties": {},
+          "profile": {
+            "label": "Quality Momentum",
+            "name": "quality_momentum",
+            "technical_components": {
+              "momentum_health": 0.25,
+              "momentum_strength": 0.25,
+              "risk_control": 0.15,
+              "setup_quality": 0.15,
+              "trend_quality": 0.2
+            },
+            "tradeability_overlay": {
+              "enabled": false,
+              "maximum_penalty": 0.0,
+              "minimum_dollar_volume": null,
+              "poor_penalty": 0.0,
+              "very_poor_penalty": 0.0
+            },
+            "weights": {
+              "fundamental": 0.55,
+              "technical": 0.45
+            }
+          },
+          "ranking_engine_version": "1.1.0",
+          "technical_consumer_eligibility": {
+            "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+            "decision": {
+              "consumer": "RANKING",
+              "policy_version": "technical-to-ranking-v1",
+              "producer_evidence_id": 100000,
+              "producer_readiness_fingerprint": "6d49fafbe18ecaea9ab678a0b1576344752a2e59bc9291984ff57faace098c8b",
+              "reasons": [],
+              "status": "ELIGIBLE"
+            },
+            "producer_readiness": {
+              "blocking_reasons": [],
+              "business_anchor": null,
+              "calculation_identity_fingerprint": "5d9b8404ce6b5752d5d735437dfcc464a975dd12b7f48e52d44f0d0c95a754f3",
+              "calculation_versions": {},
+              "evaluated_at": null,
+              "evidence_id": 100000,
+              "native_confidence": {
+                "technical_confidence": "normal"
+              },
+              "native_coverage": {},
+              "native_freshness": {},
+              "native_signals": {
+                "insufficient_data": false
+              },
+              "producer": "TECHNICAL",
+              "readiness_policy_version": "producer-readiness-v1",
+              "status": "READY",
+              "warning_reasons": []
+            }
+          }
+        },
+        "decision_label": "Candidate",
+        "earnings_risk_level": "unknown",
+        "fundamental_label": "High-quality quant",
+        "fundamental_score": 7.0,
+        "gates": {
+          "danger_gate": false,
+          "data_quality": true,
+          "earnings_block": false
+        },
+        "has_fundamental": true,
+        "has_technical": true,
+        "has_warning": true,
+        "is_complete": true,
+        "notes": [
+          "aligned"
+        ],
+        "penalties": {},
+        "position_size_hint": "Half starter",
+        "profile_rank": 0,
+        "profile_score": 6.9663,
+        "ranking_label": "Quality Momentum",
+        "ranking_profile": "quality_momentum",
+        "raw_row_id": null,
+        "sector": "Technology",
+        "sort_bucket": 1,
+        "technical_classification": "Prime clean pullback",
+        "technical_profile_score": 6.925,
+        "ticker": "ACME",
+        "upcoming_earnings_date": null,
+        "warning_flags": [
+          "earnings_date_missing"
+        ]
+      }
+    },
+    "regime": [
+      {
+        "allowed_profiles": [
+          "momentum_swing",
+          "quality_momentum",
+          "early_rocket",
+          "clean_compounder_pullback",
+          "defensive_quality"
+        ],
+        "allowed_setups": [
+          "Prime clean pullback",
+          "Clean bull pullback",
+          "Fresh breakout",
+          "Tight base breakout",
+          "Volatility contraction setup",
+          "RS leader pullback",
+          "Momentum continuation"
+        ],
+        "blocked_profiles": [],
+        "blocked_setups": [
+          "Failed breakout",
+          "Distribution risk",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 0.0,
+        "position_size_multiplier": 1.0,
+        "preferred_profiles": [
+          "momentum_swing",
+          "quality_momentum"
+        ],
+        "reduced_profiles": [],
+        "regime": "Bull trend",
+        "risk_state": "Green",
+        "summary": "Risk-on. Normal long swing conditions.",
+        "warnings": []
+      },
+      {
+        "allowed_profiles": [
+          "quality_momentum",
+          "clean_compounder_pullback",
+          "defensive_quality"
+        ],
+        "allowed_setups": [
+          "Volatility contraction setup",
+          "Clean bull pullback",
+          "Tight base breakout"
+        ],
+        "blocked_profiles": [
+          "early_rocket"
+        ],
+        "blocked_setups": [
+          "Fresh breakout",
+          "Extended momentum",
+          "Overheated momentum",
+          "Failed breakout",
+          "Distribution risk",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 0.7,
+        "position_size_multiplier": 0.5,
+        "preferred_profiles": [
+          "defensive_quality",
+          "clean_compounder_pullback"
+        ],
+        "reduced_profiles": [
+          "momentum_swing"
+        ],
+        "regime": "Choppy",
+        "risk_state": "Yellow",
+        "summary": "Choppy market. Tight bases and quality pullbacks only.",
+        "warnings": []
+      },
+      {
+        "allowed_profiles": [
+          "defensive_quality"
+        ],
+        "allowed_setups": [],
+        "blocked_profiles": [
+          "early_rocket"
+        ],
+        "blocked_setups": [
+          "Fresh breakout",
+          "Momentum continuation"
+        ],
+        "minimum_score_adjustment": 1.0,
+        "position_size_multiplier": 0.25,
+        "preferred_profiles": [
+          "defensive_quality"
+        ],
+        "reduced_profiles": [],
+        "regime": "Unknown",
+        "risk_state": "Gray",
+        "summary": "Market data confidence is low. Reduce risk.",
+        "warnings": []
+      }
+    ],
+    "sector": [
+      {
+        "confidence": "normal",
+        "debug": {
+          "danger_share": 0.0,
+          "market_bucket": "supportive",
+          "previous_score": null,
+          "score_source": "universe_only",
+          "top_25_share": 0.0833
+        },
+        "etf_score": null,
+        "final_score": 8.2,
+        "permission": "full_allowed",
+        "position_size_multiplier": 1.0,
+        "previous_rank": null,
+        "rank": null,
+        "rank_change": null,
+        "reasons": [
+          "low_danger_density",
+          "state_leading",
+          "permission_full_allowed",
+          "market_bucket_supportive",
+          "score_source_universe_only"
+        ],
+        "rotation_state": "Leading",
+        "score_change": null,
+        "sector": "Technology",
+        "sector_slug": "technology",
+        "universe_score": 8.2,
+        "warnings": []
+      },
+      {
+        "confidence": "normal",
+        "debug": {
+          "danger_share": 0.0,
+          "market_bucket": "choppy",
+          "previous_score": null,
+          "score_source": "universe_only",
+          "top_25_share": 0.0833
+        },
+        "etf_score": null,
+        "final_score": 5.6,
+        "permission": "watch_only",
+        "position_size_multiplier": 0.25,
+        "previous_rank": null,
+        "rank": null,
+        "rank_change": null,
+        "reasons": [
+          "low_danger_density",
+          "state_neutral",
+          "permission_watch_only",
+          "market_bucket_choppy",
+          "score_source_universe_only"
+        ],
+        "rotation_state": "Neutral",
+        "score_change": null,
+        "sector": "Technology",
+        "sector_slug": "technology",
+        "universe_score": 5.6,
+        "warnings": []
+      },
+      {
+        "confidence": "normal",
+        "debug": {
+          "danger_share": 0.0,
+          "market_bucket": "unknown",
+          "previous_score": null,
+          "score_source": "unavailable",
+          "top_25_share": 0.0833
+        },
+        "etf_score": null,
+        "final_score": null,
+        "permission": "watch_only",
+        "position_size_multiplier": 0.25,
+        "previous_rank": null,
+        "rank": null,
+        "rank_change": null,
+        "reasons": [
+          "low_danger_density",
+          "state_insufficient_data",
+          "permission_watch_only",
+          "market_bucket_unknown",
+          "score_source_unavailable"
+        ],
+        "rotation_state": "Insufficient data",
+        "score_change": null,
+        "sector": "Technology",
+        "sector_slug": "technology",
+        "universe_score": null,
+        "warnings": []
+      }
+    ],
+    "technical": {
+      "insufficient": {
+        "action_bias": "No clear trade",
+        "atr_percentile_252": null,
+        "box_tightness_score": "0",
+        "breakout_quality_score": "4.5",
+        "calculation_context_id": null,
+        "calculation_cutoff_at": null,
+        "calendar_version": null,
+        "classification": "No trade",
+        "climax_risk_score": "2.75",
+        "combined_relative_strength_score": "2.5",
+        "confidence_adjusted_score": null,
+        "data_quality_score": "4",
+        "debug_json": {
+          "data_readiness": {
+            "confidence": "low",
+            "data_quality_score": 4.0,
+            "has_benchmark_data": false,
+            "has_htf_data": false,
+            "has_market_data": true,
+            "has_price_data": true,
+            "has_relative_strength_data": false,
+            "has_sufficient_history": false,
+            "has_volume_data": true,
+            "missing_reasons": [
+              "insufficient_history",
+              "missing_benchmark_data",
+              "insufficient_rs_history",
+              "missing_htf_data"
+            ]
+          },
+          "derived": {
+            "above_close10_high": true,
+            "above_close20_high": true,
+            "above_fast_ema": true,
+            "above_mid_ma": true,
+            "above_pullback_ema": true,
+            "above_slow": true,
+            "adx": 100.0,
+            "adx_rising": false,
+            "all_filters_ok": false,
+            "atr": 4.324534325400775,
+            "atr_pct": 2.402519069667097,
+            "beats_benchmark_medium": false,
+            "beats_benchmark_short": false,
+            "benchmark_rs_score": 2.5,
+            "breakout_volume_confirmed": false,
+            "bullish_breakout_volume": false,
+            "bullish_volume_bar": true,
+            "candle_range": 4.0,
+            "close": 180.0,
+            "combined_rs_score": 2.5,
+            "distribution_count": 0.0,
+            "ema10": 169.4232917408148,
+            "ema20": 158.39093574774603,
+            "entry_filters_ok": false,
+            "extension_mid_pct": 0.0,
+            "failed_breakout": false,
+            "fresh_breakout": false,
+            "gap_exhaustion": false,
+            "green_beats_red": true,
+            "had_pullback": false,
+            "heavy_mid_ma_break": false,
+            "heavy_red_now": false,
+            "held_near_support": false,
+            "higher_high": false,
+            "higher_low": false,
+            "htf_data_ready": false,
+            "htf_gate_ok": false,
+            "htf_score": 0.0,
+            "htf_status": "Weak",
+            "liquidity_warning": false,
+            "ma_stack_strong": false,
+            "market_gate_ok": true,
+            "market_regime": "Mixed",
+            "market_risk_off": false,
+            "market_score": 5.5,
+            "mid_above_trend": false,
+            "mid_slope_atr": 0.0,
+            "mid_slope_pct": 0.0,
+            "near52_high": false,
+            "near_resistance": false,
+            "not_too_deep": true,
+            "obv_rising": true,
+            "plus_di_above_minus": true,
+            "plus_di_rising": true,
+            "position52": 0.0,
+            "previous_resistance": 0.0,
+            "price_rising": true,
+            "prior_high": 179.64705882352942,
+            "pullback_above_mid": true,
+            "pullback_depth_pct": 0.9168303863785245,
+            "red_vol_declining": true,
+            "relative_strength_gate_ok": false,
+            "relative_strength_status": "Weak",
+            "residual_momentum_score": null,
+            "residual_return_21": null,
+            "residual_return_63": null,
+            "reward_risk_ok": false,
+            "rolling_beta_126": null,
+            "rolling_beta_63": null,
+            "rs_new_high": true,
+            "rs_roc_medium": 0.0,
+            "rs_roc_short": 0.0,
+            "rsi": 100.0,
+            "rsi_pullback_low": 100.0,
+            "rsi_rising": false,
+            "sector_relative_strength_gate_ok": false,
+            "sector_rs_score": 2.5,
+            "slow_slope_atr": 0.0,
+            "slow_slope_pct": 0.0,
+            "sma50": 0.0,
+            "stock_roc10": 15.037593984962406,
+            "stock_roc_long": 0.0,
+            "stock_roc_medium": 0.0,
+            "stock_roc_short": 37.83783783783783,
+            "stop_source": "STRUCTURE_ATR",
+            "strong_close": 0.5,
+            "target_source": "ATR_TARGET",
+            "trend_above_slow": false,
+            "trend_ok": false,
+            "upper_wick_pct": 50.0,
+            "volume_dry_up": false,
+            "volume_ratio": 1.0
+          },
+          "explainability": {
+            "adaptive": {
+              "atr_contraction_flag": false,
+              "atr_expansion_flag": false,
+              "atr_percentile_126": null,
+              "atr_percentile_252": null,
+              "climax_range_flag": false,
+              "climax_volume_flag": false,
+              "extension_percentile_252": null,
+              "notional_volume_percentile_252": null,
+              "range_percentile_252": null,
+              "volume_percentile_252": null
+            },
+            "base_engine_version": "3.2.0",
+            "box": {
+              "box_age": 20,
+              "box_breakout": false,
+              "box_failure": false,
+              "box_high": 179.6471,
+              "box_low": 130.9412,
+              "box_tightness_score": 0.0,
+              "box_width_pct": 37.1968,
+              "breakout_quality_score": 4.5,
+              "donchian_20_breakout": true,
+              "donchian_20_high": 179.6471,
+              "donchian_20_low": 130.9412,
+              "donchian_55_breakout": false,
+              "donchian_55_high": null,
+              "donchian_55_low": null
+            },
+            "climax": {
+              "climax_risk_score": 2.75,
+              "momentum_crash_risk": false,
+              "range_climax_flag": false,
+              "reasons": [
+                "extended",
+                "rsi_danger"
+              ],
+              "upper_wick_rejection": false,
+              "vertical_move_flag": false,
+              "volume_climax_flag": false
+            },
+            "contraction": {
+              "atr_contraction": false,
+              "bb_width_pct": 35.3199,
+              "bb_width_percentile_252": null,
+              "range_contraction": false,
+              "squeeze_on": false,
+              "squeeze_release": false,
+              "tight_close_count_10": 10,
+              "tight_close_count_5": 5,
+              "vcp_detected": false,
+              "vcp_score": 2.8,
+              "volume_dry_up_quality": 0.0
+            },
+            "data_readiness": {
+              "confidence": "low",
+              "data_quality_score": 4.0,
+              "has_benchmark_data": false,
+              "has_htf_data": false,
+              "has_market_data": true,
+              "has_price_data": true,
+              "has_relative_strength_data": false,
+              "has_sufficient_history": false,
+              "has_volume_data": true,
+              "missing_reasons": [
+                "insufficient_history",
+                "missing_benchmark_data",
+                "insufficient_rs_history",
+                "missing_htf_data"
+              ]
+            },
+            "debug": {
+              "base_classification": "No trade",
+              "base_dual_score": 3.85,
+              "classification_reasons": [
+                "late_stage_extension"
+              ],
+              "classification_source": "v4_priority",
+              "component_scores": {
+                "htf": 0.0,
+                "market": 5.5,
+                "momentum": 3.4,
+                "relative_strength": 2.5,
+                "risk": 4.6,
+                "setup": 4.6,
+                "trend": 3.6
+              },
+              "regime_weight_key": "bull_trend",
+              "regime_weights": {
+                "execution": 0.06,
+                "leadership": 0.14,
+                "market": 0.08,
+                "momentum": 0.2,
+                "risk_control": 0.1,
+                "setup": 0.2,
+                "trend": 0.22
+              },
+              "score_source": "regime_weighted_v4",
+              "stage_gate": {
+                "checked": true,
+                "passed": false,
+                "required": true,
+                "stage": "Unknown",
+                "stage_tags": []
+              },
+              "v4_components": {
+                "atr_percentile_252": null,
+                "base_risk_score": 4.6,
+                "climax_risk_score": 2.75,
+                "execution_quality": 8.3372,
+                "leadership_score": 10.0,
+                "market_regime": 5.5,
+                "momentum_quality": 3.4,
+                "risk_control": 5.4,
+                "setup_quality": 4.6,
+                "trend_quality": 3.6
+              }
+            },
+            "engine_version": "4.0.0",
+            "feature_flags": [
+              "tight_closes",
+              "donchian_20_breakout",
+              "rs_leader"
+            ],
+            "final_v4_action": "No clear trade",
+            "final_v4_classification": "No trade",
+            "final_v4_score": 5.2722,
+            "leadership": {
+              "benchmark_rs_run_percentile": 100.0,
+              "dual_score_run_percentile": 100.0,
+              "leadership_score": 10.0,
+              "leadership_tags": [
+                "rs_leader"
+              ],
+              "roc126_run_percentile": 100.0,
+              "roc21_run_percentile": 100.0,
+              "roc63_run_percentile": 100.0,
+              "setup_score_run_percentile": 100.0,
+              "ticker": "ACME"
+            },
+            "regime": {
+              "confidence": "normal",
+              "gate_ok": true,
+              "reasons": [],
+              "regime": "Risk-on breakout",
+              "risk_off": false,
+              "score": 5.5
+            },
+            "stage": {
+              "stage": "Unknown",
+              "stage_confidence": "low",
+              "stage_score": 0.0,
+              "stage_tags": []
+            },
+            "sub_tags": [
+              "Donchian breakout",
+              "Tight closes",
+              "Low confidence",
+              "RS leader"
+            ],
+            "warning_flags": [
+              "insufficient_history",
+              "missing_benchmark_data",
+              "insufficient_rs_history",
+              "missing_htf_data",
+              "low_technical_confidence",
+              "late_stage_extension"
+            ]
+          },
+          "indicator_debug": {
+            "adaptive_percentiles_enabled": true,
+            "climax_risk_enabled": true,
+            "columns": [
+              "date",
+              "open",
+              "high",
+              "low",
+              "close",
+              "volume"
+            ],
+            "donchian_darvas_enabled": true,
+            "end_date": "2026-09-15",
+            "row_count": 35,
+            "stage_analysis_enabled": true,
+            "start_date": "2026-07-29",
+            "volatility_contraction_enabled": true
+          },
+          "leadership": {
+            "benchmark_rs_run_percentile": 100.0,
+            "dual_score_run_percentile": 100.0,
+            "leadership_score": 10.0,
+            "leadership_tags": [
+              "rs_leader"
+            ],
+            "roc126_run_percentile": 100.0,
+            "roc21_run_percentile": 100.0,
+            "roc63_run_percentile": 100.0,
+            "setup_score_run_percentile": 100.0,
+            "ticker": "ACME"
+          },
+          "market_regime_v4": {
+            "confidence": "normal",
+            "gate_ok": true,
+            "reasons": [],
+            "regime": "Risk-on breakout",
+            "risk_off": false,
+            "score": 5.5
+          }
+        },
+        "dual_score": "5.2722",
+        "entry_quality_score": null,
+        "entry_risk_pct": "1.8319",
+        "extension_percentile_252": null,
+        "feature_flags_json": [
+          "tight_closes",
+          "donchian_20_breakout",
+          "rs_leader"
+        ],
+        "htf_score": "0",
+        "input_as_of_session": null,
+        "insufficient_data": true,
+        "leadership_score": "10",
+        "leadership_v5_score": null,
+        "local_trend_score": "3.6",
+        "market_regime": "Risk-on breakout",
+        "market_score": "5.5",
+        "missing_data_json": {
+          "bar_quality": {
+            "duplicate_date_count": 0,
+            "has_calendar_gap": false,
+            "max_calendar_gap_days": 3
+          },
+          "data_quality_score": 4.0,
+          "has_benchmark_data": false,
+          "has_htf_data": false,
+          "has_market_data": true,
+          "has_price_data": true,
+          "has_relative_strength_data": false,
+          "has_sufficient_history": false,
+          "has_volume_data": true,
+          "insufficient_history": true,
+          "insufficient_rs_history": true,
+          "missing_benchmark_data": true,
+          "missing_benchmark_overlap": false,
+          "missing_columns": [],
+          "missing_htf_data": true,
+          "missing_market_data": false,
+          "missing_price_data": false,
+          "missing_reasons": [
+            "insufficient_history",
+            "missing_benchmark_data",
+            "insufficient_rs_history",
+            "missing_htf_data"
+          ],
+          "missing_volume_data": false,
+          "required_rows": 252,
+          "row_count": 35
+        },
+        "momentum_score": "3.4",
+        "pullback_health": "Mixed",
+        "range_percentile_252": null,
+        "relative_strength_score": "2.5",
+        "residual_momentum_score": null,
+        "reward_risk": "1.9673",
+        "risk_score": "4.6",
+        "run_id": 7,
+        "sector_benchmark_symbol": null,
+        "sector_relative_strength_score": "2.5",
+        "setup_quality_score": null,
+        "setup_score": "4.6",
+        "setup_type": null,
+        "stage": "Unknown",
+        "stage_modifier": null,
+        "stop_distance_atr": null,
+        "sub_tags_json": [
+          "Donchian breakout",
+          "Tight closes",
+          "Low confidence",
+          "RS leader"
+        ],
+        "suggested_stop": "176.7026",
+        "suggested_target": "186.4868",
+        "technical_composite_score": null,
+        "technical_confidence": "low",
+        "technical_engine_version": "4.0.0",
+        "technical_strength_score": null,
+        "ticker": "ACME",
+        "trend_score": "3.6",
+        "trigger_distance_atr": null,
+        "v4_debug_json": {
+          "adaptive": {
+            "atr_contraction_flag": false,
+            "atr_expansion_flag": false,
+            "atr_percentile_126": null,
+            "atr_percentile_252": null,
+            "climax_range_flag": false,
+            "climax_volume_flag": false,
+            "extension_percentile_252": null,
+            "notional_volume_percentile_252": null,
+            "range_percentile_252": null,
+            "volume_percentile_252": null
+          },
+          "base_engine_version": "3.2.0",
+          "box": {
+            "box_age": 20,
+            "box_breakout": false,
+            "box_failure": false,
+            "box_high": 179.6471,
+            "box_low": 130.9412,
+            "box_tightness_score": 0.0,
+            "box_width_pct": 37.1968,
+            "breakout_quality_score": 4.5,
+            "donchian_20_breakout": true,
+            "donchian_20_high": 179.6471,
+            "donchian_20_low": 130.9412,
+            "donchian_55_breakout": false,
+            "donchian_55_high": null,
+            "donchian_55_low": null
+          },
+          "climax": {
+            "climax_risk_score": 2.75,
+            "momentum_crash_risk": false,
+            "range_climax_flag": false,
+            "reasons": [
+              "extended",
+              "rsi_danger"
+            ],
+            "upper_wick_rejection": false,
+            "vertical_move_flag": false,
+            "volume_climax_flag": false
+          },
+          "contraction": {
+            "atr_contraction": false,
+            "bb_width_pct": 35.3199,
+            "bb_width_percentile_252": null,
+            "range_contraction": false,
+            "squeeze_on": false,
+            "squeeze_release": false,
+            "tight_close_count_10": 10,
+            "tight_close_count_5": 5,
+            "vcp_detected": false,
+            "vcp_score": 2.8,
+            "volume_dry_up_quality": 0.0
+          },
+          "data_readiness": {
+            "confidence": "low",
+            "data_quality_score": 4.0,
+            "has_benchmark_data": false,
+            "has_htf_data": false,
+            "has_market_data": true,
+            "has_price_data": true,
+            "has_relative_strength_data": false,
+            "has_sufficient_history": false,
+            "has_volume_data": true,
+            "missing_reasons": [
+              "insufficient_history",
+              "missing_benchmark_data",
+              "insufficient_rs_history",
+              "missing_htf_data"
+            ]
+          },
+          "debug": {
+            "base_classification": "No trade",
+            "base_dual_score": 3.85,
+            "classification_reasons": [
+              "late_stage_extension"
+            ],
+            "classification_source": "v4_priority",
+            "component_scores": {
+              "htf": 0.0,
+              "market": 5.5,
+              "momentum": 3.4,
+              "relative_strength": 2.5,
+              "risk": 4.6,
+              "setup": 4.6,
+              "trend": 3.6
+            },
+            "regime_weight_key": "bull_trend",
+            "regime_weights": {
+              "execution": 0.06,
+              "leadership": 0.14,
+              "market": 0.08,
+              "momentum": 0.2,
+              "risk_control": 0.1,
+              "setup": 0.2,
+              "trend": 0.22
+            },
+            "score_source": "regime_weighted_v4",
+            "stage_gate": {
+              "checked": true,
+              "passed": false,
+              "required": true,
+              "stage": "Unknown",
+              "stage_tags": []
+            },
+            "v4_components": {
+              "atr_percentile_252": null,
+              "base_risk_score": 4.6,
+              "climax_risk_score": 2.75,
+              "execution_quality": 8.3372,
+              "leadership_score": 10.0,
+              "market_regime": 5.5,
+              "momentum_quality": 3.4,
+              "risk_control": 5.4,
+              "setup_quality": 4.6,
+              "trend_quality": 3.6
+            }
+          },
+          "engine_version": "4.0.0",
+          "feature_flags": [
+            "tight_closes",
+            "donchian_20_breakout",
+            "rs_leader"
+          ],
+          "final_v4_action": "No clear trade",
+          "final_v4_classification": "No trade",
+          "final_v4_score": 5.2722,
+          "leadership": {
+            "benchmark_rs_run_percentile": 100.0,
+            "dual_score_run_percentile": 100.0,
+            "leadership_score": 10.0,
+            "leadership_tags": [
+              "rs_leader"
+            ],
+            "roc126_run_percentile": 100.0,
+            "roc21_run_percentile": 100.0,
+            "roc63_run_percentile": 100.0,
+            "setup_score_run_percentile": 100.0,
+            "ticker": "ACME"
+          },
+          "regime": {
+            "confidence": "normal",
+            "gate_ok": true,
+            "reasons": [],
+            "regime": "Risk-on breakout",
+            "risk_off": false,
+            "score": 5.5
+          },
+          "stage": {
+            "stage": "Unknown",
+            "stage_confidence": "low",
+            "stage_score": 0.0,
+            "stage_tags": []
+          },
+          "sub_tags": [
+            "Donchian breakout",
+            "Tight closes",
+            "Low confidence",
+            "RS leader"
+          ],
+          "warning_flags": [
+            "insufficient_history",
+            "missing_benchmark_data",
+            "insufficient_rs_history",
+            "missing_htf_data",
+            "low_technical_confidence",
+            "late_stage_extension"
+          ]
+        },
+        "v5_debug_json": null,
+        "vcp_score": "2.8",
+        "volume_percentile_252": null,
+        "warning_flags_json": [
+          "insufficient_history",
+          "missing_benchmark_data",
+          "insufficient_rs_history",
+          "missing_htf_data",
+          "low_technical_confidence",
+          "late_stage_extension"
+        ]
+      },
+      "supported": {
+        "action_bias": "No clear trade",
+        "atr_percentile_252": "0.3968",
+        "box_tightness_score": "8.1354",
+        "breakout_quality_score": "5.2203",
+        "calculation_context_id": null,
+        "calculation_cutoff_at": null,
+        "calendar_version": null,
+        "classification": "No trade",
+        "climax_risk_score": "3",
+        "combined_relative_strength_score": "0.5",
+        "confidence_adjusted_score": null,
+        "data_quality_score": "10",
+        "debug_json": {
+          "data_readiness": {
+            "confidence": "high",
+            "data_quality_score": 10.0,
+            "has_benchmark_data": true,
+            "has_htf_data": true,
+            "has_market_data": true,
+            "has_price_data": true,
+            "has_relative_strength_data": true,
+            "has_sufficient_history": true,
+            "has_volume_data": true,
+            "missing_reasons": []
+          },
+          "derived": {
+            "above_close10_high": true,
+            "above_close20_high": true,
+            "above_fast_ema": true,
+            "above_mid_ma": true,
+            "above_pullback_ema": true,
+            "above_slow": true,
+            "adx": 100.0,
+            "adx_rising": false,
+            "all_filters_ok": false,
+            "atr": 4.000000000000001,
+            "atr_pct": 2.2222222222222228,
+            "beats_benchmark_medium": false,
+            "beats_benchmark_short": false,
+            "benchmark_rs_score": 0.5,
+            "breakout_volume_confirmed": false,
+            "bullish_breakout_volume": false,
+            "bullish_volume_bar": true,
+            "candle_range": 4.0,
+            "close": 180.0,
+            "combined_rs_score": 0.5,
+            "distribution_count": 0.0,
+            "ema10": 179.77485928705437,
+            "ema20": 179.5247029393371,
+            "entry_filters_ok": false,
+            "extension_mid_pct": 0.6856503183376494,
+            "failed_breakout": false,
+            "fresh_breakout": false,
+            "gap_exhaustion": false,
+            "green_beats_red": true,
+            "had_pullback": false,
+            "heavy_mid_ma_break": false,
+            "heavy_red_now": false,
+            "held_near_support": true,
+            "higher_high": false,
+            "higher_low": false,
+            "htf_data_ready": true,
+            "htf_gate_ok": true,
+            "htf_score": 10.0,
+            "htf_status": "Strong",
+            "liquidity_warning": false,
+            "ma_stack_strong": true,
+            "market_gate_ok": true,
+            "market_regime": "Bullish",
+            "market_risk_off": false,
+            "market_score": 10.0,
+            "mid_above_trend": true,
+            "mid_slope_atr": 0.12507817385866812,
+            "mid_slope_pct": 0.28064267171824936,
+            "near52_high": true,
+            "near_resistance": true,
+            "not_too_deep": true,
+            "obv_rising": true,
+            "plus_di_above_minus": true,
+            "plus_di_rising": true,
+            "position52": 87.92113612328146,
+            "previous_resistance": 181.94996873045653,
+            "price_rising": true,
+            "prior_high": 181.94996873045653,
+            "pullback_above_mid": true,
+            "pullback_depth_pct": 2.1709092658917006,
+            "red_vol_declining": true,
+            "relative_strength_gate_ok": false,
+            "relative_strength_status": "Weak",
+            "residual_momentum_score": null,
+            "residual_return_21": null,
+            "residual_return_63": null,
+            "reward_risk_ok": false,
+            "rolling_beta_126": null,
+            "rolling_beta_63": null,
+            "rs_new_high": true,
+            "rs_roc_medium": 0.0,
+            "rs_roc_short": 0.0,
+            "rsi": 100.0,
+            "rsi_pullback_low": 100.0,
+            "rsi_rising": false,
+            "sector_relative_strength_gate_ok": false,
+            "sector_rs_score": 0.5,
+            "slow_slope_atr": 0.25015634771732204,
+            "slow_slope_pct": 0.5750017968806125,
+            "sma50": 178.7742338961851,
+            "stock_roc10": 0.2787262211692454,
+            "stock_roc_long": 3.6292935839274065,
+            "stock_roc_medium": 1.7823042647994836,
+            "stock_roc_short": 0.5871251834766111,
+            "stop_source": "STRUCTURE_ATR",
+            "strong_close": 0.5,
+            "target_source": "ATR_TARGET",
+            "trend_above_slow": true,
+            "trend_ok": true,
+            "upper_wick_pct": 50.0,
+            "volume_dry_up": false,
+            "volume_ratio": 1.0
+          },
+          "explainability": {
+            "adaptive": {
+              "atr_contraction_flag": true,
+              "atr_expansion_flag": false,
+              "atr_percentile_126": 0.7937,
+              "atr_percentile_252": 0.3968,
+              "climax_range_flag": false,
+              "climax_volume_flag": true,
+              "extension_percentile_252": 0.3968,
+              "notional_volume_percentile_252": 100.0,
+              "range_percentile_252": 0.3968,
+              "volume_percentile_252": 100.0
+            },
+            "base_engine_version": "3.2.0",
+            "box": {
+              "box_age": 20,
+              "box_breakout": false,
+              "box_failure": false,
+              "box_high": 181.95,
+              "box_low": 176.9994,
+              "box_tightness_score": 8.1354,
+              "box_width_pct": 2.797,
+              "breakout_quality_score": 5.2203,
+              "donchian_20_breakout": false,
+              "donchian_20_high": 181.95,
+              "donchian_20_low": 176.9994,
+              "donchian_55_breakout": false,
+              "donchian_55_high": 181.95,
+              "donchian_55_low": 175.2483
+            },
+            "climax": {
+              "climax_risk_score": 3.0,
+              "momentum_crash_risk": false,
+              "range_climax_flag": false,
+              "reasons": [
+                "rsi_danger",
+                "volume_climax"
+              ],
+              "upper_wick_rejection": false,
+              "vertical_move_flag": false,
+              "volume_climax_flag": true
+            },
+            "contraction": {
+              "atr_contraction": false,
+              "bb_width_pct": 0.6595,
+              "bb_width_percentile_252": 0.3968,
+              "range_contraction": true,
+              "squeeze_on": true,
+              "squeeze_release": false,
+              "tight_close_count_10": 10,
+              "tight_close_count_5": 5,
+              "vcp_detected": false,
+              "vcp_score": 5.0,
+              "volume_dry_up_quality": 0.0
+            },
+            "data_readiness": {
+              "confidence": "high",
+              "data_quality_score": 10.0,
+              "has_benchmark_data": true,
+              "has_htf_data": true,
+              "has_market_data": true,
+              "has_price_data": true,
+              "has_relative_strength_data": true,
+              "has_sufficient_history": true,
+              "has_volume_data": true,
+              "missing_reasons": []
+            },
+            "debug": {
+              "base_classification": "No trade",
+              "base_dual_score": 5.955,
+              "classification_reasons": [
+                "fallback_base_classifier"
+              ],
+              "classification_source": "v4_priority",
+              "component_scores": {
+                "htf": 10.0,
+                "market": 10.0,
+                "momentum": 3.7,
+                "relative_strength": 0.5,
+                "risk": 3.9,
+                "setup": 5.4,
+                "trend": 8.4
+              },
+              "regime_weight_key": "bull_trend",
+              "regime_weights": {
+                "execution": 0.06,
+                "leadership": 0.14,
+                "market": 0.08,
+                "momentum": 0.2,
+                "risk_control": 0.1,
+                "setup": 0.2,
+                "trend": 0.22
+              },
+              "score_source": "regime_weighted_v4",
+              "stage_gate": {
+                "checked": true,
+                "passed": true,
+                "required": true,
+                "stage": "Stage 2",
+                "stage_tags": [
+                  "stage_2_continuation"
+                ]
+              },
+              "v4_components": {
+                "atr_percentile_252": 0.3968,
+                "base_risk_score": 3.9,
+                "climax_risk_score": 3.0,
+                "execution_quality": 8.2431,
+                "leadership_score": 10.0,
+                "market_regime": 9.5,
+                "momentum_quality": 3.7,
+                "risk_control": 6.1,
+                "setup_quality": 5.4,
+                "trend_quality": 8.4
+              }
+            },
+            "engine_version": "4.0.0",
+            "feature_flags": [
+              "tight_closes",
+              "stage_2",
+              "stage_2_continuation",
+              "volume_climax",
+              "rs_leader"
+            ],
+            "final_v4_action": "No clear trade",
+            "final_v4_classification": "No trade",
+            "final_v4_score": 6.9326,
+            "leadership": {
+              "benchmark_rs_run_percentile": 100.0,
+              "dual_score_run_percentile": 100.0,
+              "leadership_score": 10.0,
+              "leadership_tags": [
+                "rs_leader"
+              ],
+              "roc126_run_percentile": 100.0,
+              "roc21_run_percentile": 100.0,
+              "roc63_run_percentile": 100.0,
+              "setup_score_run_percentile": 100.0,
+              "ticker": "ACME"
+            },
+            "regime": {
+              "confidence": "normal",
+              "gate_ok": true,
+              "reasons": [],
+              "regime": "Bull trend",
+              "risk_off": false,
+              "score": 9.5
+            },
+            "stage": {
+              "stage": "Stage 2",
+              "stage_confidence": "normal",
+              "stage_score": 8.5,
+              "stage_tags": [
+                "stage_2_continuation"
+              ]
+            },
+            "sub_tags": [
+              "Stage 2",
+              "Stage 2 continuation",
+              "Tight closes",
+              "RS leader"
+            ],
+            "warning_flags": []
+          },
+          "indicator_debug": {
+            "adaptive_percentiles_enabled": true,
+            "climax_risk_enabled": true,
+            "columns": [
+              "date",
+              "open",
+              "high",
+              "low",
+              "close",
+              "volume"
+            ],
+            "donchian_darvas_enabled": true,
+            "end_date": "2026-09-15",
+            "row_count": 1600,
+            "stage_analysis_enabled": true,
+            "start_date": "2020-07-29",
+            "volatility_contraction_enabled": true
+          },
+          "leadership": {
+            "benchmark_rs_run_percentile": 100.0,
+            "dual_score_run_percentile": 100.0,
+            "leadership_score": 10.0,
+            "leadership_tags": [
+              "rs_leader"
+            ],
+            "roc126_run_percentile": 100.0,
+            "roc21_run_percentile": 100.0,
+            "roc63_run_percentile": 100.0,
+            "setup_score_run_percentile": 100.0,
+            "ticker": "ACME"
+          },
+          "market_regime_v4": {
+            "confidence": "normal",
+            "gate_ok": true,
+            "reasons": [],
+            "regime": "Bull trend",
+            "risk_off": false,
+            "score": 9.5
+          }
+        },
+        "dual_score": "6.9326",
+        "entry_quality_score": null,
+        "entry_risk_pct": "1.7778",
+        "extension_percentile_252": "0.3968",
+        "feature_flags_json": [
+          "tight_closes",
+          "stage_2",
+          "stage_2_continuation",
+          "volume_climax",
+          "rs_leader"
+        ],
+        "htf_score": "10",
+        "input_as_of_session": null,
+        "insufficient_data": false,
+        "leadership_score": "10",
+        "leadership_v5_score": null,
+        "local_trend_score": "8",
+        "market_regime": "Bull trend",
+        "market_score": "10",
+        "missing_data_json": {
+          "bar_quality": {
+            "duplicate_date_count": 0,
+            "has_calendar_gap": false,
+            "max_calendar_gap_days": 3
+          },
+          "data_quality_score": 10.0,
+          "has_benchmark_data": true,
+          "has_htf_data": true,
+          "has_market_data": true,
+          "has_price_data": true,
+          "has_relative_strength_data": true,
+          "has_sufficient_history": true,
+          "has_volume_data": true,
+          "insufficient_history": false,
+          "insufficient_rs_history": false,
+          "missing_benchmark_data": false,
+          "missing_benchmark_overlap": false,
+          "missing_columns": [],
+          "missing_htf_data": false,
+          "missing_market_data": false,
+          "missing_price_data": false,
+          "missing_reasons": [],
+          "missing_volume_data": false,
+          "required_rows": 252,
+          "row_count": 1600
+        },
+        "momentum_score": "3.7",
+        "pullback_health": "Mixed",
+        "range_percentile_252": "0.3968",
+        "relative_strength_score": "0.5",
+        "residual_momentum_score": null,
+        "reward_risk": "1.875",
+        "risk_score": "3.9",
+        "run_id": 7,
+        "sector_benchmark_symbol": null,
+        "sector_relative_strength_score": "0.5",
+        "setup_quality_score": null,
+        "setup_score": "5.4",
+        "setup_type": null,
+        "stage": "Stage 2",
+        "stage_modifier": null,
+        "stop_distance_atr": null,
+        "sub_tags_json": [
+          "Stage 2",
+          "Stage 2 continuation",
+          "Tight closes",
+          "RS leader"
+        ],
+        "suggested_stop": "176.8",
+        "suggested_target": "186",
+        "technical_composite_score": null,
+        "technical_confidence": "high",
+        "technical_engine_version": "4.0.0",
+        "technical_strength_score": null,
+        "ticker": "ACME",
+        "trend_score": "8.4",
+        "trigger_distance_atr": null,
+        "v4_debug_json": {
+          "adaptive": {
+            "atr_contraction_flag": true,
+            "atr_expansion_flag": false,
+            "atr_percentile_126": 0.7937,
+            "atr_percentile_252": 0.3968,
+            "climax_range_flag": false,
+            "climax_volume_flag": true,
+            "extension_percentile_252": 0.3968,
+            "notional_volume_percentile_252": 100.0,
+            "range_percentile_252": 0.3968,
+            "volume_percentile_252": 100.0
+          },
+          "base_engine_version": "3.2.0",
+          "box": {
+            "box_age": 20,
+            "box_breakout": false,
+            "box_failure": false,
+            "box_high": 181.95,
+            "box_low": 176.9994,
+            "box_tightness_score": 8.1354,
+            "box_width_pct": 2.797,
+            "breakout_quality_score": 5.2203,
+            "donchian_20_breakout": false,
+            "donchian_20_high": 181.95,
+            "donchian_20_low": 176.9994,
+            "donchian_55_breakout": false,
+            "donchian_55_high": 181.95,
+            "donchian_55_low": 175.2483
+          },
+          "climax": {
+            "climax_risk_score": 3.0,
+            "momentum_crash_risk": false,
+            "range_climax_flag": false,
+            "reasons": [
+              "rsi_danger",
+              "volume_climax"
+            ],
+            "upper_wick_rejection": false,
+            "vertical_move_flag": false,
+            "volume_climax_flag": true
+          },
+          "contraction": {
+            "atr_contraction": false,
+            "bb_width_pct": 0.6595,
+            "bb_width_percentile_252": 0.3968,
+            "range_contraction": true,
+            "squeeze_on": true,
+            "squeeze_release": false,
+            "tight_close_count_10": 10,
+            "tight_close_count_5": 5,
+            "vcp_detected": false,
+            "vcp_score": 5.0,
+            "volume_dry_up_quality": 0.0
+          },
+          "data_readiness": {
+            "confidence": "high",
+            "data_quality_score": 10.0,
+            "has_benchmark_data": true,
+            "has_htf_data": true,
+            "has_market_data": true,
+            "has_price_data": true,
+            "has_relative_strength_data": true,
+            "has_sufficient_history": true,
+            "has_volume_data": true,
+            "missing_reasons": []
+          },
+          "debug": {
+            "base_classification": "No trade",
+            "base_dual_score": 5.955,
+            "classification_reasons": [
+              "fallback_base_classifier"
+            ],
+            "classification_source": "v4_priority",
+            "component_scores": {
+              "htf": 10.0,
+              "market": 10.0,
+              "momentum": 3.7,
+              "relative_strength": 0.5,
+              "risk": 3.9,
+              "setup": 5.4,
+              "trend": 8.4
+            },
+            "regime_weight_key": "bull_trend",
+            "regime_weights": {
+              "execution": 0.06,
+              "leadership": 0.14,
+              "market": 0.08,
+              "momentum": 0.2,
+              "risk_control": 0.1,
+              "setup": 0.2,
+              "trend": 0.22
+            },
+            "score_source": "regime_weighted_v4",
+            "stage_gate": {
+              "checked": true,
+              "passed": true,
+              "required": true,
+              "stage": "Stage 2",
+              "stage_tags": [
+                "stage_2_continuation"
+              ]
+            },
+            "v4_components": {
+              "atr_percentile_252": 0.3968,
+              "base_risk_score": 3.9,
+              "climax_risk_score": 3.0,
+              "execution_quality": 8.2431,
+              "leadership_score": 10.0,
+              "market_regime": 9.5,
+              "momentum_quality": 3.7,
+              "risk_control": 6.1,
+              "setup_quality": 5.4,
+              "trend_quality": 8.4
+            }
+          },
+          "engine_version": "4.0.0",
+          "feature_flags": [
+            "tight_closes",
+            "stage_2",
+            "stage_2_continuation",
+            "volume_climax",
+            "rs_leader"
+          ],
+          "final_v4_action": "No clear trade",
+          "final_v4_classification": "No trade",
+          "final_v4_score": 6.9326,
+          "leadership": {
+            "benchmark_rs_run_percentile": 100.0,
+            "dual_score_run_percentile": 100.0,
+            "leadership_score": 10.0,
+            "leadership_tags": [
+              "rs_leader"
+            ],
+            "roc126_run_percentile": 100.0,
+            "roc21_run_percentile": 100.0,
+            "roc63_run_percentile": 100.0,
+            "setup_score_run_percentile": 100.0,
+            "ticker": "ACME"
+          },
+          "regime": {
+            "confidence": "normal",
+            "gate_ok": true,
+            "reasons": [],
+            "regime": "Bull trend",
+            "risk_off": false,
+            "score": 9.5
+          },
+          "stage": {
+            "stage": "Stage 2",
+            "stage_confidence": "normal",
+            "stage_score": 8.5,
+            "stage_tags": [
+              "stage_2_continuation"
+            ]
+          },
+          "sub_tags": [
+            "Stage 2",
+            "Stage 2 continuation",
+            "Tight closes",
+            "RS leader"
+          ],
+          "warning_flags": []
+        },
+        "v5_debug_json": null,
+        "vcp_score": "5",
+        "volume_percentile_252": "100",
+        "warning_flags_json": []
+      }
+    }
+  },
+  "proof_boundary": "Fixed native calculator outputs, not a database authority permit"
+}

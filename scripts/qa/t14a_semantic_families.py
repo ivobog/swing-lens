@@ -12,6 +12,11 @@ from app.services.domain_mutation import MUTATION_AUTHORITY_POLICIES
 from scripts.qa.t14a_mutation_inventory import ROOT
 
 REVIEW_FILE = ROOT / "docs/remediation/calculation-lineage/T14A_semantic_family_review.json"
+ADOPTION_REVIEW_FILE = (
+    ROOT / "docs/remediation/calculation-lineage/T14B_semantic_family_review.json"
+)
+if ADOPTION_REVIEW_FILE.exists():
+    REVIEW_FILE = ADOPTION_REVIEW_FILE
 DISPOSITIONS = {
     "T14B",
     "T14C",

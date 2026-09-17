@@ -20,9 +20,11 @@ from app.services.ceri.effective_session_service import CeriEffectiveSessionServ
 from app.services.ceri.pit_eligibility import (
     price_bar_is_eligible,
 )
+from app.services.domain_mutation import MutationDomain
 from app.services.market_clock_service import MarketClockService, SessionTimestampPolicy
 from app.services.operational_metrics import operational_metrics
 from app.services.price_bar_repository import project_price_bar_rows_as_of
+from app.services.source_mutation_authority import source_mutation_writer
 from app.services.us_market_calendar import next_us_trading_day, previous_us_trading_day
 
 REACTION_POLICY_VERSION = "daily-open-causal-v1"
@@ -81,9 +83,7 @@ class CeriPriceResponseService:
             )
         if not historical and (feature_as_of_session is not None or cutoff_at is not None):
             raise ValueError("CURRENT CERI price response cannot claim historical anchors")
-        if cutoff_at is not None and (
-            cutoff_at.tzinfo is None or cutoff_at.utcoffset() is None
-        ):
+        if cutoff_at is not None and (cutoff_at.tzinfo is None or cutoff_at.utcoffset() is None):
             raise ValueError("cutoff_at must be timezone-aware")
         if historical:
             latest_completed = MarketClockService().canonical_session_for_timestamp(
@@ -91,9 +91,7 @@ class CeriPriceResponseService:
                 policy=SessionTimestampPolicy.LATEST_COMPLETED_DAILY_SESSION,
             )
             if feature_as_of_session > latest_completed:
-                raise ValueError(
-                    "feature_as_of_session is later than cutoff_at permits"
-                )
+                raise ValueError("feature_as_of_session is later than cutoff_at permits")
         if historical:
             if stock_bars is not None:
                 _assert_historical_price_bars(
@@ -347,6 +345,7 @@ class CeriPriceResponseService:
             unavailable_reason=reason,
         )
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def persist(
         self,
         db: Session,

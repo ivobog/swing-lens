@@ -416,6 +416,7 @@ def _frame_evidence(frame: pd.DataFrame | None) -> dict[str, Any] | None:
         "columns": [str(column) for column in frame.columns],
         "fingerprint": CanonicalEvidenceSerializer.fingerprint(canonical_frame),
         "proof": "complete bounded benchmark frame consumed by Market Regime",
+        "pit_source_manifest": frame.attrs.get("pit_source_manifest"),
     }
 
 

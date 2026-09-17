@@ -30,7 +30,9 @@ from app.services.ceri.guidance_normalizer import (
     apply_guidance_eligibility,
 )
 from app.services.ceri.identity_resolver import CeriIdentityResolver
+from app.services.domain_mutation import MutationDomain
 from app.services.redaction import redact_text
+from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
 
 
 @dataclass(frozen=True)
@@ -185,6 +187,7 @@ class CeriNormalizationService:
             warnings=warning_count,
         )
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def _normalize_record(
         self,
         db: Session,
@@ -370,6 +373,9 @@ def _source_records(db: Session, ingestion_run_id: int | None) -> list[CeriSourc
     return list(result.all() if hasattr(result, "all") else result)
 
 
+@source_writer_member(
+    "app.services.ceri.normalization_service:CeriNormalizationService._normalize_record"
+)
 def _persist_sec_identity(
     db: Session,
     source_record: CeriSourceRecord,

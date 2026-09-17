@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from alembic.config import Config
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, selectinload
 from test_combined_ranking_identity_adoption import _cutoff, _identity_aware_sources
@@ -47,7 +48,7 @@ from app.services.contextual_consumer_eligibility import (
     contextual_decision_input,
     setup_with_contextual_permission,
 )
-from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_calculation_evidence import CoreEvidenceKind
 from app.services.ib_market_intelligence.calculations import options_event_premium_score
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 from app.services.ib_market_intelligence.decision_evidence import IbmiFeatureConstituents
@@ -94,6 +95,20 @@ from app.services.setup_lifecycle.source_loader import (
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
+
+
+@pytest.fixture(autouse=True)
+def historical_contextual_repository_sealing(monkeypatch):
+    """Retained consumer permissions use pre-Phase-5 source ledgers.
+
+    Native writer authority is certified in the T14B adoption tests.
+    """
+    import app.services.market_regime_repository as regime
+    import app.services.sector_rotation_repository as sector
+
+    for module in (regime, sector):
+        monkeypatch.setattr(module, "persist_core_evidence", seed_pre_phase5_evidence)
+        monkeypatch.setattr(module, "declare_core_evidence_mutation", lambda *a, **k: None)
 
 
 def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
@@ -151,7 +166,7 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
             (CoreEvidenceKind.FUNDAMENTAL, fundamental),
             (CoreEvidenceKind.TECHNICAL, technical),
         ):
-            persist_core_evidence(db, kind=kind, current_row=source)
+            seed_pre_phase5_evidence(db, kind=kind, current_row=source)
         features = {
             module: _feature(db, row.ticker, module, cutoff)
             for module in ("LIQUIDITY", "VOLATILITY", "SHORT_PRESSURE")
@@ -222,7 +237,7 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
             decision,
             calculation_identity_from_debug(technical.debug_json),
         )
-        ranking = persist_core_evidence(
+        ranking = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.RANKING,
             current_row=ranking_model,
@@ -553,7 +568,7 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
                 assert db.get(CoreCalculationEvidence, evidence_id).payload_json == payload
             repeat = service.apply_snapshot(db, newer, preloaded_episodes=(episode,))
             assert repeat.decision.proposed_state == result.decision.proposed_state
-        retry = persist_core_evidence(
+        retry = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.RANKING,
             current_row=ranking_model,

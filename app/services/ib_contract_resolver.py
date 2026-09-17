@@ -6,7 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import IBContract
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.ib_api import IB, Contract, Stock
+from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,9 @@ def cached_contract_to_ib(row: IBContract) -> Contract | None:
     )
 
 
+@source_mutation_writer(
+    MutationDomain.IBMI_SOURCE, "request_scope", mode=MutationSemanticMode.MAINTENANCE
+)
 def resolve_us_stock_contract(
     db: Session,
     ticker: str,
@@ -89,6 +94,7 @@ def resolve_us_stock_contract(
         return _mark_failed(db, row, str(exc))
 
 
+@source_writer_member("app.services.ib_contract_resolver:resolve_us_stock_contract")
 def _mark_failed(db: Session, row: IBContract, message: str) -> ContractResolution:
     _clear_contract_identity(row)
     row.resolution_status = "FAILED"
@@ -104,6 +110,7 @@ def _mark_failed(db: Session, row: IBContract, message: str) -> ContractResoluti
     )
 
 
+@source_writer_member("app.services.ib_contract_resolver:resolve_us_stock_contract")
 def _mark_ambiguous(
     db: Session,
     row: IBContract,
@@ -127,6 +134,7 @@ def _mark_ambiguous(
     )
 
 
+@source_writer_member("app.services.ib_contract_resolver:resolve_us_stock_contract")
 def _clear_contract_identity(row: IBContract) -> None:
     row.ib_conid = None
     row.symbol = None

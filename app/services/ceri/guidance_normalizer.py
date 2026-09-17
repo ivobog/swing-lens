@@ -7,6 +7,8 @@ from app.models.ceri_tables import CeriGuidanceEvent, CeriSourceRecord
 from app.services.ceri.currency_conversion_service import decimal_or_none
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 from app.services.ceri.enums import CeriConfidenceLabel, CeriMetric, CeriPeriodType, GuidanceAction
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.source_mutation_authority import source_mutation_writer
 
 ACTION_ALIASES = {
     "RAISE": GuidanceAction.RAISED,
@@ -87,6 +89,9 @@ def normalize_guidance_action(value: Any) -> GuidanceAction:
     return ACTION_ALIASES.get(normalized, GuidanceAction.UNKNOWN)
 
 
+@source_mutation_writer(
+    MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
+)
 def apply_guidance_eligibility(
     event: CeriGuidanceEvent,
     *,

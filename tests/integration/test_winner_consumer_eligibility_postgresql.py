@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from alembic.config import Config
 from contextual_readiness_helpers import configuration_for_source
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session
 
@@ -47,7 +48,6 @@ from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     calculation_evidence_payload,
     get_current_readiness,
-    persist_core_evidence,
 )
 from app.services.market_clock_service import MarketClockService
 from app.services.market_regime_policy import load_market_regime_command_center_config
@@ -67,6 +67,20 @@ from app.services.winner_probability.probability_estimator import ProbabilityEst
 from app.services.winner_probability.repository import WinnerProbabilityRepository
 
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
+
+
+@pytest.fixture(autouse=True)
+def historical_contextual_repository_sealing(monkeypatch):
+    """Retained consumer permissions use pre-Phase-5 source ledgers.
+
+    Native writer authority is certified in the T14B adoption tests.
+    """
+    import app.services.market_regime_repository as regime
+    import app.services.sector_rotation_repository as sector
+
+    for module in (regime, sector):
+        monkeypatch.setattr(module, "persist_core_evidence", seed_pre_phase5_evidence)
+        monkeypatch.setattr(module, "declare_core_evidence_mutation", lambda *a, **k: None)
 
 
 def test_native_sector_dependencies_freeze_permissions_and_advance_current(
@@ -118,7 +132,7 @@ def test_native_sector_dependencies_freeze_permissions_and_advance_current(
         ):
             source = db.get(model, source_id)
             setattr(source, attr, value)
-            persist_core_evidence(
+            seed_pre_phase5_evidence(
                 db,
                 kind=kind,
                 current_row=source,
@@ -364,13 +378,13 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
         # successful prediction may be edited to accommodate that new pointer.
         technical = db.get(TechnicalScore, 31)
         technical.insufficient_data = True
-        persist_core_evidence(db, kind=CoreEvidenceKind.TECHNICAL, current_row=technical)
+        seed_pre_phase5_evidence(db, kind=CoreEvidenceKind.TECHNICAL, current_row=technical)
         ranking_current = db.get(RankingResult, 51)
         ranking_current.is_complete = False
-        persist_core_evidence(db, kind=CoreEvidenceKind.RANKING, current_row=ranking_current)
+        seed_pre_phase5_evidence(db, kind=CoreEvidenceKind.RANKING, current_row=ranking_current)
         regime_current = db.get(MarketRegimeSnapshot, 61)
         regime_current.warnings_json = ["severely_stale_market_data"]
-        persist_core_evidence(
+        seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.REGIME,
             current_row=regime_current,
@@ -379,7 +393,7 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
         sector_current = db.get(SectorRotationSnapshot, 71)
         sector_native_row = db.get(SectorRotationRow, 81)
         sector_native_row.confidence = "insufficient"
-        persist_core_evidence(
+        seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.SECTOR,
             current_row=sector_current,
@@ -703,7 +717,7 @@ def _seed(engine, mode):
             (CoreEvidenceKind.RANKING, ranking, {"combined": combined}),
             (CoreEvidenceKind.REGIME, market, {}),
         ):
-            persist_core_evidence(
+            seed_pre_phase5_evidence(
                 db,
                 kind=kind,
                 current_row=source,
@@ -716,7 +730,7 @@ def _seed(engine, mode):
         payload["rows"] = [
             Canonical.canonicalize({**calculation_evidence_payload(sector_row), "id": 81})
         ]
-        persist_core_evidence(
+        seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.SECTOR,
             current_row=sector,
@@ -822,7 +836,7 @@ def _seed(engine, mode):
                 debug_json=source.debug_json,
                 ranking_profile=getattr(source, "ranking_profile", None),
             )
-            persist_core_evidence(
+            seed_pre_phase5_evidence(
                 db,
                 kind=kind,
                 current_row=newer,

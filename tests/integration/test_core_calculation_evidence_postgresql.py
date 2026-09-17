@@ -11,6 +11,7 @@ import pytest
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
@@ -42,7 +43,6 @@ from app.services.core_calculation_evidence import (
     EvidenceUnavailableError,
     get_current_evidence,
     get_evidence_for_identity,
-    persist_core_evidence,
 )
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.ranking_profile_config import get_ranking_profile
@@ -229,18 +229,14 @@ def test_core_evidence_versions_pin_sources_move_projection_and_reject_mutation(
 
     first = _evidence_chain(db, run_id, raw, _cutoff(17, 20), pipeline_id=101)
     evidence_kinds = ("FUNDAMENTAL", "TECHNICAL", "COMBINED", "RANKING")
-    original_payloads = {
-        kind: deepcopy(first[kind].payload_json) for kind in evidence_kinds
-    }
-    winner_source_ids = {
-        f"{kind.lower()}_evidence_id": first[kind].id for kind in evidence_kinds
-    }
+    original_payloads = {kind: deepcopy(first[kind].payload_json) for kind in evidence_kinds}
+    winner_source_ids = {f"{kind.lower()}_evidence_id": first[kind].id for kind in evidence_kinds}
     winner = _winner(run_id, winner_source_ids)
 
     second = _evidence_chain(db, run_id, raw, _cutoff(18, 21), pipeline_id=102)
 
-        # Families 1-3: all original evidence survives, and equal values under a
-        # distinct calculation identity remain distinct evidence.
+    # Families 1-3: all original evidence survives, and equal values under a
+    # distinct calculation identity remain distinct evidence.
     for kind in evidence_kinds:
         assert first[kind].id != second[kind].id
         assert first[kind].payload_json == original_payloads[kind]
@@ -250,14 +246,14 @@ def test_core_evidence_versions_pin_sources_move_projection_and_reject_mutation(
         )
 
         # Family 4: exact retry is deterministic reuse, not proliferation.
-    retry = persist_core_evidence(
+    retry = seed_pre_phase5_evidence(
         db,
         kind=CoreEvidenceKind.FUNDAMENTAL,
         current_row=second["fundamental_row"],
     )
     assert retry.id == second["FUNDAMENTAL"].id
 
-        # Family 5: historical identity remains stable while current moves.
+    # Family 5: historical identity remains stable while current moves.
     historical = get_evidence_for_identity(
         db,
         kind=CoreEvidenceKind.FUNDAMENTAL,
@@ -273,11 +269,10 @@ def test_core_evidence_versions_pin_sources_move_projection_and_reject_mutation(
     assert historical.id == first["FUNDAMENTAL"].id
     assert current.id == second["FUNDAMENTAL"].id
 
-        # Family 6: an identity-less legacy current row is never promoted/fallback.
+    # Family 6: an identity-less legacy current row is never promoted/fallback.
     legacy = FundamentalScore(run_id=run_id, ticker="LEGACY", debug_json={})
     assert (
-        persist_core_evidence(db, kind=CoreEvidenceKind.FUNDAMENTAL, current_row=legacy)
-        is None
+        seed_pre_phase5_evidence(db, kind=CoreEvidenceKind.FUNDAMENTAL, current_row=legacy) is None
     )
     with pytest.raises(EvidenceUnavailableError, match="EVIDENCE_UNAVAILABLE"):
         get_evidence_for_identity(
@@ -304,7 +299,7 @@ def test_core_evidence_versions_pin_sources_move_projection_and_reject_mutation(
     assert winner.technical_score == Decimal("8.2")
     assert winner.combined_score == Decimal("8.2")
 
-        # Family 11: readiness representation is preserved; no new gate is introduced.
+    # Family 11: readiness representation is preserved; no new gate is introduced.
     assert first["TECHNICAL"].payload_json["insufficient_data"] is True
 
     # Family 10: the ORM's supported update/delete hooks both fail closed.
@@ -367,10 +362,10 @@ def _evidence_chain(
         technical.debug_json, technical_identity, policy="T11A_TEST"
     )
 
-    fundamental_evidence = persist_core_evidence(
+    fundamental_evidence = seed_pre_phase5_evidence(
         db, kind=CoreEvidenceKind.FUNDAMENTAL, current_row=fundamental
     )
-    technical_evidence = persist_core_evidence(
+    technical_evidence = seed_pre_phase5_evidence(
         db, kind=CoreEvidenceKind.TECHNICAL, current_row=technical
     )
     assert fundamental_evidence is not None and technical_evidence is not None
@@ -398,7 +393,7 @@ def _evidence_chain(
         has_warning=False,
         debug_json=embed_calculation_identity({}, combined_identity, policy="T11A_TEST"),
     )
-    combined_evidence = persist_core_evidence(
+    combined_evidence = seed_pre_phase5_evidence(
         db,
         kind=CoreEvidenceKind.COMBINED,
         current_row=combined,
@@ -430,7 +425,7 @@ def _evidence_chain(
         decision_label="Candidate",
         debug_json=embed_calculation_identity({}, ranking_identity, policy="T11A_TEST"),
     )
-    ranking_evidence = persist_core_evidence(
+    ranking_evidence = seed_pre_phase5_evidence(
         db,
         kind=CoreEvidenceKind.RANKING,
         current_row=ranking,

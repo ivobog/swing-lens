@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ib_market_intelligence_tables import IBExecutionFill, IBFlexImportRun
 from app.observability.transaction_metrics import publish_after_commit
+from app.services.domain_mutation import MutationDomain
 from app.services.ib_market_intelligence.dtos import FlexExecutionDTO
 from app.services.ib_market_intelligence.evidence_hash import evidence_hash
 from app.services.ib_market_intelligence.request_budget import IBRequestBudget
@@ -29,6 +30,7 @@ from app.services.ib_market_intelligence.resilience import (
 )
 from app.services.operational_metrics import operational_metrics
 from app.services.redaction import redact_sensitive
+from app.services.source_mutation_authority import source_mutation_writer
 from app.settings import Settings, get_settings
 
 
@@ -221,6 +223,7 @@ def parse_flex_report(content: str, *, report_timezone: str = "UTC") -> list[Fle
     return executions
 
 
+@source_mutation_writer(MutationDomain.TRADE_JOURNAL, "execution_source")
 def import_flex_report(
     db: Session,
     *,

@@ -1,0 +1,130 @@
+{
+  "ancestry": [
+    {
+      "command": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "3a9d47063be996908b7d5d1cc5769e0bbd033546",
+        "HEAD"
+      ],
+      "exit_status": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "7b015124807b8f895911d7e790fcbf01949ff85f",
+        "HEAD"
+      ],
+      "exit_status": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "5422bcdf7703db891810d9e9c20a8f1770241fc9",
+        "HEAD"
+      ],
+      "exit_status": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+        "HEAD"
+      ],
+      "exit_status": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "5eef0d08d783de132fecb14c5dedd66821f0949f",
+        "HEAD"
+      ],
+      "exit_status": 0,
+      "stderr": "",
+      "stdout": ""
+    }
+  ],
+  "branch": "codex/t14b-core-contextual-writer-adoption",
+  "docker": {
+    "command": [
+      "docker",
+      "info",
+      "--format",
+      "{{.ServerVersion}}"
+    ],
+    "exit_status": 0,
+    "stderr": "",
+    "stdout": "29.6.2"
+  },
+  "git_status": {
+    "command": [
+      "git",
+      "status",
+      "--porcelain"
+    ],
+    "exit_status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "head": "5eef0d08d783de132fecb14c5dedd66821f0949f",
+  "migration_head": {
+    "command": [
+      "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+      "-m",
+      "alembic",
+      "heads"
+    ],
+    "exit_status": 0,
+    "stderr": "",
+    "stdout": "0080_effective_configuration (head)"
+  },
+  "postgresql": {
+    "command": [
+      "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+      "--version"
+    ],
+    "exit_status": 0,
+    "stderr": "",
+    "stdout": "pg_ctl (PostgreSQL) 18.3"
+  },
+  "python_version": "3.12.2 (tags/v3.12.2:6abddd9, Feb  6 2024, 21:26:36) [MSC v.1937 64 bit (AMD64)]",
+  "repository_path": "C:\\Users\\Ivica\\Documents\\SwingLens",
+  "tracked_changes": {
+    "command": [
+      "git",
+      "diff",
+      "--name-status"
+    ],
+    "exit_status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "untracked_files": {
+    "command": [
+      "git",
+      "ls-files",
+      "--others",
+      "--exclude-standard"
+    ],
+    "exit_status": 0,
+    "stderr": "",
+    "stdout": ""
+  }
+}

@@ -10,6 +10,7 @@ import pytest
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import BigInteger, create_engine, inspect
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
@@ -36,7 +37,6 @@ from app.services.core_calculation_evidence import (
     EvidenceUnavailableError,
     get_current_evidence,
     get_evidence_for_identity,
-    persist_core_evidence,
 )
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_regime_repository import (
@@ -60,6 +60,20 @@ def _compile_jsonb_for_contextual_evidence_test(_type, _compiler, **_kwargs) -> 
 @compiles(BigInteger, "sqlite")
 def _compile_bigint_for_contextual_evidence_test(_type, _compiler, **_kwargs) -> str:
     return "INTEGER"
+
+
+@pytest.fixture(autouse=True)
+def historical_repository_sealing(monkeypatch):
+    """Exercise retained Phase-2 revisions with explicit pre-Phase-5 ledgers.
+
+    Live native adoption is covered separately by T14B writer tests.
+    """
+    import app.services.market_regime_repository as regime
+    import app.services.sector_rotation_repository as sector
+
+    for module in (regime, sector):
+        monkeypatch.setattr(module, "persist_core_evidence", seed_pre_phase5_evidence)
+        monkeypatch.setattr(module, "declare_core_evidence_mutation", lambda *a, **k: None)
 
 
 @pytest.fixture
@@ -121,8 +135,7 @@ def test_0076_disposable_postgresql_upgrade_and_downgrade(
         columns = {column["name"]: column for column in schema.get_columns(table_name)}
         assert columns["evidence_id"]["nullable"] is True
     evidence_columns = {
-        column["name"]: column
-        for column in schema.get_columns("core_calculation_evidence")
+        column["name"]: column for column in schema.get_columns("core_calculation_evidence")
     }
     assert evidence_columns["run_id"]["nullable"] is True
     assert evidence_columns["ticker"]["nullable"] is True
@@ -130,9 +143,7 @@ def test_0076_disposable_postgresql_upgrade_and_downgrade(
     command.downgrade(config, "0075_core_immutable_evidence")
     schema = inspect(engine)
     for table_name in ("market_regime_snapshots", "sector_rotation_snapshots"):
-        assert "evidence_id" not in {
-            column["name"] for column in schema.get_columns(table_name)
-        }
+        assert "evidence_id" not in {column["name"] for column in schema.get_columns(table_name)}
     engine.dispose()
 
 
@@ -172,15 +183,18 @@ def test_regime_versions_retry_projection_history_and_legacy(evidence_db: Sessio
     assert current.id == row_2.evidence_id
     assert immutable_1.payload_json == original_payload
     assert immutable_1.id != row_2.evidence_id
-    assert get_evidence_for_identity(
-        evidence_db,
-        kind=CoreEvidenceKind.REGIME,
-        calculation_identity=identity_1,
-    ).id == immutable_1.id
+    assert (
+        get_evidence_for_identity(
+            evidence_db,
+            kind=CoreEvidenceKind.REGIME,
+            calculation_identity=identity_1,
+        ).id
+        == immutable_1.id
+    )
 
     legacy = MarketRegimeSnapshot(debug_json={})
     assert (
-        persist_core_evidence(
+        seed_pre_phase5_evidence(
             evidence_db,
             kind=CoreEvidenceKind.REGIME,
             current_row=legacy,
@@ -306,7 +320,7 @@ def test_sector_legacy_and_missing_immutable_sources_fail_closed(
 
     legacy = SectorRotationSnapshot(debug_json={})
     assert (
-        persist_core_evidence(
+        seed_pre_phase5_evidence(
             evidence_db,
             kind=CoreEvidenceKind.SECTOR,
             current_row=legacy,
@@ -340,7 +354,7 @@ def _ranking(
         decision_label="Candidate",
         debug_json=embed_identity({}, identity, policy="T11B1_TEST"),
     )
-    evidence = persist_core_evidence(db, kind=CoreEvidenceKind.RANKING, current_row=row)
+    evidence = seed_pre_phase5_evidence(db, kind=CoreEvidenceKind.RANKING, current_row=row)
     assert evidence is not None
     return row, identity
 
@@ -449,9 +463,9 @@ def _cutoff(session: date, hour: int) -> MarketCalculationCutoff:
         cutoff_at=datetime.combine(session, datetime.min.time(), tzinfo=UTC).replace(hour=hour),
         exchange_timezone="America/New_York",
         latest_completed_session=session,
-        daily_bar_ready_at=datetime.combine(
-            session, datetime.min.time(), tzinfo=UTC
-        ).replace(hour=20),
+        daily_bar_ready_at=datetime.combine(session, datetime.min.time(), tzinfo=UTC).replace(
+            hour=20
+        ),
         calendar_version="XNYS-2026a",
         bar_readiness_version="daily-close-v1",
         cutoff_reason="T11B1_TEST",

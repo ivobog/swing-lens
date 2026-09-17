@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -22,7 +23,6 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canon
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     get_current_evidence,
-    persist_core_evidence,
 )
 from app.services.effective_configuration import (
     CONFIGURATION_PAYLOAD_KEY,
@@ -92,15 +92,15 @@ def test_configuration_embedded_evidence_round_trip_retry_drift_and_immutability
                 current_row=row,
                 payload={"profile_score": 7.5, "is_complete": True},
             )
-            e1 = persist_core_evidence(
+            e1 = seed_pre_phase5_evidence(
                 db, **args, calculation_identity=c1, effective_configuration=first
             )
             e1_id, e1_payload = e1.id, deepcopy(e1.payload_json)
-            retry = persist_core_evidence(
+            retry = seed_pre_phase5_evidence(
                 db, **args, calculation_identity=c1, effective_configuration=first
             )
             assert retry.id == e1_id
-            e2 = persist_core_evidence(
+            e2 = seed_pre_phase5_evidence(
                 db, **args, calculation_identity=c2, effective_configuration=second
             )
             assert e2.id != e1_id
@@ -124,18 +124,18 @@ def test_configuration_embedded_evidence_round_trip_retry_drift_and_immutability
                 == e2.id
             )
             with pytest.raises(ValueError, match="must match"):
-                persist_core_evidence(
+                seed_pre_phase5_evidence(
                     db, **args, calculation_identity=c1, effective_configuration=second
                 )
             with pytest.raises(ValueError, match="owned by"):
-                persist_core_evidence(
+                seed_pre_phase5_evidence(
                     db,
                     kind=CoreEvidenceKind.RANKING,
                     current_row=row,
                     payload={CONFIGURATION_PAYLOAD_KEY: first.as_dict()},
                     calculation_identity=c1,
                 )
-            legacy = persist_core_evidence(db, **args, calculation_identity=base)
+            legacy = seed_pre_phase5_evidence(db, **args, calculation_identity=base)
             assert configuration_from_evidence(legacy).state.value == "LEGACY_UNKNOWN"
             db.commit()
 
@@ -195,7 +195,7 @@ def test_secret_safe_storage_and_binding_integrity(disposable_postgres_database)
         with Session(engine) as db:
             db.add(UploadRun(id=1, filename="safe.csv", status="COMPLETED"))
             db.flush()
-            evidence = persist_core_evidence(
+            evidence = seed_pre_phase5_evidence(
                 db,
                 kind=CoreEvidenceKind.TECHNICAL,
                 current_row=SimpleNamespace(run_id=1, ticker="ACME", evidence_id=None),

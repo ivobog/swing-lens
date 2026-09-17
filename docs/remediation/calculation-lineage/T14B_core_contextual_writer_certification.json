@@ -1,0 +1,2408 @@
+{
+  "defect_count": 0,
+  "final_head_resolution": "Commit containing this certificate; resolve git log -1 --format=%H -- this file. No self-referential commit hash is embedded.",
+  "initiators": {
+    "EF_021cfb93d6813955": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SECTOR_SNAPSHOT"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_14ac8eafdc1a1ae0": {
+      "assigned_writer_families": [
+        "WF_CERI_REVISION_FEATURE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.persist_feature"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_20e06c4f9457355d": {
+      "assigned_writer_families": [
+        "WF_CERI_PRICE_RESPONSE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/price_response_service.py:CeriPriceResponseService.persist"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_213662a6d137bcac": {
+      "assigned_writer_families": [
+        "WF_CERI_SOURCE_IDENTITY"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_3984d25edba4f45f": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/technical_score_service.py:score_run_technicals"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_3aa9732708e9982e": {
+      "assigned_writer_families": [
+        "WF_CERI_REVISION_FEATURE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.with_acceleration"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_3d469f86339ccac7": {
+      "assigned_writer_families": [
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/bar_cache_service.py:cache_bars"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_431a8947c0b31cbf": {
+      "assigned_writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:get_local_artifact"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_44e2b88da09c0be6": {
+      "assigned_writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.record_downloaded_content"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_538276c91abb138c": {
+      "assigned_writer_families": [
+        "WF_CERI_CONSENSUS_ATTACH"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.attach_consensus_snapshot"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_5acf98114588686d": {
+      "assigned_writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.register_document"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_5f39587263ee923e": {
+      "assigned_writer_families": [
+        "WF_IB_FLEX_IMPORT"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ib_market_intelligence/flex.py:import_flex_report"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_756b7b07d4f365c0": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FINALIZATION"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/technical_score_service.py:finalize_technical_scores"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_7eea11a8cded4a8a": {
+      "assigned_writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator.on_ticker_ready"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_7fabc787dc6ffca2": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/core_calculation_evidence.py:persist_core_evidence"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_812da22fe41fbcba": {
+      "assigned_writer_families": [
+        "WF_IBMI_HISTORICAL_SOURCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_historical_metric_bar"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_82522331e642b008": {
+      "assigned_writer_families": [
+        "WF_CERI_SCORE",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_866ac2c173ac81d7": {
+      "assigned_writer_families": [
+        "WF_PRICE_SERIES_VERSION"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/price_series_version_service.py:maintain_price_series_versions"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_874835d87c21855e": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_REGIME_SNAPSHOT"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_8971757daefc9594": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_IBMI_NATIVE_FEATURE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_feature"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_919b08f9bc6d4b63": {
+      "assigned_writer_families": [
+        "WF_IB_CONTRACT_IDENTITY"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ib_contract_resolver.py:resolve_us_stock_contract"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_a27b7ead7124b2da": {
+      "assigned_writer_families": [
+        "WF_COMBINED_REFRESH",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/combined_decision.py:refresh_combined_results"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_a3fd956e147403b1": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:refresh_ranking_profile"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_a8016e0b9d69e5be": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:refresh_all_ranking_profiles"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_ab4102ebb9197c4d": {
+      "assigned_writer_families": [
+        "WF_UPLOAD_INITIALIZATION"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/upload_service.py:create_upload_run"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_ad585eacf12c98d7": {
+      "assigned_writer_families": [
+        "WF_CERI_RAW_SOURCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_be226eaac46d1ab2": {
+      "assigned_writer_families": [
+        "WF_IBMI_LIVE_SOURCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_live_snapshot"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_cb55d161e779c8be": {
+      "assigned_writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:upsert_local_artifact"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_d526d0a0522f099b": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:execute_ranking_pipeline_step"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_da68f1fde41c070d": {
+      "assigned_writer_families": [
+        "WF_UPLOAD_INITIALIZATION"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/routers/upload_routes.py:upload_csv"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_dcf27689d2681c17": {
+      "assigned_writer_families": [
+        "WF_CERI_GUIDANCE_ELIGIBILITY"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/guidance_normalizer.py:apply_guidance_eligibility"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_de562c9ceb6ee65a": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator.finalize"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_e90cea98144e2940": {
+      "assigned_writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/fundamental_score_service.py:recalculate_run_fundamentals"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_f0d208ce35a33ed6": {
+      "assigned_writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.complete"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_fb5089df555b2b2f": {
+      "assigned_writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:record_local_artifact_shadow_validation"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    },
+    "EF_fd8cd8fbbbba07f7": {
+      "assigned_writer_families": [
+        "WF_REGIME_DERIVED_DELETE"
+      ],
+      "disposition": "T14B native writer boundary reconciled; no T14C/T14D caller adoption claim",
+      "entrypoints": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository.delete_for_run"
+      ],
+      "status": "CERTIFIED_NATIVE_BOUNDARY"
+    }
+  },
+  "initiators_assigned": 36,
+  "initiators_reconciled": 36,
+  "legacy_backfill_required": false,
+  "migration_required": false,
+  "production_rewrite_required": false,
+  "source_handoff_sha256": "8eed64f6a7e42bc9178c6c001d756c7e20ce9f68a6b9b2d3ff60cef58d32318d",
+  "starting_head": "5eef0d08d783de132fecb14c5dedd66821f0949f",
+  "task": "T14B",
+  "trade_episode_boundary": {
+    "authoritative_family": "WF_IB_TRADE_EPISODES",
+    "disposition": "T14D",
+    "proof": "Flex acquisition/import is adopted; authoritative trade-episode writer ownership and delivery are unchanged.",
+    "t14b_family": "WF_IB_FLEX_IMPORT"
+  },
+  "unreconciled_ids": [],
+  "validation_summary": "T14B_validation_summary.json",
+  "verdict": "PASS",
+  "writer_families": [
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiators": [
+        "EF_538276c91abb138c"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.attach_consensus_snapshot",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_CERI_CONSENSUS_ATTACH",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_SOURCE_NORMALIZATION",
+          "proof": "Provider source conversion to concrete catalyst/earnings/estimate/guidance artifacts and identity aliases."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.attach_consensus_snapshot"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "783c720ce39c5c96467ba512e182be6a9d2f9d565f19a6d6005faf591bb0de89",
+        "signature": "self, earnings: CeriEarningsActual, estimates: list[CeriEstimateSnapshot]",
+        "source_line": 42
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "ceri_earnings_actuals"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ceri/test_surprise_feature_service.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._persist_company",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_CERI_FEATURE_BUILD",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "BOOTSTRAP"
+          ],
+          "canonical_owner": "app/services/ceri/batched_workflow.py:_ensure_ceri_companies",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_COMPANY_BOOTSTRAP",
+          "proof": "Company identities for batched ingestion; not retained score evidence."
+        },
+        {
+          "allowed_modes": [
+            "CURRENT_RULES_RETROSPECTIVE"
+          ],
+          "canonical_owner": "app/services/ceri/controlled_replay_service.py:CeriControlledReplayService.replay",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_CURRENT_RULE_REPLAY",
+          "proof": "Explicit replay artifact plus recalculated revision/score rows; no original-context guarantee."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/price_response_service.py:CeriPriceResponseService.persist",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_PRICE_RESPONSE",
+          "proof": "Persist source-event price response features, not immutable score output."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.persist_feature",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_REVISION_FEATURE",
+          "proof": "Revision feature insertion and acceleration update are members of the native revision-feature operation."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_SOURCE_NORMALIZATION",
+          "proof": "Provider source conversion to concrete catalyst/earnings/estimate/guidance artifacts and identity aliases."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/pipeline_executor.py:execute_full_pipeline",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14D",
+          "family_id": "WF_PIPELINE_STAGE_STATE",
+          "proof": "Execution status/stage attempts and prerequisite source scheduling; financial stage algorithms remain separate writer families."
+        },
+        {
+          "allowed_modes": [
+            "CURRENT_STATE_REPAIR"
+          ],
+          "canonical_owner": "scripts/resolve_sec_ciks.py:main",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_SEC_CIK_CLI",
+          "proof": "Explicit command repairs current company CIK identity; not financial evidence."
+        },
+        {
+          "allowed_modes": [
+            "CURRENT_STATE_REPAIR"
+          ],
+          "canonical_owner": "app/services/ceri/sec/identity_repair.py:resolve_and_persist_sec_identity",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_SEC_IDENTITY_REPAIR",
+          "proof": "Repair current CIK/company source identity; not original score reconstruction."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/sec/incremental_ingestion.py:SecGuidanceIncrementalIngestionService._resolve_and_persist_cik",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14B",
+          "family_id": "WF_SEC_INCREMENTAL_IDENTITY",
+          "proof": "Incremental source identity persistence, separate from bulk repair entry."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._persist_company",
+        "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._rebuild_company",
+        "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._upsert_derived",
+        "app/services/ceri/feature_rebuild_service.py:_copy_derived",
+        "app/services/ceri/feature_rebuild_service.py:_copy_price",
+        "app/services/ceri/feature_rebuild_service.py:_copy_revision_derived",
+        "app/services/ceri/feature_rebuild_service.py:_copy_state",
+        "app/services/ceri/feature_rebuild_service.py:_execute_upsert"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "124bc4f090d94ca4b7e93ad64ea708b6ff43bbfaf827a5f4a0fc86f957910678",
+        "signature": "self, db: Session, *, revision_rows: list[CeriRevisionFeature], derived_rows: list[CeriDerivedFeature], price_row: CeriPriceResponseFeature, state_row: CeriFeatureBuildState, context: CeriFeatureBatchContext",
+        "source_line": 1034
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ceri_companies",
+        "ceri_derived_features",
+        "ceri_feature_build_states",
+        "ceri_price_response_features",
+        "ceri_revision_features"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ceri/test_feature_rebuild_service.py",
+        "tests/integration/test_ceri_batched_workflow_v2.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiators": [
+        "EF_dcf27689d2681c17"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/guidance_normalizer.py:apply_guidance_eligibility",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_CERI_GUIDANCE_ELIGIBILITY",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_SOURCE_NORMALIZATION",
+          "proof": "Provider source conversion to concrete catalyst/earnings/estimate/guidance artifacts and identity aliases."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/guidance_normalizer.py:apply_guidance_eligibility"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "86631f29105e117cfc9fd2f779cdc6305b4165e2f634134a373035aea6938ef8",
+        "signature": "event: CeriGuidanceEvent, *, payload: dict[str, Any] | None=None",
+        "source_line": 95
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "ceri_guidance_events"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ceri/test_guidance_normalizer.py",
+        "tests/ceri/test_normalization_service.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_20e06c4f9457355d"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/price_response_service.py:CeriPriceResponseService.persist",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_CERI_PRICE_RESPONSE",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._persist_company",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_FEATURE_BUILD",
+          "proof": "One feature-build transaction owns four typed upsert/copy mechanisms and company state."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/price_response_service.py:CeriPriceResponseService.persist"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "c89da1d639f29f9a4e7c169a21ffb40db1ec7eed34ffc9819eb3cae2a5e1fc50",
+        "signature": "self, db: Session, *, result: PriceResponseResult, company_id: int, ticker: str, event_id: int | None, event_effective_at: datetime | None, event_effective_session: date | None, feature_as_of_session: date | None=None, cutoff_at: datetime | None=None, calculation_context_id: int | None=None, calendar_version: str | None=None, ownership_mode: str=CeriArtifactOwnership.STANDALONE.value",
+        "source_line": 349
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ceri_price_response_features"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ceri/test_feature_rebuild_service.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_ad585eacf12c98d7"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_CERI_RAW_SOURCE",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_SOURCE_IDENTITY",
+          "proof": "Resolve source-record company identity, not score publication."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_SOURCE_NORMALIZATION",
+          "proof": "Provider source conversion to concrete catalyst/earnings/estimate/guidance artifacts and identity aliases."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "35b91d604ef4077af24620fd3463c927b6c2f51db8933a63e4b15ef0fb08fd4e",
+        "signature": "self, db: Session, *, ingestion_run_id: int | None, record: RawProviderRecord, raw_payload_allowed: bool",
+        "source_line": 87
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ceri_source_records"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ceri/test_source_record_service.py",
+        "tests/integration/test_ceri_pit_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_14ac8eafdc1a1ae0",
+        "EF_3aa9732708e9982e"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.persist_feature",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_CERI_REVISION_FEATURE",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "CURRENT_RULES_RETROSPECTIVE"
+          ],
+          "canonical_owner": "app/services/ceri/controlled_replay_service.py:CeriControlledReplayService.replay",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_CURRENT_RULE_REPLAY",
+          "proof": "Explicit replay artifact plus recalculated revision/score rows; no original-context guarantee."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._persist_company",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_FEATURE_BUILD",
+          "proof": "One feature-build transaction owns four typed upsert/copy mechanisms and company state."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.persist_feature",
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.with_acceleration"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "431588baa5433ee5c80fd04a7485509e41b453a2b8c93d6b666f3b7b0f89eb94",
+        "signature": "self, db: Session, feature: CeriRevisionFeature",
+        "source_line": 104
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ceri_revision_features"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ceri/test_revision_feature_service.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_82522331e642b008"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "CERI"
+      ],
+      "family_id": "WF_CERI_SCORE",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "CURRENT_RULES_RETROSPECTIVE"
+          ],
+          "canonical_owner": "app/services/ceri/controlled_replay_service.py:CeriControlledReplayService.replay",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_CURRENT_RULE_REPLAY",
+          "proof": "Explicit replay artifact plus recalculated revision/score rows; no original-context guarantee."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "3b366b08621eba8769e27d79916e060207b610c950c1225a0ff63c9749e55872",
+        "signature": "self, db: Session, snapshot: CeriScoreSnapshot",
+        "source_line": 190
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Full contextual.ceri and exact independently rebuilt source manifest, company/ticker/time/view basis, optional IBMI role/module/context/native frozen permission.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ceri_score_snapshots"
+      ],
+      "tests": [
+        "tests/integration/test_contextual_configuration_adoption_postgresql.py",
+        "tests/integration/test_ceri_immutable_decision_evidence.py",
+        "tests/integration/test_phase4_configuration_certification_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiators": [
+        "EF_213662a6d137bcac"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_CERI_SOURCE_IDENTITY",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_RAW_SOURCE",
+          "proof": "Deduplicated raw provider source record persistence."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_SOURCE_NORMALIZATION",
+          "proof": "Provider source conversion to concrete catalyst/earnings/estimate/guidance artifacts and identity aliases."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "ce691a8e3852c22e9b7edd3366ee787c66935ccf0951f3151e07ab72ad723cab",
+        "signature": "self, db: Session, source_record: CeriSourceRecord",
+        "source_line": 48
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "ceri_source_records"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ceri/test_identity_resolver.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_CERI_SOURCE_NORMALIZATION",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "BOOTSTRAP"
+          ],
+          "canonical_owner": "app/services/ceri/batched_workflow.py:_ensure_ceri_companies",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_COMPANY_BOOTSTRAP",
+          "proof": "Company identities for batched ingestion; not retained score evidence."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.attach_consensus_snapshot",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_CONSENSUS_ATTACH",
+          "proof": "Attach exact estimate/consensus relationship to earnings actual."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._persist_company",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_FEATURE_BUILD",
+          "proof": "One feature-build transaction owns four typed upsert/copy mechanisms and company state."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/guidance_normalizer.py:apply_guidance_eligibility",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_GUIDANCE_ELIGIBILITY",
+          "proof": "Field-copy eligibility mechanism used on persistent normalized guidance; transient construction is separately excluded."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/manual_review_service.py:CeriManualReviewService.create_catalyst_override",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_HUMAN_SOURCE_OVERRIDE",
+          "proof": "New catalyst source revision with prior address and human audit; not score evidence."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/purge_service.py:_apply_purge_lifecycle",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_LICENSED_PURGE",
+          "proof": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_RAW_SOURCE",
+          "proof": "Deduplicated raw provider source record persistence."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/routers/ceri_routes.py:review_ceri_event",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_REVIEW_METADATA",
+          "proof": "Human audit and review_state only; distinct from source override and score calculation."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_SOURCE_IDENTITY",
+          "proof": "Resolve source-record company identity, not score publication."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/pipeline_executor.py:execute_full_pipeline",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14D",
+          "family_id": "WF_PIPELINE_STAGE_STATE",
+          "proof": "Execution status/stage attempts and prerequisite source scheduling; financial stage algorithms remain separate writer families."
+        },
+        {
+          "allowed_modes": [
+            "CURRENT_STATE_REPAIR"
+          ],
+          "canonical_owner": "scripts/resolve_sec_ciks.py:main",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_SEC_CIK_CLI",
+          "proof": "Explicit command repairs current company CIK identity; not financial evidence."
+        },
+        {
+          "allowed_modes": [
+            "CURRENT_STATE_REPAIR"
+          ],
+          "canonical_owner": "app/services/ceri/sec/identity_repair.py:resolve_and_persist_sec_identity",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_SEC_IDENTITY_REPAIR",
+          "proof": "Repair current CIK/company source identity; not original score reconstruction."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/ceri/sec/incremental_ingestion.py:SecGuidanceIncrementalIngestionService._resolve_and_persist_cik",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14B",
+          "family_id": "WF_SEC_INCREMENTAL_IDENTITY",
+          "proof": "Incremental source identity persistence, separate from bulk repair entry."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+        "app/services/ceri/normalization_service.py:_persist_sec_identity"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "a4598493c080801cb563b37436a220560f51ecafcf38e419884bf95cf0c8d5e5",
+        "signature": "self, db: Session, source_record: CeriSourceRecord, *, company_id: int",
+        "source_line": 191
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ceri_catalyst_event_revisions",
+        "ceri_catalyst_events",
+        "ceri_catalyst_sources",
+        "ceri_companies",
+        "ceri_company_aliases",
+        "ceri_earnings_actuals",
+        "ceri_estimate_snapshots",
+        "ceri_guidance_events",
+        "ceri_source_records"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ceri/test_normalization_service.py",
+        "tests/integration/test_ceri_pit_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_a27b7ead7124b2da"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/combined_decision.py:refresh_combined_results",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "COMBINED",
+        "CURRENT_PROJECTION"
+      ],
+      "family_id": "WF_COMBINED_REFRESH",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/winner_probability/training_eligibility.py:TrainingEligibilityPolicy.persist_capture_decision",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14C",
+          "family_id": "WF_WINNER_CAPTURE_TRAINING_METADATA",
+          "proof": "Only prediction lineage_json; dedicated training decision/replay tables are written by pre11 compatibility service."
+        },
+        {
+          "allowed_modes": [
+            "OUTCOME_MATURATION"
+          ],
+          "canonical_owner": "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14C",
+          "family_id": "WF_WINNER_FORWARD_MATURATION",
+          "proof": "Frozen prediction authority, observed outcome window and pending/excluded/matured state handling."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService._capture_ticker",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14C",
+          "family_id": "WF_WINNER_PREDICTION_CAPTURE",
+          "proof": "Frozen independent prediction contract and initial temporal validity decision."
+        },
+        {
+          "allowed_modes": [
+            "CURRENT_STATE_REPAIR"
+          ],
+          "canonical_owner": "app/services/winner_probability/temporal_validation_service.py:TemporalValidationService.record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_WINNER_TEMPORAL_VALIDITY",
+          "proof": "Append temporal decision and apply current certification/quarantine; supplied certification requires native compatibility checks."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/winner_probability/repository.py:WinnerProbabilityRepository.add",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14C",
+          "family_id": "WF_WINNER_TYPED_REPOSITORY",
+          "proof": "WinnerProbabilityRepository.add only adds and flushes a supplied row. Its eight discovered table types have explicit native table owners and callers. It is a lower-level supporting mechanism, not a prediction, estimate, cohort or outcome algorithm."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/combined_decision.py:refresh_combined_results"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "6f68285731babdcee93f53469572b0992c968f985cadfcb22b76877c4229ddb4",
+        "signature": "db: Session, run_id: int, *, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, effective_configuration: CoreEffectiveConfiguration | None=None, expected_calculation_identity: CalculationIdentity | None=None, source_evidence: dict[str, dict[str, int]] | None=None",
+        "source_line": 137
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Exact named Fundamental/Technical core IDs/keys/values, same run/pipeline/time/context, full combined C1, frozen native readiness/eligibility.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "combined_results",
+        "winner_prediction_snapshots"
+      ],
+      "tests": [
+        "tests/integration/test_core_configuration_adoption_postgresql.py",
+        "tests/integration/test_t14b_financial_source_values_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "assigned_initiators": [
+        "EF_021cfb93d6813955",
+        "EF_3984d25edba4f45f",
+        "EF_756b7b07d4f365c0",
+        "EF_7fabc787dc6ffca2",
+        "EF_82522331e642b008",
+        "EF_874835d87c21855e",
+        "EF_8971757daefc9594",
+        "EF_a27b7ead7124b2da",
+        "EF_a3fd956e147403b1",
+        "EF_a8016e0b9d69e5be",
+        "EF_d526d0a0522f099b",
+        "EF_de562c9ceb6ee65a",
+        "EF_e90cea98144e2940"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/core_calculation_evidence.py:_advance_current_projection",
+      "contract_enforced": true,
+      "current_classification": "CURRENT_PROJECTION_WRITER",
+      "domain": [
+        "CURRENT_PROJECTION"
+      ],
+      "family_id": "WF_CORE_CURRENT_PROJECTION",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/core_calculation_evidence.py:_advance_current_projection"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "22d9d85a5365df6ee8eba65609fc420d14f41edc30302ebb3e5d3da50584673e",
+        "signature": "db: Session, evidence: CoreCalculationEvidence, *, mutation_context: DomainMutationContext | None=None",
+        "source_line": 494
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Explicit immutable target/key, exact kind/run/ticker/profile/config/scope, advisory first-creation serialization, row lock and monotonic cutoff; no inferred latest target.",
+      "status": "PASS",
+      "t14a_classification": "CURRENT_PROJECTION_WRITER",
+      "tables": [
+        "core_calculation_current_projections"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_writer_authority_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_021cfb93d6813955",
+        "EF_3984d25edba4f45f",
+        "EF_756b7b07d4f365c0",
+        "EF_7fabc787dc6ffca2",
+        "EF_82522331e642b008",
+        "EF_874835d87c21855e",
+        "EF_8971757daefc9594",
+        "EF_a27b7ead7124b2da",
+        "EF_a3fd956e147403b1",
+        "EF_a8016e0b9d69e5be",
+        "EF_d526d0a0522f099b",
+        "EF_de562c9ceb6ee65a",
+        "EF_e90cea98144e2940"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/core_calculation_evidence.py:persist_core_evidence",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "FUNDAMENTAL",
+        "TECHNICAL",
+        "COMBINED",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "CERI",
+        "IBMI"
+      ],
+      "family_id": "WF_CORE_RETAINED_EVIDENCE",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/core_calculation_evidence.py:persist_core_evidence"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "22d9d85a5365df6ee8eba65609fc420d14f41edc30302ebb3e5d3da50584673e",
+        "signature": "db: Session, *, kind: CoreEvidenceKind, current_row: Any, sources: dict[str, Any] | None=None, payload: dict[str, Any] | None=None, scope_ticker: str | None | object=_SCOPE_UNSET, scope_profile: str | None | object=_SCOPE_UNSET, calculation_identity: CalculationIdentity | None=None, effective_configuration: EffectiveConfigurationSnapshot | None=None, mutation_context: DomainMutationContext | None=None",
+        "source_line": 96
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Typed existing native-domain declaration, full native configuration/CI/time, resolved exact source addresses/key/payload/values/permission, actual retained C1 and execution fence.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "core_calculation_evidence",
+        "core_calculation_evidence_sources"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_writer_authority_postgresql.py",
+        "tests/integration/test_t14b_financial_source_values_postgresql.py",
+        "tests/integration/test_domain_mutation_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_e90cea98144e2940"
+      ],
+      "bypass_disposition": "Confirmed unbound branch now rejects missing native authority; synchronous and non-durable caller delivery remains T14D.",
+      "canonical_owner": "app/services/fundamental_score_service.py:recalculate_run_fundamentals",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "FUNDAMENTAL"
+      ],
+      "family_id": "WF_FUNDAMENTAL_RECALCULATION",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "BOOTSTRAP",
+            "LEGACY_UNCERTIFIED"
+          ],
+          "canonical_owner": "app/services/upload_service.py:create_upload_run",
+          "classification": "LEGACY_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_UPLOAD_INITIALIZATION",
+          "proof": "The upload transaction retains raw rows and existing numeric output, labels every initial Fundamental row LEGACY_UNCERTIFIED/LEGACY_SERVING_ONLY, and certified readers reject that role. The source-file digest is rechecked before persistence."
+        }
+      ],
+      "legacy_variants": [
+        "WF_UPLOAD_INITIALIZATION"
+      ],
+      "member_persistence_sites": [
+        "app/services/fundamental_score_service.py:recalculate_run_fundamentals"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "4afda4bbe69f9134da569b6ece45f96f18e9b674ee44fc49ecc323ffe8b5cf14",
+        "signature": "db: Session, run_id: int, *, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, effective_configuration: CoreEffectiveConfiguration | None=None, expected_calculation_identity: CalculationIdentity | None=None",
+        "source_line": 27
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Explicit cutoff, persisted pipeline/run/context, full retained core.fundamental C1, exact raw address/digest, native CI and actual execution token.",
+      "status": "PASS",
+      "t14a_classification": "CONFIRMED_BYPASS",
+      "tables": [
+        "fundamental_scores"
+      ],
+      "tests": [
+        "tests/integration/test_core_configuration_adoption_postgresql.py",
+        "tests/integration/test_t14b_writer_authority_postgresql.py",
+        "tests/integration/test_domain_mutation_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_812da22fe41fbcba"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ib_market_intelligence/repository.py:persist_historical_metric_bar",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "IBMI_SOURCE"
+      ],
+      "family_id": "WF_IBMI_HISTORICAL_SOURCE",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/repository.py:persist_historical_metric_bar"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "12498b4e5586bc06aaf06b6e1abc92b9ebf3e15dbb5bd360055583e323f52786",
+        "signature": "db: Session, dto: HistoricalMetricBarDTO, *, intelligence_run_id: int | None=None, observed_at: datetime | None=None",
+        "source_line": 32
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ib_historical_metric_bars",
+        "ib_historical_metric_revisions"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/integration/test_ib_market_intelligence_persistence.py",
+        "tests/integration/test_ib_market_intelligence_runtime_resilience.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_be226eaac46d1ab2"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ib_market_intelligence/repository.py:persist_live_snapshot",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "IBMI_SOURCE"
+      ],
+      "family_id": "WF_IBMI_LIVE_SOURCE",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/repository.py:persist_live_snapshot"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "12498b4e5586bc06aaf06b6e1abc92b9ebf3e15dbb5bd360055583e323f52786",
+        "signature": "db: Session, dto: LiveSnapshotDTO, *, intelligence_run_id: int | None=None",
+        "source_line": 138
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ib_market_intelligence_snapshots"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ib_market_intelligence/test_adapters_budget_security.py",
+        "tests/ib_market_intelligence/test_ibmi_temporal_containment.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_8971757daefc9594"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ib_market_intelligence/repository.py:persist_feature",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "IBMI"
+      ],
+      "family_id": "WF_IBMI_NATIVE_FEATURE",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/repository.py:persist_feature"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "12498b4e5586bc06aaf06b6e1abc92b9ebf3e15dbb5bd360055583e323f52786",
+        "signature": "db: Session, *, ticker: str, ib_conid: int | None, as_of_session: date, feature: FeatureResult, config: IBMarketIntelligenceConfig, intelligence_run_id: int | None=None, calculated_at: datetime | None=None, calculation_cutoff_at: datetime | None=None, constituents: Any | None=None",
+        "source_line": 278
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Exact native constituents (metric/live/request/price/histogram), full module configuration, native PIT/basis/ticker/cutoff and immutable source manifest.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ib_intelligence_features"
+      ],
+      "tests": [
+        "tests/integration/test_contextual_configuration_adoption_postgresql.py",
+        "tests/integration/test_ibmi_immutable_constituent_evidence.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiators": [
+        "EF_919b08f9bc6d4b63"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ib_contract_resolver.py:resolve_us_stock_contract",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "IBMI_SOURCE"
+      ],
+      "family_id": "WF_IB_CONTRACT_IDENTITY",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ib_contract_resolver.py:_clear_contract_identity",
+        "app/services/ib_contract_resolver.py:_mark_ambiguous",
+        "app/services/ib_contract_resolver.py:_mark_failed",
+        "app/services/ib_contract_resolver.py:resolve_us_stock_contract"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "0c9e58815f10b8657f5ead6e8418f31dcca48627d0abb367cef37e890c107f30",
+        "signature": "db: Session, ticker: str, ib: IB, force_refresh: bool=False",
+        "source_line": 45
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "ib_contracts"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ib_market_intelligence/test_adapters_budget_security.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_5f39587263ee923e"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ib_market_intelligence/flex.py:import_flex_report",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "TRADE_JOURNAL"
+      ],
+      "family_id": "WF_IB_FLEX_IMPORT",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/routers/ib_market_intelligence_routes.py:exclude_fill",
+          "classification": "SUPPORTED_DISTINCT_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_IB_FILL_EXCLUSION",
+          "proof": "Excluded fill flag and rebuild of derived episodes; not a new research score."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/flex.py:import_flex_report"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "677f73dc0fe1a7e6a065550921678c8adaa8fada53d11e6385710b13048018b3",
+        "signature": "db: Session, *, content: str, query_type: str, query_id: str, reference_code: str | None, dry_run: bool=False, intelligence_run_id: int | None=None, now: datetime | None=None, report_timezone: str='UTC'",
+        "source_line": 227
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ib_execution_fills",
+        "ib_flex_import_runs"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/integration/test_ib_market_intelligence_persistence.py",
+        "tests/ib_market_intelligence/test_flex_journal.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ib_market_intelligence/orchestration.py:execute_histogram_fetch",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "IBMI_SOURCE"
+      ],
+      "family_id": "WF_IB_HISTOGRAM_SCANNER",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/orchestration.py:execute_histogram_fetch"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "8d995a392cba32782c33efc99b7293227ea0028e459a631645d2ba2db523ff93",
+        "signature": "db: Session, job: BackgroundJob, *, settings: Settings | None=None, ib_factory=None",
+        "source_line": 754
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ib_histogram_bins",
+        "ib_histogram_snapshots"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ib_market_intelligence/test_adapters_budget_security.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ib_market_intelligence/orchestration.py:execute_scanner_run",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "IBMI_SOURCE"
+      ],
+      "family_id": "WF_IB_SCANNER_SOURCE",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/orchestration.py:execute_scanner_run"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "8d995a392cba32782c33efc99b7293227ea0028e459a631645d2ba2db523ff93",
+        "signature": "db: Session, job: BackgroundJob, *, settings: Settings | None=None, ib_factory=None",
+        "source_line": 565
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ib_scanner_candidates",
+        "ib_scanner_parameter_cache",
+        "ib_scanner_runs"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/ib_market_intelligence/test_adapters_budget_security.py",
+        "tests/ib_market_intelligence/test_ibmi_temporal_containment.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_3d469f86339ccac7"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/bar_cache_service.py:cache_bars",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "PRICE"
+      ],
+      "family_id": "WF_PRICE_INGESTION",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/bar_cache_service.py:cache_bars"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "6e3b1a78774502d2a2d5b1b184e416837c59b597e58b5535ccbc3f682a723ead",
+        "signature": "db: Session, bars: list[HistoricalBar], *, fetch_run_id: int | None=None, fetch_item_id: int | None=None",
+        "source_line": 126
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "price_bar_revisions",
+        "price_bars"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/test_technical_work.py",
+        "tests/integration/test_session_temporal_integrity_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiators": [
+        "EF_3d469f86339ccac7",
+        "EF_866ac2c173ac81d7"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/price_series_version_service.py:maintain_price_series_versions",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "PRICE"
+      ],
+      "family_id": "WF_PRICE_SERIES_VERSION",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/price_series_version_service.py:maintain_price_series_versions"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "7adee83f07b1eaf0949af56f9cd7c92e7891492bd0f81050595b924c206ae443",
+        "signature": "db: Session, bars: Iterable[Any], changed_keys: set[SeriesIdentity], *, now: datetime | None=None",
+        "source_line": 21
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "price_series_versions"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/test_technical_work.py",
+        "tests/integration/test_session_temporal_integrity_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "LEGACY_UNCERTIFIED"
+      ],
+      "assigned_initiators": [
+        "EF_a3fd956e147403b1",
+        "EF_a8016e0b9d69e5be",
+        "EF_d526d0a0522f099b"
+      ],
+      "bypass_disposition": "Private replacement is guarded by the canonical ranking semantic transaction; no independent permit.",
+      "canonical_owner": "app/services/ranking_profile_service.py:_replace_legacy_ranking",
+      "contract_enforced": true,
+      "current_classification": "LEGACY_WRITER",
+      "domain": [
+        "RANKING"
+      ],
+      "family_id": "WF_RANKING_LEGACY_REPLACEMENT",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ranking_profile_service.py:_persist_rankings",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_RANKING_PERSISTENCE",
+          "proof": "Native ranking insert/copy; unanchored legacy replacement split below."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ranking_profile_service.py:_replace_legacy_ranking"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "10c75f68d7fc9a4d267428781258e9ca1b8352f31a0a8b6dfac5048d7513e522",
+        "signature": "db: Session, *, current: RankingResult, candidate: RankingResult",
+        "source_line": 417
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Private legacy migration mechanism requires validated _persist_rankings transaction; no independent direct financial mutation.",
+      "status": "PASS",
+      "t14a_classification": "LEGACY_WRITER",
+      "tables": [
+        "ranking_results"
+      ],
+      "tests": [
+        "tests/integration/test_core_configuration_adoption_postgresql.py",
+        "tests/test_ranking_profile_service.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_a3fd956e147403b1",
+        "EF_a8016e0b9d69e5be",
+        "EF_d526d0a0522f099b"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ranking_profile_service.py:_persist_rankings",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "RANKING"
+      ],
+      "family_id": "WF_RANKING_PERSISTENCE",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "LEGACY_UNCERTIFIED"
+          ],
+          "canonical_owner": "app/services/ranking_profile_service.py:_replace_legacy_ranking",
+          "classification": "LEGACY_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_RANKING_LEGACY_REPLACEMENT",
+          "proof": "Unanchored ranking serving replacement differs from sealed native ranking evidence."
+        }
+      ],
+      "legacy_variants": [
+        "WF_RANKING_LEGACY_REPLACEMENT"
+      ],
+      "member_persistence_sites": [
+        "app/services/ranking_profile_service.py:_copy_ranking_values",
+        "app/services/ranking_profile_service.py:_persist_rankings"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "10c75f68d7fc9a4d267428781258e9ca1b8352f31a0a8b6dfac5048d7513e522",
+        "signature": "db: Session, *, run_id: int, desired: list[RankingResult], source_rows: dict[str, _ValidatedRankingSources] | None=None, ibmi_sources: dict[tuple[str, str], IBIntelligenceFeature] | None=None, effective_configurations: dict[str, CoreEffectiveConfiguration] | None=None",
+        "source_line": 328
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Exact source ledgers/values/native permission, complete profile/configuration and same owning calculation context; strictly older compatible prior-Sector when pinned.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "ranking_results"
+      ],
+      "tests": [
+        "tests/integration/test_core_configuration_adoption_postgresql.py",
+        "tests/integration/test_phase4_configuration_certification_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CURRENT_STATE_REPAIR"
+      ],
+      "assigned_initiators": [
+        "EF_fd8cd8fbbbba07f7"
+      ],
+      "bypass_disposition": "Explicit bounded legacy-only maintenance; exact locked IDs; any retained certified Regime history prevents deletion.",
+      "canonical_owner": "app/services/market_regime_repository.py:MarketRegimeRepository.delete_for_run",
+      "contract_enforced": true,
+      "current_classification": "CURRENT_PROJECTION_WRITER",
+      "domain": [
+        "REGIME",
+        "CURRENT_PROJECTION"
+      ],
+      "family_id": "WF_REGIME_DERIVED_DELETE",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_REGIME_SNAPSHOT",
+          "proof": "upsert_snapshot reuses exact evidence-hash matches, otherwise appends the next logical revision, marks only the prior revision non-current, and persists immutable native/shared evidence. Derived deletion is now WF_REGIME_DERIVED_DELETE."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository.delete_for_run"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "724ada94f986e7a245db2410f6d328814a6c48c23ed2b34354327c02c60d3223",
+        "signature": "self, db: Session, run_id: int, *, legacy_only: bool=False",
+        "source_line": 220
+      },
+      "projection_policy": "EXPLICIT_LEGACY_LOCKED_TARGET_DELETE_ONLY; no retained-history deletion; no phantom sweep",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Explicit legacy-only maintenance; locked exact target IDs, no retained Regime ledger or serving evidence link; excludes concurrently inserted rows and checks actual durable token.",
+      "status": "PASS",
+      "t14a_classification": "CURRENT_PROJECTION_WRITER",
+      "tables": [
+        "market_regime_snapshots"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_regime_legacy_maintenance_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_874835d87c21855e"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "REGIME"
+      ],
+      "family_id": "WF_REGIME_SNAPSHOT",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "CURRENT_STATE_REPAIR"
+          ],
+          "canonical_owner": "app/services/market_regime_repository.py:MarketRegimeRepository.delete_for_run",
+          "classification": "CURRENT_PROJECTION_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_REGIME_DERIVED_DELETE",
+          "proof": "delete_for_run issues run-scoped DELETE of MarketRegimeSnapshot and flushes. Immutable shared core evidence is not deleted by this method. This derived repair is separate from revision creation."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository._apply_snapshot_fields",
+        "app/services/market_regime_repository.py:MarketRegimeRepository._supersede_previous_revision",
+        "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "724ada94f986e7a245db2410f6d328814a6c48c23ed2b34354327c02c60d3223",
+        "signature": "self, db: Session, dto: MarketRegimeSnapshotWrite, run_id: int | None=None",
+        "source_line": 52
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Full contextual.regime policy, explicit contextual input envelope with independently checked market/participation/leadership PIT manifests and native parent/standalone time.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "market_regime_snapshots"
+      ],
+      "tests": [
+        "tests/integration/test_contextual_configuration_adoption_postgresql.py",
+        "tests/integration/test_phase4_configuration_certification_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_021cfb93d6813955"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "SECTOR"
+      ],
+      "family_id": "WF_SECTOR_SNAPSHOT",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/sector_rotation_repository.py:SectorRotationRepository._apply_snapshot_fields",
+        "app/services/sector_rotation_repository.py:SectorRotationRepository._supersede_previous_revision",
+        "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "db760484d8e30ed3cfc527c14b1fa98e9847c797e48a5333c7f23a0c7b0c17a4",
+        "signature": "self, db: Session, dto: SectorRotationSnapshotWrite, *, evidence_sources: dict[str, Any] | None=None",
+        "source_line": 101
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Full contextual.sector, exact universe/ETF envelope; Regime/Ranking, used contributor ledgers/values/config/permission, raw digests and PIT manifests.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "sector_rotation_rows",
+        "sector_rotation_snapshots"
+      ],
+      "tests": [
+        "tests/integration/test_contextual_configuration_adoption_postgresql.py",
+        "tests/integration/test_phase4_configuration_certification_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_44e2b88da09c0be6",
+        "EF_5acf98114588686d",
+        "EF_f0d208ce35a33ed6"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/sec/state_service.py:SecDocumentStateService.register_document",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_SEC_DOCUMENT_SOURCE",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.complete",
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.record_downloaded_content",
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.register_document"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "1147d6e746997fa39513c995ed82de90d5d7711ce44210443d4da7cf5097622c",
+        "signature": "self, db: Session, identity: SecDocumentIdentity",
+        "source_line": 59
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "ceri_sec_document_extractions",
+        "ceri_sec_filing_documents"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/integration/test_sec_incremental_ingestion_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiators": [],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/ceri/sec/incremental_ingestion.py:SecGuidanceIncrementalIngestionService._resolve_and_persist_cik",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "family_id": "WF_SEC_INCREMENTAL_IDENTITY",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "BOOTSTRAP"
+          ],
+          "canonical_owner": "app/services/ceri/batched_workflow.py:_ensure_ceri_companies",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14D",
+          "family_id": "WF_CERI_COMPANY_BOOTSTRAP",
+          "proof": "Company identities for batched ingestion; not retained score evidence."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._persist_company",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_FEATURE_BUILD",
+          "proof": "One feature-build transaction owns four typed upsert/copy mechanisms and company state."
+        },
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_CERI_SOURCE_NORMALIZATION",
+          "proof": "Provider source conversion to concrete catalyst/earnings/estimate/guidance artifacts and identity aliases."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/pipeline_executor.py:execute_full_pipeline",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14D",
+          "family_id": "WF_PIPELINE_STAGE_STATE",
+          "proof": "Execution status/stage attempts and prerequisite source scheduling; financial stage algorithms remain separate writer families."
+        },
+        {
+          "allowed_modes": [
+            "CURRENT_STATE_REPAIR"
+          ],
+          "canonical_owner": "scripts/resolve_sec_ciks.py:main",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_SEC_CIK_CLI",
+          "proof": "Explicit command repairs current company CIK identity; not financial evidence."
+        },
+        {
+          "allowed_modes": [
+            "CURRENT_STATE_REPAIR"
+          ],
+          "canonical_owner": "app/services/ceri/sec/identity_repair.py:resolve_and_persist_sec_identity",
+          "classification": "CURRENT_RULES_WRITER",
+          "disposition": "T14D",
+          "family_id": "WF_SEC_IDENTITY_REPAIR",
+          "proof": "Repair current CIK/company source identity; not original score reconstruction."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/ceri/sec/incremental_ingestion.py:SecGuidanceIncrementalIngestionService._resolve_and_persist_cik"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "79bb017d5395a11828352cefc0cd9161945111c2c5e564b8525f76f6c9bf0949",
+        "signature": "db: Session, *, provider: SecCeriProvider, ticker: str",
+        "source_line": 387
+      },
+      "projection_policy": "NO_FINANCIAL_CURRENT_PROJECTION; native source/supporting semantics",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing native source domain policy; exact incoming acquisition/normalization request/DTO/row manifest and digest, persisted row address/state comparison, private owner scope, actual job-token fence and rollback. No invented financial CI or global source/configuration/time requirements.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "ceri_companies"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_source_boundaries_postgresql.py",
+        "tests/integration/test_sec_incremental_ingestion_postgresql.py",
+        "tests/ceri/test_sec_identity_repair.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiators": [
+        "EF_3984d25edba4f45f",
+        "EF_431a8947c0b31cbf",
+        "EF_7eea11a8cded4a8a",
+        "EF_cb55d161e779c8be",
+        "EF_de562c9ceb6ee65a",
+        "EF_fb5089df555b2b2f"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/technical_artifact_cache.py:upsert_local_artifact",
+      "contract_enforced": true,
+      "current_classification": "DOMAIN_SUPPORTING_STATE",
+      "domain": [
+        "TECHNICAL"
+      ],
+      "family_id": "WF_TECHNICAL_FEATURE_CACHE",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/technical_artifact_cache.py:get_local_artifact",
+        "app/services/technical_artifact_cache.py:record_local_artifact_shadow_validation",
+        "app/services/technical_artifact_cache.py:upsert_local_artifact"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "9cc22668060ca66da09592cbd87a67eea603246022aaa640dc961e78ff91fefd",
+        "signature": "db: Session, key: LocalArtifactKey, *, artifact_json: dict[str, Any], warning_flags: list[str] | tuple[str, ...]=(), status: str='READY'",
+        "source_line": 206
+      },
+      "projection_policy": "LOCAL_SUPPORTING_CACHE_ONLY; key/payload/shadow/attempt validation; cannot create financial evidence",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Existing distinct LocalArtifactKey: feature config/engine/schema, series versions, exact session/cutoff/PIT hash, metadata/signature/checksum; shadow proof tied to payload; actual durable-attempt lock.",
+      "status": "PASS",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "technical_feature_artifacts"
+      ],
+      "tests": [
+        "tests/integration/test_t14b_cache_authority_postgresql.py",
+        "tests/test_technical_artifact_cache.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiators": [
+        "EF_3984d25edba4f45f",
+        "EF_756b7b07d4f365c0",
+        "EF_de562c9ceb6ee65a"
+      ],
+      "bypass_disposition": "ASSIGNED_BOUNDARY_ENFORCED; alternatives keep their original T14C/T14D/distinct ownership",
+      "canonical_owner": "app/services/technical_score_service.py:finalize_technical_scores",
+      "contract_enforced": true,
+      "current_classification": "CANONICAL_WRITER",
+      "domain": [
+        "TECHNICAL"
+      ],
+      "family_id": "WF_TECHNICAL_FINALIZATION",
+      "known_parallel_writers": [],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/technical_score_service.py:finalize_technical_scores"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "00cacc1b9962c900bb28057378f42c0de8783c26e325241fec8b956fe3a9c2f8",
+        "signature": "db: Session, run_id: int, score_results: list[PineReplicaScore | TechnicalScore], *, symbols: list[str] | None=None, v4_params: dict[str, Any] | None=None, v5_params: dict[str, Any] | None=None, v5_context: TechnicalV5RunContext | None=None, settings: Settings | None=None, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, persist: bool=True, effective_configuration: CoreEffectiveConfiguration | None=None",
+        "source_line": 334
+      },
+      "projection_policy": "EXACT_CERTIFIED_NATIVE_SCOPE_AND_TARGET; monotonic; immutable history retained",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "Explicit pipeline/cutoff/full core.technical C1; exact native envelope and bounded price/benchmark/sector/cohort PIT manifests.",
+      "status": "PASS",
+      "t14a_classification": "CANONICAL_WRITER",
+      "tables": [
+        "technical_scores"
+      ],
+      "tests": [
+        "tests/integration/test_core_configuration_adoption_postgresql.py",
+        "tests/integration/test_t14b_writer_authority_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    },
+    {
+      "allowed_modes": [
+        "BOOTSTRAP",
+        "LEGACY_UNCERTIFIED"
+      ],
+      "assigned_initiators": [
+        "EF_ab4102ebb9197c4d",
+        "EF_da68f1fde41c070d"
+      ],
+      "bypass_disposition": "RAW bootstrap is native source authority; initial Fundamental explicitly LEGACY_SERVING_ONLY without certified ledger/readiness.",
+      "canonical_owner": "app/services/upload_service.py:create_upload_run",
+      "contract_enforced": true,
+      "current_classification": "LEGACY_WRITER",
+      "domain": [
+        "FUNDAMENTAL",
+        "RAW"
+      ],
+      "family_id": "WF_UPLOAD_INITIALIZATION",
+      "known_parallel_writers": [
+        {
+          "allowed_modes": [
+            "CANONICAL_CALCULATION"
+          ],
+          "canonical_owner": "app/services/fundamental_score_service.py:recalculate_run_fundamentals",
+          "classification": "CANONICAL_WRITER",
+          "disposition": "T14B",
+          "family_id": "WF_FUNDAMENTAL_RECALCULATION",
+          "proof": "The real-Session owner checks cutoff, pipeline and full configuration before delete/recalculation. Its native retained-evidence transaction validates exact raw input, persisted context/configuration and execution ownership; invalid authority rolls back serving/evidence/projection state."
+        },
+        {
+          "allowed_modes": [
+            "MAINTENANCE"
+          ],
+          "canonical_owner": "app/services/pipeline_executor.py:execute_full_pipeline",
+          "classification": "DOMAIN_SUPPORTING_STATE",
+          "disposition": "T14D",
+          "family_id": "WF_PIPELINE_STAGE_STATE",
+          "proof": "Execution status/stage attempts and prerequisite source scheduling; financial stage algorithms remain separate writer families."
+        }
+      ],
+      "legacy_variants": [],
+      "member_persistence_sites": [
+        "app/services/upload_service.py:create_upload_run"
+      ],
+      "native_authority_inputs": {
+        "canonical_source_sha256": "1298ecfd315c73159370192d818ebdfb7ff0a06b80308e70475c6c9a9a9a40e1",
+        "signature": "db: Session, upload_file: UploadFile",
+        "source_line": 53
+      },
+      "projection_policy": "RAW_SOURCE_BOOTSTRAP; FUNDAMENTAL_LEGACY_SERVING_ONLY; no core evidence/readiness",
+      "proof_boundary": "Malformed authority rejection is tested at every assigned source adapter in real PG. Domain native positive/behavior tests are separate; structural coverage is not a positive acquisition or financial permit.",
+      "required_authority": "RAW BOOTSTRAP exact uploaded path/content digest rechecked before insertion; actual applicable fence. Numeric initial Fundamental is explicit LEGACY_SERVING_ONLY, never core readiness/history.",
+      "status": "PASS",
+      "t14a_classification": "CONFIRMED_BYPASS",
+      "tables": [
+        "fundamental_scores",
+        "raw_company_rows",
+        "upload_runs"
+      ],
+      "tests": [
+        "tests/integration/test_phase4_configuration_certification_postgresql.py",
+        "tests/test_t14b_writer_contract_adoption.py"
+      ],
+      "transactionally_validated": true
+    }
+  ],
+  "writers_assigned": 32,
+  "writers_reconciled": 32
+}

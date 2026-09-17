@@ -9,10 +9,15 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import PriceBar, PriceSeriesVersion
 from app.observability.transaction_metrics import publish_after_commit
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.source_mutation_authority import source_mutation_writer
 
 SeriesIdentity = tuple[str, str, str]
 
 
+@source_mutation_writer(
+    MutationDomain.PRICE, "acquisition_plan", mode=MutationSemanticMode.MAINTENANCE
+)
 def maintain_price_series_versions(
     db: Session,
     bars: Iterable[Any],

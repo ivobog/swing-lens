@@ -41,11 +41,16 @@ from app.services.contextual_consumer_eligibility import (
     FUNDAMENTAL_TO_COMBINED,
     contextual_decision_input,
 )
-from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    declare_core_evidence_mutation,
+    persist_core_evidence,
+)
 from app.services.core_effective_configuration import (
     CoreEffectiveConfiguration,
     resolve_combined_configuration,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.earnings_date_parser import MISSING_EARNINGS_DATE_VALUES
 from app.services.earnings_risk_service import (
     EarningsRiskResult,
@@ -128,6 +133,7 @@ class CombinedDecision:
     debug_evidence: dict[str, Any]
 
 
+@core_writer_transaction
 def refresh_combined_results(
     db: Session,
     run_id: int,
@@ -136,10 +142,37 @@ def refresh_combined_results(
     pipeline_run_id: int | None = None,
     effective_configuration: CoreEffectiveConfiguration | None = None,
     expected_calculation_identity: CalculationIdentity | None = None,
+    source_evidence: dict[str, dict[str, int]] | None = None,
 ) -> list[CombinedResult]:
+    if isinstance(db, Session) and (
+        market_cutoff is None
+        or pipeline_run_id is None
+        or effective_configuration is None
+        or source_evidence is None
+    ):
+        raise ValueError("COMBINED_MUTATION_AUTHORITY_REQUIRED")
     rows = _rows_for_run(db, run_id)
-    fundamentals = {score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)}
-    technicals = {score.ticker.upper(): score for score in _technicals_for_run(db, run_id)}
+    if isinstance(db, Session):
+        fundamentals = {}
+        technicals = {}
+        for ticker, pins in source_evidence.items():
+            for role, model, target in (
+                ("fundamental", FundamentalScore, fundamentals),
+                ("technical", TechnicalScore, technicals),
+            ):
+                source = db.scalar(
+                    select(model).where(
+                        model.evidence_id == pins.get(role),
+                        model.run_id == run_id,
+                        model.ticker == ticker.upper(),
+                    )
+                )
+                if source is None:
+                    raise ValueError("COMBINED_EXACT_SOURCE_ADDRESS_REQUIRED: " + role)
+                target[ticker.upper()] = source
+    else:
+        fundamentals = {score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)}
+        technicals = {score.ticker.upper(): score for score in _technicals_for_run(db, run_id)}
 
     effective_configuration = effective_configuration or resolve_combined_configuration()
     effective_configuration.require_family("core.combined")
@@ -255,6 +288,16 @@ def refresh_combined_results(
                     "fundamental": fundamentals[result.ticker.upper()],
                     "technical": technicals[result.ticker.upper()],
                 },
+                mutation_context=declare_core_evidence_mutation(
+                    db,
+                    kind=CoreEvidenceKind.COMBINED,
+                    current_row=result,
+                    effective_configuration=effective_configuration.snapshot,
+                    sources={
+                        "fundamental": fundamentals[result.ticker.upper()],
+                        "technical": technicals[result.ticker.upper()],
+                    },
+                ),
             )
     return results
 

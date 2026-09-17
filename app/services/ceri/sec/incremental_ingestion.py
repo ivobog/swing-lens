@@ -27,7 +27,9 @@ from app.services.ceri.sec.state_service import (
     SecDocumentStateService,
 )
 from app.services.ceri.source_record_service import CeriSourceRecordService
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.redaction import redact_text
+from app.services.source_mutation_authority import source_mutation_writer
 from app.settings import SecDocumentIncrementalMode, Settings
 
 
@@ -379,6 +381,9 @@ class SecGuidanceIncrementalIngestionService:
             db.commit()
 
     @staticmethod
+    @source_mutation_writer(
+        MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
+    )
     def _resolve_and_persist_cik(
         db: Session, *, provider: SecCeriProvider, ticker: str
     ) -> str | None:

@@ -8,12 +8,14 @@ from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
 
 from app.models.tables import PriceBar, PriceBarRevision
+from app.services.domain_mutation import MutationDomain
 from app.services.ib_api import IB
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_data_fetcher import HistoricalBar, fetch_daily_bars
 from app.services.price_series_version_service import maintain_price_series_versions
 from app.services.redaction import redact_text
+from app.services.source_mutation_authority import source_mutation_writer
 from app.settings import Settings, get_settings
 
 DEFAULT_WHAT_TO_SHOW = ("ADJUSTED_LAST", "TRADES")
@@ -120,6 +122,7 @@ def ensure_daily_bars(
     return summary
 
 
+@source_mutation_writer(MutationDomain.PRICE, "acquisition_plan")
 def cache_bars(
     db: Session,
     bars: list[HistoricalBar],

@@ -14,7 +14,9 @@ from app.models.ceri_tables import (
     CeriSecFilingDocument,
     CeriSecSyncState,
 )
+from app.services.domain_mutation import MutationDomain
 from app.services.redaction import redact_text
+from app.services.source_mutation_authority import source_mutation_writer
 
 
 class SecExtractionStatus(StrEnum):
@@ -53,6 +55,7 @@ class SecDocumentClaim:
 
 
 class SecDocumentStateService:
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def register_document(
         self, db: Session, identity: SecDocumentIdentity
     ) -> CeriSecFilingDocument:
@@ -228,6 +231,7 @@ class SecDocumentStateService:
             return SecDocumentClaim(False, current.id, current.status, None)
         return SecDocumentClaim(True, current.id, SecExtractionStatus.RUNNING.value, token, stale)
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def complete(
         self,
         db: Session,
@@ -280,6 +284,7 @@ class SecDocumentStateService:
             .values(**document_values)
         )
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def record_downloaded_content(
         self,
         db: Session,

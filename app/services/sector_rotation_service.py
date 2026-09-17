@@ -300,6 +300,19 @@ def build_sector_rotation_snapshot(
                 "etf_rows": [asdict(row) for row in etf_rows],
             },
         )
+        dto = replace(
+            dto,
+            debug={
+                **dto.debug,
+                "native_input_envelope": {
+                    "mode": mode,
+                    "default_ranking_profile": default_profile,
+                    "universe_rows": [asdict(row) for row in universe_rows],
+                    CONTEXTUAL_ELIGIBILITY_KEY: dto.debug[CONTEXTUAL_ELIGIBILITY_KEY],
+                    "etf_rows": [asdict(row) for row in etf_rows],
+                },
+            },
+        )
         identity = replace(
             identity,
             configuration=expected_sector_identity(

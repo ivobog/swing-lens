@@ -36,7 +36,7 @@ def load_price_bars_frame(
     if as_of is not None:
         rows = project_price_bar_rows_as_of(db, rows, as_of=as_of)
 
-    return pd.DataFrame(
+    frame = pd.DataFrame(
         [
             {
                 "date": row.bar_date,
@@ -50,6 +50,44 @@ def load_price_bars_frame(
         ],
         columns=["date", "open", "high", "low", "close", "volume"],
     )
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+
+    frame.attrs["pit_source_manifest"] = Canonical.canonicalize(
+        {
+            "ticker": ticker.upper(),
+            "what_to_show": what_to_show,
+            "timeframe": timeframe,
+            "as_of": as_of,
+            "max_session": max_session,
+            "states": [
+                {"id": row.id, "fingerprint": price_bar_pit_manifest_hash(db, row)} for row in rows
+            ],
+        }
+    )
+    return frame
+
+
+def price_bar_pit_manifest_hash(db, row):
+    from datetime import UTC
+    from types import SimpleNamespace
+
+    from app.services.price_bar_evidence import (
+        PRICE_BAR_IMMUTABLE_EVIDENCE_FIELDS,
+        price_bar_immutable_evidence_hash,
+    )
+
+    # SQLite drops timezone information for timezone=True ORM columns. This
+    # adapter preserves their declared UTC storage semantics in isolated tests.
+    if isinstance(db, Session) and db.get_bind().dialect.name == "sqlite":
+        values = {name: getattr(row, name, None) for name in PRICE_BAR_IMMUTABLE_EVIDENCE_FIELDS}
+        values = {
+            key: value.replace(tzinfo=UTC)
+            if isinstance(value, datetime) and value.tzinfo is None
+            else value
+            for key, value in values.items()
+        }
+        row = SimpleNamespace(**values)
+    return price_bar_immutable_evidence_hash(row)
 
 
 def project_price_bar_rows_as_of(

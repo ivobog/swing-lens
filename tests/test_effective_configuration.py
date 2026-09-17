@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from historical_evidence_support import seed_pre_phase5_evidence
 
 from app.services.calculation_identity import (
     CalculationIdentity,
@@ -355,13 +356,13 @@ def test_calculation_identity_round_trip_preserves_other_dimensions():
 def test_untyped_binding_and_evidence_snapshot_rejected_before_serialization():
     from types import SimpleNamespace
 
-    from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+    from app.services.core_calculation_evidence import CoreEvidenceKind
 
     base = CalculationIdentity.legacy_unknown()
     with pytest.raises(TypeError, match="typed"):
         bind_configuration(base, object())
     with pytest.raises(TypeError, match="typed snapshot"):
-        persist_core_evidence(
+        seed_pre_phase5_evidence(
             None,
             kind=CoreEvidenceKind.TECHNICAL,
             current_row=SimpleNamespace(),

@@ -18,9 +18,11 @@ from app.services.combined_ranking_identity import calculation_identity_from_deb
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
+    declare_core_evidence_mutation,
     get_evidence_by_id,
     persist_core_evidence,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,7 @@ class SectorRotationSnapshotWrite:
 
 
 class SectorRotationRepository:
+    @core_writer_transaction
     def save_snapshot(
         self,
         db: Session,
@@ -151,7 +154,7 @@ class SectorRotationRepository:
         if not isinstance(db, Session):
             return
         if calculation_identity_from_debug(snapshot.debug_json) is None:
-            return
+            raise ValueError("SECTOR_CANONICAL_CALCULATION_IDENTITY_REQUIRED")
         if evidence_sources is None:
             raise EvidenceUnavailableError(
                 "EVIDENCE_UNAVAILABLE: SECTOR immutable source set was not supplied"
@@ -178,6 +181,14 @@ class SectorRotationRepository:
             scope_ticker=None,
             scope_profile=snapshot.mode,
             effective_configuration=getattr(dto, "_effective_configuration", None),
+            mutation_context=declare_core_evidence_mutation(
+                db,
+                kind=CoreEvidenceKind.SECTOR,
+                current_row=snapshot,
+                sources=evidence_sources,
+                payload=payload,
+                effective_configuration=getattr(dto, "_effective_configuration", None),
+            ),
         )
 
     @staticmethod
@@ -414,6 +425,9 @@ class SectorRotationRepository:
             statement = statement.where(SectorRotationSnapshot.config_hash == dto.config_hash)
         return statement
 
+    @core_writer_member(
+        "app.services.sector_rotation_repository:SectorRotationRepository.save_snapshot"
+    )
     def _supersede_previous_revision(
         self,
         db: Session,
@@ -426,6 +440,9 @@ class SectorRotationRepository:
         previous.superseded_at = now
         db.flush()
 
+    @core_writer_member(
+        "app.services.sector_rotation_repository:SectorRotationRepository.save_snapshot"
+    )
     def _apply_snapshot_fields(
         self,
         snapshot: SectorRotationSnapshot,

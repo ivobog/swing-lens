@@ -213,9 +213,13 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     statements: list[str] = []
+    authority_reads: list[str] = []
 
     @event.listens_for(engine, "before_cursor_execute")
     def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        if _context.execution_options.get("t14b_source_authority"):
+            authority_reads.append(statement)
+            return
         statements.append(statement.lstrip().split(None, 1)[0].upper())
 
     with Session(engine, expire_on_commit=False) as db:
@@ -246,9 +250,11 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
         service = CeriFeatureRebuildService()
 
         statements.clear()
+        authority_reads.clear()
         first = service.rebuild(db, request)
         db.commit()
         first_selects = statements.count("SELECT")
+        first_authority_reads = len(authority_reads)
         first_counts = (
             db.scalar(select(func.count()).select_from(CeriRevisionFeature)),
             db.scalar(select(func.count()).select_from(CeriDerivedFeature)),
@@ -272,6 +278,7 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
 
         assert first.companies_rebuilt == 1
         assert first_selects <= 12
+        assert first_authority_reads <= 3
         assert first.sql_write_count <= 5
         assert second.companies_skipped_unchanged == 1
         assert second_counts == first_counts

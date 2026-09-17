@@ -10,6 +10,9 @@ from scripts.qa.t14a_mutation_inventory import ROOT
 
 def review_source_status(root=ROOT):
     path = root / "docs/remediation/calculation-lineage/T14A_semantic_review_source_pins.json"
+    adoption = root / "docs/remediation/calculation-lineage/T14B_semantic_review_source_pins.json"
+    if adoption.exists():
+        path = adoption
     if not path.exists():
         return ["MISSING_REVIEW_SOURCE_PINS"]
     retained = json.loads(path.read_text(encoding="utf-8"))

@@ -8,16 +8,22 @@ from app.services.combined_ranking_identity import (
     build_fundamental_score_identity,
     embed_calculation_identity,
 )
-from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    declare_core_evidence_mutation,
+    persist_core_evidence,
+)
 from app.services.core_effective_configuration import (
     CoreEffectiveConfiguration,
     resolve_fundamental_configuration,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.fundamental_ranker_v2 import score_rows_v2
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.upload_service import _fundamental_score_from_v2
 
 
+@core_writer_transaction
 def recalculate_run_fundamentals(
     db: Session,
     run_id: int,
@@ -27,6 +33,12 @@ def recalculate_run_fundamentals(
     effective_configuration: CoreEffectiveConfiguration | None = None,
     expected_calculation_identity: CalculationIdentity | None = None,
 ) -> list[FundamentalScore]:
+    if isinstance(db, Session) and (
+        market_cutoff is None or pipeline_run_id is None or effective_configuration is None
+    ):
+        raise ValueError(
+            "FUNDAMENTAL_MUTATION_AUTHORITY_REQUIRED: explicit cutoff, pipeline and frozen config"
+        )
     raw_rows = list(
         db.scalars(
             select(RawCompanyRow)
@@ -85,6 +97,14 @@ def recalculate_run_fundamentals(
                 effective_configuration=effective_configuration.snapshot
                 if market_cutoff is not None
                 else None,
+                mutation_context=declare_core_evidence_mutation(
+                    db,
+                    kind=CoreEvidenceKind.FUNDAMENTAL,
+                    current_row=score,
+                    effective_configuration=effective_configuration.snapshot
+                    if market_cutoff is not None
+                    else None,
+                ),
             )
     return scores
 

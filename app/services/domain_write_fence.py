@@ -26,6 +26,11 @@ _current_ownership: ContextVar[DomainWriteOwnership | None] = ContextVar(
 )
 
 
+def current_domain_write_ownership() -> DomainWriteOwnership | None:
+    """Return the supplied durable attempt, without resolving or inventing a job."""
+    return _current_ownership.get()
+
+
 def assert_current_execution_ownership(
     db: Session,
     *,

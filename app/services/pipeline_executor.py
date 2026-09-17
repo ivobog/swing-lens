@@ -128,6 +128,33 @@ def _call_market_sensitive(
         kwargs["market_cutoff"] = market_cutoff
     if pipeline_run_id is not None and ("pipeline_run_id" in parameters or accepts_kwargs):
         kwargs["pipeline_run_id"] = pipeline_run_id
+    if "effective_configuration" in parameters:
+        from app.services.configuration_delivery import delivered_configuration
+        from app.services.core_effective_configuration import CoreEffectiveConfiguration
+
+        namespace = {
+            "recalculate_run_fundamentals": "core.fundamental",
+            "score_run_technicals": "core.technical",
+            "refresh_combined_results": "core.combined",
+        }.get(function.__name__)
+        if namespace is not None:
+            frozen = delivered_configuration(namespace)
+            if frozen is None and isinstance(db, Session):
+                raise ValueError("PIPELINE_FROZEN_WRITER_CONFIGURATION_REQUIRED")
+            if frozen is not None:
+                kwargs["effective_configuration"] = CoreEffectiveConfiguration(frozen.snapshot)
+    if "source_evidence" in parameters and isinstance(db, Session):
+        from sqlalchemy import select
+
+        from app.models.tables import FundamentalScore, TechnicalScore
+
+        pins: dict[str, dict[str, int]] = {}
+        for role, model in (("fundamental", FundamentalScore), ("technical", TechnicalScore)):
+            for source in db.scalars(select(model).where(model.run_id == run_id)):
+                if source.evidence_id is None:
+                    raise ValueError("PIPELINE_CERTIFIED_SOURCE_REQUIRED: " + role)
+                pins.setdefault(source.ticker.upper(), {})[role] = source.evidence_id
+        kwargs["source_evidence"] = pins
     if kwargs:
         return function(db, run_id, **kwargs)
     return function(db, run_id)

@@ -172,15 +172,25 @@ def test_foundation_does_not_certify_caller_authority(inventory_pair):
     assert payload["proof_boundary"] == inventory["proof_boundary"]
 
 
-def test_existing_production_sources_are_unchanged():
-    # New declarations do not become an implicit writer wrapper or global hook.
+def test_production_adoption_is_source_qualified_and_preserves_foundation_history():
+    # T14B adds explicit writer adapters; foundation history remains separately pinned.
     imports = []
     for path in (ROOT / "app").rglob("*.py"):
         if path.name != "domain_mutation.py" and "domain_mutation" in path.read_text(
             encoding="utf-8"
         ):
             imports.append(path.relative_to(ROOT).as_posix())
-    assert imports == []
+    adoption = json.loads(
+        (
+            ROOT / "docs/remediation/calculation-lineage/T14B_semantic_review_source_pins.json"
+        ).read_text()
+    )
+    assert set(imports) <= set(adoption["sources"])
+    assert {
+        "app/services/core_mutation_authority.py",
+        "app/services/source_mutation_authority.py",
+    } <= set(imports)
+    assert adoption["foundation_baseline"] == "5eef0d08d783de132fecb14c5dedd66821f0949f"
 
 
 def test_auxiliary_ownership_review_is_explicit_and_existing():

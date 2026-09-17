@@ -12,6 +12,7 @@ import pytest
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import BigInteger, create_engine, inspect, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
@@ -38,7 +39,6 @@ from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
     get_current_evidence,
-    persist_core_evidence,
 )
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 from app.services.ib_market_intelligence.decision_evidence import (
@@ -342,7 +342,7 @@ def test_ranking_edge_stays_on_original_ibmi_evidence(evidence_db: Session) -> N
     own_configuration = resolve_ranking_configuration(
         next(profile for profile in load_ranking_profiles() if profile.name == "momentum_swing"), {}
     )
-    ranking_evidence = persist_core_evidence(
+    ranking_evidence = seed_pre_phase5_evidence(
         evidence_db,
         kind=CoreEvidenceKind.RANKING,
         current_row=ranking,

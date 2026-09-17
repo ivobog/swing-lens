@@ -14,6 +14,8 @@ from app.models.ib_market_intelligence_tables import (
     IBMarketIntelligenceSnapshot,
 )
 from app.observability.transaction_metrics import publish_after_commit
+from app.services.core_mutation_authority import core_writer_transaction
+from app.services.domain_mutation import MutationDomain
 from app.services.ib_market_intelligence.config import IBMarketIntelligenceConfig
 from app.services.ib_market_intelligence.dtos import (
     FeatureResult,
@@ -22,9 +24,11 @@ from app.services.ib_market_intelligence.dtos import (
 )
 from app.services.ib_market_intelligence.evidence_hash import evidence_hash
 from app.services.market_clock_service import CALENDAR_VERSION
+from app.services.source_mutation_authority import source_mutation_writer
 from app.services.us_market_calendar import us_market_session
 
 
+@source_mutation_writer(MutationDomain.IBMI_SOURCE, "request_scope")
 def persist_historical_metric_bar(
     db: Session,
     dto: HistoricalMetricBarDTO,
@@ -130,6 +134,7 @@ def persist_historical_metric_bar(
     return existing, "REVISED"
 
 
+@source_mutation_writer(MutationDomain.IBMI_SOURCE, "request_scope")
 def persist_live_snapshot(
     db: Session, dto: LiveSnapshotDTO, *, intelligence_run_id: int | None = None
 ) -> tuple[IBMarketIntelligenceSnapshot, bool]:
@@ -262,15 +267,14 @@ def project_historical_metric_rows_as_of(
                 revision_count=max(0, int(first_after.revision_number) - 1),
                 first_seen_at=row.first_seen_at,
                 last_seen_at=row.last_seen_at,
-                revised_at=(
-                    prior_revisions[-1].observed_at if prior_revisions else None
-                ),
+                revised_at=(prior_revisions[-1].observed_at if prior_revisions else None),
                 warning_flags_json=list(values.get("warning_flags") or []),
             )
         )
     return projected
 
 
+@core_writer_transaction
 def persist_feature(
     db: Session,
     *,
@@ -284,6 +288,8 @@ def persist_feature(
     calculation_cutoff_at: datetime | None = None,
     constituents: Any | None = None,
 ) -> tuple[IBIntelligenceFeature, bool]:
+    if isinstance(db, Session) and constituents is not None and calculation_cutoff_at is None:
+        raise ValueError("IBMI_EXPLICIT_CALCULATION_CUTOFF_REQUIRED")
     constituent_manifest = None
     constituent_issues: tuple[str, ...] = ()
     source_evidence_hashes = sorted(set(feature.evidence_hashes))
@@ -293,9 +299,11 @@ def persist_feature(
             constituent_fingerprint,
         )
 
-        constituent_manifest, constituent_issues = build_ibmi_constituent_manifest(
-            db, constituents
-        )
+        constituent_manifest, constituent_issues = build_ibmi_constituent_manifest(db, constituents)
+        if constituent_issues and isinstance(db, Session):
+            raise ValueError(
+                "IBMI_CERTIFIED_CONSTITUENTS_REJECTED: " + "; ".join(constituent_issues)
+            )
         if not constituent_issues:
             source_evidence_hashes = sorted(
                 {*source_evidence_hashes, constituent_fingerprint(constituent_manifest)}
@@ -312,6 +320,11 @@ def persist_feature(
             "coverage_status": str(feature.coverage_status),
             "reasons": feature.reasons,
             "warnings": feature.warnings,
+            **(
+                {"calculation_cutoff_at": calculation_cutoff_at, "as_of_session": as_of_session}
+                if constituents is not None
+                else {}
+            ),
         }
     )
     existing = db.scalar(
@@ -343,7 +356,20 @@ def persist_feature(
         confidence=str(feature.confidence),
         freshness_status=str(feature.freshness_status),
         coverage_status=str(feature.coverage_status),
-        components_json=feature.components,
+        components_json={
+            **feature.components,
+            **(
+                {
+                    "mutation_semantics": {
+                        "mode": "LEGACY_UNCERTIFIED",
+                        "artifact_role": "LEGACY_SERVING_ONLY",
+                        "certified_evidence": False,
+                    }
+                }
+                if constituents is None
+                else {}
+            ),
+        },
         reasons_json=list(feature.reasons),
         warnings_json=list(feature.warnings),
         source_evidence_hashes_json=source_evidence_hashes,
@@ -365,6 +391,14 @@ def persist_feature(
             feature=row,
             config=config,
             constituent_manifest=constituent_manifest or {},
+        )
+    elif constituents is not None and row.evidence_id is not None:
+        from app.services.ib_market_intelligence.decision_evidence import (
+            persist_ibmi_feature_evidence,
+        )
+
+        persist_ibmi_feature_evidence(
+            db, feature=row, config=config, constituent_manifest=constituent_manifest or {}
         )
     if inserted and str(feature.freshness_status) == "STALE":
         publish_after_commit(

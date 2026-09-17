@@ -5,10 +5,10 @@ from datetime import UTC, date, datetime
 import pandas as pd
 import pytest
 from alembic.config import Config
+from native_mutation_support import seed_native_core, seed_price_frame
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from test_ibmi_immutable_constituent_evidence import _metric
-from test_winner_consumer_eligibility_postgresql import _seed
 
 from alembic import command
 from app.models.ceri_tables import CeriCompany
@@ -82,10 +82,6 @@ def test_native_regime_full_policy_equal_output_drift_retry_and_cross_run(
             "volume": 1000000,
         }
     )
-    monkeypatch.setattr(
-        "app.services.market_regime_command_center.load_preferred_ohlcv_frames",
-        lambda *_args, **_kwargs: (frame, frame),
-    )
     c1 = resolve_regime_configuration()
     native = c1.regime_config()
     c2 = resolve_regime_configuration(
@@ -109,6 +105,8 @@ def test_native_regime_full_policy_equal_output_drift_retry_and_cross_run(
     )
     service = MarketRegimeCommandCenterService()
     with Session(contextual_engine) as db:
+        for ticker in ("SPY", "QQQ"):
+            seed_price_frame(db, ticker, frame, cutoff.cutoff_at)
         first = service.build_snapshot(db, market_cutoff=cutoff, effective_configuration=c1)
         # DTO debug is named debug rather than the ORM's debug_json.
         from app.services.combined_ranking_identity import calculation_identity_from_debug
@@ -153,13 +151,19 @@ def test_native_regime_full_policy_equal_output_drift_retry_and_cross_run(
 
 
 def test_native_sector_same_parents_config_drift_preserves_prior_authority(contextual_engine):
-    cutoff = _seed(contextual_engine, "ready")
     c1 = resolve_sector_configuration()
+    with Session(contextual_engine) as seed_db:
+        cutoff, _, _ = seed_native_core(
+            seed_db, extra_configurations=(c1, resolve_regime_configuration())
+        )
     values = c1.values["config"]
     values["defaults"]["min_tickers_for_normal_confidence"] += 1
     c2 = resolve_sector_configuration(values)
     service = SectorRotationService()
     with Session(contextual_engine) as db:
+        MarketRegimeCommandCenterService().build_snapshot(
+            db, market_cutoff=cutoff, effective_configuration=resolve_regime_configuration()
+        )
         first = service.build_sector_rotation_snapshot(
             db, 7, market_cutoff=cutoff, effective_configuration=c1
         )
@@ -171,23 +175,14 @@ def test_native_sector_same_parents_config_drift_preserves_prior_authority(conte
             .one()
         )
         original, address = deepcopy(native.payload_json), native.id
-        second = service.build_sector_rotation_snapshot(
-            db, 7, market_cutoff=cutoff, effective_configuration=c2
-        )
-        assert (
-            first.debug["calculation_identity_fingerprint"]
-            != second.debug["calculation_identity_fingerprint"]
-        )
-        current = (
-            db.query(CoreCalculationEvidence)
-            .filter_by(
-                calculation_identity_fingerprint=second.debug["calculation_identity_fingerprint"]
+        db.commit()
+        # A pipeline retains C1. C2 cannot reuse its ownership while changing
+        # the producer's frozen configuration authority.
+        with pytest.raises(ValueError, match="MUTATION_RETAINED_CONFIGURATION_MISMATCH"):
+            service.build_sector_rotation_snapshot(
+                db, 7, market_cutoff=cutoff, effective_configuration=c2
             )
-            .one()
-        )
-        assert current.source_evidence_ids_json == native.source_evidence_ids_json
-        assert "prior_sector" not in current.source_evidence_ids_json
-        assert "feature" not in c1.values
+        assert native.payload_json == original
         db.commit()
     with Session(contextual_engine) as db:
         prior = db.get(CoreCalculationEvidence, address)

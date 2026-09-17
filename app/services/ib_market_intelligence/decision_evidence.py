@@ -21,8 +21,10 @@ from app.services.contextual_calculation_identity import build_ibmi_feature_iden
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
+    declare_core_evidence_mutation,
     persist_core_evidence,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.ib_market_intelligence.config import IBMarketIntelligenceConfig
 
 IBMI_FEATURE_EVIDENCE_SCHEMA_VERSION = "ibmi-feature-evidence-v1"
@@ -142,6 +144,7 @@ def constituent_fingerprint(manifest: dict[str, Any]) -> str:
     return CanonicalEvidenceSerializer.fingerprint(manifest)
 
 
+@core_writer_transaction
 def persist_ibmi_feature_evidence(
     db: Session,
     *,
@@ -155,6 +158,8 @@ def persist_ibmi_feature_evidence(
     if effective is None:
         raise EvidenceUnavailableError("IBMI_CONFIGURATION_REQUIRED_BEFORE_CALCULATION")
     effective.require_family(f"contextual.ibmi.{feature.module.lower()}")
+    if feature.evidence_id is not None:
+        get_certified_ibmi_evidence(db, feature)
     identity = effective.bind(build_ibmi_feature_identity(feature))
     payload = {
         "schema_version": IBMI_FEATURE_EVIDENCE_SCHEMA_VERSION,
@@ -178,6 +183,14 @@ def persist_ibmi_feature_evidence(
         scope_profile=feature.module,
         calculation_identity=identity,
         effective_configuration=effective.snapshot,
+        mutation_context=declare_core_evidence_mutation(
+            db,
+            kind=CoreEvidenceKind.IBMI,
+            current_row=feature,
+            payload=payload,
+            calculation_identity=identity,
+            effective_configuration=effective.snapshot,
+        ),
     )
     if evidence is None:  # pragma: no cover - an explicit identity is supplied above
         raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: IBMI Calculation Identity absent")

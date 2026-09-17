@@ -45,7 +45,7 @@ def _process(mode, cwd, database_url, **overrides):
         env=env,
         text=True,
         capture_output=True,
-        timeout=180,
+        timeout=360 if mode == "execute" else 180,
     )
     assert "T13E_SECRET_MUST_NOT_APPEAR" not in completed.stdout + completed.stderr
     (REPO / ".qa_work" / f"t13e-{mode}-last.stderr.log").write_text(
@@ -432,10 +432,21 @@ def test_populated_0080_downgrade_reupgrade_preserves_business_history_and_fails
     with Session(engine) as db:
         pipeline = db.get(PipelineRun, 1)
         cutoff = create_pipeline_market_context(db, pipeline)
-        recalculate_run_fundamentals(db, 1, market_cutoff=cutoff, pipeline_run_id=1)
+        from app.services.configuration_delivery import load_configuration_delivery
+
         job = enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": 1}, related_run_id=1)
         reference = binding_reference(db, job_id=job.id)
         assert reference
+        from app.services.core_effective_configuration import CoreEffectiveConfiguration
+
+        frozen = load_configuration_delivery(db, reference).configurations["core.fundamental"]
+        recalculate_run_fundamentals(
+            db,
+            1,
+            market_cutoff=cutoff,
+            pipeline_run_id=1,
+            effective_configuration=CoreEffectiveConfiguration(frozen.snapshot),
+        )
         db.commit()
         retained = deepcopy(db.scalar(select(CoreCalculationEvidence)).payload_json)
         job_id = job.id

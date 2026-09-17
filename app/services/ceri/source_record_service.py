@@ -15,6 +15,8 @@ from app.services.ceri.deployment_identity import current_deployment_identity
 from app.services.ceri.dtos import RawProviderRecord
 from app.services.ceri.observability import ceri_log_event, ceri_metrics
 from app.services.ceri.provider_registry import provider_storage_projection
+from app.services.domain_mutation import MutationDomain
+from app.services.source_mutation_authority import source_mutation_writer
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,7 @@ class CeriSourceRecordService:
         )
         return run
 
+    @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def store_source_record(
         self,
         db: Session,

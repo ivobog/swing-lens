@@ -6,6 +6,8 @@ from decimal import Decimal
 
 from app.models.ceri_tables import CeriEarningsActual, CeriEstimateSnapshot
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.source_mutation_authority import source_mutation_writer
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,9 @@ class CeriSurpriseFeatureService:
     def __init__(self, config: CeriConfig | None = None) -> None:
         self.config = config or load_ceri_config()
 
+    @source_mutation_writer(
+        MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
+    )
     def attach_consensus_snapshot(
         self,
         earnings: CeriEarningsActual,
@@ -53,9 +58,7 @@ class CeriSurpriseFeatureService:
                 earnings.surprise_absolute = None
                 earnings.surprise_pct = None
                 return _feature(earnings, None, ["surprise_actual_unavailable"])
-            earnings.surprise_absolute = (
-                earnings.actual_value - earnings.provider_consensus_value
-            )
+            earnings.surprise_absolute = earnings.actual_value - earnings.provider_consensus_value
             if earnings.provider_surprise_pct is not None:
                 earnings.surprise_pct = earnings.provider_surprise_pct
                 return _feature(earnings, None, [])

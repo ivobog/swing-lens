@@ -1,0 +1,2515 @@
+{
+  "baseline": "5eef0d08d783de132fecb14c5dedd66821f0949f",
+  "initiators": {
+    "EF_021cfb93d6813955": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, dto: SectorRotationSnapshotWrite, *, evidence_sources: dict[str, Any] | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_021cfb93d6813955",
+      "entrypoints": [
+        "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "previous = self._latest_logical_snapshot(db, dto)",
+        "is_current_revision=True,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "60477db921d780980d12d3a80126ceed380528008c6eab916367a0f53b0fae39",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SECTOR_SNAPSHOT"
+      ]
+    },
+    "EF_14ac8eafdc1a1ae0": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, feature: CeriRevisionFeature",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_14ac8eafdc1a1ae0",
+      "entrypoints": [
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.persist_feature"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "9485600c1bbfc4924e799e97b428f35a4acc5c4532dffa762a8849b70805213e",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CERI_REVISION_FEATURE"
+      ]
+    },
+    "EF_20e06c4f9457355d": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, *, result: PriceResponseResult, company_id: int, ticker: str, event_id: int | None, event_effective_at: datetime | None, event_effective_session: date | None, feature_as_of_session: date | None=None, cutoff_at: datetime | None=None, calculation_context_id: int | None=None, calendar_version: str | None=None, ownership_mode: str=CeriArtifactOwnership.STANDALONE.value",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_20e06c4f9457355d",
+      "entrypoints": [
+        "app/services/ceri/price_response_service.py:CeriPriceResponseService.persist"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "cutoff_at: datetime | None = None,",
+        "calculation_context_id: int | None = None,",
+        "cutoff_at=cutoff_at,",
+        "calculation_context_id=calculation_context_id,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "cdb0804a13895d091b64cfde76b2b7f6b54a963490be8bcb818018f7969c1d92",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CERI_PRICE_RESPONSE"
+      ]
+    },
+    "EF_213662a6d137bcac": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, source_record: CeriSourceRecord",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_213662a6d137bcac",
+      "entrypoints": [
+        "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "cf3b1f8f528d5965a8531e273d76222d3cf54a4331266d1b41de54769e9bbb01",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CERI_SOURCE_IDENTITY"
+      ]
+    },
+    "EF_3984d25edba4f45f": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, run_id: int, tickers: list[str] | None=None, benchmark_ticker: str='SPY', *, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, effective_configuration: CoreEffectiveConfiguration | None=None, expected_calculation_identity: CalculationIdentity | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_3984d25edba4f45f",
+      "entrypoints": [
+        "app/services/technical_score_service.py:score_run_technicals"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE",
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "market_cutoff: MarketCalculationCutoff | None = None,",
+        "effective_configuration: CoreEffectiveConfiguration | None = None,",
+        "market_cutoff = (",
+        "market_cutoff",
+        "or market_context_for_upload_run(db, run_id)",
+        "or standalone_market_context(reason=\"STANDALONE_TECHNICAL_SCORING\")",
+        "effective_configuration = effective_configuration or resolve_technical_configuration(",
+        "pine=load_pine_defaults(),",
+        "v4=load_technical_scoring_v4_config(),",
+        "v5=load_technical_scoring_v5_config(),",
+        "effective_configuration.require_family(\"core.technical\")",
+        "effective_configuration.require_retry_identity(expected_calculation_identity)",
+        "resolved = effective_configuration.values",
+        "benchmark_price = _call_price_frame(db, benchmark_ticker, market_cutoff)",
+        "sector_price = _sector_benchmark_price(db, pine_params, market_cutoff=market_cutoff)",
+        "db, \"QQQ\", v4_params, market_cutoff=market_cutoff, pine_params=pine_params",
+        "v5_context = (",
+        "_technical_v5_run_context(db, run_id, symbols, v5_params, market_cutoff=market_cutoff)",
+        "else TechnicalV5RunContext(resolutions={}, sector_features={})",
+        "market_cutoff=market_cutoff,",
+        "market_cutoff=market_cutoff,",
+        "market_cutoff=market_cutoff,",
+        "v5_context=v5_context,",
+        "market_cutoff=market_cutoff,",
+        "effective_configuration=effective_configuration,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "bdb1e8a595498d5f37887565b3ec1def3929ac74ea684a619089a66eeff90d3f",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION"
+      ]
+    },
+    "EF_3aa9732708e9982e": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, recent: CeriRevisionFeature, longer: CeriRevisionFeature",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_3aa9732708e9982e",
+      "entrypoints": [
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.with_acceleration"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "9485600c1bbfc4924e799e97b428f35a4acc5c4532dffa762a8849b70805213e",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CERI_REVISION_FEATURE"
+      ]
+    },
+    "EF_3d469f86339ccac7": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, bars: list[HistoricalBar], *, fetch_run_id: int | None=None, fetch_item_id: int | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "PRICE"
+      ],
+      "entry_point_family_id": "EF_3d469f86339ccac7",
+      "entrypoints": [
+        "app/services/bar_cache_service.py:cache_bars"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "current = existing.get(key)",
+        "if current is None:",
+        "current_hash = current.data_hash or price_bar_data_hash(current)",
+        "if current_hash == new_hash:",
+        "current.last_seen_at = now",
+        "if current.data_hash is None:",
+        "current.data_hash = new_hash",
+        "revision_number = (current.revision_count or 0) + 1",
+        "current,",
+        "previous_data_hash=current_hash,",
+        "current.open = _decimal_or_none(bar.open)",
+        "current.high = _decimal_or_none(bar.high)",
+        "current.low = _decimal_or_none(bar.low)",
+        "current.close = _decimal_or_none(bar.close)",
+        "current.volume = _decimal_or_none(bar.volume)",
+        "current.source = bar.source",
+        "current.adjustment_type = bar.adjustment_type",
+        "current.last_seen_at = now",
+        "current.revised_at = now",
+        "current.revision_count = revision_number",
+        "current.data_hash = new_hash"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "9cdf382e27005e0736f82ef22a505149181906bd0dfee55d139cc38de0c614c5",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_PRICE_INGESTION",
+        "WF_PRICE_SERIES_VERSION"
+      ]
+    },
+    "EF_431a8947c0b31cbf": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, key: LocalArtifactKey, *, usage: Literal['active', 'shadow']='active'",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_431a8947c0b31cbf",
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:get_local_artifact"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "da16fa255a71e34676928b64522bf73ba2150e6d3bb0378ee3c76d4642705e07",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ]
+    },
+    "EF_44e2b88da09c0be6": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, *, document_id: int, content_hash: str, content_bytes: int",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_44e2b88da09c0be6",
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.record_downloaded_content"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "2888f0bacb17ab799e0d17704986206a61cb08b5e0981473c7b5b7fac55f543d",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ]
+    },
+    "EF_538276c91abb138c": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, earnings: CeriEarningsActual, estimates: list[CeriEstimateSnapshot]",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_538276c91abb138c",
+      "entrypoints": [
+        "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.attach_consensus_snapshot"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "earnings.consensus_selection_reason = \"latest_consensus_before_report_at\""
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "69faa836dcc2fbbdb97952e5a86a8b696ae81b941e85789891c2ab874f0ca5eb",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CERI_CONSENSUS_ATTACH"
+      ]
+    },
+    "EF_5acf98114588686d": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, identity: SecDocumentIdentity",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_5acf98114588686d",
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.register_document"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "2888f0bacb17ab799e0d17704986206a61cb08b5e0981473c7b5b7fac55f543d",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ]
+    },
+    "EF_5f39587263ee923e": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, *, content: str, query_type: str, query_id: str, reference_code: str | None, dry_run: bool=False, intelligence_run_id: int | None=None, now: datetime | None=None, report_timezone: str='UTC'",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "TRADE_JOURNAL"
+      ],
+      "entry_point_family_id": "EF_5f39587263ee923e",
+      "entrypoints": [
+        "app/services/ib_market_intelligence/flex.py:import_flex_report"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        ".order_by(IBExecutionFill.id.desc())"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "9014f18190afe5f0cf6ea1fb2dc2716ca4546ff790bd1d9453977045661d1b1a",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_IB_FLEX_IMPORT"
+      ]
+    },
+    "EF_756b7b07d4f365c0": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, run_id: int, score_results: list[PineReplicaScore | TechnicalScore], *, symbols: list[str] | None=None, v4_params: dict[str, Any] | None=None, v5_params: dict[str, Any] | None=None, v5_context: TechnicalV5RunContext | None=None, settings: Settings | None=None, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, persist: bool=True, effective_configuration: CoreEffectiveConfiguration | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_756b7b07d4f365c0",
+      "entrypoints": [
+        "app/services/technical_score_service.py:finalize_technical_scores"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "v5_context: TechnicalV5RunContext | None = None,",
+        "market_cutoff: MarketCalculationCutoff | None = None,",
+        "effective_configuration: CoreEffectiveConfiguration | None = None,",
+        "if pipeline_run_id is not None and effective_configuration is None:",
+        "\"certified Technical finalization requires configuration frozen \"",
+        "if effective_configuration is not None:",
+        "effective_configuration.require_family(\"core.technical\")",
+        "resolved = effective_configuration.values",
+        "v4_params = v4_params or load_technical_scoring_v4_config()",
+        "v5_params = v5_params or load_technical_scoring_v5_config()",
+        "pine_params = load_pine_defaults()",
+        "v5_context = v5_context or (",
+        "_technical_v5_run_context(",
+        "market_cutoff=(",
+        "market_cutoff",
+        "or market_context_for_upload_run(db, run_id)",
+        "or standalone_market_context(reason=\"STANDALONE_TECHNICAL_FINALIZE\")",
+        "else TechnicalV5RunContext(resolutions={}, sector_features={})",
+        "v5_context.resolutions.get(score.ticker.upper()),",
+        "v5_context.sector_features,",
+        "if market_cutoff is not None:",
+        "result.calculation_context_id = market_cutoff.context_id",
+        "result.calculation_cutoff_at = market_cutoff.cutoff_at",
+        "result.input_as_of_session = market_cutoff.latest_completed_session",
+        "result.calendar_version = market_cutoff.calendar_version",
+        "resolution = v5_context.resolutions.get(",
+        "v5_context.sector_features,",
+        "if market_cutoff is not None:",
+        "persisted.calculation_context_id = market_cutoff.context_id",
+        "persisted.calculation_cutoff_at = market_cutoff.cutoff_at",
+        "persisted.input_as_of_session = market_cutoff.latest_completed_session",
+        "persisted.calendar_version = market_cutoff.calendar_version",
+        "if market_cutoff is None:",
+        "raise ValueError(\"Technical identity production requires an explicit market_cutoff\")",
+        "market_cutoff=market_cutoff,",
+        "effective_configuration.bind(identity),",
+        "current_row=score,",
+        "effective_configuration=effective_configuration.snapshot"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "bdb1e8a595498d5f37887565b3ec1def3929ac74ea684a619089a66eeff90d3f",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FINALIZATION"
+      ]
+    },
+    "EF_7eea11a8cded4a8a": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, event: TickerReadyEvent",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_7eea11a8cded4a8a",
+      "entrypoints": [
+        "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator.on_ticker_ready"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "bdb1e8a595498d5f37887565b3ec1def3929ac74ea684a619089a66eeff90d3f",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ]
+    },
+    "EF_7fabc787dc6ffca2": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, *, kind: CoreEvidenceKind, current_row: Any, sources: dict[str, Any] | None=None, payload: dict[str, Any] | None=None, scope_ticker: str | None | object=_SCOPE_UNSET, scope_profile: str | None | object=_SCOPE_UNSET, calculation_identity: CalculationIdentity | None=None, effective_configuration: EffectiveConfigurationSnapshot | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_7fabc787dc6ffca2",
+      "entrypoints": [
+        "app/services/core_calculation_evidence.py:persist_core_evidence"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "current_row: Any,",
+        "effective_configuration: EffectiveConfigurationSnapshot | None = None,",
+        "\"\"\"Persist/reuse immutable evidence and advance its independent current pointer.",
+        "Rows without a Phase-1 Calculation Identity remain explicit legacy current rows.",
+        "identity_payload = getattr(current_row, \"debug_json\", None)",
+        "identity_payload = getattr(current_row, \"evidence_lineage_json\", None)",
+        "if effective_configuration is not None:",
+        "raise ValueError(\"configuration evidence requires an explicit Calculation Identity\")",
+        "config_dimension = identity.configuration.effective_configuration",
+        "and config_dimension.value.namespace.startswith((\"core.\", \"contextual.\", \"decision.\"))",
+        "and effective_configuration is None",
+        "raise ValueError(\"CORE_EFFECTIVE_CONFIGURATION_REQUIRED\")",
+        "if effective_configuration is not None:",
+        "from app.services.effective_configuration import compare_configuration",
+        "if not isinstance(effective_configuration, EffectiveConfigurationSnapshot):",
+        "raise TypeError(\"effective configuration evidence requires a typed snapshot\")",
+        "comparison = compare_configuration(",
+        "identity.configuration.effective_configuration,",
+        "IdentityDimension.known(effective_configuration.identity),",
+        "if comparison.status is not ConfigurationCompatibilityStatus.EXACT:",
+        "raise ValueError(\"effective configuration must match the bound Calculation Identity\")",
+        "payload if payload is not None else calculation_evidence_payload(current_row)",
+        "if effective_configuration is not None:",
+        "normalize_configuration_business_payload(",
+        "payload, namespace=effective_configuration.family.namespace, source_ids=source_ids",
+        "if READINESS_PAYLOAD_KEY in payload:",
+        "raise ValueError(\"readiness-at-creation is owned by the evidence writer\")",
+        "if CONFIGURATION_PAYLOAD_KEY in payload:",
+        "raise ValueError(\"effective configuration-at-creation is owned by the evidence writer\")",
+        "if effective_configuration is not None:",
+        "payload[CONFIGURATION_PAYLOAD_KEY] = effective_configuration.as_dict()",
+        "payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(",
+        "evaluated_at=temporal[\"calculation_cutoff\"].get(\"value\"),",
+        "payload_fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)",
+        "\"payload_fingerprint\": payload_fingerprint,",
+        "run_id = getattr(current_row, \"run_id\", None)",
+        "getattr(current_row, \"ticker\", None) if scope_ticker is _SCOPE_UNSET else scope_ticker",
+        "getattr(current_row, \"ranking_profile\", None)",
+        "payload_fingerprint=payload_fingerprint,",
+        "payload_json=payload,",
+        "current_row.evidence_id = evidence.id",
+        "if hasattr(type(current_row), \"calculation_evidence\"):",
+        "set_committed_value(current_row, \"calculation_evidence\", evidence)",
+        "_advance_current_projection(db, evidence)",
+        "readiness = readiness_from_evidence(evidence)",
+        "\"producer readiness producer=%s status=%s blocking=%s warnings=%s policy=%s\",",
+        "readiness.producer,",
+        "readiness.status.value,",
+        "[reason.value for reason in readiness.blocking_reasons],",
+        "[reason.value for reason in readiness.warning_reasons],",
+        "readiness.readiness_policy_version,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "5fb836a9c3db7bb9975e66095936425416a260c2a15dfd38583469f88bf23698",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    "EF_812da22fe41fbcba": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, dto: HistoricalMetricBarDTO, *, intelligence_run_id: int | None=None, observed_at: datetime | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_812da22fe41fbcba",
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_historical_metric_bar"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "cd771770dc9e76378b3c4fa229c1117b825adc6594d65d70f12a3fbe1b3f89ca",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_IBMI_HISTORICAL_SOURCE"
+      ]
+    },
+    "EF_82522331e642b008": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, snapshot: CeriScoreSnapshot",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_82522331e642b008",
+      "entrypoints": [
+        "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "effective_configuration=self.effective_configuration,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "7959a5c0f55e2eebdae2f3a3f5d8900228185abc5d2e4fec6d6c0750bfd5d071",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CERI_SCORE",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    "EF_866ac2c173ac81d7": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, bars: Iterable[Any], changed_keys: set[SeriesIdentity], *, now: datetime | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "PRICE"
+      ],
+      "entry_point_family_id": "EF_866ac2c173ac81d7",
+      "entrypoints": [
+        "app/services/price_series_version_service.py:maintain_price_series_versions"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "series.latest_bar_date = max(dates)"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "de088773d7932d741aaf3cabbaa79df5b294a3902f74375b064eb076c1354c43",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_PRICE_SERIES_VERSION"
+      ]
+    },
+    "EF_874835d87c21855e": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, dto: MarketRegimeSnapshotWrite, run_id: int | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_874835d87c21855e",
+      "entrypoints": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "previous = self._latest_logical_snapshot(db, dto, run_id)",
+        "is_current_revision=True,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "b443628a55dd0586fc748e8e443b4b28b37a7119ba2a63faecc0646f51bfff34",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_REGIME_SNAPSHOT"
+      ]
+    },
+    "EF_8971757daefc9594": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, *, ticker: str, ib_conid: int | None, as_of_session: date, feature: FeatureResult, config: IBMarketIntelligenceConfig, intelligence_run_id: int | None=None, calculated_at: datetime | None=None, calculation_cutoff_at: datetime | None=None, constituents: Any | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_8971757daefc9594",
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_feature"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "calculation_cutoff_at: datetime | None = None,",
+        "calculation_cutoff_at=calculation_cutoff_at"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "cd771770dc9e76378b3c4fa229c1117b825adc6594d65d70f12a3fbe1b3f89ca",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_IBMI_NATIVE_FEATURE"
+      ]
+    },
+    "EF_919b08f9bc6d4b63": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, ticker: str, ib: IB, force_refresh: bool=False",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_919b08f9bc6d4b63",
+      "entrypoints": [
+        "app/services/ib_contract_resolver.py:resolve_us_stock_contract"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "5bb255198cab1844e310195f243ab0751871f166297628964e65eac664ce5f23",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_IB_CONTRACT_IDENTITY"
+      ]
+    },
+    "EF_a27b7ead7124b2da": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, run_id: int, *, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, effective_configuration: CoreEffectiveConfiguration | None=None, expected_calculation_identity: CalculationIdentity | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_a27b7ead7124b2da",
+      "entrypoints": [
+        "app/services/combined_decision.py:refresh_combined_results"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "market_cutoff: MarketCalculationCutoff | None = None,",
+        "effective_configuration: CoreEffectiveConfiguration | None = None,",
+        "effective_configuration = effective_configuration or resolve_combined_configuration()",
+        "effective_configuration.require_family(\"core.combined\")",
+        "effective_configuration.require_retry_identity(expected_calculation_identity)",
+        "config = effective_configuration.values",
+        "_validate_explicit_pipeline_context(",
+        "market_cutoff=market_cutoff,",
+        "_require_single_combined_context(validated)",
+        "decisions_with_identity.append((decision, effective_configuration.bind(output_identity)))",
+        "current_row=result,",
+        "effective_configuration=effective_configuration.snapshot,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "f94a7ca57d4a0167e333f240d6b4a952d329202080ea2f7ab1731b56dc4e2f2c",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_COMBINED_REFRESH",
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ]
+    },
+    "EF_a3fd956e147403b1": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, run_id: int, profile_name: str, today: date | None=None, *, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, effective_configuration: CoreEffectiveConfiguration | None=None, expected_calculation_identity: CalculationIdentity | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_a3fd956e147403b1",
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:refresh_ranking_profile"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE",
+        "LEGACY_UNCERTIFIED"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "market_cutoff: MarketCalculationCutoff | None = None,",
+        "effective_configuration: CoreEffectiveConfiguration | None = None,",
+        "if effective_configuration is None",
+        "else effective_configuration.ranking_profile()",
+        "rows, fundamentals, technicals = _load_run_inputs(db, run_id)",
+        "effective_configuration = effective_configuration or resolve_ranking_configuration(",
+        "profile, _load_scoring_config()",
+        "effective_configuration.require_retry_identity(expected_calculation_identity)",
+        "profile = effective_configuration.ranking_profile()",
+        "config = effective_configuration.values",
+        "market_cutoff=market_cutoff,",
+        "calculation_cutoff = _validated_cutoff(validated)",
+        "liquidity_features = _load_liquidity_features(db, calculation_cutoff)",
+        "models.append(_to_ranking_model(run_id, decision, effective_configuration.bind(identity)))",
+        "effective_configurations={profile.name: effective_configuration},"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "258fe658ed134ebbb32dd3998b1a0c02b59fed07882bd224795fe3b116df78a3",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ]
+    },
+    "EF_a8016e0b9d69e5be": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, run_id: int, today: date | None=None, *, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, effective_configurations: tuple[CoreEffectiveConfiguration, ...] | None=None, resolved_profiles: list[RankingProfileConfig] | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_a8016e0b9d69e5be",
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:refresh_all_ranking_profiles"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE",
+        "LEGACY_UNCERTIFIED"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "market_cutoff: MarketCalculationCutoff | None = None,",
+        "effective_configurations: tuple[CoreEffectiveConfiguration, ...] | None = None,",
+        "(resolved_profiles if resolved_profiles is not None else load_ranking_profiles())",
+        "if effective_configurations is None",
+        "else [item.ranking_profile() for item in effective_configurations]",
+        "rows, fundamentals, technicals = _load_run_inputs(db, run_id)",
+        "config = _load_scoring_config() if effective_configurations is None else {}",
+        "configurations = (",
+        "{item.ranking_profile().name: item for item in effective_configurations}",
+        "if effective_configurations is not None",
+        "else {profile.name: resolve_ranking_configuration(profile, config) for profile in profiles}",
+        "market_cutoff=market_cutoff,",
+        "calculation_cutoff = _validated_cutoff(validated)",
+        "liquidity_features = _load_liquidity_features(db, calculation_cutoff)",
+        "effective_configuration = configurations[profile.name]",
+        "profile = effective_configuration.ranking_profile()",
+        "config = effective_configuration.values",
+        "_to_ranking_model(run_id, decision, effective_configuration.bind(identity))",
+        "effective_configurations=configurations,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "258fe658ed134ebbb32dd3998b1a0c02b59fed07882bd224795fe3b116df78a3",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ]
+    },
+    "EF_ab4102ebb9197c4d": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Public create_upload_run uses the same direct initial-upload scoring transaction as upload_csv; the Raw artifact is legitimate source evidence but its simultaneously inserted Fundamental values lack native Fundamental lineage.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, upload_file: UploadFile",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "FUNDAMENTAL",
+        "RAW"
+      ],
+      "entry_point_family_id": "EF_ab4102ebb9197c4d",
+      "entrypoints": [
+        "app/services/upload_service.py:create_upload_run"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "proof_boundary": "Selected operation has source-grounded retained branch review; distinct native artifacts remain separate writer families.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "def create_upload_run(db: Session, upload_file: UploadFile) -> UploadRun:",
+        "filename = upload_file.filename or \"upload.csv\"",
+        "_validate_upload_size(upload_file, settings.max_upload_size_mb)",
+        "file_path = _save_upload(upload_file, settings.upload_dir, filename)",
+        "csv_rows = load_csv_rows(",
+        "sector_config = load_sector_rotation_config()",
+        "_remove_upload_file(file_path)"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": true,
+      "source_sha256": "6179eab5ddff59cd577ab6d3e3b34c5cea390c8893177edd35d2f618ea26d1e4",
+      "status": "CONFIRMED_BYPASS",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_UPLOAD_INITIALIZATION"
+      ]
+    },
+    "EF_ad585eacf12c98d7": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, *, ingestion_run_id: int | None, record: RawProviderRecord, raw_payload_allowed: bool",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_ad585eacf12c98d7",
+      "entrypoints": [
+        "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "raw_payload_allowed: bool,",
+        ".order_by(CeriSourceRecord.ingested_at.desc(), CeriSourceRecord.id.desc())",
+        "if not raw_payload_allowed or record.provider in {\"eodhd\", \"sec\"}",
+        "provider_terms_version=_optional_payload_text(record, \"provider_terms_version\"),",
+        "or _optional_payload_datetime(record.payload, \"source_timestamp\"),",
+        "else _optional_payload_text(record, \"source_reference\")",
+        "if raw_payload_allowed",
+        "payload_remediation_version=("
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "be4b9eab1ddba7bbb67e83f950822b5cba3883538083c53e7734c0d235939482",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CERI_RAW_SOURCE"
+      ]
+    },
+    "EF_be226eaac46d1ab2": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, dto: LiveSnapshotDTO, *, intelligence_run_id: int | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_be226eaac46d1ab2",
+      "entrypoints": [
+        "app/services/ib_market_intelligence/repository.py:persist_live_snapshot"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "cd771770dc9e76378b3c4fa229c1117b825adc6594d65d70f12a3fbe1b3f89ca",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_IBMI_LIVE_SOURCE"
+      ]
+    },
+    "EF_cb55d161e779c8be": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, key: LocalArtifactKey, *, artifact_json: dict[str, Any], warning_flags: list[str] | tuple[str, ...]=(), status: str='READY'",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_cb55d161e779c8be",
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:upsert_local_artifact"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "da16fa255a71e34676928b64522bf73ba2150e6d3bb0378ee3c76d4642705e07",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ]
+    },
+    "EF_d526d0a0522f099b": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, run_id: int, *, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_d526d0a0522f099b",
+      "entrypoints": [
+        "app/services/ranking_profile_service.py:execute_ranking_pipeline_step"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE",
+        "LEGACY_UNCERTIFIED"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "market_cutoff: MarketCalculationCutoff | None = None,",
+        "profiles = load_ranking_profiles()",
+        "if market_cutoff is None and pipeline_run_id is None:",
+        "market_cutoff=market_cutoff,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "258fe658ed134ebbb32dd3998b1a0c02b59fed07882bd224795fe3b116df78a3",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_RANKING_LEGACY_REPLACEMENT",
+        "WF_RANKING_PERSISTENCE"
+      ]
+    },
+    "EF_da68f1fde41c070d": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Parsed CSV delegates to create_upload_run, which commits raw upload rows plus directly calculated legacy Fundamental serving values without native Fundamental identity/evidence.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "request: Request, file: CsvUpload, db: DbSession",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [
+        "router.post('/uploads', response_class=HTMLResponse)",
+        "unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason='creates an upload run from a local CSV file')"
+      ],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "FUNDAMENTAL",
+        "RAW"
+      ],
+      "entry_point_family_id": "EF_da68f1fde41c070d",
+      "entrypoints": [
+        "app/routers/upload_routes.py:upload_csv"
+      ],
+      "kind": "HTTP",
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "proof_boundary": "Finite initiator classification; existing native writer compliance is not replaced by route trust. Raw helper permutations may overapproximate conditional delivery.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "def upload_csv(",
+        "run = create_upload_run(db, file)",
+        "latest_run = _latest_run(db)",
+        "\"dashboard\": _dashboard_summary(db, latest_run),",
+        "\"latest_run\": latest_run,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": true,
+      "source_sha256": "4d77447d09725c09e86a3903f3048f1dcdc4a740c6d7b3e74d18ef90cb59f15f",
+      "status": "CONFIRMED_BYPASS",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_UPLOAD_INITIALIZATION"
+      ]
+    },
+    "EF_dcf27689d2681c17": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "event: CeriGuidanceEvent, *, payload: dict[str, Any] | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_dcf27689d2681c17",
+      "entrypoints": [
+        "app/services/ceri/guidance_normalizer.py:apply_guidance_eligibility"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "5d1947d18f003bc353683ce256bd8e35108bfeb365c0749127d1d37b6bc390c2",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CERI_GUIDANCE_ELIGIBILITY"
+      ]
+    },
+    "EF_de562c9ceb6ee65a": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_de562c9ceb6ee65a",
+      "entrypoints": [
+        "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator.finalize"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE",
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "market_cutoff=self.market_cutoff,",
+        "effective_configuration=self.effective_configuration,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "bdb1e8a595498d5f37887565b3ec1def3929ac74ea684a619089a66eeff90d3f",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_TECHNICAL_FEATURE_CACHE",
+        "WF_TECHNICAL_FINALIZATION"
+      ]
+    },
+    "EF_e90cea98144e2940": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, run_id: int, *, market_cutoff: MarketCalculationCutoff | None=None, pipeline_run_id: int | None=None, effective_configuration: CoreEffectiveConfiguration | None=None, expected_calculation_identity: CalculationIdentity | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_e90cea98144e2940",
+      "entrypoints": [
+        "app/services/fundamental_score_service.py:recalculate_run_fundamentals"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "market_cutoff: MarketCalculationCutoff | None = None,",
+        "effective_configuration: CoreEffectiveConfiguration | None = None,",
+        ".order_by(RawCompanyRow.row_number)",
+        "effective_configuration = effective_configuration or resolve_fundamental_configuration()",
+        "effective_configuration.require_family(\"core.fundamental\")",
+        "effective_configuration.require_retry_identity(expected_calculation_identity)",
+        "values = effective_configuration.values",
+        "if market_cutoff is not None or pipeline_run_id is not None:",
+        "if market_cutoff is None or pipeline_run_id is None:",
+        "\"Fundamental identity production requires market_cutoff and \"",
+        "market_cutoff=market_cutoff,",
+        "identity = effective_configuration.bind(identity)",
+        "current_row=score,",
+        "effective_configuration=effective_configuration.snapshot",
+        "if market_cutoff is not None"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "aef401218d7109af41677c5164064538ec7b030bec73981c5f81fe1bb8214b97",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_FUNDAMENTAL_RECALCULATION"
+      ]
+    },
+    "EF_f0d208ce35a33ed6": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, *, extraction_id: int, execution_token: str, record_count: int, content_hash: str, content_bytes: int, downloaded: bool=True",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_f0d208ce35a33ed6",
+      "entrypoints": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.complete"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [
+        "execution_token: str,",
+        "CeriSecDocumentExtraction.execution_token == execution_token,",
+        "execution_token=None,"
+      ],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "2888f0bacb17ab799e0d17704986206a61cb08b5e0981473c7b5b7fac55f543d",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_SEC_DOCUMENT_SOURCE"
+      ]
+    },
+    "EF_fb5089df555b2b2f": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, key: LocalArtifactKey, *, matched: bool, fresh_fingerprint: str, cached_fingerprint: str | None, run_id: int, error: str | None=None, differences: dict[str, Any] | None=None, now: datetime | None=None",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "TECHNICAL"
+      ],
+      "entry_point_family_id": "EF_fb5089df555b2b2f",
+      "entrypoints": [
+        "app/services/technical_artifact_cache.py:record_local_artifact_shadow_validation"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "da16fa255a71e34676928b64522bf73ba2150e6d3bb0378ee3c76d4642705e07",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_TECHNICAL_FEATURE_CACHE"
+      ]
+    },
+    "EF_fd8cd8fbbbba07f7": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "self, db: Session, run_id: int",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "CURRENT_PROJECTION",
+        "REGIME"
+      ],
+      "entry_point_family_id": "EF_fd8cd8fbbbba07f7",
+      "entrypoints": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository.delete_for_run"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Exact source signature and selector clauses are discovery evidence. Semantic authority/conditional dispatch review is not yet complete; this record is not a bypass assertion.",
+      "reachability": "Mounted HTTP/registered handler/public service or explicit CLI; source address and signature retained.",
+      "selectors": [],
+      "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
+      "semantic_review_complete": false,
+      "source_sha256": "b443628a55dd0586fc748e8e443b4b28b37a7119ba2a63faecc0646f51bfff34",
+      "status": "SEMANTIC_ADOPTION_PENDING",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_REGIME_DERIVED_DELETE"
+      ]
+    }
+  },
+  "scope_note": "T14A history immutable; T14B writer adoption tracked separately; IB trade episodes remain T14D per authoritative handoff",
+  "source_handoff_sha256": "8eed64f6a7e42bc9178c6c001d756c7e20ce9f68a6b9b2d3ff60cef58d32318d",
+  "writer_families": [
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiator_ids": [
+        "EF_538276c91abb138c"
+      ],
+      "canonical_owner": "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.attach_consensus_snapshot",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_LICENSED_PURGE",
+        "WF_CERI_SOURCE_NORMALIZATION"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/surprise_feature_service.py:CeriSurpriseFeatureService.attach_consensus_snapshot"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "Attach exact estimate/consensus relationship to earnings actual.",
+      "tables": [
+        "ceri_earnings_actuals"
+      ],
+      "writer_family_id": "WF_CERI_CONSENSUS_ATTACH"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [],
+      "canonical_owner": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._persist_company",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_COMPANY_BOOTSTRAP",
+        "WF_CERI_CURRENT_RULE_REPLAY",
+        "WF_CERI_LICENSED_PURGE",
+        "WF_CERI_PRICE_RESPONSE",
+        "WF_CERI_REVISION_FEATURE",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_SEC_CIK_CLI",
+        "WF_SEC_IDENTITY_REPAIR",
+        "WF_SEC_INCREMENTAL_IDENTITY"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._persist_company",
+        "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._rebuild_company",
+        "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService._upsert_derived",
+        "app/services/ceri/feature_rebuild_service.py:_copy_derived",
+        "app/services/ceri/feature_rebuild_service.py:_copy_price",
+        "app/services/ceri/feature_rebuild_service.py:_copy_revision_derived",
+        "app/services/ceri/feature_rebuild_service.py:_copy_state",
+        "app/services/ceri/feature_rebuild_service.py:_execute_upsert"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "One feature-build transaction owns four typed upsert/copy mechanisms and company state.",
+      "tables": [
+        "ceri_companies",
+        "ceri_derived_features",
+        "ceri_feature_build_states",
+        "ceri_price_response_features",
+        "ceri_revision_features"
+      ],
+      "writer_family_id": "WF_CERI_FEATURE_BUILD"
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiator_ids": [
+        "EF_dcf27689d2681c17"
+      ],
+      "canonical_owner": "app/services/ceri/guidance_normalizer.py:apply_guidance_eligibility",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_LICENSED_PURGE",
+        "WF_CERI_SOURCE_NORMALIZATION"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/guidance_normalizer.py:apply_guidance_eligibility"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "Field-copy eligibility mechanism used on persistent normalized guidance; transient construction is separately excluded.",
+      "tables": [
+        "ceri_guidance_events"
+      ],
+      "writer_family_id": "WF_CERI_GUIDANCE_ELIGIBILITY"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_20e06c4f9457355d"
+      ],
+      "canonical_owner": "app/services/ceri/price_response_service.py:CeriPriceResponseService.persist",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_LICENSED_PURGE"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/price_response_service.py:CeriPriceResponseService.persist"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Persist source-event price response features, not immutable score output.",
+      "tables": [
+        "ceri_price_response_features"
+      ],
+      "writer_family_id": "WF_CERI_PRICE_RESPONSE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_ad585eacf12c98d7"
+      ],
+      "canonical_owner": "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_LICENSED_PURGE",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_CERI_SOURCE_NORMALIZATION"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Deduplicated raw provider source record persistence.",
+      "tables": [
+        "ceri_source_records"
+      ],
+      "writer_family_id": "WF_CERI_RAW_SOURCE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_14ac8eafdc1a1ae0",
+        "EF_3aa9732708e9982e"
+      ],
+      "canonical_owner": "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.persist_feature",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_CURRENT_RULE_REPLAY",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_LICENSED_PURGE"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.persist_feature",
+        "app/services/ceri/revision_feature_service.py:CeriRevisionFeatureService.with_acceleration"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Revision feature insertion and acceleration update are members of the native revision-feature operation.",
+      "tables": [
+        "ceri_revision_features"
+      ],
+      "writer_family_id": "WF_CERI_REVISION_FEATURE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_82522331e642b008"
+      ],
+      "canonical_owner": "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_CURRENT_RULE_REPLAY",
+        "WF_CERI_LICENSED_PURGE"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Native score snapshot revision persistence; retained decision adapter remains separate mechanism.",
+      "tables": [
+        "ceri_score_snapshots"
+      ],
+      "writer_family_id": "WF_CERI_SCORE"
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiator_ids": [
+        "EF_213662a6d137bcac"
+      ],
+      "canonical_owner": "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_LICENSED_PURGE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_SOURCE_NORMALIZATION"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/identity_resolver.py:CeriIdentityResolver.resolve_source_record"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "Resolve source-record company identity, not score publication.",
+      "tables": [
+        "ceri_source_records"
+      ],
+      "writer_family_id": "WF_CERI_SOURCE_IDENTITY"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [],
+      "canonical_owner": "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_COMPANY_BOOTSTRAP",
+        "WF_CERI_CONSENSUS_ATTACH",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_GUIDANCE_ELIGIBILITY",
+        "WF_CERI_HUMAN_SOURCE_OVERRIDE",
+        "WF_CERI_LICENSED_PURGE",
+        "WF_CERI_RAW_SOURCE",
+        "WF_CERI_REVIEW_METADATA",
+        "WF_CERI_SOURCE_IDENTITY",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_SEC_CIK_CLI",
+        "WF_SEC_IDENTITY_REPAIR",
+        "WF_SEC_INCREMENTAL_IDENTITY"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/normalization_service.py:CeriNormalizationService._normalize_record",
+        "app/services/ceri/normalization_service.py:_persist_sec_identity"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Provider source conversion to concrete catalyst/earnings/estimate/guidance artifacts and identity aliases.",
+      "tables": [
+        "ceri_catalyst_event_revisions",
+        "ceri_catalyst_events",
+        "ceri_catalyst_sources",
+        "ceri_companies",
+        "ceri_company_aliases",
+        "ceri_earnings_actuals",
+        "ceri_estimate_snapshots",
+        "ceri_guidance_events",
+        "ceri_source_records"
+      ],
+      "writer_family_id": "WF_CERI_SOURCE_NORMALIZATION"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_a27b7ead7124b2da"
+      ],
+      "canonical_owner": "app/services/combined_decision.py:refresh_combined_results",
+      "current_projection_writers": [],
+      "domains": [
+        "COMBINED",
+        "CURRENT_PROJECTION"
+      ],
+      "known_parallel_writers": [
+        "WF_WINNER_CAPTURE_TRAINING_METADATA",
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_PREDICTION_CAPTURE",
+        "WF_WINNER_TEMPORAL_VALIDITY",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "member_persistence_sites": [
+        "app/services/combined_decision.py:refresh_combined_results"
+      ],
+      "required_authority": "Combined: exact Fundamental and Technical identities, raw-row association, compatible native temporal/cohort scope and core.combined effective configuration; explicit pipeline/cutoff must match when supplied. Serving FK detach: addressed run, existing non-null combined_result_id target and transaction ordering before replacing Combined rows; never a Winner prediction recalculation permission.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "refresh_combined_results validates all source identities and the single cohort context before persistence, then nulls only addressed Winner serving FKs, deletes/replaces Combined rows and persists immutable Combined evidence. Financial output and relationship maintenance have separate artifact authority.",
+      "tables": [
+        "combined_results",
+        "winner_prediction_snapshots"
+      ],
+      "writer_family_id": "WF_COMBINED_REFRESH"
+    },
+    {
+      "allowed_modes": [
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "assigned_initiator_ids": [
+        "EF_021cfb93d6813955",
+        "EF_3984d25edba4f45f",
+        "EF_756b7b07d4f365c0",
+        "EF_7fabc787dc6ffca2",
+        "EF_82522331e642b008",
+        "EF_874835d87c21855e",
+        "EF_8971757daefc9594",
+        "EF_a27b7ead7124b2da",
+        "EF_a3fd956e147403b1",
+        "EF_a8016e0b9d69e5be",
+        "EF_d526d0a0522f099b",
+        "EF_de562c9ceb6ee65a",
+        "EF_e90cea98144e2940"
+      ],
+      "canonical_owner": "app/services/core_calculation_evidence.py:_advance_current_projection",
+      "current_projection_writers": [],
+      "domains": [
+        "CURRENT_PROJECTION"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/core_calculation_evidence.py:_advance_current_projection"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CURRENT_PROJECTION_WRITER",
+      "t14a_owner_proof": "Mutable compatible current pointer to retained core evidence; not an independent calculation.",
+      "tables": [
+        "core_calculation_current_projections"
+      ],
+      "writer_family_id": "WF_CORE_CURRENT_PROJECTION"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_021cfb93d6813955",
+        "EF_3984d25edba4f45f",
+        "EF_756b7b07d4f365c0",
+        "EF_7fabc787dc6ffca2",
+        "EF_82522331e642b008",
+        "EF_874835d87c21855e",
+        "EF_8971757daefc9594",
+        "EF_a27b7ead7124b2da",
+        "EF_a3fd956e147403b1",
+        "EF_a8016e0b9d69e5be",
+        "EF_d526d0a0522f099b",
+        "EF_de562c9ceb6ee65a",
+        "EF_e90cea98144e2940"
+      ],
+      "canonical_owner": "app/services/core_calculation_evidence.py:persist_core_evidence",
+      "current_projection_writers": [],
+      "domains": [
+        "FUNDAMENTAL",
+        "TECHNICAL",
+        "COMBINED",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "CERI",
+        "IBMI"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/core_calculation_evidence.py:persist_core_evidence"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "Shared immutable ledger and source references reuse originating native domain policy; projection split below.",
+      "tables": [
+        "core_calculation_evidence",
+        "core_calculation_evidence_sources"
+      ],
+      "writer_family_id": "WF_CORE_RETAINED_EVIDENCE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION",
+        "LEGACY_UNCERTIFIED"
+      ],
+      "assigned_initiator_ids": [
+        "EF_e90cea98144e2940"
+      ],
+      "canonical_owner": "app/services/fundamental_score_service.py:recalculate_run_fundamentals",
+      "current_projection_writers": [],
+      "domains": [
+        "FUNDAMENTAL"
+      ],
+      "known_parallel_writers": [
+        "WF_UPLOAD_INITIALIZATION"
+      ],
+      "member_persistence_sites": [
+        "app/services/fundamental_score_service.py:recalculate_run_fundamentals"
+      ],
+      "required_authority": "Bound branch: both market_cutoff and pipeline_run_id, raw upload row per ticker, effective core.fundamental configuration/retry identity, native financial identity and retained evidence. Supplying only one scope argument raises before persistence. Neither argument: current resolved rules replace serving scores without financial identity/evidence; this is the confirmed legacy branch, not canonical reconstruction.",
+      "t14a_classification": "CONFIRMED_BYPASS",
+      "t14a_owner_proof": "recalculate_run_fundamentals has one native owner and two explicit conditional authority branches. Both scope arguments produce sealed identities and native retained evidence. Neither scope argument is accepted and replaces only legacy serving scores; the synchronous HTTP caller selects this branch. Family CONFIRMED_BYPASS denotes that reachable branch, not all bound executions.",
+      "tables": [
+        "fundamental_scores"
+      ],
+      "writer_family_id": "WF_FUNDAMENTAL_RECALCULATION"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_812da22fe41fbcba"
+      ],
+      "canonical_owner": "app/services/ib_market_intelligence/repository.py:persist_historical_metric_bar",
+      "current_projection_writers": [],
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/repository.py:persist_historical_metric_bar"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Historical metric bars/revisions are source authority, separate from derived IBMI feature calculation.",
+      "tables": [
+        "ib_historical_metric_bars",
+        "ib_historical_metric_revisions"
+      ],
+      "writer_family_id": "WF_IBMI_HISTORICAL_SOURCE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_be226eaac46d1ab2"
+      ],
+      "canonical_owner": "app/services/ib_market_intelligence/repository.py:persist_live_snapshot",
+      "current_projection_writers": [],
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/repository.py:persist_live_snapshot"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Live broker snapshot source artifact, separate from derived feature evidence.",
+      "tables": [
+        "ib_market_intelligence_snapshots"
+      ],
+      "writer_family_id": "WF_IBMI_LIVE_SOURCE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_8971757daefc9594"
+      ],
+      "canonical_owner": "app/services/ib_market_intelligence/repository.py:persist_feature",
+      "current_projection_writers": [],
+      "domains": [
+        "IBMI"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/repository.py:persist_feature"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "IBMI feature plus native source snapshot/bar revisions; source acquisitions split below.",
+      "tables": [
+        "ib_intelligence_features"
+      ],
+      "writer_family_id": "WF_IBMI_NATIVE_FEATURE"
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiator_ids": [
+        "EF_919b08f9bc6d4b63"
+      ],
+      "canonical_owner": "app/services/ib_contract_resolver.py:resolve_us_stock_contract",
+      "current_projection_writers": [],
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/ib_contract_resolver.py:_clear_contract_identity",
+        "app/services/ib_contract_resolver.py:_mark_ambiguous",
+        "app/services/ib_contract_resolver.py:_mark_failed",
+        "app/services/ib_contract_resolver.py:resolve_us_stock_contract"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "US stock contract selection and identity failure/ambiguity fields.",
+      "tables": [
+        "ib_contracts"
+      ],
+      "writer_family_id": "WF_IB_CONTRACT_IDENTITY"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_5f39587263ee923e"
+      ],
+      "canonical_owner": "app/services/ib_market_intelligence/flex.py:import_flex_report",
+      "current_projection_writers": [],
+      "domains": [
+        "TRADE_JOURNAL"
+      ],
+      "known_parallel_writers": [
+        "WF_IB_FILL_EXCLUSION"
+      ],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/flex.py:import_flex_report"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Imported execution fills and import batch source authority.",
+      "tables": [
+        "ib_execution_fills",
+        "ib_flex_import_runs"
+      ],
+      "writer_family_id": "WF_IB_FLEX_IMPORT"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [],
+      "canonical_owner": "app/services/ib_market_intelligence/orchestration.py:execute_histogram_fetch",
+      "current_projection_writers": [],
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/orchestration.py:execute_histogram_fetch"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Broker histogram source and scanner snapshot/cache acquisition; scanner split below.",
+      "tables": [
+        "ib_histogram_bins",
+        "ib_histogram_snapshots"
+      ],
+      "writer_family_id": "WF_IB_HISTOGRAM_SCANNER"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [],
+      "canonical_owner": "app/services/ib_market_intelligence/orchestration.py:execute_scanner_run",
+      "current_projection_writers": [],
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/ib_market_intelligence/orchestration.py:execute_scanner_run"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Scanner source runs/candidates and parameter cache; not histogram acquisition.",
+      "tables": [
+        "ib_scanner_candidates",
+        "ib_scanner_parameter_cache",
+        "ib_scanner_runs"
+      ],
+      "writer_family_id": "WF_IB_SCANNER_SOURCE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_3d469f86339ccac7"
+      ],
+      "canonical_owner": "app/services/bar_cache_service.py:cache_bars",
+      "current_projection_writers": [],
+      "domains": [
+        "PRICE"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/bar_cache_service.py:cache_bars"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Bar/revision source ingestion; price-series version changes are a separate family.",
+      "tables": [
+        "price_bar_revisions",
+        "price_bars"
+      ],
+      "writer_family_id": "WF_PRICE_INGESTION"
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiator_ids": [
+        "EF_3d469f86339ccac7",
+        "EF_866ac2c173ac81d7"
+      ],
+      "canonical_owner": "app/services/price_series_version_service.py:maintain_price_series_versions",
+      "current_projection_writers": [],
+      "domains": [
+        "PRICE"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/price_series_version_service.py:maintain_price_series_versions"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "Invalidate/bump derived price-series versions on source-bar changes.",
+      "tables": [
+        "price_series_versions"
+      ],
+      "writer_family_id": "WF_PRICE_SERIES_VERSION"
+    },
+    {
+      "allowed_modes": [
+        "LEGACY_UNCERTIFIED"
+      ],
+      "assigned_initiator_ids": [
+        "EF_a3fd956e147403b1",
+        "EF_a8016e0b9d69e5be",
+        "EF_d526d0a0522f099b"
+      ],
+      "canonical_owner": "app/services/ranking_profile_service.py:_replace_legacy_ranking",
+      "current_projection_writers": [],
+      "domains": [
+        "RANKING"
+      ],
+      "known_parallel_writers": [
+        "WF_RANKING_PERSISTENCE"
+      ],
+      "member_persistence_sites": [
+        "app/services/ranking_profile_service.py:_replace_legacy_ranking"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "LEGACY_WRITER",
+      "t14a_owner_proof": "Unanchored ranking serving replacement differs from sealed native ranking evidence.",
+      "tables": [
+        "ranking_results"
+      ],
+      "writer_family_id": "WF_RANKING_LEGACY_REPLACEMENT"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_a3fd956e147403b1",
+        "EF_a8016e0b9d69e5be",
+        "EF_d526d0a0522f099b"
+      ],
+      "canonical_owner": "app/services/ranking_profile_service.py:_persist_rankings",
+      "current_projection_writers": [],
+      "domains": [
+        "RANKING"
+      ],
+      "known_parallel_writers": [
+        "WF_RANKING_LEGACY_REPLACEMENT"
+      ],
+      "member_persistence_sites": [
+        "app/services/ranking_profile_service.py:_copy_ranking_values",
+        "app/services/ranking_profile_service.py:_persist_rankings"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Native ranking insert/copy; unanchored legacy replacement split below.",
+      "tables": [
+        "ranking_results"
+      ],
+      "writer_family_id": "WF_RANKING_PERSISTENCE"
+    },
+    {
+      "allowed_modes": [
+        "CURRENT_STATE_REPAIR"
+      ],
+      "assigned_initiator_ids": [
+        "EF_fd8cd8fbbbba07f7"
+      ],
+      "canonical_owner": "app/services/market_regime_repository.py:MarketRegimeRepository.delete_for_run",
+      "current_projection_writers": [],
+      "domains": [
+        "REGIME",
+        "CURRENT_PROJECTION"
+      ],
+      "known_parallel_writers": [
+        "WF_REGIME_SNAPSHOT"
+      ],
+      "member_persistence_sites": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository.delete_for_run"
+      ],
+      "required_authority": "Explicit run target and derived serving snapshot scope; retained evidence and newer compatible current selections must be protected by the adopting writer transaction. Deletion does not calculate a new Regime output or reconstruct original context.",
+      "t14a_classification": "CURRENT_PROJECTION_WRITER",
+      "t14a_owner_proof": "delete_for_run issues run-scoped DELETE of MarketRegimeSnapshot and flushes. Immutable shared core evidence is not deleted by this method. This derived repair is separate from revision creation.",
+      "tables": [
+        "market_regime_snapshots"
+      ],
+      "writer_family_id": "WF_REGIME_DERIVED_DELETE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_874835d87c21855e"
+      ],
+      "canonical_owner": "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot",
+      "current_projection_writers": [
+        "WF_REGIME_DERIVED_DELETE"
+      ],
+      "domains": [
+        "REGIME"
+      ],
+      "known_parallel_writers": [
+        "WF_REGIME_DERIVED_DELETE"
+      ],
+      "member_persistence_sites": [
+        "app/services/market_regime_repository.py:MarketRegimeRepository._apply_snapshot_fields",
+        "app/services/market_regime_repository.py:MarketRegimeRepository._supersede_previous_revision",
+        "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot"
+      ],
+      "required_authority": "Native Regime cutoff/calendar/source-series membership and contextual effective configuration; logical key run/as-of/calculation/config version, DTO evidence hash and revision order. Field copy and supersession reuse the owning upsert transaction. Standalone root selection belongs to caller T14D adoption.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "upsert_snapshot reuses exact evidence-hash matches, otherwise appends the next logical revision, marks only the prior revision non-current, and persists immutable native/shared evidence. Derived deletion is now WF_REGIME_DERIVED_DELETE.",
+      "tables": [
+        "market_regime_snapshots"
+      ],
+      "writer_family_id": "WF_REGIME_SNAPSHOT"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_021cfb93d6813955"
+      ],
+      "canonical_owner": "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot",
+      "current_projection_writers": [],
+      "domains": [
+        "SECTOR"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/sector_rotation_repository.py:SectorRotationRepository._apply_snapshot_fields",
+        "app/services/sector_rotation_repository.py:SectorRotationRepository._supersede_previous_revision",
+        "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Sector snapshot/rows with revision supersession; as-of/root context stays explicit.",
+      "tables": [
+        "sector_rotation_rows",
+        "sector_rotation_snapshots"
+      ],
+      "writer_family_id": "WF_SECTOR_SNAPSHOT"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_44e2b88da09c0be6",
+        "EF_5acf98114588686d",
+        "EF_f0d208ce35a33ed6"
+      ],
+      "canonical_owner": "app/services/ceri/sec/state_service.py:SecDocumentStateService.register_document",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.complete",
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.record_downloaded_content",
+        "app/services/ceri/sec/state_service.py:SecDocumentStateService.register_document"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "Filing document registration/download/completion; source bytes and processor address, not financial score.",
+      "tables": [
+        "ceri_sec_document_extractions",
+        "ceri_sec_filing_documents"
+      ],
+      "writer_family_id": "WF_SEC_DOCUMENT_SOURCE"
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiator_ids": [],
+      "canonical_owner": "app/services/ceri/sec/incremental_ingestion.py:SecGuidanceIncrementalIngestionService._resolve_and_persist_cik",
+      "current_projection_writers": [],
+      "domains": [
+        "CERI_SOURCE"
+      ],
+      "known_parallel_writers": [
+        "WF_CERI_COMPANY_BOOTSTRAP",
+        "WF_CERI_FEATURE_BUILD",
+        "WF_CERI_SOURCE_NORMALIZATION",
+        "WF_PIPELINE_STAGE_STATE",
+        "WF_SEC_CIK_CLI",
+        "WF_SEC_IDENTITY_REPAIR"
+      ],
+      "member_persistence_sites": [
+        "app/services/ceri/sec/incremental_ingestion.py:SecGuidanceIncrementalIngestionService._resolve_and_persist_cik"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "Incremental source identity persistence, separate from bulk repair entry.",
+      "tables": [
+        "ceri_companies"
+      ],
+      "writer_family_id": "WF_SEC_INCREMENTAL_IDENTITY"
+    },
+    {
+      "allowed_modes": [
+        "MAINTENANCE"
+      ],
+      "assigned_initiator_ids": [
+        "EF_3984d25edba4f45f",
+        "EF_431a8947c0b31cbf",
+        "EF_7eea11a8cded4a8a",
+        "EF_cb55d161e779c8be",
+        "EF_de562c9ceb6ee65a",
+        "EF_fb5089df555b2b2f"
+      ],
+      "canonical_owner": "app/services/technical_artifact_cache.py:upsert_local_artifact",
+      "current_projection_writers": [],
+      "domains": [
+        "TECHNICAL"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/technical_artifact_cache.py:get_local_artifact",
+        "app/services/technical_artifact_cache.py:record_local_artifact_shadow_validation",
+        "app/services/technical_artifact_cache.py:upsert_local_artifact"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "t14a_owner_proof": "Cached features plus hit/shadow-validation metadata; not Technical evidence publication.",
+      "tables": [
+        "technical_feature_artifacts"
+      ],
+      "writer_family_id": "WF_TECHNICAL_FEATURE_CACHE"
+    },
+    {
+      "allowed_modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "assigned_initiator_ids": [
+        "EF_3984d25edba4f45f",
+        "EF_756b7b07d4f365c0",
+        "EF_de562c9ceb6ee65a"
+      ],
+      "canonical_owner": "app/services/technical_score_service.py:finalize_technical_scores",
+      "current_projection_writers": [],
+      "domains": [
+        "TECHNICAL"
+      ],
+      "known_parallel_writers": [],
+      "member_persistence_sites": [
+        "app/services/technical_score_service.py:finalize_technical_scores"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "t14a_owner_proof": "Native Technical serving finalizer and retained ledger delivery; preview persist=False excluded.",
+      "tables": [
+        "technical_scores"
+      ],
+      "writer_family_id": "WF_TECHNICAL_FINALIZATION"
+    },
+    {
+      "allowed_modes": [
+        "BOOTSTRAP"
+      ],
+      "assigned_initiator_ids": [
+        "EF_ab4102ebb9197c4d",
+        "EF_da68f1fde41c070d"
+      ],
+      "canonical_owner": "app/services/upload_service.py:create_upload_run",
+      "current_projection_writers": [],
+      "domains": [
+        "FUNDAMENTAL",
+        "RAW"
+      ],
+      "known_parallel_writers": [
+        "WF_FUNDAMENTAL_RECALCULATION",
+        "WF_PIPELINE_STAGE_STATE"
+      ],
+      "member_persistence_sites": [
+        "app/services/upload_service.py:create_upload_run"
+      ],
+      "required_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CONFIRMED_BYPASS",
+      "t14a_owner_proof": "Raw upload is legitimate; directly calculated legacy Fundamental serving values lack canonical Fundamental evidence/identity.",
+      "tables": [
+        "fundamental_scores",
+        "raw_company_rows",
+        "upload_runs"
+      ],
+      "writer_family_id": "WF_UPLOAD_INITIALIZATION"
+    }
+  ]
+}

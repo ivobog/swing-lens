@@ -3,6 +3,7 @@ from datetime import date
 
 import pytest
 from alembic.config import Config
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, selectinload
 from test_combined_decision import _config
@@ -19,7 +20,7 @@ from app.models.tables import (
     TechnicalScore,
 )
 from app.services.combined_decision import _to_model, combine_row_decision
-from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_calculation_evidence import CoreEvidenceKind
 from app.services.ranking_profile_config import get_ranking_profile
 from app.services.ranking_profile_engine import rank_single_row
 from app.services.ranking_profile_service import _to_ranking_model
@@ -86,8 +87,8 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
         db.flush()
         db.add_all([row, fundamental, technical])
         db.flush()
-        persist_core_evidence(db, kind=CoreEvidenceKind.FUNDAMENTAL, current_row=fundamental)
-        first_technical = persist_core_evidence(
+        seed_pre_phase5_evidence(db, kind=CoreEvidenceKind.FUNDAMENTAL, current_row=fundamental)
+        first_technical = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.TECHNICAL,
             current_row=technical,
@@ -127,7 +128,7 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
         first_combined = combine_row_decision(row, fundamental, technical, config=_config())
         assert first_combined.has_technical
         combined_model = _to_model(row.run_id, 1, first_combined, technical_id)
-        combined = persist_core_evidence(
+        combined = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.COMBINED,
             current_row=combined_model,
@@ -144,7 +145,7 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
             ),
             technical_id,
         )
-        ranking = persist_core_evidence(
+        ranking = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.RANKING,
             current_row=ranking_model,
@@ -213,7 +214,7 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
         db.flush()
         old_payload = deepcopy(old_evaluation.payload_json)
         technical.insufficient_data = True
-        second_technical = persist_core_evidence(
+        second_technical = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.TECHNICAL,
             current_row=technical,
@@ -273,7 +274,7 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
                 payload[TECHNICAL_ELIGIBILITY_KEY]["decision"]["producer_evidence_id"]
                 == first_technical.id
             )
-        retry = persist_core_evidence(
+        retry = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.COMBINED,
             current_row=combined_model,

@@ -21,6 +21,7 @@ from app.models.ib_market_intelligence_tables import (
 )
 from app.models.tables import CombinedResult, SetupSignalSnapshot, UploadRun
 from app.services.ceri import capture_service as ceri_capture_service
+from app.services.contextual_effective_configuration import resolve_ibmi_configuration
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 from app.services.ib_market_intelligence.decision_evidence import IbmiFeatureConstituents
 from app.services.ib_market_intelligence.dtos import FeatureResult, HistoricalMetricBarDTO
@@ -78,11 +79,12 @@ def test_metric_revision_and_flex_import_are_idempotent(
     )
     changed = HistoricalMetricBarDTO(**{**dto.__dict__, "close_value": 2.2})
     with Session(engine) as db:
-        row, outcome = persist_historical_metric_bar(db, dto)
+        known_at = datetime(2026, 8, 8, 12, tzinfo=UTC)
+        row, outcome = persist_historical_metric_bar(db, dto, observed_at=known_at)
         assert outcome == "INSERTED"
-        _, outcome = persist_historical_metric_bar(db, dto)
+        _, outcome = persist_historical_metric_bar(db, dto, observed_at=known_at)
         assert outcome == "UNCHANGED"
-        row, outcome = persist_historical_metric_bar(db, changed)
+        row, outcome = persist_historical_metric_bar(db, changed, observed_at=known_at)
         assert outcome == "REVISED" and row.revision_count == 1
         db.commit()
         revisions = db.scalars(select(IBHistoricalMetricRevision)).all()
@@ -169,8 +171,9 @@ def test_metric_revision_and_flex_import_are_idempotent(
             ib_conid=123,
             as_of_session=date(2026, 8, 7),
             feature=available,
-            config=config,
+            config=resolve_ibmi_configuration(config, "volatility").ibmi_config(config),
             calculated_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC),
+            calculation_cutoff_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC),
             constituents=IbmiFeatureConstituents(metric_bars=(row,)),
         )
         assert inserted is True
@@ -180,8 +183,9 @@ def test_metric_revision_and_flex_import_are_idempotent(
             ib_conid=123,
             as_of_session=date(2026, 8, 7),
             feature=unavailable,
-            config=config,
+            config=resolve_ibmi_configuration(config, "volatility").ibmi_config(config),
             calculated_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC) + timedelta(seconds=1),
+            calculation_cutoff_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC) + timedelta(seconds=1),
             constituents=IbmiFeatureConstituents(metric_bars=(row,)),
         )
         assert inserted is True and second_feature.id != first_feature.id
@@ -232,8 +236,9 @@ def test_metric_revision_and_flex_import_are_idempotent(
             ib_conid=123,
             as_of_session=date(2026, 8, 7),
             feature=short_context,
-            config=config,
+            config=resolve_ibmi_configuration(config, "short_pressure").ibmi_config(config),
             calculated_at=datetime(2026, 8, 9, 12, 1, tzinfo=UTC),
+            calculation_cutoff_at=datetime(2026, 8, 9, 12, 1, tzinfo=UTC),
             constituents=IbmiFeatureConstituents(metric_bars=(row,)),
         )
         assert inserted is True

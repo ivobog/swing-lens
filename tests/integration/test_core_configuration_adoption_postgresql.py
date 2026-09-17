@@ -2,8 +2,10 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 from alembic.config import Config
+from native_mutation_support import bound_pipeline, seed_price_frame
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from test_core_effective_configuration import changed_configuration, core_configurations
@@ -32,7 +34,6 @@ from app.services.core_effective_configuration import (
     resolve_technical_configuration,
 )
 from app.services.effective_configuration import ConfigurationDrift, configuration_from_evidence
-from app.services.market_calculation_context_service import reserve_preflight_market_context
 from app.services.technical_indicators import load_pine_defaults
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
 from app.services.technical_scoring_v5_config import load_technical_scoring_v5_config
@@ -67,11 +68,6 @@ def test_native_core_producers_frozen_config_drift_retry_history_and_composition
     )
     monkeypatch.setattr(technical_score_service, "get_settings", lambda: settings)
     frame = _synthetic_frame()
-    # Stable in-memory PIT input adapter; persistence/configuration run natively.
-    monkeypatch.setattr(
-        technical_score_service, "_load_preferred_bounded", lambda *_args: (frame, frame)
-    )
-    monkeypatch.setattr(technical_score_service, "_call_price_frame", lambda *_args: frame)
     configurations = list(core_configurations())
     configurations[1] = resolve_technical_configuration(
         pine=load_pine_defaults(),
@@ -92,12 +88,17 @@ def test_native_core_producers_frozen_config_drift_retry_history_and_composition
                 )
             )
             db.flush()
-            cutoff = reserve_preflight_market_context(
-                db, upload_run_id=7, cutoff_at=datetime(2026, 9, 16, 21, tzinfo=UTC)
-            )
-            args = dict(market_cutoff=cutoff, pipeline_run_id=11)
+            frame["date"] = pd.bdate_range(end="2026-09-16", periods=len(frame))
+            for ticker in ("ACME", "SPY", "QQQ"):
+                seed_price_frame(db, ticker, frame, datetime(2026, 9, 16, 21, tzinfo=UTC))
+            authority = {}
 
             def calculate(configs):
+                key = tuple(c.snapshot.resolution_hash for c in configs)
+                if key not in authority:
+                    authority[key] = bound_pipeline(db, 7, configs)
+                cutoff, pipeline_id = authority[key]
+                args = dict(market_cutoff=cutoff, pipeline_run_id=pipeline_id)
                 f = fundamental_score_service.recalculate_run_fundamentals(
                     db, 7, **args, effective_configuration=configs[0]
                 )[0]
@@ -105,11 +106,18 @@ def test_native_core_producers_frozen_config_drift_retry_history_and_composition
                     db, 7, tickers=["ACME"], **args, effective_configuration=configs[1]
                 )[0]
                 c = combined_decision.refresh_combined_results(
-                    db, 7, **args, effective_configuration=configs[2]
+                    db,
+                    7,
+                    **args,
+                    effective_configuration=configs[2],
+                    source_evidence={
+                        "ACME": {"fundamental": f.evidence_id, "technical": t.evidence_id}
+                    },
                 )[0]
                 r = ranking_profile_service.refresh_ranking_profile(
                     db, 7, "momentum_swing", **args, effective_configuration=configs[3]
                 )[0]
+                db.commit()
                 return [db.get(CoreCalculationEvidence, row.evidence_id) for row in (f, t, c, r)]
 
             first = calculate(configurations)
@@ -274,15 +282,17 @@ def test_each_core_legacy_never_inherits_current_configuration(disposable_postgr
         with Session(engine) as db:
             db.add(UploadRun(id=1, filename="legacy.csv", status="COMPLETED"))
             db.flush()
-            evidence = persist_core_evidence(
-                db,
-                kind=kind,
-                current_row=SimpleNamespace(run_id=1, ticker="ACME", evidence_id=None),
-                payload={"score": 7},
-                calculation_identity=CalculationIdentity.legacy_unknown(run_id=1, ticker="ACME"),
-            )
-            assert configuration_from_evidence(evidence).state.value == "LEGACY_UNKNOWN"
-            assert core_configuration_from_evidence(evidence) is None
-            assert "synthetic-sensitive-value" not in Canonical.dumps(evidence.payload_json)
+            db.commit()
+            with pytest.raises(ValueError, match="DOMAIN_MUTATION_CONTEXT_REQUIRED"):
+                persist_core_evidence(
+                    db,
+                    kind=kind,
+                    current_row=SimpleNamespace(run_id=1, ticker="ACME", evidence_id=None),
+                    payload={"score": 7},
+                    calculation_identity=CalculationIdentity.legacy_unknown(
+                        run_id=1, ticker="ACME"
+                    ),
+                )
+            assert db.query(CoreCalculationEvidence).count() == 0
     finally:
         engine.dispose()

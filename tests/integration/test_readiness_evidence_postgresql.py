@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from alembic.config import Config
+from historical_evidence_support import seed_pre_phase5_evidence
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -21,7 +22,6 @@ from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     get_current_readiness,
     get_readiness_for_row,
-    persist_core_evidence,
 )
 from app.services.producer_readiness import (
     ReadinessStatus,
@@ -61,7 +61,7 @@ def test_readiness_is_frozen_identity_bound_and_projection_derived(disposable_po
         db.add(UploadRun(id=1, filename="readiness.csv", status="COMPLETED"))
         db.flush()
         row = SimpleNamespace(run_id=1, ticker="ACME", evidence_id=None)
-        first = persist_core_evidence(
+        first = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.TECHNICAL,
             current_row=row,
@@ -69,7 +69,7 @@ def test_readiness_is_frozen_identity_bound_and_projection_derived(disposable_po
             calculation_identity=identity,
         )
         first_payload = deepcopy(first.payload_json)
-        second = persist_core_evidence(
+        second = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.TECHNICAL,
             current_row=row,
@@ -90,7 +90,7 @@ def test_readiness_is_frozen_identity_bound_and_projection_derived(disposable_po
             ).evidence_id
             == second.id
         )
-        retry = persist_core_evidence(
+        retry = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.TECHNICAL,
             current_row=row,
@@ -105,7 +105,7 @@ def test_readiness_is_frozen_identity_bound_and_projection_derived(disposable_po
                 pipeline_id=IdentityDimension.known(99),
             ),
         )
-        third = persist_core_evidence(
+        third = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.TECHNICAL,
             current_row=row,

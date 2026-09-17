@@ -90,18 +90,28 @@ def build_universe_sector_metrics(
         )
     permissions = {}
 
+    def validate_selected_values(row):
+        if isinstance(db, Session) and row.evidence_id is not None:
+            from app.models.tables import CoreCalculationEvidence
+            from app.services.core_mutation_authority import validate_source_values
+
+            validate_source_values(row, db.get(CoreCalculationEvidence, row.evidence_id), db=db)
+
     def permitted(rows, policy, selector):
         retained = []
         for index, row in enumerate(rows):
             projected, permission = selector(row, policy)
             permissions[f"{policy.policy_version}:{index:06d}"] = permission
             if projected is not None:
+                validate_selected_values(projected)
                 retained.append(projected)
         return retained
 
     technicals_list = permitted(technicals_list, TECHNICAL_TO_SECTOR, technical_decision_input)
     combined_list = permitted(combined_list, COMBINED_TO_SECTOR, contextual_decision_input)
     ranking_results = permitted(ranking_results, RANKING_TO_SECTOR, contextual_decision_input)
+    for item in fundamentals_list:
+        validate_selected_values(item)
     fundamentals = _by_ticker(fundamentals_list)
     technicals = _by_ticker(technicals_list)
     combined_results = _by_ticker(combined_list)
@@ -141,7 +151,48 @@ def build_universe_sector_metrics(
         for bucket in buckets.values()
     ]
     rows = [
-        replace(row, debug={**row.debug, CONTEXTUAL_ELIGIBILITY_KEY: permissions}) for row in rows
+        replace(
+            row,
+            debug={
+                **row.debug,
+                CONTEXTUAL_ELIGIBILITY_KEY: permissions,
+                "native_source_manifest": {
+                    "financial_inputs": [
+                        {
+                            "artifact_kind": kind,
+                            "evidence_id": item.evidence_id,
+                            "ticker": item.ticker,
+                            "run_id": item.run_id,
+                        }
+                        for kind, items in (
+                            ("FUNDAMENTAL", fundamentals_list),
+                            ("TECHNICAL", technicals_list),
+                            ("COMBINED", combined_list),
+                            ("RANKING", ranking_results),
+                        )
+                        for item in items
+                    ],
+                    "raw_inputs": [
+                        {
+                            "id": item.id,
+                            "fingerprint": CanonicalEvidenceSerializer.fingerprint(
+                                {
+                                    "run_id": item.run_id,
+                                    "ticker": item.ticker,
+                                    "raw_json": item.raw_json,
+                                    "sector": item.sector,
+                                    "sector_canonical": item.sector_canonical,
+                                }
+                            ),
+                        }
+                        for item in raw_rows
+                    ],
+                }
+                if isinstance(db, Session)
+                else {},
+            },
+        )
+        for row in rows
     ]
     return sorted(rows, key=lambda row: (row.sector == "Unknown", row.sector))
 
