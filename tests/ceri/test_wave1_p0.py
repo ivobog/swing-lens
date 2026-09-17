@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -22,6 +23,7 @@ from app.models.ceri_tables import (
 from app.models.tables import BackgroundJob
 from app.services.ceri.catalyst_taxonomy import CeriCatalystTaxonomy
 from app.services.ceri.confidence_service import CeriConfidenceService
+from app.services.ceri.config import load_ceri_config
 from app.services.ceri.dtos import EstimateRequest
 from app.services.ceri.enums import CeriConfidenceLabel, CeriMetric, CeriPeriodType
 from app.services.ceri.feature_flags import CeriFeatureFlags, parse_explicit_bool
@@ -249,7 +251,7 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(
         capture_module,
         "ceri_flags",
-        lambda: CeriFeatureFlags(True, True, True, True, True, True, True),
+        lambda *_args: CeriFeatureFlags(True, True, True, True, True, True, True),
     )
 
     company_a = CeriCompany(id=1, ticker="AAA", exchange="US")
@@ -307,7 +309,11 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
             return SimpleNamespace(price_response_quality=None)
 
     class Snapshot:
-        config = SimpleNamespace(config_hash="1", engine=SimpleNamespace(calculation_version="1"))
+        config = replace(
+            load_ceri_config(),
+            config_hash="1",
+            engine=replace(load_ceri_config().engine, calculation_version="1"),
+        )
 
         def build_snapshot(self, **kwargs):
             return SimpleNamespace(

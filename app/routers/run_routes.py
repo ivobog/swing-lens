@@ -34,6 +34,7 @@ from app.services.chart_data_service import build_ticker_chart_payload
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import summarize_run_column_mapping
 from app.services.combined_decision import refresh_combined_results
+from app.services.core_effective_configuration import core_configuration_for_row
 from app.services.export_service import (
     EXPORT_TYPES,
     export_coverage_csv,
@@ -78,7 +79,6 @@ from app.services.pipeline_service import (
     start_pipeline,
 )
 from app.services.pre_enqueue_operational_gate import PreEnqueueOperationalGateError
-from app.services.ranking_profile_config import get_ranking_profile
 from app.services.ranking_profile_service import (
     get_ranking_profiles,
     get_ranking_results,
@@ -492,12 +492,8 @@ def export_ranking_profile_results(
     db: DbSession,
 ) -> Response:
     _require_run(db, run_id)
-    try:
-        profile = get_ranking_profile(profile_name)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
-    content = export_ranking_profile_csv(db, run_id, profile.name)
-    filename = f"swinglens_run_{run_id}_{profile.name}_rankings.csv"
+    content = export_ranking_profile_csv(db, run_id, profile_name)
+    filename = f"swinglens_run_{run_id}_{profile_name}_rankings.csv"
     _enforce_export_rows(_csv_data_row_count(content), resource=filename)
     return attachment_response(
         content,
@@ -513,22 +509,28 @@ def view_ranking_profile_results(
     db: DbSession,
 ) -> dict[str, object]:
     _require_run(db, run_id)
-    try:
-        profile = get_ranking_profile(profile_name)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
+    results = get_ranking_results(db, run_id, profile_name)
+    if not results:
+        raise HTTPException(status_code=404, detail="No persisted ranking profile results")
+    frozen = core_configuration_for_row(results[0])
+    profile_payload = (
+        _ranking_profile_payload(frozen.ranking_profile())
+        if frozen
+        else {
+            "name": profile_name,
+            "label": results[0].ranking_label,
+            "configuration_authority": "LEGACY_UNKNOWN",
+        }
+    )
     market_regime_context = _market_regime_context(
         _latest_run_market_snapshot(db, run_id),
-        profile_name=profile.name,
+        profile_name=profile_name,
     )
     return {
         "run_id": run_id,
-        "profile": _ranking_profile_payload(profile),
+        "profile": profile_payload,
         "market_context": market_regime_context,
-        "results": [
-            _ranking_result_payload(result)
-            for result in get_ranking_results(db, run_id, profile.name)
-        ],
+        "results": [_ranking_result_payload(result) for result in results],
     }
 
 
@@ -1615,7 +1617,13 @@ def _ranking_profile_payload(profile) -> dict[str, object]:
 
 
 def _ranking_result_payload(result) -> dict[str, object]:
+    frozen = core_configuration_for_row(result)
     return {
+        "effective_configuration": frozen.snapshot.as_dict()
+        if frozen
+        else {
+            "status": "LEGACY_UNKNOWN",
+        },
         "rank": result.profile_rank,
         "ticker": result.ticker,
         "company_name": result.company_name,

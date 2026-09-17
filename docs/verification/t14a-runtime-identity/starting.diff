@@ -1,0 +1,1351 @@
+diff --git a/app/services/background_job_service.py b/app/services/background_job_service.py
+index 7d8faee..772a3dc 100644
+--- a/app/services/background_job_service.py
++++ b/app/services/background_job_service.py
+@@ -57,6 +57,19 @@ NON_RETRYABLE_PROVENANCE_CODES = frozenset(
+         "DECISION_LINEAGE_MISMATCH",
+         "IMMUTABLE_EVIDENCE_MISMATCH",
+         "MALFORMED_DECISION_MANIFEST",
++        "MISSING_CONFIGURATION_ANCHOR_BINDING",
++        "CONFIGURATION_ANCHOR_BINDING_MISMATCH",
++        "CONFIGURATION_ANCHOR_PARENT_MISMATCH",
++        "CONFIGURATION_EXECUTION_LINEAGE_MISMATCH",
++        "MISSING_CONFIGURATION_ANCHOR",
++        "MISSING_CONFIGURATION_ANCHOR_PARENT",
++        "MISSING_CONFIGURATION_ANCHOR_FOR_RESUME",
++        "MISSING_OR_MISMATCHED_CONFIGURATION_ANCHOR",
++        "CONFIGURATION_ANCHOR_INTEGRITY_MISMATCH",
++        "CONFIGURATION_ANCHOR_RECORD_MISMATCH",
++        "MISSING_FROZEN_CONFIGURATION_RECORD",
++        "MISSING_FROZEN_CONFIGURATION",
++        "SEC_REPAIR_PROCESSOR_SIGNATURE_MISMATCH",
+     }
+ )
+ 
+@@ -1330,6 +1343,14 @@ def mark_job_failed_or_retry(
+         }
+ 
+     _apply_running_job_update(db, job, expected_token, values)
++    if values["status"] == JobStatus.FAILED and job.job_type == "SEC_READINESS_REPAIR":
++        from app.services.ceri.sec.readiness_repair import mark_sec_repair_failure
++
++        mark_sec_repair_failure(db, job, error, failure)
++    if values["status"] == JobStatus.FAILED and job.job_type == "FULL_PIPELINE":
++        from app.services.pipeline_service import mark_pipeline_job_failure
++
++        mark_pipeline_job_failure(db, job, failure)
+     metric_name = (
+         "swinglens_jobs_retry_total"
+         if values["status"] == JobStatus.QUEUED
+@@ -1659,6 +1680,31 @@ def _observe_fanout_size(db: Session, job: BackgroundJob) -> None:
+     )
+ 
+ 
++def fence_job_execution(db: Session, job: BackgroundJob) -> None:
++    """Hold the durable lease row through publication, fencing recovered owners."""
++    expected = getattr(job, "_execution_token", job.execution_token)
++    if not isinstance(db, Session):
++        return
++    row = db.execute(
++        select(BackgroundJob.status, BackgroundJob.execution_token, BackgroundJob.lease_expires_at)
++        .where(BackgroundJob.id == job.id)
++        .with_for_update()
++    ).one_or_none()
++    if (
++        row is None
++        or row.execution_token != expected
++        or (
++            expected is not None
++            and (
++                row.status != JobStatus.RUNNING
++                or row.lease_expires_at is None
++                or row.lease_expires_at <= _utcnow()
++            )
++        )
++    ):
++        raise JobLeaseLost(f"Background job {job.id} lease is no longer held.")
++
++
+ def _apply_running_job_update(
+     db: Session,
+     job: BackgroundJob,
+diff --git a/app/services/background_worker.py b/app/services/background_worker.py
+index 7deecfd..e6bdc57 100644
+--- a/app/services/background_worker.py
++++ b/app/services/background_worker.py
+@@ -593,35 +593,25 @@ def execute_job(
+         raise ValueError(f"Unsupported job type: {job.job_type}")
+     if heartbeat is not None:
+         job._heartbeat = heartbeat
++    job._execution_token = execution_token if execution_token is not None else job.execution_token
+     payload = job.payload_json or {}
+     run_id = job.related_run_id or payload.get("run_id")
+     workflow_key = job.workflow_key or payload.get("workflow_key")
+     ticker = payload.get("ticker")
+     company = payload.get("company")
+     from app.services.configuration_delivery import (
+-        ANCHOR_KEY,
+-        binding_reference,
+         configuration_delivery_scope,
+         durable_business_job,
++        execution_configuration_reference,
+         load_configuration_delivery,
+     )
+ 
+     delivery = None
+-    if isinstance(db, Session) and durable_business_job(job.job_type):
+-        expected = binding_reference(db, job_id=job.id)
+-        if payload.get("pipeline_run_id") is not None:
+-            pipeline_anchor = binding_reference(db, pipeline_run_id=payload["pipeline_run_id"])
+-            if expected != pipeline_anchor:
+-                raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+-        parent_id = getattr(job, "parent_job_id", None)
+-        if parent_id is not None:
+-            parent_anchor = binding_reference(db, job_id=parent_id)
+-            if parent_anchor is None or (expected is not None and expected != parent_anchor):
+-                raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+-            expected = parent_anchor
+-        delivery = load_configuration_delivery(
+-            db, payload.get(ANCHOR_KEY), expected_anchor=expected
+-        )
++    if isinstance(db, Session) and (
++        durable_business_job(job.job_type) or job.job_type == "SEC_READINESS_REPAIR"
++    ):
++        expected = execution_configuration_reference(db, job)
++        delivery = load_configuration_delivery(db, expected, expected_anchor=expected)
+     try:
+         with (
+             configuration_delivery_scope(delivery),
+diff --git a/app/services/ceri/sec/readiness_repair.py b/app/services/ceri/sec/readiness_repair.py
+index d47624e..4e1fe46 100644
+--- a/app/services/ceri/sec/readiness_repair.py
++++ b/app/services/ceri/sec/readiness_repair.py
+@@ -9,7 +9,7 @@ from sqlalchemy import select
+ from sqlalchemy.orm import Session
+ 
+ from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, RawCompanyRow
+-from app.services.background_job_service import enqueue_job
++from app.services.background_job_service import enqueue_job, fence_job_execution
+ from app.services.ceri.config import load_ceri_config
+ from app.services.ceri.enums import CeriDataset
+ from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
+@@ -22,6 +22,7 @@ from app.services.ceri.sec.readiness_diagnostics import (
+     SecTickerReadinessCategory,
+     diagnose_sec_readiness,
+ )
++from app.services.configuration_delivery import pipeline_helper_configuration
+ from app.services.pipeline_prerequisites import PipelineBlockedError
+ from app.services.pipeline_service import PipelineStatus, PipelineStepStatus
+ from app.settings import SecDocumentIncrementalMode, Settings, get_settings
+@@ -70,9 +71,7 @@ class SecRepairTelemetry:
+ 
+     @classmethod
+     def from_pipeline(cls, pipeline: PipelineRun) -> SecRepairTelemetry:
+-        stored = dict(
+-            ((pipeline.result_json or {}).get("sec_repair") or {}).get("telemetry") or {}
+-        )
++        stored = dict(((pipeline.result_json or {}).get("sec_repair") or {}).get("telemetry") or {})
+         return cls(
+             documents_discovered=int(stored.get("documents_discovered") or 0),
+             documents_downloaded=int(stored.get("documents_downloaded") or 0),
+@@ -192,6 +191,7 @@ def schedule_sec_readiness_repair(
+     return job
+ 
+ 
++@pipeline_helper_configuration
+ def execute_sec_readiness_repair(
+     db: Session,
+     job: BackgroundJob,
+@@ -208,6 +208,24 @@ def execute_sec_readiness_repair(
+     tickers = _tickers_for_run(db, pipeline.upload_run_id)
+     lifecycle = require_deployed_processor_active(db)
+     signature = str(lifecycle.active_signature or lifecycle.deployed_signature)
++    if (job.payload_json or {}).get("processor_signature") != signature:
++        raise ValueError("SEC_REPAIR_PROCESSOR_SIGNATURE_MISMATCH")
++    from app.services.pipeline_service import existing_sec_repair_continuation
++
++    target = str((job.payload_json or {}).get("resume_from_step") or "VALIDATING_RUN")
++    existing = existing_sec_repair_continuation(
++        db, pipeline, processor_signature=signature, resume_from_step=target
++    )
++    if existing is not None:
++        repair = (pipeline.result_json or {}).get("sec_repair") or {}
++        return {
++            "status": "COMPLETED",
++            "pipeline_id": pipeline.id,
++            "run_id": pipeline.upload_run_id,
++            "resume_job_id": existing.id,
++            "readiness": {"counts": repair.get("counts") or {}},
++            "telemetry": repair.get("telemetry") or {},
++        }
+     config = load_ceri_config()
+     provider = provider or SecCeriProvider(
+         client=SecEdgarClient(
+@@ -340,6 +358,8 @@ def execute_sec_readiness_repair(
+     if final.complete:
+         from app.services.pipeline_service import enqueue_pipeline_after_sec_repair
+ 
++        _guard_cancel(db, pipeline, job, should_cancel)
++        fence_job_execution(db, job)
+         resumed_job = enqueue_pipeline_after_sec_repair(
+             db,
+             pipeline,
+@@ -414,8 +434,7 @@ def execute_sec_readiness_repair(
+             "last_error_code": "SEC_REPAIR_INCOMPLETE_TRANSIENT",
+             "last_error_detail": root_message,
+             "remaining_tickers": [
+-                {"ticker": ticker, "reason": reason}
+-                for ticker, reason in sorted(remaining.items())
++                {"ticker": ticker, "reason": reason} for ticker, reason in sorted(remaining.items())
+             ],
+             "next_retry_attempt": int(job.retry_count or 0) + 1,
+         },
+@@ -450,6 +469,7 @@ def _update_progress(
+     extra: dict[str, Any] | None = None,
+ ) -> None:
+     now = _utcnow().isoformat()
++    fence_job_execution(db, job)
+     existing = dict((pipeline.result_json or {}).get("sec_repair") or {})
+     initial_ready = int(existing.get("initial_ready_tickers", existing.get("ready_tickers", 0)))
+     ready = int(readiness.get("ready_tickers") or 0)
+@@ -491,6 +511,71 @@ def _update_progress(
+         heartbeat()
+ 
+ 
++def sec_repair_failure_view(pipeline, job, failure):
++    code = failure["code"]
++    ready = (pipeline.result_json or {}).get("sec_repair") or {}
++    completed = ready.get("total_tickers") is not None and ready.get("ready_tickers") == ready.get(
++        "total_tickers"
++    )
++    message = (
++        "Automatic SEC preparation completed, but pipeline continuation failed."
++        if completed
++        else "Automatic SEC preparation failed."
++    )
++    return {
++        "status": PipelineStatus.BLOCKED if not failure["retryable"] else PipelineStatus.FAILED,
++        "message": message,
++        "detail": f"{message} Pipeline {pipeline.id}, job {job.id}: {code}.",
++        "code": code,
++        "stage": "CONTINUATION_FAILED" if completed else "FAILED",
++    }
++
++
++def mark_sec_repair_failure(db, job, error, failure):
++    """Publish terminal helper failures only for the pipeline awaiting this job."""
++    pipeline = db.scalar(
++        select(PipelineRun)
++        .where(
++            PipelineRun.result_json["repair_job_id"].astext == str(job.id),
++            PipelineRun.status == PipelineStatus.PREPARING,
++        )
++        .with_for_update()
++    )
++    if pipeline is None or (pipeline.result_json or {}).get("repair_job_id") != job.id:
++        return
++    if pipeline.status != PipelineStatus.PREPARING:
++        return
++    ready = (pipeline.result_json or {}).get("sec_repair") or {}
++    view = sec_repair_failure_view(pipeline, job, failure)
++    pipeline.status = view["status"]
++    pipeline.completed_at = _utcnow()
++    pipeline.message = view["message"]
++    pipeline.error_message = view["detail"]
++    pipeline.result_json = {
++        **(pipeline.result_json or {}),
++        "blocked_reason": view["code"],
++        "sec_repair": {
++            **ready,
++            "repair_stage": view["stage"],
++            "last_error_code": view["code"],
++            "last_error_detail": view["detail"],
++            "updated_at": _utcnow().isoformat(),
++        },
++    }
++    target = pipeline.current_step or "VALIDATING_RUN"
++    step = db.scalar(
++        select(PipelineStep).where(
++            PipelineStep.pipeline_run_id == pipeline.id, PipelineStep.step_name == target
++        )
++    )
++    if step is not None:
++        step.status = pipeline.status
++        step.completed_at = pipeline.completed_at
++        step.message = view["message"]
++        step.error_message = view["detail"]
++    db.flush()
++
++
+ def _mark_pipeline_unresolved(
+     db: Session,
+     pipeline: PipelineRun,
+@@ -500,6 +585,7 @@ def _mark_pipeline_unresolved(
+     diagnostics: dict[str, Any],
+     reason_code: str = "SEC_IDENTITY_UNRESOLVED",
+ ) -> None:
++    fence_job_execution(db, job)
+     pipeline.status = PipelineStatus.BLOCKED
+     pipeline.completed_at = _utcnow()
+     pipeline.message = "Run cannot continue after automatic SEC preparation."
+diff --git a/app/services/configuration_delivery.py b/app/services/configuration_delivery.py
+index 2be2eab..054ec48 100644
+--- a/app/services/configuration_delivery.py
++++ b/app/services/configuration_delivery.py
+@@ -228,6 +228,81 @@ def binding_reference(db, *, job_id=None, pipeline_run_id=None, winner_cohort_ge
+     return {"anchor_id": anchor.anchor_id, "fingerprint": anchor.fingerprint}
+ 
+ 
++def execution_configuration_reference(db, job, *, _seen=None):
++    """Pipeline authority survives transport helpers without inventing job bindings.
++
++    SEC repair is a transport/helper execution, not a new calculation root. Its
++    retained pipeline binding is mandatory, including for pre-contract queued jobs.
++    Any bindings or references it does carry must agree with that authority.
++    """
++    from app.models.tables import BackgroundJob, PipelineRun
++
++    seen = set() if _seen is None else set(_seen)
++    if job.id in seen or len(seen) >= 64:
++        raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
++    seen.add(job.id)
++    payload = job.payload_json or {}
++    pipeline_id = payload.get("pipeline_run_id")
++    helper = job.job_type == "SEC_READINESS_REPAIR"
++    if helper and pipeline_id is None:
++        raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
++    expected = None
++    if pipeline_id is not None:
++        pipeline = db.get(PipelineRun, pipeline_id)
++        if pipeline is None or (
++            job.related_run_id is not None and job.related_run_id != pipeline.upload_run_id
++        ):
++            raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
++        expected = binding_reference(db, pipeline_run_id=pipeline_id)
++    binding = db.get(ExecutionConfigurationBinding, "job:" + str(job.id))
++    if binding is not None or durable_business_job(job.job_type) or not helper:
++        bound = binding_reference(db, job_id=job.id)
++        if expected is not None and bound != expected:
++            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
++        expected = bound if expected is None else expected
++    supplied = payload.get(ANCHOR_KEY)
++    if supplied is not None and supplied != expected:
++        raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
++    if durable_business_job(job.job_type) and supplied is None:
++        raise ValueError("MISSING_CONFIGURATION_ANCHOR")
++    parent_id = job.parent_job_id
++    relatives = {parent_id, job.root_job_id} - {None, job.id}
++    if parent_id == job.id:
++        raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
++    for relative_id in relatives:
++        parent = db.get(BackgroundJob, relative_id)
++        if parent is None:
++            raise ValueError("MISSING_CONFIGURATION_ANCHOR_PARENT")
++        parent_pipeline = (parent.payload_json or {}).get("pipeline_run_id")
++        if (
++            pipeline_id is not None
++            and parent_pipeline is not None
++            and parent_pipeline != pipeline_id
++        ):
++            raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
++        if execution_configuration_reference(db, parent, _seen=seen) != expected:
++            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
++    return expected
++
++
++def pipeline_helper_configuration(calculation):
++    """Direct helper calls and worker calls use the same immutable execution resolver."""
++
++    @wraps(calculation)
++    def execute(db, job, *args, **kwargs):
++        if not isinstance(db, Session):
++            return calculation(db, job, *args, **kwargs)
++        reference = execution_configuration_reference(db, job)
++        current = current_delivery()
++        if current is not None and current.anchor != reference:
++            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
++        delivery = load_configuration_delivery(db, reference)
++        with configuration_delivery_scope(delivery):
++            return calculation(db, job, *args, **kwargs)
++
++    return execute
++
++
+ def bind_winner_generation_configuration(db, generation, config):
+     from app.services.decision_effective_configuration import resolve_winner_configuration
+ 
+@@ -524,7 +599,8 @@ def durable_business_job(job_type):
+ 
+ def anchor_enqueue_payload(db, job_type, payload, *, parent_job_id=None):
+     """Child/resume inherit; a genuinely new root resolves once before enqueue."""
+-    if not durable_business_job(job_type):
++    helper = job_type == "SEC_READINESS_REPAIR"
++    if not durable_business_job(job_type) and not helper:
+         return payload
+     from app.models.tables import BackgroundJob
+ 
+@@ -534,8 +610,13 @@ def anchor_enqueue_payload(db, job_type, payload, *, parent_job_id=None):
+         parent = db.get(BackgroundJob, parent_job_id)
+         if parent is None:
+             raise ValueError("MISSING_CONFIGURATION_ANCHOR_PARENT")
+-        expected = binding_reference(db, job_id=parent.id)
++        inherited = execution_configuration_reference(db, parent)
++        if expected is not None and inherited != expected:
++            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
++        expected = inherited
+     pipeline_id = payload.get("pipeline_run_id")
++    if helper and pipeline_id is None:
++        raise ValueError("MISSING_CONFIGURATION_ANCHOR_FOR_RESUME")
+     if pipeline_id is not None:
+         existing_binding = db.get(ExecutionConfigurationBinding, "pipeline:" + str(pipeline_id))
+         existing = binding_reference(db, pipeline_run_id=pipeline_id) if existing_binding else None
+@@ -543,7 +624,7 @@ def anchor_enqueue_payload(db, job_type, payload, *, parent_job_id=None):
+             if expected is not None and expected != existing:
+                 raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+             expected = existing
+-        elif payload.get("resume_from_step"):
++        elif payload.get("resume_from_step") or helper:
+             raise ValueError("MISSING_CONFIGURATION_ANCHOR_FOR_RESUME")
+     supplied = payload.get(ANCHOR_KEY)
+     if expected is not None:
+diff --git a/app/services/pipeline_service.py b/app/services/pipeline_service.py
+index 8b0dea7..9aa5f56 100644
+--- a/app/services/pipeline_service.py
++++ b/app/services/pipeline_service.py
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
+ from datetime import UTC, datetime
+ from enum import StrEnum
+ from typing import Any
+@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
+ from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
+ from app.observability.transaction_metrics import publish_after_commit
+ from app.services.background_job_service import (
++    JobStatus,
+     active_job_for_request_key,
+     enqueue_job,
+     request_job_cancel,
+@@ -421,7 +422,7 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
+         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
+ 
+     steps = _load_pipeline_steps(db, pipeline_run_id)
+-    return PipelineStatusDto(
++    status = PipelineStatusDto(
+         pipeline_run_id=pipeline.id,
+         upload_run_id=pipeline.upload_run_id,
+         status=pipeline.status,
+@@ -448,6 +449,150 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
+         ],
+         result_json=pipeline.result_json,
+     )
++    failed_repair = _failed_sec_repair(db, pipeline)
++    if failed_repair is not None:
++        from app.services.background_job_service import classify_job_failure
++        from app.services.ceri.sec.readiness_repair import sec_repair_failure_view
++
++        view = sec_repair_failure_view(
++            pipeline,
++            failed_repair,
++            classify_job_failure(failed_repair.error_message or "SEC_REPAIR_FAILED"),
++        )
++        target = (failed_repair.payload_json or {}).get("resume_from_step") or "VALIDATING_RUN"
++        status = replace(
++            status,
++            status=view["status"],
++            message=view["message"],
++            error_message=view["detail"],
++            completed_at=failed_repair.completed_at,
++            result_json={
++                **(status.result_json or {}),
++                "blocked_reason": view["code"],
++                "sec_repair": {
++                    **((status.result_json or {}).get("sec_repair") or {}),
++                    "repair_stage": view["stage"],
++                    "last_error_code": view["code"],
++                    "last_error_detail": view["detail"],
++                },
++            },
++            steps=[
++                replace(
++                    step,
++                    status=view["status"],
++                    message=view["message"],
++                    error_message=view["detail"],
++                    completed_at=failed_repair.completed_at,
++                )
++                if step.step_name == target
++                else step
++                for step in status.steps
++            ],
++        )
++    failed_execution = _failed_pipeline_job(db, pipeline)
++    if failed_execution is not None:
++        from app.services.background_job_service import classify_job_failure
++
++        view = _pipeline_job_failure_view(
++            pipeline,
++            failed_execution,
++            classify_job_failure(failed_execution.error_message or "PIPELINE_FAILED"),
++        )
++        target = (
++            (failed_execution.payload_json or {}).get("resume_from_step")
++            or pipeline.current_step
++            or "VALIDATING_RUN"
++        )
++        status = replace(
++            status,
++            status=view["status"],
++            message=view["message"],
++            error_message=view["detail"],
++            completed_at=failed_execution.completed_at,
++            steps=[
++                replace(
++                    step,
++                    status=view["status"],
++                    message=view["message"],
++                    error_message=view["detail"],
++                    completed_at=failed_execution.completed_at,
++                )
++                if step.step_name == target
++                else step
++                for step in status.steps
++            ],
++        )
++    return status
++
++
++def _failed_pipeline_job(db, pipeline):
++    if pipeline.status in PIPELINE_TERMINAL_STATUSES:
++        return None
++    job_id = (pipeline.result_json or {}).get("background_job_id")
++    job = db.get(BackgroundJob, job_id) if job_id is not None else None
++    if (
++        job is not None
++        and job.job_type == FULL_PIPELINE_JOB_TYPE
++        and job.status == JobStatus.FAILED
++    ):
++        return job
++    return None
++
++
++def _pipeline_job_failure_view(pipeline, job, failure):
++    continuation = bool((job.payload_json or {}).get("resume_from_step"))
++    message = "Pipeline continuation failed." if continuation else "Pipeline execution failed."
++    if not failure["retryable"]:
++        message += " Frozen configuration or execution lineage could not be verified."
++    return {
++        "status": PipelineStatus.FAILED if failure["retryable"] else PipelineStatus.BLOCKED,
++        "message": message,
++        "detail": f"{message} Pipeline {pipeline.id}, job {job.id}: {failure['code']}.",
++    }
++
++
++def mark_pipeline_job_failure(db, job, failure):
++    pipeline = db.scalar(
++        select(PipelineRun)
++        .where(PipelineRun.result_json["background_job_id"].astext == str(job.id))
++        .with_for_update()
++    )
++    if pipeline is None or pipeline.status in PIPELINE_TERMINAL_STATUSES:
++        return
++    if (pipeline.result_json or {}).get("background_job_id") != job.id:
++        return
++    view = _pipeline_job_failure_view(pipeline, job, failure)
++    pipeline.status = view["status"]
++    pipeline.completed_at = job.completed_at or _utcnow()
++    pipeline.message = view["message"]
++    pipeline.error_message = view["detail"]
++    pipeline.result_json = {**(pipeline.result_json or {}), "blocked_reason": failure["code"]}
++    target = pipeline.current_step or "VALIDATING_RUN"
++    step = db.scalar(
++        select(PipelineStep).where(
++            PipelineStep.pipeline_run_id == pipeline.id, PipelineStep.step_name == target
++        )
++    )
++    if step is not None:
++        step.status = view["status"]
++        step.completed_at = pipeline.completed_at
++        step.message = view["message"]
++        step.error_message = view["detail"]
++    db.flush()
++
++
++def _failed_sec_repair(db, pipeline):
++    if pipeline.status != PipelineStatus.PREPARING:
++        return None
++    repair_id = (pipeline.result_json or {}).get("repair_job_id")
++    job = db.get(BackgroundJob, repair_id) if repair_id is not None else None
++    if (
++        job is not None
++        and job.job_type == "SEC_READINESS_REPAIR"
++        and job.status == JobStatus.FAILED
++    ):
++        return job
++    return None
+ 
+ 
+ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
+@@ -486,6 +631,26 @@ def resume_pipeline(
+     pipeline = db.get(PipelineRun, pipeline_run_id)
+     if pipeline is None:
+         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
++    failed_repair = _failed_sec_repair(db, pipeline)
++    if failed_repair is not None:
++        from app.services.background_job_service import classify_job_failure
++        from app.services.ceri.sec.readiness_repair import mark_sec_repair_failure
++
++        mark_sec_repair_failure(
++            db,
++            failed_repair,
++            failed_repair.error_message,
++            classify_job_failure(failed_repair.error_message or "SEC_REPAIR_FAILED"),
++        )
++    failed_execution = _failed_pipeline_job(db, pipeline)
++    if failed_execution is not None:
++        from app.services.background_job_service import classify_job_failure
++
++        mark_pipeline_job_failure(
++            db,
++            failed_execution,
++            classify_job_failure(failed_execution.error_message or "PIPELINE_FAILED"),
++        )
+     if pipeline.status not in {
+         PipelineStatus.BLOCKED,
+         PipelineStatus.FAILED,
+@@ -551,6 +716,34 @@ def resume_pipeline(
+     return pipeline
+ 
+ 
++def existing_sec_repair_continuation(db, pipeline, *, processor_signature, resume_from_step):
++    if not isinstance(db, Session):
++        return None
++    from app.services.configuration_delivery import (
++        binding_reference,
++        execution_configuration_reference,
++    )
++
++    request_key = (
++        f"resume-pipeline:{pipeline.id}:after-sec-repair:{processor_signature}:"
++        f"from:{resume_from_step}"
++    )
++    existing = db.scalar(
++        select(BackgroundJob)
++        .where(
++            BackgroundJob.job_type == FULL_PIPELINE_JOB_TYPE,
++            BackgroundJob.request_key == request_key,
++        )
++        .order_by(BackgroundJob.id)
++        .limit(1)
++    )
++    if existing is not None:
++        expected = binding_reference(db, pipeline_run_id=pipeline.id)
++        if execution_configuration_reference(db, existing) != expected:
++            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
++    return existing
++
++
+ def enqueue_pipeline_after_sec_repair(
+     db: Session,
+     pipeline: PipelineRun,
+@@ -558,6 +751,8 @@ def enqueue_pipeline_after_sec_repair(
+     processor_signature: str,
+     resume_from_step: str = "VALIDATING_RUN",
+ ) -> BackgroundJob:
++    if isinstance(db, Session):
++        db.execute(select(PipelineRun.id).where(PipelineRun.id == pipeline.id).with_for_update())
+     step = next(
+         (
+             item
+@@ -572,6 +767,11 @@ def enqueue_pipeline_after_sec_repair(
+         f"resume-pipeline:{pipeline.id}:after-sec-repair:{processor_signature}:"
+         f"from:{resume_from_step}"
+     )
++    existing = existing_sec_repair_continuation(
++        db, pipeline, processor_signature=processor_signature, resume_from_step=resume_from_step
++    )
++    if existing is not None:
++        return existing
+     job = enqueue_job(
+         db,
+         job_type=FULL_PIPELINE_JOB_TYPE,
+@@ -584,7 +784,10 @@ def enqueue_pipeline_after_sec_repair(
+         priority=PIPELINE_JOB_PRIORITY,
+         max_retries=PIPELINE_JOB_MAX_RETRIES,
+         request_key=request_key,
++        workflow_key=f"pipeline:{pipeline.id}:sec-continuation",
+     )
++    if getattr(job, "_coalesced", False):
++        return job
+     pipeline.status = PipelineStatus.PENDING
+     pipeline.current_step = resume_from_step
+     pipeline.completed_at = None
+diff --git a/tests/integration/test_sec_readiness_repair_postgresql.py b/tests/integration/test_sec_readiness_repair_postgresql.py
+index 813868e..e8f2dda 100644
+--- a/tests/integration/test_sec_readiness_repair_postgresql.py
++++ b/tests/integration/test_sec_readiness_repair_postgresql.py
+@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
+ 
+ from app.models.ceri_tables import CeriCompany, CeriSecSyncState
+ from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, RawCompanyRow, UploadRun
+-from app.services.background_job_service import JobStatus
++from app.services.background_job_service import JobStatus, enqueue_job
+ from app.services.ceri.sec.processor_lifecycle import certify_processor, promote_processor
+ from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+ from app.services.ceri.sec.provider import SecCeriProvider
+@@ -114,6 +114,7 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
+             )
+         )
+         db.flush()
++        _freeze_pipeline(db, pipeline)
+         repair = schedule_sec_readiness_repair(
+             db,
+             pipeline=pipeline,
+@@ -154,9 +155,15 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
+                 CeriSecSyncState.processor_signature == signature,
+             )
+         )
+-        full_jobs = list(
+-            db.scalars(select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")).all()
+-        )
++        full_jobs = [
++            job
++            for job in list(
++                db.scalars(
++                    select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")
++                ).all()
++            )
++            if (job.payload_json or {}).get("resume_from_step")
++        ]
+         assert len(full_jobs) == 1
+         resume_payload = full_jobs[0].payload_json
+         assert resume_payload["pipeline_run_id"] == pipeline.id
+@@ -187,7 +194,9 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
+             len(
+                 list(
+                     db.scalars(
+-                        select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")
++                        select(BackgroundJob)
++                        .where(BackgroundJob.job_type == "FULL_PIPELINE")
++                        .where(BackgroundJob.workflow_key.is_not(None))
+                     ).all()
+                 )
+             )
+@@ -260,6 +269,7 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
+                 retry_count=0,
+             )
+         )
++        _freeze_pipeline(db, pipeline)
+         repair = schedule_sec_readiness_repair(
+             db,
+             pipeline=pipeline,
+@@ -302,11 +312,25 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
+         assert set(unresolved) == {"BAD"}
+         assert provider.client.download_calls == 1
+         assert not list(
+-            db.scalars(select(BackgroundJob).where(BackgroundJob.job_type == "FULL_PIPELINE")).all()
++            db.scalars(
++                select(BackgroundJob).where(
++                    BackgroundJob.job_type == "FULL_PIPELINE",
++                    BackgroundJob.workflow_key.is_not(None),
++                )
++            ).all()
+         )
+     engine.dispose()
+ 
+ 
++def _freeze_pipeline(db, pipeline):
++    root = enqueue_job(
++        db, "FULL_PIPELINE", {"pipeline_run_id": pipeline.id}, related_run_id=pipeline.upload_run_id
++    )
++    root.status = JobStatus.COMPLETED
++    db.flush()
++    return root
++
++
+ def _upgrade(database_url: str) -> None:
+     env = os.environ.copy()
+     env["DATABASE_URL"] = database_url
+@@ -317,3 +341,503 @@ def _upgrade(database_url: str) -> None:
+         capture_output=True,
+         text=True,
+     )
++
++
++@pytest.fixture
++def incident_db(disposable_postgres_database):
++    _upgrade(disposable_postgres_database)
++    engine = create_engine(disposable_postgres_database)
++    with Session(engine) as db:
++        signature = sec_guidance_processor_signature()
++        certify_processor(
++            db, processor_signature=signature, evidence={"test": True}, actor="pytest"
++        )
++        promote_processor(db, processor_signature=signature, actor="pytest")
++        run = UploadRun(filename="incident.csv", row_count=1, status="COMPLETED")
++        db.add(run)
++        db.flush()
++        db.add(
++            RawCompanyRow(run_id=run.id, row_number=1, ticker="TEST", raw_json={"ticker": "TEST"})
++        )
++        pipeline = PipelineRun(
++            upload_run_id=run.id,
++            status=PipelineStatus.RUNNING,
++            current_step="VALIDATING_RUN",
++            result_json={},
++        )
++        db.add(pipeline)
++        db.flush()
++        db.add(
++            PipelineStep(
++                pipeline_run_id=pipeline.id,
++                step_name="VALIDATING_RUN",
++                step_order=1,
++                status=PipelineStepStatus.RUNNING,
++                retry_count=0,
++            )
++        )
++        db.commit()
++        yield db, pipeline, signature
++        db.rollback()
++    engine.dispose()
++
++
++def _schedule_incident(db, pipeline, signature):
++    from app.services.background_worker import execute_job
++    from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
++    from app.services.pipeline_executor import PipelineExecutionDependencies, execute_full_pipeline
++
++    root = _freeze_pipeline(db, pipeline)
++    db.commit()
++    diagnostics = diagnose_sec_readiness(db, tickers=["TEST"], processor_signature=signature)
++    assert not diagnostics.complete
++
++    def validate(db, job):
++        return execute_full_pipeline(
++            db,
++            job.payload_json["pipeline_run_id"],
++            dependencies=PipelineExecutionDependencies(ceri_provider_ingest_enabled=True),
++        )
++
++    result = execute_job(db, root, {"FULL_PIPELINE": validate})
++    assert result.status == PipelineStatus.PREPARING
++    repair = db.get(BackgroundJob, pipeline.result_json["repair_job_id"])
++    db.commit()
++    return root, repair
++
++
++def _configuration_probe(db, job):
++    from app.services.ceri.config import load_ceri_config
++    from app.services.configuration_delivery import current_delivery
++    from app.services.core_effective_configuration import resolve_fundamental_configuration
++    from app.settings import get_settings
++
++    return (
++        current_delivery().anchor,
++        resolve_fundamental_configuration().snapshot.semantic_hash,
++        load_ceri_config().config_hash,
++        get_settings().technical_v5_enabled,
++    )
++
++
++def test_worker_repair_continuation_restart_and_c2_drift_keep_c1(
++    incident_db, monkeypatch, tmp_path
++):
++    from app.services.background_worker import execute_job
++    from app.services.configuration_delivery import ANCHOR_KEY, binding_reference
++    from app.settings import get_settings
++
++    db, pipeline, signature = incident_db
++    root, repair = _schedule_incident(db, pipeline, signature)
++    c1 = execute_job(db, root, {"FULL_PIPELINE": _configuration_probe})
++    assert repair.payload_json[ANCHOR_KEY] == c1[0]
++    assert repair.parent_job_id == root.id
++    client = _RepairSecClient()
++    original_download = client.archive_document
++    c2 = get_settings().model_copy(update={"technical_v5_enabled": not c1[3]})
++
++    def download_and_drift(*args):
++        document = original_download(*args)
++        monkeypatch.setattr("app.settings._get_current_settings", lambda: c2)
++        monkeypatch.setattr(
++            "app.services.configuration_delivery.resolve_pipeline_configurations",
++            lambda *_a, **_k: pytest.fail("current C2 resolved during continuation"),
++        )
++        return document
++
++    client.archive_document = download_and_drift
++    provider = SecCeriProvider(client=client)
++    settings = Settings(_env_file=None, cache_dir=tmp_path / "cache")
++
++    def repair_handler(db, job):
++        assert _configuration_probe(db, job) == c1
++        return execute_sec_readiness_repair(db, job, settings=settings, provider=provider)
++
++    result = execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: repair_handler})
++    continuation_id = result["resume_job_id"]
++    db.commit()
++    assert client.download_calls == 1
++    assert get_settings().technical_v5_enabled != c1[3]
++    # A fresh Python worker has neither the parent's delivery nor its settings cache.
++    import json
++    import os
++    import subprocess
++    import sys
++    from pathlib import Path
++
++    probe = tmp_path / "restart_probe.py"
++    probe.write_text(
++        """import json, sys
++from sqlalchemy.engine import make_url
++from app.database_safety import assert_disposable_database
++from app.db import SessionLocal
++from app.models.tables import BackgroundJob
++from app.services.background_worker import execute_job
++import app.services.configuration_delivery as delivery
++from app.services.ceri.config import load_ceri_config
++from app.services.core_effective_configuration import resolve_fundamental_configuration
++from app.settings import get_settings
++assert_disposable_database(get_settings().database_url,
++    active_database_url=make_url(get_settings().database_url).set(database="postgres"))
++def forbidden(*args, **kwargs):
++    raise AssertionError("Restart resolved current configuration")
++delivery.resolve_pipeline_configurations = forbidden
++def handler(db, job):
++    return (delivery.current_delivery().anchor,
++        resolve_fundamental_configuration().snapshot.semantic_hash,
++        load_ceri_config().config_hash, get_settings().technical_v5_enabled)
++with SessionLocal() as db:
++    job = db.get(BackgroundJob, int(sys.argv[1]))
++    print("RESTART_C1=" + json.dumps(execute_job(db, job, {"FULL_PIPELINE": handler})))
++""",
++        encoding="utf-8",
++    )
++    repository = Path(__file__).resolve().parents[2]
++    environment = {
++        **os.environ,
++        "DATABASE_URL": db.get_bind().url.render_as_string(hide_password=False),
++        "PYTHONPATH": str(repository),
++        "DB_MONITOR_ENABLED": "false",
++        "JOB_WORKER_ENABLED": "false",
++        "PROCESS_ROLE": "CLI_OR_MAINTENANCE",
++        "TECHNICAL_V5_ENABLED": str(not c1[3]).lower(),
++    }
++    restarted_worker = subprocess.run(
++        [sys.executable, str(probe), str(continuation_id)],
++        cwd=repository,
++        env=environment,
++        capture_output=True,
++        text=True,
++        timeout=60,
++    )
++    assert restarted_worker.returncode == 0, restarted_worker.stderr
++    retained = next(
++        line.removeprefix("RESTART_C1=")
++        for line in restarted_worker.stdout.splitlines()
++        if line.startswith("RESTART_C1=")
++    )
++    assert json.loads(retained) == list(c1)
++    with Session(db.get_bind()) as restarted:
++        continuation = restarted.get(BackgroundJob, continuation_id)
++        assert continuation.parent_job_id == repair.id
++        assert binding_reference(restarted, job_id=continuation.id) == c1[0]
++        assert execute_job(restarted, continuation, {"FULL_PIPELINE": _configuration_probe}) == c1
++        from app.models.tables import CoreCalculationEvidence
++        from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
++        from app.services.fundamental_score_service import recalculate_run_fundamentals
++        from app.services.market_calculation_context_service import market_context_for_pipeline
++
++        def remaining_fundamentals(db, job):
++            execution = db.get(PipelineRun, job.payload_json["pipeline_run_id"])
++            return recalculate_run_fundamentals(
++                db,
++                execution.upload_run_id,
++                market_cutoff=market_context_for_pipeline(db, execution),
++                pipeline_run_id=execution.id,
++            )
++
++        scores = execute_job(restarted, continuation, {"FULL_PIPELINE": remaining_fundamentals})
++        assert len(scores) == 1 and scores[0].evidence_id is not None
++        evidence = restarted.get(CoreCalculationEvidence, scores[0].evidence_id)
++        assert evidence.payload_json[CONFIGURATION_PAYLOAD_KEY]["semantic_hash"] == c1[1]
++        continuation.status = JobStatus.COMPLETED
++        restarted.commit()
++    db.expire_all()
++    pipeline_status_before = db.get(PipelineRun, pipeline.id).status
++    # Recovery of already-ready SEC evidence must not download or process it again.
++    repeated = execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: repair_handler})
++    assert repeated["resume_job_id"] == continuation_id
++    assert client.download_calls == 1
++    assert db.get(PipelineRun, pipeline.id).status == pipeline_status_before
++    continuations = list(
++        db.scalars(
++            select(BackgroundJob).where(
++                BackgroundJob.workflow_key == f"pipeline:{pipeline.id}:sec-continuation"
++            )
++        )
++    )
++    assert len(continuations) == 1
++
++
++def test_missing_authoritative_binding_is_terminal_and_visible(incident_db):
++    from app.services.background_job_service import mark_job_failed_or_retry
++    from app.services.background_worker import execute_job
++    from app.services.pipeline_service import get_pipeline_status
++
++    db, pipeline, signature = incident_db
++    # A genuinely missing registry binding; no protected row is deleted to simulate it.
++    repair = BackgroundJob(
++        job_type=SEC_READINESS_REPAIR_JOB_TYPE,
++        related_run_id=pipeline.upload_run_id,
++        status=JobStatus.RUNNING,
++        retry_count=0,
++        max_retries=5,
++        payload_json={"pipeline_run_id": pipeline.id, "resume_from_step": "VALIDATING_RUN"},
++    )
++    db.add(repair)
++    db.flush()
++    pipeline.status = PipelineStatus.PREPARING
++    pipeline.result_json = {
++        "repair_job_id": repair.id,
++        "sec_repair": {"ready_tickers": 1, "total_tickers": 1},
++    }
++    db.commit()
++    with pytest.raises(ValueError, match="MISSING_CONFIGURATION_ANCHOR_BINDING") as caught:
++        execute_job(
++            db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: lambda *_a: pytest.fail("handler ran")}
++        )
++    db.rollback()
++    mark_job_failed_or_retry(db, repair, caught.value)
++    db.commit()
++    assert repair.status == JobStatus.FAILED
++    assert repair.operational_metadata_json["failure_classification"]["retryable"] is False
++    status = get_pipeline_status(db, pipeline.id)
++    assert status.status == PipelineStatus.BLOCKED
++    assert status.steps[0].status == PipelineStepStatus.BLOCKED
++    assert "MISSING_CONFIGURATION_ANCHOR_BINDING" in status.steps[0].error_message
++    assert "continuation failed" in status.steps[0].message
++    assert str(repair.id) in status.steps[0].error_message
++
++
++@pytest.mark.parametrize("wrong", ["anchor", "pipeline", "run"])
++def test_wrong_execution_identity_rejected_before_sec_work(incident_db, wrong):
++    from app.services.background_worker import execute_job
++    from app.services.configuration_delivery import ANCHOR_KEY
++
++    db, pipeline, signature = incident_db
++    root, repair = _schedule_incident(db, pipeline, signature)
++    if wrong == "anchor":
++        repair.payload_json = {
++            **repair.payload_json,
++            ANCHOR_KEY: {"anchor_id": "b" * 64, "fingerprint": "c" * 64},
++        }
++    elif wrong == "pipeline":
++        other = PipelineRun(upload_run_id=pipeline.upload_run_id, status="PENDING")
++        db.add(other)
++        db.flush()
++        _freeze_pipeline(db, other)  # Same C1 does not authorize another execution identity.
++        repair.payload_json = {**repair.payload_json, "pipeline_run_id": other.id}
++    else:
++        other = UploadRun(filename="other.csv", status="COMPLETED")
++        db.add(other)
++        db.flush()
++        repair.related_run_id = other.id
++    db.commit()
++    with pytest.raises(
++        ValueError, match="CONFIGURATION_(ANCHOR_PARENT|EXECUTION_LINEAGE)_MISMATCH"
++    ) as caught:
++        execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: lambda *_a: pytest.fail("SEC ran")})
++    from app.services.background_job_service import mark_job_failed_or_retry
++    from app.services.pipeline_service import get_pipeline_status
++
++    db.rollback()
++    repair.status = JobStatus.RUNNING
++    db.flush()
++    mark_job_failed_or_retry(db, repair, caught.value)
++    db.commit()
++    assert get_pipeline_status(db, pipeline.id).status == "BLOCKED"
++    assert not list(
++        db.scalars(
++            select(BackgroundJob).where(
++                BackgroundJob.workflow_key == f"pipeline:{pipeline.id}:sec-continuation"
++            )
++        )
++    )
++
++
++def test_legacy_unbound_helper_resolves_pipeline_without_backfill(incident_db):
++    from app.models.tables import ExecutionConfigurationBinding
++    from app.services.background_worker import execute_job
++    from app.services.configuration_delivery import binding_reference
++
++    db, pipeline, signature = incident_db
++    root = _freeze_pipeline(db, pipeline)
++    repair = BackgroundJob(
++        job_type=SEC_READINESS_REPAIR_JOB_TYPE,
++        status="QUEUED",
++        related_run_id=pipeline.upload_run_id,
++        parent_job_id=root.id,
++        payload_json={"pipeline_run_id": pipeline.id},
++    )
++    db.add(repair)
++    db.commit()
++    observed = execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: _configuration_probe})
++    assert observed[0] == binding_reference(db, pipeline_run_id=pipeline.id)
++    assert db.get(ExecutionConfigurationBinding, f"job:{repair.id}") is None
++
++
++def test_recovered_lease_owner_cannot_publish_continuation(incident_db, tmp_path):
++    from datetime import UTC, datetime, timedelta
++
++    from sqlalchemy import update
++
++    from app.services.background_job_service import JobLeaseLost, fence_job_execution
++
++    db, pipeline, signature = incident_db
++    root, repair = _schedule_incident(db, pipeline, signature)
++    repair.status = JobStatus.RUNNING
++    repair.execution_token = "old-owner"
++    repair.lease_expires_at = datetime.now(UTC) + timedelta(minutes=5)
++    db.commit()
++    repair._execution_token = "old-owner"
++    with Session(db.get_bind()) as recovered:
++        recovered.execute(
++            update(BackgroundJob)
++            .where(BackgroundJob.id == repair.id)
++            .values(execution_token="new-owner")
++        )
++        recovered.commit()
++    with pytest.raises(JobLeaseLost):
++        fence_job_execution(db, repair)
++    db.rollback()
++    provider = SecCeriProvider(client=_RepairSecClient())
++    with pytest.raises(JobLeaseLost):
++        execute_sec_readiness_repair(
++            db,
++            repair,
++            provider=provider,
++            settings=Settings(_env_file=None, cache_dir=tmp_path / "cache"),
++        )
++    db.rollback()
++    assert provider.client.requests == 0
++    assert not list(
++        db.scalars(
++            select(BackgroundJob).where(
++                BackgroundJob.workflow_key == f"pipeline:{pipeline.id}:sec-continuation"
++            )
++        )
++    )
++
++
++def test_preupgrade_terminal_helper_visible_and_normal_resume_keeps_c1(incident_db):
++    from app.services.configuration_delivery import binding_reference
++    from app.services.pipeline_service import get_pipeline_status, resume_pipeline
++
++    db, pipeline, signature = incident_db
++    root, repair = _schedule_incident(db, pipeline, signature)
++    c1 = binding_reference(db, pipeline_run_id=pipeline.id)
++    repair.status = JobStatus.FAILED
++    repair.error_message = "MISSING_CONFIGURATION_ANCHOR_BINDING"
++    pipeline.result_json = {
++        **pipeline.result_json,
++        "sec_repair": {
++            **pipeline.result_json["sec_repair"],
++            "ready_tickers": 1,
++            "total_tickers": 1,
++        },
++    }
++    db.commit()
++    status = get_pipeline_status(db, pipeline.id)
++    assert status.status == PipelineStatus.BLOCKED
++    assert "MISSING_CONFIGURATION_ANCHOR_BINDING" in status.steps[0].error_message
++    assert pipeline.status == PipelineStatus.PREPARING  # Status reads do not mutate runtime data.
++    resume_pipeline(db, pipeline.id)
++    db.commit()
++    assert pipeline.status == PipelineStatus.PENDING
++    resumed = db.get(BackgroundJob, pipeline.result_json["background_job_id"])
++    assert resumed.payload_json["resume_from_step"] == "VALIDATING_RUN"
++    assert binding_reference(db, job_id=resumed.id) == c1
++    with pytest.raises(ValueError, match="Only BLOCKED"):
++        resume_pipeline(db, pipeline.id)
++
++
++def test_wrong_retained_helper_binding_is_rejected(incident_db, monkeypatch):
++    from app.models.tables import ExecutionConfigurationBinding
++    from app.services.background_worker import execute_job
++    from app.services.configuration_delivery import binding_reference
++    from app.settings import get_settings
++
++    db, pipeline, signature = incident_db
++    root, repair = _schedule_incident(db, pipeline, signature)
++    c1 = binding_reference(db, pipeline_run_id=pipeline.id)
++    changed = get_settings().model_copy(
++        update={"technical_v5_enabled": not get_settings().technical_v5_enabled}
++    )
++    monkeypatch.setattr("app.settings._get_current_settings", lambda: changed)
++    other = PipelineRun(upload_run_id=pipeline.upload_run_id, status="PENDING")
++    db.add(other)
++    db.flush()
++    _freeze_pipeline(db, other)
++    c2 = binding_reference(db, pipeline_run_id=other.id)
++    assert c1 != c2
++    db.add(
++        ExecutionConfigurationBinding(
++            binding_key=f"job:{repair.id}", job_id=repair.id, anchor_id=c2["anchor_id"]
++        )
++    )
++    db.commit()
++    with pytest.raises(ValueError, match="CONFIGURATION_ANCHOR_PARENT_MISMATCH"):
++        execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: lambda *_a: pytest.fail("SEC ran")})
++
++
++def test_concurrent_sec_completion_creates_one_continuation(incident_db):
++    from concurrent.futures import ThreadPoolExecutor
++    from threading import Barrier
++
++    from app.observability.correlation import worker_job_scope
++    from app.services.pipeline_service import enqueue_pipeline_after_sec_repair
++
++    db, pipeline, signature = incident_db
++    root, repair = _schedule_incident(db, pipeline, signature)
++    pipeline_id, repair_id = pipeline.id, repair.id
++    barrier = Barrier(2)
++    engine = db.get_bind()
++    db.rollback()
++
++    def complete():
++        with Session(engine) as concurrent:
++            execution = concurrent.get(PipelineRun, pipeline_id)
++            parent = concurrent.get(BackgroundJob, repair_id)
++            barrier.wait(timeout=10)
++            with worker_job_scope(parent):
++                continuation = enqueue_pipeline_after_sec_repair(
++                    concurrent, execution, processor_signature=signature
++                )
++            concurrent.commit()
++            return continuation.id
++
++    with ThreadPoolExecutor(max_workers=2) as pool:
++        futures = [pool.submit(complete) for _ in range(2)]
++        ids = [future.result(timeout=30) for future in futures]
++    assert ids[0] == ids[1]
++    assert (
++        len(
++            list(
++                db.scalars(
++                    select(BackgroundJob).where(
++                        BackgroundJob.workflow_key == f"pipeline:{pipeline_id}:sec-continuation"
++                    )
++                )
++            )
++        )
++        == 1
++    )
++
++
++def test_wrong_continuation_anchor_is_terminal_and_visible_before_handler(incident_db):
++    from app.services.background_job_service import mark_job_failed_or_retry
++    from app.services.background_worker import execute_job
++    from app.services.configuration_delivery import ANCHOR_KEY
++    from app.services.pipeline_service import enqueue_pipeline_after_sec_repair, get_pipeline_status
++
++    db, pipeline, signature = incident_db
++    root, repair = _schedule_incident(db, pipeline, signature)
++    continuation = enqueue_pipeline_after_sec_repair(db, pipeline, processor_signature=signature)
++    continuation.payload_json = {
++        **continuation.payload_json,
++        ANCHOR_KEY: {"anchor_id": "b" * 64, "fingerprint": "c" * 64},
++    }
++    continuation.status = JobStatus.RUNNING
++    db.commit()
++    with pytest.raises(ValueError, match="CONFIGURATION_ANCHOR_PARENT_MISMATCH") as caught:
++        execute_job(db, continuation, {"FULL_PIPELINE": lambda *_a: pytest.fail("handler ran")})
++    db.rollback()
++    mark_job_failed_or_retry(db, continuation, caught.value)
++    db.commit()
++    assert continuation.status == JobStatus.FAILED
++    assert continuation.operational_metadata_json["failure_classification"]["retryable"] is False
++    status = get_pipeline_status(db, pipeline.id)
++    assert status.status == PipelineStatus.BLOCKED
++    assert status.steps[0].status == PipelineStepStatus.BLOCKED
++    assert "CONFIGURATION_ANCHOR_PARENT_MISMATCH" in status.steps[0].error_message
++    assert "continuation failed" in status.message
+diff --git a/tests/ops/test_lifecycle_powershell.py b/tests/ops/test_lifecycle_powershell.py
+index 3f6972c..a9ea5dc 100644
+--- a/tests/ops/test_lifecycle_powershell.py
++++ b/tests/ops/test_lifecycle_powershell.py
+@@ -39,8 +39,7 @@ def _module_command(body: str) -> list[str]:
+ )
+ def test_powershell_parses_readiness_payload_not_http_status(payload, expected) -> None:
+     command = _module_command(
+-        f"$p=[pscustomobject]@{{status='{payload}'}}; "
+-        "Resolve-ReadinessPayloadState -Payload $p"
++        f"$p=[pscustomobject]@{{status='{payload}'}}; Resolve-ReadinessPayloadState -Payload $p"
+     )
+     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+     assert result.returncode == 0, result.stderr
+@@ -296,8 +295,12 @@ def test_observability_failure_return_does_not_block_core_restart_sequence() ->
+ 
+ 
+ @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+-def test_core_stop_waits_for_supervisor_exit_before_registered_cleanup() -> None:
++def test_core_stop_waits_for_supervisor_exit_before_registered_cleanup(tmp_path) -> None:
++    state_path = tmp_path / "swinglens-lifecycle.json"
++    state_path.write_text('{"runtimeInstanceId":"test-runtime"}', encoding="utf-8")
++    state_literal = str(state_path).replace("'", "''")
+     command = _module_command(
++        f"$script:RuntimeStatePath='{state_literal}'; "
+         "$script:events=@(); "
+         "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000}; "
+         "metrics=[pscustomobject]@{enabled=$false;workerPort=0;supervisorPort=0}}; "
+@@ -316,6 +319,7 @@ def test_core_stop_waits_for_supervisor_exit_before_registered_cleanup() -> None
+     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+     assert result.returncode == 0, result.stderr
+     assert result.stdout.strip() == "request,port-8000,process-202,remainders,port-8000"
++    assert not state_path.exists()
+ 
+ 
+ @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+diff --git a/tests/ops/test_lifecycle_safety.py b/tests/ops/test_lifecycle_safety.py
+index ba94db5..364b3de 100644
+--- a/tests/ops/test_lifecycle_safety.py
++++ b/tests/ops/test_lifecycle_safety.py
+@@ -190,9 +190,7 @@ def test_runtime_report_validates_windows_listener_and_launcher_chain(
+     assert report["launcher"]["pid"] == 122
+ 
+ 
+-def test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt(
+-    tmp_path, monkeypatch
+-) -> None:
++def test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt(tmp_path, monkeypatch) -> None:
+     expected, _actual = _runtime_identity(tmp_path)
+     state_path = tmp_path / "runtime.json"
+     atomic_write_json(state_path, {"version": 3, "web": expected})
+@@ -202,6 +200,8 @@ def test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt(
+         raise psutil.NoSuchProcess(123)
+ 
+     monkeypatch.setattr(lifecycle_probe, "inspect_process", missing)
++    monkeypatch.setattr(lifecycle_probe, "_role_processes", lambda: [])
++    monkeypatch.setattr(lifecycle_probe, "_listeners_report", lambda: {"listeners": []})
+ 
+     assert lifecycle_probe._runtime_state_report(listener_pid=None)["stale"] is True
+ 
+@@ -277,8 +277,11 @@ def test_listener_identity_uses_socket_owner_not_intermediate_windows_launcher(
+         lambda child, ancestor: (child, ancestor) == (303, 101),
+     )
+ 
+-    assert lifecycle_probe._listener_process_identity(
+-        port=8000,
+-        runtime_instance_id="runtime-a",
+-        ancestor_pid=101,
+-    ) == listener
++    assert (
++        lifecycle_probe._listener_process_identity(
++            port=8000,
++            runtime_instance_id="runtime-a",
++            ancestor_pid=101,
++        )
++        == listener
++    )

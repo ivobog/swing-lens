@@ -1,14 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
+from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
 from app.services.setup_lifecycle.confidence_service import SetupLifecycleConfidenceService
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.dtos import FamilyEvidence, LifecycleDecision, NormalizedSnapshot
 from app.services.setup_lifecycle.enums import Actionability, LifecycleState
 from app.services.setup_lifecycle.family_adapters import (
     evaluate_family_candidates,
     select_primary_family,
+)
+from app.services.technical_consumer_eligibility import (
+    TECHNICAL_ELIGIBILITY_KEY,
+    setup_technical_blocked,
 )
 
 STATE_FROM_EVIDENCE_PRECEDENCE = (
@@ -53,15 +59,38 @@ class SetupLifecycleEngine:
         config: SetupLifecycleConfig | None = None,
         confidence_service: SetupLifecycleConfidenceService | None = None,
     ) -> None:
-        self.config = config or load_setup_lifecycle_config()
-        self.confidence_service = confidence_service or SetupLifecycleConfidenceService(
-            self.config
-        )
+        from app.services.decision_effective_configuration import resolve_lifecycle_configuration
 
+        self.effective_configuration = resolve_lifecycle_configuration(config)
+        self.config = self.effective_configuration.setup_config()
+        self.confidence_service = confidence_service or SetupLifecycleConfidenceService(self.config)
+
+    @anchored_decision_calculator
     def evaluate(self, request: LifecycleEvaluationInput) -> LifecycleDecision:
+        request = replace(
+            request,
+            snapshot=setup_with_contextual_permission(request.snapshot),
+            previous_snapshots=tuple(
+                setup_with_contextual_permission(item) for item in request.previous_snapshots
+            ),
+        )
         self._validate_history(request)
         if request.previous_state in {LifecycleState.FAILED, LifecycleState.EXPIRED}:
             return self._terminal_decision(request)
+
+        if setup_technical_blocked(request.snapshot):
+            decision = self._no_evidence_decision(request)
+            return replace(
+                decision,
+                actionability_candidate=Actionability.BLOCKED,
+                reason_codes=("TECHNICAL_CONSUMER_INELIGIBLE",),
+                evidence={
+                    TECHNICAL_ELIGIBILITY_KEY: request.snapshot.source_lineage.get(
+                        TECHNICAL_ELIGIBILITY_KEY
+                    ),
+                    "prior_state_preserved": request.previous_state is not None,
+                },
+            )
 
         candidates = evaluate_family_candidates(
             request.snapshot,
@@ -110,7 +139,8 @@ class SetupLifecycleEngine:
                     item.data_as_of_date.isoformat() for item in request.previous_snapshots
                 ],
             },
-            immediate_transition=evidence.hard_failure or _stronger_than(
+            immediate_transition=evidence.hard_failure
+            or _stronger_than(
                 proposed,
                 request.previous_state,
             ),
@@ -125,8 +155,7 @@ class SetupLifecycleEngine:
         if dates != sorted(dates) or len(dates) != len(set(dates)):
             raise ValueError("prior canonical snapshot history must be trading-date ordered")
         if any(
-            item.ticker != request.snapshot.ticker
-            or item.timeframe != request.snapshot.timeframe
+            item.ticker != request.snapshot.ticker or item.timeframe != request.snapshot.timeframe
             for item in history
         ):
             raise ValueError("prior canonical snapshot history must match ticker/timeframe")
@@ -144,9 +173,10 @@ class SetupLifecycleEngine:
             return LifecycleState.FAILED
         if request.missing_observation_sessions > self.config.episodes.observation_gap_sessions:
             return LifecycleState.EXPIRED
-        if request.state_age_sessions >= self.config.families.policies[
-            evidence.setup_family
-        ].max_age_sessions:
+        if (
+            request.state_age_sessions
+            >= self.config.families.policies[evidence.setup_family].max_age_sessions
+        ):
             return LifecycleState.EXPIRED
         if evidence.extended:
             return LifecycleState.EXTENDED

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -42,6 +43,17 @@ class PendingOutcomeService:
         prediction: WinnerPredictionSnapshot,
         config: WinnerProbabilityConfig,
     ) -> PendingOutcomeMaterializationResult:
+        from app.services.decision_effective_configuration import (
+            configuration_from_payload,
+            validate_executable_configuration,
+        )
+
+        retained = (prediction.lineage_json or {}).get("outcome_effective_configuration")
+        if retained is not None:
+            effective = configuration_from_payload(retained)
+            effective.require_family("decision.winner.outcome")
+            validate_executable_configuration(effective)
+            config = effective.winner_config()
         forward_count = 0
         target_stop_count = 0
         definitions = [
@@ -97,6 +109,20 @@ class PendingOutcomeService:
             calculation_version=config.engine.calculation_version,
         )
         if existing is not None:
+            expected = {
+                "entry_model": raw_definition.entry_model,
+                "horizon_sessions": raw_definition.horizon_sessions,
+                "target_pct": Decimal(str(raw_definition.target_pct))
+                if raw_definition.target_pct is not None
+                else None,
+                "stop_pct": Decimal(str(raw_definition.stop_pct))
+                if raw_definition.stop_pct is not None
+                else None,
+                "same_bar_conflict_policy": raw_definition.same_bar_conflict_policy,
+                "is_primary": raw_definition.primary,
+            }
+            if any(getattr(existing, key) != value for key, value in expected.items()):
+                raise ValueError("WINNER_OUTCOME_DEFINITION_CONFIGURATION_MISMATCH")
             return existing
         get_active = getattr(self.repository, "get_active_outcome_definition", None)
         active = get_active(db, definition_id=raw_definition.id) if callable(get_active) else None
@@ -116,11 +142,20 @@ class PendingOutcomeService:
             is_primary=raw_definition.primary,
             is_active=True,
             metadata_json={
+                "effective_configuration_at_creation": self._outcome_configuration(config),
                 "phase": "post_run104_remediation",
                 "supersedes_outcome_definition_id": getattr(active, "id", None),
             },
         )
         return self.repository.add(db, row)
+
+    def _outcome_configuration(self, config):
+        from app.services.decision_effective_configuration import resolve_winner_configuration
+
+        retained = getattr(config, "_configuration_snapshots", {}).get("decision.winner.outcome")
+        return (
+            retained or resolve_winner_configuration(config, family="outcome")
+        ).snapshot.as_dict()
 
     def _ensure_forward_outcome(
         self,

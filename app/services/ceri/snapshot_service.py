@@ -14,7 +14,7 @@ from app.models.ceri_tables import CeriScoreSnapshot
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.change_semantics import EVIDENCE_CONTRACT_VERSION
 from app.services.ceri.confidence_service import ConfidenceResult
-from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.config import CeriConfig
 from app.services.ceri.dtos import ScoreComponent
 from app.services.ceri.event_risk_service import EventRiskResult
 from app.services.ceri.evidence_state_service import CeriEvidenceLedgerService
@@ -30,8 +30,19 @@ class SnapshotReproductionResult:
 
 
 class CeriSnapshotService:
-    def __init__(self, config: CeriConfig | None = None) -> None:
-        self.config = config or load_ceri_config()
+    def __init__(
+        self,
+        config: CeriConfig | None = None,
+        *,
+        effective_configuration=None,
+        expected_calculation_identity=None,
+    ) -> None:
+        from app.services.contextual_effective_configuration import resolve_ceri_configuration
+
+        self.effective_configuration = effective_configuration or resolve_ceri_configuration(config)
+        if expected_calculation_identity is not None:
+            self.effective_configuration.require_retry_identity(expected_calculation_identity)
+        self.config = self.effective_configuration.ceri_config()
 
     def build_snapshot(
         self,
@@ -54,6 +65,7 @@ class CeriSnapshotService:
             opportunity_score=opportunity.score,
             event_risk_score=event_risk.score,
             confidence_label=confidence.label.value,
+            policy=self.effective_configuration.values["native_policy"]["posture"],
         )
         alignment_flags = derive_alignment_flags(
             alignment_inputs or {},
@@ -174,8 +186,20 @@ class CeriSnapshotService:
         return snapshot
 
     def persist_snapshot(self, db: Session, snapshot: CeriScoreSnapshot) -> CeriScoreSnapshot:
-        db.add(snapshot)
-        db.flush()
+        from app.services.ceri.decision_evidence import persist_ceri_decision_evidence
+
+        # The compatibility row and immutable envelope are one atomic write.  A
+        # failed seal must not leave an identity-aware snapshot eligible for a
+        # later outer commit.
+        with db.begin_nested():
+            db.add(snapshot)
+            db.flush()
+            persist_ceri_decision_evidence(
+                db,
+                snapshot=snapshot,
+                config=self.config,
+                effective_configuration=self.effective_configuration,
+            )
         return snapshot
 
     def reproduce_snapshot(self, snapshot: CeriScoreSnapshot) -> SnapshotReproductionResult:
@@ -225,18 +249,39 @@ def derive_posture(
     opportunity_score: float | None,
     event_risk_score: float | None,
     confidence_label: str,
+    policy: dict[str, Any] | None = None,
 ) -> str:
-    if confidence_label == "Insufficient" or opportunity_score is None:
-        return "Unrated"
-    if event_risk_score is not None and event_risk_score >= 6.0:
-        return "Binary Risk"
-    if opportunity_score >= 7.0:
-        return "Positive"
-    if opportunity_score >= 5.0:
-        return "Improving"
-    if opportunity_score >= 3.0:
-        return "Mixed"
-    return "Deteriorating"
+    policy = (
+        policy
+        if policy is not None
+        else {
+            "binary_risk_min": 6.0,
+            "positive_min": 7.0,
+            "improving_min": 5.0,
+            "mixed_min": 3.0,
+            "insufficient_label": "Insufficient",
+            "labels": {
+                "unrated": "Unrated",
+                "binary_risk": "Binary Risk",
+                "positive": "Positive",
+                "improving": "Improving",
+                "mixed": "Mixed",
+                "deteriorating": "Deteriorating",
+            },
+        }
+    )
+    labels = policy["labels"]
+    if confidence_label == policy["insufficient_label"] or opportunity_score is None:
+        return labels["unrated"]
+    if event_risk_score is not None and event_risk_score >= policy["binary_risk_min"]:
+        return labels["binary_risk"]
+    if opportunity_score >= policy["positive_min"]:
+        return labels["positive"]
+    if opportunity_score >= policy["improving_min"]:
+        return labels["improving"]
+    if opportunity_score >= policy["mixed_min"]:
+        return labels["mixed"]
+    return labels["deteriorating"]
 
 
 def derive_alignment_flags(inputs: dict[str, bool], earnings_level: str) -> dict[str, bool]:

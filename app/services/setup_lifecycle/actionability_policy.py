@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.dtos import (
     ActionabilityDecision,
     LifecycleDecision,
@@ -8,17 +10,23 @@ from app.services.setup_lifecycle.dtos import (
 )
 from app.services.setup_lifecycle.enums import Actionability, DataQualityLabel, LifecycleState
 from app.services.setup_lifecycle.family_adapters import signal_bool, signal_text, signal_value
+from app.services.technical_consumer_eligibility import setup_technical_blocked
 
 
 class SetupLifecycleActionabilityPolicy:
     def __init__(self, config: SetupLifecycleConfig | None = None) -> None:
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_lifecycle_configuration
 
+        self.effective_configuration = resolve_lifecycle_configuration(config)
+        self.config = self.effective_configuration.setup_config()
+
+    @anchored_decision_calculator
     def evaluate(
         self,
         lifecycle: LifecycleDecision,
         snapshot: NormalizedSnapshot,
     ) -> ActionabilityDecision:
+        snapshot = setup_with_contextual_permission(snapshot)
         state = lifecycle.proposed_state
         reasons: list[str] = []
         blockers: list[str] = []
@@ -38,6 +46,8 @@ class SetupLifecycleActionabilityPolicy:
 
         if _has_hard_required_absence(snapshot):
             blockers.append("HARD_REQUIRED_DATA_ABSENT")
+        if setup_technical_blocked(snapshot):
+            blockers.append("TECHNICAL_CONSUMER_INELIGIBLE")
         if snapshot.data_quality_label is DataQualityLabel.INSUFFICIENT:
             blockers.append("INSUFFICIENT_DATA_QUALITY")
         if signal_bool(snapshot, "liquidity"):

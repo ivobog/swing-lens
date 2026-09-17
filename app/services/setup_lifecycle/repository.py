@@ -55,6 +55,7 @@ class SetupSignalSnapshotWrite:
     diagnostic_high_cross: dict[str, Any] = field(default_factory=dict)
     canonical_decision: dict[str, Any] = field(default_factory=dict)
     debug: dict[str, Any] = field(default_factory=dict)
+    effective_configuration: Any = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True)
@@ -365,6 +366,7 @@ class SetupLifecycleRepository:
             data_quality_label=dto.data_quality_label,
         )
         self._apply_snapshot_fields(snapshot, dto)
+        snapshot._effective_configuration = dto.effective_configuration
         return snapshot
 
     def find_snapshot_by_identity(
@@ -1390,6 +1392,16 @@ class SetupLifecycleRepository:
             return existing
         return self.add(db, event)
 
+    def alert_event_by_key(
+        self, db: Session, event_key: str, *, through_date: date
+    ) -> SignalAlertEvent | None:
+        return db.scalar(
+            select(SignalAlertEvent)
+            .where(SignalAlertEvent.event_key == event_key)
+            .where(SignalAlertEvent.effective_date <= through_date)
+            .limit(1)
+        )
+
     def recent_alert_events(
         self,
         db: Session,
@@ -1632,6 +1644,7 @@ class SetupLifecycleRepository:
         snapshot: SetupSignalSnapshot,
         dto: SetupSignalSnapshotWrite,
     ) -> None:
+        snapshot._effective_configuration = dto.effective_configuration
         snapshot.evaluation_run_id = dto.evaluation_run_id
         snapshot.run_id = dto.run_id
         snapshot.source_run_id_text = dto.source_run_id_text

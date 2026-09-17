@@ -230,6 +230,11 @@ def load_ceri_config(
     path: Path | None = None,
     taxonomy_path: Path | None = None,
 ) -> CeriConfig:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("ceri")
+
     if path is None or taxonomy_path is None:
         # Resolve the runtime settings lazily to avoid a settings/config import
         # cycle and to make CERI_CONFIG_PATH/CERI_TAXONOMY_PATH authoritative.
@@ -268,7 +273,41 @@ def load_ceri_config(
         config_hash="",
     )
     _validate_cross_section_rules(parsed)
-    return replace(parsed, config_hash=ceri_config_hash(parsed))
+    result = replace(parsed, config_hash=ceri_config_hash(parsed))
+    from app.services.configuration_source_values import configuration_leaves
+    from app.services.contextual_effective_configuration import resolve_ceri_configuration
+    from app.services.effective_configuration import ConfigurationSource, ConfigurationSourceKind
+
+    payload = json.loads(json.dumps(asdict(result), default=str))
+    object.__setattr__(
+        result,
+        "_configuration_sources",
+        tuple(
+            (
+                key,
+                ConfigurationSource(
+                    ConfigurationSourceKind.CODE_DEFAULT
+                    if key == "api_error_codes"
+                    else ConfigurationSourceKind.PROFILE,
+                    "ceri-native-api-error-codes"
+                    if key == "api_error_codes"
+                    else (taxonomy_path if key.startswith("taxonomy.") else path).as_posix()
+                    if not (taxonomy_path if key.startswith("taxonomy.") else path).is_absolute()
+                    else None,
+                ),
+            )
+            for key, _ in configuration_leaves(payload)
+        ),
+    )
+    object.__setattr__(
+        result,
+        "_native_configuration_source",
+        ConfigurationSource(
+            ConfigurationSourceKind.PROFILE, path.as_posix() if not path.is_absolute() else None
+        ),
+    )
+    object.__setattr__(result, "_effective_configuration", resolve_ceri_configuration(result))
+    return result
 
 
 def load_ceri_taxonomy(path: Path = CERI_TAXONOMY_PATH) -> CatalystTaxonomyConfig:
@@ -304,6 +343,14 @@ def ceri_config_hash(config: CeriConfig | CatalystTaxonomyConfig | dict[str, Any
         default=str,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def ceri_config_payload(
+    config: CeriConfig | CatalystTaxonomyConfig | dict[str, Any],
+) -> dict[str, Any]:
+    """Return the fully resolved payload whose digest is the CERI config hash."""
+
+    return _normalized_data(config)
 
 
 def _parse_engine(raw: dict[str, Any]) -> EngineConfig:

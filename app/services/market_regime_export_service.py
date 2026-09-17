@@ -24,6 +24,11 @@ MARKET_REGIME_SCHEMA_ID = "swinglens.market-regime.v1"
 
 def snapshot_to_payload(snapshot: MarketRegimeSnapshot) -> dict[str, Any]:
     return {
+        "read_mode": "CURRENT_PROJECTION",
+        "evidence_id": snapshot.evidence_id,
+        "evidence_status": (
+            "CERTIFIED_POINTER" if snapshot.evidence_id is not None else "LEGACY_CURRENT"
+        ),
         "id": snapshot.id,
         "run_id": snapshot.run_id,
         "as_of_date": _json_value(snapshot.as_of_date),

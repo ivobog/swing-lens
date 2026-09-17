@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from types import SimpleNamespace
 
 from app.models.tables import SetupSignalSnapshot
 from app.services.setup_lifecycle.change_detector import SetupLifecycleChangeDetector
@@ -227,9 +227,11 @@ def _config_with_custom_signals():
             missing_value_policy="warn",
         ),
     }
-    return SimpleNamespace(
+    config = load_setup_lifecycle_config()
+    return replace(
+        config,
         signal_registry=SignalDefinitionRegistry(definitions),
-        engine=SimpleNamespace(config_version="test-v1"),
+        engine=replace(config.engine, config_version="test-v1"),
     )
 
 
@@ -248,10 +250,7 @@ def _snapshot(snapshot_id: int, signals: dict[str, object]) -> SetupSignalSnapsh
         source_data_hash=f"source-{snapshot_id}",
         schema_version="snapshot-v1",
         data_quality_label=str(signals.get("data_quality") or "NORMAL"),
-        signals_json={
-            key: {"value": value}
-            for key, value in signals.items()
-        },
+        signals_json={key: {"value": value} for key, value in signals.items()},
         is_canonical=True,
     )
 

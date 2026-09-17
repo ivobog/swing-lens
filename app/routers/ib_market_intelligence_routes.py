@@ -14,6 +14,7 @@ from app.db import get_db
 from app.models.ib_market_intelligence_tables import IBExecutionFill, IBTradeEpisode
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
 from app.services.background_job_service import enqueue_job
+from app.services.core_calculation_evidence import EvidenceUnavailableError
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 from app.services.ib_market_intelligence.evidence_hash import evidence_hash
 from app.services.ib_market_intelligence.job_handlers import (
@@ -25,6 +26,7 @@ from app.services.ib_market_intelligence.job_handlers import (
     IB_SCANNER_RUN,
 )
 from app.services.ib_market_intelligence.query_service import (
+    feature_evidence,
     histogram_detail,
     latest_features,
     operations,
@@ -132,6 +134,14 @@ def intelligence_run(run_id: int, db: DbSession) -> dict:
 @router.get("/api/ib-intelligence/ticker/{ticker}")
 def ticker_intelligence(ticker: str, db: DbSession) -> dict:
     return {"ticker": ticker.upper(), "features": latest_features(db, ticker=ticker)}
+
+
+@router.get("/api/ib-intelligence/evidence/{evidence_id}")
+def intelligence_feature_evidence(evidence_id: int, db: DbSession) -> dict:
+    try:
+        return feature_evidence(db, evidence_id=evidence_id)
+    except EvidenceUnavailableError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/api/ib-intelligence/scanner/runs")

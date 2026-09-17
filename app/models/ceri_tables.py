@@ -25,6 +25,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.services.configuration_artifact_immutability import seal_configuration_member
 
 
 class CeriCompany(Base):
@@ -1025,6 +1026,9 @@ class CeriScoreSnapshot(Base):
     __tablename__ = "ceri_score_snapshots"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     controlled_replay_id: Mapped[int | None] = mapped_column(
         ForeignKey("ceri_controlled_replays.id", ondelete="RESTRICT")
     )
@@ -1094,6 +1098,7 @@ class CeriScoreSnapshot(Base):
             name="uq_ceri_score_snapshots_controlled_replay_company",
         ),
         Index("ix_ceri_score_snapshots_controlled_replay", "controlled_replay_id"),
+        Index("ix_ceri_score_snapshots_evidence", "evidence_id"),
     )
 
 
@@ -1383,4 +1388,19 @@ CERI_TABLES = (
     CeriAlertRule.__table__,
     CeriAlertEvent.__table__,
     CeriPurgeAudit.__table__,
+)
+
+
+seal_configuration_member(CeriChangeEvent, "delta_json")
+seal_configuration_member(
+    CeriAlertEvent,
+    "evidence_json",
+    members=(
+        "alert_rule",
+        "alert_rule_version",
+        "cooldown_sessions",
+        "dedup_identity",
+        "dedup_identity_type",
+        "cooldown_scope",
+    ),
 )

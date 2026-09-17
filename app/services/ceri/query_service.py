@@ -73,6 +73,11 @@ from app.services.ceri.legacy_alert_audit import (
 )
 from app.services.ceri.provider_cost_ledger import ProviderCostLedger
 from app.services.ceri.snapshot_service import CeriSnapshotService
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    EvidenceUnavailableError,
+    get_evidence_by_id,
+)
 
 PURGE_INVALIDATION_FLAG = "provider_license_purge_invalidated"
 OPERATIONS_DETAIL_LIMIT = 200
@@ -191,7 +196,7 @@ class CeriQueryService:
             current = latest_by_ticker.get(snapshot.ticker.upper())
             if current is None or _snapshot_sort_tuple(snapshot) > _snapshot_sort_tuple(current):
                 latest_by_ticker[snapshot.ticker.upper()] = snapshot
-        return self._snapshot_page(
+        payload = self._snapshot_page(
             list(latest_by_ticker.values()),
             db=db,
             query=query,
@@ -204,6 +209,8 @@ class CeriQueryService:
                 "cutoff_at": "cutoff_at",
             },
         )
+        payload["read_mode"] = "CURRENT_PROJECTION"
+        return payload
 
     def run(self, db: Session, run_id: int, query: CeriListQuery) -> dict[str, Any]:
         self._require_run(db, run_id)
@@ -229,7 +236,7 @@ class CeriQueryService:
         company_id = latest.company_id
         company_revision_features = _rows_for_company(db, CeriRevisionFeature, company_id)
         company_earnings = _rows_for_company(db, CeriEarningsActual, company_id)
-        return CeriTickerDetailDto(
+        payload = CeriTickerDetailDto(
             ticker=ticker,
             latest=_score_snapshot_payload(latest, db=db),
             revision_features=[
@@ -252,26 +259,58 @@ class CeriQueryService:
             events=_event_timeline_for_company(db, company_id, ticker)[:100],
             alerts=_alerts_for_ticker(db, ticker)[:25],
         ).to_dict()
+        payload["read_mode"] = "CURRENT_PROJECTION"
+        return payload
 
     def ticker_history(self, db: Session, ticker: str, query: CeriListQuery) -> dict[str, Any]:
         filters = query.filters
         self._require_historical_view(filters)
         ticker = _ticker(ticker)
-        snapshots = [
-            snapshot
-            for snapshot in self._filtered_snapshots(db, _replace_filter(filters, ticker=ticker))
-            if snapshot.ticker.upper() == ticker
-        ]
+        snapshots = _historical_snapshot_candidates(
+            db, ticker=ticker, run_id=filters.run_id
+        )
         if not snapshots:
             raise CeriQueryError(
                 "TICKER_NOT_FOUND",
                 f"CERI ticker was not found: {ticker}",
                 status_code=404,
             )
-        if filters.as_of is not None:
-            snapshots = [snapshot for snapshot in snapshots if snapshot.cutoff_at <= filters.as_of]
+        legacy_count = sum(snapshot.evidence_id is None for snapshot in snapshots)
+        certified_items: list[dict[str, Any]] = []
+        certified_count = 0
+        for snapshot in snapshots:
+            if snapshot.evidence_id is None:
+                continue
+            try:
+                evidence = get_evidence_by_id(
+                    db,
+                    evidence_id=int(snapshot.evidence_id),
+                    kind=CoreEvidenceKind.CERI,
+                )
+            except EvidenceUnavailableError as exc:
+                raise CeriQueryError(
+                    "HISTORICAL_EVIDENCE_UNAVAILABLE",
+                    f"CERI snapshot {snapshot.id} has invalid evidence: {exc}",
+                    status_code=409,
+                ) from exc
+            if evidence.run_id != snapshot.run_id or evidence.ticker != snapshot.ticker.upper():
+                raise CeriQueryError(
+                    "HISTORICAL_EVIDENCE_UNAVAILABLE",
+                    f"CERI snapshot {snapshot.id} evidence scope does not match",
+                    status_code=409,
+                )
+            certified_count += 1
+            item = _ceri_decision_evidence_payload(snapshot.id, evidence)
+            if _historical_ceri_item_matches(item, filters):
+                certified_items.append(item)
+        if certified_count == 0:
+            raise CeriQueryError(
+                "LEGACY_EVIDENCE_UNAVAILABLE",
+                f"CERI ticker {ticker} has no certified immutable decision evidence",
+                status_code=409,
+            )
         payload = self._page(
-            [_score_snapshot_payload(snapshot, db=db) for snapshot in snapshots],
+            certified_items,
             query=query,
             sort_aliases={
                 "cutoff_at": "cutoff_at",
@@ -280,6 +319,9 @@ class CeriQueryService:
             },
         )
         payload["mode"] = HistoricalViewMode.STORED_SNAPSHOT.value
+        payload["read_mode"] = "CERTIFIED_EVIDENCE"
+        payload["evidence_status"] = "CERTIFIED_IMMUTABLE"
+        payload["legacy_evidence_unavailable_count"] = legacy_count
         payload["as_of"] = filters.as_of.isoformat()
         payload["source_correction_policy"] = "stored_score_snapshots_only"
         payload["evidence_hash"] = _stable_hash(
@@ -295,7 +337,9 @@ class CeriQueryService:
     def changes(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
         if not _uses_fixture_collections(db):
-            return self._database_changes(db, query)
+            payload = self._database_changes(db, query)
+            payload["read_mode"] = "CURRENT_PROJECTION_COMPARISON"
+            return payload
         company_by_id = _company_by_id(db)
         change_rows = _load(db, CeriChangeEvent)
         referenced_snapshot_ids = {
@@ -346,6 +390,7 @@ class CeriQueryService:
         payload["comparison_context"] = _comparison_context(
             items, snapshots.values(), filters=query.filters
         )
+        payload["read_mode"] = "CURRENT_PROJECTION_COMPARISON"
         return payload
 
     def _database_changes(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
@@ -1522,6 +1567,13 @@ class CeriQueryService:
                 "INVALID_FILTER",
                 "Historical CERI endpoints require explicit as_of cutoff.",
             )
+        unsupported = _historical_unsupported_filters(filters)
+        if unsupported:
+            raise CeriQueryError(
+                "HISTORICAL_RECONSTRUCTION_UNSUPPORTED",
+                "stored CERI evidence does not support filters: "
+                + ", ".join(sorted(unsupported)),
+            )
 
     def _validate(self, query: CeriListQuery) -> None:
         if query.limit <= 0 or query.limit > 5000:
@@ -1540,7 +1592,11 @@ class CeriQueryService:
                 "INVALID_DATE_RANGE",
                 "event_date_from must be on or before event_date_to.",
             )
-        if filters.config_version and filters.config_version != self.config.engine.config_version:
+        if (
+            filters.config_version
+            and filters.mode != HistoricalViewMode.STORED_SNAPSHOT.value
+            and filters.config_version != self.config.engine.config_version
+        ):
             raise CeriQueryError(
                 "CONFIG_VERSION_NOT_FOUND",
                 f"CERI config version was not found: {filters.config_version}",
@@ -1924,6 +1980,103 @@ def _score_snapshot_payload(
         invalidated_by_purge=_is_invalidated(snapshot.warnings_json),
         purge_invalidation=(snapshot.alignment_flags_json or {}).get("purge_invalidation"),
     ).to_dict()
+
+
+def _ceri_decision_evidence_payload(snapshot_id: int, evidence: Any) -> dict[str, Any]:
+    envelope = dict(evidence.payload_json or {})
+    decision = dict(envelope.get("decision_output") or {})
+    return {
+        **decision,
+        "id": snapshot_id,
+        "evidence_id": evidence.id,
+        "evidence_status": "CERTIFIED_IMMUTABLE",
+        "read_mode": "CERTIFIED_EVIDENCE",
+        "calculation_identity_fingerprint": evidence.calculation_identity_fingerprint,
+        "payload_fingerprint": evidence.payload_fingerprint,
+        "source_evidence_ids": dict(evidence.source_evidence_ids_json or {}),
+    }
+
+
+def _historical_snapshot_candidates(
+    db: Session,
+    *,
+    ticker: str,
+    run_id: int | None,
+) -> list[CeriScoreSnapshot]:
+    if _uses_fixture_collections(db):
+        rows = filter_eligible_snapshots(db, _load(db, CeriScoreSnapshot))
+        return [
+            row
+            for row in rows
+            if row.ticker.upper() == ticker and (run_id is None or row.run_id == run_id)
+        ]
+    statement = eligible_snapshot_select(name="historical_ceri_evidence_candidates").where(
+        CeriScoreSnapshot.ticker == ticker
+    )
+    if run_id is not None:
+        statement = statement.where(CeriScoreSnapshot.run_id == run_id)
+    return list(db.scalars(statement).all())
+
+
+def _historical_ceri_item_matches(item: dict[str, Any], filters: CeriQueryFilters) -> bool:
+    cutoff = item.get("cutoff_at")
+    if filters.as_of is not None and (
+        cutoff is None or _historical_datetime(cutoff) > filters.as_of
+    ):
+        return False
+    if filters.opportunity_min is not None and (
+        item.get("opportunity_score") is None
+        or float(item["opportunity_score"]) < filters.opportunity_min
+    ):
+        return False
+    if filters.risk_max is not None and (
+        item.get("event_risk_score") is None
+        or float(item["event_risk_score"]) > filters.risk_max
+    ):
+        return False
+    if filters.confidence and item.get("data_confidence") != filters.confidence:
+        return False
+    if filters.posture and item.get("posture") != filters.posture:
+        return False
+    if filters.config_version and item.get("config_version") != filters.config_version:
+        return False
+    if filters.has_warnings is not None and bool(item.get("warnings_json")) != filters.has_warnings:
+        return False
+    if filters.alignment_flag and not (item.get("alignment_flags_json") or {}).get(
+        filters.alignment_flag
+    ):
+        return False
+    return True
+
+
+def _historical_datetime(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _historical_unsupported_filters(filters: CeriQueryFilters) -> set[str]:
+    allowed = {
+        "ticker",
+        "run_id",
+        "opportunity_min",
+        "risk_max",
+        "confidence",
+        "posture",
+        "alignment_flag",
+        "has_warnings",
+        "mode",
+        "as_of",
+        "config_version",
+    }
+    unsupported: set[str] = set()
+    for name in CeriQueryFilters.__dataclass_fields__:
+        if name in allowed:
+            continue
+        value = getattr(filters, name)
+        if value not in (None, False):
+            unsupported.add(name)
+    return unsupported
 
 
 def _revision_feature_payload(

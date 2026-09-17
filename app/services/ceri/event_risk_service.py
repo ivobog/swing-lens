@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from app.services.ceri.catalyst_feature_service import CatalystFeature
-from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.config import CeriConfig
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 
 
@@ -40,7 +40,9 @@ class EventRiskResult:
 
 class CeriEventRiskService:
     def __init__(self, config: CeriConfig | None = None) -> None:
-        self.config = config or load_ceri_config()
+        from app.services.contextual_effective_configuration import resolve_ceri_configuration
+
+        self.config = resolve_ceri_configuration(config).ceri_config()
         self.sessions = CeriEffectiveSessionService(self.config.engine.timezone)
 
     def calculate(
@@ -51,7 +53,7 @@ class CeriEventRiskService:
         catalyst_features: list[CatalystFeature] | None = None,
         stale: bool = False,
         conflict_penalty: float = 0.0,
-        options_event_premium_score: float = 0.0,
+        options_event_premium_score: float | None = None,
         short_pressure_classification: str | None = None,
     ) -> EventRiskResult:
         catalyst_features = catalyst_features or []
@@ -69,9 +71,9 @@ class CeriEventRiskService:
                 deduped[key] = feature
         by_component: dict[str, list[CatalystFeature]] = {}
         for feature in deduped.values():
-            by_component.setdefault(
-                feature.risk_component or "other_event_risk", []
-            ).append(feature)
+            by_component.setdefault(feature.risk_component or "other_event_risk", []).append(
+                feature
+            )
         ledger = [
             EventRiskLedgerEntry(
                 component="earnings_proximity_risk",
@@ -96,7 +98,11 @@ class CeriEventRiskService:
                 )
             )
         dominant = max(ledger, key=lambda entry: entry.score)
-        options_event_premium_score = max(0.0, min(1.5, float(options_event_premium_score)))
+        options_event_premium_score = (
+            max(0.0, min(self._policy()["options_premium_cap"], float(options_event_premium_score)))
+            if options_event_premium_score is not None
+            else None
+        )
         penalties: list[dict[str, float]] = []
         if conflict_penalty:
             penalties.append({"name": "conflict_penalty", "value": max(0.0, conflict_penalty)})
@@ -108,10 +114,18 @@ class CeriEventRiskService:
             penalties.append(
                 {
                     "name": "staleness_penalty",
-                    "value": float(self.config.event_risk.get("staleness_penalty", 1.0)),
+                    "value": float(
+                        self.config.event_risk.get(
+                            "staleness_penalty", self._policy()["staleness_penalty_default"]
+                        )
+                    ),
                 }
             )
-        penalty_cap = float(self.config.event_risk.get("secondary_penalty_cap", 2.0))
+        penalty_cap = float(
+            self.config.event_risk.get(
+                "secondary_penalty_cap", self._policy()["secondary_penalty_cap_default"]
+            )
+        )
         applied_penalty = min(penalty_cap, sum(item["value"] for item in penalties))
         score = min(10.0, dominant.score + applied_penalty)
         warnings: list[str] = []
@@ -125,9 +139,7 @@ class CeriEventRiskService:
         if options_event_premium_score:
             reasons.append("ibkr_options_event_premium")
         if short_pressure_classification:
-            reasons.append(
-                f"ibkr_short_pressure_context:{short_pressure_classification.lower()}"
-            )
+            reasons.append(f"ibkr_short_pressure_context:{short_pressure_classification.lower()}")
         if stale:
             warnings.append("data_stale")
         rejected_ids = tuple(
@@ -184,12 +196,39 @@ class CeriEventRiskService:
         if days < 0:
             return EarningsProximity(days_until_earnings=days, level="clear", risk_score=0.0)
         if days <= int(self.config.event_risk["earnings_block_trading_days"]):
-            return EarningsProximity(days_until_earnings=days, level="blocked", risk_score=5.0)
+            return EarningsProximity(
+                days_until_earnings=days,
+                level="blocked",
+                risk_score=self._policy()["blocked_score"],
+            )
         if days <= int(self.config.event_risk["earnings_high_risk_trading_days"]):
-            return EarningsProximity(days_until_earnings=days, level="high", risk_score=3.0)
-        if days <= 10:
-            return EarningsProximity(days_until_earnings=days, level="medium", risk_score=1.5)
+            return EarningsProximity(
+                days_until_earnings=days, level="high", risk_score=self._policy()["high_score"]
+            )
+        if days <= self._policy()["medium_earnings_days"]:
+            return EarningsProximity(
+                days_until_earnings=days, level="medium", risk_score=self._policy()["medium_score"]
+            )
         return EarningsProximity(days_until_earnings=days, level="clear", risk_score=0.0)
+
+    def _policy(self):
+        frozen = getattr(self.config, "_effective_configuration", None)
+        if frozen is not None:
+            if getattr(self, "_policy_configuration", None) is not frozen:
+                from types import MappingProxyType
+
+                self._policy_values = MappingProxyType(frozen.values["native_policy"]["event_risk"])
+                self._policy_configuration = frozen
+            return self._policy_values
+        return {
+            "options_premium_cap": 1.5,
+            "medium_earnings_days": 10,
+            "blocked_score": 5.0,
+            "high_score": 3.0,
+            "medium_score": 1.5,
+            "staleness_penalty_default": 1.0,
+            "secondary_penalty_cap_default": 2.0,
+        }
 
 
 def _trading_sessions_until(

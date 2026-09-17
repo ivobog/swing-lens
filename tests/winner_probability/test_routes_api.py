@@ -292,10 +292,20 @@ def test_run_row_hydrates_persisted_ranking_provenance() -> None:
 
     class Db:
         def get(self, model, row_id):
-            if model.__name__ == "RankingResult" and row_id == 22:
-                return SimpleNamespace(profile_rank=7, profile_score=Decimal("8.25"))
-            if model.__name__ == "CombinedResult" and row_id == 11:
-                return SimpleNamespace(final_rank=3)
+            if model.__name__ == "CoreCalculationEvidence" and row_id == 122:
+                return SimpleNamespace(
+                    artifact_kind="RANKING",
+                    ticker="AAA",
+                    run_id=106,
+                    payload_json={"profile_rank": 7, "profile_score": "8.25"},
+                )
+            if model.__name__ == "CoreCalculationEvidence" and row_id == 111:
+                return SimpleNamespace(
+                    artifact_kind="COMBINED",
+                    ticker="AAA",
+                    run_id=106,
+                    payload_json={"final_rank": 3},
+                )
             return None
 
     prediction = WinnerPredictionSnapshot(
@@ -312,6 +322,10 @@ def test_run_row_hydrates_persisted_ranking_provenance() -> None:
         config_hash="config-hash",
         calculation_version="owpe-calc-1.1.0",
         feature_json={},
+        source_ids_json={
+            "combined_evidence_id": 111,
+            "ranking_evidence_id": 122,
+        },
     )
     definition = WinnerOutcomeDefinition(
         id=3,

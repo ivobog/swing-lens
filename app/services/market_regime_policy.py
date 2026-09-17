@@ -19,9 +19,7 @@ from app.services.market_regime import (
     MarketRegimeResult,
 )
 
-MARKET_REGIME_COMMAND_CENTER_CONFIG_PATH = Path(
-    "config/market_regime_command_center.yaml"
-)
+MARKET_REGIME_COMMAND_CENTER_CONFIG_PATH = Path("config/market_regime_command_center.yaml")
 
 SUPPORTED_REGIMES = (
     REGIME_BULL_TREND,
@@ -126,6 +124,11 @@ class MarketRegimePolicyService:
 def load_market_regime_command_center_config(
     path: Path = MARKET_REGIME_COMMAND_CENTER_CONFIG_PATH,
 ) -> MarketRegimeCommandCenterConfig:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("regime")
+
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle) or {}
 
@@ -140,7 +143,32 @@ def load_market_regime_command_center_config(
         policies=_policies(data),
     )
     _validate_config(config)
-    return config
+    from app.services.configuration_source_values import winning_sources
+    from app.services.contextual_effective_configuration import resolve_regime_configuration
+
+    raw_values = {
+        "enabled": data["engine"].get("enabled"),
+        "calculation_version": data["engine"].get("version"),
+        "config_version": data["engine"].get("config_version"),
+        "symbols": data.get("symbols", {}),
+        "freshness": data.get("freshness", {}),
+        "risk_state_mapping": data.get("risk_state_mapping", {}),
+        "market_regime_params": data.get("market_regime_v4", {}),
+        "policies": data.get("policies", {}),
+    }
+    from dataclasses import asdict
+
+    object.__setattr__(
+        config,
+        "_configuration_sources",
+        winning_sources(
+            asdict(config),
+            raw_values,
+            path.as_posix() if not path.is_absolute() else None,
+            "market-regime-parser-defaults",
+        ),
+    )
+    return resolve_regime_configuration(config).regime_config()
 
 
 def _validate_config(config: MarketRegimeCommandCenterConfig) -> None:
@@ -150,9 +178,7 @@ def _validate_config(config: MarketRegimeCommandCenterConfig) -> None:
 
     max_stale = config.freshness.get("max_stale_trading_days")
     if max_stale is None or _number(max_stale, "freshness.max_stale_trading_days") < 0:
-        raise MarketRegimePolicyConfigError(
-            "freshness.max_stale_trading_days must be non-negative"
-        )
+        raise MarketRegimePolicyConfigError("freshness.max_stale_trading_days must be non-negative")
 
     stale_state = _configured_stale_risk_state(config)
     if stale_state not in VALID_RISK_STATES:

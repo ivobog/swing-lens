@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import select
@@ -12,10 +13,17 @@ from app.models.tables import (
     SetupSignalSnapshot,
     SignalAlertEvent,
 )
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
+from app.services.setup_lifecycle.decision_evidence import (
+    persist_lifecycle_evaluation_evidence,
+)
 from app.services.setup_lifecycle.enums import EvaluationStatus
 from app.services.setup_lifecycle.episode_service import normalized_snapshot_from_row
-from app.services.setup_lifecycle.lifecycle_engine import evaluate_lifecycle
+from app.services.setup_lifecycle.lifecycle_engine import (
+    LifecycleEvaluationInput,
+    SetupLifecycleEngine,
+)
 from app.services.setup_lifecycle.repository import (
     SetupLifecycleRepository,
     current_canonical_snapshot_predicate,
@@ -41,21 +49,15 @@ class SetupLifecycleReplayService:
         config: SetupLifecycleConfig | None = None,
     ) -> None:
         self.repository = repository or SetupLifecycleRepository()
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_lifecycle_configuration
 
+        self.effective_configuration = resolve_lifecycle_configuration(config)
+        self.config = self.effective_configuration.setup_config()
+        self.lifecycle_engine = SetupLifecycleEngine(config=self.config)
+
+    @anchored_decision_calculator
     def replay(self, db, request: SetupLifecycleReplayRequest) -> dict[str, Any]:
         snapshots = self._snapshots(db, request)
-        proposed = [
-            {
-                "snapshot_id": snapshot.id,
-                "ticker": snapshot.ticker,
-                "data_as_of_date": snapshot.data_as_of_date.isoformat(),
-                "decision": _decision_payload(
-                    evaluate_lifecycle(normalized_snapshot_from_row(snapshot))
-                ),
-            }
-            for snapshot in snapshots
-        ]
         evaluation_run = None
         if request.persist:
             evaluation_run = self.repository.create_evaluation_run(
@@ -75,6 +77,39 @@ class SetupLifecycleReplayService:
                 dry_run=False,
                 requester=request.requester,
             )
+        proposed = []
+        for snapshot in snapshots:
+            decision = self.lifecycle_engine.evaluate(
+                LifecycleEvaluationInput(snapshot=normalized_snapshot_from_row(snapshot))
+            )
+            retrospective = None
+            if evaluation_run is not None:
+                retrospective = persist_lifecycle_evaluation_evidence(
+                    db,
+                    snapshot=snapshot,
+                    episode=None,
+                    decision=decision,
+                    actionability=SimpleNamespace(
+                        actionability=decision.actionability_candidate,
+                        blockers=(),
+                    ),
+                    evaluation_run_id=evaluation_run.id,
+                    transition_eligible=False,
+                    effective_configuration=self.lifecycle_engine.effective_configuration,
+                )
+            proposed.append(
+                {
+                    "snapshot_id": snapshot.id,
+                    "ticker": snapshot.ticker,
+                    "data_as_of_date": snapshot.data_as_of_date.isoformat(),
+                    "decision": _decision_payload(decision),
+                    "retrospective_evidence_id": (
+                        retrospective.id if retrospective is not None else None
+                    ),
+                }
+            )
+        if request.persist:
+            assert evaluation_run is not None
             self.repository.complete_evaluation_run(
                 db,
                 evaluation_run,
@@ -186,8 +221,8 @@ class SetupLifecycleReplayService:
         proposed_actionable = sum(
             1
             for row in self._snapshots(db, request)
-            if evaluate_lifecycle(
-                normalized_snapshot_from_row(row)
+            if self.lifecycle_engine.evaluate(
+                LifecycleEvaluationInput(snapshot=normalized_snapshot_from_row(row))
             ).actionability_candidate.value
             == "ACTIONABLE"
         )

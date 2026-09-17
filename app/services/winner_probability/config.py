@@ -24,12 +24,8 @@ VIEW_AS_OF = "AS_OF"
 VIEW_CURRENT = "CURRENT"
 SAME_BAR_CONSERVATIVE_STOP_FIRST = "CONSERVATIVE_STOP_FIRST"
 
-VALID_ENTRY_MODELS = frozenset(
-    {ENTRY_MODEL_NEXT_OPEN, ENTRY_MODEL_SIGNAL_CLOSE_DIAGNOSTIC}
-)
-VALID_ESTIMATE_KINDS = frozenset(
-    {ESTIMATE_KIND_DECISION_TIME, ESTIMATE_KIND_LATEST_RESCORE}
-)
+VALID_ENTRY_MODELS = frozenset({ENTRY_MODEL_NEXT_OPEN, ENTRY_MODEL_SIGNAL_CLOSE_DIAGNOSTIC})
+VALID_ESTIMATE_KINDS = frozenset({ESTIMATE_KIND_DECISION_TIME, ESTIMATE_KIND_LATEST_RESCORE})
 VALID_ESTIMATE_VIEWS = frozenset(
     {ESTIMATE_KIND_DECISION_TIME, ESTIMATE_KIND_LATEST_RESCORE, VIEW_AS_OF, VIEW_CURRENT}
 )
@@ -208,6 +204,11 @@ class WinnerProbabilityConfig:
 def load_winner_probability_config(
     path: Path = WINNER_PROBABILITY_CONFIG_PATH,
 ) -> WinnerProbabilityConfig:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("winner")
+
     with path.open("r", encoding="utf-8") as handle:
         raw = yaml.safe_load(handle) or {}
 
@@ -233,9 +234,7 @@ def load_winner_probability_config(
         episode=_parse_episode(_mapping(raw, "episode"), registry),
         cohort=_parse_cohort(_mapping(raw, "cohort"), registry),
         evidence_grades=_parse_evidence_grades(_mapping(raw, "evidence_grades")),
-        evidence_membership=_parse_evidence_membership(
-            _mapping(raw, "evidence_membership")
-        ),
+        evidence_membership=_parse_evidence_membership(_mapping(raw, "evidence_membership")),
         cold_start=_parse_cold_start(_mapping(raw, "cold_start")),
         drift=_parse_drift(_mapping(raw, "drift")),
         model_governance=_parse_model_governance(_mapping(raw, "model_governance")),
@@ -246,7 +245,27 @@ def load_winner_probability_config(
         config_hash="",
     )
     _validate_cross_section_rules(parsed)
-    return _with_hash(parsed)
+    resolved = _with_hash(parsed)
+    from app.services.effective_configuration import ConfigurationSource, ConfigurationSourceKind
+
+    object.__setattr__(
+        resolved,
+        "_native_configuration_source",
+        ConfigurationSource(ConfigurationSourceKind.PROFILE, "winner-native-profile"),
+    )
+    from app.services.configuration_source_values import winning_sources
+
+    object.__setattr__(
+        resolved,
+        "_configuration_sources",
+        winning_sources(
+            json.loads(json.dumps(asdict(resolved), default=str)),
+            raw,
+            "winner-native-profile",
+            "winner-parser-defaults-v1",
+        ),
+    )
+    return resolved
 
 
 def winner_probability_config_hash(config: WinnerProbabilityConfig | dict[str, Any]) -> str:
@@ -339,9 +358,7 @@ def _parse_estimate_views(raw: dict[str, Any]) -> dict[str, str]:
     required_keys = {"decision_time", "latest_rescore", "as_of", "current"}
     missing = sorted(required_keys - set(raw))
     if missing:
-        raise WinnerProbabilityConfigError(
-            f"estimate_views missing view(s): {', '.join(missing)}"
-        )
+        raise WinnerProbabilityConfigError(f"estimate_views missing view(s): {', '.join(missing)}")
     views = {key: _required_text(raw, f"estimate_views.{key}") for key in required_keys}
     for key, value in views.items():
         _require_choice(value, VALID_ESTIMATE_VIEWS, f"estimate_views.{key}")
@@ -424,8 +441,7 @@ def _parse_cohort(raw: dict[str, Any], registry: FeatureSchemaRegistry) -> Cohor
         raise WinnerProbabilityConfigError("cohort.rolling_window_years must be positive")
     hierarchy_rows = _list(raw, "hierarchy")
     hierarchy = tuple(
-        _parse_cohort_level(row, index, registry)
-        for index, row in enumerate(hierarchy_rows)
+        _parse_cohort_level(row, index, registry) for index, row in enumerate(hierarchy_rows)
     )
     levels = [row.level for row in hierarchy]
     if len(set(levels)) != len(levels):
@@ -586,9 +602,7 @@ def _parse_model_governance(raw: dict[str, Any]) -> ModelGovernanceConfig:
         _text_list(raw.get("approved_algorithms"), "model_governance.approved_algorithms")
     )
     if not approved_algorithms:
-        raise WinnerProbabilityConfigError(
-            "model_governance.approved_algorithms must not be empty"
-        )
+        raise WinnerProbabilityConfigError("model_governance.approved_algorithms must not be empty")
     if len(set(approved_algorithms)) != len(approved_algorithms):
         raise WinnerProbabilityConfigError(
             "model_governance.approved_algorithms contains duplicates"

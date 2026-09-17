@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from app.models.ceri_tables import CeriGuidanceEvent, CeriRevisionFeature
 from app.services.ceri.catalyst_feature_service import CatalystFeature
-from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.config import CeriConfig
 from app.services.ceri.dtos import ScoreComponent
 from app.services.ceri.enums import CeriDataset, GuidanceAction
 from app.services.ceri.surprise_feature_service import SurpriseSummary
@@ -29,7 +29,9 @@ class OpportunityResult:
 
 class CeriOpportunityScoreService:
     def __init__(self, config: CeriConfig | None = None) -> None:
-        self.config = config or load_ceri_config()
+        from app.services.contextual_effective_configuration import resolve_ceri_configuration
+
+        self.config = resolve_ceri_configuration(config).ceri_config()
 
     def calculate(
         self,
@@ -51,6 +53,7 @@ class CeriOpportunityScoreService:
             guidance_events,
             as_of_session=as_of_session,
             max_stale_days=self.config.datasets[CeriDataset.GUIDANCE].max_stale_days,
+            policy=self.config._effective_configuration.values["native_policy"]["guidance"],
         )
         accepted_catalyst_ids = tuple(
             feature.catalyst_event_id
@@ -118,8 +121,7 @@ class CeriOpportunityScoreService:
                 "price_response",
                 price_response_quality,
                 evidence_ids=(price_response_parent_event_id,)
-                if price_response_parent_event_id is not None
-                and price_response_quality is not None
+                if price_response_parent_event_id is not None and price_response_quality is not None
                 else (),
                 unavailable_reason=price_response_unavailable_reason,
             ),
@@ -128,9 +130,7 @@ class CeriOpportunityScoreService:
         coverage_pct = available_weight * 100.0
         minimum = float(self.config.revision.minimum_component_coverage_pct)
         raw_available_sum = sum(
-            component.contribution
-            if component.contribution is not None
-            else 0.0
+            component.contribution if component.contribution is not None else 0.0
             for component in components
         )
         rated = coverage_pct + 1e-9 >= minimum
@@ -139,9 +139,7 @@ class CeriOpportunityScoreService:
             if rated and available_weight > 0
             else None
         )
-        warnings = tuple(
-            warning for component in components for warning in component.warnings
-        )
+        warnings = tuple(warning for component in components for warning in component.warnings)
         unrated_reason = None
         if not rated:
             unrated_reason = "INSUFFICIENT_COMPONENT_COVERAGE"
@@ -192,9 +190,7 @@ class CeriOpportunityScoreService:
             contribution=contribution,
             available=value is not None,
             unavailable_reason=(
-                None
-                if value is not None
-                else unavailable_reason or f"{name.upper()}_UNAVAILABLE"
+                None if value is not None else unavailable_reason or f"{name.upper()}_UNAVAILABLE"
             ),
             evidence_ids=evidence_ids,
             warnings=warnings,
@@ -221,9 +217,7 @@ def _revision_breadth(features: list[CeriRevisionFeature]) -> float | None:
 
 def _revision_acceleration(features: list[CeriRevisionFeature]) -> float | None:
     values = [
-        float(feature.acceleration)
-        for feature in features
-        if feature.acceleration is not None
+        float(feature.acceleration) for feature in features if feature.acceleration is not None
     ]
     if not values:
         return None
@@ -241,6 +235,7 @@ def _guidance_score(
     *,
     as_of_session: date | None = None,
     max_stale_days: int | None = None,
+    policy=None,
 ) -> tuple[float | None, tuple[int, ...], tuple[str, ...]]:
     if not events:
         return None, (), ()
@@ -253,6 +248,14 @@ def _guidance_score(
         GuidanceAction.LOWERED.value: Decimal("2"),
         GuidanceAction.WITHDRAWN.value: Decimal("1"),
     }
+    if policy is not None:
+        values = {key: Decimal(str(value)) for key, value in policy["action_scores"].items()}
+    confidence_labels = policy["confidence_labels"] if policy is not None else ("HIGH", "NORMAL")
+    rejected_warnings = (
+        policy["rejected_quality_warnings"]
+        if policy is not None
+        else ("requires_review", "extraction_insufficient")
+    )
     superseded_ids = {event.supersedes_id for event in events if event.supersedes_id is not None}
     rejected = 0
     eligible: list[CeriGuidanceEvent] = []
@@ -260,7 +263,7 @@ def _guidance_score(
         if event.id in superseded_ids:
             rejected += 1
             continue
-        if event.action not in values or str(event.confidence).upper() not in {"HIGH", "NORMAL"}:
+        if event.action not in values or str(event.confidence).upper() not in confidence_labels:
             rejected += 1
             continue
         if event.accepted_for_scoring is not True:
@@ -278,7 +281,7 @@ def _guidance_score(
             rejected += 1
             continue
         warnings = set(event.quality_warnings_json or ())
-        if "requires_review" in warnings or "extraction_insufficient" in warnings:
+        if warnings.intersection(rejected_warnings):
             rejected += 1
             continue
         eligible.append(event)
@@ -286,8 +289,9 @@ def _guidance_score(
     for event in eligible:
         key = (str(event.metric), str(event.period_type))
         current = latest_by_key.get(key)
-        event_sort = _guidance_sort_key(event)
-        current_sort = _guidance_sort_key(current) if current is not None else None
+        order = policy["selection_order"] if policy is not None else ("effective_timestamp", "id")
+        event_sort = _guidance_sort_key(event, order)
+        current_sort = _guidance_sort_key(current, order) if current is not None else None
         if current is None or event_sort > current_sort:
             latest_by_key[key] = event
     selected = tuple(latest_by_key.values())
@@ -307,8 +311,7 @@ def _catalyst_score(features: list[CatalystFeature]) -> float | None:
     selected = [
         feature
         for feature in features
-        if getattr(feature, "selected", True)
-        and getattr(feature, "opportunity_available", True)
+        if getattr(feature, "selected", True) and getattr(feature, "opportunity_available", True)
     ]
     if not selected:
         return None
@@ -346,6 +349,10 @@ def _revision_unavailable_reason(
     return reason or fallback
 
 
-def _guidance_sort_key(event: CeriGuidanceEvent) -> tuple[str, int]:
+def _guidance_sort_key(event: CeriGuidanceEvent, order=("effective_timestamp", "id")) -> tuple:
     effective = event.effective_at or event.effective_session
-    return (effective.isoformat() if effective is not None else "", event.id or 0)
+    values = {
+        "effective_timestamp": effective.isoformat() if effective is not None else "",
+        "id": event.id or 0,
+    }
+    return tuple(values[key] for key in order)

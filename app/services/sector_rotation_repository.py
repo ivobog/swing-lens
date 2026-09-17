@@ -9,7 +9,18 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tables import SectorRotationRow, SectorRotationSnapshot
+from app.models.tables import (
+    CoreCalculationEvidence,
+    SectorRotationRow,
+    SectorRotationSnapshot,
+)
+from app.services.combined_ranking_identity import calculation_identity_from_debug
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    EvidenceUnavailableError,
+    get_evidence_by_id,
+    persist_core_evidence,
+)
 
 
 @dataclass(frozen=True)
@@ -88,10 +99,13 @@ class SectorRotationRepository:
         self,
         db: Session,
         dto: SectorRotationSnapshotWrite,
+        *,
+        evidence_sources: dict[str, Any] | None = None,
     ) -> SectorRotationSnapshot:
         evidence_hash = self.snapshot_evidence_hash(dto)
         snapshot = self._matching_snapshot(db, dto, evidence_hash)
         if snapshot is not None:
+            self._persist_evidence(db, snapshot, dto, evidence_sources=evidence_sources)
             return snapshot
 
         previous = self._latest_logical_snapshot(db, dto)
@@ -118,13 +132,98 @@ class SectorRotationRepository:
         db.flush()
         if previous is not None:
             self._supersede_previous_revision(db, previous, snapshot)
+        self._persist_evidence(
+            db,
+            snapshot,
+            dto,
+            evidence_sources=evidence_sources,
+        )
         return snapshot
+
+    def _persist_evidence(
+        self,
+        db: Session,
+        snapshot: SectorRotationSnapshot,
+        dto: SectorRotationSnapshotWrite,
+        *,
+        evidence_sources: dict[str, Any] | None,
+    ) -> None:
+        if not isinstance(db, Session):
+            return
+        if calculation_identity_from_debug(snapshot.debug_json) is None:
+            return
+        if evidence_sources is None:
+            raise EvidenceUnavailableError(
+                "EVIDENCE_UNAVAILABLE: SECTOR immutable source set was not supplied"
+            )
+        if "regime" not in evidence_sources:
+            raise EvidenceUnavailableError(
+                "EVIDENCE_UNAVAILABLE: SECTOR has no immutable Regime evidence"
+            )
+        if not any(role.startswith("ranking:") for role in evidence_sources):
+            raise EvidenceUnavailableError(
+                "EVIDENCE_UNAVAILABLE: SECTOR has no immutable Ranking evidence"
+            )
+        self._validate_source_evidence_kinds(db, evidence_sources)
+        payload = {
+            **asdict(dto),
+            "evidence_hash": snapshot.evidence_hash,
+        }
+        persist_core_evidence(
+            db,
+            kind=CoreEvidenceKind.SECTOR,
+            current_row=snapshot,
+            sources=evidence_sources,
+            payload=payload,
+            scope_ticker=None,
+            scope_profile=snapshot.mode,
+            effective_configuration=getattr(dto, "_effective_configuration", None),
+        )
+
+    @staticmethod
+    def _validate_source_evidence_kinds(db: Session, evidence_sources: dict[str, Any]) -> None:
+        expected = {
+            role: (
+                CoreEvidenceKind.RANKING.value
+                if role.startswith("ranking:")
+                else CoreEvidenceKind.REGIME.value
+                if role == "regime"
+                else CoreEvidenceKind.SECTOR.value
+            )
+            for role in evidence_sources
+        }
+        evidence_ids = {
+            role: getattr(source, "evidence_id", None) for role, source in evidence_sources.items()
+        }
+        if any(evidence_id is None for evidence_id in evidence_ids.values()):
+            missing = sorted(role for role, value in evidence_ids.items() if value is None)
+            raise EvidenceUnavailableError(
+                "EVIDENCE_UNAVAILABLE: SECTOR source roles have no immutable evidence: "
+                + ", ".join(missing)
+            )
+        rows = {
+            row.id: row
+            for row in db.scalars(
+                select(CoreCalculationEvidence).where(
+                    CoreCalculationEvidence.id.in_(evidence_ids.values())
+                )
+            )
+        }
+        for role, evidence_id in evidence_ids.items():
+            evidence = rows.get(evidence_id)
+            if evidence is None or evidence.artifact_kind != expected[role]:
+                actual = evidence.artifact_kind if evidence is not None else "MISSING"
+                raise EvidenceUnavailableError(
+                    "EVIDENCE_UNAVAILABLE: SECTOR source role="
+                    f"{role} expected={expected[role]} actual={actual}"
+                )
 
     def latest_for_run(
         self,
         db: Session,
         run_id: int,
     ) -> SectorRotationSnapshot | None:
+        """Return the explicit current compatibility projection for a run."""
         return db.scalar(
             select(SectorRotationSnapshot)
             .where(SectorRotationSnapshot.run_id == run_id)
@@ -253,6 +352,7 @@ class SectorRotationRepository:
         limit: int = 30,
         run_id: int | None = None,
     ) -> list[SectorRotationSnapshot]:
+        """Return recent compatibility projections for current dashboard browsing."""
         safe_limit = max(1, min(int(limit), 500))
         statement = select(SectorRotationSnapshot)
         if run_id is not None:
@@ -266,6 +366,11 @@ class SectorRotationRepository:
                 ).limit(safe_limit)
             )
         )
+
+    def evidence(self, db: Session, evidence_id: int):
+        """Return exact immutable Sector evidence without projection fallback."""
+
+        return get_evidence_by_id(db, evidence_id=evidence_id, kind=CoreEvidenceKind.SECTOR)
 
     def _matching_snapshot(
         self,

@@ -406,6 +406,7 @@ def test_ceri_prefers_compatible_global_ibmi_over_newer_wrong_config(
         ),
     )
 
+    decisions = {}
     selected = ceri_capture._point_in_time_volatility_feature(
         _RowsDb([incompatible, compatible]),
         "MSFT",
@@ -413,10 +414,25 @@ def test_ceri_prefers_compatible_global_ibmi_over_newer_wrong_config(
         as_of_session=cutoff.latest_completed_session,
         market_cutoff=cutoff,
         ibmi_config=config,
+        decisions=decisions,
     )
 
-    assert selected is not None
-    assert selected.id == compatible.id
+    assert selected is None
+    assert decisions["ibmi_volatility"]["source_feature_id"] == compatible.id
+    assert decisions["ibmi_volatility"]["producer_readiness"]["status"] == "LEGACY_UNKNOWN"
+    from contextual_readiness_helpers import ibmi_feature
+
+    ready = ibmi_feature(
+        "VOLATILITY", config_hash=config.config_hash,
+        calculation_cutoff_at=cutoff.cutoff_at, calendar_version=cutoff.calendar_version,
+        as_of_session=cutoff.latest_completed_session,
+    )
+    selected = ceri_capture._point_in_time_volatility_feature(
+        _RowsDb([incompatible, ready]), "MSFT", cutoff.cutoff_at,
+        as_of_session=cutoff.latest_completed_session, market_cutoff=cutoff,
+        ibmi_config=config,
+    )
+    assert selected is not None and selected.id == ready.id
     assert selected.source_identity.ownership.run_id.state.name == "NOT_APPLICABLE"
 
 

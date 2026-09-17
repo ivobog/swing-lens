@@ -2,10 +2,16 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import FundamentalScore, RawCompanyRow
+from app.services.calculation_identity import CalculationIdentity
 from app.services.column_mapper import MappedCsvRow, map_csv_rows
 from app.services.combined_ranking_identity import (
     build_fundamental_score_identity,
     embed_calculation_identity,
+)
+from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_effective_configuration import (
+    CoreEffectiveConfiguration,
+    resolve_fundamental_configuration,
 )
 from app.services.fundamental_ranker_v2 import score_rows_v2
 from app.services.market_clock_service import MarketCalculationCutoff
@@ -18,6 +24,8 @@ def recalculate_run_fundamentals(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
     pipeline_run_id: int | None = None,
+    effective_configuration: CoreEffectiveConfiguration | None = None,
+    expected_calculation_identity: CalculationIdentity | None = None,
 ) -> list[FundamentalScore]:
     raw_rows = list(
         db.scalars(
@@ -26,8 +34,17 @@ def recalculate_run_fundamentals(
             .order_by(RawCompanyRow.row_number)
         )
     )
-    mapped_rows = _mapped_rows_from_stored_raw(raw_rows)
-    scores = [_fundamental_score_from_v2(run_id, score) for score in score_rows_v2(mapped_rows)]
+    effective_configuration = effective_configuration or resolve_fundamental_configuration()
+    effective_configuration.require_family("core.fundamental")
+    if expected_calculation_identity is not None:
+        effective_configuration.require_retry_identity(expected_calculation_identity)
+    values = effective_configuration.values
+    mapped_rows = _mapped_rows_from_stored_raw(raw_rows, aliases=values["column_aliases"])
+    scoring_config = {key: value for key, value in values.items() if key != "column_aliases"}
+    scores = [
+        _fundamental_score_from_v2(run_id, score)
+        for score in score_rows_v2(mapped_rows, config=scoring_config)
+    ]
     if market_cutoff is not None or pipeline_run_id is not None:
         if market_cutoff is None or pipeline_run_id is None:
             raise ValueError(
@@ -49,6 +66,7 @@ def recalculate_run_fundamentals(
                 market_cutoff=market_cutoff,
                 pipeline_run_id=pipeline_run_id,
             )
+            identity = effective_configuration.bind(identity)
             score.debug_json = embed_calculation_identity(
                 score.debug_json,
                 identity,
@@ -58,11 +76,23 @@ def recalculate_run_fundamentals(
     db.execute(delete(FundamentalScore).where(FundamentalScore.run_id == run_id))
     db.add_all(scores)
     db.flush()
+    if isinstance(db, Session):
+        for score in scores:
+            persist_core_evidence(
+                db,
+                kind=CoreEvidenceKind.FUNDAMENTAL,
+                current_row=score,
+                effective_configuration=effective_configuration.snapshot
+                if market_cutoff is not None
+                else None,
+            )
     return scores
 
 
-def _mapped_rows_from_stored_raw(raw_rows: list[RawCompanyRow]) -> list[MappedCsvRow]:
-    remapped = map_csv_rows([row.raw_json for row in raw_rows])
+def _mapped_rows_from_stored_raw(
+    raw_rows: list[RawCompanyRow], *, aliases: dict[str, list[str]] | None = None
+) -> list[MappedCsvRow]:
+    remapped = map_csv_rows([row.raw_json for row in raw_rows], aliases=aliases)
     mapped_by_index = dict(enumerate(remapped))
     return [
         MappedCsvRow(

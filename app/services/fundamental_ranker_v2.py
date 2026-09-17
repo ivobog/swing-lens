@@ -110,8 +110,10 @@ class FundamentalScoreV2Result:
     debug: dict[str, Any]
 
 
-def score_rows_v2(rows: list[MappedCsvRow]) -> list[FundamentalScoreV2Result]:
-    config = load_fundamentals_v2_config()
+def score_rows_v2(
+    rows: list[MappedCsvRow], config: FundamentalsV2Config | Mapping[str, Any] | None = None
+) -> list[FundamentalScoreV2Result]:
+    config = config if config is not None else load_fundamentals_v2_config()
     return [score_row_v2(row, config=config) for row in rows if row.ticker]
 
 
@@ -128,7 +130,9 @@ def score_row_v2(
         component_scores=component_scores,
         coverage=coverage,
         thresholds=config["thresholds"],
-        sparse_data_coverage_threshold=float(config["missing_data"]["sparse_data_coverage_threshold"]),
+        sparse_data_coverage_threshold=float(
+            config["missing_data"]["sparse_data_coverage_threshold"]
+        ),
     )
     score = _weighted_score(component_scores, config["weights"]) - coverage.missing_data_penalty
     score = _clamp(score)
@@ -177,6 +181,11 @@ def score_row_v2(
 def load_fundamentals_v2_config(
     path: Path = Path("config/fundamentals_v2.yaml"),
 ) -> FundamentalsV2Config:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("fundamental")
+
     with path.open("r", encoding="utf-8") as handle:
         return parse_fundamentals_v2_config(yaml.safe_load(handle) or {})
 
@@ -372,15 +381,9 @@ def _validate_coverage_only(config: dict[str, Any]) -> None:
         "fundamentals_v2.coverage_only_fields",
     )
     component_fields = {
-        field
-        for component in config["components"].values()
-        for field in component["fields"]
+        field for component in config["components"].values() for field in component["fields"]
     }
-    priority_fields = {
-        field
-        for fields in config["field_priorities"].values()
-        for field in fields
-    }
+    priority_fields = {field for fields in config["field_priorities"].values() for field in fields}
     overlap = sorted(set(coverage_only) & component_fields)
     if overlap:
         raise FundamentalsConfigError(

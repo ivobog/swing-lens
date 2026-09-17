@@ -22,6 +22,7 @@ from app.models.ib_market_intelligence_tables import (
 from app.models.tables import CombinedResult, SetupSignalSnapshot, UploadRun
 from app.services.ceri import capture_service as ceri_capture_service
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+from app.services.ib_market_intelligence.decision_evidence import IbmiFeatureConstituents
 from app.services.ib_market_intelligence.dtos import FeatureResult, HistoricalMetricBarDTO
 from app.services.ib_market_intelligence.enums import AvailabilityStatus, Confidence
 from app.services.ib_market_intelligence.flex import import_flex_report
@@ -85,7 +86,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
         assert outcome == "REVISED" and row.revision_count == 1
         db.commit()
         revisions = db.scalars(select(IBHistoricalMetricRevision)).all()
-        assert len(revisions) == 1
+        assert [item.revision_number for item in revisions] == [0, 1]
 
         report = (
             "AccountId,TradeID,TradeDate,TradeTime,Symbol,Buy/Sell,Quantity,"
@@ -170,6 +171,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
             feature=available,
             config=config,
             calculated_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC),
+            constituents=IbmiFeatureConstituents(metric_bars=(row,)),
         )
         assert inserted is True
         second_feature, inserted = persist_feature(
@@ -180,6 +182,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
             feature=unavailable,
             config=config,
             calculated_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC) + timedelta(seconds=1),
+            constituents=IbmiFeatureConstituents(metric_bars=(row,)),
         )
         assert inserted is True and second_feature.id != first_feature.id
         db.commit()
@@ -231,6 +234,7 @@ def test_metric_revision_and_flex_import_are_idempotent(
             feature=short_context,
             config=config,
             calculated_at=datetime(2026, 8, 9, 12, 1, tzinfo=UTC),
+            constituents=IbmiFeatureConstituents(metric_bars=(row,)),
         )
         assert inserted is True
         db.commit()

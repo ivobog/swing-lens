@@ -42,6 +42,11 @@ class SectorRotationConfigError(ValueError):
 def load_sector_rotation_config(
     path: Path = SECTOR_ROTATION_CONFIG_PATH,
 ) -> dict[str, Any]:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("sector")
+
     with path.open("r", encoding="utf-8") as handle:
         config = yaml.safe_load(handle) or {}
 
@@ -49,7 +54,20 @@ def load_sector_rotation_config(
         raise SectorRotationConfigError("sector rotation config must be a mapping")
 
     _validate_config(config)
-    return config
+    from app.services.configuration_source_values import SourcedConfigurationValues, winning_sources
+    from app.services.contextual_effective_configuration import resolve_sector_configuration
+
+    result = SourcedConfigurationValues(
+        config,
+        winning_sources(
+            config,
+            config,
+            path.as_posix() if not path.is_absolute() else None,
+            "sector-parser-defaults",
+        ),
+    )
+    result.effective_configuration = resolve_sector_configuration(result)
+    return result
 
 
 def sector_rotation_config_hash(config: dict[str, Any]) -> str:
@@ -189,8 +207,7 @@ def _validate_combined_score(combined_score: dict[str, Any]) -> None:
     policy = _required_text(combined_score, "missing_etf_policy")
     if policy not in VALID_MISSING_ETF_POLICIES:
         raise SectorRotationConfigError(
-            "combined_score.missing_etf_policy must be one of "
-            f"{sorted(VALID_MISSING_ETF_POLICIES)}"
+            f"combined_score.missing_etf_policy must be one of {sorted(VALID_MISSING_ETF_POLICIES)}"
         )
 
 
@@ -236,8 +253,7 @@ def _validate_permissions(permissions: dict[str, Any]) -> None:
         missing_states = [state for state in REQUIRED_ROTATION_STATES if state not in rules]
         if missing_states:
             raise SectorRotationConfigError(
-                f"permissions.market_buckets.{bucket} missing state(s): "
-                f"{', '.join(missing_states)}"
+                f"permissions.market_buckets.{bucket} missing state(s): {', '.join(missing_states)}"
             )
         for state, permission in rules.items():
             if state not in REQUIRED_ROTATION_STATES:

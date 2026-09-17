@@ -2,6 +2,7 @@ import hashlib
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
+from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
@@ -14,10 +15,16 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import RawCompanyRow, TechnicalScore
+from app.services.calculation_identity import CalculationIdentity
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.combined_ranking_identity import (
     build_technical_score_identity,
     embed_calculation_identity,
+)
+from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_effective_configuration import (
+    CoreEffectiveConfiguration,
+    resolve_technical_configuration,
 )
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.leadership_v5 import rank_leadership_v5
@@ -114,6 +121,8 @@ def score_run_technicals(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
     pipeline_run_id: int | None = None,
+    effective_configuration: CoreEffectiveConfiguration | None = None,
+    expected_calculation_identity: CalculationIdentity | None = None,
 ) -> list[TechnicalScore]:
     input_started = perf_counter()
     market_cutoff = (
@@ -122,17 +131,29 @@ def score_run_technicals(
         or standalone_market_context(reason="STANDALONE_TECHNICAL_SCORING")
     )
     symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
-    v4_params = load_technical_scoring_v4_config()
-    v5_params = load_technical_scoring_v5_config()
-    pine_params = load_pine_defaults()
+    settings = deepcopy(get_settings())
+    effective_configuration = effective_configuration or resolve_technical_configuration(
+        pine=load_pine_defaults(),
+        v4=load_technical_scoring_v4_config(),
+        v5=load_technical_scoring_v5_config(),
+        settings=settings,
+        benchmark_ticker=benchmark_ticker,
+    )
+    effective_configuration.require_family("core.technical")
+    if expected_calculation_identity is not None:
+        effective_configuration.require_retry_identity(expected_calculation_identity)
+    resolved = effective_configuration.values
+    benchmark_ticker = resolved["benchmark_ticker"]
+    pine_params, v4_params, v5_params = resolved["pine"], resolved["v4"], resolved["v5"]
+    for flag in ("v5_enabled", "v5_shadow_compare_enabled", "v5_persist_shadow_results"):
+        setattr(settings, f"technical_{flag}", resolved[flag])
     benchmark_price = _call_price_frame(db, benchmark_ticker, market_cutoff)
-    market_features = _market_features(benchmark_price, benchmark_ticker)
+    market_features = _market_features(benchmark_price, benchmark_ticker, pine_params, v4_params)
     sector_price = _sector_benchmark_price(db, pine_params, market_cutoff=market_cutoff)
     qqq_market_features = _optional_market_features(
-        db, "QQQ", v4_params, market_cutoff=market_cutoff
+        db, "QQQ", v4_params, market_cutoff=market_cutoff, pine_params=pine_params
     )
 
-    settings = get_settings()
     calculate_v5 = getattr(settings, "technical_v5_enabled", False) or getattr(
         settings, "technical_v5_shadow_compare_enabled", True
     )
@@ -194,6 +215,7 @@ def score_run_technicals(
             market_features=market_features,
             qqq_market_features=qqq_market_features,
             v4_params=v4_params,
+            pine_params=pine_params,
             run_id=run_id,
             market_cutoff=market_cutoff,
         )
@@ -211,6 +233,7 @@ def score_run_technicals(
         settings=settings,
         market_cutoff=market_cutoff,
         pipeline_run_id=pipeline_run_id,
+        effective_configuration=effective_configuration,
     )
     _record_technical_duration("finalize", finalize_started, run_id=run_id)
     return scores
@@ -312,11 +335,25 @@ def finalize_technical_scores(
     market_cutoff: MarketCalculationCutoff | None = None,
     pipeline_run_id: int | None = None,
     persist: bool = True,
+    effective_configuration: CoreEffectiveConfiguration | None = None,
 ) -> list[TechnicalScore]:
-    v4_params = v4_params or load_technical_scoring_v4_config()
-    v5_params = v5_params or load_technical_scoring_v5_config()
+    if pipeline_run_id is not None and effective_configuration is None:
+        raise ValueError(
+            "certified Technical finalization requires configuration frozen "
+            "before feature construction"
+        )
     settings = settings or get_settings()
-    pine_params = load_pine_defaults()
+    if effective_configuration is not None:
+        effective_configuration.require_family("core.technical")
+        resolved = effective_configuration.values
+        pine_params, v4_params, v5_params = resolved["pine"], resolved["v4"], resolved["v5"]
+        settings = deepcopy(settings)
+        for flag in ("v5_enabled", "v5_shadow_compare_enabled", "v5_persist_shadow_results"):
+            setattr(settings, f"technical_{flag}", resolved[flag])
+    else:
+        v4_params = v4_params or load_technical_scoring_v4_config()
+        v5_params = v5_params or load_technical_scoring_v5_config()
+        pine_params = load_pine_defaults()
     symbols = symbols or [
         result.ticker.upper()
         for result in score_results
@@ -434,7 +471,7 @@ def finalize_technical_scores(
             )
             score.debug_json = embed_calculation_identity(
                 score.debug_json,
-                identity,
+                effective_configuration.bind(identity),
                 policy="TECHNICAL_SCORE_PRODUCER",
             )
     if persist and symbols:
@@ -447,6 +484,16 @@ def finalize_technical_scores(
     if persist:
         db.add_all(scores)
         db.flush()
+        if isinstance(db, Session):
+            for score in scores:
+                persist_core_evidence(
+                    db,
+                    kind=CoreEvidenceKind.TECHNICAL,
+                    current_row=score,
+                    effective_configuration=effective_configuration.snapshot
+                    if pipeline_run_id is not None
+                    else None,
+                )
     return scores
 
 
@@ -485,13 +532,15 @@ class TechnicalScoringOverlapCoordinator:
         wait_for_market_events: bool = False,
         market_cutoff: MarketCalculationCutoff | None = None,
         pipeline_run_id: int | None = None,
+        effective_configuration: CoreEffectiveConfiguration | None = None,
+        expected_calculation_identity: CalculationIdentity | None = None,
     ) -> None:
         input_started = perf_counter()
         self.db = db
         self.run_id = run_id
         self.pipeline_run_id = pipeline_run_id
         self.symbols = _normalize_tickers(tickers)
-        self.settings = settings or get_settings()
+        self.settings = deepcopy(settings or get_settings())
         self.should_cancel = should_cancel or (lambda: False)
         self.lease_guard = lease_guard or (lambda: None)
         self.market_cutoff = (
@@ -499,9 +548,24 @@ class TechnicalScoringOverlapCoordinator:
             or market_context_for_upload_run(db, run_id)
             or standalone_market_context(reason="STANDALONE_TECHNICAL_OVERLAP")
         )
-        self.pine_params = load_pine_defaults()
-        self.v4_params = load_technical_scoring_v4_config()
-        self.v5_params = load_technical_scoring_v5_config()
+        self.effective_configuration = effective_configuration or resolve_technical_configuration(
+            pine=load_pine_defaults(),
+            v4=load_technical_scoring_v4_config(),
+            v5=load_technical_scoring_v5_config(),
+            settings=self.settings,
+        )
+        self.effective_configuration.require_family("core.technical")
+        if expected_calculation_identity is not None:
+            self.effective_configuration.require_retry_identity(expected_calculation_identity)
+        resolved = self.effective_configuration.values
+        self.benchmark_ticker = resolved["benchmark_ticker"]
+        self.pine_params, self.v4_params, self.v5_params = (
+            resolved["pine"],
+            resolved["v4"],
+            resolved["v5"],
+        )
+        for flag in ("v5_enabled", "v5_shadow_compare_enabled", "v5_persist_shadow_results"):
+            setattr(self.settings, f"technical_{flag}", resolved[flag])
         self.feature_config_hash = config_hash(
             {"pine": self.pine_params, "v4_features": self.v4_params}
         )
@@ -611,6 +675,7 @@ class TechnicalScoringOverlapCoordinator:
                 settings=self.settings,
                 market_cutoff=self.market_cutoff,
                 pipeline_run_id=self.pipeline_run_id,
+                effective_configuration=self.effective_configuration,
             )
             _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
             return scores
@@ -821,13 +886,18 @@ class TechnicalScoringOverlapCoordinator:
             settings=self.settings,
             market_cutoff=self.market_cutoff,
             pipeline_run_id=self.pipeline_run_id,
+            effective_configuration=self.effective_configuration,
         )
         _record_technical_duration("finalize", finalize_started, run_id=self.run_id)
         return scores
 
     def _refresh_run_level_inputs(self) -> None:
-        self._benchmark_price = _call_price_frame(self.db, "SPY", self.market_cutoff)
-        self._market_features = _market_features(self._benchmark_price, "SPY")
+        self._benchmark_price = _call_price_frame(
+            self.db, self.benchmark_ticker, self.market_cutoff
+        )
+        self._market_features = _market_features(
+            self._benchmark_price, self.benchmark_ticker, self.pine_params, self.v4_params
+        )
         self._sector_price = _sector_benchmark_price(
             self.db, self.pine_params, market_cutoff=self.market_cutoff
         )
@@ -843,6 +913,8 @@ class TechnicalScoringOverlapCoordinator:
             self._qqq_market_features = _market_features(
                 self._qqq_market_price,
                 "QQQ",
+                self.pine_params,
+                self.v4_params,
             )
         else:
             self._qqq_market_price = pd.DataFrame()
@@ -910,6 +982,7 @@ def _score_tickers_legacy(
     v4_params: dict[str, Any],
     run_id: int,
     market_cutoff: MarketCalculationCutoff,
+    pine_params: dict[str, Any] | None = None,
 ) -> list[PineReplicaScore | TechnicalScore]:
     score_results: list[PineReplicaScore | TechnicalScore] = []
     for ticker in symbols:
@@ -923,6 +996,7 @@ def _score_tickers_legacy(
                     market_features=market_features,
                     qqq_market_features=qqq_market_features,
                     v4_params=v4_params,
+                    pine_params=pine_params,
                     market_cutoff=market_cutoff,
                 )
             )
@@ -1002,6 +1076,7 @@ def _score_tickers_pure_sequential(
                     v4_params=v4_params,
                     run_id=run_id,
                     market_cutoff=market_cutoff,
+                    pine_params=pine_params,
                 )
                 if _technical_score_fingerprint(pure_score) != _technical_score_fingerprint(
                     legacy_score
@@ -1355,6 +1430,7 @@ def _legacy_score_or_error(
     v4_params: dict[str, Any],
     run_id: int,
     market_cutoff: MarketCalculationCutoff,
+    pine_params: dict[str, Any] | None = None,
 ) -> PineReplicaScore | TechnicalScore:
     try:
         return _score_ticker(
@@ -1366,6 +1442,7 @@ def _legacy_score_or_error(
             qqq_market_features=qqq_market_features,
             v4_params=v4_params,
             market_cutoff=market_cutoff,
+            pine_params=pine_params,
         )
     except Exception as exc:
         return unavailable_technical_score(run_id, ticker, str(exc), v4_params=v4_params)
@@ -1588,8 +1665,10 @@ def _score_ticker(
     qqq_market_features: dict[str, Any] | None = None,
     v4_params: dict[str, Any] | None = None,
     market_cutoff: MarketCalculationCutoff | None = None,
+    pine_params: dict[str, Any] | None = None,
 ) -> PineReplicaScore:
     v4_params = v4_params or load_technical_scoring_v4_config()
+    pine_params = pine_params if pine_params is not None else load_pine_defaults()
     market_cutoff = market_cutoff or standalone_market_context(reason="STANDALONE_TECHNICAL_TICKER")
     price, trades = _load_preferred_bounded(db, ticker, market_cutoff)
     if price.empty:
@@ -1597,10 +1676,14 @@ def _score_ticker(
             f"No cached OHLCV bars for {ticker.upper()}. Fetch IB data first."
         )
 
-    features = calculate_technical_features(price, trades, ticker=ticker)
+    features = calculate_technical_features(
+        price, trades, ticker=ticker, params=pine_params, v4_params=v4_params
+    )
     htf_features = (
         calculate_htf_trend_features(
-            price, latest_completed_session=market_cutoff.latest_completed_session
+            price,
+            latest_completed_session=market_cutoff.latest_completed_session,
+            params=pine_params,
         )
         if not price.empty
         else {}
@@ -1610,6 +1693,7 @@ def _score_ticker(
         benchmark_price,
         sector_price,
         v4_params.get("relative_leadership", {}),
+        pine_params=pine_params,
     )
 
     return score_from_feature_result(
@@ -1619,6 +1703,7 @@ def _score_ticker(
         market_features=market_features,
         qqq_market_features=qqq_market_features,
         v4_params=v4_params,
+        params=pine_params,
     )
 
 
@@ -1627,10 +1712,13 @@ def _relative_strength_features(
     benchmark_price: pd.DataFrame,
     sector_price: pd.DataFrame | None = None,
     relative_params: dict[str, Any] | None = None,
+    pine_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if price.empty or benchmark_price.empty:
         return {}
-    features = calculate_relative_strength_features(price, benchmark_price, sector_price)
+    features = calculate_relative_strength_features(
+        price, benchmark_price, sector_price, params=pine_params
+    )
     relative_params = relative_params or {}
     if relative_params.get("beta_adjusted_rs", False):
         features.update(calculate_beta_adjusted_rs(price, benchmark_price, relative_params))
@@ -1753,10 +1841,17 @@ def _with_v5_sector_debug(score: PineReplicaScore, sector_score: float | None) -
     return replace(score, debug=debug)
 
 
-def _market_features(price: pd.DataFrame, ticker: str) -> dict[str, Any]:
+def _market_features(
+    price: pd.DataFrame,
+    ticker: str,
+    pine_params: dict[str, Any] | None = None,
+    v4_params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if price.empty:
         return {}
-    return calculate_technical_features(price, ticker=ticker).latest
+    return calculate_technical_features(
+        price, ticker=ticker, params=pine_params, v4_params=v4_params
+    ).latest
 
 
 def _market_frames_signature(
@@ -1833,12 +1928,13 @@ def _optional_market_features(
     v4_params: dict[str, Any],
     *,
     market_cutoff: MarketCalculationCutoff,
+    pine_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     market_regime_params = v4_params.get("market_regime_v4", {})
     if ticker.upper() == "QQQ" and not market_regime_params.get("use_qqq", True):
         return {}
     price = _call_price_frame(db, ticker, market_cutoff)
-    return _market_features(price, ticker)
+    return _market_features(price, ticker, pine_params, v4_params)
 
 
 def _leadership_rank_input(score: PineReplicaScore) -> dict[str, Any]:

@@ -1,7 +1,10 @@
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
 import pytest
+from core_readiness_helpers import certified_fundamental
+from readiness_helpers import certified_technical, seal_technical
 
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
 from app.services.cockpit_sorting import cockpit_sort_key
@@ -156,6 +159,7 @@ def test_combined_position_size_risk_boundary_is_inclusive() -> None:
 def test_combined_decision_carries_v4_warning_flags_to_cockpit_payload() -> None:
     technical = _technical("SHOP", "Tight base breakout", "8.6", risk_score="2.5")
     technical.warning_flags_json = ["market_risk_off", "stage_4_downtrend"]
+    seal_technical(technical)
 
     decision = combine_row_decision(
         _row("SHOP"),
@@ -167,6 +171,9 @@ def test_combined_decision_carries_v4_warning_flags_to_cockpit_payload() -> None
     assert "market_risk_off" in decision.warning_flags
     assert "stage_4_downtrend" in decision.warning_flags
     assert decision.has_warning is True
+    assert decision.has_technical is False
+    eligibility = decision.debug_evidence["technical_consumer_eligibility"]["decision"]
+    assert eligibility["status"] == "POLICY_UNDECIDED"
 
 
 def test_v5_shadow_display_does_not_change_combined_decision_semantics() -> None:
@@ -208,7 +215,9 @@ def test_v5_shadow_display_does_not_change_combined_decision_semantics() -> None
     combined_model = _to_model(run_id=1, final_rank=1, decision=with_shadow)
     display = technical_score_display_fields(shadow_technical, combined_model)
 
-    assert with_shadow == baseline
+    assert replace(with_shadow, debug_evidence=baseline.debug_evidence) == baseline
+    eligibility = with_shadow.debug_evidence["technical_consumer_eligibility"]["decision"]
+    assert eligibility["status"] == "ELIGIBLE"
     assert with_shadow.final_score == baseline.final_score
     assert with_shadow.dual_score == baseline.dual_score == 8.44
     assert with_shadow.combined_decision == baseline.combined_decision
@@ -418,7 +427,7 @@ def _fundamental(
     label: str,
     score: str,
 ) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         run_id=1,
         ticker=ticker,
         fundamental_label=label,
@@ -432,7 +441,7 @@ def _technical(
     dual_score: str,
     risk_score: str,
 ) -> TechnicalScore:
-    return TechnicalScore(
+    return certified_technical(
         run_id=1,
         ticker=ticker,
         classification=classification,

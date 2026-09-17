@@ -106,6 +106,20 @@
     "top_ticker": "MSFT",
     "fundamental_score": "7.7563",
     "fundamental_label": "Clean compounder",
+    "final_score": "7.14",
+    "combined_decision": "Incomplete data",
+    "position_size_hint": "Wait",
+    "warning_flags": [
+      "incomplete_data",
+      "missing_fundamental",
+      "earnings_date_missing"
+    ],
+    "incomplete_count": 1
+  },
+  "expected_before_phase3": {
+    "top_ticker": "MSFT",
+    "fundamental_score": "7.7563",
+    "fundamental_label": "Clean compounder",
     "final_score": "7.764",
     "combined_decision": "Candidate",
     "position_size_hint": "Half starter",

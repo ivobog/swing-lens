@@ -16,13 +16,16 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     func,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.services.configuration_artifact_immutability import seal_configuration_member
 
 
 class UploadRun(Base):
@@ -371,8 +374,158 @@ class TechnicalFeatureArtifact(Base):
     )
 
 
+class CoreCalculationEvidence(Base):
+    """Append-only Phase-2 evidence for one exact core calculation output."""
+
+    __tablename__ = "core_calculation_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    artifact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=True
+    )
+    ticker: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ranking_profile: Mapped[str | None] = mapped_column(Text)
+    calculation_identity_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation_identity_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    source_evidence_ids_json: Mapped[dict[str, int]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
+            "'REGIME', 'SECTOR', 'CERI', 'IBMI', 'SETUP')",
+            name="ck_core_calculation_evidence_kind",
+        ),
+        UniqueConstraint("evidence_key", name="uq_core_calculation_evidence_key"),
+        Index(
+            "idx_core_evidence_identity",
+            "artifact_kind",
+            "calculation_identity_fingerprint",
+        ),
+        Index("idx_core_evidence_scope", "artifact_kind", "run_id", "ticker"),
+    )
+
+
+class CoreCalculationEvidenceSource(Base):
+    """Immutable graph edge pinning Combined/Ranking evidence to upstream evidence."""
+
+    __tablename__ = "core_calculation_evidence_sources"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_role: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("evidence_id", "source_role", name="uq_core_evidence_source_role"),
+        CheckConstraint(
+            "evidence_id <> source_evidence_id", name="ck_core_evidence_source_not_self"
+        ),
+        Index("idx_core_evidence_source_upstream", "source_evidence_id"),
+    )
+
+
+class CoreCalculationCurrentProjection(Base):
+    """Mutable pointer to preferred evidence; never itself historical evidence."""
+
+    __tablename__ = "core_calculation_current_projections"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    artifact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="CASCADE"), nullable=True
+    )
+    ticker: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ranking_profile_key: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "artifact_kind IN ('FUNDAMENTAL', 'TECHNICAL', 'COMBINED', 'RANKING', "
+            "'REGIME', 'SECTOR', 'CERI', 'IBMI', 'SETUP')",
+            name="ck_core_current_projection_kind",
+        ),
+        Index(
+            "uq_core_current_projection_ticker_scope",
+            "artifact_kind",
+            "run_id",
+            "ticker",
+            "ranking_profile_key",
+            unique=True,
+            postgresql_where=text("run_id IS NOT NULL AND ticker IS NOT NULL"),
+            sqlite_where=text("run_id IS NOT NULL AND ticker IS NOT NULL"),
+        ),
+        Index(
+            "uq_core_current_projection_context_run_scope",
+            "artifact_kind",
+            "run_id",
+            "ranking_profile_key",
+            unique=True,
+            postgresql_where=text("run_id IS NOT NULL AND ticker IS NULL"),
+            sqlite_where=text("run_id IS NOT NULL AND ticker IS NULL"),
+        ),
+        Index(
+            "uq_core_current_projection_global_ticker_scope",
+            "artifact_kind",
+            "ticker",
+            "ranking_profile_key",
+            unique=True,
+            postgresql_where=text("run_id IS NULL AND ticker IS NOT NULL"),
+            sqlite_where=text("run_id IS NULL AND ticker IS NOT NULL"),
+        ),
+        Index(
+            "uq_core_current_projection_global_scope",
+            "artifact_kind",
+            "ranking_profile_key",
+            unique=True,
+            postgresql_where=text("run_id IS NULL AND ticker IS NULL"),
+            sqlite_where=text("run_id IS NULL AND ticker IS NULL"),
+        ),
+        Index("idx_core_current_projection_evidence", "evidence_id"),
+    )
+
+
+def _reject_core_evidence_mutation(_mapper: Any, _connection: Any, target: Any) -> None:
+    raise ValueError(
+        f"IMMUTABLE_EVIDENCE_MUTATION_REJECTED: {target.__class__.__name__} "
+        f"id={getattr(target, 'id', None)}"
+    )
+
+
+for _immutable_model in (CoreCalculationEvidence, CoreCalculationEvidenceSource):
+    event.listen(_immutable_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_immutable_model, "before_delete", _reject_core_evidence_mutation)
+
+
 class FundamentalScore(Base):
     __tablename__ = "fundamental_scores"
+
+    calculation_evidence: Mapped["CoreCalculationEvidence | None"] = relationship(
+        "CoreCalculationEvidence",
+        foreign_keys="FundamentalScore.evidence_id",
+        viewonly=True,
+        lazy="raise",
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
@@ -380,6 +533,9 @@ class FundamentalScore(Base):
         nullable=False,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     growth_score: Mapped[Decimal | None] = mapped_column(Numeric)
     profitability_score: Mapped[Decimal | None] = mapped_column(Numeric)
     fcf_score: Mapped[Decimal | None] = mapped_column(Numeric)
@@ -418,11 +574,19 @@ class FundamentalScore(Base):
     __table_args__ = (
         UniqueConstraint("run_id", "ticker", name="uq_fundamental_scores_run_ticker"),
         Index("idx_fundamental_scores_run_id", "run_id"),
+        Index("idx_fundamental_scores_evidence", "evidence_id"),
     )
 
 
 class TechnicalScore(Base):
     __tablename__ = "technical_scores"
+
+    calculation_evidence: Mapped["CoreCalculationEvidence | None"] = relationship(
+        "CoreCalculationEvidence",
+        foreign_keys="TechnicalScore.evidence_id",
+        viewonly=True,
+        lazy="raise",
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
@@ -430,6 +594,9 @@ class TechnicalScore(Base):
         nullable=False,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     calculation_context_id: Mapped[int | None] = mapped_column(
         ForeignKey("market_calculation_contexts.id", ondelete="SET NULL"), nullable=True
     )
@@ -503,6 +670,7 @@ class TechnicalScore(Base):
     __table_args__ = (
         UniqueConstraint("run_id", "ticker", name="uq_technical_scores_run_ticker"),
         Index("idx_technical_scores_run_id", "run_id"),
+        Index("idx_technical_scores_evidence", "evidence_id"),
         Index(
             "idx_technical_scores_temporal_lineage",
             "input_as_of_session",
@@ -514,12 +682,22 @@ class TechnicalScore(Base):
 class CombinedResult(Base):
     __tablename__ = "combined_results"
 
+    calculation_evidence: Mapped["CoreCalculationEvidence | None"] = relationship(
+        "CoreCalculationEvidence",
+        foreign_keys="CombinedResult.evidence_id",
+        viewonly=True,
+        lazy="raise",
+    )
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="CASCADE"),
         nullable=False,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     company_name: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(Text)
     final_rank: Mapped[int | None]
@@ -589,11 +767,19 @@ class CombinedResult(Base):
         Index("idx_combined_results_score", "final_score"),
         Index("idx_combined_results_warning", "has_warning"),
         Index("idx_combined_results_complete", "is_complete"),
+        Index("idx_combined_results_evidence", "evidence_id"),
     )
 
 
 class RankingResult(Base):
     __tablename__ = "ranking_results"
+
+    calculation_evidence = relationship(
+        "CoreCalculationEvidence",
+        foreign_keys="RankingResult.evidence_id",
+        viewonly=True,
+        lazy="raise",
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(
@@ -605,6 +791,9 @@ class RankingResult(Base):
         nullable=True,
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
     company_name: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(Text)
     ranking_profile: Mapped[str] = mapped_column(Text, nullable=False)
@@ -714,16 +903,27 @@ class RankingResult(Base):
             "profile_score",
         ),
         Index("idx_ranking_results_earnings_risk", "earnings_risk_level"),
+        Index("idx_ranking_results_evidence", "evidence_id"),
     )
 
 
 class MarketRegimeSnapshot(Base):
     __tablename__ = "market_regime_snapshots"
 
+    calculation_evidence = relationship(
+        "CoreCalculationEvidence",
+        foreign_keys="MarketRegimeSnapshot.evidence_id",
+        viewonly=True,
+        lazy="raise",
+    )
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int | None] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
     )
     as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
     calculation_context_id: Mapped[int | None] = mapped_column(
@@ -870,6 +1070,7 @@ class MarketRegimeSnapshot(Base):
         Index("idx_market_regime_snapshots_regime", "regime"),
         Index("idx_market_regime_snapshots_risk_state", "risk_state"),
         Index("idx_market_regime_snapshots_evidence_hash", "evidence_hash"),
+        Index("idx_market_regime_snapshots_evidence", "evidence_id"),
         Index(
             "idx_market_regime_snapshots_temporal_lineage",
             "input_as_of_session",
@@ -886,10 +1087,20 @@ class MarketRegimeSnapshot(Base):
 class SectorRotationSnapshot(Base):
     __tablename__ = "sector_rotation_snapshots"
 
+    calculation_evidence = relationship(
+        "CoreCalculationEvidence",
+        foreign_keys="SectorRotationSnapshot.evidence_id",
+        viewonly=True,
+        lazy="raise",
+    )
+
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[int | None] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="CASCADE"),
         nullable=True,
+    )
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
     )
     market_regime_snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("market_regime_snapshots.id", ondelete="SET NULL"),
@@ -981,6 +1192,7 @@ class SectorRotationSnapshot(Base):
         Index("idx_sector_rotation_snapshot_run_date", "run_id", "as_of_date"),
         Index("idx_sector_rotation_snapshot_date", "as_of_date"),
         Index("idx_sector_rotation_snapshot_evidence_hash", "evidence_hash"),
+        Index("idx_sector_rotation_snapshots_evidence", "evidence_id"),
         Index(
             "idx_sector_rotation_snapshots_temporal_lineage",
             "input_as_of_session",
@@ -2218,6 +2430,55 @@ class WinnerPredictionSnapshot(Base):
             postgresql_where=text("superseded_at IS NULL"),
         ),
     )
+
+
+def _protect_winner_readiness_update(_mapper: Any, connection: Any, target: Any) -> None:
+    # Winner retains mutable operational lineage. Readiness-at-creation and
+    # capture-time consumer permission are sealed; legacy rows cannot be promoted.
+    from sqlalchemy import inspect
+
+    if not inspect(target).attrs.lineage_json.history.has_changes():
+        return
+    stored = connection.execute(
+        select(WinnerPredictionSnapshot.__table__.c.lineage_json).where(
+            WinnerPredictionSnapshot.__table__.c.id == target.id
+        )
+    ).scalar_one()
+    sealed_members = (
+        "producer_readiness",
+        "winner_consumer_eligibility",
+        "effective_configuration_at_creation",
+        "outcome_effective_configuration",
+        "outcome_reference_policy",
+    )
+    if any(
+        (stored or {}).get(member) != (target.lineage_json or {}).get(member)
+        for member in sealed_members
+    ):
+        _reject_core_evidence_mutation(_mapper, connection, target)
+
+
+def _protect_winner_readiness_delete(mapper: Any, connection: Any, target: Any) -> None:
+    stored = connection.execute(
+        select(WinnerPredictionSnapshot.__table__.c.lineage_json).where(
+            WinnerPredictionSnapshot.__table__.c.id == target.id
+        )
+    ).scalar_one()
+    if any(
+        (stored or {}).get(member) is not None
+        for member in (
+            "producer_readiness",
+            "winner_consumer_eligibility",
+            "effective_configuration_at_creation",
+            "outcome_effective_configuration",
+            "outcome_reference_policy",
+        )
+    ):
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+event.listen(WinnerPredictionSnapshot, "before_update", _protect_winner_readiness_update)
+event.listen(WinnerPredictionSnapshot, "before_delete", _protect_winner_readiness_delete)
 
 
 class WinnerTemporalValidityDecision(Base):
@@ -3613,6 +3874,9 @@ class SetupSignalSnapshot(Base):
     sector_rotation_snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("sector_rotation_snapshots.id", ondelete="SET NULL")
     )
+    evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT")
+    )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     company_name: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(Text)
@@ -3725,6 +3989,7 @@ class SetupSignalSnapshot(Base):
         Index("idx_setup_signal_snapshots_quality", "data_quality_label"),
         Index("idx_setup_signal_snapshots_source_hash", "source_data_hash"),
         Index("idx_setup_signal_snapshots_eval_run", "evaluation_run_id"),
+        Index("idx_setup_signal_snapshots_evidence", "evidence_id"),
         Index(
             "idx_setup_signal_snapshots_temporal_lineage",
             "input_as_of_session",
@@ -3867,7 +4132,120 @@ class SetupSignalSnapshotSelectionEvent(Base):
     )
 
 
+class SetupLifecycleEvaluationEvidence(Base):
+    """Immutable evidence for every certified lifecycle evaluation, including no-ops."""
+
+    __tablename__ = "setup_lifecycle_evaluation_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    setup_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    prior_evaluation_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_evidence.id", ondelete="RESTRICT")
+    )
+    prior_transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
+    )
+    evaluation_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    setup_family: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision_session: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calendar_version: Mapped[str | None] = mapped_column(String(64))
+    calculation_identity_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    execution_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    previous_state: Mapped[str | None] = mapped_column(String(32))
+    output_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    output_phase: Mapped[str] = mapped_column(String(64), nullable=False)
+    transition_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    engine_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    counters_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    reasons_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    warnings_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("evidence_key", name="uq_setup_lifecycle_evaluation_evidence_key"),
+        Index(
+            "idx_setup_lifecycle_evaluation_evidence_chain",
+            "ticker",
+            "timeframe",
+            "setup_family",
+            "decision_session",
+        ),
+        Index("idx_setup_lifecycle_evaluation_setup", "setup_evidence_id"),
+    )
+
+
+class SetupLifecycleTransitionEvidence(Base):
+    """Immutable predecessor-linked evidence for a lifecycle state/phase transition."""
+
+    __tablename__ = "setup_lifecycle_transition_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evaluation_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_evidence.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    setup_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    prior_transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    setup_family: Mapped[str] = mapped_column(String(32), nullable=False)
+    effective_session: Mapped[date] = mapped_column(Date, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    from_state: Mapped[str | None] = mapped_column(String(32))
+    to_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    from_phase: Mapped[str | None] = mapped_column(String(64))
+    to_phase: Mapped[str] = mapped_column(String(64), nullable=False)
+    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    reasons_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("evaluation_evidence_id", name="uq_setup_transition_evaluation"),
+        UniqueConstraint("evidence_key", name="uq_setup_transition_evidence_key"),
+        Index(
+            "idx_setup_lifecycle_transition_chain",
+            "ticker",
+            "timeframe",
+            "setup_family",
+            "effective_session",
+        ),
+    )
+
+
 class SetupLifecycleEpisode(Base):
+    """Mutable current lifecycle projection; historical meaning lives in evidence rows."""
+
     __tablename__ = "setup_lifecycle_episodes"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -3906,6 +4284,12 @@ class SetupLifecycleEpisode(Base):
     closing_evaluation_id: Mapped[int | None] = mapped_column(
         ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
     )
+    latest_evaluation_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_evidence.id", ondelete="RESTRICT")
+    )
+    latest_transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
+    )
     terminal_state: Mapped[str | None] = mapped_column(String(32))
     terminal_reason_code: Mapped[str | None] = mapped_column(Text)
     is_primary: Mapped[bool] = mapped_column(
@@ -3934,6 +4318,11 @@ class SetupLifecycleEpisode(Base):
         Index("idx_setup_lifecycle_episodes_family_state", "setup_family", "current_state"),
         Index("idx_setup_lifecycle_episodes_current_snapshot", "current_snapshot_id"),
         Index(
+            "idx_setup_lifecycle_episode_latest_evidence",
+            "latest_evaluation_evidence_id",
+            "latest_transition_evidence_id",
+        ),
+        Index(
             "uq_setup_lifecycle_episodes_active_family",
             "ticker",
             "timeframe",
@@ -3956,6 +4345,9 @@ class SetupLifecycleEvent(Base):
     )
     snapshot_id: Mapped[int | None] = mapped_column(
         ForeignKey("setup_signal_snapshots.id", ondelete="SET NULL")
+    )
+    transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -4017,6 +4409,7 @@ class SetupLifecycleEvent(Base):
         Index("idx_setup_lifecycle_events_ticker_date", "ticker", "effective_date"),
         Index("idx_setup_lifecycle_events_type", "event_type"),
         Index("idx_setup_lifecycle_events_current", "is_current_version"),
+        Index("idx_setup_lifecycle_events_transition_evidence", "transition_evidence_id"),
         Index(
             "idx_setup_lifecycle_events_dashboard_order",
             "effective_date",
@@ -4161,7 +4554,91 @@ class SignalAlertRule(Base):
     )
 
 
+class SignalAlertRuleEvidence(Base):
+    """Immutable snapshot of the effective, decision-relevant alert rule."""
+
+    __tablename__ = "signal_alert_rule_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False)
+    rule_row_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_alert_rules.id", ondelete="SET NULL")
+    )
+    config_version: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("evidence_key", name="uq_signal_alert_rule_evidence_key"),
+        Index("idx_signal_alert_rule_evidence_rule", "rule_id", "id"),
+    )
+
+
+class SignalAlertDecisionEvidence(Base):
+    """Immutable generated/suppressed alert decision, separate from notification state."""
+
+    __tablename__ = "signal_alert_decision_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    rule_evidence_id: Mapped[int] = mapped_column(
+        ForeignKey("signal_alert_rule_evidence.id", ondelete="RESTRICT"), nullable=False
+    )
+    setup_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT")
+    )
+    lifecycle_evaluation_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_evaluation_evidence.id", ondelete="RESTRICT")
+    )
+    lifecycle_transition_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("setup_lifecycle_transition_evidence.id", ondelete="RESTRICT")
+    )
+    cooldown_predecessor_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_alert_decision_evidence.id", ondelete="RESTRICT")
+    )
+    dedup_predecessor_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_alert_decision_evidence.id", ondelete="RESTRICT")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
+    effective_session: Mapped[date] = mapped_column(Date, nullable=False)
+    calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calendar_version: Mapped[str | None] = mapped_column(String(64))
+    source_event_key: Mapped[str] = mapped_column(Text, nullable=False)
+    semantic_key: Mapped[str] = mapped_column(Text, nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    reasons_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('GENERATED', 'SUPPRESSED_COOLDOWN', 'SUPPRESSED_DEDUP', 'INELIGIBLE')",
+            name="ck_signal_alert_decision_evidence_decision",
+        ),
+        UniqueConstraint("evidence_key", name="uq_signal_alert_decision_evidence_key"),
+        Index(
+            "idx_signal_alert_decision_temporal",
+            "ticker",
+            "timeframe",
+            "effective_session",
+        ),
+        Index("idx_signal_alert_decision_semantic", "semantic_key", "effective_session"),
+    )
+
+
 class SignalAlertEvent(Base):
+    """Mutable notification state pointing to an immutable alert decision."""
+
     __tablename__ = "signal_alert_events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -4176,6 +4653,9 @@ class SignalAlertEvent(Base):
     )
     evaluation_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("setup_lifecycle_evaluation_runs.id", ondelete="SET NULL")
+    )
+    decision_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("signal_alert_decision_evidence.id", ondelete="RESTRICT")
     )
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     timeframe: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -4202,10 +4682,75 @@ class SignalAlertEvent(Base):
 
     __table_args__ = (
         UniqueConstraint("event_key", name="uq_signal_alert_events_event_key"),
+        UniqueConstraint("decision_evidence_id", name="uq_signal_alert_events_decision_evidence"),
         Index("idx_signal_alert_events_status_severity", "status", "severity"),
         Index("idx_signal_alert_events_ticker_date", "ticker", "effective_date"),
         Index("idx_signal_alert_events_rule", "alert_rule_id"),
     )
+
+
+for _immutable_setup_model in (
+    SetupLifecycleEvaluationEvidence,
+    SetupLifecycleTransitionEvidence,
+    SignalAlertRuleEvidence,
+    SignalAlertDecisionEvidence,
+):
+    event.listen(_immutable_setup_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_immutable_setup_model, "before_delete", _reject_core_evidence_mutation)
+
+
+class EffectiveConfigurationRecord(Base):
+    """Content-addressed T13A snapshots shared by durable execution anchors."""
+
+    __tablename__ = "effective_configuration_records"
+    resolution_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    namespace: Mapped[str] = mapped_column(Text, nullable=False)
+    semantic_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+event.listen(EffectiveConfigurationRecord, "before_update", _reject_core_evidence_mutation)
+event.listen(EffectiveConfigurationRecord, "before_delete", _reject_core_evidence_mutation)
+
+
+class ExecutionConfigurationAnchor(Base):
+    __tablename__ = "execution_configuration_anchors"
+    anchor_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class ExecutionConfigurationBinding(Base):
+    __tablename__ = "execution_configuration_bindings"
+    binding_key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    anchor_id: Mapped[str] = mapped_column(
+        ForeignKey("execution_configuration_anchors.anchor_id", ondelete="RESTRICT"), nullable=False
+    )
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("background_jobs.id", ondelete="RESTRICT"), unique=True
+    )
+    pipeline_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT"), unique=True
+    )
+    winner_cohort_generation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_cohort_generations.id", ondelete="RESTRICT"), unique=True
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "(CASE WHEN job_id IS NULL THEN 0 ELSE 1 END + "
+            "CASE WHEN pipeline_run_id IS NULL THEN 0 ELSE 1 END + "
+            "CASE WHEN winner_cohort_generation_id IS NULL THEN 0 ELSE 1 END) = 1",
+            name="ck_configuration_binding_scope",
+        ),
+    )
+
+
+for _immutable_configuration_model in (ExecutionConfigurationAnchor, ExecutionConfigurationBinding):
+    event.listen(_immutable_configuration_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_immutable_configuration_model, "before_delete", _reject_core_evidence_mutation)
 
 
 class SetupLifecycleAdministrativeAuditEvent(Base):
@@ -4240,3 +4785,11 @@ class SetupLifecycleAdministrativeAuditEvent(Base):
         Index("idx_setup_lifecycle_admin_audit_eval", "evaluation_run_id"),
         Index("idx_setup_lifecycle_admin_audit_created", "created_at"),
     )
+
+
+for _configured_model in (
+    WinnerOutcomeDefinition,
+    WinnerCohortStatistic,
+    WinnerProbabilityEstimate,
+):
+    seal_configuration_member(_configured_model, "metadata_json")

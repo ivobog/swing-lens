@@ -19,11 +19,12 @@ from uuid import uuid4
 import psutil
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from app.database_safety import DATABASE_SAFETY_CONTEXT_ENV, DatabaseSafetyContext
-from app.models.tables import BackgroundJob, BackgroundSupervisor, BackgroundWorker
+from app.models.tables import BackgroundJob, BackgroundSupervisor, BackgroundWorker, PipelineRun
 from app.services.alembic_heads import database_alembic_heads, repository_alembic_heads
 from app.services.canonical_runtime_launcher import build_canonical_runtime_launch
 from app.services.lifecycle_control import (
@@ -466,13 +467,13 @@ def _assert_physically_quiescent(state: dict[str, object]) -> None:
         if int(row.get("port") or 0) in lifecycle_ports
     ]
     if listeners:
-        summary = ", ".join(
-            f"{row.get('port')}:{row.get('pid') or 'unknown'}" for row in listeners
-        )
+        summary = ", ".join(f"{row.get('port')}:{row.get('pid') or 'unknown'}" for row in listeners)
         raise LifecycleConflict(f"lifecycle ports remain occupied: {summary}")
 
 
-def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
+def _runtime_state_report(
+    listener_pid: int | None, *, for_shutdown: bool = False
+) -> dict[str, object]:
     state: dict[str, object] | None = None
     try:
         state = read_runtime_state(RUNTIME_STATE)
@@ -565,6 +566,7 @@ def _runtime_state_report(listener_pid: int | None) -> dict[str, object]:
             int(state.get("version") or 0) >= 5
             and desired_fingerprint
             and state.get("runtimeConfigFingerprint") != desired_fingerprint
+            and not for_shutdown
         ):
             return {
                 "classification": RuntimeStateClassification.ACTIVE_GENERATION_MISMATCH.value,
@@ -944,13 +946,13 @@ def _observability_report(action: str) -> dict[str, object]:
 
 
 def _signal_break(process_id: int, listener_pid: int | None) -> dict[str, object]:
-    report = _runtime_state_report(listener_pid)
+    report = _runtime_state_report(listener_pid, for_shutdown=True)
     if not report.get("valid"):
         return {"signaled": False, "conflict": True, "error": report.get("error")}
     expected_pid = int(report["state"]["web"]["pid"])
     if process_id != expected_pid:
         return {"signaled": False, "conflict": True, "error": "requested PID is not state PID"}
-    second = _runtime_state_report(listener_pid)
+    second = _runtime_state_report(listener_pid, for_shutdown=True)
     if not second.get("valid"):
         return {"signaled": False, "conflict": True, "error": second.get("error")}
     try:
@@ -965,9 +967,7 @@ def _signal_break(process_id: int, listener_pid: int | None) -> dict[str, object
         signal_pid = int(second_group["pid"])
         if os.name == "nt":
             supervisor = second["state"].get("supervisor") or second_group
-            request_path = shutdown_request_path(
-                ROOT, str(second["state"]["runtimeInstanceId"])
-            )
+            request_path = shutdown_request_path(ROOT, str(second["state"]["runtimeInstanceId"]))
             atomic_write_json(
                 request_path,
                 {
@@ -1095,6 +1095,132 @@ def _registrations_report() -> dict[str, object]:
         engine.dispose()
 
 
+def _runtime_recovery_evidence() -> dict[str, object]:
+    """Read-only DB/OS observation. Only identity environment keys leave memory."""
+    from app.services.parent_watchdog import PARENT_PID_ENV, PARENT_STARTED_AT_ENV
+
+    settings = _settings()
+    roles = _role_processes()
+    processes, environments = {}, {}
+    allowed = {
+        GIT_SHA_ENV,
+        RUNTIME_FINGERPRINT_ENV,
+        "SWINGLENS_RUNTIME_INSTANCE_ID",
+        "PROCESS_ROLE",
+        "RUNTIME_MODE",
+        PARENT_PID_ENV,
+        PARENT_STARTED_AT_ENV,
+    }
+    for role in roles:
+        process = psutil.Process(role["pid"])
+        for member in (process, *process.parents()):
+            processes[member.pid] = inspect_process(member.pid)
+        environments[process.pid] = {
+            key: value for key, value in process.environ().items() if key in allowed
+        }
+    supervisors = [row for row in roles if row["role"] == "supervisor"]
+    if len(supervisors) != 1:
+        raise LifecycleConflict("supervisor is missing or ambiguous")
+    supervisor = processes[supervisors[0]["pid"]]
+    command = supervisor.get("commandLine") or []
+    if command.count("--runtime-instance-id") != 1:
+        raise LifecycleConflict("supervisor runtime argument unavailable")
+    runtime_id = command[command.index("--runtime-instance-id") + 1]
+    group = _runtime_group_identity(supervisor["pid"], "app.worker_supervisor", runtime_id)
+    engine = create_engine(
+        settings.database_url,
+        poolclass=NullPool,
+        connect_args={"connect_timeout": settings.database_connect_timeout_seconds},
+    )
+    try:
+        with Session(engine) as db:
+            db.execute(text("SET TRANSACTION READ ONLY"))
+            registrations = {"reachable": True}
+            for role, model in (("worker", BackgroundWorker), ("supervisor", BackgroundSupervisor)):
+                row = db.get(model, settings.job_worker_id)
+                registrations[role] = (
+                    None
+                    if row is None
+                    else {
+                        **_registration_dict(row, role),
+                        "workerId": row.worker_id,
+                        "heartbeatAt": row.heartbeat_at.isoformat(),
+                    }
+                )
+            running = db.query(PipelineRun).filter(PipelineRun.status == "RUNNING").count()
+    finally:
+        engine.dispose()
+    return {
+        "roles": roles,
+        "processes": processes,
+        "environments": environments,
+        "listeners": _listeners_report(),
+        "registrations": registrations,
+        "processGroup": group,
+        "runningPipelines": running,
+        "jobs": _jobs_report(),
+        "supervisorState": read_runtime_state(supervisor_state_path(ROOT)),
+    }
+
+
+def _recover_runtime_state() -> dict[str, object]:
+    from app.services.runtime_identity_recovery import (
+        publish_missing_state,
+        verified_recovery_state,
+    )
+
+    try:
+        if os.path.lexists(RUNTIME_STATE):
+            raise LifecycleConflict("RUNTIME_STATE_ALREADY_EXISTS: recovery never overwrites state")
+        settings = _settings()
+        arguments = {
+            "root": ROOT,
+            "port": settings.app_port,
+            "host": settings.app_host,
+            "worker_id": settings.job_worker_id,
+            "executables": [
+                sys.executable,
+                sys._base_executable,
+                ROOT / ".venv" / "Scripts" / "python.exe",
+            ],
+            "max_age": min(60, settings.job_worker_heartbeat_timeout_seconds),
+        }
+        first = verified_recovery_state(
+            _runtime_recovery_evidence(), now=datetime.now(UTC), **arguments
+        )
+        second = verified_recovery_state(
+            _runtime_recovery_evidence(), now=datetime.now(UTC), **arguments
+        )
+        identity_keys = (
+            "runtimeInstanceId",
+            "gitCommit",
+            "runtimeConfigFingerprint",
+            "web",
+            "supervisor",
+            "worker",
+            "processGroup",
+        )
+        if (
+            any(first[key] != second[key] for key in identity_keys)
+            or first["recovery"]["registrationIdentity"]
+            != second["recovery"]["registrationIdentity"]
+        ):
+            raise LifecycleConflict("runtime identity changed during recovery")
+        _validate_recorded_runtime_shape(second)
+        publish_missing_state(RUNTIME_STATE, second)
+        return {"recovered": True, "conflict": False, "state": second}
+    except (
+        LifecycleConflict,
+        OSError,
+        psutil.Error,
+        SQLAlchemyError,
+        KeyError,
+        ValueError,
+        TypeError,
+    ) as error:
+        return {"recovered": False, "conflict": True, "error": redact_text(str(error))}
+
+
 def _git_commit() -> str:
     configured = os.environ.get(GIT_SHA_ENV)
     if configured:
@@ -1177,9 +1303,13 @@ def _jobs_report() -> dict[str, object]:
     try:
         with Session(engine) as db:
             now = datetime.now(UTC)
-            rows = db.query(BackgroundJob).filter(
-                BackgroundJob.status.in_(("RUNNING", "RECOVERING"))
-            ).order_by(BackgroundJob.id).limit(100).all()
+            rows = (
+                db.query(BackgroundJob)
+                .filter(BackgroundJob.status.in_(("RUNNING", "RECOVERING")))
+                .order_by(BackgroundJob.id)
+                .limit(100)
+                .all()
+            )
             active = []
             for row in rows:
                 lease = row.lease_expires_at
@@ -1497,6 +1627,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     write_state.add_argument("--json", required=True)
     state = subparsers.add_parser("runtime-state")
     state.add_argument("--listener-pid", type=int)
+    state.add_argument("--for-shutdown", action="store_true")
+    subparsers.add_parser("recover-runtime-state")
     subparsers.add_parser("retire-stale-state")
     stop = subparsers.add_parser("signal-break")
     stop.add_argument("--pid", type=int, required=True)
@@ -1536,7 +1668,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     elif args.command == "diagnose":
         report = _diagnose(args.operation_id)
     elif args.command == "runtime-state":
-        report = _runtime_state_report(args.listener_pid)
+        report = _runtime_state_report(args.listener_pid, for_shutdown=args.for_shutdown)
+    elif args.command == "recover-runtime-state":
+        report = _recover_runtime_state()
     elif args.command == "retire-stale-state":
         report = _retire_stale_runtime_state()
     elif args.command == "signal-break":

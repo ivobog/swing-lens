@@ -439,6 +439,9 @@ def _classification_result(
 
 
 def _danger_priority(v4_params: dict[str, Any]) -> list[str]:
+    effective = _dict(v4_params.get("classification_v4")).get("effective_danger_priority")
+    if isinstance(effective, list) and effective:
+        return [str(item) for item in effective]
     configured = _dict(v4_params.get("classification_v4")).get("danger_priority")
     if isinstance(configured, list) and configured:
         return _append_unique([str(item) for item in configured], DEFAULT_DANGER_PRIORITY)

@@ -8,7 +8,7 @@
   <div class="panel-header">
     <div>
       <h1>History</h1>
-      <p>Paginated historical decisions across stored runs.</p>
+      <p>Certified immutable decision evidence across stored runs.</p>
     </div>
     <a class="button-link" href="/">New upload</a>
   </div>
@@ -69,7 +69,7 @@
   <div class="panel-header">
     <div>
       <h2>Recent Runs</h2>
-      <p>Latest stored run summaries without loading all history.</p>
+      <p>Current operational run summaries; these are not historical decision evidence.</p>
     </div>
   </div>
 
@@ -136,6 +136,7 @@
         <thead>
           <tr>
             <th>Run</th>
+            <th>Evidence</th>
             <th>Rank</th>
             <th>Ticker</th>
             <th>Company</th>
@@ -153,6 +154,7 @@
             {% set decision_class = decision.combined_decision|default("unclassified", true)|lower|replace(" ", "-") %}
             <tr>
               <td><a href="/runs/{{ decision.run_id }}">{{ decision.run_id }}</a></td>
+              <td>#{{ decision.evidence_id }} · {{ decision.evidence_status }}</td>
               <td>{{ decision.rank }}</td>
               <td>{{ decision.ticker }}</td>
               <td>{{ decision.company_name or "" }}</td>

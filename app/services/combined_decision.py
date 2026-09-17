@@ -9,7 +9,7 @@ from typing import Any
 
 import yaml
 from sqlalchemy import delete, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.tables import (
     CombinedResult,
@@ -27,7 +27,6 @@ from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.combined_ranking_identity import (
     COMBINED_INPUT_COMPATIBILITY,
     build_combined_result_identity,
-    calculation_identity_from_debug,
     cohort_identity_fingerprint,
     embed_calculation_identity,
     fundamental_score_identity,
@@ -36,6 +35,17 @@ from app.services.combined_ranking_identity import (
     technical_score_identity,
 )
 from app.services.confidence_service import build_combined_warning_flags
+from app.services.configuration_source_values import SourcedConfigurationValues, winning_sources
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    FUNDAMENTAL_TO_COMBINED,
+    contextual_decision_input,
+)
+from app.services.core_calculation_evidence import CoreEvidenceKind, persist_core_evidence
+from app.services.core_effective_configuration import (
+    CoreEffectiveConfiguration,
+    resolve_combined_configuration,
+)
 from app.services.earnings_date_parser import MISSING_EARNINGS_DATE_VALUES
 from app.services.earnings_risk_service import (
     EarningsRiskResult,
@@ -46,6 +56,12 @@ from app.services.market_calculation_context_service import (
     calculation_identity_from_market_context,
 )
 from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.technical_consumer_eligibility import (
+    TECHNICAL_ELIGIBILITY_KEY,
+    TECHNICAL_TO_COMBINED,
+    technical_decision_input,
+)
+from app.services.warning_flag_service import warning_flags_for_row
 
 logger = logging.getLogger(__name__)
 
@@ -118,12 +134,18 @@ def refresh_combined_results(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
     pipeline_run_id: int | None = None,
+    effective_configuration: CoreEffectiveConfiguration | None = None,
+    expected_calculation_identity: CalculationIdentity | None = None,
 ) -> list[CombinedResult]:
     rows = _rows_for_run(db, run_id)
     fundamentals = {score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)}
     technicals = {score.ticker.upper(): score for score in _technicals_for_run(db, run_id)}
 
-    config = _load_scoring_config()
+    effective_configuration = effective_configuration or resolve_combined_configuration()
+    effective_configuration.require_family("core.combined")
+    if expected_calculation_identity is not None:
+        effective_configuration.require_retry_identity(expected_calculation_identity)
+    config = effective_configuration.values
     validated: list[
         tuple[
             RawCompanyRow,
@@ -201,7 +223,7 @@ def refresh_combined_results(
             calculation_version=COMBINED_DECISION_CALCULATION_VERSION,
             cohort_fingerprint=cohort_fingerprint,
         )
-        decisions_with_identity.append((decision, output_identity))
+        decisions_with_identity.append((decision, effective_configuration.bind(output_identity)))
     decisions_with_identity.sort(key=lambda item: cockpit_sort_key(item[0]))
 
     results = [
@@ -213,8 +235,6 @@ def refresh_combined_results(
         )
         for index, (decision, identity) in enumerate(decisions_with_identity, start=1)
     ]
-    _assert_combined_replacement_safe(db, run_id=run_id, desired=results)
-
     db.execute(
         update(WinnerPredictionSnapshot)
         .where(WinnerPredictionSnapshot.run_id == run_id)
@@ -224,6 +244,18 @@ def refresh_combined_results(
     db.execute(delete(CombinedResult).where(CombinedResult.run_id == run_id))
     db.add_all(results)
     db.flush()
+    if isinstance(db, Session):
+        for result in results:
+            persist_core_evidence(
+                db,
+                kind=CoreEvidenceKind.COMBINED,
+                current_row=result,
+                effective_configuration=effective_configuration.snapshot,
+                sources={
+                    "fundamental": fundamentals[result.ticker.upper()],
+                    "technical": technicals[result.ticker.upper()],
+                },
+            )
     return results
 
 
@@ -239,6 +271,12 @@ def combine_row_decision(
     penalties = config["penalties"]
     labels = config["labels"]
 
+    diagnostic_technical = technical
+    technical, eligibility = technical_decision_input(technical, TECHNICAL_TO_COMBINED)
+
+    fundamental, fundamental_permission = contextual_decision_input(
+        fundamental, FUNDAMENTAL_TO_COMBINED
+    )
     fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     dual_score = _float_or_none(technical.dual_score if technical else None)
     technical_classification = technical.classification if technical else None
@@ -332,6 +370,10 @@ def combine_row_decision(
         decision=decision,
     )
     warning_flags = _merge_warning_flags(warnings.flags, earnings_risk.warning_flags)
+    if technical is None and diagnostic_technical is not None:
+        warning_flags = _merge_warning_flags(
+            warning_flags, tuple(warning_flags_for_row(fundamental, diagnostic_technical))
+        )
 
     return CombinedDecision(
         ticker=row.ticker.upper(),
@@ -355,20 +397,25 @@ def combine_row_decision(
         has_fundamental=warnings.has_fundamental,
         has_technical=warnings.has_technical,
         sort_bucket=warnings.sort_bucket,
-        debug_evidence=_combined_debug_evidence(
-            row=row,
-            fundamental=fundamental,
-            technical=technical,
-            config=config,
-            weighted_score_before_penalties=weighted_score_before_penalties,
-            penalty_breakdown=penalty_breakdown,
-            earnings_risk=earnings_risk,
-            final_score=final_score,
-            decision=decision,
-            position_size=position_size,
-            warning_flags=warning_flags,
-            sort_bucket=warnings.sort_bucket,
-        ),
+        debug_evidence={
+            CONTEXTUAL_ELIGIBILITY_KEY: {"fundamental": fundamental_permission},
+            **_combined_debug_evidence(
+                row=row,
+                fundamental=fundamental,
+                technical=technical,
+                config=config,
+                weighted_score_before_penalties=weighted_score_before_penalties,
+                penalty_breakdown=penalty_breakdown,
+                earnings_risk=earnings_risk,
+                final_score=final_score,
+                decision=decision,
+                position_size=position_size,
+                warning_flags=warning_flags,
+                sort_bucket=warnings.sort_bucket,
+            ),
+            TECHNICAL_ELIGIBILITY_KEY: eligibility,
+            "diagnostic_technical_score_id": getattr(diagnostic_technical, "id", None),
+        },
     )
 
 
@@ -495,40 +542,6 @@ def _to_model(
     )
 
 
-def _assert_combined_replacement_safe(
-    db: Session,
-    *,
-    run_id: int,
-    desired: list[CombinedResult],
-) -> None:
-    existing = {row.ticker.upper(): row for row in _combined_for_run(db, run_id)}
-    for candidate in desired:
-        current = existing.get(candidate.ticker.upper())
-        if current is None:
-            continue
-        current_identity = calculation_identity_from_debug(current.debug_json)
-        if current_identity is None:
-            # A legacy row is explicitly replaced by a newly inserted identity-aware row.
-            continue
-        desired_identity = calculation_identity_from_debug(candidate.debug_json)
-        if (
-            desired_identity is None
-            or current_identity.fingerprint() != desired_identity.fingerprint()
-        ):
-            raise ValueError(
-                "CALCULATION_IDENTITY_PERSISTENCE_CONFLICT: consumer=CombinedResult "
-                f"ticker={candidate.ticker} existing={current_identity.fingerprint()} "
-                f"desired={desired_identity.fingerprint() if desired_identity else 'UNKNOWN'}"
-            )
-
-
-def _combined_for_run(db: Session, run_id: int) -> list[CombinedResult]:
-    scalars = getattr(db, "scalars", None)
-    if not callable(scalars):
-        return []
-    return list(scalars(select(CombinedResult).where(CombinedResult.run_id == run_id)))
-
-
 def _validate_explicit_pipeline_context(
     *,
     source_identity: CalculationIdentity,
@@ -611,16 +624,42 @@ def _rows_for_run(db: Session, run_id: int) -> list[RawCompanyRow]:
 
 
 def _fundamentals_for_run(db: Session, run_id: int) -> list[FundamentalScore]:
-    return list(db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(FundamentalScore)
+            .options(selectinload(FundamentalScore.calculation_evidence))
+            .where(FundamentalScore.run_id == run_id)
+        )
+    )
 
 
 def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
-    return list(db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id)))
+    return list(
+        db.scalars(
+            select(TechnicalScore)
+            .options(selectinload(TechnicalScore.calculation_evidence))
+            .where(TechnicalScore.run_id == run_id)
+        )
+    )
 
 
 def _load_scoring_config(path: Path = Path("config/scoring_weights.yaml")) -> dict[str, Any]:
+    from app.services.configuration_delivery import current_delivery, delivered_native
+
+    if current_delivery() is not None:
+        return delivered_native("scoring")
+
     with path.open("r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle) or {}
+        values = yaml.safe_load(handle) or {}
+    return SourcedConfigurationValues(
+        values,
+        winning_sources(
+            values,
+            values,
+            path.as_posix() if not path.is_absolute() else None,
+            "scoring-defaults",
+        ),
+    )
 
 
 def _combined_debug_evidence(

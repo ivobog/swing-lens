@@ -16,6 +16,15 @@ from app.models.tables import SetupSignalSnapshot, UploadRun
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.background_job_service import enqueue_job
+from app.services.core_calculation_evidence import CoreEvidenceKind, EvidenceUnavailableError
+from app.services.historical_read_service import (
+    HistoricalReadError,
+    ReadMode,
+    evidence_view,
+    read_alert_evidence,
+    read_core_artifact,
+    read_lifecycle_evidence,
+)
 from app.services.resource_limits import (
     ResourceLimitExceeded,
     enforce_row_limit,
@@ -575,6 +584,44 @@ def setup_lifecycle_ticker_timeline(
 @router.get("/api/setup-lifecycle/episodes/{episode_id}")
 def setup_lifecycle_episode(episode_id: int, db: DbSession) -> dict[str, Any]:
     return _query_or_http(lambda: SetupLifecycleQueryService().episode_detail(db, episode_id))
+
+
+@router.get("/api/setup-lifecycle/evidence/setups/{evidence_id}")
+def setup_evidence(evidence_id: int, db: DbSession) -> dict[str, Any]:
+    try:
+        evidence = read_core_artifact(
+            db,
+            kind=CoreEvidenceKind.SETUP,
+            mode=ReadMode.EVIDENCE,
+            evidence_id=evidence_id,
+        )
+        return evidence_view(evidence, mode=ReadMode.EVIDENCE)
+    except (EvidenceUnavailableError, HistoricalReadError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/api/setup-lifecycle/evidence/evaluations/{evidence_id}")
+def lifecycle_evaluation_evidence(evidence_id: int, db: DbSession) -> dict[str, Any]:
+    try:
+        return read_lifecycle_evidence(db, evaluation_evidence_id=evidence_id)
+    except (EvidenceUnavailableError, HistoricalReadError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/api/setup-lifecycle/evidence/transitions/{evidence_id}")
+def lifecycle_transition_evidence(evidence_id: int, db: DbSession) -> dict[str, Any]:
+    try:
+        return read_lifecycle_evidence(db, transition_evidence_id=evidence_id)
+    except (EvidenceUnavailableError, HistoricalReadError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/api/setup-lifecycle/evidence/alerts/{evidence_id}")
+def alert_decision_evidence(evidence_id: int, db: DbSession) -> dict[str, Any]:
+    try:
+        return read_alert_evidence(db, decision_evidence_id=evidence_id)
+    except (EvidenceUnavailableError, HistoricalReadError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/api/setup-lifecycle/alerts")

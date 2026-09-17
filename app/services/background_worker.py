@@ -593,13 +593,28 @@ def execute_job(
         raise ValueError(f"Unsupported job type: {job.job_type}")
     if heartbeat is not None:
         job._heartbeat = heartbeat
+    job._execution_token = execution_token if execution_token is not None else job.execution_token
     payload = job.payload_json or {}
     run_id = job.related_run_id or payload.get("run_id")
     workflow_key = job.workflow_key or payload.get("workflow_key")
     ticker = payload.get("ticker")
     company = payload.get("company")
+    from app.services.configuration_delivery import (
+        configuration_delivery_scope,
+        durable_business_job,
+        execution_configuration_reference,
+        load_configuration_delivery,
+    )
+
+    delivery = None
+    if isinstance(db, Session) and (
+        durable_business_job(job.job_type) or job.job_type == "SEC_READINESS_REPAIR"
+    ):
+        expected = execution_configuration_reference(db, job)
+        delivery = load_configuration_delivery(db, expected, expected_anchor=expected)
     try:
         with (
+            configuration_delivery_scope(delivery),
             worker_job_scope(job),
             background_job_scope(
                 job_id=job.id,
@@ -615,9 +630,12 @@ def execute_job(
                 job_status_getter=lambda: str(job.status) if job.status is not None else None,
             ),
         ):
-            with job_phase("job_handler"), fence_domain_commits(
-                job_id=job.id,
-                execution_token=execution_token,
+            with (
+                job_phase("job_handler"),
+                fence_domain_commits(
+                    job_id=job.id,
+                    execution_token=execution_token,
+                ),
             ):
                 return handler(db, job)
     finally:

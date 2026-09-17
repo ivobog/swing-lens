@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.contextual_calculation_identity import (
     REGIME_CONTEXT_COMPATIBILITY,
     build_regime_identity,
@@ -68,6 +69,8 @@ class MarketRegimeCommandCenterService:
         today: date | None = None,
         config_path: Path | None = None,
         market_cutoff: MarketCalculationCutoff | None = None,
+        effective_configuration=None,
+        expected_calculation_identity=None,
     ) -> MarketRegimeCommandCenterDto:
         market_cutoff = market_cutoff or standalone_market_context(
             reason="STANDALONE_MARKET_REGIME",
@@ -76,11 +79,18 @@ class MarketRegimeCommandCenterService:
             ),
         )
         today = market_cutoff.latest_completed_session
-        config = load_market_regime_command_center_config(
-            config_path
-            if config_path is not None
-            else Path("config/market_regime_command_center.yaml")
+        config = (
+            effective_configuration.regime_config()
+            if effective_configuration is not None
+            else load_market_regime_command_center_config(
+                config_path
+                if config_path is not None
+                else Path("config/market_regime_command_center.yaml")
+            )
         )
+        effective_configuration = config._effective_configuration
+        if expected_calculation_identity is not None:
+            effective_configuration.require_retry_identity(expected_calculation_identity)
         primary_symbol = str(config.symbols["primary_market"]).strip().upper()
         risk_symbol = str(config.symbols.get("risk_proxy") or "").strip().upper()
         use_risk_proxy = bool(config.symbols.get("use_risk_proxy", True)) and bool(risk_symbol)
@@ -183,7 +193,9 @@ class MarketRegimeCommandCenterService:
             ),
         )
 
-        self.repository.upsert_snapshot(db, self._snapshot_write(dto, input_symbols), run_id)
+        write = self._snapshot_write(dto, input_symbols)
+        object.__setattr__(write, "_effective_configuration", effective_configuration.snapshot)
+        self.repository.upsert_snapshot(db, write, run_id)
         return dto
 
     def _load_market_input(
@@ -217,10 +229,21 @@ class MarketRegimeCommandCenterService:
                     stale=True,
                     warnings=[f"missing_{symbol.lower()}_market_data"],
                 ),
-                debug={"missing": True},
+                debug={
+                    "missing": True,
+                    "price_frame_evidence": _frame_evidence(price),
+                    "trades_frame_evidence": _frame_evidence(trades),
+                },
             )
 
-        feature_result = calculate_technical_features(price, trades, ticker=symbol)
+        feature_config = config._effective_configuration.values["feature"]
+        feature_result = calculate_technical_features(
+            price,
+            trades,
+            ticker=symbol,
+            params=feature_config["pine"],
+            v4_params=feature_config["v4"],
+        )
         freshness = self._input_freshness(as_of_date, config, today)
         warnings = [f"stale_{symbol.lower()}_market_data"] if freshness.stale else []
         return MarketInput(
@@ -236,6 +259,8 @@ class MarketRegimeCommandCenterService:
             ),
             debug={
                 "missing": False,
+                "price_frame_evidence": _frame_evidence(price),
+                "trades_frame_evidence": _frame_evidence(trades),
                 "feature_debug": feature_result.debug,
                 "missing_data": feature_result.missing_data,
                 "insufficient_data": feature_result.insufficient_data,
@@ -375,6 +400,23 @@ def _frame_as_of_date(frame: pd.DataFrame) -> date | None:
         return None
     value = pd.to_datetime(frame["date"].iloc[-1])
     return value.date()
+
+
+def _frame_evidence(frame: pd.DataFrame | None) -> dict[str, Any] | None:
+    if frame is None:
+        return None
+    canonical_frame = frame.to_json(
+        orient="split",
+        date_format="iso",
+        date_unit="us",
+        double_precision=15,
+    )
+    return {
+        "row_count": int(len(frame.index)),
+        "columns": [str(column) for column in frame.columns],
+        "fingerprint": CanonicalEvidenceSerializer.fingerprint(canonical_frame),
+        "proof": "complete bounded benchmark frame consumed by Market Regime",
+    }
 
 
 def _load_bounded_market_frames(

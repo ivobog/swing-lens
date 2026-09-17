@@ -8,6 +8,7 @@ from time import perf_counter
 
 import pytest
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -42,11 +43,18 @@ from app.settings import get_settings
 pytestmark = pytest.mark.integration
 
 
+def _repository_head(config: Config) -> str:
+    heads = tuple(ScriptDirectory.from_config(config).get_heads())
+    assert len(heads) == 1
+    return heads[0]
+
+
 @pytest.fixture
 def remediated_postgres(disposable_postgres_database_factory) -> Iterator:
     with disposable_postgres_database_factory() as database_url:
         config = Config("alembic.ini")
         config.attributes["database_url"] = database_url
+        expected_head = _repository_head(config)
         command.upgrade(config, "head")
         engine = create_engine(database_url)
         try:
@@ -55,7 +63,7 @@ def remediated_postgres(disposable_postgres_database_factory) -> Iterator:
                 assert str(database_name).startswith("swinglens_pytest_")
                 assert connection.execute(
                     text("select version_num from alembic_version")
-                ).scalar() == ("0074_ceri_evidence_quarantine")
+                ).scalar() == expected_head
             yield engine
         finally:
             engine.dispose()
@@ -336,6 +344,7 @@ def test_migration_0066_downgrade_and_reupgrade_are_consistent(
     with disposable_postgres_database_factory() as database_url:
         config = Config("alembic.ini")
         config.attributes["database_url"] = database_url
+        expected_head = _repository_head(config)
         command.upgrade(config, "head")
         engine = create_engine(database_url)
         try:
@@ -359,8 +368,9 @@ def test_migration_0066_downgrade_and_reupgrade_are_consistent(
                 assert "RECOVERING" not in str(legacy_predicate)
             command.upgrade(config, "head")
             with engine.connect() as connection:
-                assert connection.scalar(text("select version_num from alembic_version")) == (
-                    "0074_ceri_evidence_quarantine"
+                assert (
+                    connection.scalar(text("select version_num from alembic_version"))
+                    == expected_head
                 )
                 assert (
                     connection.scalar(

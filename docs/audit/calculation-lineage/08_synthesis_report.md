@@ -149,3 +149,24 @@ Tasks 01–07 were not modified. Pre-existing untracked files outside these outp
 Task 08 made documentation-only changes. It did not modify application code, tests, configuration, database state, migrations, providers, jobs, queues, or any earlier audit deliverable. It did not run a production pipeline, call an external provider, enqueue work, or execute live SQL.
 
 The authoritative implementation baseline remains `3a9d47063be996908b7d5d1cc5769e0bbd033546`.
+
+
+## T13E scoped Phase-4 integration reconciliation — 2026-09-17
+
+PASS after complete final certification lanes. Original audit definitions and historical rows above remain unchanged.
+
+| Finding | T13E reconciliation | Remaining boundary |
+| --- | --- | --- |
+| RANK-005 | CLOSED for selected effective profile authority | Algorithm/calibration separate |
+| CORE-008 | CLOSED; complete Regime effective config recoverable | Acquisition plan separate |
+| CERI-001 | CONFIGURATION PORTION CLOSED | Provider ordering/selection algorithm OPEN |
+| CERI-007 | CONFIGURATION PORTION CLOSED | Stale-penalty mathematics OPEN/PARTIAL |
+| CERI-008 | CLOSED for new native/downstream rule authority | Legacy original-rule reconstruction deferred |
+| SETUP-007 | Rule history and bounded cooldown CLOSED for certified alerts | Original-rule reconstruction of unanchored rebuilds/legacy remains PARTIAL; temporal fix not reopened |
+| SETUP-010 | CONFIGURATION PORTION CLOSED | Other algorithm/reconstruction portions not claimed |
+| WIN-003 | CLOSED | Original Ranking readiness, exact profile and temporal identity now enforced |
+| PIPE-005/006/007 | CONFIGURATION PORTIONS CLOSED | Entry-point/target/refresh/recovery scope separate |
+| XINT-010 | CLOSED for certified business configuration graph; repository-wide PARTIAL | Acquisition/legacy entry-point unification deferred |
+| INV-CONFIG-001 | ENFORCED across certified graph/history/durable execution | Legacy UNKNOWN and privileged SQL excluded |
+
+See `docs/architecture/SWINGLENS_EFFECTIVE_CONFIGURATION_PHASE4_CERTIFIED.md`, `docs/remediation/calculation-lineage/T13E_phase4_configuration_certification.md` and its machine certificate for precise boundary, fixes, regression and deployed runtime evidence. No original-context replay or Phase-5 entry-point unification is claimed.

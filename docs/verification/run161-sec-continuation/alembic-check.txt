@@ -1,0 +1,119 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.schemas
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.tables
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.types
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.constraints
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.defaults
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.comments
+C:\Users\Ivica\Documents\SwingLens\alembic\env.py:108: SAWarning: Cannot correctly sort tables; there are unresolvable cycles between tables "setup_lifecycle_evaluation_evidence, setup_lifecycle_transition_evidence", which is usually caused by mutually dependent foreign key constraints.  Foreign key constraints involving these tables will not be considered; this warning may raise an error in a future release.
+  context.run_migrations()
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_estimate_snapshots_id_seq' as owned by integer column 'ceri_estimate_snapshots(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_lifecycle_transition_evidence_id_seq' as owned by integer column 'setup_lifecycle_transition_evidence(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_cohort_statistics_id_seq' as owned by integer column 'winner_cohort_statistics(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'signal_alert_events_id_seq' as owned by integer column 'signal_alert_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_revision_features_id_seq' as owned by integer column 'ceri_revision_features(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'price_bar_revisions_id_seq' as owned by integer column 'price_bar_revisions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_flex_import_runs_id_seq' as owned by integer column 'ib_flex_import_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'price_bars_id_seq' as owned by integer column 'price_bars(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_price_response_features_id_seq' as owned by integer column 'ceri_price_response_features(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_scanner_runs_id_seq' as owned by integer column 'ib_scanner_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'core_calculation_current_projections_id_seq' as owned by integer column 'core_calculation_current_projections(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_trade_episodes_id_seq' as owned by integer column 'ib_trade_episodes(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_feature_build_states_id_seq' as owned by integer column 'ceri_feature_build_states(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_training_eligibility_decisions_id_seq' as owned by integer column 'winner_training_eligibility_decisions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_contracts_id_seq' as owned by integer column 'ib_contracts(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'core_calculation_evidence_id_seq' as owned by integer column 'core_calculation_evidence(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_alert_rules_id_seq' as owned by integer column 'ceri_alert_rules(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_market_data_obligations_id_seq' as owned by integer column 'winner_market_data_obligations(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'pipeline_runs_id_seq' as owned by integer column 'pipeline_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_controlled_replays_id_seq' as owned by integer column 'ceri_controlled_replays(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_cohort_definitions_id_seq' as owned by integer column 'winner_cohort_definitions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_lifecycle_evaluation_runs_id_seq' as owned by integer column 'setup_lifecycle_evaluation_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_intelligence_features_id_seq' as owned by integer column 'ib_intelligence_features(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'fundamental_scores_id_seq' as owned by integer column 'fundamental_scores(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'price_series_versions_id_seq' as owned by integer column 'price_series_versions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'technical_feature_artifacts_id_seq' as owned by integer column 'technical_feature_artifacts(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_scanner_candidates_id_seq' as owned by integer column 'ib_scanner_candidates(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_model_training_runs_id_seq' as owned by integer column 'winner_model_training_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_training_outcome_replays_id_seq' as owned by integer column 'winner_training_outcome_replays(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_sec_document_extractions_id_seq' as owned by integer column 'ceri_sec_document_extractions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_evidence_manifests_id_seq' as owned by integer column 'winner_evidence_manifests(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'pipeline_steps_id_seq' as owned by integer column 'pipeline_steps(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'upload_runs_id_seq' as owned by integer column 'upload_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_estimate_publication_requests_id_seq' as owned by integer column 'winner_estimate_publication_requests(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_alert_events_id_seq' as owned by integer column 'ceri_alert_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'background_jobs_id_seq' as owned by integer column 'background_jobs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_purge_audits_id_seq' as owned by integer column 'ceri_purge_audits(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_guidance_events_id_seq' as owned by integer column 'ceri_guidance_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_catalyst_events_id_seq' as owned by integer column 'ceri_catalyst_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'raw_company_rows_id_seq' as owned by integer column 'raw_company_rows(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_processing_runs_id_seq' as owned by integer column 'ceri_processing_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_drift_metrics_id_seq' as owned by integer column 'winner_drift_metrics(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'background_job_enqueue_attempts_id_seq' as owned by integer column 'background_job_enqueue_attempts(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_change_events_id_seq' as owned by integer column 'ceri_change_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_prediction_episodes_id_seq' as owned by integer column 'winner_prediction_episodes(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_calibration_bins_id_seq' as owned by integer column 'winner_calibration_bins(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_intelligence_request_items_id_seq' as owned by integer column 'ib_intelligence_request_items(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'market_calculation_contexts_id_seq' as owned by integer column 'market_calculation_contexts(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'engine_parameters_id_seq' as owned by integer column 'engine_parameters(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'market_regime_snapshots_id_seq' as owned by integer column 'market_regime_snapshots(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_model_lifecycle_events_id_seq' as owned by integer column 'winner_model_lifecycle_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'sector_rotation_snapshots_id_seq' as owned by integer column 'sector_rotation_snapshots(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_prediction_snapshots_id_seq' as owned by integer column 'winner_prediction_snapshots(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_derived_features_id_seq' as owned by integer column 'ceri_derived_features(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_evidence_manifest_members_id_seq' as owned by integer column 'winner_evidence_manifest_members(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_histogram_bins_id_seq' as owned by integer column 'ib_histogram_bins(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_historical_metric_bars_id_seq' as owned by integer column 'ib_historical_metric_bars(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'signal_change_events_id_seq' as owned by integer column 'signal_change_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'sector_rotation_rows_id_seq' as owned by integer column 'sector_rotation_rows(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_signal_snapshot_current_selections_id_seq' as owned by integer column 'setup_signal_snapshot_current_selections(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_companies_id_seq' as owned by integer column 'ceri_companies(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_model_versions_id_seq' as owned by integer column 'winner_model_versions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'transition_decision_handoff_manifests_id_seq' as owned by integer column 'transition_decision_handoff_manifests(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_target_stop_outcomes_id_seq' as owned by integer column 'winner_target_stop_outcomes(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'transition_preflight_plans_id_seq' as owned by integer column 'transition_preflight_plans(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_outcome_definitions_id_seq' as owned by integer column 'winner_outcome_definitions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_evidence_dispositions_id_seq' as owned by integer column 'ceri_evidence_dispositions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_signal_snapshots_id_seq' as owned by integer column 'setup_signal_snapshots(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_provider_request_telemetry_id_seq' as owned by integer column 'ceri_provider_request_telemetry(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_earnings_actuals_id_seq' as owned by integer column 'ceri_earnings_actuals(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_source_records_id_seq' as owned by integer column 'ceri_source_records(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'core_calculation_evidence_sources_id_seq' as owned by integer column 'core_calculation_evidence_sources(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_signal_snapshot_selection_events_id_seq' as owned by integer column 'setup_signal_snapshot_selection_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_fetch_runs_id_seq' as owned by integer column 'ib_fetch_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_probability_estimates_id_seq' as owned by integer column 'winner_probability_estimates(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'signal_alert_rule_evidence_id_seq' as owned by integer column 'signal_alert_rule_evidence(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_ingestion_runs_id_seq' as owned by integer column 'ceri_ingestion_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_scanner_parameter_cache_id_seq' as owned by integer column 'ib_scanner_parameter_cache(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_historical_metric_revisions_id_seq' as owned by integer column 'ib_historical_metric_revisions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ranking_results_id_seq' as owned by integer column 'ranking_results(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_lifecycle_episodes_id_seq' as owned by integer column 'setup_lifecycle_episodes(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_fetch_items_id_seq' as owned by integer column 'ib_fetch_items(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_histogram_snapshots_id_seq' as owned by integer column 'ib_histogram_snapshots(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'technical_scores_id_seq' as owned by integer column 'technical_scores(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_company_aliases_id_seq' as owned by integer column 'ceri_company_aliases(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'signal_alert_decision_evidence_id_seq' as owned by integer column 'signal_alert_decision_evidence(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_temporal_validity_decisions_id_seq' as owned by integer column 'winner_temporal_validity_decisions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_similarity_links_id_seq' as owned by integer column 'winner_similarity_links(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_processing_runs_id_seq' as owned by integer column 'winner_processing_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_sec_sync_states_id_seq' as owned by integer column 'ceri_sec_sync_states(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_sec_filing_documents_id_seq' as owned by integer column 'ceri_sec_filing_documents(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'signal_alert_rules_id_seq' as owned by integer column 'signal_alert_rules(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_catalyst_sources_id_seq' as owned by integer column 'ceri_catalyst_sources(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_estimate_evidence_members_id_seq' as owned by integer column 'winner_estimate_evidence_members(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_market_intelligence_snapshots_id_seq' as owned by integer column 'ib_market_intelligence_snapshots(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_forward_outcomes_id_seq' as owned by integer column 'winner_forward_outcomes(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_intelligence_runs_id_seq' as owned by integer column 'ib_intelligence_runs(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_catalyst_event_revisions_id_seq' as owned by integer column 'ceri_catalyst_event_revisions(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_lifecycle_administrative_audit_events_id_seq' as owned by integer column 'setup_lifecycle_administrative_audit_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_cohort_generations_id_seq' as owned by integer column 'winner_cohort_generations(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_trade_research_links_id_seq' as owned by integer column 'ib_trade_research_links(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_lifecycle_events_id_seq' as owned by integer column 'setup_lifecycle_events(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'combined_results_id_seq' as owned by integer column 'combined_results(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'setup_lifecycle_evaluation_evidence_id_seq' as owned by integer column 'setup_lifecycle_evaluation_evidence(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_score_snapshots_id_seq' as owned by integer column 'ceri_score_snapshots(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ceri_manual_reviews_id_seq' as owned by integer column 'ceri_manual_reviews(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'ib_execution_fills_id_seq' as owned by integer column 'ib_execution_fills(id)', assuming SERIAL and omitting
+INFO  [alembic.ddl.postgresql] Detected sequence named 'winner_cohort_refresh_state_id_seq' as owned by integer column 'winner_cohort_refresh_state(id)', assuming SERIAL and omitting
+No new upgrade operations detected.

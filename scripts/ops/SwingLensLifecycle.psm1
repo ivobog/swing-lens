@@ -183,7 +183,7 @@ function Get-WebOwner {
 }
 
 function Get-ValidatedRuntime {
-    param([int]$WebPort)
+    param([int]$WebPort, [switch]$ForShutdown)
     $owner = Get-WebOwner -Port $WebPort
     if ($null -eq $owner) {
         if (Test-Path -LiteralPath $script:RuntimeStatePath -PathType Leaf) {
@@ -192,7 +192,9 @@ function Get-ValidatedRuntime {
         }
         return $null
     }
-    $runtime = Invoke-LifecycleProbe -Command 'runtime-state' -Arguments @('--listener-pid', [string]$owner.ProcessId)
+    $probeArguments = @('--listener-pid', [string]$owner.ProcessId)
+    if ($ForShutdown) { $probeArguments += '--for-shutdown' }
+    $runtime = Invoke-LifecycleProbe -Command 'runtime-state' -Arguments $probeArguments
     if (-not $runtime.valid) {
         throw ('CONFLICT: port {0} is occupied but strong SwingLens runtime identity failed: {1}' -f $WebPort, $runtime.error)
     }
@@ -543,7 +545,7 @@ function Stop-SwingLensCore {
         }
         return
     }
-    $runtime = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
+    $runtime = Get-ValidatedRuntime -WebPort ([int]$Config.web.port) -ForShutdown
     $signal = Invoke-LifecycleProbe -Command 'signal-break' -Arguments @('--pid', [string]$runtime.state.web.pid, '--listener-pid', [string]$owner.ProcessId)
     if (-not $signal.signaled) { throw ('CONFLICT: verified runtime was not signaled: ' + $signal.error) }
     if ($null -ne $ShutdownCommitted) { $ShutdownCommitted.Value = $true }
@@ -762,7 +764,7 @@ function Stop-SwingLensStack {
 
 function Invoke-SwingLensLifecycle {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][ValidateSet('start','stop','restart','status','diagnose')][string]$Action, [switch]$AsJson)
+    param([Parameter(Mandatory = $true)][ValidateSet('start','stop','restart','status','diagnose','recover-identity')][string]$Action, [switch]$AsJson)
     Push-Location $script:RepoRoot
     $timer = [Diagnostics.Stopwatch]::StartNew()
     try {
@@ -791,6 +793,12 @@ function Invoke-SwingLensLifecycle {
         }
         $code = Invoke-WithLifecycleLock -Action $Action -TimeoutSeconds ([int]$config.lockTimeoutSeconds) -Body {
             switch ($Action) {
+                'recover-identity' {
+                    $recovery = Invoke-LifecycleProbe -Command 'recover-runtime-state'
+                    if (-not $recovery.recovered) { throw ('CONFLICT: ' + $recovery.error) }
+                    Write-Host ($recovery | ConvertTo-Json -Depth 10 -Compress)
+                    0
+                }
                 'start' { Start-SwingLensStack -Config $config }
                 'stop' { Stop-SwingLensStack -Config $config }
                 'restart' {

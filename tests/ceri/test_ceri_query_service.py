@@ -501,22 +501,20 @@ def test_ticker_history_requires_stored_snapshot_mode_and_as_of_cutoff() -> None
             ),
         )
 
-    payload = service.ticker_history(
-        db,
-        "MSFT",
-        CeriListQuery(
-            filters=CeriQueryFilters(
-                mode="STORED_SNAPSHOT",
-                as_of=NOW + timedelta(hours=1),
+    with pytest.raises(CeriQueryError) as exc:
+        service.ticker_history(
+            db,
+            "MSFT",
+            CeriListQuery(
+                filters=CeriQueryFilters(
+                    mode="STORED_SNAPSHOT",
+                    as_of=NOW + timedelta(hours=1),
+                ),
+                sort="cutoff_at",
             ),
-            sort="cutoff_at",
-        ),
-    )
+        )
 
-    assert payload["total"] == 1
-    assert payload["mode"] == "STORED_SNAPSHOT"
-    assert payload["source_correction_policy"] == "stored_score_snapshots_only"
-    assert payload["evidence_hash"]
+    assert exc.value.code == "LEGACY_EVIDENCE_UNAVAILABLE"
 
 
 def test_revision_detail_exposes_lineage_and_raw_breadth_counts() -> None:

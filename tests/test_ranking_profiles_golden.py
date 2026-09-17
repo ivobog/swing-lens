@@ -3,6 +3,9 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from core_readiness_helpers import certified_fundamental
+from readiness_helpers import certified_technical
+
 from app.models.tables import FundamentalScore, RawCompanyRow, TechnicalScore
 from app.services.ranking_profile_config import load_ranking_profiles
 from app.services.ranking_profile_engine import rank_profile, rank_single_row
@@ -211,7 +214,7 @@ def _row(
 
 
 def _fundamental(ticker: str, score: float) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         run_id=1,
         ticker=ticker,
         fundamental_score=Decimal(str(score)),
@@ -234,7 +237,7 @@ def _technical(
     box_tightness: float,
     derived: dict | None = None,
 ) -> TechnicalScore:
-    return TechnicalScore(
+    return certified_technical(
         run_id=1,
         ticker=ticker,
         trend_score=Decimal(str(trend)),

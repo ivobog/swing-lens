@@ -1,7 +1,9 @@
 from datetime import date
 from types import SimpleNamespace
 
-from app.models.tables import SectorRotationRow
+from contextual_readiness_helpers import seal_contextual
+
+from app.models.tables import MarketRegimeSnapshot, SectorRotationRow, SectorRotationSnapshot
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.sector_rotation_dtos import SectorUniverseMetrics
 from app.services.sector_rotation_service import (
@@ -107,7 +109,7 @@ def test_build_snapshot_empty_run_returns_warning_and_empty_summary() -> None:
 
 
 def test_build_snapshot_uses_previous_rows_for_rank_and_score_changes() -> None:
-    previous_snapshot = SimpleNamespace(id=11)
+    previous_snapshot = SectorRotationSnapshot(id=11, run_id=7, mode="universe_only")
     previous_rows = [
         SectorRotationRow(
             snapshot_id=11,
@@ -120,6 +122,7 @@ def test_build_snapshot_uses_previous_rows_for_rank_and_score_changes() -> None:
             current_rank=2,
         )
     ]
+    seal_contextual(previous_snapshot, rows=previous_rows)
     service = _service(
         universe_rows=[
             _metrics("Healthcare", score=8.8),
@@ -323,12 +326,20 @@ def _market_snapshot(
     risk_state: str = "Green",
     risk_off: bool = False,
 ):
-    return SimpleNamespace(
-        id=3,
-        as_of_date=as_of_date,
-        regime="Bull trend",
-        risk_state=risk_state,
-        risk_off=risk_off,
+    return seal_contextual(
+        MarketRegimeSnapshot(
+            id=3,
+            run_id=7,
+            confidence="normal",
+            debug_json={
+                "input_symbols": {"primary_market": "SPY"},
+                "market_inputs": {"SPY": {"insufficient_data": False}},
+            },
+            as_of_date=as_of_date,
+            regime="Bull trend",
+            risk_state=risk_state,
+            risk_off=risk_off,
+        )
     )
 
 

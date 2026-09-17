@@ -6,7 +6,7 @@ from datetime import date, datetime
 from time import perf_counter
 
 from sqlalchemy import case, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.tables import (
     CombinedResult,
@@ -144,6 +144,7 @@ class SetupLifecycleSourceLoader:
         technical_scores = tuple(
             db.scalars(
                 select(TechnicalScore)
+                .options(selectinload(TechnicalScore.calculation_evidence))
                 .where(TechnicalScore.run_id == run_id)
                 .where(TechnicalScore.ticker.in_(tickers))
             )
@@ -220,6 +221,7 @@ class SetupLifecycleSourceLoader:
                     pipeline_id=pipeline_id,
                 ),
                 config_hash=sector_rotation_config_hash(sector_config),
+                effective_configuration=sector_config.effective_configuration,
                 calculation_version="sector-rotation-1.0.0",
                 mode=(
                     "combined"
@@ -284,6 +286,7 @@ class SetupLifecycleSourceLoader:
         combined_results = tuple(
             db.scalars(
                 select(CombinedResult)
+                .options(selectinload(CombinedResult.calculation_evidence))
                 .where(CombinedResult.run_id == run_id)
                 .where(CombinedResult.ticker.in_(tickers))
             )
@@ -320,6 +323,7 @@ class SetupLifecycleSourceLoader:
             fundamental_scores=tuple(
                 db.scalars(
                     select(FundamentalScore)
+                    .options(selectinload(FundamentalScore.calculation_evidence))
                     .where(FundamentalScore.run_id == run_id)
                     .where(FundamentalScore.ticker.in_(tickers))
                 )
@@ -628,7 +632,11 @@ def _bar_identity(bar: PriceBar | None) -> tuple[object, ...] | None:
 
 
 def _latest_context_statement(model, cutoff: date, *, cutoff_at: datetime | None = None):
-    statement = select(model).where(model.as_of_date <= cutoff)
+    statement = (
+        select(model)
+        .options(selectinload(model.calculation_evidence))
+        .where(model.as_of_date <= cutoff)
+    )
     if cutoff_at is not None:
         statement = statement.where(model.calculation_cutoff_at.is_not(None)).where(
             model.calculation_cutoff_at <= cutoff_at

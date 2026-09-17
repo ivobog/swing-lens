@@ -1,0 +1,102 @@
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 15%]
+.................sssssss................................................ [ 17%]
+........................................................................ [ 19%]
+......................F................................................. [ 21%]
+........................................................................ [ 23%]
+........................................................................ [ 26%]
+........................................................................ [ 28%]
+........................................................................ [ 30%]
+........................................................................ [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 39%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 45%]
+........................................................................ [ 47%]
+........................................................................ [ 49%]
+........................................................................ [ 52%]
+........................................................................ [ 54%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+........................................................................ [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 69%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+........................................................................ [ 75%]
+........................................................................ [ 78%]
+........................................................................ [ 80%]
+...................................................F.................... [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 86%]
+........................................................................ [ 89%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+....                                                                     [100%]
+================================== FAILURES ===================================
+_______ test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt ________
+tests\ops\test_lifecycle_safety.py:206: in test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt
+    assert lifecycle_probe._runtime_state_report(listener_pid=None)["stale"] is True
+E   assert False is True
+_ test_process_pool_shadow_mode_returns_fresh_score_and_validation_candidate __
+tests\test_technical_work.py:233: in test_process_pool_shadow_mode_returns_fresh_score_and_validation_candidate
+    assert len(validations) == 1
+E   assert 0 == 1
+E    +  where 0 = len([])
+---------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+
+  File "<string>", line 1, in <module>
+
+  File "C:\Users\Ivica\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+
+    exitcode = _main(fd, parent_sentinel)
+
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  File "C:\Users\Ivica\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 131, in _main
+
+    prepare(preparation_data)
+
+  File "C:\Users\Ivica\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 246, in prepare
+
+    _fixup_main_from_path(data['init_main_from_path'])
+
+  File "C:\Users\Ivica\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+
+    main_content = runpy.run_path(main_path,
+
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  File "<frozen runpy>", line 285, in run_path
+
+  File "<frozen runpy>", line 254, in _get_code_from_file
+
+OSError: [Errno 22] Invalid argument: 'C:\\Users\\Ivica\\Documents\\SwingLens\\<stdin>'
+
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/ops/test_readiness_metrics.py: 21 warnings
+  C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\default.py:952: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute(statement, parameters)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/ops/test_lifecycle_safety.py::test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt
+FAILED tests/test_technical_work.py::test_process_pool_shadow_mode_returns_fresh_score_and_validation_candidate
+2 failed, 3307 passed, 7 skipped, 295 deselected, 22 warnings in 893.76s (0:14:53)

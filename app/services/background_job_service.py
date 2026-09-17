@@ -57,6 +57,19 @@ NON_RETRYABLE_PROVENANCE_CODES = frozenset(
         "DECISION_LINEAGE_MISMATCH",
         "IMMUTABLE_EVIDENCE_MISMATCH",
         "MALFORMED_DECISION_MANIFEST",
+        "MISSING_CONFIGURATION_ANCHOR_BINDING",
+        "CONFIGURATION_ANCHOR_BINDING_MISMATCH",
+        "CONFIGURATION_ANCHOR_PARENT_MISMATCH",
+        "CONFIGURATION_EXECUTION_LINEAGE_MISMATCH",
+        "MISSING_CONFIGURATION_ANCHOR",
+        "MISSING_CONFIGURATION_ANCHOR_PARENT",
+        "MISSING_CONFIGURATION_ANCHOR_FOR_RESUME",
+        "MISSING_OR_MISMATCHED_CONFIGURATION_ANCHOR",
+        "CONFIGURATION_ANCHOR_INTEGRITY_MISMATCH",
+        "CONFIGURATION_ANCHOR_RECORD_MISMATCH",
+        "MISSING_FROZEN_CONFIGURATION_RECORD",
+        "MISSING_FROZEN_CONFIGURATION",
+        "SEC_REPAIR_PROCESSOR_SIGNATURE_MISMATCH",
     }
 )
 
@@ -177,6 +190,10 @@ def enqueue_job(
             request_key=request_key,
         )
 
+    from app.services.configuration_delivery import anchor_enqueue_payload
+
+    if isinstance(db, Session):
+        payload = anchor_enqueue_payload(db, job_type, payload, parent_job_id=causal.parent_job_id)
     job_values: dict[str, Any] = {
         "job_type": job_type,
         "related_run_id": related_run_id,
@@ -243,6 +260,10 @@ def enqueue_job(
             db, job_type, causal, request_key, workflow_key, "COALESCED", existing
         )
         return existing
+    if isinstance(db, Session):
+        from app.services.configuration_delivery import bind_job_configuration
+
+        bind_job_configuration(db, job)
     publish_after_commit(db, "increment", "swinglens_jobs_enqueued_total", job_type=job_type)
     _record_enqueue_attempt(db, job_type, causal, request_key, workflow_key, "CREATED", job)
     return job
@@ -1295,9 +1316,7 @@ def mark_job_failed_or_retry(
     metadata = _with_attempt_finished(
         job.operational_metadata_json,
         finished_at=now,
-        status=(
-            "RETRYING" if retryable and retry_count <= job.max_retries else JobStatus.FAILED
-        ),
+        status=("RETRYING" if retryable and retry_count <= job.max_retries else JobStatus.FAILED),
     )
     metadata["failure_classification"] = failure
     values: dict[str, Any] = {
@@ -1324,6 +1343,14 @@ def mark_job_failed_or_retry(
         }
 
     _apply_running_job_update(db, job, expected_token, values)
+    if values["status"] == JobStatus.FAILED and job.job_type == "SEC_READINESS_REPAIR":
+        from app.services.ceri.sec.readiness_repair import mark_sec_repair_failure
+
+        mark_sec_repair_failure(db, job, error, failure)
+    if values["status"] == JobStatus.FAILED and job.job_type == "FULL_PIPELINE":
+        from app.services.pipeline_service import mark_pipeline_job_failure
+
+        mark_pipeline_job_failure(db, job, failure)
     metric_name = (
         "swinglens_jobs_retry_total"
         if values["status"] == JobStatus.QUEUED
@@ -1651,6 +1678,31 @@ def _observe_fanout_size(db: Session, job: BackgroundJob) -> None:
         depth,
         workflow_family=workflow_family(job.job_type),
     )
+
+
+def fence_job_execution(db: Session, job: BackgroundJob) -> None:
+    """Hold the durable lease row through publication, fencing recovered owners."""
+    expected = getattr(job, "_execution_token", job.execution_token)
+    if not isinstance(db, Session):
+        return
+    row = db.execute(
+        select(BackgroundJob.status, BackgroundJob.execution_token, BackgroundJob.lease_expires_at)
+        .where(BackgroundJob.id == job.id)
+        .with_for_update()
+    ).one_or_none()
+    if (
+        row is None
+        or row.execution_token != expected
+        or (
+            expected is not None
+            and (
+                row.status != JobStatus.RUNNING
+                or row.lease_expires_at is None
+                or row.lease_expires_at <= _utcnow()
+            )
+        )
+    ):
+        raise JobLeaseLost(f"Background job {job.id} lease is no longer held.")
 
 
 def _apply_running_job_update(

@@ -9,10 +9,8 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
-    CombinedResult,
     EstimateKind,
     EstimateSource,
-    RankingResult,
     WinnerCalibrationBin,
     WinnerDriftMetric,
     WinnerEstimateEvidenceMember,
@@ -24,6 +22,11 @@ from app.models.tables import (
     WinnerProbabilityEstimate,
     WinnerSimilarityLink,
     WinnerTargetStopOutcome,
+)
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    EvidenceUnavailableError,
+    get_evidence_by_id,
 )
 from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
@@ -689,15 +692,11 @@ def _prediction_payload(
     *,
     db: Session | None = None,
 ) -> dict[str, Any]:
-    combined = (
-        db.get(CombinedResult, row.combined_result_id)
-        if db is not None and row.combined_result_id is not None
-        else None
+    combined, combined_status = _frozen_source_payload(
+        db, row, source_key="combined_evidence_id", kind=CoreEvidenceKind.COMBINED
     )
-    ranking = (
-        db.get(RankingResult, row.ranking_result_id)
-        if db is not None and row.ranking_result_id is not None
-        else None
+    ranking, ranking_status = _frozen_source_payload(
+        db, row, source_key="ranking_evidence_id", kind=CoreEvidenceKind.RANKING
     )
     return {
         "id": row.id,
@@ -715,9 +714,9 @@ def _prediction_payload(
         "setup_family": row.setup_family,
         "setup_classification": row.setup_classification,
         "ranking_profile": row.ranking_profile,
-        "final_rank": getattr(combined, "final_rank", None),
-        "ranking_rank": getattr(ranking, "profile_rank", None),
-        "ranking_score": _number(getattr(ranking, "profile_score", None)),
+        "final_rank": combined.get("final_rank") if combined is not None else None,
+        "ranking_rank": ranking.get("profile_rank") if ranking is not None else None,
+        "ranking_score": _number(ranking.get("profile_score")) if ranking is not None else None,
         "fundamental_score": _number(row.fundamental_score),
         "technical_score": _number(row.technical_score),
         "combined_score": _number(row.combined_score),
@@ -734,9 +733,37 @@ def _prediction_payload(
         "calculation_version": row.calculation_version,
         "feature_json": row.feature_json,
         "source_ids": row.source_ids_json or {},
+        "read_mode": "FROZEN_WINNER_EVIDENCE",
+        "upstream_evidence_status": {
+            "combined": combined_status,
+            "ranking": ranking_status,
+        },
         "warnings": row.warning_flags_json or [],
         "lineage": row.lineage_json or {},
     }
+
+
+def _frozen_source_payload(
+    db: Session | None,
+    prediction: WinnerPredictionSnapshot,
+    *,
+    source_key: str,
+    kind: CoreEvidenceKind,
+) -> tuple[dict[str, Any] | None, str]:
+    """Read Winner display metadata from its pinned evidence, never current rows."""
+
+    evidence_id = (prediction.source_ids_json or {}).get(source_key)
+    if evidence_id is None:
+        return None, "LEGACY_EVIDENCE_UNAVAILABLE"
+    if db is None:
+        return None, "EVIDENCE_CONTEXT_UNAVAILABLE"
+    try:
+        evidence = get_evidence_by_id(db, evidence_id=int(evidence_id), kind=kind)
+    except EvidenceUnavailableError:
+        return None, "EVIDENCE_UNAVAILABLE"
+    if evidence.ticker != prediction.ticker.upper() or evidence.run_id != prediction.run_id:
+        return None, "EVIDENCE_SCOPE_MISMATCH"
+    return dict(evidence.payload_json or {}), "CERTIFIED_IMMUTABLE"
 
 
 def _estimate_payload(

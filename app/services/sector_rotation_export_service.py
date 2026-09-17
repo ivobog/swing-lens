@@ -50,6 +50,11 @@ def snapshot_to_payload(
     rows = rows if rows is not None else list(getattr(snapshot, "rows", []) or [])
     return {
         "snapshot": {
+            "read_mode": "CURRENT_PROJECTION",
+            "evidence_id": snapshot.evidence_id,
+            "evidence_status": (
+                "CERTIFIED_POINTER" if snapshot.evidence_id is not None else "LEGACY_CURRENT"
+            ),
             "id": snapshot.id,
             "run_id": snapshot.run_id,
             "market_regime_snapshot_id": snapshot.market_regime_snapshot_id,
@@ -144,6 +149,9 @@ def _dto_to_payload(snapshot: SectorRotationSnapshotDto) -> dict[str, Any]:
     etf_by_slug = {row.sector_slug: row for row in snapshot.etf_rows}
     return {
         "snapshot": {
+            "read_mode": "NEW_CALCULATION",
+            "evidence_id": None,
+            "evidence_status": "UNPERSISTED",
             "id": None,
             "run_id": snapshot.run_id,
             "market_regime_snapshot_id": snapshot.market_regime_snapshot_id,

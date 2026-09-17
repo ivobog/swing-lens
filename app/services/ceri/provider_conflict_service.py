@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
-from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.config import CeriConfig
 
 
 @dataclass(frozen=True)
@@ -16,7 +16,10 @@ class ProviderConflictResolution:
 
 class CeriProviderConflictService:
     def __init__(self, config: CeriConfig | None = None) -> None:
-        self.config = config or load_ceri_config()
+        from app.services.contextual_effective_configuration import resolve_ceri_configuration
+
+        self.config = resolve_ceri_configuration(config).ceri_config()
+        self.policy = self.config._effective_configuration.values["native_policy"]["provider"]
         self._priority = {
             provider.value: index for index, provider in enumerate(self.config.providers.priority)
         }
@@ -30,12 +33,7 @@ class CeriProviderConflictService:
             raise ValueError("at least one observation is required")
         selected = sorted(
             observations,
-            key=lambda observation: (
-                self._source_priority(observation, source_records),
-                self._quality_penalty(observation),
-                self._freshness_sort(observation),
-                observation.source_record_id,
-            ),
+            key=lambda observation: self._selection_key(observation, source_records),
         )[0]
         conflict_type = "NONE" if len(observations) == 1 else _conflict_type(observations)
         reason = (
@@ -56,7 +54,18 @@ class CeriProviderConflictService:
         source_records: dict[int, CeriSourceRecord],
     ) -> int:
         source = source_records.get(observation.source_record_id)
-        return self._priority.get(source.provider if source is not None else "", 10_000)
+        return self._priority.get(
+            source.provider if source is not None else "", self.policy["unknown_provider_priority"]
+        )
+
+    def _selection_key(self, observation, source_records):
+        values = {
+            "provider_priority": self._source_priority(observation, source_records),
+            "quality_penalty": self._quality_penalty(observation),
+            "freshness": self._freshness_sort(observation),
+            "source_record_id": observation.source_record_id,
+        }
+        return tuple(values[key] for key in self.policy["selection_order"])
 
     def _quality_penalty(self, observation: CeriEstimateSnapshot) -> int:
         return len(observation.quality_flags_json or [])

@@ -28,13 +28,19 @@ from app.services.contextual_calculation_identity import (
     expected_sector_identity,
     pipeline_id_for_cutoff,
 )
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    PRIOR_SECTOR_TO_SECTOR,
+    REGIME_TO_SECTOR,
+    contextual_decision_input,
+    frozen_sector_row,
+)
 from app.services.market_calculation_context_service import standalone_market_context
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_regime_policy import load_market_regime_command_center_config
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.sector_etf_rotation_service import SectorEtfRotationService
 from app.services.sector_rotation_config import (
-    load_sector_rotation_config,
     sector_rotation_config_hash,
 )
 from app.services.sector_rotation_dtos import (
@@ -48,7 +54,10 @@ from app.services.sector_rotation_repository import (
     SectorRotationRowWrite,
     SectorRotationSnapshotWrite,
 )
-from app.services.sector_universe_service import SectorUniverseService
+from app.services.sector_universe_service import (
+    SectorUniverseService,
+    _coherent_compatible_rankings,
+)
 from app.services.us_market_calendar import latest_completed_us_trading_day
 
 CALCULATION_VERSION = "sector-rotation-1.0.0"
@@ -79,6 +88,8 @@ class SectorRotationService:
         persist: bool = True,
         config: dict[str, Any] | None = None,
         market_cutoff: MarketCalculationCutoff | None = None,
+        effective_configuration=None,
+        expected_calculation_identity=None,
     ) -> SectorRotationSnapshotDto:
         return build_sector_rotation_snapshot(
             db=db,
@@ -92,6 +103,8 @@ class SectorRotationService:
             repository=self.repository,
             market_repository=self.market_repository,
             market_cutoff=market_cutoff,
+            effective_configuration=effective_configuration,
+            expected_calculation_identity=expected_calculation_identity,
         )
 
 
@@ -107,8 +120,18 @@ def build_sector_rotation_snapshot(
     repository: SectorRotationRepository | None = None,
     market_repository: MarketRegimeRepository | None = None,
     market_cutoff: MarketCalculationCutoff | None = None,
+    effective_configuration=None,
+    expected_calculation_identity=None,
 ) -> SectorRotationSnapshotDto:
-    config = config or load_sector_rotation_config()
+    from app.services.configuration_source_values import SourcedConfigurationValues
+    from app.services.contextual_effective_configuration import resolve_sector_configuration
+
+    effective_configuration = effective_configuration or resolve_sector_configuration(config)
+    effective_configuration.require_family("contextual.sector")
+    if expected_calculation_identity is not None:
+        effective_configuration.require_retry_identity(expected_calculation_identity)
+    config = SourcedConfigurationValues(effective_configuration.values["config"], ())
+    config.effective_configuration = effective_configuration
     config_hash = sector_rotation_config_hash(config)
     default_profile = config["defaults"]["default_ranking_profile"]
     mode = (
@@ -133,6 +156,10 @@ def build_sector_rotation_snapshot(
         as_of_date,
         market_cutoff,
     )
+    selected_market = market_snapshot
+    market_snapshot, market_permission = contextual_decision_input(
+        market_snapshot, REGIME_TO_SECTOR
+    )
     universe_rows = (
         universe_service.build(
             db=db,
@@ -156,8 +183,16 @@ def build_sector_rotation_snapshot(
         config_hash=config_hash,
         run_id=run_id,
         market_cutoff=market_cutoff,
+        effective_configuration=effective_configuration,
+    )
+    selected_previous = previous_snapshot
+    previous_snapshot, previous_permission = contextual_decision_input(
+        previous_snapshot, PRIOR_SECTOR_TO_SECTOR
     )
     previous_rows = _previous_rows_by_sector(repository, db, previous_snapshot)
+    previous_rows = {
+        key: frozen_sector_row(previous_snapshot, row) for key, row in previous_rows.items()
+    }
 
     decisions = [
         policy_service.decide(
@@ -193,6 +228,10 @@ def build_sector_rotation_snapshot(
         summary=summary,
         warnings=warnings,
         debug={
+            CONTEXTUAL_ELIGIBILITY_KEY: {
+                "regime": market_permission,
+                "prior_sector": previous_permission,
+            },
             "sector_count": len(decisions),
             "ticker_count": sum(row.ticker_count for row in universe_rows),
             "etf_enabled": bool(config.get("etf_score", {}).get("enabled", False)),
@@ -223,34 +262,27 @@ def build_sector_rotation_snapshot(
             pipeline_id=pipeline_id,
         )
         source_artifacts: list[tuple[str, Any, Any]] = []
+        ranking_sources: list[RankingResult] = []
         if run_id is not None:
-            for ranking in db.scalars(
-                select(RankingResult).where(
-                    RankingResult.run_id == run_id,
-                    RankingResult.ranking_profile == default_profile,
-                )
-            ):
-                identity = artifact_identity(ranking)
-                expected = consumer_context_identity(
-                    market_cutoff=market_cutoff,
-                    run_id=run_id,
-                    pipeline_id=pipeline_id,
-                    ticker=ranking.ticker,
-                )
-                if contextual_compatibility(
-                    expected, identity, policy=SECTOR_RANKING_COMPATIBILITY
-                ).accepted:
-                    source_artifacts.append(("RankingResult", ranking, identity))
-        if market_snapshot is not None:
-            source_artifacts.append(
-                ("MarketRegimeSnapshot", market_snapshot, artifact_identity(market_snapshot))
+            ranking_sources = _coherent_compatible_rankings(
+                list(db.scalars(select(RankingResult).where(RankingResult.run_id == run_id))),
+                run_id,
+                pipeline_id,
+                market_cutoff,
             )
-        if previous_snapshot is not None:
+            for ranking in ranking_sources:
+                identity = artifact_identity(ranking)
+                source_artifacts.append(("RankingResult", ranking, identity))
+        if selected_market is not None:
+            source_artifacts.append(
+                ("MarketRegimeSnapshot", selected_market, artifact_identity(selected_market))
+            )
+        if selected_previous is not None:
             source_artifacts.append(
                 (
                     "PriorSectorRotationSnapshot",
-                    previous_snapshot,
-                    artifact_identity(previous_snapshot),
+                    selected_previous,
+                    artifact_identity(selected_previous),
                 )
             )
         identity = build_contextual_result_identity(
@@ -264,6 +296,7 @@ def build_sector_rotation_snapshot(
                 "mode": mode,
                 "default_ranking_profile": default_profile,
                 "universe_rows": [asdict(row) for row in universe_rows],
+                CONTEXTUAL_ELIGIBILITY_KEY: dto.debug[CONTEXTUAL_ELIGIBILITY_KEY],
                 "etf_rows": [asdict(row) for row in etf_rows],
             },
         )
@@ -288,12 +321,39 @@ def build_sector_rotation_snapshot(
         dto = replace(
             dto,
             debug=embed_identity(
-                dto.debug, identity, policy=SECTOR_RANKING_COMPATIBILITY.name
+                dto.debug,
+                effective_configuration.bind(identity),
+                policy=SECTOR_RANKING_COMPATIBILITY.name,
             ),
         )
 
     if persist:
-        repository.save_snapshot(db, _to_snapshot_write(dto, config))
+        snapshot_write = _to_snapshot_write(dto, config)
+        object.__setattr__(
+            snapshot_write, "_effective_configuration", effective_configuration.snapshot
+        )
+        if isinstance(db, Session):
+            evidence_sources = {
+                f"ranking:{index:06d}": ranking
+                for index, ranking in enumerate(
+                    sorted(
+                        ranking_sources,
+                        key=lambda row: (row.ranking_profile, row.ticker, row.id or 0),
+                    ),
+                    start=1,
+                )
+            }
+            if selected_market is not None:
+                evidence_sources["regime"] = selected_market
+            if selected_previous is not None:
+                evidence_sources["prior_sector"] = selected_previous
+            repository.save_snapshot(
+                db,
+                snapshot_write,
+                evidence_sources=evidence_sources,
+            )
+        else:
+            repository.save_snapshot(db, snapshot_write)
     return dto
 
 
@@ -510,11 +570,14 @@ def _latest_market_snapshot(
             db, as_of_date, run_id=run_id
         )
         for snapshot in candidates:
-            if contextual_compatibility(
-                expected,
-                artifact_identity(snapshot),
-                policy=SECTOR_REGIME_COMPATIBILITY,
-            ).accepted:
+            if (
+                contextual_compatibility(
+                    expected,
+                    artifact_identity(snapshot),
+                    policy=SECTOR_REGIME_COMPATIBILITY,
+                ).accepted
+                and getattr(snapshot, "evidence_id", None) is not None
+            ):
                 return snapshot
         return None
     if run_id is not None:
@@ -537,6 +600,7 @@ def _compatible_previous_snapshot(
     config_hash: str,
     run_id: int | None,
     market_cutoff: MarketCalculationCutoff,
+    effective_configuration=None,
 ):
     if not isinstance(db, Session) or not hasattr(repository, "previous_snapshot_candidates"):
         return repository.get_previous_snapshot(
@@ -561,6 +625,7 @@ def _compatible_previous_snapshot(
         config_hash=config_hash,
         calculation_version=CALCULATION_VERSION,
         mode=mode,
+        effective_configuration=effective_configuration,
     )
     return _select_compatible_previous_snapshot(
         repository.previous_snapshot_candidates(db, as_of_date=as_of_date, mode=mode),
@@ -572,14 +637,13 @@ def _compatible_previous_snapshot(
 def _select_compatible_previous_snapshot(candidates, *, expected, current_session):
     for snapshot in candidates:
         identity = artifact_identity(snapshot)
-        result = contextual_compatibility(
-            expected, identity, policy=SECTOR_PRIOR_COMPATIBILITY
-        )
+        result = contextual_compatibility(expected, identity, policy=SECTOR_PRIOR_COMPATIBILITY)
         session = identity.temporal.as_of_session
         if (
             result.accepted
             and session.state.name == "KNOWN"
             and session.value < current_session
+            and getattr(snapshot, "evidence_id", None) is not None
         ):
             return snapshot
     return None

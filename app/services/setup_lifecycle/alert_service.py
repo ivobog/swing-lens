@@ -1,21 +1,37 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import select
+
 from app.models.tables import (
+    SetupLifecycleEpisode,
+    SetupLifecycleEvaluationEvidence,
     SetupLifecycleEvent,
+    SetupLifecycleTransitionEvidence,
     SetupSignalSnapshot,
+    SignalAlertDecisionEvidence,
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
 )
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
+from app.services.setup_lifecycle.decision_evidence import (
+    get_setup_evidence,
+    persist_alert_decision_evidence,
+    prior_generated_alert_decision,
+)
 from app.services.setup_lifecycle.dtos import AlertEvaluationResult
 from app.services.setup_lifecycle.enums import Actionability, AlertStatus
-from app.services.setup_lifecycle.episode_service import EpisodeEvaluationResult
+from app.services.setup_lifecycle.episode_service import (
+    EpisodeEvaluationResult,
+    normalized_snapshot_from_row,
+)
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.us_market_calendar import next_us_trading_day
 
@@ -42,12 +58,36 @@ class SetupLifecycleAlertService:
         repository: SetupLifecycleRepository | None = None,
         config: SetupLifecycleConfig | None = None,
     ) -> None:
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_alert_configuration
+
+        self.effective_configuration = resolve_alert_configuration(config)
+        self.config = self.effective_configuration.setup_config()
         self.repository = repository or SetupLifecycleRepository()
 
+    @anchored_decision_calculator
     def seed_builtin_rules(self, db) -> tuple[SignalAlertRule, ...]:
         if not self.config.alerts.built_in_rules_enabled:
             return ()
+        from app.services.configuration_delivery import current_delivery
+
+        if current_delivery() is not None:
+            from sqlalchemy.dialects.postgresql import insert
+
+            # C1 owns matching values. Seeding supplies physical FK addresses;
+            # an older queued root must never overwrite a current C2 rule row.
+            values = [
+                row
+                for row in self.effective_configuration.values["rules"]
+                if row["rule_id"] in self.config.alerts.rules
+            ]
+            if values:
+                db.execute(
+                    insert(SignalAlertRule)
+                    .values(values)
+                    .on_conflict_do_nothing(index_elements=[SignalAlertRule.rule_id])
+                )
+            ids = dict(db.execute(select(SignalAlertRule.rule_id, SignalAlertRule.id)).all())
+            return tuple(SignalAlertRule(**row, id=ids[row["rule_id"]]) for row in values)
         rules: list[SignalAlertRule] = []
         for rule_id, rule in self.config.alerts.rules.items():
             rules.append(
@@ -67,6 +107,7 @@ class SetupLifecycleAlertService:
             )
         return tuple(rules)
 
+    @anchored_decision_calculator
     def evaluate_episode_result(
         self,
         db,
@@ -106,6 +147,7 @@ class SetupLifecycleAlertService:
             warning_codes=tuple(dict.fromkeys(warning_codes)),
         )
 
+    @anchored_decision_calculator
     def evaluate_lifecycle_event(
         self,
         db,
@@ -122,8 +164,8 @@ class SetupLifecycleAlertService:
             if event.snapshot_id and hasattr(db, "get")
             else None
         )
-        market_regime = _event_market_regime(event, snapshot)
-        for rule in rules if rules is not None else self._rules(db):
+        market_regime = _event_market_regime(event, snapshot, db=db)
+        for rule in self._prepare_rules(db, rules):
             if not _lifecycle_rule_matches(rule, event):
                 continue
             outcome = self._persist_alert(
@@ -161,6 +203,7 @@ class SetupLifecycleAlertService:
             warning_codes=tuple(dict.fromkeys(warning_codes)),
         )
 
+    @anchored_decision_calculator
     def evaluate_signal_change_events(
         self,
         db,
@@ -232,7 +275,7 @@ class SetupLifecycleAlertService:
         episode = result.episode
         if episode is None:
             return AlertServiceResult()
-        available_rules = rules if rules is not None else self._rules(db)
+        available_rules = self._prepare_rules(db, rules)
         rule = next((item for item in available_rules if item.rule_id == "GATE_BLOCKED"), None)
         if rule is None:
             return AlertServiceResult()
@@ -268,6 +311,7 @@ class SetupLifecycleAlertService:
             },
         )
 
+    @anchored_decision_calculator
     def _persist_alert(
         self,
         db,
@@ -286,20 +330,78 @@ class SetupLifecycleAlertService:
         signal_change_event_id: int | None = None,
         episode_id: int | None = None,
     ) -> AlertServiceResult:
+        from app.services.configuration_delivery import current_delivery
+
+        effective = self.effective_configuration
+        if current_delivery() is not None:
+            rule = next((row for row in self._rules(db) if row.rule_id == rule.rule_id), None)
+            if rule is None:
+                raise ValueError("MISSING_FROZEN_ALERT_RULE")
+        elif not hasattr(self, "_frozen_rules"):
+            # A direct legacy helper call is a new explicit current-rules
+            # operation. Public matching paths already froze their whole batch.
+            effective = self._freeze_rules((rule,))
+        (
+            setup_evidence_id,
+            lifecycle_evaluation_evidence_id,
+            lifecycle_transition_evidence_id,
+        ) = self._source_evidence_ids(
+            db,
+            lifecycle_event_id=lifecycle_event_id,
+            signal_change_event_id=signal_change_event_id,
+            episode_id=episode_id,
+        )
+        decision_kwargs = {
+            "effective_configuration": effective,
+            "rule": rule,
+            "ticker": ticker,
+            "timeframe": timeframe,
+            "effective_session": effective_date,
+            "source_event_key": source_event_key,
+            "semantic_key": semantic_key,
+            "payload": {
+                **evidence,
+                "source_confidence": source_confidence,
+                "evaluation_run_id": evaluation_run_id,
+            },
+            "setup_evidence_id": setup_evidence_id,
+            "lifecycle_evaluation_evidence_id": lifecycle_evaluation_evidence_id,
+            "lifecycle_transition_evidence_id": lifecycle_transition_evidence_id,
+        }
+        certified_source = any(
+            value is not None
+            for value in (
+                setup_evidence_id,
+                lifecycle_evaluation_evidence_id,
+                lifecycle_transition_evidence_id,
+            )
+        )
         if _reconstructed_source(evidence):
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="INELIGIBLE",
+                    reasons=("RECONSTRUCTED_SUPPRESSED",),
+                )
             return AlertServiceResult(suppressed=1, warning_codes=("RECONSTRUCTED_SUPPRESSED",))
         if not _market_restrictions_match(rule, evidence):
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="INELIGIBLE",
+                    reasons=("MARKET_RESTRICTION",),
+                )
             return AlertServiceResult(suppressed=1, warning_codes=("MARKET_RESTRICTION",))
         if not rule.enabled or source_confidence < rule.minimum_confidence:
-            return AlertServiceResult(suppressed=1)
-        if self._cooldown_active(
-            db,
-            rule=rule,
-            ticker=ticker,
-            timeframe=timeframe,
-            effective_date=effective_date,
-            semantic_key=semantic_key,
-        ):
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="INELIGIBLE",
+                    reasons=("RULE_DISABLED" if not rule.enabled else "MINIMUM_CONFIDENCE",),
+                )
             return AlertServiceResult(suppressed=1)
 
         event_key = self.repository.alert_event_key(
@@ -310,11 +412,70 @@ class SetupLifecycleAlertService:
             effective_date=effective_date,
             evaluation_run_id=evaluation_run_id,
         )
+        existing_loader = getattr(self.repository, "alert_event_by_key", None)
+        existing = (
+            existing_loader(db, event_key, through_date=effective_date)
+            if existing_loader is not None
+            else None
+        )
+        if existing is not None:
+            if existing.decision_evidence_id is not None:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="SUPPRESSED_DEDUP",
+                    reasons=("DUPLICATE_EVENT_KEY",),
+                    dedup_predecessor_evidence_id=existing.decision_evidence_id,
+                )
+                return AlertServiceResult(suppressed=1, event_ids=(existing.id,))
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="INELIGIBLE",
+                    reasons=("LEGACY_DEDUP_PREDECESSOR_UNKNOWN",),
+                )
+            return AlertServiceResult(
+                suppressed=1,
+                event_ids=(existing.id,),
+                warning_codes=("LEGACY_DEDUP_PREDECESSOR_UNKNOWN",),
+            )
+
+        cooldown_predecessor = self._cooldown_predecessor(
+            db,
+            rule=rule,
+            ticker=ticker,
+            timeframe=timeframe,
+            effective_date=effective_date,
+            semantic_key=semantic_key,
+            certified=certified_source,
+        )
+        if cooldown_predecessor is not None:
+            if certified_source:
+                persist_alert_decision_evidence(
+                    db,
+                    **decision_kwargs,
+                    decision="SUPPRESSED_COOLDOWN",
+                    reasons=("COOLDOWN_ACTIVE",),
+                    cooldown_predecessor_evidence_id=cooldown_predecessor.id,
+                )
+            return AlertServiceResult(suppressed=1)
+        decision_evidence = (
+            persist_alert_decision_evidence(
+                db,
+                **decision_kwargs,
+                decision="GENERATED",
+                reasons=reason_codes,
+            )
+            if certified_source
+            else None
+        )
         alert = SignalAlertEvent(
             alert_rule_id=rule.id,
             lifecycle_event_id=lifecycle_event_id,
             signal_change_event_id=signal_change_event_id,
             evaluation_run_id=evaluation_run_id,
+            decision_evidence_id=(decision_evidence.id if decision_evidence is not None else None),
             ticker=self.repository.normalize_ticker(ticker),
             timeframe=timeframe,
             effective_date=effective_date,
@@ -339,12 +500,53 @@ class SetupLifecycleAlertService:
         )
 
     def _rules(self, db) -> tuple[SignalAlertRule, ...]:
-        return tuple(self.repository.alert_rules(db, enabled_only=True))
+        if not hasattr(self, "_frozen_rules"):
+            from copy import deepcopy
+
+            from app.services.configuration_delivery import (
+                current_delivery,
+                delivered_configuration,
+            )
+
+            if current_delivery() is not None:
+                frozen = delivered_configuration("decision.alerts.setup")
+                # Database row addresses are operational; decision values are C1.
+                ids = dict(db.execute(select(SignalAlertRule.rule_id, SignalAlertRule.id)).all())
+                self._frozen_rules = tuple(
+                    SignalAlertRule(**values, id=ids.get(values["rule_id"]))
+                    for values in frozen.values["rules"]
+                    if values["enabled"]
+                )
+                self.effective_configuration = frozen
+                return self._frozen_rules
+
+            self._frozen_rules = tuple(
+                deepcopy(row) for row in self.repository.alert_rules(db, enabled_only=True)
+            )
+            self.effective_configuration = self._freeze_rules(self._frozen_rules)
+        return self._frozen_rules
+
+    def _prepare_rules(self, db, rules):
+        from copy import deepcopy
+
+        from app.services.configuration_delivery import current_delivery
+
+        if current_delivery() is not None or rules is None:
+            return self._rules(db)
+        if not hasattr(self, "_frozen_rules"):
+            self._frozen_rules = tuple(deepcopy(row) for row in rules)
+            self.effective_configuration = self._freeze_rules(self._frozen_rules)
+        return self._frozen_rules
+
+    def _freeze_rules(self, rules):
+        from app.services.decision_effective_configuration import resolve_alert_configuration
+
+        return resolve_alert_configuration(self.config, rules=rules)
 
     def rules_for_evaluation(self, db) -> tuple[SignalAlertRule, ...]:
         return self._rules(db)
 
-    def _cooldown_active(
+    def _cooldown_predecessor(
         self,
         db,
         *,
@@ -353,23 +555,87 @@ class SetupLifecycleAlertService:
         timeframe: str,
         effective_date: date,
         semantic_key: str,
-    ) -> bool:
+        certified: bool,
+    ) -> SignalAlertDecisionEvidence | None:
         if rule.cooldown_sessions <= 0:
-            return False
-        since = effective_date - timedelta(days=rule.cooldown_sessions * 4 + 7)
-        recent = self.repository.recent_alert_events(
-            db,
-            alert_rule_id=rule.id,
-            ticker=ticker,
-            timeframe=timeframe,
-            since_date=since,
-            through_date=effective_date,
-            semantic_key=semantic_key,
+            return None
+        if certified:
+            predecessor = prior_generated_alert_decision(
+                db,
+                rule_id=rule.rule_id,
+                ticker=ticker,
+                timeframe=timeframe,
+                semantic_key=semantic_key,
+                effective_session=effective_date,
+            )
+        else:
+            since = effective_date - timedelta(days=rule.cooldown_sessions * 4 + 7)
+            recent = self.repository.recent_alert_events(
+                db,
+                alert_rule_id=rule.id,
+                ticker=ticker,
+                timeframe=timeframe,
+                since_date=since,
+                through_date=effective_date,
+                semantic_key=semantic_key,
+            )
+            predecessor = next(
+                (
+                    row
+                    for row in recent
+                    if _trading_sessions_between(row.effective_date, effective_date)
+                    <= rule.cooldown_sessions
+                ),
+                None,
+            )
+        if predecessor is None:
+            return None
+        if not certified:
+            return predecessor
+        return (
+            predecessor
+            if _trading_sessions_between(predecessor.effective_session, effective_date)
+            <= rule.cooldown_sessions
+            else None
         )
-        return any(
-            _trading_sessions_between(row.effective_date, effective_date) <= rule.cooldown_sessions
-            for row in recent
-        )
+
+    @staticmethod
+    def _source_evidence_ids(
+        db,
+        *,
+        lifecycle_event_id: int | None,
+        signal_change_event_id: int | None,
+        episode_id: int | None,
+    ) -> tuple[int | None, int | None, int | None]:
+        setup_id = None
+        evaluation_id = None
+        transition_id = None
+        if not hasattr(db, "get"):
+            return None, None, None
+        if lifecycle_event_id is not None:
+            event = db.get(SetupLifecycleEvent, lifecycle_event_id)
+            transition_id = getattr(event, "transition_evidence_id", None) if event else None
+            if transition_id is not None:
+                transition = db.get(SetupLifecycleTransitionEvidence, transition_id)
+                if transition is not None:
+                    setup_id = transition.setup_evidence_id
+                    evaluation_id = transition.evaluation_evidence_id
+        if signal_change_event_id is not None:
+            change = db.get(SignalChangeEvent, signal_change_event_id)
+            snapshot_id = getattr(change, "current_snapshot_id", None) if change else None
+            snapshot = db.get(SetupSignalSnapshot, snapshot_id) if snapshot_id is not None else None
+            setup_id = setup_id or (getattr(snapshot, "evidence_id", None) if snapshot else None)
+        if episode_id is not None and evaluation_id is None:
+            episode = db.get(SetupLifecycleEpisode, episode_id)
+            evaluation_id = (
+                getattr(episode, "latest_evaluation_evidence_id", None) if episode else None
+            )
+            if evaluation_id is not None:
+                evaluation = db.get(SetupLifecycleEvaluationEvidence, evaluation_id)
+                setup_id = setup_id or (
+                    getattr(evaluation, "setup_evidence_id", None) if evaluation else None
+                )
+        return setup_id, evaluation_id, transition_id
 
 
 def _lifecycle_rule_matches(rule: SignalAlertRule, event: SetupLifecycleEvent) -> bool:
@@ -482,13 +748,36 @@ def _signal_semantic_key(rule: SignalAlertRule, event: SignalChangeEvent) -> str
 def _event_market_regime(
     event: SetupLifecycleEvent,
     snapshot: SetupSignalSnapshot | None,
+    *,
+    db=None,
 ) -> str | None:
     evidence_value = (event.evidence_json or {}).get("market_regime")
     if evidence_value is not None:
         return str(evidence_value)
-    raw = (getattr(snapshot, "signals_json", None) or {}).get("market_regime")
-    if isinstance(raw, dict):
-        raw = raw.get("value")
+    if snapshot is None:
+        return None
+    normalized = normalized_snapshot_from_row(snapshot)
+    if snapshot.evidence_id is not None:
+        setup = get_setup_evidence(db, snapshot.evidence_id)
+        if setup.run_id != snapshot.run_id or setup.ticker != snapshot.ticker.upper():
+            raise ValueError("EVIDENCE_UNAVAILABLE: Alert Setup scope mismatch")
+        signals = dict(normalized.signals)
+        raw = (setup.payload_json.get("signals_json") or {}).get("market_regime")
+        if isinstance(raw, dict):
+            raw = raw.get("value")
+        signals["market_regime"] = replace(
+            signals["market_regime"],
+            raw_value=raw,
+            normalized_value=raw,
+        )
+        normalized = replace(
+            normalized,
+            signals=signals,
+            source_lineage=dict(setup.payload_json.get("source_lineage_json") or {}),
+        )
+    normalized = setup_with_contextual_permission(normalized)
+    signal = normalized.signals.get("market_regime")
+    raw = signal.raw_value if signal else None
     return str(raw) if raw is not None else None
 
 

@@ -2,6 +2,8 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
+from core_readiness_helpers import certified_fundamental
+from readiness_helpers import certified_technical, seal_technical
 
 from app.models.tables import (
     CombinedResult,
@@ -113,7 +115,9 @@ def test_ranking_pipeline_step_is_explicitly_skipped_without_profiles(monkeypatc
 def test_ranking_pipeline_step_fails_when_profiles_produce_zero_results(monkeypatch) -> None:
     monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: [object()])
     monkeypatch.setattr(ranking_profile_service, "_raw_rows_for_run", lambda *_: _rows())
-    monkeypatch.setattr(ranking_profile_service, "refresh_all_ranking_profiles", lambda *_: [])
+    monkeypatch.setattr(
+        ranking_profile_service, "refresh_all_ranking_profiles", lambda *_, **__: []
+    )
 
     with pytest.raises(RuntimeError, match="produced zero results"):
         execute_ranking_pipeline_step(FakeDb(), run_id=7)
@@ -128,7 +132,7 @@ def test_run105_shaped_ranking_step_reports_186_by_configured_profiles(monkeypat
     monkeypatch.setattr(
         ranking_profile_service,
         "refresh_all_ranking_profiles",
-        lambda *_: persisted,
+        lambda *_, **__: persisted,
     )
 
     result = execute_ranking_pipeline_step(FakeDb(), run_id=105)
@@ -275,7 +279,7 @@ def _row(row_id: int, ticker: str, row_number: int) -> RawCompanyRow:
 
 
 def _fundamental(ticker: str, score: float) -> FundamentalScore:
-    return FundamentalScore(
+    return certified_fundamental(
         id=201 if ticker == "MOMO" else 202,
         run_id=7,
         ticker=ticker,
@@ -297,7 +301,7 @@ def _technical(
     breakout: float,
     vcp: float,
 ) -> TechnicalScore:
-    return TechnicalScore(
+    return certified_technical(
         id=301 if ticker == "MOMO" else 302,
         run_id=7,
         ticker=ticker,
@@ -346,6 +350,9 @@ def _attach_identities(
             pipeline_run_id=11,
         )
         score.debug_json = embed_calculation_identity(score.debug_json, identity, policy="TEST")
+        from core_readiness_helpers import seal_core
+
+        seal_core(score)
     for score in technicals:
         score.calculation_context_id = cutoff.context_id
         score.calculation_cutoff_at = cutoff.cutoff_at
@@ -358,6 +365,7 @@ def _attach_identities(
             effective_config={"test": "technical"},
         )
         score.debug_json = embed_calculation_identity(score.debug_json, identity, policy="TEST")
+        seal_technical(score)
 
 
 def _config() -> dict:

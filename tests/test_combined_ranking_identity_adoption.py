@@ -27,9 +27,14 @@ from app.services.combined_ranking_identity import (
     calculation_identity_from_debug,
     embed_calculation_identity,
 )
+from app.services.core_effective_configuration import resolve_technical_configuration
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.ranking_profile_config import get_ranking_profile
+from app.services.technical_indicators import load_pine_defaults
+from app.services.technical_scoring_config import load_technical_scoring_v4_config
+from app.services.technical_scoring_v5_config import load_technical_scoring_v5_config
+from app.settings import Settings
 
 SESSION = date(2026, 7, 7)
 PIPELINE_ID = 11
@@ -114,6 +119,12 @@ def test_fundamental_and_technical_producers_persist_context_bound_identities() 
         market_cutoff=cutoff,
         pipeline_run_id=PIPELINE_ID,
         persist=False,
+        effective_configuration=resolve_technical_configuration(
+            pine=load_pine_defaults(),
+            v4=load_technical_scoring_v4_config(),
+            v5=load_technical_scoring_v5_config(),
+            settings=Settings(_env_file=None),
+        ),
     )
 
     for score in (fundamentals[0], finalized[0]):
@@ -219,7 +230,7 @@ def test_combined_identity_fingerprint_is_stable_and_materially_sensitive(monkey
     )
 
 
-def test_identity_incompatible_combined_replacement_is_rejected(monkeypatch) -> None:
+def test_new_combined_identity_may_advance_current_projection(monkeypatch) -> None:
     row, fundamental, technical, _ = _identity_aware_sources()
     _patch_combined(monkeypatch, row, fundamental, technical)
     existing = combined_decision.refresh_combined_results(FakeDb(), RUN_ID)[0]
@@ -232,10 +243,11 @@ def test_identity_incompatible_combined_replacement_is_rejected(monkeypatch) -> 
         )
     )
     _patch_combined(monkeypatch, changed_row, changed_fundamental, changed_technical)
-    monkeypatch.setattr(combined_decision, "_combined_for_run", lambda *_: [existing])
-
-    with pytest.raises(ValueError, match="CALCULATION_IDENTITY_PERSISTENCE_CONFLICT"):
-        combined_decision.refresh_combined_results(FakeDb(), RUN_ID)
+    replacement = combined_decision.refresh_combined_results(FakeDb(), RUN_ID)[0]
+    assert (
+        replacement.debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY]
+        != existing.debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY]
+    )
 
 
 def test_ranking_compatible_inputs_and_profile_config_produce_distinct_identity(
@@ -300,6 +312,30 @@ def test_optional_compatible_ibmi_is_used_and_included_in_identity(monkeypatch) 
     assert "IBIntelligenceFeature" in {
         item.artifact_type for item in identity.source_lineage.value.references
     }
+    assert result.debug_json["inputs"]["ibkr_liquidity_classification"] is None
+    assert (
+        result.debug_json["contextual_consumer_eligibility"]["ibmi_liquidity"][
+            "producer_readiness"
+        ]["status"]
+        == "LEGACY_UNKNOWN"
+    )
+    # Keep the original unsealed/CURRENT input as an exclusion regression.
+    from contextual_readiness_helpers import ibmi_feature
+
+    from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+
+    ready = ibmi_feature(
+        ticker="ACME",
+        classification="POOR",
+        components_json={"dollar_volume": 1000},
+        config_hash=load_ib_market_intelligence_config().config_hash,
+        as_of_session=cutoff.latest_completed_session,
+        calendar_version=cutoff.calendar_version,
+        calculated_at=cutoff.cutoff_at,
+        calculation_cutoff_at=cutoff.cutoff_at,
+    )
+    _patch_ranking(monkeypatch, row, fundamental, technical, liquidity={"ACME": ready})
+    result = ranking_profile_service.refresh_ranking_profile(FakeDb(), RUN_ID, "momentum_swing")[0]
     assert result.debug_json["inputs"]["ibkr_liquidity_classification"] == "POOR"
 
 
@@ -319,18 +355,20 @@ def test_temporally_safe_but_config_wrong_ibmi_is_omitted(monkeypatch) -> None:
     assert result.debug_json["inputs"]["ibkr_liquidity_classification"] is None
 
 
-def test_identity_incompatible_ranking_upsert_is_rejected(monkeypatch) -> None:
+def test_new_ranking_identity_may_advance_current_projection(monkeypatch) -> None:
     row, fundamental, technical, _ = _identity_aware_sources()
     profile = get_ranking_profile("quality_momentum")
     _patch_ranking(monkeypatch, row, fundamental, technical, profiles=[profile])
     db = FakeDb()
     first = ranking_profile_service.refresh_all_ranking_profiles(db, RUN_ID)
     assert len(first) == 1
+    original_fingerprint = first[0].debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY]
 
-    changed = replace(profile, description="materially changed profile identity")
+    changed = replace(profile, technical_weight=0.6, fundamental_weight=0.4)
     monkeypatch.setattr(ranking_profile_service, "load_ranking_profiles", lambda: [changed])
-    with pytest.raises(ValueError, match="CALCULATION_IDENTITY_PERSISTENCE_CONFLICT"):
-        ranking_profile_service.refresh_all_ranking_profiles(db, RUN_ID)
+    second = ranking_profile_service.refresh_all_ranking_profiles(db, RUN_ID)
+    assert second[0] is first[0]
+    assert second[0].debug_json[CALCULATION_IDENTITY_FINGERPRINT_KEY] != original_fingerprint
 
 
 def test_legacy_ranking_row_is_explicitly_replaced_not_upgraded(monkeypatch) -> None:
@@ -357,7 +395,7 @@ def test_legacy_ranking_row_is_explicitly_replaced_not_upgraded(monkeypatch) -> 
 
 
 def _identity_aware_sources(
-    *, cutoff: MarketCalculationCutoff | None = None
+    *, cutoff: MarketCalculationCutoff | None = None, seal_fundamental: bool = True
 ) -> tuple[RawCompanyRow, FundamentalScore, TechnicalScore, MarketCalculationCutoff]:
     cutoff = cutoff or _cutoff()
     row = RawCompanyRow(
@@ -374,6 +412,7 @@ def _identity_aware_sources(
         run_id=RUN_ID,
         ticker="ACME",
         fundamental_score=Decimal("8.2"),
+        data_coverage_score=10,
         fundamental_label="Clean compounder",
         scoring_model_version="fundamentals_v2.1",
         debug_json={"config_hash": "a" * 64, "model_version": "fundamentals_v2.1"},
@@ -424,6 +463,10 @@ def _identity_aware_sources(
     technical.debug_json = embed_calculation_identity(
         technical.debug_json, technical_identity, policy="TEST_PRODUCER"
     )
+    from core_readiness_helpers import seal_core
+
+    if seal_fundamental:
+        seal_core(fundamental)
     return row, fundamental, technical, cutoff
 
 
@@ -471,7 +514,6 @@ def _patch_combined(monkeypatch, row, fundamental, technical) -> None:
     monkeypatch.setattr(combined_decision, "_rows_for_run", lambda *_: [row])
     monkeypatch.setattr(combined_decision, "_fundamentals_for_run", lambda *_: [fundamental])
     monkeypatch.setattr(combined_decision, "_technicals_for_run", lambda *_: [technical])
-    monkeypatch.setattr(combined_decision, "_combined_for_run", lambda *_: [])
     monkeypatch.setattr(combined_decision, "_load_scoring_config", _scoring_config)
 
 

@@ -88,6 +88,10 @@ class CohortMaterializationService:
         max_wall_seconds: float = 45.0,
         publish_when_ready: bool = True,
     ) -> CohortMaterializationResult:
+        from app.services.configuration_delivery import configuration_for_winner_generation
+
+        if isinstance(db, Session):
+            config = configuration_for_winner_generation(db, generation, config)
         if generation.status == CohortGenerationStatus.PUBLISHED:
             return self._result(
                 generation,
@@ -273,6 +277,10 @@ class CohortMaterializationService:
                         config_hash=config.config_hash,
                         evidence_manifest_hash=manifest.manifest_hash,
                         metadata_json={
+                            "effective_configuration_at_creation": _cohort_configuration(config),
+                            "configuration_execution_semantics": getattr(
+                                config, "_configuration_execution_semantics", "FROZEN_GENERATION"
+                            ),
                             "mean_return_pct": _str_or_none(statistics.mean_return_pct),
                             "target_first_rate": _str_or_none(statistics.target_first_rate),
                             "interval_width": str(statistics.interval_width),
@@ -503,6 +511,12 @@ class CohortMaterializationService:
 
 def _str_or_none(value) -> str | None:
     return str(value) if value is not None else None
+
+
+def _cohort_configuration(config):
+    from app.services.decision_effective_configuration import resolve_winner_configuration
+
+    return resolve_winner_configuration(config, family="cohort").snapshot.as_dict()
 
 
 def _is_statement_timeout(exc: DBAPIError) -> bool:

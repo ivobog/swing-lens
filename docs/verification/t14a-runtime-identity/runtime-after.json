@@ -1,0 +1,228 @@
+{
+  "capturedAt": "2026-09-17T09:57:22.048278+00:00",
+  "mode": "after",
+  "logs": [
+    {
+      "event": "runtime.process_boot",
+      "timestamp": "2026-09-16T23:18:49.110098+00:00",
+      "component": "SUPERVISOR",
+      "pid": 15440,
+      "parent_pid": 6972,
+      "git_sha": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+      "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+      "config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+      "request_operation_id": null,
+      "result": null,
+      "shutdown_method": null
+    },
+    {
+      "event": "runtime.process_boot",
+      "timestamp": "2026-09-16T23:18:50.947619+00:00",
+      "component": "WEB",
+      "pid": 8408,
+      "parent_pid": 2880,
+      "git_sha": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+      "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+      "config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+      "request_operation_id": null,
+      "result": null,
+      "shutdown_method": null
+    },
+    {
+      "event": "runtime.process_boot",
+      "timestamp": "2026-09-16T23:18:53.003830+00:00",
+      "component": "DURABLE_WORKER",
+      "pid": 4000,
+      "parent_pid": 13124,
+      "git_sha": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+      "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+      "config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+      "request_operation_id": null,
+      "result": null,
+      "shutdown_method": null
+    },
+    {
+      "event": "runtime.shutdown_requested",
+      "timestamp": "2026-09-17T09:55:56.727327+00:00",
+      "component": "SUPERVISOR",
+      "pid": 15440,
+      "parent_pid": 6972,
+      "git_sha": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+      "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+      "config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+      "request_operation_id": "3143abea-e265-4804-b1b0-8af47c065810",
+      "result": "success",
+      "shutdown_method": "instance_scoped_file"
+    },
+    {
+      "event": "runtime.shutdown_begin",
+      "timestamp": "2026-09-17T09:55:56.730326+00:00",
+      "component": "SUPERVISOR",
+      "pid": 15440,
+      "parent_pid": 6972,
+      "git_sha": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+      "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+      "config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+      "request_operation_id": null,
+      "result": "started",
+      "shutdown_method": null
+    },
+    {
+      "event": "runtime.shutdown_complete",
+      "timestamp": "2026-09-17T09:56:12.790043+00:00",
+      "component": "SUPERVISOR",
+      "pid": 15440,
+      "parent_pid": 6972,
+      "git_sha": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+      "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+      "config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+      "request_operation_id": null,
+      "result": "success",
+      "shutdown_method": null
+    },
+    {
+      "event": "runtime.process_shutdown",
+      "timestamp": "2026-09-17T09:56:12.791009+00:00",
+      "component": "SUPERVISOR",
+      "pid": 15440,
+      "parent_pid": 6972,
+      "git_sha": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+      "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+      "config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+      "request_operation_id": null,
+      "result": "success",
+      "shutdown_method": null
+    }
+  ],
+  "database": {
+    "runningPipelines": 0,
+    "activeJobs": 0,
+    "jobsAfter43269": 0,
+    "worker": {
+      "process_id": 4000,
+      "heartbeat_at": "2026-09-17 11:56:12.255465+02:00",
+      "stopping_at": "2026-09-17 11:56:12.255465+02:00",
+      "quiesce_requested_at": "2026-09-17 11:55:38.401010+02:00",
+      "quiesced_at": "2026-09-17 11:55:40.108649+02:00",
+      "instance_id": "42ef9f672dcf462cbc0ae2bea1f6fb1b",
+      "generation": 76
+    },
+    "supervisor": {
+      "process_id": 15440,
+      "heartbeat_at": "2026-09-17 11:56:12.274465+02:00",
+      "stopping_at": "2026-09-17 11:56:12.274465+02:00",
+      "instance_id": "a39f9b30b9bf410cad7728939a611dce",
+      "generation": 65
+    }
+  },
+  "oldProcessesAlive": {
+    "4000": false,
+    "13124": false,
+    "15440": false,
+    "6972": false,
+    "8408": false,
+    "2880": false
+  },
+  "roles": [],
+  "listeners": {
+    "listeners": [
+      {
+        "address": "0.0.0.0",
+        "port": 5432,
+        "pid": 6852,
+        "parentPid": 5340,
+        "createdAt": "2026-09-16T01:38:06.338439+00:00",
+        "executable": "C:\\Program Files\\PostgreSQL\\18\\bin\\postgres.exe",
+        "commandLine": null,
+        "cwd": null
+      },
+      {
+        "address": "::",
+        "port": 5432,
+        "pid": 6852,
+        "parentPid": 5340,
+        "createdAt": "2026-09-16T01:38:06.338439+00:00",
+        "executable": "C:\\Program Files\\PostgreSQL\\18\\bin\\postgres.exe",
+        "commandLine": null,
+        "cwd": null
+      }
+    ]
+  },
+  "metadataMissing": true,
+  "registrations": {
+    "reachable": true,
+    "worker": {
+      "role": "worker",
+      "pid": 4000,
+      "createdAt": "2026-09-17T01:18:50.094192+02:00",
+      "instanceId": "42ef9f672dcf462cbc0ae2bea1f6fb1b",
+      "generation": 76,
+      "stoppingAt": "2026-09-17T11:56:12.255465+02:00",
+      "launcherPid": 13124
+    },
+    "supervisor": {
+      "role": "supervisor",
+      "pid": 15440,
+      "createdAt": "2026-09-17T01:18:46.987648+02:00",
+      "instanceId": "a39f9b30b9bf410cad7728939a611dce",
+      "generation": 65,
+      "stoppingAt": "2026-09-17T11:56:12.274465+02:00",
+      "launcherPid": null
+    }
+  },
+  "supervisorState": {
+    "cycle_failed": false,
+    "restart": {
+      "web": {
+        "first_failure_at": null,
+        "first_failure_monotonic": null,
+        "last_exit_code": null,
+        "last_failure_at": null,
+        "last_failure_monotonic": null,
+        "last_reason_code": "NONE",
+        "last_startup_stage": "not_started",
+        "restart_count": 0,
+        "restart_window_seconds": 60.0,
+        "role": "web",
+        "state": "RUNNING",
+        "window_failures": 0
+      },
+      "worker": {
+        "first_failure_at": "2026-09-16T23:18:49.494615+00:00",
+        "first_failure_monotonic": 78069.218,
+        "last_exit_code": null,
+        "last_failure_at": "2026-09-16T23:18:49.494615+00:00",
+        "last_failure_monotonic": 78069.218,
+        "last_reason_code": "DURABLE_WORKER_PROCESS_LOST",
+        "last_startup_stage": "worker_heartbeat",
+        "restart_count": 1,
+        "restart_window_seconds": 60.0,
+        "role": "worker",
+        "state": "RUNNING",
+        "window_failures": 1
+      }
+    },
+    "runtime_config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+    "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+    "supervisor": {
+      "instance_id": "a39f9b30b9bf410cad7728939a611dce",
+      "pid": 15440
+    },
+    "timestamp": "2026-09-17T09:55:51.707410+00:00",
+    "topology_version": "supervisor-root-v1",
+    "version": 1,
+    "web": {
+      "launcher_pid": 2880,
+      "state": "RUNNING"
+    },
+    "worker": {
+      "launcher_pid": 13124,
+      "state": "RUNNING"
+    }
+  },
+  "jobs": {
+    "reachable": true,
+    "active": [],
+    "activeCount": 0
+  }
+}

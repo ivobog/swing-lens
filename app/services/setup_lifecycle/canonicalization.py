@@ -7,7 +7,8 @@ from decimal import Decimal
 from typing import Any
 
 from app.models.tables import SetupLifecycleEvent, SetupSignalSnapshot
-from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
+from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 
 
@@ -46,8 +47,12 @@ class SetupLifecycleCanonicalizer:
         config: SetupLifecycleConfig | None = None,
     ) -> None:
         self.repository = repository or SetupLifecycleRepository()
-        self.config = config or load_setup_lifecycle_config()
+        from app.services.decision_effective_configuration import resolve_setup_configuration
 
+        self.effective_configuration = resolve_setup_configuration(config)
+        self.config = self.effective_configuration.setup_config()
+
+    @anchored_decision_calculator
     def canonicalize_run(
         self,
         db,
@@ -77,6 +82,7 @@ class SetupLifecycleCanonicalizer:
             affected_snapshot_ids=tuple(snapshot.id for snapshot in affected),
         )
 
+    @anchored_decision_calculator
     def canonicalize_snapshots(
         self,
         db,

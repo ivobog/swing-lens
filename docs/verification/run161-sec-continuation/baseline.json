@@ -1,0 +1,199 @@
+{
+  "migration": [
+    {
+      "version_num": "0080_effective_configuration"
+    }
+  ],
+  "pipeline": [
+    {
+      "id": 151,
+      "upload_run_id": 161,
+      "status": "PREPARING",
+      "current_step": "VALIDATING_RUN",
+      "sec_repair": {
+        "counts": {
+          "READY": 86,
+          "CIK_MISSING": 0,
+          "INVALID_TICKER": 0,
+          "SEC_NOT_APPLICABLE": 0,
+          "SIGNATURE_MISMATCH": 0,
+          "SYNC_STATE_MISSING": 0,
+          "UNRESOLVED_MAPPING": 0,
+          "OTHER_BLOCKING_REASON": 0
+        },
+        "run_id": 161,
+        "telemetry": {
+          "sec_requests": 25,
+          "bytes_downloaded": 19057165,
+          "filing_downloads": 20,
+          "documents_skipped": 0,
+          "documents_discovered": 20,
+          "documents_downloaded": 20,
+          "documents_would_skip": 0,
+          "documents_cache_reused": 0
+        },
+        "started_at": "2026-09-16T23:20:50.906064+00:00",
+        "updated_at": "2026-09-16T23:35:05.673981+00:00",
+        "pipeline_id": 151,
+        "repair_stage": "RECHECKING_READINESS",
+        "ready_tickers": 86,
+        "repair_job_id": 43269,
+        "total_tickers": 86,
+        "last_error_code": null,
+        "repaired_tickers": 4,
+        "last_error_detail": null,
+        "repairable_tickers": 4,
+        "unresolved_tickers": [],
+        "initial_ready_tickers": 82,
+        "current_processor_signature": "sec-guidance:eed017654682a0c9"
+      }
+    }
+  ],
+  "jobs": [
+    {
+      "id": 43268,
+      "job_type": "FULL_PIPELINE",
+      "related_run_id": 161,
+      "status": "COMPLETED",
+      "parent_job_id": null,
+      "retry_count": 0,
+      "run_after": "2026-09-17 01:20:47.935438+02:00",
+      "error_message": null,
+      "payload_json": {
+        "pipeline_run_id": 151,
+        "market_cutoff_at": "2026-09-16T23:20:46.979906Z",
+        "input_as_of_session": "2026-09-16",
+        "bar_readiness_version": "daily-close-plus-15m-v1",
+        "market_calendar_version": "swinglens-us-equities-v1",
+        "transition_preflight_plan_id": null,
+        "market_calculation_context_id": 13,
+        "effective_configuration_anchor": {
+          "anchor_id": "c3a654bf956deacdda507957a963743c15162eb6b6955004a377ba78c393e1f2",
+          "fingerprint": "7bc8ee0c7b8ac8c44a770023afc0cd41155d2ca7f5b4afd555044319be30f77d"
+        },
+        "transition_evidence_fingerprint": null
+      },
+      "request_key": "full-pipeline:run:161:policy:REQUIRE_IB:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,COMBINING_RESULTS,RANKING_PROFILES,SECTOR_ROTATION_SNAPSHOT,FREEZING_DECISION_HANDOFF_MANIFEST,CERI_PROVIDER_INGEST,CAPTURING_SETUP_SIGNALS,EVALUATING_SETUP_LIFECYCLES,CAPTURING_WINNER_PREDICTIONS",
+      "workflow_key": null
+    },
+    {
+      "id": 43269,
+      "job_type": "SEC_READINESS_REPAIR",
+      "related_run_id": 161,
+      "status": "QUEUED",
+      "parent_job_id": 43268,
+      "retry_count": 4,
+      "run_after": "2026-09-17 01:45:05.742982+02:00",
+      "error_message": "MISSING_CONFIGURATION_ANCHOR_BINDING",
+      "payload_json": {
+        "pipeline_run_id": 151,
+        "resume_from_step": "VALIDATING_RUN",
+        "processor_signature": "sec-guidance:eed017654682a0c9"
+      },
+      "request_key": "sec-readiness-repair:pipeline:151:signature:sec-guidance:eed017654682a0c9",
+      "workflow_key": "pipeline:151:sec-readiness"
+    }
+  ],
+  "bindings": [
+    {
+      "binding_key": "job:43268",
+      "anchor_id": "c3a654bf956deacdda507957a963743c15162eb6b6955004a377ba78c393e1f2",
+      "job_id": 43268,
+      "pipeline_run_id": null,
+      "winner_cohort_generation_id": null
+    },
+    {
+      "binding_key": "pipeline:151",
+      "anchor_id": "c3a654bf956deacdda507957a963743c15162eb6b6955004a377ba78c393e1f2",
+      "job_id": null,
+      "pipeline_run_id": 151,
+      "winner_cohort_generation_id": null
+    }
+  ],
+  "anchor": [
+    {
+      "anchor_id": "c3a654bf956deacdda507957a963743c15162eb6b6955004a377ba78c393e1f2",
+      "fingerprint": "7bc8ee0c7b8ac8c44a770023afc0cd41155d2ca7f5b4afd555044319be30f77d",
+      "payload_hash": "0756cdd7cee1369389bac539cd00aeb2"
+    }
+  ],
+  "configuration_records": [
+    {
+      "count": 51,
+      "hash": "eb271709a8828dd03fb6adaca9fd5956"
+    }
+  ],
+  "all_bindings": [
+    {
+      "count": 3,
+      "hash": "c0353a00c029d93cace83d9b10ebd4b6"
+    }
+  ],
+  "protected_counts": [
+    {
+      "relname": "ceri_evidence_dispositions",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "ceri_sec_document_extractions",
+      "n_live_tup": 20
+    },
+    {
+      "relname": "ceri_sec_filing_documents",
+      "n_live_tup": 20
+    },
+    {
+      "relname": "ceri_sec_processor_releases",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "ceri_sec_sync_states",
+      "n_live_tup": 4
+    },
+    {
+      "relname": "core_calculation_evidence",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "core_calculation_evidence_sources",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "setup_lifecycle_evaluation_evidence",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "setup_lifecycle_transition_evidence",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "signal_alert_decision_evidence",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "signal_alert_rule_evidence",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "transition_decision_handoff_manifests",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "winner_estimate_evidence_members",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "winner_evidence_manifest_members",
+      "n_live_tup": 0
+    },
+    {
+      "relname": "winner_evidence_manifests",
+      "n_live_tup": 0
+    }
+  ],
+  "git": {
+    "branch": "codex/t13e-phase4-config-certification",
+    "head": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+    "status": ""
+  }
+}

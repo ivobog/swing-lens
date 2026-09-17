@@ -45,6 +45,9 @@ from app.models.ib_market_intelligence_tables import (
 )
 from app.models.tables import (
     CombinedResult,
+    CoreCalculationCurrentProjection,
+    CoreCalculationEvidence,
+    CoreCalculationEvidenceSource,
     EngineParameters,
     FundamentalScore,
     IBContract,
@@ -93,6 +96,9 @@ __all__ = [
     "CeriSecSyncState",
     "CeriSourceRecord",
     "CombinedResult",
+    "CoreCalculationCurrentProjection",
+    "CoreCalculationEvidence",
+    "CoreCalculationEvidenceSource",
     "EngineParameters",
     "FundamentalScore",
     "IBContract",

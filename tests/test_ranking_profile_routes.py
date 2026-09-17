@@ -166,7 +166,8 @@ def test_view_ranking_profile_results_route_includes_market_context(monkeypatch)
     assert payload["results"][0]["profile_score"] == 8.75
 
 
-def test_view_ranking_profile_results_route_404s_unknown_profile() -> None:
+def test_view_ranking_profile_results_route_404s_unknown_profile(monkeypatch) -> None:
+    monkeypatch.setattr(run_routes, "get_ranking_results", lambda *_args: [])
     with pytest.raises(HTTPException) as exc:
         run_routes.view_ranking_profile_results(
             run_id=7,

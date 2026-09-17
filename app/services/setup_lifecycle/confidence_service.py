@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.dtos import FamilyEvidence, NormalizedSnapshot
 from app.services.setup_lifecycle.enums import ConfidenceLabel
@@ -29,6 +30,7 @@ class SetupLifecycleConfidenceService:
         persistence_sessions: int = 0,
         context_complete: bool | None = None,
     ) -> ConfidenceBreakdown:
+        snapshot = setup_with_contextual_permission(snapshot)
         coverage = _coverage(snapshot)
         agreement, agreement_detail = _agreement(
             evidence,
@@ -39,7 +41,12 @@ class SetupLifecycleConfidenceService:
             snapshot,
             self.config.confidence.freshness_and_lineage_weights,
         )
-        context = _context(snapshot) if context_complete is None else float(context_complete)
+        contextual_decisions = snapshot.source_lineage.get("contextual_consumer_eligibility")
+        context = (
+            _context(snapshot)
+            if context_complete is None or contextual_decisions is not None
+            else float(context_complete)
+        )
 
         components = {
             "required_feature_coverage": coverage,

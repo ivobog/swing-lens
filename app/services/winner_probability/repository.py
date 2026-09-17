@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.tables import (
     CombinedResult,
@@ -47,12 +47,8 @@ class RunCaptureContext:
     sector_rotation_snapshot: SectorRotationSnapshot | None
     decision_handoff_manifest: TransitionDecisionHandoffManifest | None = None
     market_regime_candidates: tuple[MarketRegimeSnapshot, ...] = field(default_factory=tuple)
-    sector_rotation_candidates: tuple[SectorRotationSnapshot, ...] = field(
-        default_factory=tuple
-    )
-    sector_rows_by_snapshot: dict[int, dict[str, SectorRotationRow]] = field(
-        default_factory=dict
-    )
+    sector_rotation_candidates: tuple[SectorRotationSnapshot, ...] = field(default_factory=tuple)
+    sector_rows_by_snapshot: dict[int, dict[str, SectorRotationRow]] = field(default_factory=dict)
     tickers: tuple[TickerCaptureContext, ...] = field(default_factory=tuple)
 
 
@@ -77,31 +73,61 @@ class WinnerProbabilityRepository:
             )
         )
         fundamentals = _by_ticker(
-            db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id))
+            db.scalars(
+                select(FundamentalScore)
+                .options(
+                    selectinload(FundamentalScore.calculation_evidence),
+                )
+                .where(FundamentalScore.run_id == run_id)
+            )
         )
         technicals = _by_ticker(
-            db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id))
+            db.scalars(
+                select(TechnicalScore)
+                .options(
+                    selectinload(TechnicalScore.calculation_evidence),
+                )
+                .where(TechnicalScore.run_id == run_id)
+            )
         )
         combined = _by_ticker(
-            db.scalars(select(CombinedResult).where(CombinedResult.run_id == run_id))
+            db.scalars(
+                select(CombinedResult)
+                .options(
+                    selectinload(CombinedResult.calculation_evidence),
+                )
+                .where(CombinedResult.run_id == run_id)
+            )
         )
         rankings = _rankings_by_ticker(
-            db.scalars(select(RankingResult).where(RankingResult.run_id == run_id))
+            db.scalars(
+                select(RankingResult)
+                .options(
+                    selectinload(RankingResult.calculation_evidence),
+                )
+                .where(RankingResult.run_id == run_id)
+            )
         )
-        market_statement = select(MarketRegimeSnapshot).where(
-            MarketRegimeSnapshot.is_current_revision.is_(True)
+        market_statement = (
+            select(MarketRegimeSnapshot)
+            .options(
+                selectinload(MarketRegimeSnapshot.calculation_evidence),
+            )
+            .where(MarketRegimeSnapshot.is_current_revision.is_(True))
         )
-        sector_statement = select(SectorRotationSnapshot).where(
-            SectorRotationSnapshot.is_current_revision.is_(True)
+        sector_statement = (
+            select(SectorRotationSnapshot)
+            .options(
+                selectinload(SectorRotationSnapshot.calculation_evidence),
+            )
+            .where(SectorRotationSnapshot.is_current_revision.is_(True))
         )
         if market_cutoff is not None:
             market_statement = market_statement.where(
-                MarketRegimeSnapshot.as_of_date
-                == market_cutoff.latest_completed_session
+                MarketRegimeSnapshot.as_of_date == market_cutoff.latest_completed_session
             )
             sector_statement = sector_statement.where(
-                SectorRotationSnapshot.as_of_date
-                == market_cutoff.latest_completed_session
+                SectorRotationSnapshot.as_of_date == market_cutoff.latest_completed_session
             )
         market_candidates = tuple(
             db.scalars(
@@ -115,10 +141,10 @@ class WinnerProbabilityRepository:
         sector_candidates = tuple(
             db.scalars(
                 sector_statement.order_by(
-                SectorRotationSnapshot.as_of_date.desc(),
-                SectorRotationSnapshot.created_at.desc(),
-                SectorRotationSnapshot.id.desc(),
-            )
+                    SectorRotationSnapshot.as_of_date.desc(),
+                    SectorRotationSnapshot.created_at.desc(),
+                    SectorRotationSnapshot.id.desc(),
+                )
             )
         )
         market_snapshot = market_candidates[0] if market_candidates else None
@@ -127,14 +153,10 @@ class WinnerProbabilityRepository:
         snapshot_ids = [row.id for row in sector_candidates if row.id is not None]
         if snapshot_ids:
             for row in db.scalars(
-                select(SectorRotationRow).where(
-                    SectorRotationRow.snapshot_id.in_(snapshot_ids)
-                )
+                select(SectorRotationRow).where(SectorRotationRow.snapshot_id.in_(snapshot_ids))
             ):
                 sector_rows_by_snapshot[row.snapshot_id][row.sector] = row
-        sector_rows = sector_rows_by_snapshot.get(
-            getattr(sector_snapshot, "id", None), {}
-        )
+        sector_rows = sector_rows_by_snapshot.get(getattr(sector_snapshot, "id", None), {})
 
         handoff_statement = select(TransitionDecisionHandoffManifest).where(
             TransitionDecisionHandoffManifest.upload_run_id == run_id
@@ -149,9 +171,7 @@ class WinnerProbabilityRepository:
                 TransitionDecisionHandoffManifest.id == decision_handoff_manifest_id
             )
         handoff_manifest = db.scalar(
-            handoff_statement.order_by(
-                TransitionDecisionHandoffManifest.id.desc()
-            ).limit(1)
+            handoff_statement.order_by(TransitionDecisionHandoffManifest.id.desc()).limit(1)
         )
 
         ticker_contexts = tuple(

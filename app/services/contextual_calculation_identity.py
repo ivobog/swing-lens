@@ -324,12 +324,13 @@ def expected_ibmi_identity(
     calculation_version: str,
     source_version: str,
     module: str,
+    effective_configuration=None,
 ) -> CalculationIdentity:
     na = IdentityDimension.not_applicable()
     calendar = context.temporal.calendar
     if calendar.state is IdentityState.KNOWN:
         calendar = IdentityDimension.known(replace(calendar.value, bar_readiness_version=na))
-    return replace(
+    result = replace(
         context,
         ownership=CalculationOwnership(na, na),
         subject=CalculationSubject(IdentityDimension.known(ticker.upper()), na),
@@ -351,6 +352,7 @@ def expected_ibmi_identity(
         ),
         source_lineage=na,
     )
+    return effective_configuration.bind(result) if effective_configuration is not None else result
 
 
 def build_ibmi_feature_identity(feature: Any) -> CalculationIdentity:
@@ -375,7 +377,7 @@ def build_ibmi_feature_identity(feature: Any) -> CalculationIdentity:
         else IdentityDimension.unknown()
     )
     module = str(getattr(feature, "module", "feature")).lower()
-    return CalculationIdentity(
+    result = CalculationIdentity(
         ownership=CalculationOwnership(na, na),
         subject=CalculationSubject(IdentityDimension.known(str(feature.ticker).upper()), na),
         calculation_context=CalculationContextIdentity(na, na),
@@ -416,6 +418,23 @@ def build_ibmi_feature_identity(feature: Any) -> CalculationIdentity:
         source_lineage=lineage,
         generation=GenerationIdentity(na, na, na, na),
     )
+    if getattr(feature, "evidence_id", None) is not None:
+        from app.services.contextual_effective_configuration import (
+            contextual_configuration_from_evidence,
+        )
+
+        frozen = contextual_configuration_from_evidence(feature.calculation_evidence)
+        if frozen is not None:
+            return frozen.bind(result)
+        # A sealed pre-adoption hash is diagnostic, not proof of effective values.
+        # Unsealed candidates retain their native marker for legacy selection/blocking.
+        return replace(
+            result,
+            configuration=replace(
+                result.configuration, effective_configuration=IdentityDimension.unknown()
+            ),
+        )
+    return result
 
 
 def expected_regime_identity(
@@ -429,7 +448,7 @@ def expected_regime_identity(
     )
     payload = asdict(config)
     version = str(config.calculation_version)
-    return replace(
+    result = replace(
         base,
         configuration=ConfigurationIdentity(
             _effective_config(
@@ -446,6 +465,8 @@ def expected_regime_identity(
             IdentityDimension.not_applicable(),
         ),
     )
+    effective = getattr(config, "_effective_configuration", None)
+    return effective.bind(result) if effective is not None else result
 
 
 def build_regime_identity(
@@ -479,9 +500,10 @@ def expected_sector_identity(
     config_hash: str,
     calculation_version: str,
     mode: str,
+    effective_configuration=None,
 ) -> CalculationIdentity:
     na = IdentityDimension.not_applicable()
-    return replace(
+    result = replace(
         context,
         subject=CalculationSubject(na, na),
         configuration=ConfigurationIdentity(
@@ -498,6 +520,7 @@ def expected_sector_identity(
         ),
         source_lineage=na,
     )
+    return effective_configuration.bind(result) if effective_configuration is not None else result
 
 
 def build_contextual_result_identity(

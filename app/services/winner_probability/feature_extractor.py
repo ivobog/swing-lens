@@ -46,6 +46,23 @@ class ExtractedPredictionFeatures:
 
 
 class WinnerFeatureExtractor:
+    def validate_capture_vector(
+        self,
+        features: ExtractedPredictionFeatures,
+        config: WinnerProbabilityConfig,
+    ) -> None:
+        registry = FeatureSchemaRegistry(config.feature_schema.version)
+        missing = [
+            item.name
+            for item in registry.list_features()
+            if item.missingness_policy == "required_for_eligible_prediction"
+            and features.feature_json.get(item.name) in (None, "")
+        ]
+        if missing:
+            raise WinnerFeatureExtractionError(
+                f"Winner required feature unavailable: {','.join(sorted(missing))}"
+            )
+
     def finalize_decision_timing(
         self,
         features: ExtractedPredictionFeatures,
@@ -95,6 +112,16 @@ class WinnerFeatureExtractor:
         captured_at: datetime | None = None,
         decision_at: datetime | None = None,
     ) -> ExtractedPredictionFeatures:
+        from app.services.decision_effective_configuration import resolve_winner_configuration
+
+        # Capture supplies an owned native adapter once per batch. External
+        # callers are frozen here; active delivery always selects its C1.
+        effective = resolve_winner_configuration(config, family="prediction")
+        owned = getattr(config, "_configuration_snapshots", {}).get("decision.winner.prediction")
+        if owned is None:
+            config = effective.winner_config()
+        elif owned.snapshot.resolution_hash != effective.snapshot.resolution_hash:
+            raise ValueError("WINNER_FEATURE_CONFIGURATION_ANCHOR_MISMATCH")
         decision_at = decision_at or captured_at or datetime.now(UTC)
         raw_row = ticker_context.raw_row
         ticker = _ticker(raw_row.ticker)
@@ -229,16 +256,20 @@ class WinnerFeatureExtractor:
                 "technical_score_id": getattr(technical, "id", None),
                 "combined_result_id": getattr(combined, "id", None),
                 "ranking_result_id": getattr(ranking, "id", None),
+                "fundamental_evidence_id": getattr(fundamental, "evidence_id", None),
+                "technical_evidence_id": getattr(technical, "evidence_id", None),
+                "combined_evidence_id": getattr(combined, "evidence_id", None),
+                "ranking_evidence_id": getattr(ranking, "evidence_id", None),
                 "market_regime_snapshot_id": getattr(market, "id", None),
                 "sector_rotation_snapshot_id": getattr(sector_snapshot, "id", None),
+                "regime_evidence_id": getattr(market, "evidence_id", None),
+                "sector_evidence_id": getattr(sector_snapshot, "evidence_id", None),
                 "sector_rotation_row_id": getattr(sector_row, "id", None),
             },
             lineage_json={
                 "capture_phase": "phase_3",
                 "decision_handoff": {
-                    "manifest_id": getattr(
-                        run_context.decision_handoff_manifest, "id", None
-                    ),
+                    "manifest_id": getattr(run_context.decision_handoff_manifest, "id", None),
                     "manifest_fingerprint": getattr(
                         run_context.decision_handoff_manifest,
                         "manifest_fingerprint",
@@ -521,6 +552,12 @@ def _planned_entry_session(decision_at: datetime) -> date | None:
 def _stable_hash(payload: dict[str, Any]) -> str:
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _feature_semantic_hash(payload):
+    # The native whole-file compatibility hash is metadata. Cohort/governance
+    # edits do not change the frozen prediction vector's financial semantics.
+    return _stable_hash({key: value for key, value in payload.items() if key != "config_hash"})
 
 
 def _normalize(value: Any) -> Any:

@@ -29,10 +29,13 @@ class FundamentalScoreResult:
 
 
 def score_rows(rows: list[MappedCsvRow]) -> list[FundamentalScoreResult]:
-    return [score_row(row) for row in rows if row.ticker]
+    weights = _load_scoring_weights()
+    return [score_row(row, weights=weights) for row in rows if row.ticker]
 
 
-def score_row(row: MappedCsvRow) -> FundamentalScoreResult:
+def score_row(
+    row: MappedCsvRow, *, weights: dict[str, float] | None = None
+) -> FundamentalScoreResult:
     values = row.canonical
     component_scores = {
         "growth_score": _growth_score(values),
@@ -46,7 +49,7 @@ def score_row(row: MappedCsvRow) -> FundamentalScoreResult:
     }
     missing_data_penalty = _missing_data_penalty(values)
     trap_flags = _trap_flags(values, component_scores, missing_data_penalty)
-    fundamental_score = _weighted_score(component_scores) - missing_data_penalty
+    fundamental_score = _weighted_score(component_scores, weights=weights) - missing_data_penalty
     fundamental_score = _clamp(fundamental_score)
     label = _label_for_score(fundamental_score, component_scores, trap_flags)
     explanation = _explain(label, component_scores, trap_flags, missing_data_penalty)
@@ -79,8 +82,10 @@ def to_decimal(value: float) -> Decimal:
     return Decimal(str(round(value, 4)))
 
 
-def _weighted_score(component_scores: dict[str, float]) -> float:
-    weights = _load_scoring_weights()
+def _weighted_score(
+    component_scores: dict[str, float], *, weights: dict[str, float] | None = None
+) -> float:
+    weights = weights if weights is not None else _load_scoring_weights()
     total = 0.0
     for key, weight in weights.items():
         total += component_scores[key] * float(weight)
