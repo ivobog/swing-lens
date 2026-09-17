@@ -1,0 +1,46 @@
+{
+  "maximumIds": {
+    "core_calculation_evidence": {
+      "before": 0,
+      "after": 0
+    },
+    "ceri_sec_filing_documents": {
+      "before": 344301,
+      "after": 344301
+    },
+    "ceri_sec_document_extractions": {
+      "before": 74454,
+      "after": 74454
+    },
+    "ceri_sec_sync_states": {
+      "before": 1536,
+      "after": 1536
+    },
+    "transition_decision_handoff_manifests": {
+      "before": 1,
+      "after": 1
+    },
+    "winner_evidence_manifests": {
+      "before": 1897,
+      "after": 1897
+    },
+    "jobs": {
+      "before": 43269,
+      "after": 43269
+    },
+    "pipelines": {
+      "before": 151,
+      "after": 151
+    }
+  },
+  "freshRegistrations": {
+    "background_workers": 0,
+    "background_supervisors": 0
+  },
+  "freshJobLeases": 0,
+  "heartbeatUnchanged": {
+    "worker": true,
+    "supervisor": true
+  },
+  "capturedAt": "2026-09-17 11:59:10.566991+02:00"
+}

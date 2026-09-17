@@ -1,0 +1,1805 @@
+{
+  "captured_at": "2026-09-17T09:35:50.377208+00:00",
+  "git": {
+    "branch": "codex/t13e-phase4-config-certification",
+    "head": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+    "status": "M app/services/background_job_service.py\n M app/services/background_worker.py\n M app/services/ceri/sec/readiness_repair.py\n M app/services/configuration_delivery.py\n M app/services/pipeline_service.py\n M tests/integration/test_sec_readiness_repair_postgresql.py\n M tests/ops/test_lifecycle_powershell.py\n M tests/ops/test_lifecycle_safety.py\n?? docs/verification/run161-sec-continuation/\n?? tests/test_configuration_lineage_retry.py",
+    "diff_stat": "app/services/background_job_service.py             |  46 ++\n app/services/background_worker.py                  |  24 +-\n app/services/ceri/sec/readiness_repair.py          |  98 +++-\n app/services/configuration_delivery.py             |  87 +++-\n app/services/pipeline_service.py                   | 207 +++++++-\n .../test_sec_readiness_repair_postgresql.py        | 536 ++++++++++++++++++++-\n tests/ops/test_lifecycle_powershell.py             |  10 +-\n tests/ops/test_lifecycle_safety.py                 |  19 +-\n 8 files changed, 982 insertions(+), 45 deletions(-)",
+    "untracked": "docs/verification/run161-sec-continuation/alembic-check.txt\ndocs/verification/run161-sec-continuation/baseline-winner-checks.txt\ndocs/verification/run161-sec-continuation/baseline.json\ndocs/verification/run161-sec-continuation/broad-failure-recheck.txt\ndocs/verification/run161-sec-continuation/check_incident.py\ndocs/verification/run161-sec-continuation/final-incident.json\ndocs/verification/run161-sec-continuation/focused-certification.txt\ndocs/verification/run161-sec-continuation/focused-certified.txt\ndocs/verification/run161-sec-continuation/focused-final.txt\ndocs/verification/run161-sec-continuation/focused-initial.txt\ndocs/verification/run161-sec-continuation/incident-certified.txt\ndocs/verification/run161-sec-continuation/incident-final.txt\ndocs/verification/run161-sec-continuation/integrity-after.json\ndocs/verification/run161-sec-continuation/integrity-after.txt\ndocs/verification/run161-sec-continuation/integrity-before.json\ndocs/verification/run161-sec-continuation/integrity-predeploy.json\ndocs/verification/run161-sec-continuation/integrity-predeploy.txt\ndocs/verification/run161-sec-continuation/lifecycle-certified.txt\ndocs/verification/run161-sec-continuation/postgres-certification.txt\ndocs/verification/run161-sec-continuation/postgres-final.txt\ndocs/verification/run161-sec-continuation/postgres-initial.txt\ndocs/verification/run161-sec-continuation/pre-recovery.json\ndocs/verification/run161-sec-continuation/preflight-certified.txt\ndocs/verification/run161-sec-continuation/process-pool-certified.txt\ndocs/verification/run161-sec-continuation/report.md\ndocs/verification/run161-sec-continuation/restart-certified.txt\ndocs/verification/run161-sec-continuation/run_baseline_checks.py\ndocs/verification/run161-sec-continuation/run_tests.py\ndocs/verification/run161-sec-continuation/runtime-registrations.json\ndocs/verification/run161-sec-continuation/runtime-stop.json\ndocs/verification/run161-sec-continuation/sec-evidence.json\ndocs/verification/run161-sec-continuation/snapshot_integrity.py\ndocs/verification/run161-sec-continuation/unit-suite.txt\ntests/test_configuration_lineage_retry.py"
+  },
+  "metadata_exists": false,
+  "roles": [
+    {
+      "role": "worker",
+      "pid": 4000,
+      "createdAt": "2026-09-16T23:18:50.094193+00:00"
+    },
+    {
+      "role": "web",
+      "pid": 8408,
+      "createdAt": "2026-09-16T23:18:49.491671+00:00"
+    },
+    {
+      "role": "supervisor",
+      "pid": 15440,
+      "createdAt": "2026-09-16T23:18:46.987648+00:00"
+    }
+  ],
+  "processes": [
+    {
+      "pid": 2880,
+      "parentPid": 15440,
+      "createdAt": "2026-09-16T23:18:49.477411+00:00",
+      "executable": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+      "commandLine": [
+        "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+        "-m",
+        "app.serve",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--runtime-instance-id",
+        "330f441756da4de7a1b44d2263936dfe",
+        "--repo-root",
+        "C:\\Users\\Ivica\\Documents\\SwingLens"
+      ],
+      "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+    },
+    {
+      "pid": 4000,
+      "parentPid": 13124,
+      "createdAt": "2026-09-16T23:18:50.094193+00:00",
+      "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "commandLine": [
+        "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-m",
+        "app.worker",
+        "--worker-id",
+        "local-worker-1",
+        "--queues",
+        "interactive,broker,background"
+      ],
+      "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "environment_identity": {
+        "PROCESS_ROLE": "DURABLE_WORKER",
+        "RUNTIME_MODE": "NORMAL",
+        "SWINGLENS_GIT_SHA": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+        "SWINGLENS_PARENT_PID": "15440",
+        "SWINGLENS_PARENT_STARTED_AT": "2026-09-16T23:18:46.987648+00:00",
+        "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+        "SWINGLENS_RUNTIME_INSTANCE_ID": "330f441756da4de7a1b44d2263936dfe"
+      }
+    },
+    {
+      "pid": 6972,
+      "parentPid": 15704,
+      "createdAt": "2026-09-16T23:18:46.964584+00:00",
+      "executable": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+      "commandLine": [
+        "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+        "-m",
+        "app.worker_supervisor",
+        "--worker-id",
+        "local-worker-1",
+        "--queues",
+        "interactive,broker,background",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--runtime-instance-id",
+        "330f441756da4de7a1b44d2263936dfe",
+        "--repo-root",
+        "C:\\Users\\Ivica\\Documents\\SwingLens"
+      ],
+      "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+    },
+    {
+      "pid": 8408,
+      "parentPid": 2880,
+      "createdAt": "2026-09-16T23:18:49.491671+00:00",
+      "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "commandLine": [
+        "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-m",
+        "app.serve",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--runtime-instance-id",
+        "330f441756da4de7a1b44d2263936dfe",
+        "--repo-root",
+        "C:\\Users\\Ivica\\Documents\\SwingLens"
+      ],
+      "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "environment_identity": {
+        "PROCESS_ROLE": "WEB",
+        "RUNTIME_MODE": "NORMAL",
+        "SWINGLENS_GIT_SHA": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+        "SWINGLENS_PARENT_PID": "15440",
+        "SWINGLENS_PARENT_STARTED_AT": "2026-09-16T23:18:46.987648+00:00",
+        "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+        "SWINGLENS_RUNTIME_INSTANCE_ID": "330f441756da4de7a1b44d2263936dfe"
+      }
+    },
+    {
+      "pid": 12484,
+      "parentPid": 8408,
+      "createdAt": "2026-09-16T23:19:56.744248+00:00",
+      "executable": "C:\\Jts\\ibgateway\\1048\\ibgateway.exe",
+      "commandLine": [
+        "C:\\Jts\\ibgateway\\1048\\ibgateway.exe"
+      ],
+      "cwd": "C:\\Jts\\ibgateway\\1048"
+    },
+    {
+      "pid": 13124,
+      "parentPid": 15440,
+      "createdAt": "2026-09-16T23:18:50.077562+00:00",
+      "executable": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+      "commandLine": [
+        "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+        "-m",
+        "app.worker",
+        "--worker-id",
+        "local-worker-1",
+        "--queues",
+        "interactive,broker,background"
+      ],
+      "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+    },
+    {
+      "pid": 13196,
+      "parentPid": 15440,
+      "createdAt": "2026-09-16T23:18:47.000805+00:00",
+      "executable": "C:\\Windows\\System32\\conhost.exe",
+      "commandLine": [
+        "\\??\\C:\\WINDOWS\\system32\\conhost.exe",
+        "0x4"
+      ],
+      "cwd": "C:\\WINDOWS"
+    },
+    {
+      "pid": 15440,
+      "parentPid": 6972,
+      "createdAt": "2026-09-16T23:18:46.987648+00:00",
+      "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "commandLine": [
+        "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-m",
+        "app.worker_supervisor",
+        "--worker-id",
+        "local-worker-1",
+        "--queues",
+        "interactive,broker,background",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--runtime-instance-id",
+        "330f441756da4de7a1b44d2263936dfe",
+        "--repo-root",
+        "C:\\Users\\Ivica\\Documents\\SwingLens"
+      ],
+      "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "environment_identity": {
+        "PROCESS_ROLE": "SUPERVISOR",
+        "RUNTIME_MODE": "NORMAL",
+        "SWINGLENS_GIT_SHA": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+        "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+        "SWINGLENS_RUNTIME_INSTANCE_ID": "330f441756da4de7a1b44d2263936dfe"
+      }
+    }
+  ],
+  "listeners": {
+    "listeners": [
+      {
+        "address": "0.0.0.0",
+        "port": 5432,
+        "pid": 6852,
+        "parentPid": 5340,
+        "createdAt": "2026-09-16T01:38:06.338439+00:00",
+        "executable": "C:\\Program Files\\PostgreSQL\\18\\bin\\postgres.exe",
+        "commandLine": null,
+        "cwd": null
+      },
+      {
+        "address": "::",
+        "port": 5432,
+        "pid": 6852,
+        "parentPid": 5340,
+        "createdAt": "2026-09-16T01:38:06.338439+00:00",
+        "executable": "C:\\Program Files\\PostgreSQL\\18\\bin\\postgres.exe",
+        "commandLine": null,
+        "cwd": null
+      },
+      {
+        "address": "127.0.0.1",
+        "port": 8000,
+        "pid": 8408,
+        "parentPid": 2880,
+        "createdAt": "2026-09-16T23:18:49.491671+00:00",
+        "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-m",
+          "app.serve",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8000",
+          "--runtime-instance-id",
+          "330f441756da4de7a1b44d2263936dfe",
+          "--repo-root",
+          "C:\\Users\\Ivica\\Documents\\SwingLens"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      },
+      {
+        "address": "127.0.0.1",
+        "port": 9101,
+        "pid": 4000,
+        "parentPid": 13124,
+        "createdAt": "2026-09-16T23:18:50.094193+00:00",
+        "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-m",
+          "app.worker",
+          "--worker-id",
+          "local-worker-1",
+          "--queues",
+          "interactive,broker,background"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      },
+      {
+        "address": "127.0.0.1",
+        "port": 9102,
+        "pid": 15440,
+        "parentPid": 6972,
+        "createdAt": "2026-09-16T23:18:46.987648+00:00",
+        "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-m",
+          "app.worker_supervisor",
+          "--worker-id",
+          "local-worker-1",
+          "--queues",
+          "interactive,broker,background",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8000",
+          "--runtime-instance-id",
+          "330f441756da4de7a1b44d2263936dfe",
+          "--repo-root",
+          "C:\\Users\\Ivica\\Documents\\SwingLens"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      }
+    ]
+  },
+  "health": {
+    "/health": {
+      "status": 200,
+      "body": {
+        "app": "SwingLens",
+        "status": "ok",
+        "database_configured": true,
+        "ib_host": "127.0.0.1",
+        "ib_port": 4002
+      }
+    },
+    "/ready": {
+      "status": 200,
+      "body": {
+        "app": "SwingLens",
+        "status": "ok",
+        "database_ok": true,
+        "local_dirs_ok": true,
+        "migrations_ok": true,
+        "supervisor_ok": true,
+        "worker_registered": true,
+        "worker_heartbeat_fresh": true,
+        "worker_ok": true,
+        "jobs_ok": true,
+        "checks": {
+          "database": "ok",
+          "migrations": "ok:0080_effective_configuration",
+          "storage": "ok",
+          "disk": "ok:21.7%",
+          "supervisor": "live:local-worker-1:a39f9b30b9bf410cad7728939a611dce:generation-65",
+          "runtime": "runtime:NORMAL",
+          "topology": "not required",
+          "worker_registered": "registered:local-worker-1",
+          "worker_heartbeat": "fresh:local-worker-1",
+          "worker": "live:local-worker-1",
+          "jobs": "ok",
+          "queue_pressure": "ok:runnable=0:scheduled=0:blocked=1:recovering=0:stalled=0:running=0:oldest=0s",
+          "db_pool": "ok:0/15:overflow_in_use=0",
+          "telemetry": "ok",
+          "metrics": "enabled",
+          "resource_sampler": "ok",
+          "system_collector": "ok",
+          "ib": "optional_unavailable",
+          "sec": "SEC_CAPABILITY_READY:sec-guidance:eed017654682a0c9:sec-processor-signature-v1"
+        },
+        "check_states": {
+          "database": "ok",
+          "migrations": "ok",
+          "storage": "ok",
+          "disk": "ok",
+          "supervisor": "ok",
+          "runtime": "ok",
+          "topology": "ok",
+          "worker_registered": "ok",
+          "worker_heartbeat": "ok",
+          "worker": "ok",
+          "jobs": "ok",
+          "queue_pressure": "ok",
+          "db_pool": "ok",
+          "telemetry": "ok",
+          "metrics": "ok",
+          "resource_sampler": "ok",
+          "system_collector": "ok",
+          "ib": "optional_unavailable",
+          "sec": "ok"
+        }
+      }
+    },
+    "/health/ready": {
+      "status": 404,
+      "body": {
+        "detail": "Not Found"
+      }
+    },
+    "/runs/161/pipeline/151/status": {
+      "status": 200,
+      "body": {
+        "pipeline_run_id": 151,
+        "upload_run_id": 161,
+        "status": "PREPARING",
+        "current_step": "VALIDATING_RUN",
+        "current_step_label": "Preparing SEC evidence",
+        "requested_by": null,
+        "started_at": "2026-09-17T01:20:50.404274+02:00",
+        "completed_at": null,
+        "created_at": "2026-09-17T01:20:46.935179+02:00",
+        "message": "Checking SEC preparation: 86 / 86 ready.",
+        "error_message": null,
+        "background_job_id": 43269,
+        "job_status": "FAILED",
+        "job_cancel_requested": false,
+        "worker_id": null,
+        "worker_heartbeat_at": null,
+        "lease_renewed_at": null,
+        "worker_pid": null,
+        "worker_memory_status": null,
+        "worker_rss_bytes": null,
+        "worker_private_bytes": null,
+        "last_progress_at": "2026-09-17T01:55:07.005981+02:00",
+        "progress_sequence": 6,
+        "progress_stage": null,
+        "current_item": null,
+        "last_completed_item": null,
+        "processed_item_count": 0,
+        "total_item_count": null,
+        "checkpoint_version": null,
+        "stall_detected_at": null,
+        "recovery_count": 0,
+        "job_error": "MISSING_CONFIGURATION_ANCHOR_BINDING",
+        "result": {
+          "ib_host": "127.0.0.1",
+          "ib_port": 4002,
+          "degraded": false,
+          "ceri_stale": 0,
+          "sec_repair": {
+            "counts": {
+              "READY": 86,
+              "CIK_MISSING": 0,
+              "INVALID_TICKER": 0,
+              "SEC_NOT_APPLICABLE": 0,
+              "SIGNATURE_MISMATCH": 0,
+              "SYNC_STATE_MISSING": 0,
+              "UNRESOLVED_MAPPING": 0,
+              "OTHER_BLOCKING_REASON": 0
+            },
+            "run_id": 161,
+            "telemetry": {
+              "sec_requests": 25,
+              "bytes_downloaded": 19057165,
+              "filing_downloads": 20,
+              "documents_skipped": 0,
+              "documents_discovered": 20,
+              "documents_downloaded": 20,
+              "documents_would_skip": 0,
+              "documents_cache_reused": 0
+            },
+            "started_at": "2026-09-16T23:20:50.906064+00:00",
+            "updated_at": "2026-09-16T23:55:07.407832+00:00",
+            "pipeline_id": 151,
+            "repair_stage": "RECHECKING_READINESS",
+            "ready_tickers": 86,
+            "repair_job_id": 43269,
+            "total_tickers": 86,
+            "last_error_code": null,
+            "repaired_tickers": 4,
+            "last_error_detail": null,
+            "repairable_tickers": 4,
+            "unresolved_tickers": [],
+            "initial_ready_tickers": 82,
+            "current_processor_signature": "sec-guidance:eed017654682a0c9"
+          },
+          "ceri_alerts": 0,
+          "ceri_failed": 0,
+          "performance": {
+            "phase": 1,
+            "fallbacks": [],
+            "ib_network_ms": null,
+            "prewarm_job_id": null,
+            "schema_version": "pipeline-performance-v1",
+            "pipeline_wall_ms": 289.258,
+            "setup_capture_ms": null,
+            "ib_pacing_wait_ms": null,
+            "step_durations_ms": {
+              "VALIDATING_RUN": 175.143
+            },
+            "bar_cache_write_ms": null,
+            "prewarm_age_seconds": null,
+            "setup_evaluation_ms": null,
+            "technical_cache_hits": 0,
+            "pipeline_execution_ms": 289.258,
+            "technical_finalize_ms": null,
+            "pipeline_total_wall_ms": 3758.353,
+            "prewarm_reused_tickers": 0,
+            "setup_context_build_ms": null,
+            "technical_cache_misses": 0,
+            "pipeline_queue_delay_ms": 3469.095,
+            "prewarm_covered_tickers": 0,
+            "technical_input_load_ms": null,
+            "technical_max_in_flight": null,
+            "technical_worker_span_ms": null,
+            "setup_latest_bar_query_ms": null,
+            "technical_worker_processes": null,
+            "technical_cache_shadow_misses": 0,
+            "technical_cache_shadow_candidates": 0,
+            "technical_cache_shadow_mismatches": 0,
+            "technical_cache_shadow_validations": 0,
+            "technical_tickers_completed_during_fetch": 0
+          },
+          "ceri_unrated": 0,
+          "warning_rows": 0,
+          "market_regime": null,
+          "repair_job_id": 43269,
+          "sec_preflight": {
+            "processor": {
+              "active_signature": "sec-guidance:eed017654682a0c9",
+              "deployed_is_active": true,
+              "deployed_signature": "sec-guidance:eed017654682a0c9",
+              "certified_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            "readiness": {
+              "counts": {
+                "READY": 82,
+                "CIK_MISSING": 1,
+                "INVALID_TICKER": 0,
+                "SEC_NOT_APPLICABLE": 0,
+                "SIGNATURE_MISMATCH": 0,
+                "SYNC_STATE_MISSING": 0,
+                "UNRESOLVED_MAPPING": 3,
+                "OTHER_BLOCKING_REASON": 0
+              },
+              "tickers": [
+                {
+                  "ciks": [
+                    "0001090872"
+                  ],
+                  "reason": null,
+                  "ticker": "A",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000320193"
+                  ],
+                  "reason": null,
+                  "ticker": "AAPL",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001447028"
+                  ],
+                  "reason": null,
+                  "ticker": "ABUS",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000874761"
+                  ],
+                  "reason": null,
+                  "ticker": "AES",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001267238"
+                  ],
+                  "reason": null,
+                  "ticker": "AIZ",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:910cfd73179f55a7",
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000002488"
+                  ],
+                  "reason": null,
+                  "ticker": "AMD",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001142750"
+                  ],
+                  "reason": null,
+                  "ticker": "AMN",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001596532"
+                  ],
+                  "reason": null,
+                  "ticker": "ANET",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001787306"
+                  ],
+                  "reason": null,
+                  "ticker": "ARQT",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001577437"
+                  ],
+                  "reason": null,
+                  "ticker": "ASC",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001600620"
+                  ],
+                  "reason": null,
+                  "ticker": "AUPH",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000008858"
+                  ],
+                  "reason": null,
+                  "ticker": "AVT",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001094831"
+                  ],
+                  "reason": null,
+                  "ticker": "BGC",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0002002473"
+                  ],
+                  "reason": null,
+                  "ticker": "BOW",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000016058"
+                  ],
+                  "reason": null,
+                  "ticker": "CACI",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001324404"
+                  ],
+                  "reason": null,
+                  "ticker": "CF",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001486159"
+                  ],
+                  "reason": null,
+                  "ticker": "CHRD",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0002115119"
+                  ],
+                  "reason": null,
+                  "ticker": "CLBK",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000317540"
+                  ],
+                  "reason": null,
+                  "ticker": "COKE",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0002014596"
+                  ],
+                  "reason": null,
+                  "ticker": "CON",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001163165"
+                  ],
+                  "reason": null,
+                  "ticker": "COP",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000354647"
+                  ],
+                  "reason": null,
+                  "ticker": "CVBF",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000093410"
+                  ],
+                  "reason": null,
+                  "ticker": "CVX",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001070985"
+                  ],
+                  "reason": null,
+                  "ticker": "CXW",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000916540"
+                  ],
+                  "reason": null,
+                  "ticker": "DAR",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001022079"
+                  ],
+                  "reason": null,
+                  "ticker": "DGX",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [],
+                  "reason": "No CERI company mapping exists.",
+                  "ticker": "DOCN",
+                  "category": "UNRESOLVED_MAPPING",
+                  "available_signatures": []
+                },
+                {
+                  "ciks": [
+                    "0001090012"
+                  ],
+                  "reason": null,
+                  "ticker": "DVN",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001093557"
+                  ],
+                  "reason": null,
+                  "ticker": "DXCM",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [],
+                  "reason": "SEC applicability requires a persisted CIK.",
+                  "ticker": "EBAY",
+                  "category": "CIK_MISSING",
+                  "available_signatures": []
+                },
+                {
+                  "ciks": [
+                    "0001084961"
+                  ],
+                  "reason": null,
+                  "ticker": "ECPG",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001099800"
+                  ],
+                  "reason": null,
+                  "ticker": "EW",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000939767"
+                  ],
+                  "reason": null,
+                  "ticker": "EXEL",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000840489"
+                  ],
+                  "reason": null,
+                  "ticker": "FCFS",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001048695"
+                  ],
+                  "reason": null,
+                  "ticker": "FFIV",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000928054"
+                  ],
+                  "reason": null,
+                  "ticker": "FTK",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001262039"
+                  ],
+                  "reason": null,
+                  "ticker": "FTNT",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001820872"
+                  ],
+                  "reason": null,
+                  "ticker": "GBTG",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000923796"
+                  ],
+                  "reason": null,
+                  "ticker": "GEO",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001326200"
+                  ],
+                  "reason": null,
+                  "ticker": "GNK",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001591588"
+                  ],
+                  "reason": null,
+                  "ticker": "GOLD",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001673743"
+                  ],
+                  "reason": null,
+                  "ticker": "HNGE",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001645590"
+                  ],
+                  "reason": null,
+                  "ticker": "HPE",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001802665"
+                  ],
+                  "reason": null,
+                  "ticker": "HRMY",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000921582"
+                  ],
+                  "reason": null,
+                  "ticker": "IMAX",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000879169"
+                  ],
+                  "reason": null,
+                  "ticker": "INCY",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000720858"
+                  ],
+                  "reason": null,
+                  "ticker": "ITIC",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000200406"
+                  ],
+                  "reason": null,
+                  "ticker": "JNJ",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001418135"
+                  ],
+                  "reason": null,
+                  "ticker": "KDP",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001730430"
+                  ],
+                  "reason": null,
+                  "ticker": "KNSA",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001845257"
+                  ],
+                  "reason": null,
+                  "ticker": "LFST",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000887905"
+                  ],
+                  "reason": null,
+                  "ticker": "LTC",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001668397"
+                  ],
+                  "reason": null,
+                  "ticker": "MEDP",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001099219"
+                  ],
+                  "reason": null,
+                  "ticker": "MET",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001835632"
+                  ],
+                  "reason": null,
+                  "ticker": "MRVL",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001952073"
+                  ],
+                  "reason": null,
+                  "ticker": "MSGE",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001104657"
+                  ],
+                  "reason": null,
+                  "ticker": "MTRN",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000811831"
+                  ],
+                  "reason": null,
+                  "ticker": "NBN",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000080172"
+                  ],
+                  "reason": null,
+                  "ticker": "NPK",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001002047"
+                  ],
+                  "reason": null,
+                  "ticker": "NTAP",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001568651"
+                  ],
+                  "reason": null,
+                  "ticker": "OSCR",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001474432"
+                  ],
+                  "reason": null,
+                  "ticker": "P",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001070423"
+                  ],
+                  "reason": null,
+                  "ticker": "PAA",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000821483"
+                  ],
+                  "reason": null,
+                  "ticker": "PARR",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [],
+                  "reason": "No CERI company mapping exists.",
+                  "ticker": "PAY",
+                  "category": "UNRESOLVED_MAPPING",
+                  "available_signatures": []
+                },
+                {
+                  "ciks": [
+                    "0001761312"
+                  ],
+                  "reason": null,
+                  "ticker": "PLMR",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001022408"
+                  ],
+                  "reason": null,
+                  "ticker": "PLUS",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001658566"
+                  ],
+                  "reason": null,
+                  "ticker": "PR",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001443669"
+                  ],
+                  "reason": null,
+                  "ticker": "PRLB",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001107843"
+                  ],
+                  "reason": null,
+                  "ticker": "QLYS",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000733269"
+                  ],
+                  "reason": null,
+                  "ticker": "RAMP",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000898174"
+                  ],
+                  "reason": null,
+                  "ticker": "RGA",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001428439"
+                  ],
+                  "reason": null,
+                  "ticker": "ROKU",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [],
+                  "reason": "No CERI company mapping exists.",
+                  "ticker": "SEI",
+                  "category": "UNRESOLVED_MAPPING",
+                  "available_signatures": []
+                },
+                {
+                  "ciks": [
+                    "0001822479"
+                  ],
+                  "reason": null,
+                  "ticker": "SHC",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001177394"
+                  ],
+                  "reason": null,
+                  "ticker": "SNX",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001576018"
+                  ],
+                  "reason": null,
+                  "ticker": "SPNT",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001483934"
+                  ],
+                  "reason": null,
+                  "ticker": "STNG",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001552275"
+                  ],
+                  "reason": null,
+                  "ticker": "SUN",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001660280"
+                  ],
+                  "reason": null,
+                  "ticker": "TENB",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001001316"
+                  ],
+                  "reason": null,
+                  "ticker": "TGTX",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000912958"
+                  ],
+                  "reason": null,
+                  "ticker": "TIGO",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001447669"
+                  ],
+                  "reason": null,
+                  "ticker": "TWLO",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0001403161"
+                  ],
+                  "reason": null,
+                  "ticker": "V",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0000105770"
+                  ],
+                  "reason": null,
+                  "ticker": "WST",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                },
+                {
+                  "ciks": [
+                    "0002115436"
+                  ],
+                  "reason": null,
+                  "ticker": "XOM",
+                  "category": "READY",
+                  "available_signatures": [
+                    "sec-guidance:948beb114caa8da9",
+                    "sec-guidance:eed017654682a0c9"
+                  ]
+                }
+              ],
+              "complete": false,
+              "ready_tickers": 82,
+              "blocking_tickers": [
+                "DOCN",
+                "EBAY",
+                "PAY",
+                "SEI"
+              ],
+              "requested_tickers": 86,
+              "processor_signature": "sec-guidance:eed017654682a0c9"
+            },
+            "provider_config": {
+              "config_hash": "c9f0043f2ea5519a923faa01b901071d6817290fa5fdf4532e9cc1f2b88dfa29",
+              "sec_guidance_capability": true,
+              "guidance_dataset_enabled": true
+            }
+          },
+          "upload_run_id": 161,
+          "uploaded_rows": 86,
+          "blocked_reason": null,
+          "failure_reason": null,
+          "ranking_reason": null,
+          "ranking_status": "PENDING",
+          "ceri_conflicted": 0,
+          "incomplete_rows": 0,
+          "pipeline_run_id": 151,
+          "ranking_results": 0,
+          "cache_used_count": 0,
+          "ceri_quarantined": 0,
+          "combined_results": 0,
+          "ib_failure_count": 0,
+          "ib_skipped_count": 0,
+          "ib_success_count": 0,
+          "market_cutoff_at": "2026-09-16T23:20:46.979906Z",
+          "market_data_mode": null,
+          "ranking_profiles": 0,
+          "technical_scores": 0,
+          "background_job_id": 43269,
+          "fresh_fetch_count": 0,
+          "market_risk_state": null,
+          "ceri_change_events": 0,
+          "fundamental_scores": 0,
+          "market_data_policy": "REQUIRE_IB",
+          "blocked_diagnostics": null,
+          "ib_execution_status": null,
+          "ib_planned_requests": 0,
+          "ib_preflight_status": "IB_API_READY",
+          "input_as_of_session": "2026-09-16",
+          "ceri_capture_skipped": 0,
+          "ceri_score_snapshots": 0,
+          "ib_executed_requests": 0,
+          "bar_readiness_version": "daily-close-plus-15m-v1",
+          "setup_lifecycle_alerts": 0,
+          "setup_lifecycle_failed": 0,
+          "ib_execution_checked_at": null,
+          "ib_execution_error_code": null,
+          "ib_preflight_checked_at": "2026-09-16T23:20:46.582908+00:00",
+          "market_calendar_version": "swinglens-us-equities-v1",
+          "market_regime_snapshots": 0,
+          "market_regime_confidence": null,
+          "winner_prediction_failed": 0,
+          "sector_rotation_snapshots": 0,
+          "winner_prediction_planned": 0,
+          "actual_latest_data_session": null,
+          "winner_prediction_excluded": 0,
+          "winner_prediction_inserted": 0,
+          "market_regime_warning_count": 0,
+          "setup_lifecycle_transitions": 0,
+          "winner_prediction_attempted": 0,
+          "winner_prediction_duplicate": 0,
+          "sector_rotation_sector_count": 0,
+          "transition_preflight_plan_id": null,
+          "ib_api_available_at_execution": null,
+          "market_calculation_context_id": 13,
+          "sector_rotation_warning_count": 0,
+          "setup_lifecycle_change_events": 0,
+          "latest_expected_market_session": null,
+          "sector_rotation_leading_sector": null,
+          "sector_rotation_weakest_sector": null,
+          "setup_lifecycle_low_confidence": 0,
+          "setup_lifecycle_active_episodes": 0,
+          "setup_lifecycle_capture_skipped": 0,
+          "transition_evidence_fingerprint": null,
+          "winner_prediction_failure_ratio": 0.0,
+          "winner_prediction_capture_skipped": 0,
+          "setup_lifecycle_evaluation_skipped": 0,
+          "setup_lifecycle_snapshots_captured": 0,
+          "winner_prediction_pending_outcomes": 0,
+          "setup_lifecycle_canonical_snapshots": 0,
+          "winner_prediction_exclusion_reasons": {},
+          "winner_prediction_decision_time_estimates": 0,
+          "winner_prediction_failure_classifications": {},
+          "winner_prediction_representative_failures": []
+        },
+        "completed_steps": 0,
+        "total_steps": 13,
+        "percentage": 0.0,
+        "steps": [
+          {
+            "step_name": "VALIDATING_RUN",
+            "label": "Validating Run",
+            "step_order": 1,
+            "status": "PENDING",
+            "started_at": "2026-09-17T01:20:50.470697+02:00",
+            "completed_at": null,
+            "message": "Waiting for automatic SEC preparation.",
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "SCORING_FUNDAMENTALS",
+            "label": "Scoring Fundamentals",
+            "step_order": 2,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "FETCHING_MARKET_DATA",
+            "label": "Fetching Market Data",
+            "step_order": 3,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "SCORING_TECHNICALS",
+            "label": "Scoring Technicals",
+            "step_order": 4,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "MARKET_REGIME_SNAPSHOT",
+            "label": "Market Regime Snapshot",
+            "step_order": 5,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "COMBINING_RESULTS",
+            "label": "Combining Results",
+            "step_order": 6,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "RANKING_PROFILES",
+            "label": "Ranking Profiles",
+            "step_order": 7,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "SECTOR_ROTATION_SNAPSHOT",
+            "label": "Sector Rotation Snapshot",
+            "step_order": 8,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "FREEZING_DECISION_HANDOFF_MANIFEST",
+            "label": "Freezing Decision Handoff Manifest",
+            "step_order": 9,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "CERI_PROVIDER_INGEST",
+            "label": "Ceri Provider Ingest",
+            "step_order": 10,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "CAPTURING_SETUP_SIGNALS",
+            "label": "Capturing Setup Signals",
+            "step_order": 11,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "EVALUATING_SETUP_LIFECYCLES",
+            "label": "Evaluating Setup Lifecycles",
+            "step_order": 12,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          },
+          {
+            "step_name": "CAPTURING_WINNER_PREDICTIONS",
+            "label": "Capturing Winner Predictions",
+            "step_order": 13,
+            "status": "PENDING",
+            "started_at": null,
+            "completed_at": null,
+            "message": null,
+            "error_message": null,
+            "retry_count": 0
+          }
+        ]
+      }
+    }
+  },
+  "registrations": {
+    "reachable": true,
+    "worker": {
+      "role": "worker",
+      "pid": 4000,
+      "createdAt": "2026-09-17T01:18:50.094192+02:00",
+      "instanceId": "42ef9f672dcf462cbc0ae2bea1f6fb1b",
+      "generation": 76,
+      "stoppingAt": null,
+      "launcherPid": 13124
+    },
+    "supervisor": {
+      "role": "supervisor",
+      "pid": 15440,
+      "createdAt": "2026-09-17T01:18:46.987648+02:00",
+      "instanceId": "a39f9b30b9bf410cad7728939a611dce",
+      "generation": 65,
+      "stoppingAt": null,
+      "launcherPid": null
+    }
+  },
+  "jobs": {
+    "reachable": true,
+    "active": [],
+    "activeCount": 0
+  },
+  "database": {
+    "scheme": "postgresql+psycopg",
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "swinglens",
+    "reachable": true,
+    "dataDirectory": "C:/Program Files/PostgreSQL/18/data",
+    "serverVersion": "18.3",
+    "serverVersionNum": 180003,
+    "currentDatabase": "swinglens",
+    "currentHeads": [
+      "0080_effective_configuration"
+    ],
+    "expectedHeads": [
+      "0080_effective_configuration"
+    ],
+    "schemaAtHead": true,
+    "useDurablePipeline": true
+  },
+  "supervisor_state": {
+    "cycle_failed": false,
+    "restart": {
+      "web": {
+        "first_failure_at": null,
+        "first_failure_monotonic": null,
+        "last_exit_code": null,
+        "last_failure_at": null,
+        "last_failure_monotonic": null,
+        "last_reason_code": "NONE",
+        "last_startup_stage": "not_started",
+        "restart_count": 0,
+        "restart_window_seconds": 60.0,
+        "role": "web",
+        "state": "RUNNING",
+        "window_failures": 0
+      },
+      "worker": {
+        "first_failure_at": "2026-09-16T23:18:49.494615+00:00",
+        "first_failure_monotonic": 78069.218,
+        "last_exit_code": null,
+        "last_failure_at": "2026-09-16T23:18:49.494615+00:00",
+        "last_failure_monotonic": 78069.218,
+        "last_reason_code": "DURABLE_WORKER_PROCESS_LOST",
+        "last_startup_stage": "worker_heartbeat",
+        "restart_count": 1,
+        "restart_window_seconds": 60.0,
+        "role": "worker",
+        "state": "RUNNING",
+        "window_failures": 1
+      }
+    },
+    "runtime_config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+    "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+    "supervisor": {
+      "instance_id": "a39f9b30b9bf410cad7728939a611dce",
+      "pid": 15440
+    },
+    "timestamp": "2026-09-17T09:35:52.351326+00:00",
+    "topology_version": "supervisor-root-v1",
+    "version": 1,
+    "web": {
+      "launcher_pid": 2880,
+      "state": "RUNNING"
+    },
+    "worker": {
+      "launcher_pid": 13124,
+      "state": "RUNNING"
+    }
+  }
+}

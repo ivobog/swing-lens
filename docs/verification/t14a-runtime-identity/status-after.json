@@ -1,0 +1,170 @@
+{
+  "operationId": "a0c4fc16-65fc-4903-9cb4-6050e8f7c3ad",
+  "overall": "STOPPED",
+  "core": "failed",
+  "application": "failed",
+  "observability": "degraded",
+  "database": {
+    "scheme": "postgresql+psycopg",
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "swinglens",
+    "reachable": true,
+    "dataDirectory": "C:/Program Files/PostgreSQL/18/data",
+    "serverVersion": "18.3",
+    "serverVersionNum": 180003,
+    "currentDatabase": "swinglens",
+    "currentHeads": [
+      "0080_effective_configuration"
+    ],
+    "expectedHeads": [
+      "0080_effective_configuration"
+    ],
+    "schemaAtHead": true,
+    "useDurablePipeline": true
+  },
+  "runtime": null,
+  "runtimeClassification": "MISSING",
+  "runtimeActive": false,
+  "staleStatePresent": false,
+  "recordedGitSha": null,
+  "desiredGitSha": "4683a6cee21c3282e96a743c0fdb0df56afabb0f",
+  "recordedFingerprint": null,
+  "desiredFingerprint": "194e924b8a0fb780c5623876b09259e012e9595740ef499be3ff46f76b8606c7",
+  "staleRuntimeInstanceId": null,
+  "staleStateReason": null,
+  "webReady": false,
+  "workerReady": false,
+  "applicationChecks": null,
+  "prometheusTargets": {
+    "reachable": false,
+    "allUp": false,
+    "targets": [
+      {
+        "job": "swinglens-web",
+        "health": "unavailable"
+      },
+      {
+        "job": "swinglens-worker",
+        "health": "unavailable"
+      },
+      {
+        "job": "swinglens-supervisor",
+        "health": "unavailable"
+      }
+    ],
+    "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+  },
+  "grafanaReady": false,
+  "configuration": {
+    "database": {
+      "scheme": "postgresql+psycopg",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "database": "swinglens"
+    },
+    "postgres": {
+      "service": "postgresql-x64-18",
+      "expectedMajor": 18,
+      "dataDirectory": "C:\\Program Files\\PostgreSQL\\18\\data",
+      "serviceExecutable": "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+      "managementEnabled": false
+    },
+    "web": {
+      "host": "127.0.0.1",
+      "port": 8000
+    },
+    "metrics": {
+      "enabled": true,
+      "workerPort": 9101,
+      "supervisorPort": 9102
+    },
+    "grafanaPasswordConfigured": true,
+    "migrationTimeoutSeconds": 120,
+    "lockTimeoutSeconds": 10,
+    "observabilityTimeoutSeconds": 90,
+    "workerId": "local-worker-1",
+    "useDurablePipeline": true,
+    "runtimeMode": "NORMAL",
+    "processRole": "CLI_OR_MAINTENANCE",
+    "durableWorkerProcessEnabled": true,
+    "embeddedJobWorkerEnabled": false,
+    "jobWorkerEnabledLegacy": false,
+    "topologyVersion": "supervisor-root-v1",
+    "provenance": {
+      "DATABASE_URL": {
+        "value": "postgresql+psycopg://127.0.0.1:5432/swinglens",
+        "source": ".env"
+      },
+      "USE_DURABLE_PIPELINE": {
+        "value": true,
+        "source": ".env"
+      },
+      "DURABLE_WORKER_PROCESS_ENABLED": {
+        "value": true,
+        "source": "canonical lifecycle override"
+      },
+      "EMBEDDED_JOB_WORKER_ENABLED": {
+        "value": false,
+        "source": "canonical lifecycle override"
+      },
+      "JOB_WORKER_ENABLED": {
+        "value": false,
+        "source": "canonical lifecycle override"
+      },
+      "RUNTIME_MODE": {
+        "value": "NORMAL",
+        "source": "application default"
+      },
+      "APP_HOST": {
+        "value": "127.0.0.1",
+        "source": ".env"
+      },
+      "APP_PORT": {
+        "value": 8000,
+        "source": ".env"
+      },
+      "OBSERVABILITY_METRICS_HOST": {
+        "value": "127.0.0.1",
+        "source": ".env"
+      },
+      "OBSERVABILITY_WORKER_METRICS_PORT": {
+        "value": 9101,
+        "source": ".env"
+      },
+      "OBSERVABILITY_SUPERVISOR_METRICS_PORT": {
+        "value": 9102,
+        "source": ".env"
+      },
+      "SWINGLENS_POSTGRES_SERVICE": {
+        "value": "postgresql-x64-18",
+        "source": ".env"
+      },
+      "SWINGLENS_POSTGRES_EXPECTED_MAJOR": {
+        "value": 18,
+        "source": ".env"
+      },
+      "SWINGLENS_POSTGRES_DATA_DIR": {
+        "value": "C:\\Program Files\\PostgreSQL\\18\\data",
+        "source": ".env"
+      },
+      "SWINGLENS_POSTGRES_EXECUTABLE": {
+        "value": "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+        "source": ".env"
+      },
+      "SWINGLENS_MANAGE_POSTGRES": {
+        "value": false,
+        "source": ".env"
+      },
+      "GRAFANA_ADMIN_PASSWORD": {
+        "value": "PRESENT",
+        "source": ".env"
+      }
+    }
+  },
+  "activeJobs": {
+    "reachable": true,
+    "active": [],
+    "activeCount": 0
+  }
+}

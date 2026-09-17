@@ -1,0 +1,437 @@
+{
+  "evidence": {
+    "roles": [
+      {
+        "role": "worker",
+        "pid": 4000,
+        "createdAt": "2026-09-16T23:18:50.094193+00:00"
+      },
+      {
+        "role": "web",
+        "pid": 8408,
+        "createdAt": "2026-09-16T23:18:49.491671+00:00"
+      },
+      {
+        "role": "supervisor",
+        "pid": 15440,
+        "createdAt": "2026-09-16T23:18:46.987648+00:00"
+      }
+    ],
+    "processes": {
+      "4000": {
+        "pid": 4000,
+        "parentPid": 13124,
+        "createdAt": "2026-09-16T23:18:50.094193+00:00",
+        "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-m",
+          "app.worker",
+          "--worker-id",
+          "local-worker-1",
+          "--queues",
+          "interactive,broker,background"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      },
+      "13124": {
+        "pid": 13124,
+        "parentPid": 15440,
+        "createdAt": "2026-09-16T23:18:50.077562+00:00",
+        "executable": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+          "-m",
+          "app.worker",
+          "--worker-id",
+          "local-worker-1",
+          "--queues",
+          "interactive,broker,background"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      },
+      "15440": {
+        "pid": 15440,
+        "parentPid": 6972,
+        "createdAt": "2026-09-16T23:18:46.987648+00:00",
+        "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-m",
+          "app.worker_supervisor",
+          "--worker-id",
+          "local-worker-1",
+          "--queues",
+          "interactive,broker,background",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8000",
+          "--runtime-instance-id",
+          "330f441756da4de7a1b44d2263936dfe",
+          "--repo-root",
+          "C:\\Users\\Ivica\\Documents\\SwingLens"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      },
+      "6972": {
+        "pid": 6972,
+        "parentPid": 15704,
+        "createdAt": "2026-09-16T23:18:46.964584+00:00",
+        "executable": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+          "-m",
+          "app.worker_supervisor",
+          "--worker-id",
+          "local-worker-1",
+          "--queues",
+          "interactive,broker,background",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8000",
+          "--runtime-instance-id",
+          "330f441756da4de7a1b44d2263936dfe",
+          "--repo-root",
+          "C:\\Users\\Ivica\\Documents\\SwingLens"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      },
+      "8408": {
+        "pid": 8408,
+        "parentPid": 2880,
+        "createdAt": "2026-09-16T23:18:49.491671+00:00",
+        "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-m",
+          "app.serve",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8000",
+          "--runtime-instance-id",
+          "330f441756da4de7a1b44d2263936dfe",
+          "--repo-root",
+          "C:\\Users\\Ivica\\Documents\\SwingLens"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      },
+      "2880": {
+        "pid": 2880,
+        "parentPid": 15440,
+        "createdAt": "2026-09-16T23:18:49.477411+00:00",
+        "executable": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+        "commandLine": [
+          "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+          "-m",
+          "app.serve",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8000",
+          "--runtime-instance-id",
+          "330f441756da4de7a1b44d2263936dfe",
+          "--repo-root",
+          "C:\\Users\\Ivica\\Documents\\SwingLens"
+        ],
+        "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+      }
+    },
+    "environments": {
+      "4000": {
+        "PROCESS_ROLE": "DURABLE_WORKER",
+        "RUNTIME_MODE": "NORMAL",
+        "SWINGLENS_GIT_SHA": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+        "SWINGLENS_PARENT_PID": "15440",
+        "SWINGLENS_PARENT_STARTED_AT": "2026-09-16T23:18:46.987648+00:00",
+        "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+        "SWINGLENS_RUNTIME_INSTANCE_ID": "330f441756da4de7a1b44d2263936dfe"
+      },
+      "8408": {
+        "PROCESS_ROLE": "WEB",
+        "RUNTIME_MODE": "NORMAL",
+        "SWINGLENS_GIT_SHA": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+        "SWINGLENS_PARENT_PID": "15440",
+        "SWINGLENS_PARENT_STARTED_AT": "2026-09-16T23:18:46.987648+00:00",
+        "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+        "SWINGLENS_RUNTIME_INSTANCE_ID": "330f441756da4de7a1b44d2263936dfe"
+      },
+      "15440": {
+        "PROCESS_ROLE": "SUPERVISOR",
+        "RUNTIME_MODE": "NORMAL",
+        "SWINGLENS_GIT_SHA": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+        "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+        "SWINGLENS_RUNTIME_INSTANCE_ID": "330f441756da4de7a1b44d2263936dfe"
+      }
+    },
+    "listeners": {
+      "listeners": [
+        {
+          "address": "0.0.0.0",
+          "port": 5432,
+          "pid": 6852,
+          "parentPid": 5340,
+          "createdAt": "2026-09-16T01:38:06.338439+00:00",
+          "executable": "C:\\Program Files\\PostgreSQL\\18\\bin\\postgres.exe",
+          "commandLine": null,
+          "cwd": null
+        },
+        {
+          "address": "::",
+          "port": 5432,
+          "pid": 6852,
+          "parentPid": 5340,
+          "createdAt": "2026-09-16T01:38:06.338439+00:00",
+          "executable": "C:\\Program Files\\PostgreSQL\\18\\bin\\postgres.exe",
+          "commandLine": null,
+          "cwd": null
+        },
+        {
+          "address": "127.0.0.1",
+          "port": 8000,
+          "pid": 8408,
+          "parentPid": 2880,
+          "createdAt": "2026-09-16T23:18:49.491671+00:00",
+          "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "commandLine": [
+            "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-m",
+            "app.serve",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8000",
+            "--runtime-instance-id",
+            "330f441756da4de7a1b44d2263936dfe",
+            "--repo-root",
+            "C:\\Users\\Ivica\\Documents\\SwingLens"
+          ],
+          "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+        },
+        {
+          "address": "127.0.0.1",
+          "port": 9101,
+          "pid": 4000,
+          "parentPid": 13124,
+          "createdAt": "2026-09-16T23:18:50.094193+00:00",
+          "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "commandLine": [
+            "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-m",
+            "app.worker",
+            "--worker-id",
+            "local-worker-1",
+            "--queues",
+            "interactive,broker,background"
+          ],
+          "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+        },
+        {
+          "address": "127.0.0.1",
+          "port": 9102,
+          "pid": 15440,
+          "parentPid": 6972,
+          "createdAt": "2026-09-16T23:18:46.987648+00:00",
+          "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "commandLine": [
+            "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-m",
+            "app.worker_supervisor",
+            "--worker-id",
+            "local-worker-1",
+            "--queues",
+            "interactive,broker,background",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8000",
+            "--runtime-instance-id",
+            "330f441756da4de7a1b44d2263936dfe",
+            "--repo-root",
+            "C:\\Users\\Ivica\\Documents\\SwingLens"
+          ],
+          "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+        }
+      ]
+    },
+    "registrations": {
+      "reachable": true,
+      "worker": {
+        "role": "worker",
+        "pid": 4000,
+        "createdAt": "2026-09-17T01:18:50.094192+02:00",
+        "instanceId": "42ef9f672dcf462cbc0ae2bea1f6fb1b",
+        "generation": 76,
+        "stoppingAt": null,
+        "launcherPid": 13124,
+        "workerId": "local-worker-1",
+        "heartbeatAt": "2026-09-17T11:43:56.749469+02:00"
+      },
+      "supervisor": {
+        "role": "supervisor",
+        "pid": 15440,
+        "createdAt": "2026-09-17T01:18:46.987648+02:00",
+        "instanceId": "a39f9b30b9bf410cad7728939a611dce",
+        "generation": 65,
+        "stoppingAt": null,
+        "launcherPid": null,
+        "workerId": "local-worker-1",
+        "heartbeatAt": "2026-09-17T11:43:52.751898+02:00"
+      }
+    },
+    "processGroup": {
+      "pid": 6972,
+      "parentPid": 15704,
+      "createdAt": "2026-09-16T23:18:46.964584+00:00",
+      "executable": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+      "commandLine": [
+        "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+        "-m",
+        "app.worker_supervisor",
+        "--worker-id",
+        "local-worker-1",
+        "--queues",
+        "interactive,broker,background",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--runtime-instance-id",
+        "330f441756da4de7a1b44d2263936dfe",
+        "--repo-root",
+        "C:\\Users\\Ivica\\Documents\\SwingLens"
+      ],
+      "cwd": "C:\\Users\\Ivica\\Documents\\SwingLens"
+    },
+    "runningPipelines": 0,
+    "jobs": {
+      "reachable": true,
+      "active": [],
+      "activeCount": 0
+    },
+    "supervisorState": {
+      "cycle_failed": false,
+      "restart": {
+        "web": {
+          "first_failure_at": null,
+          "first_failure_monotonic": null,
+          "last_exit_code": null,
+          "last_failure_at": null,
+          "last_failure_monotonic": null,
+          "last_reason_code": "NONE",
+          "last_startup_stage": "not_started",
+          "restart_count": 0,
+          "restart_window_seconds": 60.0,
+          "role": "web",
+          "state": "RUNNING",
+          "window_failures": 0
+        },
+        "worker": {
+          "first_failure_at": "2026-09-16T23:18:49.494615+00:00",
+          "first_failure_monotonic": 78069.218,
+          "last_exit_code": null,
+          "last_failure_at": "2026-09-16T23:18:49.494615+00:00",
+          "last_failure_monotonic": 78069.218,
+          "last_reason_code": "DURABLE_WORKER_PROCESS_LOST",
+          "last_startup_stage": "worker_heartbeat",
+          "restart_count": 1,
+          "restart_window_seconds": 60.0,
+          "role": "worker",
+          "state": "RUNNING",
+          "window_failures": 1
+        }
+      },
+      "runtime_config_fingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+      "runtime_instance_id": "330f441756da4de7a1b44d2263936dfe",
+      "supervisor": {
+        "instance_id": "a39f9b30b9bf410cad7728939a611dce",
+        "pid": 15440
+      },
+      "timestamp": "2026-09-17T09:43:57.842161+00:00",
+      "topology_version": "supervisor-root-v1",
+      "version": 1,
+      "web": {
+        "launcher_pid": 2880,
+        "state": "RUNNING"
+      },
+      "worker": {
+        "launcher_pid": 13124,
+        "state": "RUNNING"
+      }
+    }
+  },
+  "proposed_state": {
+    "version": 5,
+    "runtimeInstanceId": "330f441756da4de7a1b44d2263936dfe",
+    "repoRoot": "C:\\Users\\Ivica\\Documents\\SwingLens",
+    "gitCommit": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+    "runtimeConfigFingerprint": "0494fb0b2d5610866450948e7ed055622c0563a9317a60563844669aea17da27",
+    "topologyVersion": "supervisor-root-v1",
+    "recordedAtUtc": "2026-09-17T09:43:58.071798+00:00",
+    "web": {
+      "pid": 8408,
+      "createdAt": "2026-09-16T23:18:49.491671+00:00",
+      "role": "web",
+      "module": "app.serve",
+      "repoRoot": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "runtimeInstanceId": "330f441756da4de7a1b44d2263936dfe",
+      "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "port": 8000,
+      "launcherPid": 15440,
+      "launcherCreatedAt": "2026-09-16T23:18:46.987648+00:00"
+    },
+    "supervisor": {
+      "pid": 15440,
+      "createdAt": "2026-09-16T23:18:46.987648+00:00",
+      "role": "supervisor",
+      "module": "app.worker_supervisor",
+      "repoRoot": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "runtimeInstanceId": "330f441756da4de7a1b44d2263936dfe",
+      "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe"
+    },
+    "worker": {
+      "pid": 4000,
+      "createdAt": "2026-09-16T23:18:50.094193+00:00",
+      "role": "worker",
+      "module": "app.worker",
+      "repoRoot": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "runtimeInstanceId": "330f441756da4de7a1b44d2263936dfe",
+      "executable": "C:\\Users\\Ivica\\AppData\\Local\\Programs\\Python\\Python312\\python.exe"
+    },
+    "processGroup": {
+      "pid": 6972,
+      "createdAt": "2026-09-16T23:18:46.964584+00:00",
+      "role": "supervisor",
+      "module": "app.worker_supervisor",
+      "repoRoot": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "runtimeInstanceId": "330f441756da4de7a1b44d2263936dfe",
+      "executable": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe"
+    },
+    "recovery": {
+      "method": "verified-missing-state",
+      "runtimeMode": "NORMAL",
+      "registrationIdentity": {
+        "supervisor": {
+          "instanceId": "a39f9b30b9bf410cad7728939a611dce",
+          "generation": 65
+        },
+        "worker": {
+          "instanceId": "42ef9f672dcf462cbc0ae2bea1f6fb1b",
+          "generation": 76
+        }
+      },
+      "sources": {
+        "pid/createdAt/executable": "OS listener/process snapshot",
+        "repoRoot/role/module/runtimeInstanceId": "verified command/cwd/environment",
+        "gitCommit/runtimeConfigFingerprint": "live environments and supervisor recorder",
+        "worker/supervisor": "fresh DB registration, OS creation time and ancestry",
+        "processGroup": "outermost verified supervisor launcher",
+        "topologyVersion": "verified supervisor recorder",
+        "recordedAtUtc": "recovery observation clock"
+      }
+    }
+  },
+  "metadata_still_missing": true
+}

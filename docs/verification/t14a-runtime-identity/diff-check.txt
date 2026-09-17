@@ -1,0 +1,2 @@
+warning: in the working copy of 'scripts/ops/SwingLensLifecycle.psm1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'swinglens.ps1', LF will be replaced by CRLF the next time Git touches it

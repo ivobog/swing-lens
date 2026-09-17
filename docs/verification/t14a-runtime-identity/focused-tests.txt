@@ -1,0 +1,17 @@
+........................................................................ [ 36%]
+........................................................F............... [ 72%]
+.......................................................                  [100%]
+================================== FAILURES ===================================
+_____________ test_root_lifecycle_exposes_exact_canonical_actions _____________
+tests\ops\test_lifecycle_contracts.py:22: in test_root_lifecycle_exposes_exact_canonical_actions
+    assert (
+E   assert "ValidateSet('start', 'stop', 'restart', 'status', 'diagnose')" in "[CmdletBinding()]\nparam(\n    [Parameter(Mandatory = $true, Position = 0)]\n    [ValidateSet('start', 'stop', 'resta...ge += (' operation_id={0}' -f $env:SWINGLENS_LIFECYCLE_OPERATION_ID)\n    }\n    Write-Error $message\n    exit 1\n}\n"
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/ops/test_lifecycle_contracts.py::test_root_lifecycle_exposes_exact_canonical_actions
+1 failed, 198 passed, 1 warning in 191.25s (0:03:11)

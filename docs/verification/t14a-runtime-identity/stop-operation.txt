@@ -1,0 +1,18 @@
+Worker quiescence: {"reachable":true,"workerPresent":true,"workerProcessPresent":true,"workerInstanceId":"42ef9f672dcf462cbc0ae2bea1f6fb1b","workerGeneration":76,"workerPid":4000,"workerHeartbeatAt":"2026-09-17T11:55:43.933369+02:00","workerHeartbeatAgeSeconds":0.978935,"controlLoopHeartbeatAt":"2026-09-17T11:55:43.947371+02:00","controlLoopHeartbeatAgeSeconds":0.964933,"quiesceRequestedAt":"2026-09-17T11:55:38.40101+02:00","claimFenceEstablishedAt":"2026-09-17T11:55:44.817303+02:00","quiescedAt":"2026-09-17T11:55:40.108649+02:00","workerAcknowledgedAt":"2026-09-17T11:55:40.108649+02:00","ackLatencySeconds":1.707639,"safeToStopAt":"2026-09-17T11:55:44.912304+02:00","requested":true,"claimFenceEstablished":true,"claimFenceKind":"DURABLE_REGISTRATION_ROW","workerIdentityValid":true,"workerAcknowledged":true,"acknowledged":true,"activeCount":0,"active":[],"safeToStop":true,"reasonCode":"CLAIM_FENCE_ESTABLISHED"}
+WARNING: Observability DEGRADED: stop incomplete; core lifecycle continues. Docker command exited with code 1
+Local PostgreSQL: left running by canonical settings
+
+SwingLens Local Stack
+----------------------------------------
+Database           READY
+Schema             HEAD
+Web/API            STOPPED
+Core               STOPPED
+Application        STOPPED
+Worker             STOPPED
+Disk               UNAVAILABLE
+IB API             STOPPED
+Prometheus         UNAVAILABLE
+Grafana            UNAVAILABLE
+Observability      STOPPED
+OVERALL            STOPPED

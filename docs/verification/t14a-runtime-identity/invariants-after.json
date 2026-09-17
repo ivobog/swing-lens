@@ -1,0 +1,29 @@
+{
+  "incidentUnchanged": {
+    "upload": true,
+    "pipeline": true,
+    "configuration": true,
+    "readiness": true,
+    "jobs": true,
+    "steps": true,
+    "all_running": true,
+    "market_context": true,
+    "migration": true,
+    "jobs_after_baseline": true
+  },
+  "historicalUnchanged": {
+    "core_calculation_evidence": true,
+    "ceri_sec_filing_documents": true,
+    "ceri_sec_document_extractions": true,
+    "ceri_sec_sync_states": true,
+    "transition_decision_handoff_manifests": true,
+    "winner_evidence_manifests": true,
+    "frozen_records": true,
+    "incident_anchor": true,
+    "incident_bindings": true,
+    "repaired_ingestions": true,
+    "repaired_source_records": true,
+    "original_bindings": true
+  },
+  "ceilingsUnchanged": true
+}

@@ -1,0 +1,25 @@
+tests/ops\test_lifecycle_stopped_generation.py:62:    state_path = tmp_path / "swinglens-lifecycle.json"
+tests/ops\test_lifecycle_stopped_generation.py:222:        (path.parent / "logs/lifecycle/lifecycle.jsonl")
+tests/ops\test_lifecycle_convergence.py:339:        (ROOT / "monitoring/grafana/dashboards/swinglens-lifecycle.json").read_text(
+tests/ops\test_lifecycle_convergence.py:373:    lifecycle_log = tmp_path / "logs/lifecycle/lifecycle.jsonl"
+tests/ops\test_lifecycle_contracts.py:56:        "Remove-Item $HOME",
+tests/ops\test_lifecycle_powershell.py:34:        f"$script:RuntimeStatePath=Join-Path '{isolated}' 'data/cache/swinglens-lifecycle.json'; "
+tests/ops\test_lifecycle_powershell.py:42:        "[IO.Directory]::CreateDirectory((Split-Path $script:RuntimeStatePath)) | Out-Null; "
+tests/ops\test_lifecycle_powershell.py:43:        "[IO.File]::WriteAllText($script:RuntimeStatePath, 'isolated'); "
+tests/ops\test_lifecycle_powershell.py:44:        "$script:RepoRoot; $script:RuntimeStatePath"
+tests/ops\test_lifecycle_powershell.py:50:        str(tmp_path / "data/cache/swinglens-lifecycle.json"),
+tests/ops\test_lifecycle_powershell.py:52:    assert (tmp_path / "data/cache/swinglens-lifecycle.json").read_text() == "isolated"
+tests/ops\test_lifecycle_powershell.py:290:        f"$script:RuntimeStatePath='{missing_state}'; "
+tests/ops\test_lifecycle_powershell.py:340:    state_path = tmp_path / "swinglens-lifecycle.json"
+tests/ops\test_lifecycle_powershell.py:344:        f"$script:RuntimeStatePath='{state_literal}'; "
+tests/ops\test_lifecycle_powershell.py:396:    state_path = tmp_path / "swinglens-lifecycle.json"
+tests/ops\test_lifecycle_powershell.py:400:        f"$script:RuntimeStatePath='{state_literal}'; "
+tests/ops\test_lifecycle_powershell.py:426:    state_path = tmp_path / "swinglens-lifecycle.json"
+tests/ops\test_lifecycle_powershell.py:430:        f"$script:RuntimeStatePath='{state_literal}'; $script:events=@(); "
+tests/ops\test_lifecycle_powershell.py:434:        f"Remove-Item -LiteralPath '{state_literal}'; "
+tests/ops\test_lifecycle_powershell.py:456:    state_path = tmp_path / "swinglens-lifecycle.json"
+tests/ops\test_lifecycle_powershell.py:460:        f"$script:RuntimeStatePath='{state_literal}'; $script:events=@(); "
+tests/ops\test_lifecycle_powershell.py:465:        f"Remove-Item -LiteralPath '{state_literal}'; "
+tests/ops\test_lifecycle_powershell.py:484:    state_path = tmp_path / "swinglens-lifecycle.json"
+tests/ops\test_lifecycle_powershell.py:488:        f"$script:RuntimeStatePath='{state_literal}'; $script:events=@(); "
+tests/ops\test_lifecycle_powershell.py:492:        f"Remove-Item -LiteralPath '{state_literal}'; "
