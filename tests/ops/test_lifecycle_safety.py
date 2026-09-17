@@ -190,9 +190,7 @@ def test_runtime_report_validates_windows_listener_and_launcher_chain(
     assert report["launcher"]["pid"] == 122
 
 
-def test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt(
-    tmp_path, monkeypatch
-) -> None:
+def test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt(tmp_path, monkeypatch) -> None:
     expected, _actual = _runtime_identity(tmp_path)
     state_path = tmp_path / "runtime.json"
     atomic_write_json(state_path, {"version": 3, "web": expected})
@@ -202,6 +200,8 @@ def test_complete_runtime_state_with_gone_pid_is_stale_not_corrupt(
         raise psutil.NoSuchProcess(123)
 
     monkeypatch.setattr(lifecycle_probe, "inspect_process", missing)
+    monkeypatch.setattr(lifecycle_probe, "_role_processes", lambda: [])
+    monkeypatch.setattr(lifecycle_probe, "_listeners_report", lambda: {"listeners": []})
 
     assert lifecycle_probe._runtime_state_report(listener_pid=None)["stale"] is True
 
@@ -277,8 +277,11 @@ def test_listener_identity_uses_socket_owner_not_intermediate_windows_launcher(
         lambda child, ancestor: (child, ancestor) == (303, 101),
     )
 
-    assert lifecycle_probe._listener_process_identity(
-        port=8000,
-        runtime_instance_id="runtime-a",
-        ancestor_pid=101,
-    ) == listener
+    assert (
+        lifecycle_probe._listener_process_identity(
+            port=8000,
+            runtime_instance_id="runtime-a",
+            ancestor_pid=101,
+        )
+        == listener
+    )

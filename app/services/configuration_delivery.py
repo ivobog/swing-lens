@@ -228,6 +228,81 @@ def binding_reference(db, *, job_id=None, pipeline_run_id=None, winner_cohort_ge
     return {"anchor_id": anchor.anchor_id, "fingerprint": anchor.fingerprint}
 
 
+def execution_configuration_reference(db, job, *, _seen=None):
+    """Pipeline authority survives transport helpers without inventing job bindings.
+
+    SEC repair is a transport/helper execution, not a new calculation root. Its
+    retained pipeline binding is mandatory, including for pre-contract queued jobs.
+    Any bindings or references it does carry must agree with that authority.
+    """
+    from app.models.tables import BackgroundJob, PipelineRun
+
+    seen = set() if _seen is None else set(_seen)
+    if job.id in seen or len(seen) >= 64:
+        raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
+    seen.add(job.id)
+    payload = job.payload_json or {}
+    pipeline_id = payload.get("pipeline_run_id")
+    helper = job.job_type == "SEC_READINESS_REPAIR"
+    if helper and pipeline_id is None:
+        raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
+    expected = None
+    if pipeline_id is not None:
+        pipeline = db.get(PipelineRun, pipeline_id)
+        if pipeline is None or (
+            job.related_run_id is not None and job.related_run_id != pipeline.upload_run_id
+        ):
+            raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
+        expected = binding_reference(db, pipeline_run_id=pipeline_id)
+    binding = db.get(ExecutionConfigurationBinding, "job:" + str(job.id))
+    if binding is not None or durable_business_job(job.job_type) or not helper:
+        bound = binding_reference(db, job_id=job.id)
+        if expected is not None and bound != expected:
+            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+        expected = bound if expected is None else expected
+    supplied = payload.get(ANCHOR_KEY)
+    if supplied is not None and supplied != expected:
+        raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+    if durable_business_job(job.job_type) and supplied is None:
+        raise ValueError("MISSING_CONFIGURATION_ANCHOR")
+    parent_id = job.parent_job_id
+    relatives = {parent_id, job.root_job_id} - {None, job.id}
+    if parent_id == job.id:
+        raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
+    for relative_id in relatives:
+        parent = db.get(BackgroundJob, relative_id)
+        if parent is None:
+            raise ValueError("MISSING_CONFIGURATION_ANCHOR_PARENT")
+        parent_pipeline = (parent.payload_json or {}).get("pipeline_run_id")
+        if (
+            pipeline_id is not None
+            and parent_pipeline is not None
+            and parent_pipeline != pipeline_id
+        ):
+            raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
+        if execution_configuration_reference(db, parent, _seen=seen) != expected:
+            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+    return expected
+
+
+def pipeline_helper_configuration(calculation):
+    """Direct helper calls and worker calls use the same immutable execution resolver."""
+
+    @wraps(calculation)
+    def execute(db, job, *args, **kwargs):
+        if not isinstance(db, Session):
+            return calculation(db, job, *args, **kwargs)
+        reference = execution_configuration_reference(db, job)
+        current = current_delivery()
+        if current is not None and current.anchor != reference:
+            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+        delivery = load_configuration_delivery(db, reference)
+        with configuration_delivery_scope(delivery):
+            return calculation(db, job, *args, **kwargs)
+
+    return execute
+
+
 def bind_winner_generation_configuration(db, generation, config):
     from app.services.decision_effective_configuration import resolve_winner_configuration
 
@@ -524,7 +599,8 @@ def durable_business_job(job_type):
 
 def anchor_enqueue_payload(db, job_type, payload, *, parent_job_id=None):
     """Child/resume inherit; a genuinely new root resolves once before enqueue."""
-    if not durable_business_job(job_type):
+    helper = job_type == "SEC_READINESS_REPAIR"
+    if not durable_business_job(job_type) and not helper:
         return payload
     from app.models.tables import BackgroundJob
 
@@ -534,8 +610,13 @@ def anchor_enqueue_payload(db, job_type, payload, *, parent_job_id=None):
         parent = db.get(BackgroundJob, parent_job_id)
         if parent is None:
             raise ValueError("MISSING_CONFIGURATION_ANCHOR_PARENT")
-        expected = binding_reference(db, job_id=parent.id)
+        inherited = execution_configuration_reference(db, parent)
+        if expected is not None and inherited != expected:
+            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+        expected = inherited
     pipeline_id = payload.get("pipeline_run_id")
+    if helper and pipeline_id is None:
+        raise ValueError("MISSING_CONFIGURATION_ANCHOR_FOR_RESUME")
     if pipeline_id is not None:
         existing_binding = db.get(ExecutionConfigurationBinding, "pipeline:" + str(pipeline_id))
         existing = binding_reference(db, pipeline_run_id=pipeline_id) if existing_binding else None
@@ -543,7 +624,7 @@ def anchor_enqueue_payload(db, job_type, payload, *, parent_job_id=None):
             if expected is not None and expected != existing:
                 raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
             expected = existing
-        elif payload.get("resume_from_step"):
+        elif payload.get("resume_from_step") or helper:
             raise ValueError("MISSING_CONFIGURATION_ANCHOR_FOR_RESUME")
     supplied = payload.get(ANCHOR_KEY)
     if expected is not None:

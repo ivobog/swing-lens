@@ -39,8 +39,7 @@ def _module_command(body: str) -> list[str]:
 )
 def test_powershell_parses_readiness_payload_not_http_status(payload, expected) -> None:
     command = _module_command(
-        f"$p=[pscustomobject]@{{status='{payload}'}}; "
-        "Resolve-ReadinessPayloadState -Payload $p"
+        f"$p=[pscustomobject]@{{status='{payload}'}}; Resolve-ReadinessPayloadState -Payload $p"
     )
     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
     assert result.returncode == 0, result.stderr
@@ -296,8 +295,12 @@ def test_observability_failure_return_does_not_block_core_restart_sequence() -> 
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
-def test_core_stop_waits_for_supervisor_exit_before_registered_cleanup() -> None:
+def test_core_stop_waits_for_supervisor_exit_before_registered_cleanup(tmp_path) -> None:
+    state_path = tmp_path / "swinglens-lifecycle.json"
+    state_path.write_text('{"runtimeInstanceId":"test-runtime"}', encoding="utf-8")
+    state_literal = str(state_path).replace("'", "''")
     command = _module_command(
+        f"$script:RuntimeStatePath='{state_literal}'; "
         "$script:events=@(); "
         "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000}; "
         "metrics=[pscustomobject]@{enabled=$false;workerPort=0;supervisorPort=0}}; "
@@ -316,6 +319,7 @@ def test_core_stop_waits_for_supervisor_exit_before_registered_cleanup() -> None
     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "request,port-8000,process-202,remainders,port-8000"
+    assert not state_path.exists()
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")

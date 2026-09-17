@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import (
+    JobStatus,
     active_job_for_request_key,
     enqueue_job,
     request_job_cancel,
@@ -421,7 +422,7 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
 
     steps = _load_pipeline_steps(db, pipeline_run_id)
-    return PipelineStatusDto(
+    status = PipelineStatusDto(
         pipeline_run_id=pipeline.id,
         upload_run_id=pipeline.upload_run_id,
         status=pipeline.status,
@@ -448,6 +449,150 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
         ],
         result_json=pipeline.result_json,
     )
+    failed_repair = _failed_sec_repair(db, pipeline)
+    if failed_repair is not None:
+        from app.services.background_job_service import classify_job_failure
+        from app.services.ceri.sec.readiness_repair import sec_repair_failure_view
+
+        view = sec_repair_failure_view(
+            pipeline,
+            failed_repair,
+            classify_job_failure(failed_repair.error_message or "SEC_REPAIR_FAILED"),
+        )
+        target = (failed_repair.payload_json or {}).get("resume_from_step") or "VALIDATING_RUN"
+        status = replace(
+            status,
+            status=view["status"],
+            message=view["message"],
+            error_message=view["detail"],
+            completed_at=failed_repair.completed_at,
+            result_json={
+                **(status.result_json or {}),
+                "blocked_reason": view["code"],
+                "sec_repair": {
+                    **((status.result_json or {}).get("sec_repair") or {}),
+                    "repair_stage": view["stage"],
+                    "last_error_code": view["code"],
+                    "last_error_detail": view["detail"],
+                },
+            },
+            steps=[
+                replace(
+                    step,
+                    status=view["status"],
+                    message=view["message"],
+                    error_message=view["detail"],
+                    completed_at=failed_repair.completed_at,
+                )
+                if step.step_name == target
+                else step
+                for step in status.steps
+            ],
+        )
+    failed_execution = _failed_pipeline_job(db, pipeline)
+    if failed_execution is not None:
+        from app.services.background_job_service import classify_job_failure
+
+        view = _pipeline_job_failure_view(
+            pipeline,
+            failed_execution,
+            classify_job_failure(failed_execution.error_message or "PIPELINE_FAILED"),
+        )
+        target = (
+            (failed_execution.payload_json or {}).get("resume_from_step")
+            or pipeline.current_step
+            or "VALIDATING_RUN"
+        )
+        status = replace(
+            status,
+            status=view["status"],
+            message=view["message"],
+            error_message=view["detail"],
+            completed_at=failed_execution.completed_at,
+            steps=[
+                replace(
+                    step,
+                    status=view["status"],
+                    message=view["message"],
+                    error_message=view["detail"],
+                    completed_at=failed_execution.completed_at,
+                )
+                if step.step_name == target
+                else step
+                for step in status.steps
+            ],
+        )
+    return status
+
+
+def _failed_pipeline_job(db, pipeline):
+    if pipeline.status in PIPELINE_TERMINAL_STATUSES:
+        return None
+    job_id = (pipeline.result_json or {}).get("background_job_id")
+    job = db.get(BackgroundJob, job_id) if job_id is not None else None
+    if (
+        job is not None
+        and job.job_type == FULL_PIPELINE_JOB_TYPE
+        and job.status == JobStatus.FAILED
+    ):
+        return job
+    return None
+
+
+def _pipeline_job_failure_view(pipeline, job, failure):
+    continuation = bool((job.payload_json or {}).get("resume_from_step"))
+    message = "Pipeline continuation failed." if continuation else "Pipeline execution failed."
+    if not failure["retryable"]:
+        message += " Frozen configuration or execution lineage could not be verified."
+    return {
+        "status": PipelineStatus.FAILED if failure["retryable"] else PipelineStatus.BLOCKED,
+        "message": message,
+        "detail": f"{message} Pipeline {pipeline.id}, job {job.id}: {failure['code']}.",
+    }
+
+
+def mark_pipeline_job_failure(db, job, failure):
+    pipeline = db.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.result_json["background_job_id"].astext == str(job.id))
+        .with_for_update()
+    )
+    if pipeline is None or pipeline.status in PIPELINE_TERMINAL_STATUSES:
+        return
+    if (pipeline.result_json or {}).get("background_job_id") != job.id:
+        return
+    view = _pipeline_job_failure_view(pipeline, job, failure)
+    pipeline.status = view["status"]
+    pipeline.completed_at = job.completed_at or _utcnow()
+    pipeline.message = view["message"]
+    pipeline.error_message = view["detail"]
+    pipeline.result_json = {**(pipeline.result_json or {}), "blocked_reason": failure["code"]}
+    target = pipeline.current_step or "VALIDATING_RUN"
+    step = db.scalar(
+        select(PipelineStep).where(
+            PipelineStep.pipeline_run_id == pipeline.id, PipelineStep.step_name == target
+        )
+    )
+    if step is not None:
+        step.status = view["status"]
+        step.completed_at = pipeline.completed_at
+        step.message = view["message"]
+        step.error_message = view["detail"]
+    db.flush()
+
+
+def _failed_sec_repair(db, pipeline):
+    if pipeline.status != PipelineStatus.PREPARING:
+        return None
+    repair_id = (pipeline.result_json or {}).get("repair_job_id")
+    job = db.get(BackgroundJob, repair_id) if repair_id is not None else None
+    if (
+        job is not None
+        and job.job_type == "SEC_READINESS_REPAIR"
+        and job.status == JobStatus.FAILED
+    ):
+        return job
+    return None
 
 
 def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
@@ -486,6 +631,26 @@ def resume_pipeline(
     pipeline = db.get(PipelineRun, pipeline_run_id)
     if pipeline is None:
         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
+    failed_repair = _failed_sec_repair(db, pipeline)
+    if failed_repair is not None:
+        from app.services.background_job_service import classify_job_failure
+        from app.services.ceri.sec.readiness_repair import mark_sec_repair_failure
+
+        mark_sec_repair_failure(
+            db,
+            failed_repair,
+            failed_repair.error_message,
+            classify_job_failure(failed_repair.error_message or "SEC_REPAIR_FAILED"),
+        )
+    failed_execution = _failed_pipeline_job(db, pipeline)
+    if failed_execution is not None:
+        from app.services.background_job_service import classify_job_failure
+
+        mark_pipeline_job_failure(
+            db,
+            failed_execution,
+            classify_job_failure(failed_execution.error_message or "PIPELINE_FAILED"),
+        )
     if pipeline.status not in {
         PipelineStatus.BLOCKED,
         PipelineStatus.FAILED,
@@ -551,6 +716,34 @@ def resume_pipeline(
     return pipeline
 
 
+def existing_sec_repair_continuation(db, pipeline, *, processor_signature, resume_from_step):
+    if not isinstance(db, Session):
+        return None
+    from app.services.configuration_delivery import (
+        binding_reference,
+        execution_configuration_reference,
+    )
+
+    request_key = (
+        f"resume-pipeline:{pipeline.id}:after-sec-repair:{processor_signature}:"
+        f"from:{resume_from_step}"
+    )
+    existing = db.scalar(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.job_type == FULL_PIPELINE_JOB_TYPE,
+            BackgroundJob.request_key == request_key,
+        )
+        .order_by(BackgroundJob.id)
+        .limit(1)
+    )
+    if existing is not None:
+        expected = binding_reference(db, pipeline_run_id=pipeline.id)
+        if execution_configuration_reference(db, existing) != expected:
+            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+    return existing
+
+
 def enqueue_pipeline_after_sec_repair(
     db: Session,
     pipeline: PipelineRun,
@@ -558,6 +751,8 @@ def enqueue_pipeline_after_sec_repair(
     processor_signature: str,
     resume_from_step: str = "VALIDATING_RUN",
 ) -> BackgroundJob:
+    if isinstance(db, Session):
+        db.execute(select(PipelineRun.id).where(PipelineRun.id == pipeline.id).with_for_update())
     step = next(
         (
             item
@@ -572,6 +767,11 @@ def enqueue_pipeline_after_sec_repair(
         f"resume-pipeline:{pipeline.id}:after-sec-repair:{processor_signature}:"
         f"from:{resume_from_step}"
     )
+    existing = existing_sec_repair_continuation(
+        db, pipeline, processor_signature=processor_signature, resume_from_step=resume_from_step
+    )
+    if existing is not None:
+        return existing
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
@@ -584,7 +784,10 @@ def enqueue_pipeline_after_sec_repair(
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
         request_key=request_key,
+        workflow_key=f"pipeline:{pipeline.id}:sec-continuation",
     )
+    if getattr(job, "_coalesced", False):
+        return job
     pipeline.status = PipelineStatus.PENDING
     pipeline.current_step = resume_from_step
     pipeline.completed_at = None

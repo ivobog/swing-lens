@@ -593,35 +593,25 @@ def execute_job(
         raise ValueError(f"Unsupported job type: {job.job_type}")
     if heartbeat is not None:
         job._heartbeat = heartbeat
+    job._execution_token = execution_token if execution_token is not None else job.execution_token
     payload = job.payload_json or {}
     run_id = job.related_run_id or payload.get("run_id")
     workflow_key = job.workflow_key or payload.get("workflow_key")
     ticker = payload.get("ticker")
     company = payload.get("company")
     from app.services.configuration_delivery import (
-        ANCHOR_KEY,
-        binding_reference,
         configuration_delivery_scope,
         durable_business_job,
+        execution_configuration_reference,
         load_configuration_delivery,
     )
 
     delivery = None
-    if isinstance(db, Session) and durable_business_job(job.job_type):
-        expected = binding_reference(db, job_id=job.id)
-        if payload.get("pipeline_run_id") is not None:
-            pipeline_anchor = binding_reference(db, pipeline_run_id=payload["pipeline_run_id"])
-            if expected != pipeline_anchor:
-                raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
-        parent_id = getattr(job, "parent_job_id", None)
-        if parent_id is not None:
-            parent_anchor = binding_reference(db, job_id=parent_id)
-            if parent_anchor is None or (expected is not None and expected != parent_anchor):
-                raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
-            expected = parent_anchor
-        delivery = load_configuration_delivery(
-            db, payload.get(ANCHOR_KEY), expected_anchor=expected
-        )
+    if isinstance(db, Session) and (
+        durable_business_job(job.job_type) or job.job_type == "SEC_READINESS_REPAIR"
+    ):
+        expected = execution_configuration_reference(db, job)
+        delivery = load_configuration_delivery(db, expected, expected_anchor=expected)
     try:
         with (
             configuration_delivery_scope(delivery),
