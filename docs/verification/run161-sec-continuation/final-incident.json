@@ -1,0 +1,2360 @@
+{
+  "captured_at": "2026-09-17 02:28:19.350738+02:00",
+  "upload": {
+    "id": 161,
+    "status": "COMPLETED",
+    "rows": 86
+  },
+  "pipeline": {
+    "id": 151,
+    "status": "PREPARING",
+    "current_step": "VALIDATING_RUN",
+    "message": "Checking SEC preparation: 86 / 86 ready.",
+    "error": null,
+    "result": {
+      "ib_host": "127.0.0.1",
+      "ib_port": 4002,
+      "degraded": false,
+      "ceri_stale": 0,
+      "sec_repair": {
+        "counts": {
+          "READY": 86,
+          "CIK_MISSING": 0,
+          "INVALID_TICKER": 0,
+          "SEC_NOT_APPLICABLE": 0,
+          "SIGNATURE_MISMATCH": 0,
+          "SYNC_STATE_MISSING": 0,
+          "UNRESOLVED_MAPPING": 0,
+          "OTHER_BLOCKING_REASON": 0
+        },
+        "run_id": 161,
+        "telemetry": {
+          "sec_requests": 25,
+          "bytes_downloaded": 19057165,
+          "filing_downloads": 20,
+          "documents_skipped": 0,
+          "documents_discovered": 20,
+          "documents_downloaded": 20,
+          "documents_would_skip": 0,
+          "documents_cache_reused": 0
+        },
+        "started_at": "2026-09-16T23:20:50.906064+00:00",
+        "updated_at": "2026-09-16T23:55:07.407832+00:00",
+        "pipeline_id": 151,
+        "repair_stage": "RECHECKING_READINESS",
+        "ready_tickers": 86,
+        "repair_job_id": 43269,
+        "total_tickers": 86,
+        "last_error_code": null,
+        "repaired_tickers": 4,
+        "last_error_detail": null,
+        "repairable_tickers": 4,
+        "unresolved_tickers": [],
+        "initial_ready_tickers": 82,
+        "current_processor_signature": "sec-guidance:eed017654682a0c9"
+      },
+      "ceri_alerts": 0,
+      "ceri_failed": 0,
+      "performance": {
+        "phase": 1,
+        "fallbacks": [],
+        "ib_network_ms": null,
+        "prewarm_job_id": null,
+        "schema_version": "pipeline-performance-v1",
+        "pipeline_wall_ms": 289.258,
+        "setup_capture_ms": null,
+        "ib_pacing_wait_ms": null,
+        "step_durations_ms": {
+          "VALIDATING_RUN": 175.143
+        },
+        "bar_cache_write_ms": null,
+        "prewarm_age_seconds": null,
+        "setup_evaluation_ms": null,
+        "technical_cache_hits": 0,
+        "pipeline_execution_ms": 289.258,
+        "technical_finalize_ms": null,
+        "pipeline_total_wall_ms": 3758.353,
+        "prewarm_reused_tickers": 0,
+        "setup_context_build_ms": null,
+        "technical_cache_misses": 0,
+        "pipeline_queue_delay_ms": 3469.095,
+        "prewarm_covered_tickers": 0,
+        "technical_input_load_ms": null,
+        "technical_max_in_flight": null,
+        "technical_worker_span_ms": null,
+        "setup_latest_bar_query_ms": null,
+        "technical_worker_processes": null,
+        "technical_cache_shadow_misses": 0,
+        "technical_cache_shadow_candidates": 0,
+        "technical_cache_shadow_mismatches": 0,
+        "technical_cache_shadow_validations": 0,
+        "technical_tickers_completed_during_fetch": 0
+      },
+      "ceri_unrated": 0,
+      "warning_rows": 0,
+      "market_regime": null,
+      "repair_job_id": 43269,
+      "sec_preflight": {
+        "processor": {
+          "active_signature": "sec-guidance:eed017654682a0c9",
+          "deployed_is_active": true,
+          "deployed_signature": "sec-guidance:eed017654682a0c9",
+          "certified_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ]
+        },
+        "readiness": {
+          "counts": {
+            "READY": 82,
+            "CIK_MISSING": 1,
+            "INVALID_TICKER": 0,
+            "SEC_NOT_APPLICABLE": 0,
+            "SIGNATURE_MISMATCH": 0,
+            "SYNC_STATE_MISSING": 0,
+            "UNRESOLVED_MAPPING": 3,
+            "OTHER_BLOCKING_REASON": 0
+          },
+          "tickers": [
+            {
+              "ciks": [
+                "0001090872"
+              ],
+              "reason": null,
+              "ticker": "A",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000320193"
+              ],
+              "reason": null,
+              "ticker": "AAPL",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001447028"
+              ],
+              "reason": null,
+              "ticker": "ABUS",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000874761"
+              ],
+              "reason": null,
+              "ticker": "AES",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001267238"
+              ],
+              "reason": null,
+              "ticker": "AIZ",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:910cfd73179f55a7",
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000002488"
+              ],
+              "reason": null,
+              "ticker": "AMD",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001142750"
+              ],
+              "reason": null,
+              "ticker": "AMN",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001596532"
+              ],
+              "reason": null,
+              "ticker": "ANET",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001787306"
+              ],
+              "reason": null,
+              "ticker": "ARQT",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001577437"
+              ],
+              "reason": null,
+              "ticker": "ASC",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001600620"
+              ],
+              "reason": null,
+              "ticker": "AUPH",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000008858"
+              ],
+              "reason": null,
+              "ticker": "AVT",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001094831"
+              ],
+              "reason": null,
+              "ticker": "BGC",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0002002473"
+              ],
+              "reason": null,
+              "ticker": "BOW",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000016058"
+              ],
+              "reason": null,
+              "ticker": "CACI",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001324404"
+              ],
+              "reason": null,
+              "ticker": "CF",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001486159"
+              ],
+              "reason": null,
+              "ticker": "CHRD",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0002115119"
+              ],
+              "reason": null,
+              "ticker": "CLBK",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000317540"
+              ],
+              "reason": null,
+              "ticker": "COKE",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0002014596"
+              ],
+              "reason": null,
+              "ticker": "CON",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001163165"
+              ],
+              "reason": null,
+              "ticker": "COP",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000354647"
+              ],
+              "reason": null,
+              "ticker": "CVBF",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000093410"
+              ],
+              "reason": null,
+              "ticker": "CVX",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001070985"
+              ],
+              "reason": null,
+              "ticker": "CXW",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000916540"
+              ],
+              "reason": null,
+              "ticker": "DAR",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001022079"
+              ],
+              "reason": null,
+              "ticker": "DGX",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [],
+              "reason": "No CERI company mapping exists.",
+              "ticker": "DOCN",
+              "category": "UNRESOLVED_MAPPING",
+              "available_signatures": []
+            },
+            {
+              "ciks": [
+                "0001090012"
+              ],
+              "reason": null,
+              "ticker": "DVN",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001093557"
+              ],
+              "reason": null,
+              "ticker": "DXCM",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [],
+              "reason": "SEC applicability requires a persisted CIK.",
+              "ticker": "EBAY",
+              "category": "CIK_MISSING",
+              "available_signatures": []
+            },
+            {
+              "ciks": [
+                "0001084961"
+              ],
+              "reason": null,
+              "ticker": "ECPG",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001099800"
+              ],
+              "reason": null,
+              "ticker": "EW",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000939767"
+              ],
+              "reason": null,
+              "ticker": "EXEL",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000840489"
+              ],
+              "reason": null,
+              "ticker": "FCFS",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001048695"
+              ],
+              "reason": null,
+              "ticker": "FFIV",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000928054"
+              ],
+              "reason": null,
+              "ticker": "FTK",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001262039"
+              ],
+              "reason": null,
+              "ticker": "FTNT",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001820872"
+              ],
+              "reason": null,
+              "ticker": "GBTG",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000923796"
+              ],
+              "reason": null,
+              "ticker": "GEO",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001326200"
+              ],
+              "reason": null,
+              "ticker": "GNK",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001591588"
+              ],
+              "reason": null,
+              "ticker": "GOLD",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001673743"
+              ],
+              "reason": null,
+              "ticker": "HNGE",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001645590"
+              ],
+              "reason": null,
+              "ticker": "HPE",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001802665"
+              ],
+              "reason": null,
+              "ticker": "HRMY",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000921582"
+              ],
+              "reason": null,
+              "ticker": "IMAX",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000879169"
+              ],
+              "reason": null,
+              "ticker": "INCY",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000720858"
+              ],
+              "reason": null,
+              "ticker": "ITIC",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000200406"
+              ],
+              "reason": null,
+              "ticker": "JNJ",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001418135"
+              ],
+              "reason": null,
+              "ticker": "KDP",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001730430"
+              ],
+              "reason": null,
+              "ticker": "KNSA",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001845257"
+              ],
+              "reason": null,
+              "ticker": "LFST",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000887905"
+              ],
+              "reason": null,
+              "ticker": "LTC",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001668397"
+              ],
+              "reason": null,
+              "ticker": "MEDP",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001099219"
+              ],
+              "reason": null,
+              "ticker": "MET",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001835632"
+              ],
+              "reason": null,
+              "ticker": "MRVL",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001952073"
+              ],
+              "reason": null,
+              "ticker": "MSGE",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001104657"
+              ],
+              "reason": null,
+              "ticker": "MTRN",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000811831"
+              ],
+              "reason": null,
+              "ticker": "NBN",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000080172"
+              ],
+              "reason": null,
+              "ticker": "NPK",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001002047"
+              ],
+              "reason": null,
+              "ticker": "NTAP",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001568651"
+              ],
+              "reason": null,
+              "ticker": "OSCR",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001474432"
+              ],
+              "reason": null,
+              "ticker": "P",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001070423"
+              ],
+              "reason": null,
+              "ticker": "PAA",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000821483"
+              ],
+              "reason": null,
+              "ticker": "PARR",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [],
+              "reason": "No CERI company mapping exists.",
+              "ticker": "PAY",
+              "category": "UNRESOLVED_MAPPING",
+              "available_signatures": []
+            },
+            {
+              "ciks": [
+                "0001761312"
+              ],
+              "reason": null,
+              "ticker": "PLMR",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001022408"
+              ],
+              "reason": null,
+              "ticker": "PLUS",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001658566"
+              ],
+              "reason": null,
+              "ticker": "PR",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001443669"
+              ],
+              "reason": null,
+              "ticker": "PRLB",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001107843"
+              ],
+              "reason": null,
+              "ticker": "QLYS",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000733269"
+              ],
+              "reason": null,
+              "ticker": "RAMP",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000898174"
+              ],
+              "reason": null,
+              "ticker": "RGA",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001428439"
+              ],
+              "reason": null,
+              "ticker": "ROKU",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [],
+              "reason": "No CERI company mapping exists.",
+              "ticker": "SEI",
+              "category": "UNRESOLVED_MAPPING",
+              "available_signatures": []
+            },
+            {
+              "ciks": [
+                "0001822479"
+              ],
+              "reason": null,
+              "ticker": "SHC",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001177394"
+              ],
+              "reason": null,
+              "ticker": "SNX",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001576018"
+              ],
+              "reason": null,
+              "ticker": "SPNT",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001483934"
+              ],
+              "reason": null,
+              "ticker": "STNG",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001552275"
+              ],
+              "reason": null,
+              "ticker": "SUN",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001660280"
+              ],
+              "reason": null,
+              "ticker": "TENB",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001001316"
+              ],
+              "reason": null,
+              "ticker": "TGTX",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000912958"
+              ],
+              "reason": null,
+              "ticker": "TIGO",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001447669"
+              ],
+              "reason": null,
+              "ticker": "TWLO",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0001403161"
+              ],
+              "reason": null,
+              "ticker": "V",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0000105770"
+              ],
+              "reason": null,
+              "ticker": "WST",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:eed017654682a0c9"
+              ]
+            },
+            {
+              "ciks": [
+                "0002115436"
+              ],
+              "reason": null,
+              "ticker": "XOM",
+              "category": "READY",
+              "available_signatures": [
+                "sec-guidance:948beb114caa8da9",
+                "sec-guidance:eed017654682a0c9"
+              ]
+            }
+          ],
+          "complete": false,
+          "ready_tickers": 82,
+          "blocking_tickers": [
+            "DOCN",
+            "EBAY",
+            "PAY",
+            "SEI"
+          ],
+          "requested_tickers": 86,
+          "processor_signature": "sec-guidance:eed017654682a0c9"
+        },
+        "provider_config": {
+          "config_hash": "c9f0043f2ea5519a923faa01b901071d6817290fa5fdf4532e9cc1f2b88dfa29",
+          "sec_guidance_capability": true,
+          "guidance_dataset_enabled": true
+        }
+      },
+      "upload_run_id": 161,
+      "uploaded_rows": 86,
+      "blocked_reason": null,
+      "failure_reason": null,
+      "ranking_reason": null,
+      "ranking_status": "PENDING",
+      "ceri_conflicted": 0,
+      "incomplete_rows": 0,
+      "pipeline_run_id": 151,
+      "ranking_results": 0,
+      "cache_used_count": 0,
+      "ceri_quarantined": 0,
+      "combined_results": 0,
+      "ib_failure_count": 0,
+      "ib_skipped_count": 0,
+      "ib_success_count": 0,
+      "market_cutoff_at": "2026-09-16T23:20:46.979906Z",
+      "market_data_mode": null,
+      "ranking_profiles": 0,
+      "technical_scores": 0,
+      "background_job_id": 43269,
+      "fresh_fetch_count": 0,
+      "market_risk_state": null,
+      "ceri_change_events": 0,
+      "fundamental_scores": 0,
+      "market_data_policy": "REQUIRE_IB",
+      "blocked_diagnostics": null,
+      "ib_execution_status": null,
+      "ib_planned_requests": 0,
+      "ib_preflight_status": "IB_API_READY",
+      "input_as_of_session": "2026-09-16",
+      "ceri_capture_skipped": 0,
+      "ceri_score_snapshots": 0,
+      "ib_executed_requests": 0,
+      "bar_readiness_version": "daily-close-plus-15m-v1",
+      "setup_lifecycle_alerts": 0,
+      "setup_lifecycle_failed": 0,
+      "ib_execution_checked_at": null,
+      "ib_execution_error_code": null,
+      "ib_preflight_checked_at": "2026-09-16T23:20:46.582908+00:00",
+      "market_calendar_version": "swinglens-us-equities-v1",
+      "market_regime_snapshots": 0,
+      "market_regime_confidence": null,
+      "winner_prediction_failed": 0,
+      "sector_rotation_snapshots": 0,
+      "winner_prediction_planned": 0,
+      "actual_latest_data_session": null,
+      "winner_prediction_excluded": 0,
+      "winner_prediction_inserted": 0,
+      "market_regime_warning_count": 0,
+      "setup_lifecycle_transitions": 0,
+      "winner_prediction_attempted": 0,
+      "winner_prediction_duplicate": 0,
+      "sector_rotation_sector_count": 0,
+      "transition_preflight_plan_id": null,
+      "ib_api_available_at_execution": null,
+      "market_calculation_context_id": 13,
+      "sector_rotation_warning_count": 0,
+      "setup_lifecycle_change_events": 0,
+      "latest_expected_market_session": null,
+      "sector_rotation_leading_sector": null,
+      "sector_rotation_weakest_sector": null,
+      "setup_lifecycle_low_confidence": 0,
+      "setup_lifecycle_active_episodes": 0,
+      "setup_lifecycle_capture_skipped": 0,
+      "transition_evidence_fingerprint": null,
+      "winner_prediction_failure_ratio": 0.0,
+      "winner_prediction_capture_skipped": 0,
+      "setup_lifecycle_evaluation_skipped": 0,
+      "setup_lifecycle_snapshots_captured": 0,
+      "winner_prediction_pending_outcomes": 0,
+      "setup_lifecycle_canonical_snapshots": 0,
+      "winner_prediction_exclusion_reasons": {},
+      "winner_prediction_decision_time_estimates": 0,
+      "winner_prediction_failure_classifications": {},
+      "winner_prediction_representative_failures": []
+    }
+  },
+  "application_status_using_fixed_code": {
+    "status": "BLOCKED",
+    "message": "Automatic SEC preparation completed, but pipeline continuation failed.",
+    "error": "Automatic SEC preparation completed, but pipeline continuation failed. Pipeline 151, job 43269: MISSING_CONFIGURATION_ANCHOR_BINDING."
+  },
+  "configuration": {
+    "anchor_id": "c3a654bf956deacdda507957a963743c15162eb6b6955004a377ba78c393e1f2",
+    "fingerprint": "7bc8ee0c7b8ac8c44a770023afc0cd41155d2ca7f5b4afd555044319be30f77d"
+  },
+  "readiness": {
+    "provider_config": {
+      "config_hash": "c9f0043f2ea5519a923faa01b901071d6817290fa5fdf4532e9cc1f2b88dfa29",
+      "guidance_dataset_enabled": true,
+      "sec_guidance_capability": true
+    },
+    "processor": {
+      "deployed_signature": "sec-guidance:eed017654682a0c9",
+      "active_signature": "sec-guidance:eed017654682a0c9",
+      "certified_signatures": [
+        "sec-guidance:eed017654682a0c9"
+      ],
+      "deployed_is_active": true
+    },
+    "readiness": {
+      "processor_signature": "sec-guidance:eed017654682a0c9",
+      "requested_tickers": 86,
+      "ready_tickers": 86,
+      "complete": true,
+      "counts": {
+        "READY": 86,
+        "CIK_MISSING": 0,
+        "SYNC_STATE_MISSING": 0,
+        "SIGNATURE_MISMATCH": 0,
+        "SEC_NOT_APPLICABLE": 0,
+        "UNRESOLVED_MAPPING": 0,
+        "INVALID_TICKER": 0,
+        "OTHER_BLOCKING_REASON": 0
+      },
+      "blocking_tickers": [],
+      "tickers": [
+        {
+          "ticker": "A",
+          "category": "READY",
+          "ciks": [
+            "0001090872"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "AAPL",
+          "category": "READY",
+          "ciks": [
+            "0000320193"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "ABUS",
+          "category": "READY",
+          "ciks": [
+            "0001447028"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "AES",
+          "category": "READY",
+          "ciks": [
+            "0000874761"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "AIZ",
+          "category": "READY",
+          "ciks": [
+            "0001267238"
+          ],
+          "available_signatures": [
+            "sec-guidance:910cfd73179f55a7",
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "AMD",
+          "category": "READY",
+          "ciks": [
+            "0000002488"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "AMN",
+          "category": "READY",
+          "ciks": [
+            "0001142750"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "ANET",
+          "category": "READY",
+          "ciks": [
+            "0001596532"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "ARQT",
+          "category": "READY",
+          "ciks": [
+            "0001787306"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "ASC",
+          "category": "READY",
+          "ciks": [
+            "0001577437"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "AUPH",
+          "category": "READY",
+          "ciks": [
+            "0001600620"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "AVT",
+          "category": "READY",
+          "ciks": [
+            "0000008858"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "BGC",
+          "category": "READY",
+          "ciks": [
+            "0001094831"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "BOW",
+          "category": "READY",
+          "ciks": [
+            "0002002473"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "CACI",
+          "category": "READY",
+          "ciks": [
+            "0000016058"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "CF",
+          "category": "READY",
+          "ciks": [
+            "0001324404"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "CHRD",
+          "category": "READY",
+          "ciks": [
+            "0001486159"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "CLBK",
+          "category": "READY",
+          "ciks": [
+            "0002115119"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "COKE",
+          "category": "READY",
+          "ciks": [
+            "0000317540"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "CON",
+          "category": "READY",
+          "ciks": [
+            "0002014596"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "COP",
+          "category": "READY",
+          "ciks": [
+            "0001163165"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "CVBF",
+          "category": "READY",
+          "ciks": [
+            "0000354647"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "CVX",
+          "category": "READY",
+          "ciks": [
+            "0000093410"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "CXW",
+          "category": "READY",
+          "ciks": [
+            "0001070985"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "DAR",
+          "category": "READY",
+          "ciks": [
+            "0000916540"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "DGX",
+          "category": "READY",
+          "ciks": [
+            "0001022079"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "DOCN",
+          "category": "READY",
+          "ciks": [
+            "0001582961"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "DVN",
+          "category": "READY",
+          "ciks": [
+            "0001090012"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "DXCM",
+          "category": "READY",
+          "ciks": [
+            "0001093557"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "EBAY",
+          "category": "READY",
+          "ciks": [
+            "0001065088"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "ECPG",
+          "category": "READY",
+          "ciks": [
+            "0001084961"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "EW",
+          "category": "READY",
+          "ciks": [
+            "0001099800"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "EXEL",
+          "category": "READY",
+          "ciks": [
+            "0000939767"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "FCFS",
+          "category": "READY",
+          "ciks": [
+            "0000840489"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "FFIV",
+          "category": "READY",
+          "ciks": [
+            "0001048695"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "FTK",
+          "category": "READY",
+          "ciks": [
+            "0000928054"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "FTNT",
+          "category": "READY",
+          "ciks": [
+            "0001262039"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "GBTG",
+          "category": "READY",
+          "ciks": [
+            "0001820872"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "GEO",
+          "category": "READY",
+          "ciks": [
+            "0000923796"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "GNK",
+          "category": "READY",
+          "ciks": [
+            "0001326200"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "GOLD",
+          "category": "READY",
+          "ciks": [
+            "0001591588"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "HNGE",
+          "category": "READY",
+          "ciks": [
+            "0001673743"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "HPE",
+          "category": "READY",
+          "ciks": [
+            "0001645590"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "HRMY",
+          "category": "READY",
+          "ciks": [
+            "0001802665"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "IMAX",
+          "category": "READY",
+          "ciks": [
+            "0000921582"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "INCY",
+          "category": "READY",
+          "ciks": [
+            "0000879169"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "ITIC",
+          "category": "READY",
+          "ciks": [
+            "0000720858"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "JNJ",
+          "category": "READY",
+          "ciks": [
+            "0000200406"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "KDP",
+          "category": "READY",
+          "ciks": [
+            "0001418135"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "KNSA",
+          "category": "READY",
+          "ciks": [
+            "0001730430"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "LFST",
+          "category": "READY",
+          "ciks": [
+            "0001845257"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "LTC",
+          "category": "READY",
+          "ciks": [
+            "0000887905"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "MEDP",
+          "category": "READY",
+          "ciks": [
+            "0001668397"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "MET",
+          "category": "READY",
+          "ciks": [
+            "0001099219"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "MRVL",
+          "category": "READY",
+          "ciks": [
+            "0001835632"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "MSGE",
+          "category": "READY",
+          "ciks": [
+            "0001952073"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "MTRN",
+          "category": "READY",
+          "ciks": [
+            "0001104657"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "NBN",
+          "category": "READY",
+          "ciks": [
+            "0000811831"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "NPK",
+          "category": "READY",
+          "ciks": [
+            "0000080172"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "NTAP",
+          "category": "READY",
+          "ciks": [
+            "0001002047"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "OSCR",
+          "category": "READY",
+          "ciks": [
+            "0001568651"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "P",
+          "category": "READY",
+          "ciks": [
+            "0001474432"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "PAA",
+          "category": "READY",
+          "ciks": [
+            "0001070423"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "PARR",
+          "category": "READY",
+          "ciks": [
+            "0000821483"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "PAY",
+          "category": "READY",
+          "ciks": [
+            "0001841156"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "PLMR",
+          "category": "READY",
+          "ciks": [
+            "0001761312"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "PLUS",
+          "category": "READY",
+          "ciks": [
+            "0001022408"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "PR",
+          "category": "READY",
+          "ciks": [
+            "0001658566"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "PRLB",
+          "category": "READY",
+          "ciks": [
+            "0001443669"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "QLYS",
+          "category": "READY",
+          "ciks": [
+            "0001107843"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "RAMP",
+          "category": "READY",
+          "ciks": [
+            "0000733269"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "RGA",
+          "category": "READY",
+          "ciks": [
+            "0000898174"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "ROKU",
+          "category": "READY",
+          "ciks": [
+            "0001428439"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "SEI",
+          "category": "READY",
+          "ciks": [
+            "0001697500"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "SHC",
+          "category": "READY",
+          "ciks": [
+            "0001822479"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "SNX",
+          "category": "READY",
+          "ciks": [
+            "0001177394"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "SPNT",
+          "category": "READY",
+          "ciks": [
+            "0001576018"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "STNG",
+          "category": "READY",
+          "ciks": [
+            "0001483934"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "SUN",
+          "category": "READY",
+          "ciks": [
+            "0001552275"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "TENB",
+          "category": "READY",
+          "ciks": [
+            "0001660280"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "TGTX",
+          "category": "READY",
+          "ciks": [
+            "0001001316"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "TIGO",
+          "category": "READY",
+          "ciks": [
+            "0000912958"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "TWLO",
+          "category": "READY",
+          "ciks": [
+            "0001447669"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "V",
+          "category": "READY",
+          "ciks": [
+            "0001403161"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "WST",
+          "category": "READY",
+          "ciks": [
+            "0000105770"
+          ],
+          "available_signatures": [
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        },
+        {
+          "ticker": "XOM",
+          "category": "READY",
+          "ciks": [
+            "0002115436"
+          ],
+          "available_signatures": [
+            "sec-guidance:948beb114caa8da9",
+            "sec-guidance:eed017654682a0c9"
+          ],
+          "reason": null
+        }
+      ]
+    }
+  },
+  "jobs": [
+    {
+      "id": 43268,
+      "type": "FULL_PIPELINE",
+      "status": "COMPLETED",
+      "request_key": "full-pipeline:run:161:policy:REQUIRE_IB:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,COMBINING_RESULTS,RANKING_PROFILES,SECTOR_ROTATION_SNAPSHOT,FREEZING_DECISION_HANDOFF_MANIFEST,CERI_PROVIDER_INGEST,CAPTURING_SETUP_SIGNALS,EVALUATING_SETUP_LIFECYCLES,CAPTURING_WINNER_PREDICTIONS",
+      "workflow_key": null,
+      "parent": null,
+      "root": null,
+      "retry_count": 0,
+      "error": null,
+      "lease_held": false,
+      "anchor": {
+        "anchor_id": "c3a654bf956deacdda507957a963743c15162eb6b6955004a377ba78c393e1f2",
+        "fingerprint": "7bc8ee0c7b8ac8c44a770023afc0cd41155d2ca7f5b4afd555044319be30f77d"
+      },
+      "context": 13
+    },
+    {
+      "id": 43269,
+      "type": "SEC_READINESS_REPAIR",
+      "status": "FAILED",
+      "request_key": "sec-readiness-repair:pipeline:151:signature:sec-guidance:eed017654682a0c9",
+      "workflow_key": "pipeline:151:sec-readiness",
+      "parent": 43268,
+      "root": null,
+      "retry_count": 6,
+      "error": "MISSING_CONFIGURATION_ANCHOR_BINDING",
+      "lease_held": false,
+      "anchor": null,
+      "context": null
+    }
+  ],
+  "steps": [
+    {
+      "step": "VALIDATING_RUN",
+      "status": "PENDING",
+      "message": "Waiting for automatic SEC preparation.",
+      "error": null
+    },
+    {
+      "step": "SCORING_FUNDAMENTALS",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "FETCHING_MARKET_DATA",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "SCORING_TECHNICALS",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "MARKET_REGIME_SNAPSHOT",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "COMBINING_RESULTS",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "RANKING_PROFILES",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "SECTOR_ROTATION_SNAPSHOT",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "CERI_PROVIDER_INGEST",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "CAPTURING_SETUP_SIGNALS",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "EVALUATING_SETUP_LIFECYCLES",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    },
+    {
+      "step": "CAPTURING_WINNER_PREDICTIONS",
+      "status": "PENDING",
+      "message": null,
+      "error": null
+    }
+  ],
+  "all_running": [],
+  "market_context": [
+    {
+      "context": {
+        "id": 13,
+        "cutoff_at": "2026-09-17T01:20:46.979906+02:00",
+        "created_at": "2026-09-17T01:20:46.935179+02:00",
+        "cutoff_reason": "FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+        "upload_run_id": 161,
+        "pipeline_run_id": 151,
+        "calendar_version": "swinglens-us-equities-v1",
+        "exchange_timezone": "America/New_York",
+        "daily_bar_ready_at": "2026-09-16T22:15:00+02:00",
+        "bar_readiness_version": "daily-close-plus-15m-v1",
+        "latest_completed_session": "2026-09-16"
+      }
+    }
+  ],
+  "migration": "0080_effective_configuration",
+  "worker_quiescence": [
+    {
+      "process_id": 4000,
+      "quiesce_requested_at": null,
+      "quiesced_at": null
+    }
+  ],
+  "jobs_after_baseline": 0,
+  "ib_health": {
+    "status": "IB_API_READY",
+    "host": "127.0.0.1",
+    "port": 4002,
+    "client_id": 25,
+    "api_connected": true,
+    "api_ready": true,
+    "process_running": true,
+    "server_version": 176,
+    "smoke_response_received": true,
+    "checked_at": "2026-09-17 00:28:20.420990+00:00",
+    "expires_at": "2026-09-17 00:28:25.420990+00:00",
+    "latency_ms": 324,
+    "error_code": null,
+    "failure_category": null,
+    "message": "IB Gateway API connection successful."
+  }
+}

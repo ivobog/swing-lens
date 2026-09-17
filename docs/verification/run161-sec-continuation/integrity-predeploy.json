@@ -1,0 +1,62 @@
+{
+  "ceilings": {
+    "core_calculation_evidence": 0,
+    "ceri_sec_filing_documents": 344301,
+    "ceri_sec_document_extractions": 74454,
+    "ceri_sec_sync_states": 1536,
+    "transition_decision_handoff_manifests": 1,
+    "winner_evidence_manifests": 1897,
+    "jobs": 43269,
+    "pipelines": 151
+  },
+  "historical": {
+    "core_calculation_evidence": {
+      "count": 0,
+      "hash": null
+    },
+    "ceri_sec_filing_documents": {
+      "count": 49217,
+      "hash": "4e87a3cf53b8a837e68774cc90a13893"
+    },
+    "ceri_sec_document_extractions": {
+      "count": 74418,
+      "hash": "a11c01bda74f06760f15aca43c0e898d"
+    },
+    "ceri_sec_sync_states": {
+      "count": 1081,
+      "hash": "e847c71bb5f417e565cbf534a8258f65"
+    },
+    "transition_decision_handoff_manifests": {
+      "count": 1,
+      "hash": "775130d6d0b89a746a3c89fb14facd4c"
+    },
+    "winner_evidence_manifests": {
+      "count": 1895,
+      "hash": "4d73a5b940e1da2729e1714b6d9ed2ae"
+    },
+    "frozen_records": {
+      "count": 51,
+      "hash": "eb271709a8828dd03fb6adaca9fd5956"
+    },
+    "incident_anchor": {
+      "anchor_id": "c3a654bf956deacdda507957a963743c15162eb6b6955004a377ba78c393e1f2",
+      "fingerprint": "7bc8ee0c7b8ac8c44a770023afc0cd41155d2ca7f5b4afd555044319be30f77d",
+      "hash": "0756cdd7cee1369389bac539cd00aeb2"
+    },
+    "incident_bindings": {
+      "hash": "c8c5d39ff7f39b17391a3d750bec303a"
+    },
+    "repaired_ingestions": {
+      "hash": "51d0c73c0d8eba00266d36b683216e27"
+    },
+    "repaired_source_records": {
+      "count": 439,
+      "hash": "613158ad8782d1451c275d22d858c411"
+    },
+    "original_bindings": {
+      "count": 3,
+      "hash": "d9c9cad8baf22035dee3ad885996f73a"
+    }
+  },
+  "captured_at": "2026-09-17 02:18:38.270467+02:00"
+}

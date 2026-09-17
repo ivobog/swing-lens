@@ -1,0 +1,65 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_________ test_manual_race_with_continuation_has_one_active_workflow __________
+tests\integration\test_winner_jobs_reliability_postgresql.py:846: in test_manual_race_with_continuation_has_one_active_workflow
+    job_ids = list(pool.map(lambda call: call(), (manual, continuation)))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py:619: in result_iterator
+    yield _result_or_cancel(fs.pop())
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py:317: in _result_or_cancel
+    return fut.result(timeout)
+           ^^^^^^^^^^^^^^^^^^^
+..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py:449: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py:58: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\integration\test_winner_jobs_reliability_postgresql.py:846: in <lambda>
+    job_ids = list(pool.map(lambda call: call(), (manual, continuation)))
+                                         ^^^^^^
+tests\integration\test_winner_jobs_reliability_postgresql.py:830: in continuation
+    job = enqueue_job(
+app\services\background_job_service.py:183: in enqueue_job
+    payload = anchor_enqueue_payload(db, job_type, payload, parent_job_id=causal.parent_job_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\configuration_delivery.py:537: in anchor_enqueue_payload
+    expected = binding_reference(db, job_id=parent.id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\configuration_delivery.py:219: in binding_reference
+    raise ValueError("MISSING_CONFIGURATION_ANCHOR_BINDING")
+E   ValueError: MISSING_CONFIGURATION_ANCHOR_BINDING
+---------------------------- Captured stdout setup ----------------------------
+verified disposable database before Alembic: database=swinglens_pytest_aa35e87a59c4 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_pytest_aa35e87a59c4
+______ test_bounded_generation_resume_coalescing_and_atomic_publication _______
+tests\integration\test_winner_jobs_reliability_postgresql.py:1296: in test_bounded_generation_resume_coalescing_and_atomic_publication
+    execute_latest_rescore_job(db, targeted_job)
+app\services\configuration_delivery.py:68: in execute
+    return calculation(db, job, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\winner_probability\job_handlers.py:963: in execute_latest_rescore_job
+    result = probability_estimator.create_latest_rescore_from_generation(
+app\services\winner_probability\probability_estimator.py:173: in create_latest_rescore_from_generation
+    config = configuration_for_winner_generation(db, generation, config)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\configuration_delivery.py:265: in configuration_for_winner_generation
+    raise ValueError("MISSING_WINNER_GENERATION_FROZEN_CONFIGURATION")
+E   ValueError: MISSING_WINNER_GENERATION_FROZEN_CONFIGURATION
+---------------------------- Captured stdout setup ----------------------------
+verified disposable database before Alembic: database=swinglens_pytest_127b50800fbf server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_pytest_127b50800fbf
+____ test_h5_batch_context_prefetch_is_constant_query_count_for_thousands _____
+tests\integration\test_winner_jobs_reliability_postgresql.py:1645: in test_h5_batch_context_prefetch_is_constant_query_count_for_thousands
+    assert elapsed < 10
+E   assert 92.89938470000925 < 10
+---------------------------- Captured stdout setup ----------------------------
+verified disposable database before Alembic: database=swinglens_pytest_0236e07d9747 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_pytest_0236e07d9747
+============================== warnings summary ===============================
+..\..\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 failed, 1 warning in 124.20s (0:02:04)

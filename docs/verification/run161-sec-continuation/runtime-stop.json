@@ -1,0 +1,7 @@
+Worker quiescence: {"reachable":true,"workerPresent":true,"workerProcessPresent":true,"workerInstanceId":"42ef9f672dcf462cbc0ae2bea1f6fb1b","workerGeneration":76,"workerPid":4000,"workerHeartbeatAt":"2026-09-17T02:22:45.064931+02:00","workerHeartbeatAgeSeconds":0.452,"controlLoopHeartbeatAt":"2026-09-17T02:22:44.639842+02:00","controlLoopHeartbeatAgeSeconds":0.877089,"quiesceRequestedAt":"2026-09-17T02:22:39.272206+02:00","claimFenceEstablishedAt":"2026-09-17T02:22:45.411931+02:00","quiescedAt":"2026-09-17T02:22:40.025931+02:00","workerAcknowledgedAt":"2026-09-17T02:22:40.025931+02:00","ackLatencySeconds":0.753725,"safeToStopAt":"2026-09-17T02:22:45.516931+02:00","requested":true,"claimFenceEstablished":true,"claimFenceKind":"DURABLE_REGISTRATION_ROW","workerIdentityValid":true,"workerAcknowledged":true,"acknowledged":true,"activeCount":0,"active":[],"safeToStop":true,"reasonCode":"CLAIM_FENCE_ESTABLISHED"}
+Write-Error: C:\Users\Ivica\Documents\SwingLens\swinglens.ps1:55
+Line |
+  55 |      Write-Error $message
+     |      ~~~~~~~~~~~~~~~~~~~~
+     | CONFLICT: port 8000 is occupied but strong SwingLens runtime identity failed: runtime state is missing
+     | operation_id=35153eb9-43bd-4b69-95c2-a00873f125d4 reason_code=FOREIGN_LISTENER
