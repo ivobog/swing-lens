@@ -221,7 +221,9 @@ def test_stop_targets_verified_runtime_boundary(tmp_path, monkeypatch) -> None:
     }
     signals = []
     request_path = tmp_path / "shutdown.json"
-    monkeypatch.setattr(lifecycle_probe, "_runtime_state_report", lambda _listener: report)
+    monkeypatch.setattr(
+        lifecycle_probe, "_runtime_state_report", lambda _listener, **_kwargs: report
+    )
     monkeypatch.setattr(lifecycle_probe.os, "kill", lambda pid, event: signals.append((pid, event)))
     monkeypatch.setattr(
         lifecycle_probe, "shutdown_request_path", lambda _root, _instance: request_path

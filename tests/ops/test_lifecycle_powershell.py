@@ -12,18 +12,59 @@ MODULE = ROOT / "scripts" / "ops" / "SwingLensLifecycle.psm1"
 LAUNCHER = ROOT / "swinglens.ps1"
 PWSH = shutil.which("pwsh")
 WINDOWS_POWERSHELL = shutil.which("powershell")
+_TEST_ROOT = None
+
+
+@pytest.fixture(autouse=True)
+def isolate_module_filesystem(tmp_path, monkeypatch):
+    monkeypatch.setitem(globals(), "_TEST_ROOT", tmp_path)
 
 
 def _module_command(body: str) -> list[str]:
+    assert _TEST_ROOT is not None, "PowerShell lifecycle tests require an isolated filesystem"
     escaped = str(MODULE).replace("'", "''")
+    isolated = str(_TEST_ROOT).replace("'", "''")
     return [
         str(PWSH),
         "-NoProfile",
         "-NonInteractive",
         "-Command",
         f"Import-Module '{escaped}' -Force; try {{ & (Get-Module SwingLensLifecycle) "
-        f"{{ {body} }} }} catch {{ [Console]::Error.WriteLine($_.Exception.Message); exit 1 }}",
+        f"{{ $script:RepoRoot='{isolated}'; "
+        f"$script:RuntimeStatePath=Join-Path '{isolated}' 'data/cache/swinglens-lifecycle.json'; "
+        f"{body} }} }} catch {{ [Console]::Error.WriteLine($_.Exception.Message); exit 1 }}",
     ]
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_module_defaults_cannot_write_live_runtime_paths(tmp_path):
+    command = _module_command(
+        "[IO.Directory]::CreateDirectory((Split-Path $script:RuntimeStatePath)) | Out-Null; "
+        "[IO.File]::WriteAllText($script:RuntimeStatePath, 'isolated'); "
+        "$script:RepoRoot; $script:RuntimeStatePath"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        str(tmp_path),
+        str(tmp_path / "data/cache/swinglens-lifecycle.json"),
+    ]
+    assert (tmp_path / "data/cache/swinglens-lifecycle.json").read_text() == "isolated"
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+@pytest.mark.parametrize("shutdown", [False, True])
+def test_generation_exception_is_explicitly_limited_to_shutdown(shutdown):
+    suffix = " -ForShutdown" if shutdown else ""
+    command = _module_command(
+        "function Get-WebOwner { [pscustomobject]@{ProcessId=123} }; "
+        "function Invoke-LifecycleProbe { param($Command,$Arguments); "
+        "[Console]::WriteLine(($Arguments -join ',')); [pscustomobject]@{valid=$true} }; "
+        f"$null=Get-ValidatedRuntime -WebPort 8000{suffix}"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert ("--for-shutdown" in result.stdout) is shutdown
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")

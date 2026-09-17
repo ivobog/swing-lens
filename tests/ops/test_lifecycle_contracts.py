@@ -19,7 +19,10 @@ def _docker_compose_commands() -> list[str]:
 
 
 def test_root_lifecycle_exposes_exact_canonical_actions() -> None:
-    assert "ValidateSet('start', 'stop', 'restart', 'status', 'diagnose')" in LAUNCHER
+    assert (
+        "ValidateSet('start', 'stop', 'restart', 'status', 'diagnose', 'recover-identity')"
+        in LAUNCHER
+    )
     assert "SwingLensLifecycle.psm1" in LAUNCHER
     assert "canonical lifecycle requires USE_DURABLE_PIPELINE=true" in MODULE
 
@@ -123,9 +126,7 @@ def test_web_lifespan_never_owns_supervisor_and_supervisor_owns_both_children() 
 def test_structured_logging_precedes_web_argument_and_preflight_work() -> None:
     main_body = SERVE.split("def main(", 1)[1]
     assert main_body.index('configure_json_logging("web")') < main_body.index("parse_args(")
-    assert main_body.index('configure_json_logging("web")') < main_body.index(
-        "startup_preflight"
-    )
+    assert main_body.index('configure_json_logging("web")') < main_body.index("startup_preflight")
     for event in (
         "runtime.process_boot",
         "runtime.role_validation",
